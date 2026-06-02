@@ -155,16 +155,7 @@ impl GuiAppState {
         });
         let external = self.folder_browser.external_drag_request();
 
-        match (drag, external) {
-            (Some(drag), Some(external)) => {
-                context.begin_drag_with_external(drag, external, GuiMessage::ExternalDragCompleted);
-            }
-            (Some(drag), None) => context.begin_drag(drag),
-            (None, Some(external)) => {
-                context.begin_external_drag(external, GuiMessage::ExternalDragCompleted);
-            }
-            (None, None) => {}
-        }
+        context.begin_drag_session(drag, external, GuiMessage::ExternalDragCompleted);
     }
 
     pub(super) fn copy_selected_files(&mut self) {
