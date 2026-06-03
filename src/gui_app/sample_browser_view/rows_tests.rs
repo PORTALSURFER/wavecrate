@@ -1,7 +1,7 @@
 use super::*;
 use radiant::{layout::Vector2, prelude::IntoView, theme::ThemeTokens};
 use std::collections::HashMap;
-use wavecrate::sample_sources::Rating;
+use wavecrate::sample_sources::{Rating, SampleCollection};
 
 /// Builds a representative file entry for row rendering tests.
 fn file_entry() -> FileEntry {
@@ -147,5 +147,41 @@ fn loaded_sample_text_uses_primary_theme_color() {
             .text_runs()
             .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
         "loaded sample rows should paint text with the primary theme color"
+    );
+}
+
+#[test]
+/// Verifies the collection column paints one marker for each collection membership.
+fn collection_cell_paints_each_collection_membership_color() {
+    let first = SampleCollection::new(0).expect("collection");
+    let third = SampleCollection::new(2).expect("collection");
+    let mut file = file_entry();
+    file.collections = vec![third, first];
+    let theme = ThemeTokens::default();
+    let folder_browser = FolderBrowserState::load_default();
+    let frame = sample_collection_cell(&file, 64.0, &folder_browser)
+        .view_frame_at_size(Vector2::new(64.0, 20.0), &theme);
+
+    let colors = frame
+        .paint_plan
+        .fill_rects()
+        .map(|fill| fill.color)
+        .collect::<Vec<_>>();
+
+    assert!(
+        colors.contains(
+            &folder_browser
+                .collection_color(first)
+                .expect("first collection color")
+        ),
+        "collection column should paint the first collection color"
+    );
+    assert!(
+        colors.contains(
+            &folder_browser
+                .collection_color(third)
+                .expect("third collection color")
+        ),
+        "collection column should paint the third collection color"
     );
 }

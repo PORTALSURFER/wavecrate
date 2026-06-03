@@ -244,13 +244,18 @@ fn sample_collection_cell(
     width: f32,
     folder_browser: &FolderBrowserState,
 ) -> ui::View<GuiMessage> {
+    let colors = file
+        .collection_memberships()
+        .into_iter()
+        .filter_map(|collection| folder_browser.collection_color(collection));
+
     ui::compact_details_cell(
-        ui::color_marker(
-            file.first_collection()
-                .and_then(|collection| folder_browser.collection_color(collection)),
-        )
-        .view()
-        .key(format!("sample-collection-{}", file.id)),
+        ui::marker_run_colors(colors)
+            .side(6)
+            .gap(4)
+            .inset(4)
+            .view()
+            .key(format!("sample-collection-{}", file.id)),
         Some(width),
     )
 }
