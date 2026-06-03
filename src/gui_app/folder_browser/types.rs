@@ -20,6 +20,14 @@ pub(in crate::gui_app) struct FolderDragPreview {
     pub(in crate::gui_app) pointer: Point,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::gui_app) struct FileColumnDragFeedback {
+    pub(in crate::gui_app) label: String,
+    pub(in crate::gui_app) pointer: Point,
+    pub(in crate::gui_app) width: f32,
+    pub(in crate::gui_app) marker_x: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) struct FileRenameView {
     pub(in crate::gui_app) draft: String,

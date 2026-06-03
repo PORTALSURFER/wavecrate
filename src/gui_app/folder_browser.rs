@@ -64,9 +64,10 @@ mod tree_view_window;
 
 mod types;
 pub(super) use types::{
-    FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,
-    FolderDragPreview, FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch,
-    FolderScanProgress, FolderScanRequest, FolderScanResult, RemovedSource, RenameTargetView,
+    FileColumnDragFeedback, FileDeleteTargetView, FileRenameView, FolderBrowserMessage,
+    FolderDeleteTargetView, FolderDragPreview, FolderDropResult, FolderScanDiscovery,
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest, FolderScanResult,
+    RemovedSource, RenameTargetView,
 };
 
 mod tag_completion;

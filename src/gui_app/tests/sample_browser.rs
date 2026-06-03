@@ -76,6 +76,64 @@ fn sample_browser_frame_paints_column_and_file_text() {
 }
 
 #[test]
+fn sample_browser_column_drag_paints_drop_marker() {
+    let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    state.folder_browser.apply_message(
+        crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
+            String::from("rating"),
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(292.0, 8.0),
+            },
+        ),
+    );
+    state.folder_browser.apply_message(
+        crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
+            String::from("rating"),
+            radiant::widgets::DragHandleMessage::Moved {
+                position: Point::new(420.0, 8.0),
+            },
+        ),
+    );
+
+    let frame = crate::gui_app::sample_browser(&mut state, false)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+
+    assert!(frame.paint_plan.fill_rects().any(|fill| {
+        fill.color == Rgba8::new(255, 160, 82, 230)
+            && fill.rect.width() <= 2.5
+            && fill.rect.height() >= 20.0
+    }));
+}
+
+#[test]
+fn full_gui_column_drag_paints_pointer_preview() {
+    let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    state.folder_browser.apply_message(
+        crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
+            String::from("rating"),
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(600.0, 320.0),
+            },
+        ),
+    );
+    state.folder_browser.apply_message(
+        crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
+            String::from("rating"),
+            radiant::widgets::DragHandleMessage::Moved {
+                position: Point::new(620.0, 320.0),
+            },
+        ),
+    );
+
+    let frame = crate::gui_app::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+
+    assert!(frame.paint_plan.text_runs().any(|text| {
+        text.text == "Rating" && text.rect.min.x >= 620.0 && text.rect.min.y >= 330.0
+    }));
+}
+
+#[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
     let expected_names = state

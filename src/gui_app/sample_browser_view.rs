@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::folder_browser::{FileColumn, FolderBrowserMessage};
+use super::folder_browser::{FileColumn, FileColumnDragFeedback, FolderBrowserMessage};
 use super::{
     GuiAppState, GuiMessage, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SampleNameViewMode,
@@ -29,6 +29,7 @@ pub(super) fn sample_browser(
         sample_browser_header_bar(
             &columns,
             state.folder_browser.file_sort(),
+            state.folder_browser.file_column_drag_feedback().as_ref(),
             state.sample_name_view_mode,
         ),
         sample_browser_rows(
@@ -63,10 +64,11 @@ pub(super) fn sample_browser(
 fn sample_browser_header_bar(
     columns: &[&FileColumn],
     sort: &ui::DetailsSort,
+    drag_feedback: Option<&FileColumnDragFeedback>,
     mode: SampleNameViewMode,
 ) -> ui::View<GuiMessage> {
     ui::row([
-        sample_browser_header(columns, sort).fill_width(),
+        sample_browser_header(columns, sort, drag_feedback).fill_width(),
         sample_name_view_mode_button(mode),
     ])
     .fill_width()
@@ -85,12 +87,38 @@ fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage
         .size(58.0, 22.0)
 }
 
-fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
-    ui::compact_details_header_row(
+fn sample_browser_header(
+    columns: &[&FileColumn],
+    sort: &ui::DetailsSort,
+    drag_feedback: Option<&FileColumnDragFeedback>,
+) -> ui::View<GuiMessage> {
+    let header = ui::compact_details_header_row(
         columns
             .iter()
             .map(|column| sample_header_cell(column, sort)),
-    )
+    );
+    let Some(feedback) = drag_feedback else {
+        return header;
+    };
+    ui::stack([header, column_drop_marker(feedback.marker_x)])
+        .fill_width()
+        .height(24.0)
+}
+
+fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
+    ui::row([
+        ui::spacer().width(x.max(0.0)),
+        ui::feedback_overlay()
+            .background(ui::Rgba8::new(255, 160, 82, 230))
+            .view()
+            .width(2.0)
+            .height(24.0),
+        ui::spacer().fill_width(),
+    ])
+    .key("sample-column-drop-marker")
+    .fill_width()
+    .height(24.0)
+    .spacing(0.0)
 }
 
 fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<GuiMessage> {

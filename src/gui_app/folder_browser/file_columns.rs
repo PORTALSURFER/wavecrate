@@ -1,10 +1,11 @@
 use radiant::{prelude as ui, widgets::DragHandleMessage};
 
-use super::{FileColumn, FileEntry, FolderBrowserState};
+use super::{FileColumn, FileColumnDragFeedback, FileEntry, FolderBrowserState};
 
 pub(in crate::gui_app) const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
 pub(in crate::gui_app) const FILE_COLUMN_GAP: f32 = 10.0;
+const FILE_COLUMN_HEADER_PADDING_X: f32 = 8.0;
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn visible_file_columns(&self) -> Vec<&FileColumn> {
@@ -13,6 +14,21 @@ impl FolderBrowserState {
 
     pub(in crate::gui_app) fn file_sort(&self) -> &ui::DetailsSort {
         &self.file_sort
+    }
+
+    pub(in crate::gui_app) fn file_column_drag_feedback(&self) -> Option<FileColumnDragFeedback> {
+        let drag = self.file_column_reorder.as_ref()?;
+        let column = self
+            .file_columns
+            .iter()
+            .find(|column| column.id == drag.column_id)?;
+        let marker_x = self.file_column_marker_x(&drag.column_id)?;
+        Some(FileColumnDragFeedback {
+            label: column.label.clone(),
+            pointer: drag.pointer,
+            width: column.width,
+            marker_x,
+        })
     }
 
     pub(super) fn sort_file_column(&mut self, column_id: String) {
@@ -67,6 +83,22 @@ impl FolderBrowserState {
             .iter()
             .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
             .collect()
+    }
+
+    fn file_column_marker_x(&self, column_id: &str) -> Option<f32> {
+        let index = self
+            .file_columns
+            .iter()
+            .position(|column| column.id == column_id)?;
+        Some(
+            FILE_COLUMN_HEADER_PADDING_X
+                + self
+                    .file_columns
+                    .iter()
+                    .take(index)
+                    .map(|column| column.width + FILE_COLUMN_GAP)
+                    .sum::<f32>(),
+        )
     }
 
     pub(super) fn sort_files(&self, files: &mut Vec<&FileEntry>) {

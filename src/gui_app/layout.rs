@@ -1,7 +1,8 @@
 use super::{GuiAppState, GuiMessage};
 use crate::gui_app::{
     audio_settings::top_status_bar,
-    context_menu, folder_browser,
+    context_menu,
+    folder_browser::{self, FileColumnDragFeedback},
     metadata_tag_metrics::metadata_tag_pill_width,
     metadata_tags::{MetadataTagCategoryGroup, metadata_tag_category_tone},
     sample_browser_view::sample_browser,
@@ -9,7 +10,7 @@ use crate::gui_app::{
     toolbar::main_toolbar,
     waveform_panel::waveform_panel,
 };
-use radiant::prelude as ui;
+use radiant::{gui::types::Point, prelude as ui};
 
 const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
 const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
@@ -31,7 +32,29 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     if let Some(menu) = state.context_menu.as_ref() {
         layers.push(context_menu::overlay(menu));
     }
+    if let Some(feedback) = state.folder_browser.file_column_drag_feedback() {
+        layers.push(sample_column_drag_preview(&feedback));
+    }
     ui::stack_layers(layers).fill()
+}
+
+fn sample_column_drag_preview(feedback: &FileColumnDragFeedback) -> ui::View<GuiMessage> {
+    const OFFSET_X: f32 = 12.0;
+    const OFFSET_Y: f32 = 14.0;
+    let size = ui::Vector2::new(feedback.width.clamp(64.0, 180.0), 22.0);
+    ui::floating_layer(
+        Point::new(feedback.pointer.x + OFFSET_X, feedback.pointer.y + OFFSET_Y),
+        size,
+        ui::row([ui::text(feedback.label.clone())
+            .align_text(ui::TextAlign::Left)
+            .truncate()
+            .fill_width()
+            .height(20.0)])
+        .padding_x(8.0)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .fill(),
+    )
+    .key("sample-column-drag-preview")
 }
 
 fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
