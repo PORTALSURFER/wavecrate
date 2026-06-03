@@ -728,7 +728,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert!(feedback.marker_x > 300.0, "{feedback:?}");
+    assert_eq!(feedback.marker_x, 548.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
