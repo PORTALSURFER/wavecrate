@@ -166,6 +166,7 @@ impl FolderBrowserState {
             DragHandlePhase::Ended => {
                 self.clear_drag();
             }
+            DragHandlePhase::DoubleActivate => {}
         }
     }
 

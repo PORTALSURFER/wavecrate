@@ -197,6 +197,7 @@ impl WaveformState {
                     self.active_drag = None;
                 }
             }
+            radiant::widgets::DragHandlePhase::DoubleActivate => {}
         }
     }
 

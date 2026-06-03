@@ -2,7 +2,10 @@ use radiant::prelude as ui;
 
 use super::super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SampleCollectionView,
-    collections::COLLECTION_ROW_HEIGHT,
+    collections::{
+        COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
+        COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING,
+    },
 };
 
 const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
@@ -18,9 +21,12 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
     ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Collections",
-            ui::scroll(ui::column(rows).spacing(1.0).fill_width().height(
-                COLLECTION_ROW_HEIGHT * wavecrate::sample_sources::SampleCollection::COUNT as f32,
-            ))
+            ui::scroll(
+                ui::column(rows)
+                    .spacing(COLLECTION_ROW_SPACING)
+                    .fill_width()
+                    .height(state.collections_list_height()),
+            )
             .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .fill_width()
             .fill_height(),
@@ -32,6 +38,9 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
             .key("collections-resize-handle")
             .size(26.0, 18.0),
         )
+        .padding(COLLECTIONS_PANEL_PADDING)
+        .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
+        .title_height(COLLECTIONS_PANEL_HEADER_HEIGHT)
         .height(state.collections_panel_height()),
     )
     .id(COLLECTIONS_SECTION_NODE_ID)
@@ -255,5 +264,15 @@ mod tests {
             .expect("collections section layout rect");
 
         assert_eq!(section.height(), state.collections_panel_height());
+    }
+
+    #[test]
+    /// Verifies the collection list reserves exactly the useful row stack height.
+    fn collections_section_list_height_matches_visible_rows() {
+        let state = FolderBrowserState::load_default();
+        let expected = COLLECTION_ROW_HEIGHT * state.visible_collections().len() as f32
+            + COLLECTION_ROW_SPACING * (state.visible_collections().len() - 1) as f32;
+
+        assert_eq!(state.collections_list_height(), expected);
     }
 }

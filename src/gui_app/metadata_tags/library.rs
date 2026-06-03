@@ -67,6 +67,7 @@ impl GuiAppState {
                 self.metadata_tag_drop_hover = None;
                 context.end_drag();
             }
+            DragHandlePhase::DoubleActivate => {}
         }
     }
 

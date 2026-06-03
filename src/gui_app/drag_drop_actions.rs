@@ -27,6 +27,7 @@ impl GuiAppState {
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
             }
+            DragHandlePhase::DoubleActivate => {}
         }
     }
 
@@ -56,6 +57,7 @@ impl GuiAppState {
                     context.end_drag_session();
                 }
             }
+            DragHandlePhase::DoubleActivate => {}
         }
     }
 
@@ -107,6 +109,7 @@ impl GuiAppState {
                 context.end_drag_session();
                 true
             }
+            DragHandlePhase::DoubleActivate => false,
         }
     }
 

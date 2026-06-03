@@ -1,6 +1,6 @@
 use super::*;
 use crate::gui_app::folder_browser::collections::{
-    MAX_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT,
+    COLLAPSED_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT,
 };
 
 #[test]
@@ -72,7 +72,7 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
     });
     assert_eq!(
         browser.collections_panel_height,
-        super::super::DEFAULT_COLLECTIONS_PANEL_HEIGHT + 80.0
+        browser.max_collections_panel_height()
     );
 
     browser.resize_collections_panel(DragHandleMessage::Moved {
@@ -88,7 +88,28 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
     });
     assert_eq!(
         browser.collections_panel_height,
-        MAX_COLLECTIONS_PANEL_HEIGHT
+        browser.max_collections_panel_height()
+    );
+    assert!(browser.collection_panel_resize.is_none());
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn collections_panel_splitter_double_click_collapses_height() {
+    let root = temp_source_root("wavecrate-gui-collections-panel-collapse");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.resize_collections_panel(DragHandleMessage::Started {
+        position: Point::new(0.0, 200.0),
+    });
+
+    browser.resize_collections_panel(DragHandleMessage::DoubleActivate {
+        position: Point::new(0.0, 200.0),
+    });
+
+    assert_eq!(
+        browser.collections_panel_height,
+        COLLAPSED_COLLECTIONS_PANEL_HEIGHT
     );
     assert!(browser.collection_panel_resize.is_none());
 
