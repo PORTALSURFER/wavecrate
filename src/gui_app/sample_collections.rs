@@ -167,7 +167,7 @@ fn persist_collection_updates(root: &Path, updates: &[CollectionUpdate]) -> Resu
             .upsert_file(&update.relative_path, file_size, modified_ns)
             .map_err(|err| err.to_string())?;
         batch
-            .set_collection(&update.relative_path, Some(update.collection))
+            .add_collection(&update.relative_path, update.collection)
             .map_err(|err| err.to_string())?;
     }
     batch.commit().map_err(|err| err.to_string())

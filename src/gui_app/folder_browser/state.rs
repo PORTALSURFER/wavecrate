@@ -273,7 +273,7 @@ fn collect_collection_audio_files<'a>(
         folder
             .files
             .iter()
-            .filter(|file| file.is_audio() && file.collection == Some(collection)),
+            .filter(|file| file.is_audio() && file.belongs_to_collection(collection)),
     );
     for child in &folder.children {
         collect_collection_audio_files(child, collection, files);

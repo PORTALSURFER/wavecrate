@@ -11,14 +11,14 @@ use super::super::{
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
 pub(in crate::gui_app::folder_browser) fn file_entry(path: &PathBuf) -> FileEntry {
-    file_entry_with_metadata(path, Rating::NEUTRAL, false, None)
+    file_entry_with_metadata(path, Rating::NEUTRAL, false, Vec::new())
 }
 
 pub(in crate::gui_app::folder_browser) fn file_entry_with_metadata(
     path: &PathBuf,
     rating: Rating,
     rating_locked: bool,
-    collection: Option<SampleCollection>,
+    collections: Vec<SampleCollection>,
 ) -> FileEntry {
     let metadata = fs::metadata(path).ok();
     let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
@@ -35,7 +35,8 @@ pub(in crate::gui_app::folder_browser) fn file_entry_with_metadata(
         modified_rank: modified_rank(modified),
         rating,
         rating_locked,
-        collection,
+        collection: collections.first().copied(),
+        collections,
     }
 }
 

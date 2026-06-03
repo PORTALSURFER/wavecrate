@@ -161,11 +161,43 @@ impl SourceDatabase {
         &self,
         path: &Path,
     ) -> Result<Option<SampleCollection>, SourceDbError> {
+        Ok(self.collections_for_path(path)?.into_iter().next())
+    }
+
+    /// Fetch all fixed collection slots assigned to a specific wav path.
+    pub fn collections_for_path(
+        &self,
+        path: &Path,
+    ) -> Result<Vec<SampleCollection>, SourceDbError> {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
-            return Ok(None);
+            return Ok(Vec::new());
         };
+        if schema_has_collection_membership_table(self)? {
+            let mut stmt = self
+                .connection
+                .prepare(
+                    "SELECT collection
+                     FROM wav_file_collections
+                     WHERE path = ?1
+                     ORDER BY collection ASC",
+                )
+                .map_err(map_sql_error)?;
+            let collections = stmt
+                .query_map(rusqlite::params![path_str.as_str()], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map_err(map_sql_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(map_sql_error)?
+                .into_iter()
+                .filter_map(SampleCollection::from_i64)
+                .collect::<Vec<_>>();
+            if !collections.is_empty() {
+                return Ok(collections);
+            }
+        }
         if !schema_has_collection_column(self)? {
-            return Ok(None);
+            return Ok(Vec::new());
         }
         let value: Option<i64> = self
             .connection
@@ -177,7 +209,10 @@ impl SourceDatabase {
             .optional()
             .map_err(map_sql_error)?
             .flatten();
-        Ok(value.and_then(SampleCollection::from_i64))
+        Ok(value
+            .and_then(SampleCollection::from_i64)
+            .into_iter()
+            .collect())
     }
 
     /// Read a metadata value by key from the database.
@@ -208,4 +243,18 @@ impl SourceDatabase {
 fn schema_has_collection_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
     let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
     Ok(columns.contains("collection"))
+}
+
+fn schema_has_collection_membership_table(db: &SourceDatabase) -> Result<bool, SourceDbError> {
+    let exists: i64 = db
+        .connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_master
+             WHERE type = 'table' AND name = 'wav_file_collections'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(map_sql_error)?;
+    Ok(exists != 0)
 }

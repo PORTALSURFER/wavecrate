@@ -121,8 +121,7 @@ impl FolderEntry {
     ) -> bool {
         for file in &mut self.files {
             if file.id == file_id {
-                file.collection = Some(collection);
-                return true;
+                return file.add_collection(collection);
             }
         }
         self.children

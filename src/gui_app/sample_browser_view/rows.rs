@@ -228,9 +228,12 @@ fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
         "modified" => file.modified.clone(),
         "kind" => file.kind.clone(),
         "collection" => file
-            .collection
-            .map(|collection| folder_browser::collection_hotkey(collection).to_string())
-            .unwrap_or_default(),
+            .collection_memberships()
+            .into_iter()
+            .map(folder_browser::collection_hotkey)
+            .map(|hotkey| hotkey.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
         "path" => file.id.clone(),
         _ => file.stem.clone(),
     }
@@ -243,7 +246,7 @@ fn sample_collection_cell(
 ) -> ui::View<GuiMessage> {
     ui::compact_details_cell(
         ui::color_marker(
-            file.collection
+            file.first_collection()
                 .and_then(|collection| folder_browser.collection_color(collection)),
         )
         .view()

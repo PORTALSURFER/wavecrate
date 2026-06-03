@@ -59,3 +59,32 @@ fn pending_rename_migration_adds_extended_metadata_columns() {
     assert!(columns.contains("user_tag"));
     assert!(columns.contains("normal_tags"));
 }
+
+#[test]
+fn collection_membership_schema_backfills_legacy_collection_column() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE wav_files (
+            path TEXT PRIMARY KEY,
+            file_size INTEGER NOT NULL,
+            modified_ns INTEGER NOT NULL,
+            collection INTEGER
+        );
+        INSERT INTO wav_files (path, file_size, modified_ns, collection)
+        VALUES ('nested/One.WAV', 10, 5, 2);",
+    )
+    .unwrap();
+
+    ensure_collection_membership_schema(&conn).unwrap();
+
+    let collection: i64 = conn
+        .query_row(
+            "SELECT collection
+             FROM wav_file_collections
+             WHERE path = 'nested/One.WAV'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(collection, 2);
+}

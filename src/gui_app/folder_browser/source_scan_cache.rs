@@ -172,6 +172,7 @@ mod tests {
                     rating: Rating::KEEP_1,
                     rating_locked: true,
                     collection: SampleCollection::new(0),
+                    collections: SampleCollection::new(0).into_iter().collect(),
                 }],
             }),
             loading_task: None,
@@ -187,5 +188,9 @@ mod tests {
         assert_eq!(folder.files[0].name, "kick.wav");
         assert_eq!(folder.files[0].rating, Rating::KEEP_1);
         assert_eq!(folder.files[0].collection, SampleCollection::new(0));
+        assert_eq!(
+            folder.files[0].collections,
+            SampleCollection::new(0).into_iter().collect::<Vec<_>>()
+        );
     }
 }

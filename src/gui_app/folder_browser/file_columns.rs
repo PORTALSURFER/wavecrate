@@ -133,9 +133,9 @@ impl FolderBrowserState {
                         .cmp(&b.name.to_ascii_lowercase())
                 }),
                 "collection" => a
-                    .collection
+                    .first_collection()
                     .map(|collection| collection.index())
-                    .cmp(&b.collection.map(|collection| collection.index()))
+                    .cmp(&b.first_collection().map(|collection| collection.index()))
                     .then_with(|| {
                         a.name
                             .to_ascii_lowercase()

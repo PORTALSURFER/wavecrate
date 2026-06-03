@@ -36,6 +36,12 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         FOREIGN KEY(path) REFERENCES wav_files(path) ON DELETE CASCADE,
         FOREIGN KEY(tag_id) REFERENCES source_tags(id) ON DELETE CASCADE
     ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS wav_file_collections (
+        path TEXT NOT NULL,
+        collection INTEGER NOT NULL,
+        PRIMARY KEY (path, collection),
+        FOREIGN KEY(path) REFERENCES wav_files(path) ON DELETE CASCADE
+    ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS analysis_jobs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_id TEXT NOT NULL,
@@ -191,6 +197,8 @@ const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON wav_files(extension);
      CREATE INDEX IF NOT EXISTS idx_wav_file_tags_tag_id
          ON wav_file_tags(tag_id);
+     CREATE INDEX IF NOT EXISTS idx_wav_file_collections_collection
+         ON wav_file_collections(collection);
      CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_hash
          ON pending_wav_renames (content_hash);
      CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_facts

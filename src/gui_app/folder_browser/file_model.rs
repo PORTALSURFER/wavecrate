@@ -15,11 +15,45 @@ pub(in crate::gui_app) struct FileEntry {
     pub(in crate::gui_app) rating: Rating,
     pub(in crate::gui_app) rating_locked: bool,
     pub(in crate::gui_app) collection: Option<SampleCollection>,
+    #[serde(default)]
+    pub(in crate::gui_app) collections: Vec<SampleCollection>,
 }
 
 impl FileEntry {
     pub(super) fn is_audio(&self) -> bool {
         self.kind == "Audio"
+    }
+
+    pub(in crate::gui_app) fn belongs_to_collection(&self, collection: SampleCollection) -> bool {
+        self.collection == Some(collection) || self.collections.contains(&collection)
+    }
+
+    pub(in crate::gui_app) fn add_collection(&mut self, collection: SampleCollection) -> bool {
+        if self.belongs_to_collection(collection) {
+            return false;
+        }
+        if self.collection.is_none() {
+            self.collection = Some(collection);
+        }
+        self.collections.push(collection);
+        self.collections
+            .sort_by_key(|collection| collection.index());
+        true
+    }
+
+    pub(in crate::gui_app) fn first_collection(&self) -> Option<SampleCollection> {
+        self.collections.first().copied().or(self.collection)
+    }
+
+    pub(in crate::gui_app) fn collection_memberships(&self) -> Vec<SampleCollection> {
+        let mut collections = self.collections.clone();
+        if let Some(collection) = self.collection
+            && !collections.contains(&collection)
+        {
+            collections.push(collection);
+        }
+        collections.sort_by_key(|collection| collection.index());
+        collections
     }
 }
 

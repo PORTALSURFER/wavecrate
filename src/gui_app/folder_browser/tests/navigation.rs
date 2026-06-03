@@ -496,6 +496,53 @@ fn activating_collection_filters_audio_files_across_selected_source() {
 }
 
 #[test]
+fn activating_collection_includes_files_with_multiple_collection_memberships() {
+    let root = temp_source_root("wavecrate-gui-multi-collection-filter");
+    let alpha = root.join("alpha");
+    fs::create_dir_all(&alpha).expect("create alpha folder");
+    let shared = alpha.join("shared.wav");
+    let other = alpha.join("other.wav");
+    fs::write(&shared, []).expect("write shared sample");
+    fs::write(&other, []).expect("write other sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let first = SampleCollection::new(0).expect("collection");
+    let second = SampleCollection::new(1).expect("collection");
+    browser.set_file_collection_state(&shared, first);
+    browser.set_file_collection_state(&shared, second);
+    browser.set_file_collection_state(&other, first);
+
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(first));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["other.wav", "shared.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(second));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["shared.wav"]
+    );
+    assert_eq!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .map(|collection| (collection.collection.index(), collection.assigned_count))
+            .take(2)
+            .collect::<Vec<_>>(),
+        vec![(0, 2), (1, 1)]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 /// Activating a collection transfers active selection out of the folder tree.
 fn activating_collection_clears_folder_selection_and_keeps_collection_as_active_source() {
     let root = temp_source_root("wavecrate-gui-collection-clears-folder");

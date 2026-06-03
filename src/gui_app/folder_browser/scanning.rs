@@ -79,7 +79,7 @@ pub(in crate::gui_app) fn scan_source_with_progress(
     }
 }
 
-type SourceMetadataMap = HashMap<PathBuf, (Rating, bool, Option<SampleCollection>)>;
+type SourceMetadataMap = HashMap<PathBuf, (Rating, bool, Vec<SampleCollection>)>;
 
 fn source_rating_map(root: &Path) -> SourceMetadataMap {
     let Ok(db) = SourceDatabase::open_read_only(root) else {
@@ -91,8 +91,10 @@ fn source_rating_map(root: &Path) -> SourceMetadataMap {
     entries
         .into_iter()
         .map(|entry| {
-            let collection = db.collection_for_path(&entry.relative_path).ok().flatten();
-            (entry.relative_path, (entry.tag, entry.locked, collection))
+            let collections = db
+                .collections_for_path(&entry.relative_path)
+                .unwrap_or_default();
+            (entry.relative_path, (entry.tag, entry.locked, collections))
         })
         .collect()
 }
@@ -252,12 +254,12 @@ where
 }
 
 fn rated_file_entry(path: &PathBuf, source_root: &Path, ratings: &SourceMetadataMap) -> FileEntry {
-    let (rating, locked, collection) = path
+    let (rating, locked, collections) = path
         .strip_prefix(source_root)
         .ok()
-        .and_then(|relative| ratings.get(relative).copied())
-        .unwrap_or((Rating::NEUTRAL, false, None));
-    file_entry_with_metadata(path, rating, locked, collection)
+        .and_then(|relative| ratings.get(relative).cloned())
+        .unwrap_or((Rating::NEUTRAL, false, Vec::new()));
+    file_entry_with_metadata(path, rating, locked, collections)
 }
 
 fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {

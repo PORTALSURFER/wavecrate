@@ -225,15 +225,59 @@ impl<'conn> SourceWriteBatch<'conn> {
         relative_path: &Path,
         collection: Option<SampleCollection>,
     ) -> Result<(), SourceDbError> {
+        let path_str = super::super::normalize_relative_path(relative_path)?;
+        self.tx
+            .execute(
+                "DELETE FROM wav_file_collections WHERE path = ?1",
+                params![path_str.as_str()],
+            )
+            .map_err(map_sql_error)?;
         match collection {
-            Some(collection) => update_path_i64_statement(
-                &self.tx,
-                UPDATE_COLLECTION_SQL,
-                relative_path,
-                collection.as_i64(),
-            ),
+            Some(collection) => {
+                self.insert_collection_membership(path_str.as_str(), collection)?;
+                update_path_i64_statement(
+                    &self.tx,
+                    UPDATE_COLLECTION_SQL,
+                    relative_path,
+                    collection.as_i64(),
+                )
+            }
             None => update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path),
         }
+    }
+
+    /// Add one fixed collection slot for a wav row without clearing other slots.
+    pub fn add_collection(
+        &mut self,
+        relative_path: &Path,
+        collection: SampleCollection,
+    ) -> Result<(), SourceDbError> {
+        let path_str = super::super::normalize_relative_path(relative_path)?;
+        self.insert_collection_membership(path_str.as_str(), collection)?;
+        self.tx
+            .execute(
+                "UPDATE wav_files
+                 SET collection = COALESCE(collection, ?1)
+                 WHERE path = ?2",
+                params![collection.as_i64(), path_str.as_str()],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
+    fn insert_collection_membership(
+        &self,
+        path: &str,
+        collection: SampleCollection,
+    ) -> Result<(), SourceDbError> {
+        self.tx
+            .execute(
+                "INSERT OR IGNORE INTO wav_file_collections (path, collection)
+                 VALUES (?1, ?2)",
+                params![path, collection.as_i64()],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
     }
 
     /// Remove a wav row within the batch.

@@ -18,6 +18,7 @@ fn file_entry() -> FileEntry {
         rating: Rating::NEUTRAL,
         rating_locked: false,
         collection: None,
+        collections: Vec::new(),
     }
 }
 

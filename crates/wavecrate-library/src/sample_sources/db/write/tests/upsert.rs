@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tempfile::tempdir;
 
-use super::super::super::{Rating, SourceDatabase};
+use super::super::super::{Rating, SampleCollection, SourceDatabase};
 use super::helpers::revision_value;
 
 #[test]
@@ -61,6 +61,52 @@ fn wav_upsert_variants_preserve_hash_tag_and_missing_contracts() {
     assert_eq!(second[0].content_hash, None);
     assert_eq!(second[0].tag, Rating::KEEP_1);
     assert!(!second[0].missing);
+}
+
+#[test]
+fn collections_can_accumulate_multiple_memberships() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    let first = SampleCollection::new(0).unwrap();
+    let second = SampleCollection::new(1).unwrap();
+
+    let mut batch = db.write_batch().unwrap();
+    batch.add_collection(Path::new("one.wav"), second).unwrap();
+    batch.add_collection(Path::new("one.wav"), first).unwrap();
+    batch.add_collection(Path::new("one.wav"), second).unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        vec![first, second]
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("one.wav")).unwrap(),
+        Some(first)
+    );
+}
+
+#[test]
+fn set_collection_replaces_all_collection_memberships() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    let first = SampleCollection::new(0).unwrap();
+    let second = SampleCollection::new(1).unwrap();
+
+    let mut batch = db.write_batch().unwrap();
+    batch.add_collection(Path::new("one.wav"), first).unwrap();
+    batch.add_collection(Path::new("one.wav"), second).unwrap();
+    batch
+        .set_collection(Path::new("one.wav"), Some(second))
+        .unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        vec![second]
+    );
 }
 
 #[test]
