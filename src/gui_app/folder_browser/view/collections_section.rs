@@ -11,6 +11,8 @@ use super::super::{
 const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
 /// Stable layout node id for collection-panel resize regression coverage.
 const COLLECTIONS_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4c02;
+/// Stable layout node id for the collection rows scroll viewport.
+const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = 0x5743_0000_0000_4c03;
 
 pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let rows = state
@@ -28,6 +30,7 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
                     .height(state.collections_list_height()),
             )
             .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+            .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
             .fill_width()
             .fill_height(),
         )
@@ -300,5 +303,23 @@ mod tests {
             + COLLECTION_ROW_SPACING * (state.visible_collections().len() - 1) as f32;
 
         assert_eq!(state.collections_list_height(), expected);
+    }
+
+    #[test]
+    /// The useful maximum height should fit all collection rows without residual scroll.
+    fn collections_section_max_height_does_not_overflow_rows() {
+        let state = FolderBrowserState::load_default();
+        let layout = collections_section(&state).view_layout_at_size(ui::Vector2::new(
+            240.0,
+            state.max_collections_panel_height(),
+        ));
+
+        assert!(
+            !layout
+                .overflow_flags
+                .get(&COLLECTIONS_LIST_SCROLL_NODE_ID)
+                .is_some_and(|overflow| overflow.y),
+            "collections list should not have vertical scroll overflow at max height"
+        );
     }
 }
