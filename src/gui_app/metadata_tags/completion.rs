@@ -170,12 +170,15 @@ impl GuiAppState {
     }
 
     fn metadata_tag_category_suggestions(&self) -> Vec<(&'static str, &'static str)> {
-        let Some(prefix) = normalize_metadata_category_query(&self.metadata_tag_draft) else {
+        let Some(prefix) = self.metadata_tag_category_query_key() else {
             return Vec::new();
         };
         USER_EXTENSIBLE_METADATA_TAG_CATEGORIES
             .into_iter()
             .filter(|(id, label)| {
+                if prefix.is_empty() {
+                    return true;
+                }
                 normalize_metadata_category_query(id)
                     .is_some_and(|normalized| normalized.starts_with(prefix.as_str()))
                     || normalize_metadata_category_query(label)
@@ -187,7 +190,7 @@ impl GuiAppState {
     pub(super) fn selected_metadata_tag_category(&self, value: &str) -> Option<&'static str> {
         let suggestions = self.metadata_tag_category_suggestions();
         if !suggestions.is_empty() {
-            let index = self.selected_metadata_tag_completion_index(suggestions.len());
+            let index = self.selected_metadata_tag_category_completion_index(suggestions.len());
             return suggestions.get(index).map(|(id, _)| *id);
         }
         let normalized = normalize_metadata_category_query(value)?;
@@ -203,7 +206,8 @@ impl GuiAppState {
 
     fn metadata_tag_category_completion_options(&self) -> Vec<MetadataTagCompletionOption> {
         let suggestions = self.metadata_tag_category_suggestions();
-        let selected_index = self.selected_metadata_tag_completion_index(suggestions.len());
+        let selected_index =
+            self.selected_metadata_tag_category_completion_index(suggestions.len());
         suggestions
             .into_iter()
             .enumerate()
@@ -218,7 +222,7 @@ impl GuiAppState {
     fn metadata_tag_category_completion_suffix(&self) -> Option<String> {
         let prefix = normalize_metadata_category_query(&self.metadata_tag_draft)?;
         let suggestions = self.metadata_tag_category_suggestions();
-        let index = self.selected_metadata_tag_completion_index(suggestions.len());
+        let index = self.selected_metadata_tag_category_completion_index(suggestions.len());
         let (_id, label) = suggestions.get(index)?;
         let normalized_label = normalize_metadata_category_query(label)?;
         if normalized_label == prefix {
@@ -231,7 +235,7 @@ impl GuiAppState {
     }
 
     fn move_metadata_tag_category_completion_selection(&mut self, delta: i32) {
-        let Some(prefix) = normalize_metadata_category_query(&self.metadata_tag_draft) else {
+        let Some(prefix) = self.metadata_tag_category_query_key() else {
             self.reset_metadata_tag_completion_cycle();
             return;
         };
@@ -245,6 +249,25 @@ impl GuiAppState {
             delta as isize,
             suggestions.len(),
         );
+    }
+
+    fn selected_metadata_tag_category_completion_index(&self, suggestion_count: usize) -> usize {
+        if suggestion_count == 0 {
+            return 0;
+        }
+        let Some(prefix) = self.metadata_tag_category_query_key() else {
+            return 0;
+        };
+        self.metadata_tag_completion_cycle
+            .selected_index(prefix.as_str(), suggestion_count)
+            .unwrap_or(0)
+    }
+
+    fn metadata_tag_category_query_key(&self) -> Option<String> {
+        if self.metadata_tag_draft.trim().is_empty() {
+            return Some(String::new());
+        }
+        normalize_metadata_category_query(&self.metadata_tag_draft)
     }
 
     pub(super) fn reset_metadata_tag_completion_cycle(&mut self) {

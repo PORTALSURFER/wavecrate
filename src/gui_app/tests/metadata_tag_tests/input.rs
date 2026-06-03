@@ -180,6 +180,71 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
 }
 
 #[test]
+fn metadata_tag_category_selection_shows_all_options_immediately() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::from("Deep Kick"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    let options = state.metadata_tag_completion_options();
+    assert_eq!(
+        options
+            .iter()
+            .map(|option| (option.tag.as_str(), option.selected))
+            .collect::<Vec<_>>(),
+        vec![
+            ("Sound Type", true),
+            ("Character", false),
+            ("Prefix", false),
+            ("Tuning/Scale", false),
+        ]
+    );
+    assert!(state.metadata_tag_completion_active());
+
+    state.apply_message(
+        super::super::super::GuiMessage::MoveMetadataTagCompletion(1),
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("Character")
+    );
+
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::new(),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("deep-kick")])
+    );
+    assert_eq!(
+        state
+            .metadata_tag_dictionary
+            .get("deep-kick")
+            .map(String::as_str),
+        Some("character")
+    );
+}
+
+#[test]
 fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
