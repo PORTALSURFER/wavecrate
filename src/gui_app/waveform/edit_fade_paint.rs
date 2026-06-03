@@ -1,10 +1,10 @@
 use radiant::{
     gui::types::{Rect, Rgba8},
-    gui::visualization::TimelineEditHandle,
+    gui::visualization::TimelineEditRegion,
     runtime::PaintPrimitive,
 };
 
-use super::{WaveformWidget, edit_fade_geometry::waveform_edit_fade_handle};
+use super::{WaveformWidget, edit_fade_geometry::EDIT_FADE_HANDLE_SIZE};
 
 impl WaveformWidget {
     pub(super) fn append_edit_fade_paint(
@@ -12,10 +12,8 @@ impl WaveformWidget {
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
     ) {
-        let Some(selection) = self.edit_preview.selection else {
-            return;
-        };
-        let Some(selection_rect) = self.visible_rect_for_normalized_range(bounds, selection) else {
+        let mapper = self.timeline_mapper(bounds);
+        let Some(selection_rect) = self.edit_preview.selection_rect(mapper) else {
             return;
         };
         let accent = Rgba8 {
@@ -24,26 +22,39 @@ impl WaveformWidget {
             b: 255,
             a: 210,
         };
-        if let Some(fade_rect) = self.fade_in_rect(bounds, selection_rect) {
-            self.push_fill(primitives, fade_rect, Rgba8 { a: 52, ..accent });
-        }
-        if let Some(fade_rect) = self.fade_out_rect(bounds, selection_rect) {
-            self.push_fill(primitives, fade_rect, Rgba8 { a: 52, ..accent });
-        }
-        if let Some(fade_rect) = self.fade_in_outer_rect(bounds, selection_rect) {
-            self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
-        }
-        if let Some(fade_rect) = self.fade_out_outer_rect(bounds, selection_rect) {
-            self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
+        if let Some(region_geometry) = self.edit_preview.region_geometry(mapper) {
+            for (region, rect) in self
+                .edit_preview
+                .standard_region_rects(mapper, region_geometry)
+            {
+                self.push_fill(
+                    primitives,
+                    rect,
+                    Rgba8 {
+                        a: edit_region_alpha(region),
+                        ..accent
+                    },
+                );
+            }
         }
         self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
-        for handle in TimelineEditHandle::standard_order()
-            .into_iter()
-            .filter_map(waveform_edit_fade_handle)
+        if let Some(handle_geometry) = self
+            .edit_preview
+            .handle_geometry(mapper, EDIT_FADE_HANDLE_SIZE)
         {
-            if let Some(rect) = self.edit_fade_handle_rect(bounds, selection_rect, handle) {
+            for (_handle, rect) in self
+                .edit_preview
+                .standard_handle_rects(mapper, handle_geometry)
+            {
                 self.push_fill(primitives, rect, Rgba8 { a: 205, ..accent });
             }
         }
+    }
+}
+
+fn edit_region_alpha(region: TimelineEditRegion) -> u8 {
+    match region {
+        TimelineEditRegion::LeadingInner | TimelineEditRegion::TrailingInner => 52,
+        TimelineEditRegion::LeadingOuter | TimelineEditRegion::TrailingOuter => 38,
     }
 }

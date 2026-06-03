@@ -1,16 +1,12 @@
 use radiant::gui::{
-    range::{NormalizedPixelSnap, NormalizedRange},
+    range::NormalizedPixelSnap,
     types::{Point, Rect},
-    visualization::{
-        TimelineCoordinateMapper, TimelineEditHandle, TimelineEditHandleGeometry,
-        TimelineEditPreview, TimelineEditPreviewParts, TimelineEditRegion,
-        TimelineEditRegionGeometry, TimelineViewport,
-    },
+    visualization::{TimelineCoordinateMapper, TimelineEditHandle, TimelineViewport},
 };
 
 use super::{WaveformEditFadeHandle, WaveformWidget};
 
-const EDIT_FADE_HANDLE_SIZE: f32 = 10.0;
+pub(super) const EDIT_FADE_HANDLE_SIZE: f32 = 10.0;
 
 impl WaveformWidget {
     pub(super) fn edit_fade_handle_at(
@@ -27,75 +23,12 @@ impl WaveformWidget {
             .and_then(waveform_edit_fade_handle)
     }
 
-    pub(super) fn fade_in_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
-        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::LeadingInner)
-    }
-
-    pub(super) fn fade_out_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
-        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::TrailingInner)
-    }
-
-    pub(super) fn fade_in_outer_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
-        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::LeadingOuter)
-    }
-
-    pub(super) fn fade_out_outer_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
-        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::TrailingOuter)
-    }
-
-    pub(super) fn edit_fade_handle_rect(
-        &self,
-        bounds: Rect,
-        selection_rect: Rect,
-        handle: WaveformEditFadeHandle,
-    ) -> Option<Rect> {
-        let mapper = self.timeline_mapper(bounds);
-        let geometry =
-            TimelineEditHandleGeometry::new(bounds, selection_rect, EDIT_FADE_HANDLE_SIZE);
-        self.edit_preview
-            .handle_rect(mapper, geometry, timeline_edit_handle(handle))
-    }
-
-    pub(super) fn visible_rect_for_normalized_range(
-        &self,
-        bounds: Rect,
-        range: NormalizedRange,
-    ) -> Option<Rect> {
-        TimelineEditPreview::from_parts(TimelineEditPreviewParts {
-            selection: Some(range),
-            ..TimelineEditPreviewParts::default()
-        })
-        .selection_rect(self.timeline_mapper(bounds))
-    }
-
-    fn timeline_mapper(&self, bounds: Rect) -> TimelineCoordinateMapper {
+    pub(super) fn timeline_mapper(&self, bounds: Rect) -> TimelineCoordinateMapper {
         TimelineCoordinateMapper::new(
             TimelineViewport::from_index_viewport(self.viewport, self.file.frames),
             bounds,
             NormalizedPixelSnap::None,
         )
-    }
-
-    fn edit_region_rect(
-        &self,
-        bounds: Rect,
-        selection_rect: Rect,
-        region: TimelineEditRegion,
-    ) -> Option<Rect> {
-        let mapper = self.timeline_mapper(bounds);
-        let geometry = TimelineEditRegionGeometry::new(bounds, selection_rect);
-        self.edit_preview.region_rect(mapper, geometry, region)
-    }
-}
-
-pub(super) fn timeline_edit_handle(handle: WaveformEditFadeHandle) -> TimelineEditHandle {
-    match handle {
-        WaveformEditFadeHandle::InEnd => TimelineEditHandle::LeadingEnd,
-        WaveformEditFadeHandle::InStart => TimelineEditHandle::LeadingStart,
-        WaveformEditFadeHandle::InOuterStart => TimelineEditHandle::LeadingOuterStart,
-        WaveformEditFadeHandle::OutStart => TimelineEditHandle::TrailingStart,
-        WaveformEditFadeHandle::OutEnd => TimelineEditHandle::TrailingEnd,
-        WaveformEditFadeHandle::OutOuterEnd => TimelineEditHandle::TrailingOuterEnd,
     }
 }
 
