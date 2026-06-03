@@ -6,6 +6,8 @@ use super::super::{
 };
 
 const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
+/// Stable layout node id for collection-panel resize regression coverage.
+const COLLECTIONS_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4c02;
 
 pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let rows = state
@@ -32,8 +34,8 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
         )
         .height(state.collections_panel_height()),
     )
+    .id(COLLECTIONS_SECTION_NODE_ID)
     .fill_width()
-    .fill_height()
 }
 
 fn collection_row(
@@ -229,5 +231,29 @@ mod tests {
 
         assert!(widget.props.droppable);
         assert!(!widget.props.drop_hover);
+    }
+
+    #[test]
+    /// Verifies the section keeps its resized height in the parent layout slot.
+    fn collections_section_layout_uses_configured_height() {
+        let mut state = FolderBrowserState::load_default();
+        state.resize_collections_panel(ui::DragHandleMessage::Started {
+            position: ui::Point::new(0.0, 200.0),
+        });
+        state.resize_collections_panel(ui::DragHandleMessage::Moved {
+            position: ui::Point::new(0.0, 120.0),
+        });
+
+        let layout = ui::column([
+            collections_section(&state),
+            ui::spacer().fill_width().fill_height(),
+        ])
+        .view_layout_at_size(ui::Vector2::new(240.0, 600.0));
+        let section = layout
+            .rects
+            .get(&COLLECTIONS_SECTION_NODE_ID)
+            .expect("collections section layout rect");
+
+        assert_eq!(section.height(), state.collections_panel_height());
     }
 }
