@@ -44,7 +44,7 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
         metadata_tag_display_categories,
         tag_field_content_width,
     );
-    ui::column([
+    let content = ui::column([
         source_selector(state),
         ui::text_line("Folders", 22.0),
         folder_tree_view(state),
@@ -66,9 +66,13 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
         ),
     ])
     .spacing(3.0)
-    .padding(4.0)
-    .style(ui::WidgetStyle::default())
-    .fill_height()
+    .fill_width()
+    .fill_height();
+    ui::column([ui::spacer().height(4.0).fill_width(), content])
+        .spacing(0.0)
+        .padding_x(4.0)
+        .style(ui::WidgetStyle::default())
+        .fill_height()
 }
 
 #[cfg(test)]

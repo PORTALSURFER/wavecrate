@@ -73,6 +73,8 @@ pub(super) use types::{
 mod tag_completion;
 pub(super) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
 mod tag_editor;
+#[cfg(test)]
+pub(super) use tag_editor::METADATA_SIDEBAR_PANEL_ID;
 pub(super) use tag_editor::tag_field_height;
 mod tag_entry_layout;
 pub(super) use tag_entry_layout::tag_field_content_width;

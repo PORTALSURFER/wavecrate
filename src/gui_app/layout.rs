@@ -72,7 +72,12 @@ fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     }
     children.push(folder_splitter());
     children.push(main_area(state));
-    ui::row(children).padding(CENTER_PANEL_PADDING).fill()
+    ui::column([
+        ui::spacer().height(CENTER_PANEL_PADDING).fill_width(),
+        ui::row(children).padding_x(CENTER_PANEL_PADDING).fill(),
+    ])
+    .spacing(0.0)
+    .fill()
 }
 
 fn metadata_tag_completion_overlay(state: &GuiAppState) -> Option<ui::View<GuiMessage>> {

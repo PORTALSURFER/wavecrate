@@ -34,6 +34,31 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
 }
 
 #[test]
+fn metadata_section_sits_flush_against_bottom_status_bar() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(selected_file, vec![String::from("kick")]);
+
+    let frame = super::super::super::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let metadata_rect = frame
+        .paint_plan
+        .first_widget_rect(super::super::super::folder_browser::METADATA_SIDEBAR_PANEL_ID)
+        .expect("metadata panel should paint");
+    let status_text_rect = frame
+        .paint_plan
+        .first_text_rect("1 sample")
+        .expect("bottom status bar should paint selected sample count");
+    let gap_to_status_text = status_text_rect.min.y - metadata_rect.max.y;
+
+    assert!(
+        (0.0..=6.0).contains(&gap_to_status_text),
+        "metadata panel should sit directly against the bottom status bar, metadata={metadata_rect:?}, status_text={status_text_rect:?}, gap={gap_to_status_text}"
+    );
+}
+
+#[test]
 fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     let browser = super::super::super::FolderBrowserState::load_default();
     let completion_options = vec![

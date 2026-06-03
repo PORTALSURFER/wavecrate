@@ -12,6 +12,9 @@ use super::tag_entry_layout::{
 };
 
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
+#[cfg(test)]
+pub(in crate::gui_app) const METADATA_SIDEBAR_PANEL_ID: u64 = 0x5743_0000_0000_5448;
+
 pub(super) fn metadata_section(
     tag_draft: &str,
     tag_tokens: &[String],
@@ -252,9 +255,17 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
 }
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
-    content
+    let panel = content
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
         .padding(6.0)
         .fill_width()
-        .height(height)
+        .height(height);
+    #[cfg(test)]
+    {
+        panel.id(METADATA_SIDEBAR_PANEL_ID)
+    }
+    #[cfg(not(test))]
+    {
+        panel
+    }
 }
