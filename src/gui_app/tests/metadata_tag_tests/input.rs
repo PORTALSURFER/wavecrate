@@ -501,3 +501,60 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             .any(|fill| (fill.rect.height() - 18.0).abs() < 0.01)
     );
 }
+
+#[test]
+fn folder_browser_metadata_category_completion_renders_above_tag_input() {
+    let browser = super::super::super::FolderBrowserState::load_default();
+    let completion_options = vec![
+        super::super::super::metadata_tags::MetadataTagCompletionOption {
+            tag: String::from("Sound Type"),
+            category: "Group",
+            selected: true,
+        },
+        super::super::super::metadata_tags::MetadataTagCompletionOption {
+            tag: String::from("Character"),
+            category: "Group",
+            selected: false,
+        },
+        super::super::super::metadata_tags::MetadataTagCompletionOption {
+            tag: String::from("Prefix"),
+            category: "Group",
+            selected: false,
+        },
+        super::super::super::metadata_tags::MetadataTagCompletionOption {
+            tag: String::from("Tuning/Scale"),
+            category: "Group",
+            selected: false,
+        },
+    ];
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        Some("new-tag"),
+        "select group/parent tag",
+        None,
+        completion_options.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+
+    let tag_input = frame
+        .paint_plan
+        .first_text_input()
+        .expect("tag input should paint");
+    let final_option = frame
+        .paint_plan
+        .first_text_rect("Tuning/Scale")
+        .expect("final category option should paint");
+
+    assert!(
+        final_option.max.y <= tag_input.rect.min.y,
+        "category completion popup should fit above the tag input, option {final_option:?}, input {:?}",
+        tag_input.rect
+    );
+}

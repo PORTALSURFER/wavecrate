@@ -8,6 +8,8 @@ const MAX_TAG_COMPLETION_ROWS: usize = 6;
 const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
 const TAG_COMPLETION_POPUP_VERTICAL_CHROME: f32 = 6.0;
 
+pub(super) const TAG_COMPLETION_POPUP_GAP: f32 = 3.0;
+
 pub(super) fn tag_completion_panel_layer(
     options: &[MetadataTagCompletionOption],
     content_width: f32,
@@ -22,11 +24,15 @@ pub(super) fn tag_completion_panel_layer(
         tag_completion_options(options, content_width),
         0.0,
         trigger_y,
-        3.0,
+        TAG_COMPLETION_POPUP_GAP,
         content_width,
     ))
     .key("metadata-tag-completion-panel-layer")
     .fill()
+}
+
+pub(super) fn tag_completion_panel_height(options: &[MetadataTagCompletionOption]) -> f32 {
+    tag_completion_options(options, 1.0).height()
 }
 
 fn tag_completion_options(
