@@ -24,7 +24,7 @@ impl GuiAppState {
         let startup_source_scan_pending =
             has_configured_sources && !folder_browser.selected_source_loaded();
         let (worker_sender, worker_receiver) = mpsc::channel();
-        let state = Self {
+        let mut state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
             folder_browser,
@@ -82,6 +82,9 @@ impl GuiAppState {
             waveform_cache_bytes: 0,
             cached_sample_paths: Default::default(),
         };
+        if state.folder_browser.selected_source_loaded() {
+            state.refresh_persisted_waveform_cache_indicators();
+        }
         emit_gui_action(
             "runtime.startup.load_default_state",
             Some("background"),
