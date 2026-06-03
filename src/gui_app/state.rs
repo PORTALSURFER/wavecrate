@@ -121,6 +121,7 @@ pub(in crate::gui_app) enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
+    CancelMetadataTagEntry,
     MoveMetadataTagCompletion(i32),
     ToggleMetadataTagLibrary,
     ToggleMetadataTagCategory(String),

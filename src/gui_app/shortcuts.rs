@@ -40,6 +40,10 @@ pub(super) fn default_gui_shortcut_resolution(
 fn metadata_tag_completion_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
     ui::ShortcutLayer::new()
         .bind(
+            ui::KeyPress::new(ui::KeyCode::Escape),
+            GuiMessage::CancelMetadataTagEntry,
+        )
+        .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowUp),
             GuiMessage::MoveMetadataTagCompletion(-1),
         )

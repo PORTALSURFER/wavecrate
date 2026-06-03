@@ -133,6 +133,25 @@ fn context_menu_escape_shortcut_closes_context_menu() {
 }
 
 #[test]
+fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.metadata_tag_input_mode = crate::gui_app::MetadataTagInputMode::Category {
+        pending_tag: String::from("deep-kick"),
+    };
+
+    let resolution = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::new(ui::KeyCode::Escape),
+    );
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::gui_app::GuiMessage::CancelMetadataTagEntry)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
     let mut state = gui_state_for_span_tests();
     state

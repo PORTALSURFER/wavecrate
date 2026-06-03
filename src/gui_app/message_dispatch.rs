@@ -128,6 +128,9 @@ impl GuiAppState {
             GuiMessage::MetadataTagInput(message) => {
                 self.apply_metadata_tag_input(message, context)
             }
+            GuiMessage::CancelMetadataTagEntry => {
+                self.cancel_metadata_tag_entry();
+            }
             GuiMessage::MoveMetadataTagCompletion(delta) => {
                 self.move_metadata_tag_completion_selection(delta);
             }

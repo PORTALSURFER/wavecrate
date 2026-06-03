@@ -245,6 +245,46 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
 }
 
 #[test]
+fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::from("Deep Kick"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Changed {
+                value: String::from("sound"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.pending_metadata_tag_category_tag(), Some("deep-kick"));
+    assert!(state.metadata_tag_completion_active());
+
+    state.apply_message(
+        super::super::super::GuiMessage::CancelMetadataTagEntry,
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.pending_metadata_tag_category_tag(), None);
+    assert!(!state.metadata_tag_completion_active());
+    assert_eq!(state.metadata_tag_input_placeholder(), "add tag");
+    assert!(state.metadata_tag_draft.is_empty());
+    assert!(state.metadata_tag_tokens.is_empty());
+    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata_tag_dictionary.get("deep-kick"), None);
+}
+
+#[test]
 fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
