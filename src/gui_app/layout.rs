@@ -18,6 +18,8 @@ const CENTER_PANEL_PADDING: f32 = 6.0;
 const FOLDER_SIDEBAR_PADDING: f32 = 4.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const BOTTOM_STATUS_BAR_HEIGHT: f32 = 30.0;
+const FOLDER_SPLITTER_HIT_WIDTH: f32 = 5.0;
+const FOLDER_SPLITTER_INSET: f32 = 1.0;
 
 pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     let tag_completion_overlay = metadata_tag_completion_overlay(state);
@@ -402,12 +404,13 @@ fn metadata_tag_empty_category_target(
 
 fn folder_splitter() -> ui::View<GuiMessage> {
     ui::drag_handle()
+        .hover_chrome_only()
         .mapped(GuiMessage::ResizeFolder)
         .key("folder-browser-splitter-handle")
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .width(11.0)
+        .width(FOLDER_SPLITTER_HIT_WIDTH)
         .fill_height()
-        .padding(2.0)
+        .padding(FOLDER_SPLITTER_INSET)
 }
 
 fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
