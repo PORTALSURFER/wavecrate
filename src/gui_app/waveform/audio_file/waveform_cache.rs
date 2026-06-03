@@ -5,10 +5,7 @@ use std::{
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
-    sync::{
-        Arc, OnceLock,
-        mpsc::{self, SyncSender, TrySendError},
-    },
+    sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 
@@ -16,10 +13,6 @@ use super::{WaveformFile, content_revision_for_audio_bytes};
 
 const CACHE_FORMAT_VERSION: u32 = 2;
 const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 64 * 1024 * 1024;
-const CACHE_STORE_QUEUE_CAPACITY: usize = 4;
-const CACHE_STORE_IDLE_DELAY: Duration = Duration::from_millis(250);
-
-static CACHE_STORE_SENDER: OnceLock<SyncSender<WaveformFile>> = OnceLock::new();
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CachedWaveformFile {
@@ -112,51 +105,6 @@ pub(super) fn store_cached_waveform_file(file: &WaveformFile) {
     log_slow_cache_store(&file.path, started_at);
 }
 
-pub(super) fn store_cached_waveform_file_async(file: &WaveformFile) {
-    let sender = cache_store_sender();
-    match sender.try_send(file.clone()) {
-        Ok(()) => {}
-        Err(TrySendError::Full(_)) => {
-            tracing::debug!(
-                target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_async_drop",
-                path = %file.path.display(),
-                "Skipping waveform cache persistence because the store queue is full"
-            );
-        }
-        Err(TrySendError::Disconnected(_)) => {
-            tracing::warn!(
-                target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_async_disconnected",
-                path = %file.path.display(),
-                "Skipping waveform cache persistence because the store worker stopped"
-            );
-        }
-    }
-}
-
-fn cache_store_sender() -> &'static SyncSender<WaveformFile> {
-    CACHE_STORE_SENDER.get_or_init(|| {
-        let (sender, receiver) = mpsc::sync_channel(CACHE_STORE_QUEUE_CAPACITY);
-        let spawn = std::thread::Builder::new()
-            .name(String::from("wavecrate-cache-store"))
-            .spawn(move || {
-                configure_cache_store_worker_thread();
-                for file in receiver {
-                    std::thread::sleep(CACHE_STORE_IDLE_DELAY);
-                    store_cached_waveform_file(&file);
-                }
-            });
-        if let Err(err) = spawn {
-            tracing::warn!(
-                error = %err,
-                "Failed to spawn waveform cache store worker; persistent cache writes are disabled"
-            );
-        }
-        sender
-    })
-}
-
 fn log_slow_cache_store(path: &Path, started_at: Instant) {
     let elapsed = started_at.elapsed();
     if elapsed < Duration::from_millis(8) {
@@ -170,21 +118,6 @@ fn log_slow_cache_store(path: &Path, started_at: Instant) {
         "Slow waveform cache persistence"
     );
 }
-
-#[cfg(target_os = "windows")]
-fn configure_cache_store_worker_thread() {
-    use windows::Win32::System::Threading::{
-        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_LOWEST,
-    };
-
-    let ok = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST) };
-    if ok.is_err() {
-        tracing::debug!("Could not lower waveform cache store worker priority");
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn configure_cache_store_worker_thread() {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CacheIdentity {

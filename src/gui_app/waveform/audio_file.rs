@@ -39,7 +39,7 @@ mod waveform_cache;
 pub(in crate::gui_app) use waveform_cache::{
     cached_waveform_file_exists, load_cached_waveform_file_for_playback,
 };
-use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file_async};
+use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file};
 #[cfg(test)]
 pub(in crate::gui_app) fn store_cached_waveform_file_for_tests(file: &WaveformFile) {
     waveform_cache::store_cached_waveform_file(file);
@@ -120,7 +120,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         if cancelled() {
             return Err(String::from("cancelled"));
         }
-        store_cached_waveform_file_async(&file);
+        store_cached_waveform_file(&file);
         return Ok(file);
     }
     if cancelled() {
@@ -167,7 +167,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    store_cached_waveform_file_async(&file);
+    store_cached_waveform_file(&file);
     Ok(file)
 }
 

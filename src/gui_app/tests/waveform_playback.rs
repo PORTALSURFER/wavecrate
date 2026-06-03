@@ -280,6 +280,30 @@ fn sample_selection_reuses_persisted_cache_after_restart() {
 }
 
 #[test]
+fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("fresh-cache.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path = sample_path.display().to_string();
+
+    let _waveform =
+        super::super::WaveformState::load_path(sample_path.clone().into()).expect("load sample");
+
+    let mut restarted_state = gui_state_for_span_tests();
+    restarted_state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    restarted_state.refresh_persisted_waveform_cache_indicators();
+
+    assert!(
+        restarted_state.cached_sample_paths.contains(&sample_path),
+        "freshly loaded cache indicator should survive immediate restart"
+    );
+}
+
+#[test]
 fn selecting_another_sample_cancels_metadata_tag_entry() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("first.wav");
