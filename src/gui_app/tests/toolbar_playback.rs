@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui_app::toolbar::main_toolbar;
 
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
@@ -59,6 +60,21 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
             Some(message)
         );
     }
+}
+
+#[test]
+fn main_toolbar_does_not_paint_empty_spacer_border() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    let frame =
+        main_toolbar(&state).view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
+
+    assert!(
+        !frame
+            .paint_plan
+            .stroke_rects()
+            .any(|stroke| { stroke.rect.min.x <= 1.0 && stroke.rect.width() > 100.0 }),
+        "empty toolbar spacer should not paint a large bordered rectangle"
+    );
 }
 
 #[test]
