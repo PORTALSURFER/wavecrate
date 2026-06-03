@@ -270,6 +270,54 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
 }
 
 #[test]
+fn full_gui_column_drag_marker_uses_header_local_coordinates() {
+    let state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
+    let rating_rect = frame
+        .paint_plan
+        .text_runs()
+        .filter(|text| text.text.as_str() == "Rating")
+        .map(|text| text.rect)
+        .min_by(|a, b| a.min.y.total_cmp(&b.min.y))
+        .expect("rating column header should paint");
+    let modified_rect = frame
+        .paint_plan
+        .text_runs()
+        .filter(|text| text.text.as_str().starts_with("Modified"))
+        .map(|text| text.rect)
+        .min_by(|a, b| a.min.y.total_cmp(&b.min.y))
+        .expect("modified column header should paint");
+    let press = rating_rect.center();
+    let hover_modified_left = Point::new(modified_rect.min.x + 2.0, press.y);
+    let hover_modified_left_update = Point::new(hover_modified_left.x + 1.0, hover_modified_left.y);
+
+    runtime.dispatch_event(Event::primary_press(press));
+    runtime.dispatch_event(Event::pointer_move(hover_modified_left));
+    runtime.dispatch_event(Event::pointer_move(hover_modified_left_update));
+    let dragging_frame = runtime.frame_with_default_theme();
+    let marker = dragging_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == Rgba8::new(255, 160, 82, 230)
+                && fill.rect.width() <= 2.5
+                && fill.rect.height() >= 20.0
+        })
+        .expect("dragging over a later header should paint the drop marker");
+    assert!(
+        marker.rect.min.x <= modified_rect.min.x,
+        "drop marker should paint at the leading edge of the hovered Modified header, marker={:?}, modified={modified_rect:?}",
+        marker.rect
+    );
+    assert!(
+        modified_rect.min.x - marker.rect.min.x <= 24.0,
+        "drop marker should be near the hovered Modified header, marker={:?}, modified={modified_rect:?}",
+        marker.rect
+    );
+}
+
+#[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
     let expected_names = state

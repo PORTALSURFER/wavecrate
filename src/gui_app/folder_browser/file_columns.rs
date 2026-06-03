@@ -21,7 +21,8 @@ impl FolderBrowserState {
             .file_columns
             .iter()
             .find(|column| column.id == drag.column_id)?;
-        let marker_x = drag.current_marker_x(&self.details_column_placements(), FILE_COLUMN_GAP)?;
+        let marker_x = drag.current_marker_x(&self.details_column_placements(), FILE_COLUMN_GAP)?
+            - drag.content_left;
         Some(FileColumnDragFeedback {
             label: column.label.clone(),
             pointer: drag.pointer,

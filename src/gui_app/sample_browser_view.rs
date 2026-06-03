@@ -115,12 +115,14 @@ fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
             .background(ui::Rgba8::new(255, 160, 82, 230))
             .view()
             .width(2.0)
-            .height(24.0),
+            .height(20.0),
         ui::spacer().fill_width(),
     ])
     .key("sample-column-drop-marker")
     .fill_width()
     .height(24.0)
+    .padding_x(8.0)
+    .padding_y(2.0)
     .spacing(0.0)
 }
 
