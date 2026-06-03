@@ -67,14 +67,9 @@ fn tag_field_rows_with_pending_category(
     input_width: f32,
     content_width: f32,
 ) -> Vec<Vec<TagEntryRowItem>> {
-    let mut rows = ui::pack_flow_rows(
-        tag_entry_flow_items(tags),
-        content_width,
-        tag_field_flow_metrics(),
-    );
     let label = format!("{pending_category_tag} ->");
-    ui::push_flow_row_group(
-        &mut rows,
+    ui::pack_flow_rows_with_trailing_group(
+        tag_entry_flow_items(tags),
         [
             ui::FlowItem::new(
                 TagEntryRowItem::PendingCategory(label.clone()),
@@ -84,8 +79,7 @@ fn tag_field_rows_with_pending_category(
         ],
         content_width,
         tag_field_flow_metrics(),
-    );
-    rows
+    )
 }
 
 fn tag_entry_flow_items(tags: &[String]) -> Vec<ui::FlowItem<TagEntryRowItem>> {
