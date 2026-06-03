@@ -12,7 +12,7 @@ use crate::gui_app::{
 use super::deferred_drop::defer_large_drop;
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
-const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 256 * 1024 * 1024;
+const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
 
 impl GuiAppState {

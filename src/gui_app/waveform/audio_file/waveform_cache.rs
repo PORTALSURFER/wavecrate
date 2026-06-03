@@ -12,7 +12,8 @@ use std::{
 use super::{WaveformFile, content_revision_for_audio_bytes};
 
 const CACHE_FORMAT_VERSION: u32 = 2;
-const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 64 * 1024 * 1024;
+const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 2 * 1024 * 1024 * 1024;
+const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CachedWaveformFile {
@@ -99,8 +100,8 @@ pub(super) fn store_cached_waveform_file(file: &WaveformFile) {
         return;
     };
     let temp_path = cache_path.with_extension("tmp");
-    if fs::write(&temp_path, bytes).is_ok() {
-        let _ = fs::rename(temp_path, cache_path);
+    if fs::write(&temp_path, bytes).is_ok() && fs::rename(temp_path, &cache_path).is_ok() {
+        prune_waveform_cache_dir(&cache_path, MAX_PERSISTED_WAVEFORM_CACHE_BYTES);
     }
     log_slow_cache_store(&file.path, started_at);
 }
@@ -149,6 +150,65 @@ fn cache_path_for_identity(path: &Path, identity: &CacheIdentity) -> Result<Path
     identity.file_len.hash(&mut hasher);
     identity.modified_ns.hash(&mut hasher);
     Ok(dir.join(format!("{:016x}.wfc", hasher.finish())))
+}
+
+fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
+    let Some(cache_dir) = pinned_path.parent() else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(cache_dir) else {
+        return;
+    };
+    let mut cache_entries = Vec::new();
+    let mut total_bytes = 0_u64;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|extension| extension == "tmp") {
+            let _ = fs::remove_file(path);
+            continue;
+        }
+        if !path.extension().is_some_and(|extension| extension == "wfc") {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        let len = metadata.len();
+        total_bytes = total_bytes.saturating_add(len);
+        cache_entries.push(CacheFileForPrune {
+            path,
+            len,
+            modified: metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+        });
+    }
+
+    if total_bytes <= max_bytes {
+        return;
+    }
+
+    cache_entries.sort_by_key(|entry| entry.modified);
+    for entry in cache_entries {
+        if total_bytes <= max_bytes {
+            break;
+        }
+        if entry.path == pinned_path {
+            continue;
+        }
+        if fs::remove_file(&entry.path).is_ok() {
+            total_bytes = total_bytes.saturating_sub(entry.len);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CacheFileForPrune {
+    path: PathBuf,
+    len: u64,
+    modified: SystemTime,
 }
 
 impl CachedWaveformFile {
@@ -348,6 +408,48 @@ mod tests {
     }
 
     #[test]
+    fn waveform_cache_persists_large_playback_payloads_within_default_budget() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("large-but-cacheable.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let mut file = waveform_file_from_mono_samples(
+            path,
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+        file.playback_samples = Some(Arc::from(vec![0.0_f32; 64]));
+
+        assert!(playback_samples_for_cache(&file).is_some());
+    }
+
+    #[test]
+    fn waveform_cache_prune_removes_old_payloads_and_stale_temps() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let old_path = dir.path().join("old.wfc");
+        let newer_path = dir.path().join("newer.wfc");
+        let pinned_path = dir.path().join("pinned.wfc");
+        let temp_path = dir.path().join("stale.tmp");
+        fs::write(&old_path, [0_u8; 4]).expect("write old cache");
+        fs::write(&newer_path, [1_u8; 4]).expect("write newer cache");
+        fs::write(&pinned_path, [2_u8; 4]).expect("write pinned cache");
+        fs::write(&temp_path, [3_u8; 4]).expect("write temp cache");
+
+        set_file_modified_seconds(&old_path, 10);
+        set_file_modified_seconds(&newer_path, 20);
+        set_file_modified_seconds(&pinned_path, 30);
+
+        prune_waveform_cache_dir(&pinned_path, 8);
+
+        assert!(!old_path.exists());
+        assert!(!temp_path.exists());
+        assert!(newer_path.exists());
+        assert!(pinned_path.exists());
+    }
+
+    #[test]
     fn waveform_cache_misses_after_file_identity_changes() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("changed.wav");
@@ -365,5 +467,10 @@ mod tests {
         fs::write(&path, [1_u8, 2, 3, 4, 5]).expect("modify sample");
 
         assert!(load_cached_waveform_file(path, Arc::from([1_u8, 2, 3, 4, 5])).is_none());
+    }
+
+    fn set_file_modified_seconds(path: &Path, seconds: i64) {
+        let time = filetime::FileTime::from_unix_time(seconds, 0);
+        filetime::set_file_mtime(path, time).expect("set file mtime");
     }
 }
