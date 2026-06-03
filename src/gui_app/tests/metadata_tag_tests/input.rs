@@ -375,7 +375,7 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
 }
 
 #[test]
-fn metadata_tag_input_enters_selected_known_prefix() {
+fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.metadata_tags_by_file.insert(
         String::from("known-file"),
@@ -393,6 +393,63 @@ fn metadata_tag_input_enters_selected_known_prefix() {
     assert_eq!(
         state.metadata_tag_completion_suffix().as_deref(),
         Some("ck")
+    );
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        None
+    );
+
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::from("ki"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
+    assert_eq!(state.sample_status, "Choose a category for ki");
+}
+
+#[test]
+fn metadata_tag_completion_request_activates_first_suggestion_without_committing() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        String::from("known-file"),
+        vec![String::from("kick"), String::from("warm")],
+    );
+
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Changed {
+                value: String::from("ki"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        super::super::super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::CompletionRequested {
+                value: String::from("ki"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("kick")
     );
 
     state.apply_message(
@@ -428,6 +485,19 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
                 value: String::from("ki"),
             },
         ),
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        None
+    );
+
+    state.apply_message(
+        super::super::super::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(

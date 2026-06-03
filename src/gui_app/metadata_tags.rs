@@ -87,9 +87,13 @@ impl GuiAppState {
             TextInputMessageKind::Submitted => {
                 self.submit_metadata_tag_input(parts.value.to_owned(), context);
             }
-            TextInputMessageKind::Changed | TextInputMessageKind::CompletionRequested => {
+            TextInputMessageKind::Changed => {
                 self.metadata_tag_draft = parts.value.to_owned();
                 self.reset_metadata_tag_completion_cycle();
+            }
+            TextInputMessageKind::CompletionRequested => {
+                self.metadata_tag_draft = parts.value.to_owned();
+                self.activate_metadata_tag_completion();
             }
         }
     }
@@ -118,7 +122,7 @@ impl GuiAppState {
         let mut tags = std::mem::take(&mut self.metadata_tag_tokens);
         if tags.is_empty()
             && commit.tags.len() <= 1
-            && let Some(tag) = self.selected_metadata_tag_completion()
+            && let Some(tag) = self.explicit_metadata_tag_completion()
         {
             tags.push(tag);
             commit.tags.clear();

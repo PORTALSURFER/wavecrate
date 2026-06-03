@@ -15,7 +15,7 @@ impl GuiAppState {
         match &self.metadata_tag_input_mode {
             MetadataTagInputMode::Tag => {
                 let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
-                let suggestion = self.selected_metadata_tag_completion()?;
+                let suggestion = self.first_metadata_tag_completion()?;
                 if suggestion == prefix {
                     return None;
                 }
@@ -38,13 +38,13 @@ impl GuiAppState {
             return self.metadata_tag_category_completion_options();
         }
         let suggestions = self.metadata_tag_suggestions();
-        let selected_index = self.selected_metadata_tag_completion_index(suggestions.len());
+        let selected_index = self.explicit_metadata_tag_completion_index(suggestions.len());
         suggestions
             .into_iter()
             .enumerate()
             .map(|(index, tag)| MetadataTagCompletionOption {
                 category: self.metadata_tag_category_label(&tag),
-                selected: index == selected_index,
+                selected: selected_index == Some(index),
                 tag,
             })
             .collect()
@@ -70,17 +70,56 @@ impl GuiAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        self.metadata_tag_completion_cycle.move_selection(
-            prefix,
-            delta as isize,
-            suggestions.len(),
-        );
+        if self
+            .metadata_tag_completion_cycle
+            .query_key()
+            .is_some_and(|query| query == prefix)
+        {
+            self.metadata_tag_completion_cycle.move_selection(
+                prefix,
+                delta as isize,
+                suggestions.len(),
+            );
+        } else {
+            let index = if delta < 0 {
+                suggestions.len().saturating_sub(1)
+            } else {
+                0
+            };
+            self.metadata_tag_completion_cycle
+                .select(prefix, index, suggestions.len());
+        }
     }
 
-    pub(super) fn selected_metadata_tag_completion(&self) -> Option<String> {
+    pub(super) fn activate_metadata_tag_completion(&mut self) {
+        if matches!(
+            self.metadata_tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            self.move_metadata_tag_category_completion_selection(0);
+            return;
+        }
+        let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
+            self.reset_metadata_tag_completion_cycle();
+            return;
+        };
+        let suggestion_count = self.metadata_tag_suggestions().len();
+        if suggestion_count == 0 {
+            self.reset_metadata_tag_completion_cycle();
+            return;
+        }
+        self.metadata_tag_completion_cycle
+            .select(prefix, 0, suggestion_count);
+    }
+
+    pub(super) fn explicit_metadata_tag_completion(&self) -> Option<String> {
         let suggestions = self.metadata_tag_suggestions();
-        let index = self.selected_metadata_tag_completion_index(suggestions.len());
+        let index = self.explicit_metadata_tag_completion_index(suggestions.len())?;
         suggestions.get(index).cloned()
+    }
+
+    fn first_metadata_tag_completion(&self) -> Option<String> {
+        self.metadata_tag_suggestions().into_iter().next()
     }
 
     fn metadata_tag_suggestions(&self) -> Vec<String> {
@@ -103,16 +142,16 @@ impl GuiAppState {
         !self.metadata_tag_suggestions().is_empty()
     }
 
-    fn selected_metadata_tag_completion_index(&self, suggestion_count: usize) -> usize {
+    fn explicit_metadata_tag_completion_index(&self, suggestion_count: usize) -> Option<usize> {
         if suggestion_count == 0 {
-            return 0;
+            return None;
         }
-        let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
-            return 0;
-        };
+        let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
+        self.metadata_tag_completion_cycle
+            .query_key()
+            .filter(|query| *query == prefix.as_str())?;
         self.metadata_tag_completion_cycle
             .selected_index(prefix.as_str(), suggestion_count)
-            .unwrap_or(0)
     }
 
     pub(super) fn known_metadata_tags(&self) -> Vec<String> {
