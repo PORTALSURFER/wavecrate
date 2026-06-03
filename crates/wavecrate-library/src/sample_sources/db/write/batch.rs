@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 use super::super::util::map_sql_error;
 use super::super::{
@@ -263,6 +263,44 @@ impl<'conn> SourceWriteBatch<'conn> {
             )
             .map_err(map_sql_error)?;
         Ok(())
+    }
+
+    /// Remove one fixed collection slot for a wav row without clearing other slots.
+    pub fn remove_collection(
+        &mut self,
+        relative_path: &Path,
+        collection: SampleCollection,
+    ) -> Result<(), SourceDbError> {
+        let path_str = super::super::normalize_relative_path(relative_path)?;
+        self.tx
+            .execute(
+                "DELETE FROM wav_file_collections
+                 WHERE path = ?1 AND collection = ?2",
+                params![path_str.as_str(), collection.as_i64()],
+            )
+            .map_err(map_sql_error)?;
+        let first_remaining = self
+            .tx
+            .query_row(
+                "SELECT collection
+                 FROM wav_file_collections
+                 WHERE path = ?1
+                 ORDER BY collection ASC
+                 LIMIT 1",
+                params![path_str.as_str()],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?;
+        match first_remaining.and_then(SampleCollection::from_i64) {
+            Some(collection) => update_path_i64_statement(
+                &self.tx,
+                UPDATE_COLLECTION_SQL,
+                relative_path,
+                collection.as_i64(),
+            ),
+            None => update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path),
+        }
     }
 
     fn insert_collection_membership(

@@ -108,6 +108,47 @@ fn random_toolbar_button_is_hit_target_for_loaded_sample() {
 }
 
 #[test]
+fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
+    let root = temp_gui_root("wavecrate-toolbar-random-selected");
+    let sample = root.join("selected.wav");
+    fs::write(&sample, []).expect("write sample");
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(root.clone()),
+    ]);
+    state
+        .folder_browser
+        .select_file(sample.display().to_string());
+    assert!(!state.waveform.has_loaded_sample());
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .expect("random toolbar icon should paint");
+    let point = icon_rect.center();
+
+    assert_eq!(
+        runtime.widget_at(point),
+        Some(super::super::TOOLBAR_RANDOM_ID)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(point)),
+        Some(super::super::TOOLBAR_RANDOM_ID)
+    );
+    let hovered_frame = runtime.frame(&theme);
+    assert!(
+        hovered_frame
+            .paint_plan
+            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_RANDOM_ID),
+        "hovering random with a selected sample should paint feedback"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback() {
     let state = GuiAppState::load_default().expect("default state loads");
     let theme = radiant::theme::ThemeTokens::default();
@@ -195,6 +236,36 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
         Some(super::super::TOOLBAR_STOP_ID)
+    );
+}
+
+#[test]
+fn stop_toolbar_button_remains_hit_target_without_loaded_sample() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    assert!(!state.waveform.has_loaded_sample());
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .first_svg_rect_for_widget(super::super::TOOLBAR_STOP_ID)
+        .expect("stop toolbar icon should paint");
+    let point = icon_rect.center();
+
+    assert_eq!(
+        runtime.widget_at(point),
+        Some(super::super::TOOLBAR_STOP_ID)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(point)),
+        Some(super::super::TOOLBAR_STOP_ID)
+    );
+    let hovered_frame = runtime.frame(&theme);
+    assert!(
+        hovered_frame
+            .paint_plan
+            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_STOP_ID),
+        "hovering stop should paint feedback even before a waveform is loaded"
     );
 }
 

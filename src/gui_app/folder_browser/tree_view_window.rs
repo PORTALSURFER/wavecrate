@@ -30,12 +30,13 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
-        self.tree_view_controller.configure_and_focus_optional(
-            total_items,
-            viewport_rows,
-            overscan_rows,
-            guard_rows.saturating_add(1),
-            selected_index,
-        )
+        self.tree_view_controller
+            .configure_and_focus_optional_with_context_row(
+                total_items,
+                viewport_rows,
+                overscan_rows,
+                guard_rows,
+                selected_index,
+            )
     }
 }

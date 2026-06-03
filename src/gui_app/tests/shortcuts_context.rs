@@ -150,6 +150,7 @@ fn context_menu_escape_shortcut_closes_context_menu() {
         path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
         source_id: None,
         metadata_tag: None,
+        collection: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("kick.wav"),
     });
@@ -266,6 +267,7 @@ fn stale_context_menu_copy_path_refuses_missing_sample_file() {
         path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
         source_id: None,
         metadata_tag: None,
+        collection: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("missing.wav"),
     });

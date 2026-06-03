@@ -7,6 +7,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         path: PathBuf::from("Documents"),
         source_id: None,
         metadata_tag: None,
+        collection: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -33,6 +34,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         path: PathBuf::from("Documents"),
         source_id: None,
         metadata_tag: None,
+        collection: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -69,6 +71,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         path: PathBuf::from("C:\\Samples"),
         source_id: Some(String::from("source_id::samples")),
         metadata_tag: None,
+        collection: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Samples"),
     };
@@ -76,6 +79,23 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Remove Source"));
+}
+
+#[test]
+fn sample_context_menu_paints_remove_from_collection_action_in_collection_view() {
+    let menu = super::super::BrowserContextMenu {
+        kind: super::super::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("C:\\Samples\\kick.wav"),
+        source_id: None,
+        metadata_tag: None,
+        collection: wavecrate::sample_sources::SampleCollection::new(0),
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("kick.wav"),
+    };
+    let frame = super::super::context_menu::overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text("Remove from collection"));
 }
 
 #[test]

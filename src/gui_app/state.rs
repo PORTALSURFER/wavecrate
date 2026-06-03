@@ -150,6 +150,7 @@ pub(in crate::gui_app) enum GuiMessage {
     FocusLoadedFile,
     AdjustSelectedRating(i8),
     AssignSelectedCollection(SampleCollection),
+    RemoveContextSampleFromCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
     CopyContextPath,

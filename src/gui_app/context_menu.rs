@@ -3,6 +3,7 @@ use super::GuiMessage;
 use radiant::gui::types::Point;
 use radiant::prelude as ui;
 use std::path::{Path, PathBuf};
+use wavecrate::sample_sources::SampleCollection;
 
 const CONTEXT_MENU_WIDTH: f32 = 210.0;
 
@@ -20,6 +21,7 @@ pub(super) struct BrowserContextMenu {
     pub(super) path: PathBuf,
     pub(super) source_id: Option<String>,
     pub(super) metadata_tag: Option<String>,
+    pub(super) collection: Option<SampleCollection>,
     pub(super) anchor: Point,
     pub(super) title: String,
 }
@@ -85,6 +87,15 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
         actions
             .push(ui::MenuCommand::new("Remove Source", GuiMessage::RemoveContextSource).danger());
+    }
+    if menu.kind == BrowserContextTargetKind::Sample && menu.collection.is_some() {
+        actions.push(
+            ui::MenuCommand::new(
+                "Remove from collection",
+                GuiMessage::RemoveContextSampleFromCollection,
+            )
+            .danger(),
+        );
     }
     actions
 }

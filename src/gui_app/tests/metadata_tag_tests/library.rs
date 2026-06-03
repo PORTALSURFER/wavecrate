@@ -288,6 +288,7 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
         path: PathBuf::new(),
         source_id: None,
         metadata_tag: Some(String::from("oneshot")),
+        collection: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("oneshot"),
     });
@@ -318,6 +319,7 @@ fn metadata_tag_context_delete_rejects_locked_playback_tags() {
         path: PathBuf::new(),
         source_id: None,
         metadata_tag: Some(String::from("loop")),
+        collection: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("loop"),
     });

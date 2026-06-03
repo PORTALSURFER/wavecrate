@@ -133,6 +133,95 @@ fn gui_state_with_temp_sample(name: &str) -> (GuiAppState, tempfile::TempDir, St
     (state, source_root, selected_file)
 }
 
+#[test]
+fn collection_shortcut_toggles_selected_sample_membership() {
+    let (mut state, source_root, selected_file) = gui_state_with_temp_sample("toggle.wav");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+
+    state.apply_message(
+        super::GuiMessage::AssignSelectedCollection(collection),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("toggle.wav"))
+            .expect("collections"),
+        vec![collection]
+    );
+    assert!(
+        state
+            .folder_browser
+            .selected_source_audio_files()
+            .into_iter()
+            .find(|file| file.id == selected_file)
+            .expect("sample")
+            .belongs_to_collection(collection)
+    );
+
+    state.apply_message(
+        super::GuiMessage::AssignSelectedCollection(collection),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("toggle.wav"))
+            .expect("collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert!(
+        !state
+            .folder_browser
+            .selected_source_audio_files()
+            .into_iter()
+            .find(|file| file.id == selected_file)
+            .expect("sample")
+            .belongs_to_collection(collection)
+    );
+}
+
+#[test]
+fn sample_context_menu_removes_item_from_active_collection_view() {
+    let (mut state, source_root, selected_file) = gui_state_with_temp_sample("remove.wav");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+
+    state.apply_message(
+        super::GuiMessage::AssignSelectedCollection(collection),
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        super::GuiMessage::FolderBrowser(super::FolderBrowserMessage::ActivateCollection(
+            collection,
+        )),
+        &mut ui::UpdateContext::default(),
+    );
+    state.open_sample_context_menu(selected_file, Point::new(12.0, 24.0));
+
+    assert_eq!(
+        state.context_menu.as_ref().and_then(|menu| menu.collection),
+        Some(collection)
+    );
+
+    state.apply_message(
+        super::GuiMessage::RemoveContextSampleFromCollection,
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("remove.wav"))
+            .expect("collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert!(state.folder_browser.selected_audio_files().is_empty());
+    assert_eq!(state.context_menu, None);
+    assert!(
+        state
+            .sample_status
+            .contains("Removed 1 sample from Collection 1")
+    );
+}
+
 fn start_deferred_sample_load_for_tests(
     state: &mut GuiAppState,
     path: String,

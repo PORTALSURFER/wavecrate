@@ -108,9 +108,24 @@ impl GuiAppState {
     pub(in crate::gui_app) fn play_random_sample_range_with_unit(
         &mut self,
         unit: f32,
-        _context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        if let Some(path) = self.folder_browser.selected_file_id()
+            && self.waveform.path() != Path::new(path)
+        {
+            let label = sample_path_label(path);
+            emit_gui_action(
+                "playback.play_random_sample_range",
+                Some("transport"),
+                Some(&label),
+                "load_queued",
+                started_at,
+                None,
+            );
+            self.select_sample(path.to_string(), context);
+            return;
+        }
         let file_name = self.waveform.file_name();
         let (start, end) = random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
         let was_looping = self.loop_playback;

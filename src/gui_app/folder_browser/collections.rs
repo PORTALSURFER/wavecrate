@@ -131,34 +131,83 @@ impl FolderBrowserState {
         updated
     }
 
+    pub(in crate::gui_app) fn remove_file_collection_state(
+        &mut self,
+        path: &std::path::Path,
+        collection: SampleCollection,
+    ) -> bool {
+        let path_id = path.to_string_lossy();
+        let mut updated = false;
+        for folder in &mut self.folders {
+            updated |= folder.remove_file_collection(path_id.as_ref(), collection);
+        }
+        for source in &mut self.sources {
+            if let Some(root_folder) = &mut source.root_folder {
+                updated |= root_folder.remove_file_collection(path_id.as_ref(), collection);
+            }
+        }
+        self.reconcile_active_collection_selection(collection);
+        updated
+    }
+
     pub(in crate::gui_app) fn selected_file_collection_candidates(
         &self,
+        collection: SampleCollection,
     ) -> Vec<SelectedFileCollectionCandidate> {
         self.selected_audio_files()
             .into_iter()
             .filter(|file| self.is_file_selected(&file.id))
             .map(|file| SelectedFileCollectionCandidate {
                 path: PathBuf::from(&file.id),
+                assigned: file.belongs_to_collection(collection),
             })
             .collect()
     }
 
     pub(in crate::gui_app) fn drag_file_collection_candidates(
         &self,
+        collection: SampleCollection,
     ) -> Vec<SelectedFileCollectionCandidate> {
         match &self.drag {
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids
                 .iter()
-                .filter(|file_id| {
+                .filter_map(|file_id| {
                     self.selected_audio_files()
                         .iter()
-                        .any(|file| file.id == **file_id)
+                        .find(|file| file.id == **file_id)
+                        .map(|file| SelectedFileCollectionCandidate {
+                            path: PathBuf::from(&file.id),
+                            assigned: file.belongs_to_collection(collection),
+                        })
                 })
-                .map(PathBuf::from)
-                .map(|path| SelectedFileCollectionCandidate { path })
                 .collect(),
             _ => Vec::new(),
         }
+    }
+
+    pub(in crate::gui_app) fn context_file_collection_candidate(
+        &self,
+        path: &std::path::Path,
+        collection: SampleCollection,
+    ) -> Option<SelectedFileCollectionCandidate> {
+        let path_id = path.to_string_lossy();
+        self.selected_audio_files()
+            .into_iter()
+            .find(|file| file.id == path_id)
+            .map(|file| SelectedFileCollectionCandidate {
+                path: PathBuf::from(&file.id),
+                assigned: file.belongs_to_collection(collection),
+            })
+    }
+
+    pub(in crate::gui_app) fn active_collection_for_context_file(
+        &self,
+        path: &std::path::Path,
+    ) -> Option<SampleCollection> {
+        let collection = self.selected_collection?;
+        self.context_file_collection_candidate(path, collection)
+            .filter(|candidate| candidate.assigned)
+            .map(|_| collection)
     }
 
     pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
@@ -273,6 +322,30 @@ impl FolderBrowserState {
         }
         counts
     }
+
+    fn reconcile_active_collection_selection(&mut self, collection: SampleCollection) {
+        if self.selected_collection != Some(collection) {
+            return;
+        }
+        let visible_ids = self
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        let visible_id_set = visible_ids
+            .iter()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>();
+        self.selected_file_ids
+            .retain(|file_id| visible_id_set.contains(file_id));
+        if self
+            .selected_file
+            .as_ref()
+            .is_some_and(|file_id| !visible_id_set.contains(file_id))
+        {
+            self.selected_file = visible_ids.first().cloned();
+        }
+    }
 }
 
 fn collection_rows_height(row_count: usize) -> f32 {
@@ -345,4 +418,5 @@ fn collection_rename_input_id(collection: SampleCollection) -> u64 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) struct SelectedFileCollectionCandidate {
     pub(in crate::gui_app) path: PathBuf,
+    pub(in crate::gui_app) assigned: bool,
 }

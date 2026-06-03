@@ -110,6 +110,44 @@ fn set_collection_replaces_all_collection_memberships() {
 }
 
 #[test]
+fn remove_collection_removes_one_membership_and_preserves_remaining_slots() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    let first = SampleCollection::new(0).unwrap();
+    let second = SampleCollection::new(1).unwrap();
+
+    let mut batch = db.write_batch().unwrap();
+    batch.add_collection(Path::new("one.wav"), first).unwrap();
+    batch.add_collection(Path::new("one.wav"), second).unwrap();
+    batch
+        .remove_collection(Path::new("one.wav"), first)
+        .unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        vec![second]
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("one.wav")).unwrap(),
+        Some(second)
+    );
+
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .remove_collection(Path::new("one.wav"), second)
+        .unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        Vec::<SampleCollection>::new()
+    );
+    assert_eq!(db.collection_for_path(Path::new("one.wav")).unwrap(), None);
+}
+
+#[test]
 fn metadata_written_inside_batch_commits_with_other_changes() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();

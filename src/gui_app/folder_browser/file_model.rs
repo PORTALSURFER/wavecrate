@@ -41,6 +41,17 @@ impl FileEntry {
         true
     }
 
+    pub(in crate::gui_app) fn remove_collection(&mut self, collection: SampleCollection) -> bool {
+        if !self.belongs_to_collection(collection) {
+            return false;
+        }
+        self.collections.retain(|entry| *entry != collection);
+        if self.collection == Some(collection) {
+            self.collection = self.collections.first().copied();
+        }
+        true
+    }
+
     pub(in crate::gui_app) fn first_collection(&self) -> Option<SampleCollection> {
         self.collections.first().copied().or(self.collection)
     }

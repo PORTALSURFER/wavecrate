@@ -35,6 +35,7 @@ impl GuiAppState {
             path,
             source_id,
             metadata_tag: None,
+            collection: None,
             anchor: position,
             title,
         });
@@ -76,6 +77,7 @@ impl GuiAppState {
             path,
             source_id: None,
             metadata_tag: None,
+            collection: None,
             anchor: position,
         });
     }
@@ -108,12 +110,16 @@ impl GuiAppState {
             );
             return;
         }
+        let collection = self
+            .folder_browser
+            .active_collection_for_context_file(&path);
         self.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             title: sample_path_label(&path),
             path,
             source_id: None,
             metadata_tag: None,
+            collection,
             anchor: position,
         });
     }
@@ -128,6 +134,7 @@ impl GuiAppState {
             path: Path::new("").to_path_buf(),
             source_id: None,
             metadata_tag: Some(tag.clone()),
+            collection: None,
             anchor: position,
             title: tag,
         });

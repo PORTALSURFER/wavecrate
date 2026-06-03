@@ -7,7 +7,9 @@ const TREE_DEPTH_INDENT: f32 = 4.0;
 
 mod collections;
 use collections::{CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, SampleCollectionConfig};
-pub(in crate::gui_app) use collections::{SampleCollectionView, collection_hotkey};
+pub(in crate::gui_app) use collections::{
+    SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
+};
 
 mod path_helpers;
 use path_helpers::{folder_label, path_id, rewrite_path_id};

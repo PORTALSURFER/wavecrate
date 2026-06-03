@@ -128,4 +128,19 @@ impl FolderEntry {
             .iter_mut()
             .any(|child| child.set_file_collection(file_id, collection))
     }
+
+    pub(super) fn remove_file_collection(
+        &mut self,
+        file_id: &str,
+        collection: wavecrate::sample_sources::SampleCollection,
+    ) -> bool {
+        for file in &mut self.files {
+            if file.id == file_id {
+                return file.remove_collection(collection);
+            }
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.remove_file_collection(file_id, collection))
+    }
 }

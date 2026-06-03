@@ -173,6 +173,9 @@ impl GuiAppState {
             GuiMessage::AssignSelectedCollection(collection) => {
                 self.assign_selected_collection(collection, context)
             }
+            GuiMessage::RemoveContextSampleFromCollection => {
+                self.remove_context_sample_from_collection(context)
+            }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::CopyContextPath => self.copy_context_path(context),
