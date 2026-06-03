@@ -14,8 +14,13 @@ use radiant::{gui::types::Point, prelude as ui};
 
 const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
 const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
+const CENTER_PANEL_PADDING: f32 = 6.0;
+const FOLDER_SIDEBAR_PADDING: f32 = 4.0;
+const METADATA_PANEL_PADDING: f32 = 6.0;
+const BOTTOM_STATUS_BAR_HEIGHT: f32 = 30.0;
 
 pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
+    let tag_completion_overlay = metadata_tag_completion_overlay(state);
     let content = ui::column([
         top_status_bar(state),
         center_panel(state),
@@ -28,6 +33,9 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
         && let Some(progress) = state.folder_progress.as_ref()
     {
         layers.push(status_bar::job_details_popover(progress));
+    }
+    if let Some(overlay) = tag_completion_overlay {
+        layers.push(overlay);
     }
     if let Some(menu) = state.context_menu.as_ref() {
         layers.push(context_menu::overlay(menu));
@@ -64,7 +72,46 @@ fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     }
     children.push(folder_splitter());
     children.push(main_area(state));
-    ui::row(children).padding(6.0).fill()
+    ui::row(children).padding(CENTER_PANEL_PADDING).fill()
+}
+
+fn metadata_tag_completion_overlay(state: &GuiAppState) -> Option<ui::View<GuiMessage>> {
+    if state.folder_browser.selected_file_id().is_none() {
+        return None;
+    }
+    let completion_options = state.metadata_tag_completion_options();
+    if completion_options.is_empty() {
+        return None;
+    }
+    let pending_category_tag = state
+        .pending_metadata_tag_category_tag()
+        .map(str::to_string);
+    let completion_suffix = state.metadata_tag_completion_suffix();
+    let selected_metadata_tags = state.selected_metadata_tags().to_vec();
+    let display_categories = state.selected_metadata_tag_display_categories();
+    let tag_field_content_width = folder_browser::tag_field_content_width(state.folder_width);
+    let tag_field_height = folder_browser::tag_field_height(
+        state.metadata_tag_draft.as_str(),
+        state.metadata_tag_tokens.as_slice(),
+        pending_category_tag.as_deref(),
+        completion_suffix.as_deref(),
+        selected_metadata_tags.as_slice(),
+        display_categories.as_slice(),
+        tag_field_content_width,
+    );
+    let inset_x = CENTER_PANEL_PADDING + FOLDER_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
+    let inset_y = BOTTOM_STATUS_BAR_HEIGHT
+        + CENTER_PANEL_PADDING
+        + FOLDER_SIDEBAR_PADDING
+        + METADATA_PANEL_PADDING
+        + tag_field_height
+        + folder_browser::TAG_COMPLETION_POPUP_GAP;
+    Some(folder_browser::tag_completion_overlay(
+        completion_options.as_slice(),
+        tag_field_content_width,
+        inset_x,
+        inset_y,
+    ))
 }
 
 fn folder_sidebar(state: &mut GuiAppState) -> ui::View<GuiMessage> {

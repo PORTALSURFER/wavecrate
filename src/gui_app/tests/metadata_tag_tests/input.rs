@@ -442,7 +442,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
 }
 
 #[test]
-fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
+fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_options() {
     let browser = super::super::super::FolderBrowserState::load_default();
     let completion_options = vec![
         super::super::super::metadata_tags::MetadataTagCompletionOption {
@@ -483,9 +483,9 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     assert_eq!(tag_input.state.caret, 2);
     assert_eq!(tag_input.completion_suffix.as_deref(), Some("ck"));
     assert_eq!(tag_input.completion_color, theme.text_muted);
-    assert!(frame.paint_plan.contains_text("Sound Type"));
-    assert!(frame.paint_plan.contains_text("kicker"));
-    assert!(frame.paint_plan.contains_text("Character"));
+    assert!(!frame.paint_plan.contains_text("Sound Type"));
+    assert!(!frame.paint_plan.contains_text("kicker"));
+    assert!(!frame.paint_plan.contains_text("Character"));
     assert!(!frame.paint_plan.contains_text("Tab kick"));
     assert!(frame.paint_plan.contains_text("warm"));
     assert!(
@@ -504,44 +504,24 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
 
 #[test]
 fn folder_browser_metadata_category_completion_renders_above_tag_input() {
-    let browser = super::super::super::FolderBrowserState::load_default();
-    let completion_options = vec![
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
-            tag: String::from("Sound Type"),
-            category: "Group",
-            selected: true,
-        },
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
-            tag: String::from("Character"),
-            category: "Group",
-            selected: false,
-        },
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
-            tag: String::from("Prefix"),
-            category: "Group",
-            selected: false,
-        },
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
-            tag: String::from("Tuning/Scale"),
-            category: "Group",
-            selected: false,
-        },
-    ];
-    let frame = super::super::super::folder_browser::folder_browser_view(
-        &browser,
-        260.0,
-        true,
-        "",
-        &[],
-        Some("new-tag"),
-        "select group/parent tag",
-        None,
-        completion_options.as_slice(),
-        &[],
-        &[],
-        None,
-    )
-    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let (mut baseline_state, _baseline_source_root, _baseline_selected_file) =
+        gui_state_with_temp_sample("baseline-tag-target.wav");
+    let baseline_frame = super::super::super::view(&mut baseline_state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let baseline_tag_input = baseline_frame
+        .paint_plan
+        .first_text_input()
+        .expect("baseline tag input should paint");
+
+    let (mut state, _source_root, _selected_file) =
+        gui_state_with_temp_sample("category-tag-target.wav");
+    state.metadata_tag_input_mode = super::super::super::MetadataTagInputMode::Category {
+        pending_tag: String::from("new-tag"),
+    };
+    state.metadata_tag_draft.clear();
+
+    let frame = super::super::super::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let tag_input = frame
         .paint_plan
@@ -556,5 +536,9 @@ fn folder_browser_metadata_category_completion_renders_above_tag_input() {
         final_option.max.y <= tag_input.rect.min.y,
         "category completion popup should fit above the tag input, option {final_option:?}, input {:?}",
         tag_input.rect
+    );
+    assert_eq!(
+        tag_input.rect.min.y, baseline_tag_input.rect.min.y,
+        "floating category completion should not expand or shift the tags section"
     );
 }

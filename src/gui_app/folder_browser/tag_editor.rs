@@ -1,12 +1,9 @@
 use radiant::prelude as ui;
 
-use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
+use crate::gui_app::metadata_tags::MetadataTagDisplayCategory;
 use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_tag_category_style};
 
 use super::GuiMessage;
-use super::tag_completion::{
-    TAG_COMPLETION_POPUP_GAP, tag_completion_panel_height, tag_completion_panel_layer,
-};
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
     capped_rows_height, metadata_tag_category_id_for_display, order_metadata_tags_for_display,
@@ -21,7 +18,6 @@ pub(super) fn metadata_section(
     tag_pending_category_tag: Option<&str>,
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
-    tag_completion_options: &[MetadataTagCompletionOption],
     tags: &[String],
     tag_display_categories: &[MetadataTagDisplayCategory],
     selected_metadata_tag: Option<&str>,
@@ -33,15 +29,9 @@ pub(super) fn metadata_section(
         return metadata_sidebar_panel(ui::empty().fill_width(), 12.0);
     }
 
-    let completion_height = tag_completion_panel_height(tag_completion_options);
-    let completion_lane_height = if completion_height > 0.0 {
-        completion_height + TAG_COMPLETION_POPUP_GAP
-    } else {
-        0.0
-    };
-    let content_height = 25.0 + completion_lane_height + tag_field_height;
-    let section_height = 38.0 + completion_lane_height + tag_field_height;
-    let mut layers = vec![
+    let content_height = 25.0 + tag_field_height;
+    let section_height = 38.0 + tag_field_height;
+    metadata_sidebar_panel(
         ui::column([
             ui::row([
                 ui::text(format!("Tags ({})", tags.len()))
@@ -56,10 +46,6 @@ pub(super) fn metadata_section(
             .fill_width()
             .height(22.0)
             .key("metadata-tag-library-toggle-row"),
-            ui::spacer()
-                .fill_width()
-                .height(completion_lane_height)
-                .key("metadata-tag-completion-overlay-lane"),
             tag_entry_field(
                 tag_draft,
                 tag_tokens,
@@ -77,18 +63,8 @@ pub(super) fn metadata_section(
             .height(tag_field_height),
         ])
         .fill_width()
+        .height(content_height)
         .spacing(3.0),
-    ];
-    if !tag_completion_options.is_empty() {
-        layers.push(tag_completion_panel_layer(
-            tag_completion_options,
-            tag_field_content_width,
-            content_height,
-            tag_field_height,
-        ));
-    }
-    metadata_sidebar_panel(
-        ui::stack_layers(layers).fill_width().height(content_height),
         section_height,
     )
 }
@@ -159,7 +135,7 @@ fn tag_entry_field(
     }
 }
 
-pub(super) fn tag_field_height(
+pub(in crate::gui_app) fn tag_field_height(
     tag_draft: &str,
     tag_tokens: &[String],
     tag_pending_category_tag: Option<&str>,

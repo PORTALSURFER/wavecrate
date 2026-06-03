@@ -132,7 +132,7 @@ pub(super) fn capped_rows_height(row_count: usize) -> f32 {
     tag_field_metrics().visible_field_height(row_count)
 }
 
-pub(super) fn tag_field_content_width(sidebar_width: f32) -> f32 {
+pub(in crate::gui_app) fn tag_field_content_width(sidebar_width: f32) -> f32 {
     tag_field_metrics().content_width(sidebar_width)
 }
 

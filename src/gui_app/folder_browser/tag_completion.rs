@@ -8,31 +8,31 @@ const MAX_TAG_COMPLETION_ROWS: usize = 6;
 const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
 const TAG_COMPLETION_POPUP_VERTICAL_CHROME: f32 = 6.0;
 
-pub(super) const TAG_COMPLETION_POPUP_GAP: f32 = 3.0;
+pub(in crate::gui_app) const TAG_COMPLETION_POPUP_GAP: f32 = 3.0;
 
-pub(super) fn tag_completion_panel_layer(
+pub(in crate::gui_app) fn tag_completion_overlay(
     options: &[MetadataTagCompletionOption],
     content_width: f32,
-    content_height: f32,
-    tag_field_height: f32,
+    inset_x: f32,
+    inset_y: f32,
 ) -> ui::View<GuiMessage> {
     if options.is_empty() {
         return ui::empty().fill_width();
     }
-    let trigger_y = content_height - tag_field_height;
-    ui::compact_option_list_floating_above(ui::CompactOptionListFloatingAboveParts::new(
-        tag_completion_options(options, content_width),
-        0.0,
-        trigger_y,
-        TAG_COMPLETION_POPUP_GAP,
-        content_width,
-    ))
-    .key("metadata-tag-completion-panel-layer")
-    .fill()
-}
-
-pub(super) fn tag_completion_panel_height(options: &[MetadataTagCompletionOption]) -> f32 {
-    tag_completion_options(options, 1.0).height()
+    let parts = tag_completion_options(options, content_width);
+    let height = parts.height();
+    let list = ui::compact_option_list_from_parts(parts)
+        .fill_width()
+        .height(height);
+    ui::anchored_layer(
+        list,
+        ui::Vector2::new(content_width, height),
+        ui::LayerHorizontalAnchor::Start,
+        ui::LayerVerticalAnchor::End,
+        inset_x,
+        inset_y,
+    )
+    .key("metadata-tag-completion-overlay")
 }
 
 fn tag_completion_options(
