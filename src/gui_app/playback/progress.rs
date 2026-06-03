@@ -50,6 +50,16 @@ impl GuiAppState {
             && !after.requires_surface_frame()
     }
 
+    pub(in crate::gui_app) fn frame_message_animation_active(&self) -> bool {
+        self.waveform.is_playing()
+            || self.waveform.play_selection_flash_active()
+            || self.folder_progress.is_some()
+            || self.normalization_progress.is_some()
+            || self.startup_source_scan_pending
+            || self.startup_auto_load_pending
+            || (self.waveform_loading_label.is_some() && !self.folder_browser.drag_active())
+    }
+
     pub(in crate::gui_app) fn sync_edit_fade_audio_state(&mut self) {
         if let Some(player) = self.audio_player.as_ref() {
             player.set_edit_fade_state(self.waveform.edit_selection());

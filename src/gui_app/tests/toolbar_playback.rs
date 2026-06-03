@@ -181,6 +181,32 @@ fn playback_frame_repaints_surface_when_playback_state_changes() {
 }
 
 #[test]
+fn frame_animation_stays_active_for_pending_startup_source_scan() {
+    let mut state = gui_state_for_span_tests();
+    assert!(!state.frame_message_animation_active());
+
+    state.startup_source_scan_pending = true;
+
+    assert!(
+        state.frame_message_animation_active(),
+        "startup source restoration needs a frame message to queue the source scan"
+    );
+}
+
+#[test]
+fn frame_animation_stays_active_for_pending_startup_auto_load() {
+    let mut state = gui_state_for_span_tests();
+    assert!(!state.frame_message_animation_active());
+
+    state.startup_auto_load_pending = true;
+
+    assert!(
+        state.frame_message_animation_active(),
+        "startup sample auto-load needs frame messages until the restored source is loaded"
+    );
+}
+
+#[test]
 fn playback_cursor_paints_as_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.start_playback(0.25);

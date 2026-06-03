@@ -79,13 +79,7 @@ pub(crate) fn run() -> Result<(), String> {
         radiant::app(state)
             .options(options)
             .view(view)
-            .animation(|state| {
-                state.waveform.is_playing()
-                    || state.waveform.play_selection_flash_active()
-                    || state.folder_progress.is_some()
-                    || (state.waveform_loading_label.is_some()
-                        && !state.folder_browser.drag_active())
-            })
+            .animation(|state| state.frame_message_animation_active())
             .on_frame(|| GuiMessage::Frame)
             .animated_transient_overlay_at(
                 60,
