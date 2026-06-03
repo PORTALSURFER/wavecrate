@@ -728,7 +728,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 548.0);
+    assert_eq!(feedback.marker_x, 536.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -750,6 +750,44 @@ fn sample_file_column_drag_reorders_columns() {
             "extension",
             "size",
             "rating",
+            "modified"
+        ]
+    );
+}
+
+#[test]
+fn sample_file_column_drag_cancel_clears_feedback_without_reorder() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::Started {
+            position: Point::new(284.0, 0.0),
+        },
+    ));
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::Moved {
+            position: Point::new(560.0, 0.0),
+        },
+    ));
+    assert!(browser.file_column_drag_feedback().is_some());
+
+    browser.apply_message(FolderBrowserMessage::CancelFileColumnDrag);
+
+    assert_eq!(browser.file_column_drag_feedback(), None);
+    assert_eq!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "rating",
+            "collection",
+            "extension",
+            "size",
             "modified"
         ]
     );

@@ -14,6 +14,12 @@ pub(super) fn default_gui_shortcut_resolution(
             )),
         )
         .push_when(
+            state.folder_browser.file_column_drag_active(),
+            ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::CancelFileColumnDrag,
+            )),
+        )
+        .push_when(
             state.context_menu.is_some(),
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
         )

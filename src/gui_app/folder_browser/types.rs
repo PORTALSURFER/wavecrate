@@ -81,6 +81,7 @@ pub(in crate::gui_app) enum FolderBrowserMessage {
     SortFileColumn(String),
     ResizeFileColumn(String, DragHandleMessage),
     DragFileColumn(String, DragHandleMessage),
+    CancelFileColumnDrag,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

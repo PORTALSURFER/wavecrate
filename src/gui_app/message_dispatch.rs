@@ -298,6 +298,7 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
             ui::DragHandlePhase::Moved => None,
             ui::DragHandlePhase::Ended => Some("waveform.selection_export_drag.end"),
             ui::DragHandlePhase::DoubleActivate => None,
+            ui::DragHandlePhase::Cancelled => None,
         },
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
         WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,

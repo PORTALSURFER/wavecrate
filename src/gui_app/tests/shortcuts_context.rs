@@ -75,6 +75,40 @@ fn escape_shortcut_cancels_rename_while_renaming() {
 }
 
 #[test]
+fn escape_shortcut_cancels_file_column_drag() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state
+        .folder_browser
+        .apply_message(crate::gui_app::FolderBrowserMessage::DragFileColumn(
+            String::from("rating"),
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(284.0, 0.0),
+            },
+        ));
+    state
+        .folder_browser
+        .apply_message(crate::gui_app::FolderBrowserMessage::DragFileColumn(
+            String::from("rating"),
+            radiant::widgets::DragHandleMessage::Moved {
+                position: Point::new(560.0, 0.0),
+            },
+        ));
+
+    let resolution = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::new(ui::KeyCode::Escape),
+    );
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::gui_app::GuiMessage::FolderBrowser(
+            crate::gui_app::FolderBrowserMessage::CancelFileColumnDrag
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn audio_settings_window_does_not_capture_main_escape_shortcut() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;

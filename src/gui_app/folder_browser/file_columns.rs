@@ -5,6 +5,9 @@ use super::{FileColumn, FileColumnDragFeedback, FileEntry, FolderBrowserState};
 pub(in crate::gui_app) const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
 pub(in crate::gui_app) const FILE_COLUMN_GAP: f32 = 10.0;
+const FILE_COLUMN_RESIZE_HANDLE_WIDTH: f32 = 4.0;
+const FILE_COLUMN_DROP_MARKER_HANDLE_OFFSET: f32 =
+    FILE_COLUMN_GAP + FILE_COLUMN_RESIZE_HANDLE_WIDTH * 0.5;
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn visible_file_columns(&self) -> Vec<&FileColumn> {
@@ -21,8 +24,11 @@ impl FolderBrowserState {
             .file_columns
             .iter()
             .find(|column| column.id == drag.column_id)?;
-        let marker_x = drag.current_marker_x(&self.details_column_placements(), FILE_COLUMN_GAP)?
-            - drag.content_left;
+        let marker_x = (drag
+            .current_marker_x(&self.details_column_placements(), FILE_COLUMN_GAP)?
+            - drag.content_left
+            - FILE_COLUMN_DROP_MARKER_HANDLE_OFFSET)
+            .max(0.0);
         Some(FileColumnDragFeedback {
             label: column.label.clone(),
             pointer: drag.pointer,
@@ -76,6 +82,15 @@ impl FolderBrowserState {
             FILE_COLUMN_GAP,
             |column: &FileColumn| column.id.as_str(),
         );
+    }
+
+    pub(super) fn cancel_file_column_drag(&mut self) {
+        self.file_column_reorder = None;
+        self.file_column_resize = None;
+    }
+
+    pub(in crate::gui_app) fn file_column_drag_active(&self) -> bool {
+        self.file_column_reorder.is_some() || self.file_column_resize.is_some()
     }
 
     fn details_column_placements(&self) -> Vec<ui::DetailsColumnPlacement> {

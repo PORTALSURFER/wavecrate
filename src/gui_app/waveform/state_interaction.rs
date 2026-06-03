@@ -197,6 +197,11 @@ impl WaveformState {
                     self.active_drag = None;
                 }
             }
+            radiant::widgets::DragHandlePhase::Cancelled => {
+                if matches!(self.active_drag, Some(WaveformDrag::PlaySelectionExport)) {
+                    self.active_drag = None;
+                }
+            }
             radiant::widgets::DragHandlePhase::DoubleActivate => {}
         }
     }

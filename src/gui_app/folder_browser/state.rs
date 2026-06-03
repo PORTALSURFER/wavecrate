@@ -230,6 +230,9 @@ impl FolderBrowserState {
             FolderBrowserMessage::DragFileColumn(column_id, message) => {
                 self.drag_file_column(column_id, message);
             }
+            FolderBrowserMessage::CancelFileColumnDrag => {
+                self.cancel_file_column_drag();
+            }
             FolderBrowserMessage::ResizeCollectionsPanel(message) => {
                 self.resize_collections_panel(message);
             }

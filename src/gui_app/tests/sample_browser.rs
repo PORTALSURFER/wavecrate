@@ -305,14 +305,10 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
                 && fill.rect.height() >= 20.0
         })
         .expect("dragging over a later header should paint the drop marker");
+    let handle_gap = modified_rect.min.x - marker.rect.min.x;
     assert!(
-        marker.rect.min.x <= modified_rect.min.x,
-        "drop marker should paint at the leading edge of the hovered Modified header, marker={:?}, modified={modified_rect:?}",
-        marker.rect
-    );
-    assert!(
-        modified_rect.min.x - marker.rect.min.x <= 24.0,
-        "drop marker should be near the hovered Modified header, marker={:?}, modified={modified_rect:?}",
+        (8.0..=18.0).contains(&handle_gap),
+        "drop marker should paint at the resize handle before Modified, not in front of its label, marker={:?}, modified={modified_rect:?}, gap={handle_gap}",
         marker.rect
     );
 }

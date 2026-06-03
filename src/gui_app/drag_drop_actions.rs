@@ -27,6 +27,10 @@ impl GuiAppState {
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
             }
+            DragHandlePhase::Cancelled => {
+                self.folder_browser.clear_drag();
+                context.end_drag_session();
+            }
             DragHandlePhase::DoubleActivate => {}
         }
     }
@@ -56,6 +60,10 @@ impl GuiAppState {
                         .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
                     context.end_drag_session();
                 }
+            }
+            DragHandlePhase::Cancelled => {
+                self.folder_browser.clear_drag();
+                context.end_drag_session();
             }
             DragHandlePhase::DoubleActivate => {}
         }
@@ -105,6 +113,11 @@ impl GuiAppState {
                 true
             }
             DragHandlePhase::Ended => {
+                self.folder_browser.clear_drag();
+                context.end_drag_session();
+                true
+            }
+            DragHandlePhase::Cancelled => {
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
                 true
