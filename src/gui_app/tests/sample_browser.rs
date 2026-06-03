@@ -1,8 +1,11 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::IntoView,
+    runtime::Event,
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
 };
+
+use super::gui_runtime_for_tests;
 
 #[test]
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
@@ -103,6 +106,43 @@ fn sample_browser_column_drag_paints_drop_marker() {
             && fill.rect.width() <= 2.5
             && fill.rect.height() >= 20.0
     }));
+}
+
+#[test]
+fn sample_browser_header_paints_hover_affordance() {
+    let state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
+    let name_rect = frame
+        .paint_plan
+        .text_runs()
+        .filter(|text| text.text.as_str().starts_with("Name"))
+        .map(|text| text.rect)
+        .min_by(|a, b| a.min.y.total_cmp(&b.min.y))
+        .expect("name column header should paint");
+    let point = Point::new(name_rect.min.x + 8.0, name_rect.center().y);
+    let target = runtime
+        .widget_at(point)
+        .expect("sample header should expose a sort/drag hit target");
+    assert!(
+        !frame
+            .paint_plan
+            .contains_visible_fill_polygon_for_widget(target),
+        "sample header hit target should not paint button chrome before hover"
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(point)),
+        Some(target),
+        "hovering the sample header should still route to the sort/drag hit target"
+    );
+
+    let hovered_frame = runtime.frame_with_default_theme();
+    assert!(
+        hovered_frame
+            .paint_plan
+            .contains_visible_fill_polygon_for_widget(target),
+        "hovering a sample header should paint a subtle cell-sized affordance"
+    );
 }
 
 #[test]
