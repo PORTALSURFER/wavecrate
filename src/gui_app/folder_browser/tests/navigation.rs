@@ -707,6 +707,22 @@ fn sample_file_column_drag_reorders_columns() {
             position: Point::new(560.0, 0.0),
         },
     ));
+    assert_eq!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "rating",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ],
+        "column order should stay stable until the drag is released"
+    );
     let feedback = browser
         .file_column_drag_feedback()
         .expect("active column drag should project visual feedback");

@@ -174,6 +174,102 @@ fn full_gui_column_drag_paints_pointer_preview() {
 }
 
 #[test]
+fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
+    let state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
+    let rating_rect = frame
+        .paint_plan
+        .text_runs()
+        .filter(|text| text.text.as_str() == "Rating")
+        .map(|text| text.rect)
+        .min_by(|a, b| a.min.y.total_cmp(&b.min.y))
+        .expect("rating column header should paint");
+    let press = rating_rect.center();
+    let drag = Point::new(press.x + 260.0, press.y);
+    let drag_update = Point::new(drag.x + 1.0, drag.y);
+
+    let press_target = runtime.dispatch_event(Event::primary_press(press));
+    let move_target = runtime.dispatch_event(Event::pointer_move(drag));
+    let update_target = runtime.dispatch_event(Event::pointer_move(drag_update));
+    assert!(press_target.is_some());
+    assert!(move_target.is_some());
+    assert_eq!(update_target, press_target);
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .folder_browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "rating",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ],
+        "drag motion should preview without committing the column order"
+    );
+
+    let dragging_frame = runtime.frame_with_default_theme();
+    assert!(dragging_frame.paint_plan.fill_rects().any(|fill| {
+        fill.color == Rgba8::new(255, 160, 82, 230)
+            && fill.rect.width() <= 2.5
+            && fill.rect.height() >= 20.0
+    }));
+    assert!(dragging_frame.paint_plan.text_runs().any(|text| {
+        text.text == "Rating"
+            && text.rect.min.x >= drag_update.x
+            && text.rect.min.y >= drag_update.y
+    }));
+
+    let release_target = runtime.dispatch_event(Event::primary_release(drag_update));
+    assert_eq!(release_target, press_target);
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .folder_browser
+            .file_column_drag_feedback(),
+        None
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .folder_browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "collection",
+            "extension",
+            "size",
+            "rating",
+            "modified"
+        ]
+    );
+
+    let released_frame = runtime.frame_with_default_theme();
+    assert!(!released_frame.paint_plan.fill_rects().any(|fill| {
+        fill.color == Rgba8::new(255, 160, 82, 230)
+            && fill.rect.width() <= 2.5
+            && fill.rect.height() >= 20.0
+    }));
+    assert!(!released_frame.paint_plan.text_runs().any(|text| {
+        text.text == "Rating"
+            && text.rect.min.x >= drag_update.x
+            && text.rect.min.y >= drag_update.y
+    }));
+}
+
+#[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
     let expected_names = state

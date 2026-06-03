@@ -5,7 +5,6 @@ use super::{FileColumn, FileColumnDragFeedback, FileEntry, FolderBrowserState};
 pub(in crate::gui_app) const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
 pub(in crate::gui_app) const FILE_COLUMN_GAP: f32 = 10.0;
-const FILE_COLUMN_HEADER_PADDING_X: f32 = 8.0;
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn visible_file_columns(&self) -> Vec<&FileColumn> {
@@ -22,7 +21,7 @@ impl FolderBrowserState {
             .file_columns
             .iter()
             .find(|column| column.id == drag.column_id)?;
-        let marker_x = self.file_column_marker_x(&drag.column_id)?;
+        let marker_x = drag.current_marker_x(&self.details_column_placements(), FILE_COLUMN_GAP)?;
         Some(FileColumnDragFeedback {
             label: column.label.clone(),
             pointer: drag.pointer,
@@ -83,22 +82,6 @@ impl FolderBrowserState {
             .iter()
             .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
             .collect()
-    }
-
-    fn file_column_marker_x(&self, column_id: &str) -> Option<f32> {
-        let index = self
-            .file_columns
-            .iter()
-            .position(|column| column.id == column_id)?;
-        Some(
-            FILE_COLUMN_HEADER_PADDING_X
-                + self
-                    .file_columns
-                    .iter()
-                    .take(index)
-                    .map(|column| column.width + FILE_COLUMN_GAP)
-                    .sum::<f32>(),
-        )
     }
 
     pub(super) fn sort_files(&self, files: &mut Vec<&FileEntry>) {
