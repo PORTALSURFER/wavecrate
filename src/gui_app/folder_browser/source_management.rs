@@ -4,6 +4,7 @@ use super::{
     FolderBrowserState, FolderEntry, RemovedSource, SourceEntry,
     path_helpers::{folder_label, path_id},
     scanning::{default_root_path, load_root_folder, merge_scan_discovery, placeholder_folder},
+    source_scan_cache::{load_source_scan_cache, save_source_scan_cache},
     types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
 };
 use wavecrate::sample_sources::{SampleSource, SourceId};
@@ -31,14 +32,20 @@ impl FolderBrowserState {
         if sources.is_empty() {
             return Self::load_default();
         }
+        let scan_cache = load_source_scan_cache().unwrap_or_else(|error| {
+            tracing::warn!("{error}; falling back to source disk scan");
+            Default::default()
+        });
         let entries = sources
             .iter()
             .map(|source| {
-                SourceEntry::new(
+                let mut entry = SourceEntry::new(
                     source.id.as_str().to_string(),
                     folder_label(&source.root),
                     source.root.clone(),
-                )
+                );
+                entry.root_folder = scan_cache.folder_for_source(source.id.as_str(), &source.root);
+                entry
             })
             .collect::<Vec<_>>();
         Self::from_sources_deferred(entries, sources[0].id.as_str().to_string())
@@ -55,6 +62,10 @@ impl FolderBrowserState {
                 )
             })
             .collect()
+    }
+
+    pub(in crate::gui_app) fn save_source_scan_cache(&self) -> Result<(), String> {
+        save_source_scan_cache(&self.sources)
     }
 
     #[cfg(test)]

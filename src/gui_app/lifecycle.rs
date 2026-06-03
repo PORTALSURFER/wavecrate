@@ -20,11 +20,14 @@ impl GuiAppState {
         let config = wavecrate::sample_sources::config::load_or_default()
             .map_err(|err| format!("load app configuration: {err}"))?;
         let has_configured_sources = !config.sources.is_empty();
+        let folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
+        let startup_source_scan_pending =
+            has_configured_sources && !folder_browser.selected_source_loaded();
         let (worker_sender, worker_receiver) = mpsc::channel();
         let state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
-            folder_browser: FolderBrowserState::from_sample_sources_deferred(&config.sources),
+            folder_browser,
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Select a sample to load"),
             worker_sender,
@@ -72,7 +75,7 @@ impl GuiAppState {
             collapsed_metadata_tag_categories: Default::default(),
             metadata_tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
-            startup_source_scan_pending: has_configured_sources,
+            startup_source_scan_pending,
             startup_auto_load_pending: has_configured_sources,
             waveform_cache: HashMap::new(),
             waveform_cache_order: Default::default(),
@@ -246,7 +249,8 @@ impl GuiAppState {
             sources: self.folder_browser.configured_sample_sources(),
             core,
         })
-        .map_err(|err| err.to_string())
+        .map_err(|err| err.to_string())?;
+        self.folder_browser.save_source_scan_cache()
     }
 }
 

@@ -39,6 +39,8 @@ mod scanning;
 pub(super) use scanning::scan_source_with_progress;
 use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
 
+mod source_scan_cache;
+
 mod source_management;
 
 mod rename_tree;

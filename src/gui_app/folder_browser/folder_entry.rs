@@ -3,9 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::{Deserialize, Serialize};
+
 use super::{FileEntry, file_entry, folder_label, path_id, rewrite_path_id};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(in crate::gui_app) struct FolderEntry {
     pub(super) id: String,
     pub(super) name: String,

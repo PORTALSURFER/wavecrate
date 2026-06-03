@@ -60,7 +60,10 @@ impl FolderBrowserState {
         selected_source: String,
     ) -> Self {
         let source_index = selected_source_index(&sources, &selected_source);
-        let root_folder = placeholder_folder(&sources[source_index].root);
+        let root_folder = sources[source_index]
+            .root_folder
+            .clone()
+            .unwrap_or_else(|| placeholder_folder(&sources[source_index].root));
         Self::new(sources, source_index, root_folder)
     }
 

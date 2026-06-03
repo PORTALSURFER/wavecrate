@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(in crate::gui_app) struct FileEntry {
     pub(in crate::gui_app) id: String,
     pub(in crate::gui_app) name: String,

@@ -83,3 +83,39 @@ fn deferred_sample_sources_start_with_placeholder_and_queue_selected_scan() {
     assert!(browser.scan_is_active(&request.source_id, 7));
     let _ = fs::remove_dir_all(request.root);
 }
+
+#[test]
+fn deferred_sample_sources_reuse_persisted_scan_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let root = temp_source_root("wavecrate-gui-deferred-source-cache");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
+    let sources = vec![wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(root.to_string_lossy().to_string()),
+        root.clone(),
+    )];
+    let browser = FolderBrowserState::from_sample_sources(&sources);
+    browser
+        .save_source_scan_cache()
+        .expect("persist source scan cache");
+
+    let mut reloaded = FolderBrowserState::from_sample_sources_deferred(&sources);
+
+    assert!(reloaded.selected_source_loaded());
+    assert!(
+        reloaded.begin_selected_source_scan(7).is_none(),
+        "cached selected source should not queue a startup scan"
+    );
+    reloaded.activate_folder(path_id(&drums));
+    assert_eq!(
+        reloaded
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
