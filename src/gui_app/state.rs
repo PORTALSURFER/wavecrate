@@ -283,6 +283,7 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) metadata_tag_draft: String,
     pub(in crate::gui_app) metadata_tag_tokens: Vec<String>,
     pub(in crate::gui_app) metadata_tag_input_mode: MetadataTagInputMode,
+    pub(in crate::gui_app) pending_metadata_tag_completion_query: Option<String>,
     pub(in crate::gui_app) metadata_tag_completion_cycle: ui::CyclicListSelectionCycle,
     pub(in crate::gui_app) metadata_tag_dictionary: BTreeMap<String, String>,
     pub(in crate::gui_app) metadata_tag_library_open: bool,

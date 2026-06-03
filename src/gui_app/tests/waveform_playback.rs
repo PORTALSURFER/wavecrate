@@ -232,6 +232,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
         metadata_tag_input_mode: Default::default(),
+        pending_metadata_tag_completion_query: None,
         metadata_tag_completion_cycle: ui::CyclicListSelectionCycle::new(),
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,

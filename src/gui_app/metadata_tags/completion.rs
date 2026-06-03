@@ -58,6 +58,7 @@ impl GuiAppState {
             self.move_metadata_tag_category_completion_selection(delta);
             return;
         }
+        self.pending_metadata_tag_completion_query = None;
         let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
             self.reset_metadata_tag_completion_cycle();
             return;
@@ -108,6 +109,16 @@ impl GuiAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
+        if self.metadata_tag_completion_cycle.query_key() == Some(prefix.as_str()) {
+            self.pending_metadata_tag_completion_query = None;
+            return;
+        }
+        if self.pending_metadata_tag_completion_query.as_deref() != Some(prefix.as_str()) {
+            self.metadata_tag_completion_cycle.reset();
+            self.pending_metadata_tag_completion_query = Some(prefix);
+            return;
+        }
+        self.pending_metadata_tag_completion_query = None;
         self.metadata_tag_completion_cycle
             .select(prefix, 0, suggestion_count);
     }
@@ -310,6 +321,7 @@ impl GuiAppState {
     }
 
     pub(super) fn reset_metadata_tag_completion_cycle(&mut self) {
+        self.pending_metadata_tag_completion_query = None;
         self.metadata_tag_completion_cycle.reset();
     }
 }

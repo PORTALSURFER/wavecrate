@@ -67,6 +67,7 @@ impl GuiAppState {
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),
             metadata_tag_input_mode: Default::default(),
+            pending_metadata_tag_completion_query: None,
             metadata_tag_completion_cycle: ui::CyclicListSelectionCycle::new(),
             metadata_tag_dictionary: config.core.tag_dictionary.clone(),
             metadata_tag_library_open: false,
