@@ -1,11 +1,11 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::IntoView,
-    runtime::Event,
+    runtime::{Event, SurfaceFrame},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
 };
 
-use super::gui_runtime_for_tests;
+use super::{gui_runtime_for_tests, gui_state_with_temp_sample};
 
 #[test]
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
@@ -171,6 +171,63 @@ fn full_gui_column_drag_paints_pointer_preview() {
     assert!(frame.paint_plan.text_runs().any(|text| {
         text.text == "Rating" && text.rect.min.x >= 620.0 && text.rect.min.y >= 330.0
     }));
+}
+
+#[test]
+fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
+    let (state, _source_root, _selected_file) = gui_state_with_temp_sample("resize-layout.wav");
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let initial_frame = runtime.frame_with_default_theme();
+    let initial_extension_x = first_row_extension_x(&initial_frame);
+
+    runtime.dispatch_message(crate::gui_app::GuiMessage::FolderBrowser(
+        crate::gui_app::folder_browser::FolderBrowserMessage::ResizeFileColumn(
+            String::from("name"),
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(0.0, 0.0),
+            },
+        ),
+    ));
+    runtime.dispatch_message(crate::gui_app::GuiMessage::FolderBrowser(
+        crate::gui_app::folder_browser::FolderBrowserMessage::ResizeFileColumn(
+            String::from("name"),
+            radiant::widgets::DragHandleMessage::Moved {
+                position: Point::new(120.0, 0.0),
+            },
+        ),
+    ));
+    let resized_name_width = runtime
+        .bridge()
+        .state()
+        .folder_browser
+        .visible_file_columns()
+        .into_iter()
+        .find(|column| column.id == "name")
+        .map(|column| column.width)
+        .expect("name column should exist");
+    assert!(resized_name_width >= 340.0, "{resized_name_width}");
+
+    let resized_frame = runtime.frame_with_default_theme();
+    let resized_extension_x = first_row_extension_x(&resized_frame);
+
+    assert!(
+        resized_extension_x >= initial_extension_x + 100.0,
+        "resizing the name column should immediately move row cells: before={initial_extension_x}, after={resized_extension_x}"
+    );
+}
+
+fn first_row_extension_x(frame: &SurfaceFrame) -> f32 {
+    let texts = frame
+        .paint_plan
+        .text_runs()
+        .map(|text| (text.text.as_str().to_string(), text.rect))
+        .collect::<Vec<_>>();
+    texts
+        .iter()
+        .filter(|(text, rect)| text.as_str() == "wav" && rect.min.y >= 336.0 && rect.min.y < 360.0)
+        .map(|(_, rect)| rect.min.x)
+        .min_by(f32::total_cmp)
+        .unwrap_or_else(|| panic!("first row extension should paint: {texts:?}"))
 }
 
 #[test]
