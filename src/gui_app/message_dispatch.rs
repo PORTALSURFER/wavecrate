@@ -101,6 +101,7 @@ impl GuiAppState {
             }
             GuiMessage::AudioPlayerOpenFinished(ticket) => self.finish_audio_player_open(ticket),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
+            GuiMessage::PlayRandomSampleRange => self.play_random_sample_range(context),
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
             GuiMessage::SetVolume(volume) => self.set_volume(volume),

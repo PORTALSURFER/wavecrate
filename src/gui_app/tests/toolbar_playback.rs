@@ -6,6 +6,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
     for icon in [
         super::super::ToolbarIcon::FocusLoaded,
         super::super::ToolbarIcon::Loop,
+        super::super::ToolbarIcon::Random,
         super::super::ToolbarIcon::Play,
         super::super::ToolbarIcon::Stop,
     ] {
@@ -51,6 +52,10 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
             super::super::ToolbarIcon::Loop,
             super::super::GuiMessage::ToggleLoopPlayback,
         ),
+        (
+            super::super::ToolbarIcon::Random,
+            super::super::GuiMessage::PlayRandomSampleRange,
+        ),
     ] {
         assert_eq!(
             super::super::toolbar_icon_button(101, icon, true, false).view_dispatch_widget_output(
@@ -75,6 +80,30 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
                 .is_some_and(|rect| rect.width() > 100.0 && rect.height() >= 20.0)
         }),
         "empty toolbar spacer should not paint or reserve a large visible rectangle"
+    );
+}
+
+#[test]
+fn random_toolbar_button_is_hit_target_for_loaded_sample() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.waveform = super::super::WaveformState::synthetic_for_tests();
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .expect("random toolbar icon should paint");
+    let point = icon_rect.center();
+
+    assert_eq!(
+        runtime.widget_at(point),
+        Some(super::super::TOOLBAR_RANDOM_ID),
+        "random button must be the topmost hit target for loaded samples"
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(point)),
+        Some(super::super::TOOLBAR_RANDOM_ID)
     );
 }
 

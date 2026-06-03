@@ -1,3 +1,4 @@
+use rand::Rng;
 use span::ResolvedPlaybackSpan;
 use std::{
     path::Path,
@@ -14,6 +15,8 @@ use radiant::prelude as ui;
 mod loop_control;
 mod progress;
 mod span;
+
+const RANDOM_AUDITION_SECONDS: f32 = 4.0;
 
 impl GuiAppState {
     pub(super) fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
@@ -88,6 +91,51 @@ impl GuiAppState {
                     "playback.play_waveform_from_ratio",
                     Some("waveform"),
                     None,
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
+    }
+
+    pub(super) fn play_random_sample_range(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let mut rng = rand::rng();
+        self.play_random_sample_range_with_unit(rng.random::<f32>(), context);
+    }
+
+    #[cfg_attr(test, allow(dead_code))]
+    pub(in crate::gui_app) fn play_random_sample_range_with_unit(
+        &mut self,
+        unit: f32,
+        _context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let file_name = self.waveform.file_name();
+        let (start, end) = random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
+        let was_looping = self.loop_playback;
+        self.loop_playback = false;
+
+        match self.start_playback_current_span(start, end) {
+            Ok(()) => {
+                self.sample_status =
+                    format!("Random audition {file_name} from {:.1}%", start * 100.0);
+                emit_gui_action(
+                    "playback.play_random_sample_range",
+                    Some("transport"),
+                    Some(&file_name),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                self.loop_playback = was_looping;
+                self.sample_status = format!("Playback unavailable: {err}");
+                emit_gui_action(
+                    "playback.play_random_sample_range",
+                    Some("transport"),
+                    Some(&file_name),
                     "error",
                     started_at,
                     Some(&err),
@@ -271,6 +319,20 @@ impl GuiAppState {
             offset_ratio,
         }
     }
+}
+
+pub(in crate::gui_app) fn random_audition_span_for_unit(
+    duration_seconds: f32,
+    unit: f32,
+) -> (f32, f32) {
+    if duration_seconds <= RANDOM_AUDITION_SECONDS {
+        return (0.0, 1.0);
+    }
+
+    let width = (RANDOM_AUDITION_SECONDS / duration_seconds).clamp(0.0, 1.0);
+    let max_start = 1.0 - width;
+    let start = unit.clamp(0.0, 1.0) * max_start;
+    (start, start + width)
 }
 
 fn log_slow_playback_phase(

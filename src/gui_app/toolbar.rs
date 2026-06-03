@@ -10,9 +10,10 @@ pub(super) const TOOLBAR_FOCUS_LOADED_ID: u64 = 32_100;
 const TOOLBAR_LOOP_ID: u64 = 32_101;
 const TOOLBAR_PLAY_ID: u64 = 32_102;
 pub(super) const TOOLBAR_STOP_ID: u64 = 32_103;
+pub(super) const TOOLBAR_RANDOM_ID: u64 = 32_104;
 
 pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    let stop_enabled = state.waveform.has_loaded_sample();
+    let sample_loaded = state.waveform.has_loaded_sample();
     ui::toolbar_from_parts(
         ui::ToolbarParts::new([
             toolbar_icon_button(
@@ -27,13 +28,14 @@ pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
                 true,
                 state.loop_playback,
             ),
+            toolbar_icon_button(TOOLBAR_RANDOM_ID, ToolbarIcon::Random, sample_loaded, false),
             toolbar_icon_button(
                 TOOLBAR_PLAY_ID,
                 ToolbarIcon::Play,
                 true,
                 state.waveform.is_playing(),
             ),
-            toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, stop_enabled, false),
+            toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, sample_loaded, false),
         ])
         .align_end(),
     )
@@ -57,6 +59,7 @@ pub(super) fn toolbar_icon_button(
 pub(super) enum ToolbarIcon {
     FocusLoaded,
     Loop,
+    Random,
     Play,
     Stop,
 }
@@ -66,6 +69,7 @@ impl ToolbarIcon {
         match self {
             Self::FocusLoaded => &FOCUS_LOADED_ICON,
             Self::Loop => &LOOP_ICON,
+            Self::Random => &RANDOM_ICON,
             Self::Play => &PLAY_ICON,
             Self::Stop => &STOP_ICON,
         }
@@ -90,6 +94,7 @@ fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
     match icon {
         ToolbarIcon::FocusLoaded => GuiMessage::FocusLoadedFile,
         ToolbarIcon::Loop => GuiMessage::ToggleLoopPlayback,
+        ToolbarIcon::Random => GuiMessage::PlayRandomSampleRange,
         ToolbarIcon::Play => GuiMessage::PlaySelectedSample,
         ToolbarIcon::Stop => GuiMessage::StopPlayback,
     }
@@ -110,6 +115,14 @@ static LOOP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path d="M4 3h5.4V1.5L14 5l-4.6 3.5V7H4.2C3 7 2 8 2 9.2V10H.5v-.8C.5 5.8 2 3 4 3z"/>
   <path d="M12 13H6.6v1.5L2 11l4.6-3.5V9H12c1.2 0 2-1 2-2.2V6h1.5v.8C15.5 10.2 14 13 12 13z"/>
+</svg>"#,
+);
+
+static RANDOM_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 4h2.1c1.8 0 2.9.8 4.1 2.5l.8 1.1c.8 1.1 1.4 1.4 2.6 1.4H12V7l3 3-3 3v-2h-.4c-1.9 0-3.1-.7-4.2-2.4l-.8-1.1C5.8 6.3 5.2 6 4.1 6H2z"/>
+  <path d="M11.6 4H12V2l3 3-3 3V6h-.4c-1.2 0-1.8.3-2.6 1.4l-.2.3-.9-1.4.5-.7C8.5 4.7 9.7 4 11.6 4z"/>
+  <path d="M2 10h2.1c1.1 0 1.7-.3 2.5-1.5l.9 1.4c-1 1.4-2 2.1-3.4 2.1H2z"/>
 </svg>"#,
 );
 

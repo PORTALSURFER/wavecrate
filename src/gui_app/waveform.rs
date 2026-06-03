@@ -251,6 +251,10 @@ impl WaveformState {
         self.file.frames
     }
 
+    pub(super) fn duration_seconds(&self) -> f32 {
+        self.file.frames as f32 / self.file.sample_rate.max(1) as f32
+    }
+
     pub(super) fn file_name(&self) -> String {
         if self.file.path.as_os_str().is_empty() {
             return String::from("No sample loaded");

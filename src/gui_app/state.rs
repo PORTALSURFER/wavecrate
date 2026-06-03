@@ -108,6 +108,7 @@ pub(in crate::gui_app) enum GuiMessage {
     WaveformCacheWarmFinished(ui::TaskTicket),
     AudioPlayerOpenFinished(ui::TaskTicket),
     PlaySelectedSample,
+    PlayRandomSampleRange,
     StopPlayback,
     ToggleLoopPlayback,
     SetVolume(f32),

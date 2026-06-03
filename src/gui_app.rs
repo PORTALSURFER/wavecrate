@@ -80,8 +80,8 @@ pub(in crate::gui_app) use state::{
 };
 #[cfg(test)]
 use toolbar::{
-    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_color,
-    toolbar_icon_glyph,
+    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_RANDOM_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button,
+    toolbar_icon_color, toolbar_icon_glyph,
 };
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 

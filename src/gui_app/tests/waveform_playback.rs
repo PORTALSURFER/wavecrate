@@ -45,6 +45,45 @@ fn looped_waveform_click_resolves_to_playmark_span_when_selected() {
 }
 
 #[test]
+fn random_audition_span_uses_fixed_window_inside_long_sample() {
+    let (start, end) = super::super::playback::random_audition_span_for_unit(20.0, 0.5);
+
+    assert!((start - 0.4).abs() < 0.001, "start was {start}");
+    assert!((end - 0.6).abs() < 0.001, "end was {end}");
+}
+
+#[test]
+fn random_audition_span_plays_whole_short_sample() {
+    assert_eq!(
+        super::super::playback::random_audition_span_for_unit(2.0, 0.75),
+        (0.0, 1.0)
+    );
+}
+
+#[test]
+fn random_audition_is_one_shot_even_when_loop_is_enabled() {
+    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+        return;
+    };
+    let mut state = gui_state_for_span_tests();
+    state.audio_player = Some(player);
+    state.loop_playback = true;
+
+    let mut context = ui::UpdateContext::default();
+    state.play_random_sample_range_with_unit(0.5, &mut context);
+
+    assert!(!state.loop_playback);
+    assert!(state.waveform.is_playing());
+    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        state
+            .audio_player
+            .as_ref()
+            .is_some_and(|player| !player.is_looping())
+    );
+}
+
+#[test]
 fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
     let root = std::env::temp_dir().join(format!(
         "wavecrate-default-gui-normalize-{}",
