@@ -59,6 +59,32 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
 }
 
 #[test]
+fn metadata_section_keeps_configured_height_without_selected_file() {
+    let browser = super::super::super::FolderBrowserState::load_default();
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        false,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &[],
+        &[],
+        None,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let metadata_rect = frame
+        .paint_plan
+        .first_widget_rect(super::super::super::folder_browser::METADATA_SIDEBAR_PANEL_ID)
+        .expect("metadata panel should stay in the sidebar without a selected file");
+
+    assert_eq!(metadata_rect.height(), browser.metadata_panel_height());
+}
+
+#[test]
 fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     let browser = super::super::super::FolderBrowserState::load_default();
     let completion_options = vec![

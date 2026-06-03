@@ -153,6 +153,9 @@ impl FolderBrowserState {
         if self.rename_active() || self.selected_collection.is_some() {
             return false;
         }
+        if self.selected_folder_is_source_root() {
+            return false;
+        }
         if self.folder_has_children(&self.selected_folder) {
             self.expanded_folders.remove(&self.selected_folder)
         } else {
@@ -162,6 +165,9 @@ impl FolderBrowserState {
 
     pub(in crate::gui_app) fn expand_selected_folder(&mut self) -> bool {
         if self.rename_active() || self.selected_collection.is_some() {
+            return false;
+        }
+        if self.selected_folder_is_source_root() {
             return false;
         }
         if self.folder_has_children(&self.selected_folder) {

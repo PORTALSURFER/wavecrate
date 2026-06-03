@@ -25,13 +25,15 @@ impl GuiAppState {
         let path = self.waveform.path();
         if self.folder_browser.focus_file_across_sources(&path) {
             if let Some(index) = self.folder_browser.selected_audio_file_index() {
-                context.scroll_fixed_row_into_view(
+                context.scroll_into_view_snapped(
                     crate::gui_app::SAMPLE_BROWSER_LIST_ID,
-                    index,
+                    index as f32 * crate::gui_app::SAMPLE_BROWSER_ROW_HEIGHT,
                     crate::gui_app::SAMPLE_BROWSER_ROW_HEIGHT,
-                    crate::gui_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                    crate::gui_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                    0,
+                    crate::gui_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32
+                        * crate::gui_app::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::gui_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32
+                        * crate::gui_app::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::gui_app::SAMPLE_BROWSER_ROW_HEIGHT,
                 );
             }
             self.sample_status = format!("Focused {}", sample_path_label(&path));

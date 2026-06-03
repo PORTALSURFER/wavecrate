@@ -27,6 +27,10 @@ impl FolderBrowserState {
     }
 
     pub(super) fn activate_folder(&mut self, id: String) {
+        if self.selected_folder_is_source_root_id(&id) {
+            self.select_folder(id);
+            return;
+        }
         if !self.folder_has_children(&id) {
             self.select_folder(id);
             return;
@@ -38,6 +42,15 @@ impl FolderBrowserState {
             self.expanded_folders.remove(&id);
         } else {
             self.select_folder(id);
+        }
+    }
+
+    pub(super) fn toggle_folder_expansion(&mut self, id: String) {
+        if self.selected_folder_is_source_root_id(&id) || !self.folder_has_children(&id) {
+            return;
+        }
+        if !self.expanded_folders.remove(&id) {
+            self.expanded_folders.insert(id);
         }
     }
 
@@ -95,6 +108,7 @@ impl FolderBrowserState {
         depth: usize,
         folders: &mut Vec<VisibleFolder>,
     ) {
+        let is_source_root = self.selected_folder_is_source_root_id(&folder.id);
         let drag_active = self.drag.is_some();
         let drop_target_active = self.drop_target_folder.is_some();
         let drag_source = matches!(
@@ -104,10 +118,15 @@ impl FolderBrowserState {
         let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
         folders.push(VisibleFolder {
             id: folder.id.clone(),
-            name: folder.name.clone(),
+            name: if is_source_root {
+                String::from(".")
+            } else {
+                folder.name.clone()
+            },
             depth,
+            is_source_root,
             has_children: folder.has_children(),
-            expanded: self.is_expanded(&folder.id),
+            expanded: is_source_root || self.is_expanded(&folder.id),
             selected: self.selected_collection.is_none() && self.selected_folder == folder.id,
             drag_active,
             drag_source,
@@ -126,7 +145,7 @@ impl FolderBrowserState {
                 .filter(|edit| edit.folder_id == folder.id)
                 .map(|edit| edit.input_id),
         });
-        if self.is_expanded(&folder.id) {
+        if is_source_root || self.is_expanded(&folder.id) {
             for child in &folder.children {
                 self.push_visible_folder(child, depth + 1, folders);
             }

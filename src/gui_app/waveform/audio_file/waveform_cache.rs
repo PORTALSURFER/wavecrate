@@ -168,7 +168,7 @@ fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
             let _ = fs::remove_file(path);
             continue;
         }
-        if !path.extension().is_some_and(|extension| extension == "wfc") {
+        if path.extension().is_none_or(|extension| extension != "wfc") {
             continue;
         }
         let Ok(metadata) = entry.metadata() else {

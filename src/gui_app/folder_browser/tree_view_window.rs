@@ -10,6 +10,7 @@ impl FolderBrowserState {
 
     pub(super) fn reset_tree_view(&mut self) {
         self.tree_view_controller = ui::VirtualListController::default();
+        self.tree_view_follow_selection.clear();
     }
 
     pub(in crate::gui_app) fn set_tree_view_start_from_scroll_offset(
@@ -30,13 +31,17 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
+        let selected_id = selected_index
+            .filter(|_| self.selected_collection.is_none())
+            .map(|_| self.selected_folder.clone());
         self.tree_view_controller
-            .configure_and_focus_optional_with_context_row(
+            .configure_and_focus_changed_optional_with_context_row(
+                &mut self.tree_view_follow_selection,
                 total_items,
                 viewport_rows,
                 overscan_rows,
                 guard_rows,
-                selected_index,
+                ui::VirtualListFocusTarget::new(selected_id, selected_index),
             )
     }
 }

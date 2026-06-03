@@ -8,6 +8,8 @@ use super::{
     SourceEntry, default_file_columns, default_root_path, load_root_folder, placeholder_folder,
 };
 
+const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
+
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) selected_source: String,
@@ -29,12 +31,16 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) collection_rename_edit: Option<CollectionRenameEdit>,
     pub(super) collections_panel_height: f32,
     pub(super) collection_panel_resize: Option<ui::PanelResizeDrag>,
+    pub(super) metadata_panel_height: f32,
+    pub(super) metadata_panel_resize: Option<ui::PanelResizeDrag>,
     pub(super) file_columns: Vec<FileColumn>,
     pub(super) file_sort: ui::DetailsSort,
     pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
     pub(super) tree_view_controller: ui::VirtualListController,
     pub(super) file_view_controller: ui::VirtualListController,
+    pub(super) tree_view_follow_selection: ui::VirtualListFollowState<String>,
+    pub(super) file_view_follow_selection: ui::VirtualListFollowState<String>,
 }
 
 impl FolderBrowserState {
@@ -89,12 +95,16 @@ impl FolderBrowserState {
             collection_rename_edit: None,
             collections_panel_height: DEFAULT_COLLECTIONS_PANEL_HEIGHT,
             collection_panel_resize: None,
+            metadata_panel_height: DEFAULT_METADATA_PANEL_HEIGHT,
+            metadata_panel_resize: None,
             file_columns: default_file_columns(),
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
             tree_view_controller: ui::VirtualListController::default(),
             file_view_controller: ui::VirtualListController::default(),
+            tree_view_follow_selection: ui::VirtualListFollowState::default(),
+            file_view_follow_selection: ui::VirtualListFollowState::default(),
         }
     }
 
@@ -214,6 +224,10 @@ impl FolderBrowserState {
                 self.cancel_rename();
                 self.activate_folder(id);
             }
+            FolderBrowserMessage::ToggleFolderExpansion(id) => {
+                self.cancel_rename();
+                self.toggle_folder_expansion(id);
+            }
             FolderBrowserMessage::OpenFolderContextMenu(_, _) => {}
             FolderBrowserMessage::CancelRename => {
                 self.cancel_rename();
@@ -235,6 +249,9 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::ResizeCollectionsPanel(message) => {
                 self.resize_collections_panel(message);
+            }
+            FolderBrowserMessage::ResizeMetadataPanel(message) => {
+                self.resize_metadata_panel(message);
             }
             FolderBrowserMessage::ActivateCollection(collection) => {
                 self.activate_collection(collection);

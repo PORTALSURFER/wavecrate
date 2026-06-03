@@ -83,9 +83,7 @@ fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn metadata_tag_completion_overlay(state: &GuiAppState) -> Option<ui::View<GuiMessage>> {
-    if state.folder_browser.selected_file_id().is_none() {
-        return None;
-    }
+    state.folder_browser.selected_file_id()?;
     let completion_options = state.metadata_tag_completion_options();
     if completion_options.is_empty() {
         return None;

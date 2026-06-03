@@ -135,14 +135,16 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
         format!("sample-header-{}", column.id),
         label,
         column.width,
-        Some(ui::stable_widget_id(
-            SAMPLE_HEADER_SORT_DRAG_SCOPE,
-            column.id.as_str(),
-        )),
-        Some(ui::stable_widget_id(
-            SAMPLE_HEADER_RESIZE_SCOPE,
-            column.id.as_str(),
-        )),
+        ui::CompactDetailsHeaderCellIds::new(
+            Some(ui::stable_widget_id(
+                SAMPLE_HEADER_SORT_DRAG_SCOPE,
+                column.id.as_str(),
+            )),
+            Some(ui::stable_widget_id(
+                SAMPLE_HEADER_RESIZE_SCOPE,
+                column.id.as_str(),
+            )),
+        ),
         GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
         move |drag| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::DragFileColumn(drag_id.clone(), drag))

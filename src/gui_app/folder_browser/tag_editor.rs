@@ -1,19 +1,49 @@
 use radiant::prelude as ui;
+use radiant::widgets::DragHandleMessage;
 
 use crate::gui_app::metadata_tags::MetadataTagDisplayCategory;
 use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_tag_category_style};
 
-use super::GuiMessage;
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
     capped_rows_height, metadata_tag_category_id_for_display, order_metadata_tags_for_display,
     rows_height, tag_field_requires_scroll, tag_field_rows, tag_input_display_value,
     tag_input_width, tag_input_width_for_placeholder, tag_pill_width,
 };
+use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 #[cfg(test)]
 pub(in crate::gui_app) const METADATA_SIDEBAR_PANEL_ID: u64 = 0x5743_0000_0000_5448;
+const MIN_METADATA_PANEL_HEIGHT: f32 = 72.0;
+const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
+const METADATA_PANEL_PADDING: f32 = 6.0;
+const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
+const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
+
+impl FolderBrowserState {
+    pub(in crate::gui_app) fn metadata_panel_height(&self) -> f32 {
+        self.metadata_panel_height
+    }
+
+    pub(super) fn resize_metadata_panel(&mut self, message: DragHandleMessage) {
+        if message.is_double_activate() {
+            self.metadata_panel_resize = None;
+            self.metadata_panel_height = MIN_METADATA_PANEL_HEIGHT;
+            return;
+        }
+        if let Some(height) = ui::update_panel_resize_drag(
+            &mut self.metadata_panel_resize,
+            message,
+            ui::PanelResizeEdge::Top,
+            self.metadata_panel_height,
+            MIN_METADATA_PANEL_HEIGHT,
+            MAX_METADATA_PANEL_HEIGHT,
+        ) {
+            self.metadata_panel_height = height;
+        }
+    }
+}
 
 pub(super) fn metadata_section(
     tag_draft: &str,
@@ -26,14 +56,13 @@ pub(super) fn metadata_section(
     selected_metadata_tag: Option<&str>,
     tag_field_content_width: f32,
     tag_field_height: f32,
+    panel_height: f32,
     has_selected_file: bool,
 ) -> ui::View<GuiMessage> {
     if !has_selected_file {
-        return metadata_sidebar_panel(ui::empty().fill_width(), 12.0);
+        return metadata_sidebar_panel(ui::empty().fill_width().fill_height(), panel_height);
     }
 
-    let content_height = 25.0 + tag_field_height;
-    let section_height = 38.0 + tag_field_height;
     metadata_sidebar_panel(
         ui::column([
             ui::row([
@@ -66,9 +95,9 @@ pub(super) fn metadata_section(
             .height(tag_field_height),
         ])
         .fill_width()
-        .height(content_height)
+        .fill_height()
         .spacing(3.0),
-        section_height,
+        panel_height,
     )
 }
 
@@ -255,11 +284,21 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
 }
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
-    let panel = content
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-        .padding(6.0)
-        .fill_width()
-        .height(height);
+    let panel = ui::panel_section_from_parts(
+        ui::PanelSectionParts::new("Metadata", content)
+            .trailing(
+                ui::drag_handle_mapped(|message| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message))
+                })
+                .key("metadata-resize-handle")
+                .size(26.0, 18.0),
+            )
+            .padding(METADATA_PANEL_PADDING)
+            .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
+            .title_height(METADATA_PANEL_TITLE_HEIGHT)
+            .height(height),
+    )
+    .fill_width();
     #[cfg(test)]
     {
         panel.id(METADATA_SIDEBAR_PANEL_ID)

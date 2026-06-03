@@ -221,6 +221,44 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
 }
 
 #[test]
+fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
+    let root = temp_gui_root("wavecrate-toolbar-focus-loaded-scroll");
+    let files = (0..140)
+        .map(|index| root.join(format!("sample_{index:03}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write sample");
+    }
+    let loaded = files[130].clone();
+    let loaded_id = loaded.display().to_string();
+    write_test_wav_i16(&loaded, &[0, 1024, -1024, 512]);
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(root.clone()),
+    ]);
+    state.waveform = super::super::WaveformState::load_path(loaded.clone()).expect("load sample");
+    state
+        .folder_browser
+        .select_file(files[0].display().to_string());
+    state.folder_browser.follow_selected_file_view(16, 1, 1);
+    assert_eq!(state.folder_browser.file_view_start(), 0);
+
+    state.focus_loaded_file(&mut ui::UpdateContext::default());
+    state.folder_browser.follow_selected_file_view(16, 1, 1);
+
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(loaded_id.as_str())
+    );
+    assert!(
+        state.folder_browser.file_view_start() > 0,
+        "focusing loaded sample should move the retained file viewport to the loaded row"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.waveform = super::super::WaveformState::synthetic_for_tests();

@@ -20,6 +20,8 @@ mod source_section;
 use collections_section::collections_section;
 use source_section::source_selector;
 
+const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
+
 pub(in crate::gui_app) fn folder_browser_view_mut(
     state: &mut FolderBrowserState,
     sidebar_width: f32,
@@ -62,6 +64,7 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
             selected_metadata_tag,
             tag_field_content_width,
             tag_field_height,
+            state.metadata_panel_height(),
             has_selected_file,
         ),
     ])
@@ -164,12 +167,21 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
         .hoverable();
     }
 
-    let expander = if folder.expanded { "[-]" } else { "[+]" };
     let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
-    let label_text = if folder.has_children {
-        format!("{expander} {}", folder.name)
+    let label_text = folder.name.clone();
+    let expander = if folder.has_children && !folder.is_source_root {
+        let expander_label = if folder.expanded { "[-]" } else { "[+]" };
+        ui::button(expander_label)
+            .subtle()
+            .message(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ToggleFolderExpansion(id.clone()),
+            ))
+            .key(format!("folder-expander-{id}"))
+            .size(FOLDER_EXPANDER_WIDTH, 22.0)
     } else {
-        format!("    {}", folder.name)
+        ui::spacer()
+            .key(format!("folder-expander-spacer-{id}"))
+            .size(FOLDER_EXPANDER_WIDTH, 22.0)
     };
     let hit_id = id.clone();
     let hit_target = ui::custom_widget_mapped(
@@ -206,6 +218,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
 
     ui::row([
         ui::spacer().width(indent).height(22.0),
+        expander,
         hit_target.fill_width().height(22.0),
     ])
     .key(format!("folder-row-{id}"))
@@ -225,9 +238,14 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let label = state
         .selected_folder()
         .map(|folder| {
+            let folder_name = if state.selected_folder_is_source_root() {
+                "."
+            } else {
+                folder.name.as_str()
+            };
             format!(
                 "{} | {audio_count} audio | {file_count} item{}",
-                folder.name,
+                folder_name,
                 plural(file_count)
             )
         })

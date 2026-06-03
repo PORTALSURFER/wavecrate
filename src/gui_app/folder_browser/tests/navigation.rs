@@ -55,6 +55,96 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
 }
 
 #[test]
+fn source_root_folder_is_static_dot_selector() {
+    let root = temp_source_root("wavecrate-gui-root-dot-selector");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let root_id = path_id(&root);
+
+    let visible = browser.visible_folders();
+    let root_row = visible
+        .iter()
+        .find(|folder| folder.id == root_id)
+        .expect("root row should be visible");
+    assert_eq!(root_row.name, ".");
+    assert!(root_row.is_source_root);
+    assert!(root_row.expanded);
+    assert!(
+        visible.iter().any(|folder| folder.id == path_id(&drums)),
+        "root children should stay visible without expanding the root row"
+    );
+
+    assert!(!browser.collapse_selected_folder());
+    browser.activate_folder(root_id.clone());
+    assert_eq!(browser.selected_folder, root_id);
+    assert!(
+        browser
+            .visible_folders()
+            .iter()
+            .any(|folder| folder.id == path_id(&drums)),
+        "activating root should select it without collapsing its children"
+    );
+    assert!(!browser.expand_selected_folder());
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_expander_toggles_without_selecting_folder() {
+    let root = temp_source_root("wavecrate-gui-folder-expander-toggle");
+    let alpha = root.join("alpha");
+    let nested = alpha.join("nested");
+    let beta = root.join("beta");
+    fs::create_dir_all(&nested).expect("create nested folder");
+    fs::create_dir_all(&beta).expect("create beta folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let alpha_id = path_id(&alpha);
+    let beta_id = path_id(&beta);
+
+    browser.activate_folder(beta_id.clone());
+    assert_eq!(browser.selected_folder, beta_id);
+    assert!(!browser.is_expanded(&alpha_id));
+
+    browser.apply_message(FolderBrowserMessage::ToggleFolderExpansion(
+        alpha_id.clone(),
+    ));
+
+    assert_eq!(browser.selected_folder, path_id(&beta));
+    assert!(browser.is_expanded(&alpha_id));
+
+    browser.apply_message(FolderBrowserMessage::ToggleFolderExpansion(
+        alpha_id.clone(),
+    ));
+
+    assert_eq!(browser.selected_folder, path_id(&beta));
+    assert!(!browser.is_expanded(&alpha_id));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn source_root_expander_toggle_is_ignored() {
+    let root = temp_source_root("wavecrate-gui-root-expander-toggle-ignored");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let root_id = path_id(&root);
+
+    browser.apply_message(FolderBrowserMessage::ToggleFolderExpansion(root_id.clone()));
+
+    assert!(browser.is_expanded(&root_id));
+    assert_eq!(browser.selected_folder, root_id);
+    assert!(
+        browser
+            .visible_folders()
+            .iter()
+            .any(|folder| folder.id == path_id(&drums)),
+        "source root children should remain visible"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn collections_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-collections-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());
@@ -113,6 +203,50 @@ fn collections_panel_splitter_double_click_collapses_height() {
     );
     assert!(browser.collection_panel_resize.is_none());
 
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn metadata_panel_splitter_resizes_and_clamps_height() {
+    let root = temp_source_root("wavecrate-gui-metadata-panel-resize");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let initial_height = browser.metadata_panel_height;
+
+    browser.resize_metadata_panel(DragHandleMessage::Started {
+        position: Point::new(0.0, 200.0),
+    });
+    browser.resize_metadata_panel(DragHandleMessage::Moved {
+        position: Point::new(0.0, 120.0),
+    });
+
+    assert!(browser.metadata_panel_height > initial_height);
+
+    browser.resize_metadata_panel(DragHandleMessage::Moved {
+        position: Point::new(0.0, 1_000.0),
+    });
+
+    assert!(browser.metadata_panel_height < initial_height);
+
+    browser.resize_metadata_panel(DragHandleMessage::Ended {
+        position: Point::new(0.0, 1_000.0),
+    });
+
+    assert!(browser.metadata_panel_resize.is_none());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn metadata_panel_double_click_collapses_to_stable_minimum() {
+    let root = temp_source_root("wavecrate-gui-metadata-panel-collapse");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    browser.resize_metadata_panel(DragHandleMessage::DoubleActivate {
+        position: Point::new(0.0, 200.0),
+    });
+
+    assert!(browser.metadata_panel_height > 0.0);
+    assert!(browser.metadata_panel_height < 148.0);
+    assert!(browser.metadata_panel_resize.is_none());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -370,6 +504,32 @@ fn file_scroll_tracking_allows_runtime_clamped_bottom_offsets() {
 }
 
 #[test]
+fn file_scroll_tracking_is_not_overridden_by_unchanged_selection_follow() {
+    let root = temp_source_root("wavecrate-gui-file-scroll-stable-after-follow");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..24)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&files[8]));
+
+    assert_eq!(browser.follow_selected_file_view(6, 1, 1).viewport_start, 5);
+    browser.set_file_view_start_from_scroll_offset(20.0 * 22.0, 22.0);
+
+    assert_eq!(
+        browser.follow_selected_file_view(6, 1, 1).viewport_start,
+        18
+    );
+    assert_eq!(browser.file_view_start(), 18);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn folder_tree_follow_window_tracks_selected_folder() {
     let root = temp_source_root("wavecrate-gui-folder-tree-follow-window");
     for index in 0..20 {
@@ -384,6 +544,38 @@ fn folder_tree_follow_window_tracks_selected_folder() {
 
     assert_eq!(window.viewport_start, 10);
     assert_eq!(browser.tree_view_start(), 10);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_tree_scroll_tracking_is_not_overridden_by_unchanged_selection_follow() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-scroll-stable-after-follow");
+    for index in 0..24 {
+        fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&root.join("folder_12")));
+    let visible = browser.visible_folders();
+    let selected = visible.iter().position(|folder| folder.selected);
+
+    assert_eq!(
+        browser
+            .follow_selected_tree_view(visible.len(), selected, 6, 1, 1)
+            .viewport_start,
+        10
+    );
+    browser.set_tree_view_start_from_scroll_offset(
+        20.0 * super::super::TREE_ROW_HEIGHT,
+        super::super::TREE_ROW_HEIGHT,
+    );
+
+    assert_eq!(
+        browser
+            .follow_selected_tree_view(visible.len(), selected, 6, 1, 1)
+            .viewport_start,
+        19
+    );
+    assert_eq!(browser.tree_view_start(), 19);
     let _ = fs::remove_dir_all(root);
 }
 
@@ -606,6 +798,36 @@ fn activating_collection_clears_folder_selection_and_keeps_collection_as_active_
             .map(|folder| folder.selected),
         Some(true)
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn activating_collection_clears_stale_folder_focus_before_returning_to_tree() {
+    let root = temp_source_root("wavecrate-gui-collection-clears-stale-folder");
+    let alpha = root.join("alpha");
+    let nested = alpha.join("nested");
+    fs::create_dir_all(&nested).expect("create nested folder");
+    let keep = nested.join("keep.wav");
+    fs::write(&keep, []).expect("write sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let alpha_id = path_id(&alpha);
+
+    browser.activate_folder(alpha_id.clone());
+    assert!(browser.is_expanded(&alpha_id));
+    assert_eq!(browser.selected_folder_path(), Some(alpha.clone()));
+
+    let collection = SampleCollection::new(1).expect("collection");
+    browser.set_file_collection_state(&keep, collection);
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(browser.selected_folder, path_id(&root));
+    assert_eq!(browser.selected_folder_path(), None);
+
+    browser.activate_folder(alpha_id.clone());
+
+    assert!(browser.is_expanded(&alpha_id));
+    assert_eq!(browser.selected_folder_path(), Some(alpha.clone()));
+    assert_eq!(browser.selected_collection, None);
     let _ = fs::remove_dir_all(root);
 }
 

@@ -69,6 +69,7 @@ pub(super) struct VisibleFolder {
     pub(super) id: String,
     pub(super) name: String,
     pub(super) depth: usize,
+    pub(super) is_source_root: bool,
     pub(super) has_children: bool,
     pub(super) expanded: bool,
     pub(super) selected: bool,

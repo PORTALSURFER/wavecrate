@@ -232,6 +232,7 @@ impl FolderBrowserState {
     pub(super) fn activate_collection(&mut self, collection: SampleCollection) {
         if self.selected_collection != Some(collection) {
             self.collection_rename_edit = None;
+            self.reset_folder_focus_to_selected_source_root();
             self.selected_file = None;
             self.selected_file_ids.clear();
             self.reset_file_view();
@@ -344,6 +345,12 @@ impl FolderBrowserState {
             .is_some_and(|file_id| !visible_id_set.contains(file_id))
         {
             self.selected_file = visible_ids.first().cloned();
+        }
+    }
+
+    fn reset_folder_focus_to_selected_source_root(&mut self) {
+        if let Some(root) = self.folders.first() {
+            self.selected_folder = root.id.clone();
         }
     }
 }
