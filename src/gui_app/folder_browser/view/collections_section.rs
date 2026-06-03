@@ -56,7 +56,6 @@ fn collection_row(
 ) -> ui::View<GuiMessage> {
     let collection_id = collection.collection;
     if let Some(rename) = state.collection_rename_view(collection_id) {
-        let caret = rename.draft.chars().count();
         return ui::row([
             collection_swatch(collection.color)
                 .key(format!(
@@ -66,7 +65,7 @@ fn collection_row(
                 .width(34.0)
                 .height(COLLECTION_ROW_HEIGHT),
             ui::text_input(rename.draft)
-                .selection(0, caret)
+                .selection(rename.selection_start, rename.selection_end)
                 .message_event(|message| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
                 })

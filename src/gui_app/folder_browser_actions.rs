@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 use radiant::widgets::DragHandleMessage;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use wavecrate::sample_sources::SampleCollection;
 
 use super::folder_browser::FolderBrowserMessage;
 use super::{
@@ -105,7 +106,46 @@ impl GuiAppState {
                     .apply_message(FolderBrowserMessage::ActivateCollection(collection));
                 self.refresh_persisted_waveform_cache_indicators();
             }
+            FolderBrowserMessage::RenameCollection(collection) => {
+                self.begin_collection_rename(collection, context);
+            }
             message => self.folder_browser.apply_message(message),
+        }
+    }
+
+    fn begin_collection_rename(
+        &mut self,
+        collection: SampleCollection,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        match self.folder_browser.begin_rename_collection(collection) {
+            Some(input_id) => {
+                self.sample_status = String::from("Renaming collection");
+                context.after(
+                    Duration::from_millis(1),
+                    GuiMessage::FocusRenameInput(input_id),
+                );
+                emit_gui_action(
+                    "folder_browser.collection.rename.begin",
+                    Some("folder_browser"),
+                    Some("collection"),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            None => {
+                self.sample_status = String::from("Select a collection to rename");
+                emit_gui_action(
+                    "folder_browser.collection.rename.begin",
+                    Some("folder_browser"),
+                    None,
+                    "short_circuit",
+                    started_at,
+                    Some("collection_missing"),
+                );
+            }
         }
     }
 

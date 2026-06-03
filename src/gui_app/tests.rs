@@ -244,6 +244,32 @@ fn default_gui_starts_without_loading_a_sample() {
     assert_eq!(waveform.file_name(), "No sample loaded");
 }
 
+#[test]
+fn collection_rename_input_selects_name_when_focused() {
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::GuiMessage::FolderBrowser(super::FolderBrowserMessage::RenameCollection(collection)),
+        &mut context,
+    );
+    let rename = state
+        .folder_browser
+        .collection_rename_view(collection)
+        .expect("collection rename view");
+    let input_id = rename.input_id;
+
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    runtime.frame(&theme);
+
+    assert!(runtime.focus_widget(input_id));
+    assert_eq!(
+        runtime.focused_text_selection().as_deref(),
+        Some("Collection 1")
+    );
+}
+
 fn temp_gui_root(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!(
         "{name}-{}",

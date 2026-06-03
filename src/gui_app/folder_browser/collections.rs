@@ -52,6 +52,8 @@ pub(super) struct CollectionRenameEdit {
 pub(in crate::gui_app) struct CollectionRenameView {
     pub(in crate::gui_app) draft: String,
     pub(in crate::gui_app) input_id: u64,
+    pub(in crate::gui_app) selection_start: usize,
+    pub(in crate::gui_app) selection_end: usize,
 }
 
 impl FolderBrowserState {
@@ -194,6 +196,8 @@ impl FolderBrowserState {
     ) -> Option<CollectionRenameView> {
         let edit = self.collection_rename_edit.as_ref()?;
         (edit.collection == collection).then(|| CollectionRenameView {
+            selection_start: 0,
+            selection_end: edit.draft.chars().count(),
             draft: edit.draft.clone(),
             input_id: edit.input_id,
         })
@@ -207,11 +211,14 @@ impl FolderBrowserState {
             .collections
             .iter()
             .find(|entry| entry.collection == collection)?;
+        let name = entry.name.clone();
         let input_id = collection_rename_input_id(collection);
-        self.selected_collection = Some(collection);
+        self.activate_collection(collection);
+        self.rename_edit = None;
+        self.file_rename_edit = None;
         self.collection_rename_edit = Some(CollectionRenameEdit {
             collection,
-            draft: entry.name.clone(),
+            draft: name,
             input_id,
         });
         Some(input_id)
