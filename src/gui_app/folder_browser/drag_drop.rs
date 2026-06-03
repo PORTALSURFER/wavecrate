@@ -1,8 +1,4 @@
-use radiant::{
-    gui::types::Point,
-    prelude as ui,
-    widgets::{DragHandleMessage, DragHandlePhase},
-};
+use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -149,27 +145,19 @@ impl FolderBrowserState {
         if self.rename_active() {
             return;
         }
-        match message.phase() {
-            DragHandlePhase::Started => {
-                if self.selected_folder_is_source_root_id(&folder_id) {
-                    return;
-                }
-                if self.find_folder(&folder_id).is_some() {
-                    self.drag = Some(FolderBrowserDrag::Folder { folder_id });
-                    self.drag_pointer = Some(message.position());
-                    self.drop_target_folder = None;
-                }
+        if let Some(position) = message.started_position() {
+            if self.selected_folder_is_source_root_id(&folder_id) {
+                return;
             }
-            DragHandlePhase::Moved => {
-                self.update_drag_pointer(message.position());
+            if self.find_folder(&folder_id).is_some() {
+                self.drag = Some(FolderBrowserDrag::Folder { folder_id });
+                self.drag_pointer = Some(position);
+                self.drop_target_folder = None;
             }
-            DragHandlePhase::Ended => {
-                self.clear_drag();
-            }
-            DragHandlePhase::Cancelled => {
-                self.clear_drag();
-            }
-            DragHandlePhase::DoubleActivate => {}
+        } else if let Some(position) = message.moved_position() {
+            self.update_drag_pointer(position);
+        } else if message.is_finished() {
+            self.clear_drag();
         }
     }
 
@@ -202,6 +190,9 @@ impl FolderBrowserState {
         let target_path = Path::new(&target.id);
         match &self.drag {
             Some(FolderBrowserDrag::Folder { folder_id }) => {
+                if self.selected_folder_is_source_root_id(folder_id) {
+                    return false;
+                }
                 let Some(source) = self.find_folder(folder_id) else {
                     return false;
                 };

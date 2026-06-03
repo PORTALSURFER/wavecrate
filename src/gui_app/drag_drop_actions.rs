@@ -23,15 +23,11 @@ impl GuiAppState {
             DragHandlePhase::Moved => {
                 self.folder_browser.update_drag_pointer(drag.position());
             }
-            DragHandlePhase::Ended => {
+            _ if drag.is_finished() => {
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
             }
-            DragHandlePhase::Cancelled => {
-                self.folder_browser.clear_drag();
-                context.end_drag_session();
-            }
-            DragHandlePhase::DoubleActivate => {}
+            _ => {}
         }
     }
 
@@ -112,17 +108,12 @@ impl GuiAppState {
                 self.folder_browser.update_drag_pointer(drag.position());
                 true
             }
-            DragHandlePhase::Ended => {
+            _ if drag.is_finished() => {
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
                 true
             }
-            DragHandlePhase::Cancelled => {
-                self.folder_browser.clear_drag();
-                context.end_drag_session();
-                true
-            }
-            DragHandlePhase::DoubleActivate => false,
+            _ => false,
         }
     }
 
