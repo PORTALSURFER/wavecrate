@@ -36,8 +36,14 @@ mod wav_decode;
 use wav_decode::load_wav_waveform_file_with_progress;
 
 mod waveform_cache;
-pub(in crate::gui_app) use waveform_cache::cached_waveform_file_exists;
+pub(in crate::gui_app) use waveform_cache::{
+    cached_waveform_file_exists, load_cached_waveform_file_for_playback,
+};
 use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file_async};
+#[cfg(test)]
+pub(in crate::gui_app) fn store_cached_waveform_file_for_tests(file: &WaveformFile) {
+    waveform_cache::store_cached_waveform_file(file);
+}
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformFile {

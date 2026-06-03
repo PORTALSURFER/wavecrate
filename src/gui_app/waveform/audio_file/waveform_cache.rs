@@ -59,10 +59,22 @@ pub(super) fn load_cached_waveform_file(
     audio_bytes: Arc<[u8]>,
 ) -> Option<WaveformFile> {
     let identity = CacheIdentity::for_path(&path).ok()?;
-    let cache_path = cache_path_for_identity(&path, &identity).ok()?;
-    let bytes = fs::read(cache_path).ok()?;
-    let cached: CachedWaveformFile = bincode::deserialize(&bytes).ok()?;
+    let cached = read_cached_waveform_file(&path, &identity)?;
     cached.into_waveform_file(path, audio_bytes, identity)
+}
+
+pub(in crate::gui_app) fn load_cached_waveform_file_for_playback(
+    path: PathBuf,
+) -> Option<WaveformFile> {
+    let audio_bytes: Arc<[u8]> = Arc::from(fs::read(&path).ok()?);
+    let mut file = load_cached_waveform_file(path.clone(), audio_bytes)?;
+    if file.playback_samples.is_none()
+        && super::is_wav_path(&path)
+        && let Ok(samples) = super::wav_decode::read_wav_playback_samples(&file.audio_bytes)
+    {
+        file.playback_samples = Some(Arc::from(samples));
+    }
+    file.playback_samples.is_some().then_some(file)
 }
 
 pub(in crate::gui_app) fn cached_waveform_file_exists(path: &Path) -> bool {
@@ -70,6 +82,12 @@ pub(in crate::gui_app) fn cached_waveform_file_exists(path: &Path) -> bool {
         return false;
     };
     cache_path_for_identity(path, &identity).is_ok_and(|path| path.is_file())
+}
+
+fn read_cached_waveform_file(path: &Path, identity: &CacheIdentity) -> Option<CachedWaveformFile> {
+    let cache_path = cache_path_for_identity(path, identity).ok()?;
+    let bytes = fs::read(cache_path).ok()?;
+    bincode::deserialize(&bytes).ok()
 }
 
 pub(super) fn store_cached_waveform_file(file: &WaveformFile) {
@@ -222,14 +240,8 @@ impl CachedWaveformFile {
         audio_bytes: Arc<[u8]>,
         identity: CacheIdentity,
     ) -> Option<WaveformFile> {
-        if self.version != CACHE_FORMAT_VERSION
-            || self.path != path
-            || self.file_len != identity.file_len
-            || self.modified_ns != identity.modified_ns
+        if !self.matches_identity(&path, &identity)
             || self.content_revision != content_revision_for_audio_bytes(&audio_bytes)
-            || self.sample_rate == 0
-            || self.channels == 0
-            || self.frames == 0
         {
             return None;
         }
@@ -243,6 +255,16 @@ impl CachedWaveformFile {
             frames: self.frames,
             gpu_signal_summary: Arc::new(self.summary.into_summary()?),
         })
+    }
+
+    fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {
+        self.version == CACHE_FORMAT_VERSION
+            && self.path == path
+            && self.file_len == identity.file_len
+            && self.modified_ns == identity.modified_ns
+            && self.sample_rate != 0
+            && self.channels != 0
+            && self.frames != 0
     }
 }
 
@@ -368,6 +390,10 @@ mod tests {
             Some([0.0, 0.5, -0.5, 0.25].as_slice())
         );
         assert!(cached_waveform_file_exists(&path));
+        assert!(
+            load_cached_waveform_file_for_playback(path)
+                .is_some_and(|file| file.playback_samples.is_some())
+        );
     }
 
     #[test]

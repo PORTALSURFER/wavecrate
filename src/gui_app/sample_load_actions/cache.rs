@@ -1,6 +1,8 @@
-use std::{collections::hash_map::Entry, path::Path, time::Instant};
+use std::{collections::hash_map::Entry, path::Path, sync::Arc, time::Instant};
 
-use crate::gui_app::waveform::cached_waveform_file_exists;
+use crate::gui_app::waveform::{
+    WaveformFile, cached_waveform_file_exists, load_cached_waveform_file_for_playback,
+};
 use crate::gui_app::{GuiAppState, SampleFileSignature, WaveformCacheEntry, WaveformState};
 
 use super::deferred_drop::defer_large_drop;
@@ -12,24 +14,33 @@ impl GuiAppState {
     pub(super) fn cached_waveform_state(&mut self, path: &Path) -> Option<WaveformState> {
         let started_at = Instant::now();
         let path = path.to_path_buf();
-        let entry = self.waveform_cache.get(&path)?;
-        let signature_started_at = Instant::now();
-        let signature = sample_file_signature(&path)?;
-        log_slow_cache_phase(
-            "browser.sample_cache.signature",
-            &path,
-            signature_started_at,
-        );
-        if entry.signature != signature {
-            self.remove_waveform_cache_path(&path);
-            self.cached_sample_paths.remove(&path.display().to_string());
+        if let Some(file) = self.cached_memory_waveform_file(&path) {
+            self.touch_waveform_cache_path(path.clone());
             log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
+            return Some(WaveformState::from_cached_file(file));
+        }
+        if let Some(file) = load_cached_waveform_file_for_playback(path.clone()).map(Arc::new) {
+            let waveform = WaveformState::from_cached_file(file);
+            self.remember_waveform(&waveform);
+            log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
+            return Some(waveform);
+        }
+        self.cached_sample_paths.remove(&path.display().to_string());
+        log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
+        None
+    }
+
+    fn cached_memory_waveform_file(&mut self, path: &Path) -> Option<Arc<WaveformFile>> {
+        let entry = self.waveform_cache.get(path)?;
+        let signature_started_at = Instant::now();
+        let signature = sample_file_signature(path)?;
+        log_slow_cache_phase("browser.sample_cache.signature", path, signature_started_at);
+        if entry.signature != signature {
+            self.remove_waveform_cache_path(path);
+            self.cached_sample_paths.remove(&path.display().to_string());
             return None;
         }
-        let file = std::sync::Arc::clone(&entry.file);
-        self.touch_waveform_cache_path(path.clone());
-        log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
-        Some(WaveformState::from_cached_file(file))
+        Some(Arc::clone(&entry.file))
     }
 
     pub(super) fn remember_waveform(&mut self, waveform: &WaveformState) {

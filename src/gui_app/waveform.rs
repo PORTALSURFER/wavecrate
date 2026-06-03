@@ -330,7 +330,11 @@ mod state_viewport;
 
 mod audio_file;
 pub(super) use audio_file::WaveformFile;
-pub(in crate::gui_app) use audio_file::cached_waveform_file_exists;
+#[cfg(test)]
+pub(super) use audio_file::store_cached_waveform_file_for_tests;
+pub(in crate::gui_app) use audio_file::{
+    cached_waveform_file_exists, load_cached_waveform_file_for_playback,
+};
 #[cfg(test)]
 use audio_file::{
     downmix_to_mono, split_frequency_bands, synthetic_waveform_file,

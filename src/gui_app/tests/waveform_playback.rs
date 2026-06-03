@@ -222,6 +222,64 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn sample_selection_reuses_persisted_cache_after_restart() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("cached.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path = sample_path.display().to_string();
+    let sample_name = PathBuf::from(&sample_path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .expect("sample file name");
+
+    let waveform =
+        super::super::WaveformState::load_path(sample_path.clone().into()).expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_cached_waveform_file_for_tests(&file);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.refresh_persisted_waveform_cache_indicators();
+
+    assert!(
+        state.cached_sample_paths.contains(&sample_path),
+        "persisted cache should mark the sample as ready before it enters memory cache"
+    );
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.deferred_sample_load_task.active().is_none(),
+        "selection should hydrate the persisted cache immediately instead of debouncing a decode"
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "selection should not queue uncached decode work for a reusable persisted cache"
+    );
+    assert_eq!(state.waveform_loading_label, None);
+    assert_eq!(state.waveform.file_name(), sample_name);
+    assert!(
+        state.waveform.playback_samples().is_some(),
+        "persisted cache selection should restore playback samples for instant playback"
+    );
+    assert!(
+        state
+            .waveform_cache
+            .contains_key(&PathBuf::from(&sample_path)),
+        "persisted cache hydration should promote the file into the memory cache"
+    );
+}
+
+#[test]
 fn selecting_another_sample_cancels_metadata_tag_entry() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("first.wav");
