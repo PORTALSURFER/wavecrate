@@ -80,6 +80,9 @@ impl GuiAppState {
             waveform_cache: HashMap::new(),
             waveform_cache_order: Default::default(),
             waveform_cache_bytes: 0,
+            waveform_cache_warm_pending: Default::default(),
+            waveform_cache_warm_task: ui::LatestTask::new(),
+            waveform_cache_warm_results: Default::default(),
             cached_sample_paths: Default::default(),
         };
         if state.folder_browser.selected_source_loaded() {

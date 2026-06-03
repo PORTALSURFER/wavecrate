@@ -96,6 +96,9 @@ impl GuiAppState {
                 }
             }
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
+            GuiMessage::WaveformCacheWarmFinished(ticket) => {
+                self.finish_waveform_cache_warm(ticket)
+            }
             GuiMessage::AudioPlayerOpenFinished(ticket) => self.finish_audio_player_open(ticket),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::StopPlayback => self.stop_playback(),
@@ -214,6 +217,7 @@ impl GuiAppState {
                 self.maybe_open_audio_player(context);
                 self.maybe_startup_source_scan(context);
                 self.maybe_auto_load_startup_sample(context);
+                self.maybe_start_waveform_cache_warm(context);
                 self.advance_frame();
             }
         }

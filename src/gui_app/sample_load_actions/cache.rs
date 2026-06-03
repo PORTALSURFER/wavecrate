@@ -1,14 +1,19 @@
-use std::{collections::hash_map::Entry, path::Path, sync::Arc, time::Instant};
+use radiant::prelude as ui;
+use std::{collections::hash_map::Entry, path::Path, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::gui_app::waveform::{
     WaveformFile, cached_waveform_file_exists, load_cached_waveform_file_for_playback,
 };
-use crate::gui_app::{GuiAppState, SampleFileSignature, WaveformCacheEntry, WaveformState};
+use crate::gui_app::{
+    GuiAppState, GuiMessage, SampleFileSignature, WaveformCacheEntry, WaveformCacheWarmResult,
+    WaveformState,
+};
 
 use super::deferred_drop::defer_large_drop;
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 256 * 1024 * 1024;
+const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
 
 impl GuiAppState {
     pub(super) fn cached_waveform_state(&mut self, path: &Path) -> Option<WaveformState> {
@@ -77,16 +82,102 @@ impl GuiAppState {
             .map(|file| file.id.clone())
             .collect::<Vec<_>>();
         for file_id in audio_files {
-            let path = std::path::PathBuf::from(&file_id);
-            if self.waveform_cache.contains_key(&path) || cached_waveform_file_exists(&path) {
+            let path = PathBuf::from(&file_id);
+            if self.waveform_cache.contains_key(&path) {
                 self.cached_sample_paths.insert(file_id);
+            } else if cached_waveform_file_exists(&path) {
+                self.cached_sample_paths.insert(file_id);
+                self.queue_waveform_cache_warm(path);
             } else {
                 self.cached_sample_paths.remove(&file_id);
             }
         }
     }
 
-    fn insert_waveform_cache_entry(&mut self, path: std::path::PathBuf, entry: WaveformCacheEntry) {
+    pub(in crate::gui_app) fn maybe_start_waveform_cache_warm(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if self.waveform_cache_warm_task.active().is_some() {
+            return;
+        }
+        let paths = self.next_waveform_cache_warm_batch();
+        if paths.is_empty() {
+            return;
+        }
+        let ticket = self.waveform_cache_warm_task.begin();
+        let results = Arc::clone(&self.waveform_cache_warm_results);
+        context.spawn(
+            "gui-waveform-cache-warm",
+            move || {
+                let result = warm_persisted_waveform_cache(paths);
+                if let Ok(mut results) = results.lock() {
+                    results.insert(ticket, result);
+                }
+                ticket
+            },
+            GuiMessage::WaveformCacheWarmFinished,
+        );
+    }
+
+    pub(in crate::gui_app) fn finish_waveform_cache_warm(&mut self, ticket: ui::TaskTicket) {
+        let started_at = Instant::now();
+        let result = self
+            .waveform_cache_warm_results
+            .lock()
+            .ok()
+            .and_then(|mut results| results.remove(&ticket));
+        if !self.waveform_cache_warm_task.finish(ticket) {
+            return;
+        }
+        if let Some(result) = result {
+            self.apply_waveform_cache_warm_result(result);
+        }
+        log_slow_cache_phase(
+            "browser.sample_cache.warm_finish",
+            Path::new("waveform-cache-warm"),
+            started_at,
+        );
+    }
+
+    pub(in crate::gui_app) fn apply_waveform_cache_warm_result(
+        &mut self,
+        result: WaveformCacheWarmResult,
+    ) {
+        for (_path, file) in result.loaded {
+            let waveform = WaveformState::from_cached_file(file);
+            self.remember_waveform(&waveform);
+        }
+    }
+
+    fn queue_waveform_cache_warm(&mut self, path: PathBuf) {
+        if self.waveform_cache.contains_key(&path)
+            || self
+                .waveform_cache_warm_pending
+                .iter()
+                .any(|queued| queued == &path)
+        {
+            return;
+        }
+        self.waveform_cache_warm_pending.push_back(path);
+    }
+
+    fn next_waveform_cache_warm_batch(&mut self) -> Vec<PathBuf> {
+        let mut batch = Vec::new();
+        while batch.len() < WAVEFORM_CACHE_WARM_BATCH_MAX_FILES {
+            let Some(path) = self.waveform_cache_warm_pending.pop_front() else {
+                break;
+            };
+            if self.waveform_cache.contains_key(&path) || batch.iter().any(|queued| queued == &path)
+            {
+                continue;
+            }
+            batch.push(path);
+        }
+        batch
+    }
+
+    fn insert_waveform_cache_entry(&mut self, path: PathBuf, entry: WaveformCacheEntry) {
         match self.waveform_cache.entry(path.clone()) {
             Entry::Occupied(mut occupied) => {
                 let old_entry = std::mem::replace(occupied.get_mut(), entry);
@@ -140,6 +231,20 @@ impl GuiAppState {
             self.cached_sample_paths.remove(&path.display().to_string());
         }
     }
+}
+
+pub(in crate::gui_app) fn warm_persisted_waveform_cache(
+    paths: Vec<PathBuf>,
+) -> WaveformCacheWarmResult {
+    let loaded = paths
+        .into_iter()
+        .filter_map(|path| {
+            load_cached_waveform_file_for_playback(path.clone())
+                .map(Arc::new)
+                .map(|file| (path, file))
+        })
+        .collect();
+    WaveformCacheWarmResult { loaded }
 }
 
 fn sample_file_signature(path: &Path) -> Option<SampleFileSignature> {

@@ -157,6 +157,9 @@ fn sample_selection_loads_selected_file_into_waveform() {
         waveform_cache: HashMap::new(),
         waveform_cache_order: Default::default(),
         waveform_cache_bytes: 0,
+        waveform_cache_warm_pending: Default::default(),
+        waveform_cache_warm_task: ui::LatestTask::new(),
+        waveform_cache_warm_results: Default::default(),
         cached_sample_paths: Default::default(),
     };
     let sample_path = first_visible_asset_file_path(&state.folder_browser);
@@ -277,6 +280,58 @@ fn sample_selection_reuses_persisted_cache_after_restart() {
             .contains_key(&PathBuf::from(&sample_path)),
         "persisted cache hydration should promote the file into the memory cache"
     );
+}
+
+#[test]
+fn persisted_cache_is_warmed_into_memory_after_restart() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("warm-before-click.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+    let sample_path = PathBuf::from(&sample_path_string);
+
+    let waveform =
+        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_cached_waveform_file_for_tests(&file);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.refresh_persisted_waveform_cache_indicators();
+
+    assert!(state.cached_sample_paths.contains(&sample_path_string));
+    assert!(
+        !state.waveform_cache.contains_key(&sample_path),
+        "restart indicator refresh should not synchronously deserialize cached waveforms"
+    );
+    assert_eq!(
+        state.waveform_cache_warm_pending.iter().collect::<Vec<_>>(),
+        vec![&sample_path]
+    );
+
+    let result =
+        super::super::sample_load_actions::warm_persisted_waveform_cache(vec![sample_path.clone()]);
+    state.apply_waveform_cache_warm_result(result);
+
+    assert!(
+        state.waveform_cache.contains_key(&sample_path),
+        "background warm should make the cached sample memory-hot before first click"
+    );
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(state.deferred_sample_load_task.active().is_none());
+    assert!(state.sample_load_task.active().is_none());
+    assert_eq!(state.waveform.path(), sample_path);
 }
 
 #[test]

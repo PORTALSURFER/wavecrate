@@ -23,7 +23,7 @@ use super::folder_browser::{
     FolderScanResult,
 };
 use super::metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
-use super::waveform::{WaveformInteraction, WaveformState};
+use super::waveform::{WaveformFile, WaveformInteraction, WaveformState};
 
 pub(in crate::gui_app) const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 pub(in crate::gui_app) const MIN_FOLDER_WIDTH: f32 = 180.0;
@@ -105,6 +105,7 @@ pub(in crate::gui_app) enum GuiMessage {
     },
     SampleLoadProgress(ui::TaskTicket, f32),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
+    WaveformCacheWarmFinished(ui::TaskTicket),
     AudioPlayerOpenFinished(ui::TaskTicket),
     PlaySelectedSample,
     StopPlayback,
@@ -183,6 +184,11 @@ pub(in crate::gui_app) struct WaveformCacheEntry {
     pub(in crate::gui_app) file: std::sync::Arc<super::waveform::WaveformFile>,
     pub(in crate::gui_app) signature: SampleFileSignature,
     pub(in crate::gui_app) byte_len: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::gui_app) struct WaveformCacheWarmResult {
+    pub(in crate::gui_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -282,6 +288,10 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
     pub(in crate::gui_app) waveform_cache_order: VecDeque<PathBuf>,
     pub(in crate::gui_app) waveform_cache_bytes: usize,
+    pub(in crate::gui_app) waveform_cache_warm_pending: VecDeque<PathBuf>,
+    pub(in crate::gui_app) waveform_cache_warm_task: ui::LatestTask,
+    pub(in crate::gui_app) waveform_cache_warm_results:
+        Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheWarmResult>>>,
     pub(in crate::gui_app) cached_sample_paths: HashSet<String>,
 }
 
