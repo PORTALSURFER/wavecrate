@@ -148,7 +148,7 @@ fn collection_swatch(color: ui::Rgba8) -> ui::View<GuiMessage> {
 /// Builds the fixed-width assigned-sample count cell.
 fn collection_count(count: usize) -> ui::View<GuiMessage> {
     if count == 0 {
-        return ui::spacer().width(28.0).height(COLLECTION_ROW_HEIGHT);
+        return ui::empty().width(28.0).height(COLLECTION_ROW_HEIGHT);
     }
     ui::text(count.to_string())
         .align_text(ui::TextAlign::Right)
@@ -181,6 +181,7 @@ fn collection_row_input_id(collection: wavecrate::sample_sources::SampleCollecti
 mod tests {
     use super::*;
     use radiant::prelude::IntoView;
+    use radiant::runtime::PaintPrimitive;
     use wavecrate::sample_sources::SampleCollection;
 
     /// Builds a minimal collection view for interaction tests.
@@ -240,6 +241,31 @@ mod tests {
 
         assert!(widget.props.droppable);
         assert!(!widget.props.drop_hover);
+    }
+
+    #[test]
+    /// Empty collections should not paint a count placeholder rectangle.
+    fn collection_count_hides_empty_placeholder() {
+        let frame = collection_count(0)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(28.0, COLLECTION_ROW_HEIGHT));
+
+        assert!(frame.paint_plan.primitives.iter().all(|primitive| {
+            !matches!(
+                primitive,
+                PaintPrimitive::FillRect(_)
+                    | PaintPrimitive::StrokeRect(_)
+                    | PaintPrimitive::Text(_)
+            )
+        }));
+    }
+
+    #[test]
+    /// Non-empty collections still paint the numeric count.
+    fn collection_count_shows_assigned_count() {
+        let frame = collection_count(3)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(28.0, COLLECTION_ROW_HEIGHT));
+
+        assert!(frame.paint_plan.contains_text("3"));
     }
 
     #[test]
