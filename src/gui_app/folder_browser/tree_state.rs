@@ -2,6 +2,9 @@ use super::{FolderBrowserState, FolderEntry, VisibleFolder, path_helpers::path_i
 
 impl FolderBrowserState {
     pub(super) fn selected_folder(&self) -> Option<&FolderEntry> {
+        if self.selected_collection.is_some() {
+            return None;
+        }
         self.find_folder(&self.selected_folder)
             .or_else(|| self.folders.first())
     }
@@ -105,7 +108,7 @@ impl FolderBrowserState {
             depth,
             has_children: folder.has_children(),
             expanded: self.is_expanded(&folder.id),
-            selected: self.selected_folder == folder.id,
+            selected: self.selected_collection.is_none() && self.selected_folder == folder.id,
             drag_active,
             drag_source,
             drop_candidate,

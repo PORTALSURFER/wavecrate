@@ -475,6 +475,107 @@ fn activating_collection_filters_audio_files_across_selected_source() {
 }
 
 #[test]
+/// Activating a collection transfers active selection out of the folder tree.
+fn activating_collection_clears_folder_selection_and_keeps_collection_as_active_source() {
+    let root = temp_source_root("wavecrate-gui-collection-clears-folder");
+    let alpha = root.join("alpha");
+    let beta = root.join("beta");
+    fs::create_dir_all(&alpha).expect("create alpha folder");
+    fs::create_dir_all(&beta).expect("create beta folder");
+    let alpha_keep = alpha.join("alpha_keep.wav");
+    let beta_keep = beta.join("beta_keep.wav");
+    let beta_other = beta.join("beta_other.wav");
+    fs::write(&alpha_keep, []).expect("write alpha sample");
+    fs::write(&beta_keep, []).expect("write beta sample");
+    fs::write(&beta_other, []).expect("write other sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&beta));
+    assert_eq!(browser.selected_folder_path(), Some(beta.clone()));
+
+    let collection = SampleCollection::new(1).expect("collection");
+    browser.set_file_collection_state(&alpha_keep, collection);
+    browser.set_file_collection_state(&beta_keep, collection);
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(browser.selected_folder_path(), None);
+    assert!(
+        browser
+            .visible_folders()
+            .iter()
+            .all(|folder| !folder.selected)
+    );
+    assert_eq!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .find(|view| view.collection == collection)
+            .map(|view| view.selected),
+        Some(true)
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["alpha_keep.wav", "beta_keep.wav"]
+    );
+
+    browser.activate_folder(path_id(&alpha));
+
+    assert_eq!(browser.selected_folder_path(), Some(alpha.clone()));
+    assert!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .all(|view| !view.selected)
+    );
+    assert_eq!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .find(|folder| folder.id == path_id(&alpha))
+            .map(|folder| folder.selected),
+        Some(true)
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+/// Keyboard navigation in collection mode enters the filtered sample list.
+fn collection_navigation_enters_filtered_files_without_reselecting_folder() {
+    let root = temp_source_root("wavecrate-gui-collection-keyboard");
+    let alpha = root.join("alpha");
+    let beta = root.join("beta");
+    fs::create_dir_all(&alpha).expect("create alpha folder");
+    fs::create_dir_all(&beta).expect("create beta folder");
+    let alpha_keep = alpha.join("alpha_keep.wav");
+    let beta_keep = beta.join("beta_keep.wav");
+    fs::write(&alpha_keep, []).expect("write alpha sample");
+    fs::write(&beta_keep, []).expect("write beta sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&beta));
+    let collection = SampleCollection::new(1).expect("collection");
+    browser.set_file_collection_state(&alpha_keep, collection);
+    browser.set_file_collection_state(&beta_keep, collection);
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(
+        browser.navigate_vertical(1, false),
+        Some(path_id(&alpha_keep))
+    );
+    assert_eq!(
+        browser.selected_file_id(),
+        Some(path_id(&alpha_keep).as_str())
+    );
+    assert_eq!(browser.selected_folder_path(), None);
+    assert!(!browser.expand_selected_folder());
+    assert!(!browser.collapse_selected_folder());
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn repeated_collection_activation_does_not_start_rename() {
     let root = temp_source_root("wavecrate-gui-collection-slow-click");
     let mut browser = FolderBrowserState::from_root(root.clone());

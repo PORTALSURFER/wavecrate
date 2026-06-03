@@ -139,6 +139,9 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
+        if self.selected_collection.is_some() && self.selected_file.is_none() {
+            return self.navigate_into_active_file_list(delta);
+        }
         if self.selected_file.is_some() {
             return self.navigate_selected_file(delta, extend);
         }
@@ -147,7 +150,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn collapse_selected_folder(&mut self) -> bool {
-        if self.rename_active() {
+        if self.rename_active() || self.selected_collection.is_some() {
             return false;
         }
         if self.folder_has_children(&self.selected_folder) {
@@ -158,7 +161,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn expand_selected_folder(&mut self) -> bool {
-        if self.rename_active() {
+        if self.rename_active() || self.selected_collection.is_some() {
             return false;
         }
         if self.folder_has_children(&self.selected_folder) {
@@ -204,6 +207,19 @@ impl FolderBrowserState {
             selection.navigate(delta as isize, &file_ids, false)?
         };
         self.apply_file_selection_model(selection);
+        Some(target)
+    }
+
+    /// Selects the first reachable file when collection mode owns navigation focus.
+    fn navigate_into_active_file_list(&mut self, delta: i32) -> Option<String> {
+        let file_ids = self.selected_audio_file_ids();
+        let target = if delta < 0 {
+            file_ids.last()
+        } else {
+            file_ids.first()
+        }?
+        .clone();
+        self.select_file(target.clone());
         Some(target)
     }
 
