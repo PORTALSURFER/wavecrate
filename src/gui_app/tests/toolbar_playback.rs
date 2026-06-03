@@ -69,11 +69,12 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
         main_toolbar(&state).view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
 
     assert!(
-        !frame
-            .paint_plan
-            .stroke_rects()
-            .any(|stroke| { stroke.rect.min.x <= 1.0 && stroke.rect.width() > 100.0 }),
-        "empty toolbar spacer should not paint a large bordered rectangle"
+        !frame.paint_plan.primitives.iter().any(|primitive| {
+            primitive
+                .rect()
+                .is_some_and(|rect| rect.width() > 100.0 && rect.height() >= 20.0)
+        }),
+        "empty toolbar spacer should not paint or reserve a large visible rectangle"
     );
 }
 

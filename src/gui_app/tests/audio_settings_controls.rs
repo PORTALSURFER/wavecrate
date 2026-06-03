@@ -39,6 +39,22 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 }
 
 #[test]
+fn top_status_bar_does_not_paint_flexible_spacer_rectangle() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    let frame = crate::gui_app::top_status_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 30.0));
+
+    assert!(
+        !frame.paint_plan.primitives.iter().any(|primitive| {
+            primitive
+                .rect()
+                .is_some_and(|rect| rect.width() > 240.0 && rect.height() >= 20.0)
+        }),
+        "top status bar spacer should render as empty space"
+    );
+}
+
+#[test]
 fn volume_slider_drag_emits_normalized_volume() {
     assert_eq!(
         crate::gui_app::audio_settings::volume_slider(0.25).view_dispatch_widget_output(
