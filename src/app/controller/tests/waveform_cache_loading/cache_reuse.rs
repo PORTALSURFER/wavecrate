@@ -87,6 +87,52 @@ fn persistent_waveform_cache_survives_controller_restart() {
 }
 
 #[test]
+fn queued_load_uses_persistent_waveform_cache_after_controller_restart() {
+    let cache_root = tempdir().expect("tempdir");
+    let _guard = ConfigBaseGuard::set(cache_root.path().to_path_buf());
+    let (mut first, source, rel) = controller_with_audio_file("persistent-queued.wav");
+
+    load_selection_waveform(&mut first, &source, rel.as_path());
+
+    let renderer = WaveformRenderer::new(10, 10);
+    let mut second = AppController::new(renderer, None);
+    second.library.sources.push(source.clone());
+    second.selection_state.ctx.selected_source = Some(source.id.clone());
+    second.set_wav_entries_for_tests(vec![sample_entry(
+        "persistent-queued.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    second.rebuild_wav_lookup();
+    second.rebuild_browser_lists();
+    let (audio_job_tx, audio_job_rx) = std::sync::mpsc::channel();
+    second.runtime.jobs.audio_job_tx = audio_job_tx;
+
+    second
+        .queue_audio_load_for(&source, rel.as_path(), AudioLoadIntent::Selection, None)
+        .expect("queue cached load");
+
+    let job = audio_job_rx.try_recv().expect("queued audio job");
+    assert!(
+        job.prepared.is_some(),
+        "restart load should queue a prepared cached payload instead of a full decode"
+    );
+    assert_eq!(job.relative_path, rel);
+    assert!(second.runtime.jobs.pending_audio().is_some());
+    assert!(
+        second
+            .audio
+            .cache
+            .get(
+                &CacheKey::new(&source.id, job.relative_path.as_path()),
+                second
+                    .current_file_metadata(&source, job.relative_path.as_path())
+                    .expect("metadata"),
+            )
+            .is_some()
+    );
+}
+
+#[test]
 fn repeated_selection_load_preserves_view_and_selection() {
     let (mut controller, source, rel) = controller_with_audio_file("refresh.wav");
 

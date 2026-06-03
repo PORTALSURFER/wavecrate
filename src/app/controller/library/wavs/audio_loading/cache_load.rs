@@ -1,8 +1,53 @@
 use super::super::*;
-use crate::app::controller::playback::audio_cache::CacheKey;
+use crate::app::controller::playback::audio_cache::{CacheKey, CachedAudio, FileMetadata};
 use crate::app::controller::playback::audio_loader::PreparedAudioLoad;
 
 impl AppController {
+    fn cached_audio_for_load(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+    ) -> Result<Option<(FileMetadata, CachedAudio)>, String> {
+        let metadata = match self.current_file_metadata(source, relative_path) {
+            Ok(meta) => meta,
+            Err(_) => return Ok(None),
+        };
+        let key = CacheKey::new(&source.id, relative_path);
+        if let Some(hit) = self.audio.cache.get(&key, metadata) {
+            return Ok(Some((metadata, hit)));
+        }
+        let Some(hit) = self.load_persistent_waveform_cache(&source.id, relative_path, metadata)
+        else {
+            return Ok(None);
+        };
+        let bytes: Arc<[u8]> = match self.read_waveform_bytes(source, relative_path) {
+            Ok(bytes) => Arc::from(bytes),
+            Err(err) => {
+                tracing::warn!(
+                    "Failed to hydrate waveform cache bytes for {}: {err}",
+                    relative_path.display()
+                );
+                return Ok(None);
+            }
+        };
+        self.audio.cache.insert(
+            key,
+            metadata,
+            hit.decoded.clone(),
+            bytes.clone(),
+            hit.transients.clone(),
+        );
+        Ok(Some((
+            metadata,
+            CachedAudio {
+                metadata,
+                decoded: hit.decoded,
+                bytes,
+                transients: hit.transients,
+            },
+        )))
+    }
+
     pub(crate) fn try_queue_cached_audio_load(
         &mut self,
         source: &SampleSource,
@@ -14,12 +59,7 @@ impl AppController {
         {
             return Ok(false);
         }
-        let metadata = match self.current_file_metadata(source, relative_path) {
-            Ok(meta) => meta,
-            Err(_) => return Ok(false),
-        };
-        let key = CacheKey::new(&source.id, relative_path);
-        let Some(hit) = self.audio.cache.get(&key, metadata) else {
+        let Some((metadata, hit)) = self.cached_audio_for_load(source, relative_path)? else {
             return Ok(false);
         };
         let request_id = self.runtime.jobs.next_audio_request_id();
@@ -63,51 +103,8 @@ impl AppController {
         {
             return Ok(false);
         }
-        let metadata = match self.current_file_metadata(source, relative_path) {
-            Ok(meta) => meta,
-            Err(_) => return Ok(false),
-        };
-        let key = CacheKey::new(&source.id, relative_path);
-        let Some(hit) = self.audio.cache.get(&key, metadata) else {
-            let Some(hit) =
-                self.load_persistent_waveform_cache(&source.id, relative_path, metadata)
-            else {
-                return Ok(false);
-            };
-            let bytes: Arc<[u8]> = match self.read_waveform_bytes(source, relative_path) {
-                Ok(bytes) => Arc::from(bytes),
-                Err(err) => {
-                    tracing::warn!(
-                        "Failed to hydrate waveform cache bytes for {}: {err}",
-                        relative_path.display()
-                    );
-                    return Ok(false);
-                }
-            };
-            self.audio.cache.insert(
-                key,
-                metadata,
-                hit.decoded.clone(),
-                bytes.clone(),
-                hit.transients.clone(),
-            );
-            let duration_seconds = hit.decoded.duration_seconds;
-            let sample_rate = hit.decoded.sample_rate;
-            self.finish_waveform_load_shared(FinishWaveformLoadShared {
-                source,
-                relative_path,
-                decoded: hit.decoded,
-                bytes,
-                intent,
-                preserve_selections: false,
-                transients: Some(hit.transients),
-            })?;
-            let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
-            self.set_status(message, StatusTone::Info);
-            if matches!(intent, AudioLoadIntent::Selection) {
-                self.refresh_similarity_sort_for_loaded_sample();
-            }
-            return Ok(true);
+        let Some((_metadata, hit)) = self.cached_audio_for_load(source, relative_path)? else {
+            return Ok(false);
         };
         let duration_seconds = hit.decoded.duration_seconds;
         let sample_rate = hit.decoded.sample_rate;
