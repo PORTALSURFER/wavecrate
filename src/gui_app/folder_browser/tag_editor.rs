@@ -232,10 +232,21 @@ fn tag_entry_row(
 
 fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<GuiMessage> {
     let style = metadata_tag_category_style(category_id, selected);
-    let mut badge = ui::badge(tag.to_string())
-        .message(GuiMessage::SelectMetadataTag(tag.to_string()))
-        .key(format!("metadata-tag-accepted-{tag}"))
+    let tag_for_input = tag.to_string();
+    let mut badge = ui::interactive_badge(tag.to_string())
         .style(style)
+        .actions(
+            ui::InteractiveRowActions::new()
+                .secondary({
+                    let tag = tag_for_input.clone();
+                    move |position| GuiMessage::OpenMetadataTagContextMenu {
+                        tag: tag.clone(),
+                        position,
+                    }
+                })
+                .activate(move || GuiMessage::SelectMetadataTag(tag_for_input.clone())),
+        )
+        .key(format!("metadata-tag-accepted-{tag}"))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT);
     if !selected && !metadata_tag_category_is_pinned(category_id) {
         badge = badge.subtle();

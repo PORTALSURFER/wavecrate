@@ -90,6 +90,35 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
 }
 
 #[test]
+fn right_clicking_metadata_tag_chip_opens_delete_context_menu() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(selected_file, vec![String::from("hat")]);
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let tag_rect = runtime
+        .frame_with_default_theme()
+        .paint_plan
+        .first_text_rect("hat")
+        .expect("metadata tag chip should paint");
+    let point = tag_rect.center();
+
+    runtime.dispatch_event(Event::secondary_press(point));
+
+    let menu = runtime
+        .bridge()
+        .state()
+        .context_menu
+        .as_ref()
+        .expect("right-click should open metadata tag context menu");
+    assert_eq!(
+        menu.kind,
+        super::super::super::BrowserContextTargetKind::MetadataTag
+    );
+    assert_eq!(menu.metadata_tag.as_deref(), Some("hat"));
+}
+
+#[test]
 fn metadata_tag_chips_display_playback_tags_first() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.metadata_tags_by_file.insert(
