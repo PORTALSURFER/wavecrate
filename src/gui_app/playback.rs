@@ -8,7 +8,8 @@ use wavecrate::audio::AudioPlayer;
 
 use super::{
     GuiAppState, GuiMessage, PLAYBACK_START_ACTIVE_SOURCE_GRACE, PendingPlaybackStart,
-    WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID, emit_gui_action, sample_path_label,
+    PendingSamplePlayback, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID, emit_gui_action,
+    sample_path_label,
 };
 use radiant::prelude as ui;
 
@@ -123,7 +124,8 @@ impl GuiAppState {
                 started_at,
                 None,
             );
-            self.select_sample(path.to_string(), context);
+            self.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition { unit });
+            self.load_sample_without_autoplay(path.to_string(), context);
             return;
         }
         let file_name = self.waveform.file_name();
@@ -145,7 +147,9 @@ impl GuiAppState {
                 );
             }
             Err(err) => {
-                self.loop_playback = was_looping;
+                if self.pending_playback_start.is_none() {
+                    self.loop_playback = was_looping;
+                }
                 self.sample_status = format!("Playback unavailable: {err}");
                 emit_gui_action(
                     "playback.play_random_sample_range",

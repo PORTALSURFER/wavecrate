@@ -84,6 +84,55 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
 }
 
 #[test]
+fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("random-load.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096, -1024, 512]);
+    state.waveform = super::super::WaveformState::empty();
+    state.loop_playback = true;
+    assert!(!state.waveform.has_loaded_sample());
+
+    let mut context = ui::UpdateContext::default();
+    state.play_random_sample_range_with_unit(0.5, &mut context);
+
+    assert!(matches!(
+        state.pending_sample_playback,
+        Some(super::super::PendingSamplePlayback::RandomAudition { unit })
+            if (unit - 0.5).abs() < f32::EPSILON
+    ));
+
+    start_deferred_sample_load_for_tests(&mut state, selected_file.clone(), false, &mut context);
+    let ticket = state.sample_load_task.active().expect("sample load queued");
+    state.apply_message(
+        super::super::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
+            ticket,
+            output: super::super::SampleLoadResult {
+                path: selected_file.clone(),
+                result: super::super::WaveformState::load_path(path),
+                autoplay: false,
+            },
+        }),
+        &mut context,
+    );
+
+    assert_eq!(state.pending_sample_playback, None);
+    assert!(
+        state.pending_playback_start.is_some(),
+        "random audition should request playback even when the audio device is still opening"
+    );
+    assert!(
+        !state.loop_playback,
+        "random audition should remain one-shot after the selected sample loads"
+    );
+    assert!(
+        state.sample_status.contains("Playback unavailable")
+            || state.sample_status.contains("Random audition"),
+        "random load completion should route through random playback, got {}",
+        state.sample_status
+    );
+}
+
+#[test]
 fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
     let root = std::env::temp_dir().join(format!(
         "wavecrate-default-gui-normalize-{}",
@@ -178,6 +227,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         audio_settings_error: None,
         current_playback_span: None,
         pending_playback_start: None,
+        pending_sample_playback: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),

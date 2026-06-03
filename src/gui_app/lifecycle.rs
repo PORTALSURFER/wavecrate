@@ -62,6 +62,7 @@ impl GuiAppState {
             audio_settings_error: None,
             current_playback_span: None,
             pending_playback_start: None,
+            pending_sample_playback: None,
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),

@@ -6,8 +6,9 @@ use std::{
 };
 
 use super::{
-    GuiAppState, GuiMessage, SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState,
-    emit_gui_action, sample_path_label,
+    GuiAppState, GuiMessage, PendingSamplePlayback, SampleLoadResult,
+    UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState, emit_gui_action,
+    playback::random_audition_span_for_unit, sample_path_label,
 };
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
 
@@ -50,6 +51,7 @@ impl GuiAppState {
             self.cancel_metadata_tag_entry();
             self.selected_metadata_tag = None;
         }
+        self.pending_sample_playback = None;
         self.load_sample(path, context);
     }
 
@@ -66,6 +68,7 @@ impl GuiAppState {
             self.cancel_metadata_tag_entry();
             self.selected_metadata_tag = None;
         }
+        self.pending_sample_playback = None;
         self.load_sample(path, context);
     }
 
@@ -74,6 +77,7 @@ impl GuiAppState {
         path: String,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
+        self.pending_sample_playback = None;
         self.load_sample_with_autoplay(path, context, true);
     }
 
@@ -150,6 +154,7 @@ impl GuiAppState {
         if !self.deferred_sample_load_task.finish(ticket)
             || self.folder_browser.selected_file_id() != Some(path.as_str())
         {
+            self.pending_sample_playback = None;
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -224,6 +229,7 @@ impl GuiAppState {
         let load = load.output;
         let label = sample_path_label(load.path.as_str());
         if !self.sample_load_task.finish(ticket) {
+            self.pending_sample_playback = None;
             emit_gui_action(
                 "browser.sample_load.finish",
                 Some("browser"),
@@ -255,6 +261,9 @@ impl GuiAppState {
                     &file_name,
                     replace_started_at,
                 );
+                if self.start_pending_sample_playback(&file_name, started_at) {
+                    return;
+                }
                 if !load.autoplay {
                     self.sample_status = format!("Loaded {file_name}");
                     emit_gui_action(
@@ -305,6 +314,7 @@ impl GuiAppState {
                 }
             }
             Err(err) => {
+                self.pending_sample_playback = None;
                 self.sample_status = format!("Could not load sample: {err}");
                 emit_gui_action(
                     "browser.sample_load.finish",
@@ -349,6 +359,9 @@ impl GuiAppState {
             &file_name,
             replace_started_at,
         );
+        if self.start_pending_sample_playback(&file_name, started_at) {
+            return;
+        }
         if !autoplay {
             self.sample_status = format!("Loaded {file_name}");
             emit_gui_action(
@@ -394,6 +407,49 @@ impl GuiAppState {
                     started_at,
                     Some(&err),
                 );
+            }
+        }
+    }
+
+    fn start_pending_sample_playback(&mut self, file_name: &str, started_at: Instant) -> bool {
+        let Some(playback) = self.pending_sample_playback.take() else {
+            return false;
+        };
+        match playback {
+            PendingSamplePlayback::RandomAudition { unit } => {
+                let (start, end) =
+                    random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
+                let was_looping = self.loop_playback;
+                self.loop_playback = false;
+                match self.start_playback_current_span(start, end) {
+                    Ok(()) => {
+                        self.sample_status =
+                            format!("Random audition {file_name} from {:.1}%", start * 100.0);
+                        emit_gui_action(
+                            "playback.play_random_sample_range",
+                            Some("transport"),
+                            Some(file_name),
+                            "success",
+                            started_at,
+                            None,
+                        );
+                    }
+                    Err(err) => {
+                        if self.pending_playback_start.is_none() {
+                            self.loop_playback = was_looping;
+                        }
+                        self.sample_status = format!("Playback unavailable: {err}");
+                        emit_gui_action(
+                            "playback.play_random_sample_range",
+                            Some("transport"),
+                            Some(file_name),
+                            "error",
+                            started_at,
+                            Some(&err),
+                        );
+                    }
+                }
+                true
             }
         }
     }
