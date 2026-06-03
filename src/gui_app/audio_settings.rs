@@ -69,6 +69,7 @@ pub(super) fn top_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
         ui::ToolbarParts::new([volume_slider(state.volume)])
             .trailing(audio_engine_pill(
                 state.audio_engine_pill_label(),
+                state.audio_engine_pill_style(),
                 state.audio_settings_open,
             ))
             .spacing(8.0)
@@ -78,18 +79,25 @@ pub(super) fn top_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     )
 }
 
-fn audio_engine_pill(label: String, active: bool) -> ui::View<GuiMessage> {
-    audio_engine_pill_with_id(label, active, AUDIO_ENGINE_PILL_ID, "top-audio-engine-pill")
+fn audio_engine_pill(label: String, style: ui::WidgetStyle, active: bool) -> ui::View<GuiMessage> {
+    audio_engine_pill_with_id(
+        label,
+        style,
+        active,
+        AUDIO_ENGINE_PILL_ID,
+        "top-audio-engine-pill",
+    )
 }
 
 fn audio_engine_pill_with_id(
     label: String,
+    style: ui::WidgetStyle,
     active: bool,
     id: u64,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
     ui::badge(label)
-        .subtle()
+        .style(style)
         .active(active)
         .message(GuiMessage::ToggleAudioSettings)
         .id(id)

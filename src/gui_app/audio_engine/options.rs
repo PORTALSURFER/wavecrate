@@ -2,6 +2,7 @@ use super::{
     GuiAppState, available_devices, available_hosts, format_sample_rate_label,
     supported_sample_rates,
 };
+use radiant::prelude as ui;
 
 impl GuiAppState {
     pub(in crate::gui_app) fn refresh_audio_options(&mut self) {
@@ -57,21 +58,17 @@ impl GuiAppState {
     }
 
     pub(in crate::gui_app) fn audio_engine_pill_label(&self) -> String {
-        let label = self
-            .audio_output_resolved
+        self.audio_output_resolved
             .as_ref()
             .map(|output| format_sample_rate_label(output.sample_rate))
-            .or_else(|| {
-                self.audio_output_config
-                    .sample_rate
-                    .map(format_sample_rate_label)
-            })
-            .unwrap_or_else(|| String::from("Audio"));
+            .unwrap_or_else(|| String::from("no audio"))
+    }
 
-        if self.audio_settings_error.is_some() {
-            format!("{label} !")
+    pub(in crate::gui_app) fn audio_engine_pill_style(&self) -> ui::WidgetStyle {
+        if self.audio_output_resolved.is_some() {
+            ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
         } else {
-            label
+            ui::WidgetStyle::subtle(ui::WidgetTone::Warning)
         }
     }
 

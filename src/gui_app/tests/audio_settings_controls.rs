@@ -3,7 +3,7 @@ use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::Vector2,
     prelude::IntoView,
-    widgets::{BadgeMessage, BadgeWidget},
+    widgets::{BadgeMessage, BadgeWidget, WidgetStyle, WidgetTone},
 };
 use std::time::{Duration, Instant};
 
@@ -36,6 +36,19 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
     assert!(texts.iter().any(|text| text == "48 kHz"), "{texts:?}");
     assert!(!texts.iter().any(|text| text == "Audio"), "{texts:?}");
     assert!(slider_fills >= 2, "expected track and fill rects");
+}
+
+#[test]
+fn top_status_bar_shows_no_audio_when_output_is_unavailable() {
+    let mut state = gui_state_for_span_tests();
+    state.audio_output_config.sample_rate = Some(48_000);
+    state.audio_output_resolved = None;
+
+    let frame = crate::gui_app::top_status_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+
+    assert!(frame.paint_plan.contains_text("no audio"));
+    assert!(!frame.paint_plan.contains_text("48 kHz"));
 }
 
 #[test]
@@ -187,11 +200,40 @@ fn audio_engine_pill_prefers_runtime_sample_rate() {
 }
 
 #[test]
-fn audio_engine_pill_uses_configured_sample_rate_before_runtime_resolves() {
+fn audio_engine_pill_shows_no_audio_before_runtime_resolves() {
     let mut state = gui_state_for_span_tests();
     state.audio_output_config.sample_rate = Some(44_100);
 
-    assert_eq!(state.audio_engine_pill_label(), "44.1 kHz");
+    assert_eq!(state.audio_engine_pill_label(), "no audio");
+}
+
+#[test]
+fn audio_engine_pill_uses_warning_style_without_runtime_output() {
+    let mut state = gui_state_for_span_tests();
+    state.audio_output_config.sample_rate = Some(44_100);
+
+    assert_eq!(
+        state.audio_engine_pill_style(),
+        WidgetStyle::subtle(WidgetTone::Warning)
+    );
+}
+
+#[test]
+fn audio_engine_pill_uses_neutral_style_with_runtime_output() {
+    let mut state = gui_state_for_span_tests();
+    state.audio_output_resolved = Some(crate::gui_app::ResolvedOutput {
+        host_id: String::from("wasapi"),
+        device_name: String::from("Studio"),
+        sample_rate: 48_000,
+        buffer_size_frames: None,
+        channel_count: 2,
+        used_fallback: false,
+    });
+
+    assert_eq!(
+        state.audio_engine_pill_style(),
+        WidgetStyle::subtle(WidgetTone::Neutral)
+    );
 }
 
 #[test]
