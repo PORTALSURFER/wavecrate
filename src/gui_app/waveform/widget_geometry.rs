@@ -1,5 +1,9 @@
 use radiant::gui::types::{Point, Rect};
-use radiant::gui::visualization::{CanvasSelectionGeometry, DragHandleRole};
+use radiant::gui::visualization::{
+    CanvasSelectionAffordanceHitTestParts, CanvasSelectionBodyHandleHitTestParts,
+    CanvasSelectionEdgeHitTestParts, CanvasSelectionGeometry,
+    CanvasSelectionTrailingControlHitTestParts, DragHandleRole,
+};
 
 use super::{WaveformSelectionEdge, WaveformSelectionKind, widget::WaveformWidget};
 
@@ -13,9 +17,8 @@ pub(super) const SELECTION_HANDLE_VERTICAL_INSET: f32 = 0.0;
 impl WaveformWidget {
     pub(super) fn play_selection_export_handle_at(&self, bounds: Rect, position: Point) -> bool {
         self.selection_geometry(bounds, self.play_selection)
-            .is_some_and(|geometry| {
-                geometry.trailing_control_at_point(SELECTION_EXPORT_HANDLE_SIZE, 0.0, position)
-            })
+            .and_then(|geometry| geometry.affordance_at_point(export_handle_hit_test(position)))
+            == Some(DragHandleRole::TrailingControl)
     }
 
     pub(super) fn selection_move_handle_at(
@@ -29,15 +32,8 @@ impl WaveformWidget {
             WaveformSelectionKind::Edit => self.edit_selection,
         };
         self.selection_geometry(bounds, range)
-            .is_some_and(|geometry| {
-                geometry.body_handle_at_point(
-                    SELECTION_MOVE_HANDLE_HEIGHT,
-                    SELECTION_MOVE_HANDLE_END_INSET,
-                    0.28,
-                    1.0,
-                    position,
-                )
-            })
+            .and_then(|geometry| geometry.affordance_at_point(move_handle_hit_test(position)))
+            == Some(DragHandleRole::Body)
     }
 
     pub(super) fn selection_resize_handle_at(
@@ -50,12 +46,9 @@ impl WaveformWidget {
             WaveformSelectionKind::Play => self.play_selection,
             WaveformSelectionKind::Edit => self.edit_selection,
         };
-        let role = self.selection_geometry(bounds, range)?.edge_at_point(
-            bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
-            position,
-            SELECTION_RESIZE_HANDLE_WIDTH,
-            SELECTION_HANDLE_VERTICAL_INSET,
-        )?;
+        let role = self
+            .selection_geometry(bounds, range)?
+            .affordance_at_point(resize_edge_hit_test(bounds, position))?;
         waveform_selection_edge(role)
     }
 
@@ -88,6 +81,37 @@ pub(super) fn drag_handle_role(edge: WaveformSelectionEdge) -> DragHandleRole {
         WaveformSelectionEdge::Start => DragHandleRole::Start,
         WaveformSelectionEdge::End => DragHandleRole::End,
     }
+}
+
+fn export_handle_hit_test(position: Point) -> CanvasSelectionAffordanceHitTestParts {
+    CanvasSelectionAffordanceHitTestParts::new().with_trailing_control(
+        CanvasSelectionTrailingControlHitTestParts::new(
+            position,
+            SELECTION_EXPORT_HANDLE_SIZE,
+            0.0,
+        ),
+    )
+}
+
+fn move_handle_hit_test(position: Point) -> CanvasSelectionAffordanceHitTestParts {
+    CanvasSelectionAffordanceHitTestParts::new().with_body(
+        CanvasSelectionBodyHandleHitTestParts::new(
+            position,
+            SELECTION_MOVE_HANDLE_HEIGHT,
+            SELECTION_MOVE_HANDLE_END_INSET,
+            0.28,
+            1.0,
+        ),
+    )
+}
+
+fn resize_edge_hit_test(bounds: Rect, position: Point) -> CanvasSelectionAffordanceHitTestParts {
+    CanvasSelectionAffordanceHitTestParts::new().with_edge(CanvasSelectionEdgeHitTestParts::new(
+        bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
+        position,
+        SELECTION_RESIZE_HANDLE_WIDTH,
+        SELECTION_HANDLE_VERTICAL_INSET,
+    ))
 }
 
 fn waveform_selection_edge(role: DragHandleRole) -> Option<WaveformSelectionEdge> {
