@@ -71,25 +71,11 @@ impl GuiAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        if self
-            .metadata_tag_completion_cycle
-            .query_key()
-            .is_some_and(|query| query == prefix)
-        {
-            self.metadata_tag_completion_cycle.move_selection(
-                prefix,
-                delta as isize,
-                suggestions.len(),
-            );
-        } else {
-            let index = if delta < 0 {
-                suggestions.len().saturating_sub(1)
-            } else {
-                0
-            };
-            self.metadata_tag_completion_cycle
-                .select(prefix, index, suggestions.len());
-        }
+        self.metadata_tag_completion_cycle.move_selection_from_edge(
+            prefix,
+            delta as isize,
+            suggestions.len(),
+        );
     }
 
     pub(super) fn activate_metadata_tag_completion(&mut self) {
@@ -159,10 +145,7 @@ impl GuiAppState {
         }
         let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
         self.metadata_tag_completion_cycle
-            .query_key()
-            .filter(|query| *query == prefix.as_str())?;
-        self.metadata_tag_completion_cycle
-            .selected_index(prefix.as_str(), suggestion_count)
+            .active_selected_index(prefix.as_str(), suggestion_count)
     }
 
     pub(super) fn known_metadata_tags(&self) -> Vec<String> {
