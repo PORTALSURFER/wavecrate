@@ -123,11 +123,10 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     );
 }
 
-fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, tag_input_rect: Rect) -> Option<Rect> {
-    frame.paint_plan.svgs().find_map(|svg| {
-        (svg.rect.max.y <= tag_input_rect.min.y && svg.rect.min.x > tag_input_rect.min.x)
-            .then_some(svg.rect)
-    })
+fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, _tag_input_rect: Rect) -> Option<Rect> {
+    frame.paint_plan.first_svg_rect_for_widget(
+        super::super::super::folder_browser::METADATA_TAG_LIBRARY_TOGGLE_ID,
+    )
 }
 
 #[test]
@@ -145,12 +144,10 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .metadata_tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
     state.metadata_tag_draft = String::from("ki");
-    let selected_folder = state
+    let (clicked_folder_id, initially_expanded) = state
         .folder_browser
-        .selected_folder_path()
-        .expect("selected folder")
-        .display()
-        .to_string();
+        .first_visible_child_folder_expansion_for_tests()
+        .expect("visible child folder with expander");
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
@@ -170,10 +167,10 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .find_map(|text| {
             text.text
                 .as_str()
-                .starts_with("[-] ")
+                .starts_with('[')
                 .then(|| (text.text.to_string(), text.rect))
         })
-        .expect("expanded selected root folder should paint");
+        .expect("selected root folder toggle should paint");
     let point = folder_rect.center();
 
     runtime.dispatch_primary_click(point);
@@ -183,8 +180,8 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
             .bridge()
             .state()
             .folder_browser
-            .folder_expansion_for_tests(&selected_folder),
-        Some(false),
+            .folder_expansion_for_tests(&clicked_folder_id),
+        Some(!initially_expanded),
         "autocomplete popup must not prevent clicking folder row {label}"
     );
 }

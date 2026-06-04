@@ -15,6 +15,8 @@ use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 #[cfg(test)]
 pub(in crate::gui_app) const METADATA_SIDEBAR_PANEL_ID: u64 = 0x5743_0000_0000_5448;
+#[cfg(test)]
+pub(in crate::gui_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 = 0x5743_0000_0000_5449;
 const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
@@ -66,10 +68,20 @@ pub(super) fn metadata_section(
                 ui::text(format!("Tags ({})", tags.len()))
                     .height(22.0)
                     .fill_width(),
-                ui::disclosure_button(false)
-                    .message(GuiMessage::ToggleMetadataTagLibrary)
-                    .key("metadata-tag-library-toggle")
-                    .size(24.0, 20.0),
+                {
+                    let toggle = ui::disclosure_button(false)
+                        .message(GuiMessage::ToggleMetadataTagLibrary)
+                        .key("metadata-tag-library-toggle")
+                        .size(24.0, 20.0);
+                    #[cfg(test)]
+                    {
+                        toggle.id(METADATA_TAG_LIBRARY_TOGGLE_ID)
+                    }
+                    #[cfg(not(test))]
+                    {
+                        toggle
+                    }
+                },
             ])
             .spacing(4.0)
             .fill_width()
