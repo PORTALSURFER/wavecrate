@@ -42,6 +42,57 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
 }
 
 #[test]
+fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_suggestion() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(String::from("known.wav"), vec![String::from("kick")]);
+
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let input_id = runtime
+        .frame_with_default_theme()
+        .paint_plan
+        .first_text_input()
+        .map(|input| input.widget_id)
+        .expect("metadata tag input should paint");
+    assert!(runtime.focus_widget(input_id));
+
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::Character('k')),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::Character('i')),
+        Some(input_id)
+    );
+
+    let state = runtime.bridge().state();
+    assert_eq!(state.metadata_tag_draft, "ki");
+    assert_eq!(
+        state.metadata_tag_completion_suffix().as_deref(),
+        Some("ck")
+    );
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        None
+    );
+
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(input_id)
+    );
+
+    let state = runtime.bridge().state();
+    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
+    assert_eq!(state.sample_status, "Choose a category for ki");
+}
+
+#[test]
 fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state
