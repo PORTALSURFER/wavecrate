@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::FolderBrowserState;
+use super::{FileEntry, FolderBrowserState};
 
 impl FolderBrowserState {
     #[cfg(test)]
@@ -29,8 +29,10 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
-        let total_items = self.selected_audio_files().len();
-        let selected_index = self.selected_audio_file_index();
+        let audio_files = self.selected_audio_files();
+        let total_items = audio_files.len();
+        let selected_index =
+            selected_audio_file_index_in(&audio_files, self.selected_file.as_deref());
         let selected_id = selected_index.and_then(|_| self.selected_file.clone());
         let projection =
             ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
@@ -44,9 +46,11 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn selected_audio_file_index(&self) -> Option<usize> {
-        let selected = self.selected_file.as_deref()?;
-        self.selected_audio_files()
-            .iter()
-            .position(|file| file.id == selected)
+        selected_audio_file_index_in(&self.selected_audio_files(), self.selected_file.as_deref())
     }
+}
+
+fn selected_audio_file_index_in(files: &[&FileEntry], selected: Option<&str>) -> Option<usize> {
+    let selected = selected?;
+    files.iter().position(|file| file.id == selected)
 }

@@ -43,9 +43,9 @@ impl GuiAppState {
             .collect::<Vec<_>>();
         for file_id in audio_files {
             let path = PathBuf::from(&file_id);
-            if self.waveform_cache.contains_key(&path) {
-                self.cached_sample_paths.insert(file_id);
-            } else if cached_waveform_file_playback_ready_exists(&path) {
+            if self.waveform_cache.contains_key(&path)
+                || cached_waveform_file_playback_ready_exists(&path)
+            {
                 self.cached_sample_paths.insert(file_id);
             } else if cached_waveform_file_exists(&path) {
                 self.cached_sample_paths.remove(&file_id);

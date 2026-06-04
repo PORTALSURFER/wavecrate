@@ -71,16 +71,11 @@ pub(in crate::gui_app) enum AudioSettingsDropdown {
     SampleRate,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::gui_app) enum AppSettingsTab {
     General,
+    #[default]
     AudioEngine,
-}
-
-impl Default for AppSettingsTab {
-    fn default() -> Self {
-        Self::AudioEngine
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
