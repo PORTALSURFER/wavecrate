@@ -384,7 +384,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
             ticket: stale_ticket,
             path: second,
             autoplay: true,
-            check_cache: true,
+            check_cache: false,
         },
         &mut context,
     );

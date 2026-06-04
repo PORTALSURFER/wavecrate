@@ -6,8 +6,8 @@ use std::{
 };
 
 use super::{
-    GuiAppState, GuiMessage, PendingSamplePlayback, SampleLoadResult,
-    UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState, emit_gui_action,
+    GuiAppState, GuiMessage, KEYBOARD_SAMPLE_LOAD_DEBOUNCE, PendingSamplePlayback,
+    SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState, emit_gui_action,
     playback::random_audition_span_for_unit, sample_path_label,
 };
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
@@ -113,7 +113,13 @@ impl GuiAppState {
             cache_lookup_started_at,
         );
         self.prepare_uncached_sample_load(path.as_str(), "load_deferred", started_at);
-        self.schedule_deferred_sample_load(path, autoplay, false, context);
+        self.schedule_deferred_sample_load(
+            path,
+            autoplay,
+            false,
+            UNCACHED_SAMPLE_LOAD_DEBOUNCE,
+            context,
+        );
     }
 
     pub(super) fn defer_navigation_sample_load(
@@ -136,7 +142,13 @@ impl GuiAppState {
             started_at,
             None,
         );
-        self.schedule_deferred_sample_load(path, true, true, context);
+        self.schedule_deferred_sample_load(
+            path,
+            true,
+            false,
+            KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
+            context,
+        );
     }
 
     fn schedule_deferred_sample_load(
@@ -144,18 +156,17 @@ impl GuiAppState {
         path: String,
         autoplay: bool,
         check_cache: bool,
+        delay: Duration,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        context.after_latest(
-            &mut self.deferred_sample_load_task,
-            UNCACHED_SAMPLE_LOAD_DEBOUNCE,
-            |ticket| GuiMessage::DeferredSampleLoad {
+        context.after_latest(&mut self.deferred_sample_load_task, delay, |ticket| {
+            GuiMessage::DeferredSampleLoad {
                 ticket,
                 path,
                 autoplay,
                 check_cache,
-            },
-        );
+            }
+        });
     }
 
     pub(super) fn start_deferred_sample_load(

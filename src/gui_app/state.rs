@@ -59,6 +59,7 @@ pub(in crate::gui_app) const WAVEFORM_WIDGET_ID: u64 = 12;
 pub(in crate::gui_app) const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration =
     Duration::from_millis(120);
 pub(in crate::gui_app) const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
+pub(in crate::gui_app) const KEYBOARD_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(650);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) enum AudioSettingsDropdown {
