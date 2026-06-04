@@ -122,24 +122,19 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
     ])
     .spacing(5.0)
     .fill_width();
-    let panel = ui::closeable_panel_section_from_parts(
-        ui::PanelSectionParts::new("Job Details", content)
-            .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
-            .padding(8.0)
-            .spacing(5.0)
-            .title_height(22.0)
-            .height(132.0),
+    ui::closeable_panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Job Details", content)
+                .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
+                .padding(8.0)
+                .spacing(5.0)
+                .title_height(22.0),
+            ui::Vector2::new(300.0, 132.0),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::End)
+        .vertical(ui::LayerVerticalAnchor::End)
+        .inset(14.0, 38.0),
         GuiMessage::CloseJobDetails,
     )
     .key("bottom-job-details-popover")
-    .width(300.0)
-    .height(132.0);
-    ui::anchored_layer(
-        panel,
-        ui::Vector2::new(300.0, 132.0),
-        ui::LayerHorizontalAnchor::End,
-        ui::LayerVerticalAnchor::End,
-        14.0,
-        38.0,
-    )
 }
