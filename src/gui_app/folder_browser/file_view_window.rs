@@ -34,13 +34,13 @@ impl FolderBrowserState {
         let selected_index =
             selected_audio_file_index_in(&audio_files, self.selected_file.as_deref());
         let selected_id = selected_index.and_then(|_| self.selected_file.clone());
-        let projection =
-            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
-                .with_context_row();
         self.file_view_controller
-            .configure_projection_and_focus_changed_optional(
+            .configure_and_focus_changed_optional_with_context_row(
                 &mut self.file_view_follow_selection,
-                projection,
+                total_items,
+                viewport_rows,
+                overscan_rows,
+                guard_rows,
                 ui::VirtualListFocusTarget::new(selected_id, selected_index),
             )
     }
