@@ -299,23 +299,23 @@ impl WaveformState {
     }
 
     pub(super) fn visible_fraction(&self) -> f32 {
-        self.viewport.visible_fraction(self.file.frames)
+        self.viewport_scope().visible_fraction()
     }
 
     pub(super) fn fully_zoomed_out(&self) -> bool {
-        self.viewport
-            .clamp(self.file.frames, MIN_VISIBLE_FRAMES)
-            .visible_items()
-            >= self.file.frames.max(1)
+        !self.viewport_scope().is_zoomed_in()
     }
 
     pub(super) fn offset_fraction(&self) -> f32 {
-        self.viewport.offset_fraction(self.file.frames)
+        self.viewport_scope().offset_fraction()
     }
 
     pub(super) fn visible_ratio_for_absolute(&self, ratio: f32) -> Option<f32> {
-        self.viewport
-            .visible_ratio_from_absolute(self.file.frames, ratio)
+        self.viewport_scope().visible_ratio_from_absolute(ratio)
+    }
+
+    fn viewport_scope(&self) -> ui::IndexViewportScope {
+        ui::IndexViewportScope::new(self.viewport, self.file.frames, MIN_VISIBLE_FRAMES)
     }
 }
 

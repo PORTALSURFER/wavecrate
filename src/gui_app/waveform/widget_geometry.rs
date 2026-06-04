@@ -57,13 +57,12 @@ impl WaveformWidget {
         range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<(f32, f32)> {
         let range = range?;
-        self.viewport
-            .visible_range_from_absolute(self.file.frames, range.start(), range.end())
+        self.viewport_scope()
+            .visible_range_from_absolute(range.start(), range.end())
     }
 
     pub(super) fn visible_ratio_for_absolute(&self, ratio: Option<f32>) -> Option<f32> {
-        self.viewport
-            .visible_ratio_from_absolute(self.file.frames, ratio?)
+        self.viewport_scope().visible_ratio_from_absolute(ratio?)
     }
 
     pub(super) fn selection_geometry(
@@ -73,6 +72,14 @@ impl WaveformWidget {
     ) -> Option<CanvasSelectionGeometry> {
         let (start, end) = self.visible_range_for_selection(range)?;
         CanvasSelectionGeometry::new(bounds, start.min(end), start.max(end))
+    }
+
+    fn viewport_scope(&self) -> radiant::prelude::IndexViewportScope {
+        radiant::prelude::IndexViewportScope::new(
+            self.viewport,
+            self.file.frames,
+            super::MIN_VISIBLE_FRAMES,
+        )
     }
 }
 
