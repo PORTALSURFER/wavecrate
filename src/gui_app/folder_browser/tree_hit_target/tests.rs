@@ -23,9 +23,7 @@ fn active_drag_survives_widget_refresh_as_moved() {
     first.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
     assert_eq!(
         message_from(first.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 7.0)),)),
-        FolderTreeHitMessage::Drag(DragHandleMessage::Started {
-            position: Point::new(16.0, 7.0),
-        })
+        FolderTreeHitMessage::Drag(DragHandleMessage::started(Point::new(16.0, 7.0)))
     );
 
     let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
@@ -34,9 +32,7 @@ fn active_drag_survives_widget_refresh_as_moved() {
         message_from(
             refreshed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
         ),
-        FolderTreeHitMessage::Drag(DragHandleMessage::Moved {
-            position: Point::new(34.0, 8.0),
-        })
+        FolderTreeHitMessage::Drag(DragHandleMessage::moved(Point::new(34.0, 8.0)))
     );
 }
 
@@ -50,9 +46,7 @@ fn active_drag_survives_widget_refresh_until_release() {
         message_from(
             refreshed.handle_input(bounds, WidgetInput::primary_release(Point::new(90.0, 9.0)),)
         ),
-        FolderTreeHitMessage::Drag(DragHandleMessage::Ended {
-            position: Point::new(90.0, 9.0),
-        })
+        FolderTreeHitMessage::Drag(DragHandleMessage::ended(Point::new(90.0, 9.0)))
     );
 }
 
@@ -65,17 +59,13 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
         message_from(
             refreshed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
         ),
-        FolderTreeHitMessage::Drag(DragHandleMessage::Moved {
-            position: Point::new(34.0, 8.0),
-        })
+        FolderTreeHitMessage::Drag(DragHandleMessage::moved(Point::new(34.0, 8.0)))
     );
     assert_eq!(
         message_from(
             refreshed.handle_input(bounds, WidgetInput::primary_release(Point::new(90.0, 9.0)),)
         ),
-        FolderTreeHitMessage::Drag(DragHandleMessage::Ended {
-            position: Point::new(90.0, 9.0),
-        })
+        FolderTreeHitMessage::Drag(DragHandleMessage::ended(Point::new(90.0, 9.0)))
     );
 }
 

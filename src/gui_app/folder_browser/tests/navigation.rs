@@ -156,28 +156,20 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
         super::super::DEFAULT_COLLECTIONS_PANEL_HEIGHT
     );
 
-    browser.resize_collections_panel(DragHandleMessage::Started {
-        position: Point::new(0.0, 200.0),
-    });
-    browser.resize_collections_panel(DragHandleMessage::Moved {
-        position: Point::new(0.0, 120.0),
-    });
+    browser.resize_collections_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
+    browser.resize_collections_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
     assert_eq!(
         browser.collections_panel.size(),
         browser.max_collections_panel_height()
     );
 
-    browser.resize_collections_panel(DragHandleMessage::Moved {
-        position: Point::new(0.0, 1_000.0),
-    });
+    browser.resize_collections_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
     assert_eq!(
         browser.collections_panel.size(),
         MIN_COLLECTIONS_PANEL_HEIGHT
     );
 
-    browser.resize_collections_panel(DragHandleMessage::Ended {
-        position: Point::new(0.0, -1_000.0),
-    });
+    browser.resize_collections_panel(DragHandleMessage::ended(Point::new(0.0, -1_000.0)));
     assert_eq!(
         browser.collections_panel.size(),
         browser.max_collections_panel_height()
@@ -192,13 +184,9 @@ fn collections_panel_splitter_double_click_collapses_height() {
     let root = temp_source_root("wavecrate-gui-collections-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
     let initial_height = browser.collections_panel.size();
-    browser.resize_collections_panel(DragHandleMessage::Started {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_collections_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
 
-    browser.resize_collections_panel(DragHandleMessage::DoubleActivate {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_collections_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(
         browser.collections_panel.size(),
@@ -206,9 +194,7 @@ fn collections_panel_splitter_double_click_collapses_height() {
     );
     assert!(!browser.collections_panel.is_resizing());
 
-    browser.resize_collections_panel(DragHandleMessage::DoubleActivate {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_collections_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(browser.collections_panel.size(), initial_height);
     assert!(!browser.collections_panel.is_resizing());
@@ -222,24 +208,16 @@ fn filter_panel_splitter_resizes_and_clamps_height() {
     let mut browser = FolderBrowserState::from_root(root.clone());
     let initial_height = browser.filter_panel.size();
 
-    browser.resize_filter_panel(DragHandleMessage::Started {
-        position: Point::new(0.0, 200.0),
-    });
-    browser.resize_filter_panel(DragHandleMessage::Moved {
-        position: Point::new(0.0, 120.0),
-    });
+    browser.resize_filter_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
+    browser.resize_filter_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
 
     assert!(browser.filter_panel.size() > initial_height);
 
-    browser.resize_filter_panel(DragHandleMessage::Moved {
-        position: Point::new(0.0, 1_000.0),
-    });
+    browser.resize_filter_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
 
     assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
 
-    browser.resize_filter_panel(DragHandleMessage::Ended {
-        position: Point::new(0.0, 1_000.0),
-    });
+    browser.resize_filter_panel(DragHandleMessage::ended(Point::new(0.0, 1_000.0)));
 
     assert!(!browser.filter_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
@@ -251,16 +229,12 @@ fn filter_panel_double_click_collapses_to_header_only_height() {
     let mut browser = FolderBrowserState::from_root(root.clone());
     let initial_height = browser.filter_panel.size();
 
-    browser.resize_filter_panel(DragHandleMessage::DoubleActivate {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_filter_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
     assert!(!browser.filter_panel.is_resizing());
 
-    browser.resize_filter_panel(DragHandleMessage::DoubleActivate {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_filter_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(browser.filter_panel.size(), initial_height);
     assert!(!browser.filter_panel.is_resizing());
@@ -273,27 +247,19 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
     let mut browser = FolderBrowserState::from_root(root.clone());
     let initial_height = browser.metadata_panel.size();
 
-    browser.resize_metadata_panel(DragHandleMessage::Started {
-        position: Point::new(0.0, 200.0),
-    });
-    browser.resize_metadata_panel(DragHandleMessage::Moved {
-        position: Point::new(0.0, 120.0),
-    });
+    browser.resize_metadata_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
+    browser.resize_metadata_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
 
     assert!(browser.metadata_panel.size() > initial_height);
 
-    browser.resize_metadata_panel(DragHandleMessage::Moved {
-        position: Point::new(0.0, 1_000.0),
-    });
+    browser.resize_metadata_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
 
     assert_eq!(
         browser.metadata_panel.size(),
         COLLAPSED_METADATA_PANEL_HEIGHT
     );
 
-    browser.resize_metadata_panel(DragHandleMessage::Ended {
-        position: Point::new(0.0, 1_000.0),
-    });
+    browser.resize_metadata_panel(DragHandleMessage::ended(Point::new(0.0, 1_000.0)));
 
     assert!(!browser.metadata_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
@@ -305,9 +271,7 @@ fn metadata_panel_double_click_collapses_to_header_only_height() {
     let mut browser = FolderBrowserState::from_root(root.clone());
     let initial_height = browser.metadata_panel.size();
 
-    browser.resize_metadata_panel(DragHandleMessage::DoubleActivate {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_metadata_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(
         browser.metadata_panel.size(),
@@ -315,9 +279,7 @@ fn metadata_panel_double_click_collapses_to_header_only_height() {
     );
     assert!(!browser.metadata_panel.is_resizing());
 
-    browser.resize_metadata_panel(DragHandleMessage::DoubleActivate {
-        position: Point::new(0.0, 200.0),
-    });
+    browser.resize_metadata_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(browser.metadata_panel.size(), initial_height);
     assert!(!browser.metadata_panel.is_resizing());
@@ -1031,15 +993,11 @@ fn sample_file_column_resize_clamps_width() {
 
     browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
         String::from("extension"),
-        radiant::widgets::DragHandleMessage::Started {
-            position: Point::new(100.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::started(Point::new(100.0, 0.0)),
     ));
     browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
         String::from("extension"),
-        radiant::widgets::DragHandleMessage::Moved {
-            position: Point::new(-200.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::moved(Point::new(-200.0, 0.0)),
     ));
 
     let extension_width = browser
@@ -1057,15 +1015,11 @@ fn sample_file_column_drag_reorders_columns() {
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
-        radiant::widgets::DragHandleMessage::Started {
-            position: Point::new(284.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::started(Point::new(284.0, 0.0)),
     ));
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
-        radiant::widgets::DragHandleMessage::Moved {
-            position: Point::new(560.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::moved(Point::new(560.0, 0.0)),
     ));
     assert_eq!(
         browser
@@ -1092,9 +1046,7 @@ fn sample_file_column_drag_reorders_columns() {
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
-        radiant::widgets::DragHandleMessage::Ended {
-            position: Point::new(560.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::ended(Point::new(560.0, 0.0)),
     ));
 
     assert_eq!(browser.file_column_drag_feedback(), None);
@@ -1121,15 +1073,11 @@ fn sample_file_column_drag_cancel_clears_feedback_without_reorder() {
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
-        radiant::widgets::DragHandleMessage::Started {
-            position: Point::new(284.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::started(Point::new(284.0, 0.0)),
     ));
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
-        radiant::widgets::DragHandleMessage::Moved {
-            position: Point::new(560.0, 0.0),
-        },
+        radiant::widgets::DragHandleMessage::moved(Point::new(560.0, 0.0)),
     ));
     assert!(browser.file_column_drag_feedback().is_some());
 

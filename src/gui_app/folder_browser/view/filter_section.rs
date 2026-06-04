@@ -72,12 +72,8 @@ mod tests {
     #[test]
     fn filter_section_layout_uses_configured_height() {
         let mut state = FolderBrowserState::load_default();
-        state.resize_filter_panel(ui::DragHandleMessage::Started {
-            position: ui::Point::new(0.0, 200.0),
-        });
-        state.resize_filter_panel(ui::DragHandleMessage::Moved {
-            position: ui::Point::new(0.0, 120.0),
-        });
+        state.resize_filter_panel(ui::DragHandleMessage::started(ui::Point::new(0.0, 200.0)));
+        state.resize_filter_panel(ui::DragHandleMessage::moved(ui::Point::new(0.0, 120.0)));
 
         let layout = ui::column([
             filter_section(&state),

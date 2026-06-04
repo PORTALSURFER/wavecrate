@@ -161,9 +161,7 @@ fn default_gui_tag_library_drag_moves_tag_between_categories() {
 
     state.drag_metadata_tag(
         String::from("bass"),
-        DragHandleMessage::Started {
-            position: Point::new(10.0, 10.0),
-        },
+        DragHandleMessage::started(Point::new(10.0, 10.0)),
         &mut ui::UpdateContext::default(),
     );
     state.drop_metadata_tag_on_category(
@@ -187,9 +185,7 @@ fn default_gui_tag_library_rejects_dragging_locked_playback_tags() {
 
     state.drag_metadata_tag(
         String::from("one-shot"),
-        DragHandleMessage::Started {
-            position: Point::new(10.0, 10.0),
-        },
+        DragHandleMessage::started(Point::new(10.0, 10.0)),
         &mut ui::UpdateContext::default(),
     );
 

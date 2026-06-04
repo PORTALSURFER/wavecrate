@@ -183,11 +183,9 @@ fn primary_press_on_play_selection_export_handle_starts_export_drag() {
 
     assert_eq!(
         interaction,
-        WaveformInteraction::DragPlaySelectionExport(
-            radiant::widgets::DragHandleMessage::Started {
-                position: Point::new(118.0, 76.0)
-            }
-        )
+        WaveformInteraction::DragPlaySelectionExport(radiant::widgets::DragHandleMessage::started(
+            Point::new(118.0, 76.0)
+        ))
     );
 }
 

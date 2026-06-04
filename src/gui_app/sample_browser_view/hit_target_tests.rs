@@ -31,9 +31,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
     first.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
     assert_eq!(
         message_from(first.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 7.0)),)),
-        SampleFileHitMessage::Drag(DragHandleMessage::Started {
-            position: Point::new(16.0, 7.0),
-        })
+        SampleFileHitMessage::Drag(DragHandleMessage::started(Point::new(16.0, 7.0)))
     );
 
     let mut refreshed = SampleFileHitTarget::new(false, true, true, false, false);
@@ -63,9 +61,7 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
             bounds,
             WidgetInput::primary_release(Point::new(220.0, 90.0)),
         )),
-        SampleFileHitMessage::Drag(DragHandleMessage::Ended {
-            position: Point::new(220.0, 90.0),
-        })
+        SampleFileHitMessage::Drag(DragHandleMessage::ended(Point::new(220.0, 90.0)))
     );
 }
 

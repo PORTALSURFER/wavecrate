@@ -31,9 +31,9 @@ impl WaveformWidget {
                 }
                 if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
                     return Some(WidgetOutput::typed(
-                        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Moved {
-                            position: pointer.position,
-                        }),
+                        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::moved(
+                            pointer.position,
+                        )),
                     ));
                 }
                 self.active_drag_kind.map(|_| {
@@ -85,9 +85,9 @@ impl WaveformWidget {
                 && self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) =>
             {
                 Some(WidgetOutput::typed(
-                    WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Ended {
-                        position: pointer.position,
-                    }),
+                    WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::ended(
+                        pointer.position,
+                    )),
                 ))
             }
             CanvasGestureEvent::Release {
@@ -128,9 +128,7 @@ impl WaveformWidget {
         let visible_ratio = pointer.normalized_x();
         if self.play_selection_export_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
-                WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Started {
-                    position,
-                }),
+                WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::started(position)),
             ));
         }
         if let Some(handle) = self.edit_fade_handle_at(bounds, position) {

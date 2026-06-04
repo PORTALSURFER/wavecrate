@@ -466,23 +466,15 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         waveform_cache_warm_results: Default::default(),
         cached_sample_paths: Default::default(),
     };
-    state.resize_folder_browser(DragHandleMessage::Started {
-        position: Point::new(100.0, 0.0),
-    });
-    state.resize_folder_browser(DragHandleMessage::Moved {
-        position: Point::new(160.0, 0.0),
-    });
+    state.resize_folder_browser(DragHandleMessage::started(Point::new(100.0, 0.0)));
+    state.resize_folder_browser(DragHandleMessage::moved(Point::new(160.0, 0.0)));
 
     assert_eq!(state.folder_panel.size(), DEFAULT_FOLDER_WIDTH + 60.0);
 
-    state.resize_folder_browser(DragHandleMessage::Moved {
-        position: Point::new(900.0, 0.0),
-    });
+    state.resize_folder_browser(DragHandleMessage::moved(Point::new(900.0, 0.0)));
     assert_eq!(state.folder_panel.size(), MAX_FOLDER_WIDTH);
 
-    state.resize_folder_browser(DragHandleMessage::Ended {
-        position: Point::new(-900.0, 0.0),
-    });
+    state.resize_folder_browser(DragHandleMessage::ended(Point::new(-900.0, 0.0)));
     assert_eq!(state.folder_panel.size(), MIN_FOLDER_WIDTH);
     assert!(!state.folder_panel.is_resizing());
 }

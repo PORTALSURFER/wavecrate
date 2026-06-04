@@ -89,9 +89,7 @@ fn metadata_section_collapses_to_header_only_height() {
     let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.folder_browser.apply_message(
         super::super::super::FolderBrowserMessage::ResizeMetadataPanel(
-            radiant::widgets::DragHandleMessage::DoubleActivate {
-                position: Point::new(0.0, 200.0),
-            },
+            radiant::widgets::DragHandleMessage::double_activate(Point::new(0.0, 200.0)),
         ),
     );
 

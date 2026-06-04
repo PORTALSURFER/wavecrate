@@ -17,9 +17,7 @@ fn folder_drag_drop_moves_subtree_into_target_folder() {
 
     browser.apply_folder_drag(
         path_id(&kicks),
-        DragHandleMessage::Started {
-            position: Point::new(0.0, 0.0),
-        },
+        DragHandleMessage::started(Point::new(0.0, 0.0)),
     );
     let result = browser
         .drop_drag_on_folder(&path_id(&loops))
@@ -56,9 +54,7 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
 
     browser.apply_folder_drag(
         path_id(&kicks),
-        DragHandleMessage::Started {
-            position: Point::new(10.0, 20.0),
-        },
+        DragHandleMessage::started(Point::new(10.0, 20.0)),
     );
     assert_eq!(
         browser.drag_preview(),
@@ -70,9 +66,7 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
 
     browser.apply_folder_drag(
         path_id(&kicks),
-        DragHandleMessage::Moved {
-            position: Point::new(30.0, 42.0),
-        },
+        DragHandleMessage::moved(Point::new(30.0, 42.0)),
     );
     assert_eq!(
         browser.drag_preview().map(|preview| preview.pointer),
@@ -120,9 +114,7 @@ fn folder_drag_does_not_arm_external_file_drag() {
 
     browser.apply_folder_drag(
         path_id(&kicks),
-        DragHandleMessage::Started {
-            position: Point::new(10.0, 20.0),
-        },
+        DragHandleMessage::started(Point::new(10.0, 20.0)),
     );
     assert_eq!(browser.external_drag_request(), None);
     let _ = fs::remove_dir_all(root);

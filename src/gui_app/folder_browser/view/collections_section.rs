@@ -281,12 +281,8 @@ mod tests {
     /// Verifies the section keeps its resized height in the parent layout slot.
     fn collections_section_layout_uses_configured_height() {
         let mut state = FolderBrowserState::load_default();
-        state.resize_collections_panel(ui::DragHandleMessage::Started {
-            position: ui::Point::new(0.0, 200.0),
-        });
-        state.resize_collections_panel(ui::DragHandleMessage::Moved {
-            position: ui::Point::new(0.0, 120.0),
-        });
+        state.resize_collections_panel(ui::DragHandleMessage::started(ui::Point::new(0.0, 200.0)));
+        state.resize_collections_panel(ui::DragHandleMessage::moved(ui::Point::new(0.0, 120.0)));
 
         let layout = ui::column([
             collections_section(&state),

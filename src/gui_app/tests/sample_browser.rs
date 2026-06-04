@@ -80,17 +80,13 @@ fn sample_browser_column_drag_paints_drop_marker() {
     state.folder_browser.apply_message(
         crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
-            radiant::widgets::DragHandleMessage::Started {
-                position: Point::new(292.0, 8.0),
-            },
+            radiant::widgets::DragHandleMessage::started(Point::new(292.0, 8.0)),
         ),
     );
     state.folder_browser.apply_message(
         crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
-            radiant::widgets::DragHandleMessage::Moved {
-                position: Point::new(420.0, 8.0),
-            },
+            radiant::widgets::DragHandleMessage::moved(Point::new(420.0, 8.0)),
         ),
     );
 
@@ -147,17 +143,13 @@ fn full_gui_column_drag_paints_pointer_preview() {
     state.folder_browser.apply_message(
         crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
-            radiant::widgets::DragHandleMessage::Started {
-                position: Point::new(600.0, 320.0),
-            },
+            radiant::widgets::DragHandleMessage::started(Point::new(600.0, 320.0)),
         ),
     );
     state.folder_browser.apply_message(
         crate::gui_app::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
-            radiant::widgets::DragHandleMessage::Moved {
-                position: Point::new(620.0, 320.0),
-            },
+            radiant::widgets::DragHandleMessage::moved(Point::new(620.0, 320.0)),
         ),
     );
 
@@ -179,17 +171,13 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     runtime.dispatch_message(crate::gui_app::GuiMessage::FolderBrowser(
         crate::gui_app::folder_browser::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
-            radiant::widgets::DragHandleMessage::Started {
-                position: Point::new(0.0, 0.0),
-            },
+            radiant::widgets::DragHandleMessage::started(Point::new(0.0, 0.0)),
         ),
     ));
     runtime.dispatch_message(crate::gui_app::GuiMessage::FolderBrowser(
         crate::gui_app::folder_browser::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
-            radiant::widgets::DragHandleMessage::Moved {
-                position: Point::new(120.0, 0.0),
-            },
+            radiant::widgets::DragHandleMessage::moved(Point::new(120.0, 0.0)),
         ),
     ));
     let resized_name_width = runtime
