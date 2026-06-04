@@ -3,9 +3,7 @@ use radiant::layout::LayoutOutput;
 use radiant::prelude as ui;
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
-use radiant::widgets::{
-    DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget, PointerModifiers,
-};
+use radiant::widgets::{DragHandleMessage, InteractiveRowWidget, PointerModifiers};
 
 const HOVER_FILL: Rgba8 = Rgba8 {
     r: 255,
@@ -84,8 +82,8 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
         &mut self.row
     }
 
-    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
-        self.actions.route(message)
+    fn interactive_row_actions(&self) -> Option<&ui::InteractiveRowActions<Self::Message>> {
+        Some(&self.actions)
     }
 
     fn append_interactive_row_paint(

@@ -4,7 +4,7 @@ use radiant::{
     prelude as ui,
     runtime::{PaintPrimitive, PaintText},
     theme::ThemeTokens,
-    widgets::{DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget},
+    widgets::{DragHandleMessage, InteractiveRowWidget},
 };
 
 mod paint;
@@ -81,8 +81,8 @@ impl ui::EmbeddedInteractiveRowWidget for FolderTreeHitTarget {
         &mut self.row
     }
 
-    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
-        self.actions.route(message)
+    fn interactive_row_actions(&self) -> Option<&ui::InteractiveRowActions<Self::Message>> {
+        Some(&self.actions)
     }
 
     fn append_interactive_row_paint(
