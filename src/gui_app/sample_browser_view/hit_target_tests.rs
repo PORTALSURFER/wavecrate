@@ -15,6 +15,14 @@ fn paints_hover_fill(plan: &SurfacePaintPlan) -> bool {
     plan.fill_rects().any(|fill| fill.color == HOVER_FILL)
 }
 
+fn is_hovered(target: &SampleFileHitTarget) -> bool {
+    target.common().state.hovered
+}
+
+fn is_pressed(target: &SampleFileHitTarget) -> bool {
+    target.common().state.pressed
+}
+
 #[test]
 /// Verifies retained refreshes do not duplicate runtime drag-preview motion.
 fn active_drag_uses_runtime_preview_after_widget_refresh() {
@@ -29,7 +37,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
     );
 
     let mut refreshed = SampleFileHitTarget::new(false, true, true, false, false);
-    refreshed.row.common.state = first.row.common.state;
+    refreshed.synchronize_from_previous(&first);
     assert!(
         refreshed
             .handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
@@ -66,7 +74,7 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
 fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut target = SampleFileHitTarget::new(false, true, false, false, false);
-    target.row.common.state.hovered = true;
+    target.common_mut().state.hovered = true;
 
     assert!(
         target
@@ -74,7 +82,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
             .is_none()
     );
     assert!(
-        !target.row.common.state.hovered,
+        !is_hovered(&target),
         "sample rows should not retain hover while another file is being dragged"
     );
 
@@ -100,7 +108,10 @@ fn idle_rows_do_not_request_stable_pointer_moves() {
 /// Verifies pressed sample rows keep motion so drags can start reliably.
 fn pressed_rows_request_pointer_moves_for_drag_start() {
     let mut target = SampleFileHitTarget::new(false, false, false, false, false);
-    target.row.common.state.pressed = true;
+    target.handle_input(
+        Rect::from_size(120.0, 22.0),
+        WidgetInput::primary_press(Point::new(34.0, 8.0)),
+    );
 
     assert!(
         target.accepts_pointer_move(),
@@ -130,13 +141,13 @@ fn hover_state_clears_on_retained_widget_refresh() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
-    assert!(previous.row.common.state.hovered);
+    assert!(is_hovered(&previous));
 
     let mut refreshed = SampleFileHitTarget::new(false, false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
     assert!(
-        !refreshed.row.common.state.hovered,
+        !is_hovered(&refreshed),
         "sample row hover paint must not stick after retained projections"
     );
     let plan = refreshed.paint_plan_with_defaults(bounds);
@@ -192,14 +203,14 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(bounds, WidgetInput::primary_press(Point::new(34.0, 8.0)));
-    assert!(previous.row.common.state.hovered);
-    assert!(previous.row.common.state.pressed);
+    assert!(is_hovered(&previous));
+    assert!(is_pressed(&previous));
 
     let mut refreshed = SampleFileHitTarget::new(false, false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
-    assert!(!refreshed.row.common.state.hovered);
-    assert!(refreshed.row.common.state.pressed);
+    assert!(!is_hovered(&refreshed));
+    assert!(is_pressed(&refreshed));
 }
 
 #[test]
@@ -208,13 +219,13 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
-    assert!(previous.row.common.state.hovered);
+    assert!(is_hovered(&previous));
 
     let mut suppressed = SampleFileHitTarget::new(false, false, false, false, true);
     suppressed.synchronize_from_previous(&previous);
-    assert!(!suppressed.row.common.state.hovered);
+    assert!(!is_hovered(&suppressed));
     suppressed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
-    assert!(!suppressed.row.common.state.hovered);
+    assert!(!is_hovered(&suppressed));
 
     let plan = suppressed.paint_plan_with_defaults(bounds);
     assert!(

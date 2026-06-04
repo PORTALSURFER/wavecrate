@@ -12,6 +12,10 @@ fn row_bounds() -> Rect {
     Rect::from_size(120.0, 22.0)
 }
 
+fn is_hovered(target: &FolderTreeHitTarget) -> bool {
+    target.common().state.hovered
+}
+
 #[test]
 fn active_drag_survives_widget_refresh_as_moved() {
     let bounds = row_bounds();
@@ -25,7 +29,7 @@ fn active_drag_survives_widget_refresh_as_moved() {
     );
 
     let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
-    refreshed.row.common.state = first.row.common.state;
+    refreshed.synchronize_from_previous(&first);
     assert_eq!(
         message_from(
             refreshed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
@@ -40,7 +44,7 @@ fn active_drag_survives_widget_refresh_as_moved() {
 fn active_drag_survives_widget_refresh_until_release() {
     let bounds = row_bounds();
     let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
-    refreshed.row.common.state.pressed = true;
+    refreshed.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
 
     assert_eq!(
         message_from(
@@ -175,7 +179,10 @@ fn drag_folder_hover_keeps_stable_pointer_moves_for_drop_feedback() {
 #[test]
 fn pressed_folder_row_keeps_stable_pointer_moves_for_drag_start() {
     let mut target = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
-    target.row.common.state.pressed = true;
+    target.handle_input(
+        row_bounds(),
+        WidgetInput::primary_press(Point::new(6.0, 6.0)),
+    );
 
     assert!(
         target.accepts_pointer_move(),
@@ -186,13 +193,16 @@ fn pressed_folder_row_keeps_stable_pointer_moves_for_drag_start() {
 #[test]
 fn folder_hover_state_survives_surface_refresh() {
     let mut previous = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
-    previous.row.common.state.hovered = true;
+    previous.handle_input(
+        row_bounds(),
+        WidgetInput::pointer_move(Point::new(6.0, 6.0)),
+    );
 
     let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
     assert!(
-        refreshed.row.common.state.hovered,
+        is_hovered(&refreshed),
         "surface refreshes must not clear custom folder-row hover while the runtime still owns that hover"
     );
 }
