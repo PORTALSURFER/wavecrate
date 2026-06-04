@@ -215,6 +215,7 @@ impl GuiAppState {
     ) {
         let started_at = Instant::now();
         let direction = if delta < 0 { "previous" } else { "next" };
+        let previous_selection = self.folder_browser.selected_file_id().map(str::to_owned);
         let Some(path) = self.folder_browser.navigate_vertical(delta, extend) else {
             emit_gui_action(
                 "folder_browser.navigate",
@@ -245,6 +246,10 @@ impl GuiAppState {
             started_at,
             None,
         );
-        self.select_sample(path, context);
+        if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+            self.selected_metadata_tag = None;
+        }
+        self.defer_navigation_sample_load(path, context);
     }
 }

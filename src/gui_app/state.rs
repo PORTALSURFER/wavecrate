@@ -104,6 +104,7 @@ pub(in crate::gui_app) enum GuiMessage {
         ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
+        check_cache: bool,
     },
     SampleLoadProgress(ui::TaskTicket, f32),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),

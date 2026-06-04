@@ -317,6 +317,90 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
+    let source_root = tempfile::tempdir().expect("source root");
+    for name in ["a.wav", "b.wav", "c.wav"] {
+        fs::write(source_root.path().join(name), []).expect("sample file");
+    }
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let files = state.folder_browser.selected_audio_files();
+    assert!(files.len() >= 3, "expected three visible samples");
+    let first = files[0].id.clone();
+    let second = files[1].id.clone();
+    let third = files[2].id.clone();
+    state.folder_browser.select_file(first);
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(second.as_str())
+    );
+    assert!(
+        state.deferred_sample_load_task.active().is_some(),
+        "keyboard navigation should queue only a deferred latest load"
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "keyboard navigation must not synchronously start decode work"
+    );
+    assert_eq!(
+        state.waveform_loading_label, None,
+        "keyboard navigation should not enter the loading UI until the deferred load fires"
+    );
+    let stale_ticket = state
+        .deferred_sample_load_task
+        .active()
+        .expect("deferred navigation load ticket");
+
+    state.apply_message(
+        super::super::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(third.as_str())
+    );
+    assert!(state.deferred_sample_load_task.active().is_some());
+    assert!(state.sample_load_task.active().is_none());
+
+    state.apply_message(
+        super::super::GuiMessage::DeferredSampleLoad {
+            ticket: stale_ticket,
+            path: second,
+            autoplay: true,
+            check_cache: true,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(third.as_str())
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "stale deferred navigation loads must not start decode work"
+    );
+    assert!(state.deferred_sample_load_task.active().is_some());
+}
+
+#[test]
 fn sample_selection_reuses_persisted_cache_after_restart() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("cached.wav");

@@ -289,6 +289,7 @@ fn start_deferred_sample_load_for_tests(
             ticket,
             path,
             autoplay,
+            check_cache: false,
         },
         context,
     );

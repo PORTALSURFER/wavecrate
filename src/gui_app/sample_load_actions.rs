@@ -112,26 +112,40 @@ impl GuiAppState {
             &path,
             cache_lookup_started_at,
         );
-        if self.waveform.is_playing() {
-            if let Some(player) = self.audio_player.as_mut() {
-                player.stop();
-            }
-            self.waveform.stop_playback();
-            self.current_playback_span = None;
-        }
-        self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
-        let label = sample_path_label(path.as_str());
-        self.waveform_loading_label = Some(label.clone());
+        self.prepare_uncached_sample_load(path.as_str(), "load_deferred", started_at);
+        self.schedule_deferred_sample_load(path, autoplay, false, context);
+    }
+
+    pub(super) fn defer_navigation_sample_load(
+        &mut self,
+        path: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        self.cancel_inflight_sample_load();
+        self.pending_sample_playback = None;
+        self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
+        self.sample_status = format!("Selected {}", sample_path_label(path.as_str()));
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),
-            Some(&label),
-            "load_deferred",
+            Some(&sample_path_label(path.as_str())),
+            "navigation_load_deferred",
             started_at,
             None,
         );
+        self.schedule_deferred_sample_load(path, true, true, context);
+    }
+
+    fn schedule_deferred_sample_load(
+        &mut self,
+        path: String,
+        autoplay: bool,
+        check_cache: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         context.after_latest(
             &mut self.deferred_sample_load_task,
             UNCACHED_SAMPLE_LOAD_DEBOUNCE,
@@ -139,6 +153,7 @@ impl GuiAppState {
                 ticket,
                 path,
                 autoplay,
+                check_cache,
             },
         );
     }
@@ -148,6 +163,7 @@ impl GuiAppState {
         ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
+        check_cache: bool,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -165,7 +181,57 @@ impl GuiAppState {
             );
             return;
         }
+        if check_cache {
+            let cache_lookup_started_at = Instant::now();
+            if let Some(waveform) = self.cached_waveform_state(Path::new(&path)) {
+                log_slow_sample_load_phase(
+                    "browser.select_sample.deferred_cache_lookup",
+                    &path,
+                    cache_lookup_started_at,
+                );
+                self.finish_cached_sample_load(waveform, autoplay, started_at);
+                return;
+            }
+            log_slow_sample_load_phase(
+                "browser.select_sample.deferred_cache_lookup",
+                &path,
+                cache_lookup_started_at,
+            );
+            self.prepare_uncached_sample_load(
+                path.as_str(),
+                "navigation_load_uncached",
+                started_at,
+            );
+        }
         self.start_uncached_sample_load(path, autoplay, context, started_at);
+    }
+
+    fn prepare_uncached_sample_load(
+        &mut self,
+        path: &str,
+        outcome: &'static str,
+        started_at: Instant,
+    ) {
+        if self.waveform.is_playing() {
+            if let Some(player) = self.audio_player.as_mut() {
+                player.stop();
+            }
+            self.waveform.stop_playback();
+            self.current_playback_span = None;
+        }
+        self.sample_status = format!("Loading {}", sample_path_label(path));
+        let label = sample_path_label(path);
+        self.waveform_loading_label = Some(label.clone());
+        self.waveform_loading_progress = 0.0;
+        self.waveform_loading_target_progress = 0.0;
+        emit_gui_action(
+            "browser.select_sample",
+            Some("browser"),
+            Some(&label),
+            outcome,
+            started_at,
+            None,
+        );
     }
 
     fn start_uncached_sample_load(
