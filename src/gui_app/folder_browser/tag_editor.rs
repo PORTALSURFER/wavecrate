@@ -27,18 +27,14 @@ impl FolderBrowserState {
     }
 
     pub(super) fn resize_metadata_panel(&mut self, message: DragHandleMessage) {
-        if message.is_double_activate() {
-            self.metadata_panel_resize = None;
-            self.metadata_panel_height = MIN_METADATA_PANEL_HEIGHT;
-            return;
-        }
-        if let Some(height) = ui::update_panel_resize_drag(
+        if let Some(height) = ui::update_collapsible_panel_resize_drag(
             &mut self.metadata_panel_resize,
             message,
             ui::PanelResizeEdge::Top,
             self.metadata_panel_height,
             MIN_METADATA_PANEL_HEIGHT,
             MAX_METADATA_PANEL_HEIGHT,
+            MIN_METADATA_PANEL_HEIGHT,
         ) {
             self.metadata_panel_height = height;
         }

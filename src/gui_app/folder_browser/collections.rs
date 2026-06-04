@@ -211,19 +211,15 @@ impl FolderBrowserState {
     }
 
     pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
-        if message.is_double_activate() {
-            self.collection_panel_resize = None;
-            self.collections_panel_height = COLLAPSED_COLLECTIONS_PANEL_HEIGHT;
-            return;
-        }
         let max_height = self.max_collections_panel_height();
-        if let Some(height) = ui::update_panel_resize_drag(
+        if let Some(height) = ui::update_collapsible_panel_resize_drag(
             &mut self.collection_panel_resize,
             message,
             ui::PanelResizeEdge::Top,
             self.collections_panel_height,
             MIN_COLLECTIONS_PANEL_HEIGHT,
             max_height,
+            COLLAPSED_COLLECTIONS_PANEL_HEIGHT,
         ) {
             self.collections_panel_height = height;
         }
