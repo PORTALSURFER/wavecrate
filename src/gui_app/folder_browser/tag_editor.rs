@@ -19,6 +19,7 @@ const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
+const METADATA_TAG_HEADER_HEIGHT: f32 = 22.0;
 pub(in crate::gui_app) const COLLAPSED_METADATA_PANEL_HEIGHT: f32 =
     METADATA_PANEL_PADDING * 2.0 + METADATA_PANEL_TITLE_HEIGHT;
 const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
@@ -72,7 +73,7 @@ pub(super) fn metadata_section(
             ])
             .spacing(4.0)
             .fill_width()
-            .height(22.0)
+            .height(METADATA_TAG_HEADER_HEIGHT)
             .key("metadata-tag-library-toggle-row"),
             tag_entry_field(
                 tag_draft,
@@ -191,6 +192,15 @@ pub(in crate::gui_app) fn tag_field_height(
     )
     .len();
     tag_field_layout(rows, content_width).field_height
+}
+
+pub(in crate::gui_app) fn metadata_tag_completion_bottom_inset(panel_height: f32) -> f32 {
+    panel_height
+        - METADATA_PANEL_PADDING
+        - METADATA_PANEL_TITLE_HEIGHT
+        - METADATA_PANEL_HEADER_CONTENT_SPACING
+        - METADATA_TAG_HEADER_HEIGHT
+        - TAG_FIELD_LINE_GAP
 }
 
 fn tag_text_input(

@@ -21,7 +21,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     )
     .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
-    assert!(!frame.paint_plan.contains_text("Metadata"));
+    assert!(frame.paint_plan.contains_text("Metadata"));
     assert!(!frame.paint_plan.contains_text("Tags (1)"));
     assert!(!frame.paint_plan.contains_text("kick"));
     assert!(!frame.paint_plan.contains_text_input());

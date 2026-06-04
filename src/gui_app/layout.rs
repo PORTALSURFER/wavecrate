@@ -75,29 +75,15 @@ fn metadata_tag_completion_overlay(state: &GuiAppState) -> Option<ui::View<GuiMe
     if completion_options.is_empty() {
         return None;
     }
-    let pending_category_tag = state
-        .pending_metadata_tag_category_tag()
-        .map(str::to_string);
-    let completion_suffix = state.metadata_tag_completion_suffix();
-    let selected_metadata_tags = state.selected_metadata_tags().to_vec();
-    let display_categories = state.selected_metadata_tag_display_categories();
     let tag_field_content_width =
         folder_browser::tag_field_content_width(state.folder_panel.size());
-    let tag_field_height = folder_browser::tag_field_height(
-        state.metadata_tag_draft.as_str(),
-        state.metadata_tag_tokens.as_slice(),
-        pending_category_tag.as_deref(),
-        completion_suffix.as_deref(),
-        selected_metadata_tags.as_slice(),
-        display_categories.as_slice(),
-        tag_field_content_width,
-    );
     let inset_x = CENTER_PANEL_PADDING + FOLDER_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
     let inset_y = BOTTOM_STATUS_BAR_HEIGHT
         + CENTER_PANEL_PADDING
         + FOLDER_SIDEBAR_PADDING
-        + METADATA_PANEL_PADDING
-        + tag_field_height
+        + folder_browser::metadata_tag_completion_bottom_inset(
+            state.folder_browser.metadata_panel_height(),
+        )
         + folder_browser::TAG_COMPLETION_POPUP_GAP;
     Some(folder_browser::tag_completion_overlay(
         completion_options.as_slice(),
