@@ -1,6 +1,9 @@
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
-use super::{FileDeleteTargetView, FolderBrowserState, FolderDeleteTargetView};
+use super::{
+    FileDeleteTargetView, FolderBrowserState, FolderDeleteTargetView, path_helpers::path_id,
+};
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn selected_delete_target(
@@ -48,6 +51,7 @@ impl FolderBrowserState {
         Ok(FileDeleteTargetView { paths, names })
     }
 
+    #[cfg(test)]
     pub(in crate::gui_app) fn delete_selected_folder(&mut self) -> Result<String, String> {
         let target = self.selected_delete_target()?;
         if !target.path.is_dir() {
@@ -58,6 +62,7 @@ impl FolderBrowserState {
         ))
     }
 
+    #[cfg(test)]
     pub(in crate::gui_app) fn delete_selected_files(&mut self) -> Result<String, String> {
         let target = self.selected_file_delete_target()?;
         for path in &target.paths {
@@ -73,5 +78,73 @@ impl FolderBrowserState {
         Err(String::from(
             "Trash workflow is not available in the default GUI yet; no files were deleted",
         ))
+    }
+
+    pub(in crate::gui_app) fn discard_trashed_folder_path(&mut self, path: &Path) -> bool {
+        let folder_id = path_id(path);
+        let parent_id = path.parent().map(path_id);
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return false;
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return false;
+        };
+        let changed = root_folder.remove_child_by_id(&folder_id);
+        if !changed {
+            return false;
+        }
+        self.folders = vec![root_folder.clone()];
+        if self.selected_folder == folder_id {
+            self.selected_folder = parent_id
+                .filter(|id| self.find_folder(id).is_some())
+                .unwrap_or_else(|| {
+                    self.folders
+                        .first()
+                        .map(|folder| folder.id.clone())
+                        .unwrap_or_default()
+                });
+        }
+        self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.expanded_folders.retain(|id| id != &folder_id);
+        true
+    }
+
+    pub(in crate::gui_app) fn discard_trashed_file_paths(&mut self, paths: &[PathBuf]) -> bool {
+        let target_ids = paths
+            .iter()
+            .map(|path| path_id(path))
+            .collect::<HashSet<_>>();
+        if target_ids.is_empty() {
+            return false;
+        }
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return false;
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return false;
+        };
+        let changed = root_folder.remove_files_by_ids(&target_ids);
+        if !changed {
+            return false;
+        }
+        self.folders = vec![root_folder.clone()];
+        if self
+            .selected_file
+            .as_ref()
+            .is_some_and(|id| target_ids.contains(id))
+        {
+            self.selected_file = None;
+        }
+        self.selected_file_ids.retain(|id| !target_ids.contains(id));
+        true
     }
 }

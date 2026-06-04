@@ -1,5 +1,6 @@
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
+use std::path::PathBuf;
 use std::sync::Arc;
 use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
@@ -18,6 +19,7 @@ pub(super) use popover::{audio_settings_window_view, format_sample_rate_label};
 #[derive(Clone, Debug)]
 pub(super) struct AudioSettingsSnapshot {
     pub(super) tab: AppSettingsTab,
+    pub(super) trash_folder: Option<PathBuf>,
     pub(super) detail_label: String,
     pub(super) error: Option<String>,
     pub(super) audio_output_config: AudioOutputConfig,
@@ -31,6 +33,7 @@ impl AudioSettingsSnapshot {
     pub(super) fn from_app_state(state: &GuiAppState) -> Self {
         Self {
             tab: state.app_settings_tab,
+            trash_folder: state.persisted_settings.trash_folder.clone(),
             detail_label: state.audio_engine_detail_label(),
             error: state.audio_settings_error.clone(),
             audio_output_config: state.audio_output_config.clone(),

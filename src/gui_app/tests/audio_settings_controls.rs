@@ -340,6 +340,7 @@ fn settings_window_general_tab_shows_general_controls() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_settings_error = None;
     state.app_settings_tab = crate::gui_app::AppSettingsTab::General;
+    state.persisted_settings.trash_folder = Some(std::path::PathBuf::from("C:\\Wavecrate Trash"));
 
     let frame = crate::gui_app::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
@@ -348,6 +349,16 @@ fn settings_window_general_tab_shows_general_controls() {
     assert!(texts.iter().any(|text| text == "Settings"), "{texts:?}");
     assert!(texts.iter().any(|text| text == "General"), "{texts:?}");
     assert!(texts.iter().any(|text| text == "Audio Engine"), "{texts:?}");
+    assert!(texts.iter().any(|text| text == "Trash Folder"), "{texts:?}");
+    assert!(
+        texts.iter().any(|text| text == "C:\\Wavecrate Trash"),
+        "{texts:?}"
+    );
+    assert!(
+        texts.iter().any(|text| text == "Choose Folder"),
+        "{texts:?}"
+    );
+    assert!(texts.iter().any(|text| text == "Clear"), "{texts:?}");
     assert!(
         texts.iter().any(|text| text == "Clear Rebuildable Caches"),
         "{texts:?}"

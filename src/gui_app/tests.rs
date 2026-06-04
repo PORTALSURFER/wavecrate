@@ -140,6 +140,108 @@ fn gui_state_with_temp_sample(name: &str) -> (GuiAppState, tempfile::TempDir, St
 }
 
 #[test]
+fn delete_selected_file_moves_it_to_configured_trash_folder() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let trash_root = tempfile::tempdir().expect("trash root");
+    let keep = source_root.path().join("keep.wav");
+    let delete = source_root.path().join("delete.wav");
+    fs::write(&keep, []).expect("write keep wav");
+    fs::write(&delete, []).expect("write delete wav");
+    state.persisted_settings.trash_folder = Some(trash_root.path().to_path_buf());
+    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state
+        .folder_browser
+        .select_file(delete.display().to_string());
+
+    state.delete_selected_item();
+
+    assert!(!delete.exists());
+    assert!(trash_root.path().join("delete.wav").exists());
+    assert!(keep.exists());
+    assert_eq!(state.folder_browser.selected_file_id(), None);
+    assert!(
+        state
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .any(|file| file.name == "keep.wav")
+    );
+    assert!(
+        !state
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .any(|file| file.name == "delete.wav")
+    );
+    assert!(state.sample_status.contains("Moved 1 file to trash"));
+}
+
+#[test]
+fn delete_selected_folder_moves_it_to_configured_trash_folder() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let trash_root = tempfile::tempdir().expect("trash root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    fs::write(drums.join("kick.wav"), []).expect("write kick wav");
+    fs::write(loops.join("loop.wav"), []).expect("write loop wav");
+    state.persisted_settings.trash_folder = Some(trash_root.path().to_path_buf());
+    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state
+        .folder_browser
+        .apply_message(super::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+        ));
+
+    state.delete_selected_item();
+
+    assert!(!drums.exists());
+    assert!(trash_root.path().join("drums").join("kick.wav").exists());
+    assert!(loops.exists());
+    assert_eq!(state.folder_browser.selected_file_id(), None);
+    state
+        .folder_browser
+        .apply_message(super::FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+        ));
+    assert!(
+        state
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .any(|file| file.name == "loop.wav")
+    );
+    assert!(state.sample_status.contains("Moved drums to trash"));
+}
+
+#[test]
+fn delete_selected_file_requires_configured_trash_folder() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("blocked.wav");
+
+    state.delete_selected_item();
+
+    assert!(std::path::Path::new(&selected_file).exists());
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(selected_file.as_str())
+    );
+    assert!(
+        state
+            .sample_status
+            .contains("Set a trash folder in Settings > General"),
+        "{}",
+        state.sample_status
+    );
+}
+
+#[test]
 fn collection_shortcut_toggles_selected_sample_membership() {
     let (mut state, source_root, selected_file) = gui_state_with_temp_sample("toggle.wav");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");

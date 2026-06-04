@@ -37,6 +37,7 @@ mod state;
 mod status_bar;
 mod toolbar;
 mod transaction_history;
+mod trash_actions;
 mod waveform;
 mod waveform_panel;
 #[cfg(test)]

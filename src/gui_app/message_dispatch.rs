@@ -171,6 +171,8 @@ impl GuiAppState {
                 self.sample_name_view_mode = self.sample_name_view_mode.toggled();
             }
             GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
+            GuiMessage::PickTrashFolder => self.pick_trash_folder(context),
+            GuiMessage::ClearTrashFolder => self.clear_trash_folder(),
             GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),
             GuiMessage::AdjustSelectedRating(delta) => self.adjust_selected_rating(delta, context),
             GuiMessage::AssignSelectedCollection(collection) => {
@@ -182,10 +184,14 @@ impl GuiAppState {
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::CopyContextPath => self.copy_context_path(context),
+            GuiMessage::TrashFolderDialogFinished(result) => {
+                self.finish_trash_folder_dialog(result);
+            }
             GuiMessage::ContextPathCopyFinished { kind, path, result } => {
                 self.finish_context_path_copy(kind, path, result);
             }
             GuiMessage::OpenContextTarget => self.open_context_target(context),
+            GuiMessage::MoveContextTargetToTrash => self.move_context_target_to_trash(),
             GuiMessage::ContextTargetOpenFinished { kind, path, result } => {
                 self.finish_context_target_open(kind, path, result);
             }

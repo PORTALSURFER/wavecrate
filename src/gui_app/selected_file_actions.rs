@@ -1,7 +1,5 @@
 use super::{GuiAppState, GuiMessage};
-use crate::gui_app::{
-    file_actions::sample_path_label, launch::emit_gui_action, waveform::WaveformState,
-};
+use crate::gui_app::{file_actions::sample_path_label, launch::emit_gui_action};
 use std::time::Instant;
 
 impl GuiAppState {
@@ -87,30 +85,7 @@ impl GuiAppState {
                 return;
             }
         };
-        match self.folder_browser.delete_selected_folder() {
-            Ok(status) => {
-                self.sample_status = status;
-                emit_gui_action(
-                    "folder_browser.delete_selected",
-                    Some("folder_browser"),
-                    Some(&target.name),
-                    "success",
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "folder_browser.delete_selected",
-                    Some("folder_browser"),
-                    Some(&target.name),
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-            }
-        }
+        self.move_selected_folder_to_trash(target.path, started_at);
     }
 
     fn delete_selected_files(&mut self) {
@@ -130,40 +105,7 @@ impl GuiAppState {
                 return;
             }
         };
-        let loaded_path = self.waveform.path();
-        let deleting_loaded_sample = target.paths.iter().any(|path| path == &loaded_path);
-
-        match self.folder_browser.delete_selected_files() {
-            Ok(status) => {
-                if deleting_loaded_sample {
-                    if let Some(player) = self.audio_player.as_mut() {
-                        player.stop();
-                    }
-                    self.waveform = WaveformState::empty();
-                    self.current_playback_span = None;
-                }
-                self.sample_status = status;
-                emit_gui_action(
-                    "browser.delete_selected_files",
-                    Some("browser"),
-                    Some(&target.label()),
-                    "success",
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "browser.delete_selected_files",
-                    Some("browser"),
-                    Some(&target.label()),
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-            }
-        }
+        self.move_selected_files_to_trash(target.paths, started_at);
     }
 
     pub(super) fn extract_playmarked_range(&mut self) {

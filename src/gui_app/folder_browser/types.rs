@@ -48,16 +48,6 @@ pub(in crate::gui_app) struct FileDeleteTargetView {
     pub(in crate::gui_app) names: Vec<String>,
 }
 
-impl FileDeleteTargetView {
-    pub(in crate::gui_app) fn label(&self) -> String {
-        match self.names.as_slice() {
-            [] => String::from("selected files"),
-            [name] => name.clone(),
-            names => format!("{} files", names.len()),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui_app) enum FolderBrowserMessage {
     AddSource,
