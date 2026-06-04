@@ -66,7 +66,8 @@ pub(super) fn auxiliary_windows(state: &mut GuiAppState) -> Vec<ui::AuxiliaryWin
     let surface = audio_settings_window_view(&snapshot).into_surface();
     vec![
         ui::AuxiliaryWindow::new("audio-settings", options, Arc::new(surface))
-            .on_close(GuiMessage::CloseAudioSettings),
+            .on_close(GuiMessage::CloseAudioSettings)
+            .cache_on_close(),
     ]
 }
 

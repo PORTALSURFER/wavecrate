@@ -192,6 +192,22 @@ fn settings_top_bar_actions_open_expected_tabs() {
 }
 
 #[test]
+fn settings_auxiliary_window_is_cached_after_native_close() {
+    let mut state = gui_state_for_span_tests();
+    state.audio_settings_open = true;
+
+    let windows = crate::gui_app::audio_settings::auxiliary_windows(&mut state);
+
+    assert_eq!(windows.len(), 1);
+    assert_eq!(windows[0].key, "audio-settings");
+    assert!(windows[0].caches_on_close());
+    assert_eq!(
+        windows[0].close_policy,
+        radiant::prelude::AuxiliaryWindowClosePolicy::Hide
+    );
+}
+
+#[test]
 fn audio_settings_snapshot_uses_cached_device_options() {
     let mut state = gui_state_for_span_tests();
     state.audio_hosts = vec![crate::gui_app::AudioHostSummary {
