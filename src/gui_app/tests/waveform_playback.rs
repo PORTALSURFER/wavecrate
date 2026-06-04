@@ -61,6 +61,43 @@ fn random_audition_span_plays_whole_short_sample() {
 }
 
 #[test]
+fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
+    let mut state = gui_state_for_span_tests();
+
+    for (start, end) in [(0.10, 0.20), (0.55, 0.70)] {
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: start,
+            });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: end });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: end });
+    }
+
+    let span = state.random_audition_span_for_loaded_waveform(0.75);
+
+    assert_eq!(
+        span.source,
+        super::super::playback::RandomAuditionSource::MarkedRange
+    );
+    assert!(
+        (span.start - 0.55).abs() < 0.001,
+        "start was {}",
+        span.start
+    );
+    assert!((span.end - 0.70).abs() < 0.001, "end was {}", span.end);
+    assert_eq!(
+        state.waveform.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.55, 0.70))
+    );
+}
+
+#[test]
 fn random_audition_is_one_shot_even_when_loop_is_enabled() {
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;

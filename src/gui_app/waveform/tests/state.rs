@@ -55,6 +55,51 @@ fn dragging_primary_creates_playmark_selection_without_starting_playback() {
 }
 
 #[test]
+fn completed_playmark_selections_are_recorded_for_random_audition() {
+    let mut state = WaveformState::synthetic_for_tests();
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Play,
+        visible_ratio: 0.2,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.4 });
+    state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.4 });
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Edit,
+        visible_ratio: 0.5,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.7 });
+    state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
+
+    assert_eq!(state.marked_play_ranges().len(), 1);
+    assert!((state.marked_play_ranges()[0].start() - 0.2).abs() < 0.001);
+    assert!((state.marked_play_ranges()[0].end() - 0.4).abs() < 0.001);
+}
+
+#[test]
+fn random_marked_play_range_maps_unit_to_marked_range() {
+    let ranges = [
+        wavecrate::selection::SelectionRange::new(0.1, 0.2),
+        wavecrate::selection::SelectionRange::new(0.3, 0.4),
+        wavecrate::selection::SelectionRange::new(0.5, 0.6),
+    ];
+
+    assert_eq!(
+        super::super::random_marked_play_range_for_unit(&ranges, 0.0),
+        Some(ranges[0])
+    );
+    assert_eq!(
+        super::super::random_marked_play_range_for_unit(&ranges, 0.5),
+        Some(ranges[1])
+    );
+    assert_eq!(
+        super::super::random_marked_play_range_for_unit(&ranges, 1.0),
+        Some(ranges[2])
+    );
+}
+
+#[test]
 fn empty_waveform_ignores_selection_and_pan_interactions() {
     let mut state = WaveformState::empty();
 

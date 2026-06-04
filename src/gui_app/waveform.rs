@@ -25,6 +25,7 @@ pub(super) struct WaveformState {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    marked_play_ranges: Vec<wavecrate::selection::SelectionRange>,
     extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     active_drag: Option<WaveformDrag>,
@@ -85,6 +86,7 @@ impl WaveformState {
             edit_mark_ratio: None,
             play_selection: None,
             edit_selection: None,
+            marked_play_ranges: Vec::new(),
             extracted_ranges: Vec::new(),
             play_selection_flash_frames: 0,
             active_drag: None,
@@ -118,6 +120,21 @@ impl WaveformState {
 
     pub(super) fn play_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
         self.play_selection
+    }
+
+    #[cfg(test)]
+    pub(super) fn marked_play_ranges(&self) -> &[wavecrate::selection::SelectionRange] {
+        &self.marked_play_ranges
+    }
+
+    pub(in crate::gui_app) fn select_marked_play_range_for_random_audition(
+        &mut self,
+        unit: f32,
+    ) -> Option<wavecrate::selection::SelectionRange> {
+        let range = random_marked_play_range_for_unit(&self.marked_play_ranges, unit)?;
+        self.play_mark_ratio = Some(range.start());
+        self.play_selection = Some(range);
+        Some(range)
     }
 
     pub(super) fn edit_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
@@ -317,6 +334,17 @@ impl WaveformState {
     fn viewport_scope(&self) -> ui::IndexViewportScope {
         ui::IndexViewportScope::new(self.viewport, self.file.frames, MIN_VISIBLE_FRAMES)
     }
+}
+
+pub(in crate::gui_app) fn random_marked_play_range_for_unit(
+    ranges: &[wavecrate::selection::SelectionRange],
+    unit: f32,
+) -> Option<wavecrate::selection::SelectionRange> {
+    if ranges.is_empty() {
+        return None;
+    }
+    let index = (unit.clamp(0.0, 1.0) * ranges.len() as f32).floor() as usize;
+    ranges.get(index.min(ranges.len() - 1)).copied()
 }
 
 mod types;

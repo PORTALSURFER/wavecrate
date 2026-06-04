@@ -149,7 +149,11 @@ impl WaveformState {
             WaveformDrag::Selection(mut drag) => {
                 drag.update(ratio);
                 if drag.moved() {
+                    let kind = drag.kind;
                     self.set_selection_for_drag(drag);
+                    if kind == WaveformSelectionKind::Play {
+                        self.record_current_play_selection_mark();
+                    }
                     return;
                 }
                 match drag.kind {
@@ -169,15 +173,21 @@ impl WaveformState {
                 self.update_active_edit_fade(ratio);
                 self.active_drag = None;
             }
-            WaveformDrag::SelectionResize(_) => {
-                self.active_drag = Some(drag);
+            WaveformDrag::SelectionResize(drag) => {
+                self.active_drag = Some(WaveformDrag::SelectionResize(drag));
                 self.update_active_selection_resize(ratio);
                 self.active_drag = None;
+                if drag.kind == WaveformSelectionKind::Play {
+                    self.record_current_play_selection_mark();
+                }
             }
-            WaveformDrag::SelectionMove(_) => {
-                self.active_drag = Some(drag);
+            WaveformDrag::SelectionMove(drag) => {
+                self.active_drag = Some(WaveformDrag::SelectionMove(drag));
                 self.update_active_selection_move(ratio);
                 self.active_drag = None;
+                if drag.kind == WaveformSelectionKind::Play {
+                    self.record_current_play_selection_mark();
+                }
             }
             WaveformDrag::PlaySelectionExport => {}
             WaveformDrag::Pan(drag) => {

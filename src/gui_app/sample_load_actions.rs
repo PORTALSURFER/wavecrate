@@ -8,7 +8,7 @@ use std::{
 use super::{
     GuiAppState, GuiMessage, KEYBOARD_SAMPLE_LOAD_DEBOUNCE, PendingSamplePlayback,
     SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState, emit_gui_action,
-    playback::random_audition_span_for_unit, sample_path_label,
+    sample_path_label,
 };
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
 
@@ -427,14 +427,12 @@ impl GuiAppState {
         };
         match playback {
             PendingSamplePlayback::RandomAudition { unit } => {
-                let (start, end) =
-                    random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
+                let span = self.random_audition_span_for_loaded_waveform(unit);
                 let was_looping = self.loop_playback;
                 self.loop_playback = false;
-                match self.start_playback_current_span(start, end) {
+                match self.start_playback_current_span(span.start, span.end) {
                     Ok(()) => {
-                        self.sample_status =
-                            format!("Random audition {file_name} from {:.1}%", start * 100.0);
+                        self.sample_status = span.status_message(file_name);
                         emit_gui_action(
                             "playback.play_random_sample_range",
                             Some("transport"),

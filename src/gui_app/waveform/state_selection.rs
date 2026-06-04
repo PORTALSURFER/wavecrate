@@ -38,6 +38,20 @@ impl WaveformState {
         }
     }
 
+    pub(super) fn record_current_play_selection_mark(&mut self) {
+        let Some(selection) = self
+            .play_selection
+            .filter(|selection| selection.width() > 0.0)
+        else {
+            return;
+        };
+        let selection = SelectionRange::new(selection.start(), selection.end());
+        if self.marked_play_ranges.contains(&selection) {
+            return;
+        }
+        self.marked_play_ranges.push(selection);
+    }
+
     fn set_selection_for_kind(
         &mut self,
         kind: WaveformSelectionKind,

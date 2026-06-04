@@ -154,14 +154,13 @@ impl GuiAppState {
             return;
         }
         let file_name = self.waveform.file_name();
-        let (start, end) = random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
+        let span = self.random_audition_span_for_loaded_waveform(unit);
         let was_looping = self.loop_playback;
         self.loop_playback = false;
 
-        match self.start_playback_current_span(start, end) {
+        match self.start_playback_current_span(span.start, span.end) {
             Ok(()) => {
-                self.sample_status =
-                    format!("Random audition {file_name} from {:.1}%", start * 100.0);
+                self.sample_status = span.status_message(&file_name);
                 emit_gui_action(
                     "playback.play_random_sample_range",
                     Some("transport"),
@@ -185,6 +184,28 @@ impl GuiAppState {
                     Some(&err),
                 );
             }
+        }
+    }
+
+    pub(in crate::gui_app) fn random_audition_span_for_loaded_waveform(
+        &mut self,
+        unit: f32,
+    ) -> RandomAuditionSpan {
+        if let Some(range) = self
+            .waveform
+            .select_marked_play_range_for_random_audition(unit)
+        {
+            return RandomAuditionSpan {
+                start: range.start(),
+                end: range.end(),
+                source: RandomAuditionSource::MarkedRange,
+            };
+        }
+        let (start, end) = random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
+        RandomAuditionSpan {
+            start,
+            end,
+            source: RandomAuditionSource::FixedWindow,
         }
     }
 
@@ -361,6 +382,38 @@ impl GuiAppState {
             start_ratio,
             end_ratio,
             offset_ratio,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) enum RandomAuditionSource {
+    FixedWindow,
+    MarkedRange,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui_app) struct RandomAuditionSpan {
+    pub(in crate::gui_app) start: f32,
+    pub(in crate::gui_app) end: f32,
+    pub(in crate::gui_app) source: RandomAuditionSource,
+}
+
+impl RandomAuditionSpan {
+    pub(in crate::gui_app) fn status_message(self, file_name: &str) -> String {
+        match self.source {
+            RandomAuditionSource::FixedWindow => {
+                format!(
+                    "Random audition {file_name} from {:.1}%",
+                    self.start * 100.0
+                )
+            }
+            RandomAuditionSource::MarkedRange => {
+                format!(
+                    "Random marked range {file_name} from {:.1}%",
+                    self.start * 100.0
+                )
+            }
         }
     }
 }
