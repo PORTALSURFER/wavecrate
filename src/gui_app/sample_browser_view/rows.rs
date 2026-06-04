@@ -21,10 +21,7 @@ pub(super) fn sample_browser_rows(
     suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
-        return ui::text("No audio files in selected folder")
-            .height(24.0)
-            .fill_width()
-            .fill_height();
+        return empty_sample_browser_rows();
     }
 
     ui::virtual_list_window(
@@ -50,6 +47,19 @@ pub(super) fn sample_browser_rows(
         SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
     )
     .id(SAMPLE_BROWSER_LIST_ID)
+    .fill()
+}
+
+fn empty_sample_browser_rows() -> ui::View<GuiMessage> {
+    ui::column([
+        ui::text_line(
+            "No audio files in selected folder",
+            SAMPLE_BROWSER_ROW_HEIGHT,
+        )
+        .muted_text(),
+        ui::spacer().fill_height(),
+    ])
+    .spacing(0.0)
     .fill()
 }
 

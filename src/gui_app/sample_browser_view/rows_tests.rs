@@ -151,6 +151,25 @@ fn loaded_sample_text_uses_primary_theme_color() {
 }
 
 #[test]
+/// Verifies the empty folder message starts where the item rows would start.
+fn empty_folder_message_paints_at_top_of_list_body() {
+    let theme = ThemeTokens::default();
+    let frame = empty_sample_browser_rows().view_frame_at_size(Vector2::new(480.0, 240.0), &theme);
+
+    let message = frame
+        .paint_plan
+        .text_runs()
+        .find(|run| run.text == "No audio files in selected folder")
+        .expect("empty folder message should paint");
+
+    assert!(
+        message.rect.max.y <= SAMPLE_BROWSER_ROW_HEIGHT + 1.0,
+        "empty folder message should stay in the first list row, rect={:?}",
+        message.rect
+    );
+}
+
+#[test]
 /// Verifies the collection column paints one marker for each collection membership.
 fn collection_cell_paints_each_collection_membership_color() {
     let first = SampleCollection::new(0).expect("collection");
