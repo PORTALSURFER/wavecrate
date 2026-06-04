@@ -2415,6 +2415,35 @@ If Wavecrate has to add playback, decoding, looping, warping, destructive render
 
 Durable runtime, automation, recovery, and data-format contracts belong in this target document with their owning code boundaries.
 
+### Instant Playback Limits for Cached Long WAVs
+
+Wavecrate should optimize cached WAV audition so it feels immediate whenever the selected audio is already memory-ready, but it must not define "instant after restart" as a zero-latency guarantee. A process restart discards decoded sample buffers, audio-device state, worker-thread state, and any operating-system file-cache warmth that Wavecrate does not control. Cached long WAV playback after restart is therefore a cold-to-warm readiness problem, not a pure transport-start problem.
+
+For ordinary cached WAV files, Wavecrate can persist or precompute:
+
+* waveform summary data and GPU-friendly preview levels
+* decoded interleaved `f32` playback samples when the payload is below the persisted playback-sample cap
+* sample rate, channel count, frame count, duration, file length, modification timestamp, and content identity data used to reject stale caches
+* cache indicator state and warm-queue priority for visible or recently selected files
+
+Wavecrate cannot reliably persist or precompute:
+
+* the audio output stream across app restarts
+* decoded `Arc` buffers already resident in this process
+* operating-system page-cache state for source WAVs or cache files
+* thread scheduling, antivirus, storage, removable-drive, network-share, or platform audio-backend delays
+* source-file freshness without at least metadata validation, and in some cache formats content validation that may require reading source bytes
+
+The practical size envelope for a 5-6 minute stereo WAV is large enough that restart readiness has meaningful I/O and allocation cost even on a cache hit. A 5 minute 44.1 kHz stereo decoded `f32` buffer is about 101 MiB. A 6 minute 48 kHz stereo decoded `f32` buffer is about 132 MiB. The original WAV may add roughly 50-132 MiB depending on bit depth, and deserializing persisted playback samples can transiently require additional memory while buffers are constructed. The current memory and persisted-cache caps are intentionally finite, so a library with many long tracks should expect eviction, reprioritization, and background warming rather than unlimited always-ready playback.
+
+Latency targets should distinguish three states:
+
+* **memory-ready cached WAV**: once decoded samples are resident and the output path is open, transport start should remain perceptually immediate, with low-tens-of-milliseconds behavior as the target
+* **post-restart persisted-cache hit on local SSD**: after the source list is available, preparing a selected 5-6 minute cached WAV for full-track playback should target roughly 100-300 ms in normal warm-storage conditions, with sub-500 ms p95 as a practical near-instant goal
+* **cold storage, stale cache, missing decoded payload, network/removable media, HDD, antivirus interference, or busy platform audio backend**: readiness may take seconds and must be represented as loading or warming instead of pretending playback is instantly available
+
+Fallback behavior should keep the GUI responsive. If persisted decoded samples are unavailable, stale, over the size cap, or evicted, Wavecrate may still use valid waveform summary data for navigation while playback falls back to background decode, lazy decode, or a short prefill path. For uninterrupted full-track playback of long WAVs, the preferred behavior is to warm the selected file's decoded samples before the first transport action when possible, prioritize visible and recently selected files, and avoid warming an unbounded number of long files at startup.
+
 ### UI Bridge Projection Cache
 
 `src/app_core/ui_bridge/**` owns the retained UI projection model.
