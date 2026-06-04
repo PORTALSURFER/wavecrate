@@ -115,8 +115,7 @@ impl GuiAppState {
         };
         let Some(bounds) = context
             .plan
-            .first_widget_rect(WAVEFORM_SIGNAL_WIDGET_ID)
-            .or_else(|| context.plan.first_widget_rect(WAVEFORM_WIDGET_ID))
+            .first_widget_rect_by_priority([WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID])
         else {
             return;
         };
