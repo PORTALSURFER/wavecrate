@@ -60,7 +60,6 @@ pub(super) use state::{FolderBrowserDropTarget, FolderBrowserState};
 
 mod tree_state;
 
-mod tree_guides;
 mod tree_hit_target;
 
 mod tree_view_window;

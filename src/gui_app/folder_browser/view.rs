@@ -10,7 +10,7 @@ use super::tag_editor::{metadata_section, tag_field_height};
 use super::tag_entry_layout::tag_field_content_width;
 use super::{
     FolderBrowserDropTarget, FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_ROW_HEIGHT,
-    VisibleFolder, plural, tree_guides,
+    VisibleFolder, plural,
     tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
 };
 
@@ -26,6 +26,12 @@ use filter_section::filter_section;
 use source_section::source_selector;
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
+const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 126,
+    b: 64,
+    a: 152,
+};
 
 pub(in crate::gui_app) fn folder_browser_view_mut(
     state: &mut FolderBrowserState,
@@ -161,6 +167,8 @@ fn folder_tree_window(
     }
 
     if projected_len > 0 {
+        let guide_rows = folder_tree_guide_rows(&visible_folders);
+        let guide_style = folder_tree_guide_style();
         let rows = ui::column((window.window_start..window.window_end).map(|index| {
             folder_row(visible_folders[index].clone(), drag_revision).height(row_height)
         }))
@@ -170,10 +178,11 @@ fn folder_tree_window(
         children.push(
             ui::stack([
                 rows,
-                tree_guides::folder_tree_guides_overlay(
-                    &visible_folders,
+                ui::tree_guide_overlay(
+                    &guide_rows,
                     window.window_start,
                     window.window_end,
+                    guide_style,
                 ),
             ])
             .fill_width()
@@ -200,7 +209,7 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
     if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
         let caret = draft.chars().count();
         return ui::row([
-            tree_guides::folder_tree_indent(folder.depth),
+            ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
             ui::text_input(draft)
                 .selection(0, caret)
                 .message_event(|message| {
@@ -268,7 +277,7 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
     .height(22.0);
 
     ui::row([
-        tree_guides::folder_tree_indent(folder.depth),
+        ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
         expander,
         hit_target.fill_width().height(22.0),
     ])
@@ -281,6 +290,26 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
     .fill_width()
     .height(TREE_ROW_HEIGHT)
     .spacing(1.0)
+}
+
+fn folder_tree_guide_style() -> ui::TreeGuideStyle {
+    ui::TreeGuideStyle::new(
+        super::TREE_DEPTH_INDENT,
+        TREE_ROW_HEIGHT,
+        FOLDER_TREE_GUIDE_COLOR,
+    )
+}
+
+fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
+    folders
+        .iter()
+        .map(|folder| {
+            ui::TreeGuideRow::new(
+                folder.depth,
+                folder.has_children && folder.expanded && !folder.is_source_root,
+            )
+        })
+        .collect()
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
