@@ -196,6 +196,12 @@ impl GuiAppState {
             GuiMessage::CloseJobDetails => {
                 self.job_details_open = false;
             }
+            GuiMessage::UndoTransaction => self.undo_transaction(),
+            GuiMessage::RedoTransaction => self.redo_transaction(),
+            GuiMessage::ToggleTransactionList => self.toggle_transaction_list(),
+            GuiMessage::CloseTransactionList => {
+                self.transaction_list_open = false;
+            }
             GuiMessage::FocusRenameInput(input_id) => {
                 self.focus_rename_input(input_id, context);
             }

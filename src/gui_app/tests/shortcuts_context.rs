@@ -381,6 +381,60 @@ fn loop_shortcut_routes_to_loop_toggle() {
 }
 
 #[test]
+fn shift_u_shortcut_toggles_transaction_list() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    let resolution = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::with_shift(ui::KeyCode::U),
+    );
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::gui_app::GuiMessage::ToggleTransactionList)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn command_undo_redo_shortcuts_route_to_transactions() {
+    let state = GuiAppState::load_default().expect("default state loads");
+
+    let undo = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::with_command(ui::KeyCode::Z),
+    );
+    let redo_shift_z = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress {
+            key: ui::KeyCode::Z,
+            command: true,
+            shift: true,
+            alt: false,
+        },
+    );
+    let redo_y = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::with_command(ui::KeyCode::Y),
+    );
+
+    assert_eq!(
+        undo.action,
+        Some(crate::gui_app::GuiMessage::UndoTransaction)
+    );
+    assert_eq!(
+        redo_shift_z.action,
+        Some(crate::gui_app::GuiMessage::RedoTransaction)
+    );
+    assert_eq!(
+        redo_y.action,
+        Some(crate::gui_app::GuiMessage::RedoTransaction)
+    );
+    assert!(undo.handled);
+    assert!(redo_shift_z.handled);
+    assert!(redo_y.handled);
+}
+
+#[test]
 fn bracket_shortcuts_route_to_rating_adjustments() {
     let state = GuiAppState::load_default().expect("default state loads");
 

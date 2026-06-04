@@ -14,6 +14,8 @@ struct RatingUpdate {
     root: PathBuf,
     relative_path: PathBuf,
     absolute_path: PathBuf,
+    previous_rating: Rating,
+    previous_locked: bool,
     rating: Rating,
     locked: bool,
 }
@@ -39,37 +41,21 @@ impl GuiAppState {
             return;
         }
 
-        let mut applied = 0usize;
-        let mut last_error = None;
-        for (root, source_updates) in group_updates_by_source(updates) {
-            match persist_rating_updates(&root, &source_updates) {
-                Ok(()) => {
-                    for update in source_updates {
-                        if self.folder_browser.set_file_rating_state(
-                            &update.absolute_path,
-                            update.rating,
-                            update.locked,
-                        ) {
-                            applied += 1;
-                        }
-                    }
-                }
-                Err(error) => last_error = Some(error),
+        let applied = match self.apply_rating_update_states(&updates, RatingUpdateMode::After) {
+            Ok(applied) => applied,
+            Err(error) => {
+                self.sample_status = format!("Rating failed: {error}");
+                emit_gui_action(
+                    "browser.rating.adjust",
+                    Some("browser"),
+                    Some(direction_label(delta)),
+                    "error",
+                    started_at,
+                    Some(self.sample_status.as_str()),
+                );
+                return;
             }
-        }
-
-        if let Some(error) = last_error {
-            self.sample_status = format!("Rating failed: {error}");
-            emit_gui_action(
-                "browser.rating.adjust",
-                Some("browser"),
-                Some(direction_label(delta)),
-                "error",
-                started_at,
-                Some(self.sample_status.as_str()),
-            );
-            return;
-        }
+        };
 
         self.sample_status = format!(
             "Rated {applied} sample{}",
@@ -83,6 +69,10 @@ impl GuiAppState {
             started_at,
             None,
         );
+
+        if applied > 0 {
+            self.register_rating_transaction(delta, updates);
+        }
 
         if applied > 0 && self.persisted_settings.controls.advance_after_rating {
             self.navigate_browser(1, false, context);
@@ -106,11 +96,77 @@ impl GuiAppState {
                     root,
                     relative_path,
                     absolute_path: candidate.path,
+                    previous_rating: candidate.rating,
+                    previous_locked: candidate.locked,
                     rating,
                     locked,
                 })
             })
             .collect()
+    }
+
+    fn register_rating_transaction(&mut self, delta: i8, updates: Vec<RatingUpdate>) {
+        let label = format!("Rate {}", if delta < 0 { "down" } else { "up" });
+        let undo_updates = updates.clone();
+        let redo_updates = updates;
+        self.begin_transaction(label);
+        self.register_transaction_action(
+            "Apply rating changes",
+            move |state| {
+                state
+                    .apply_rating_update_states(&undo_updates, RatingUpdateMode::Before)
+                    .map(|_| ())
+            },
+            move |state| {
+                state
+                    .apply_rating_update_states(&redo_updates, RatingUpdateMode::After)
+                    .map(|_| ())
+            },
+        );
+        self.commit_transaction();
+    }
+
+    fn apply_rating_update_states(
+        &mut self,
+        updates: &[RatingUpdate],
+        mode: RatingUpdateMode,
+    ) -> Result<usize, String> {
+        let mut applied = 0usize;
+        for (root, source_updates) in group_updates_by_source(
+            updates
+                .iter()
+                .cloned()
+                .map(|update| update.for_mode(mode))
+                .collect(),
+        ) {
+            persist_rating_updates(&root, &source_updates)?;
+            for update in source_updates {
+                if self.folder_browser.set_file_rating_state(
+                    &update.absolute_path,
+                    update.rating,
+                    update.locked,
+                ) {
+                    applied += 1;
+                }
+            }
+        }
+        Ok(applied)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RatingUpdateMode {
+    Before,
+    After,
+}
+
+impl RatingUpdate {
+    fn for_mode(mut self, mode: RatingUpdateMode) -> Self {
+        if mode == RatingUpdateMode::Before {
+            self.rating = self.previous_rating;
+            self.locked = self.previous_locked;
+        }
+        self
     }
 }
 

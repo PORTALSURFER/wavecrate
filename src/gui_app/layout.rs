@@ -1,5 +1,6 @@
 use super::{GuiAppState, GuiMessage};
 use crate::gui_app::{
+    TRANSACTION_LIST_MODAL_ID,
     audio_settings::top_status_bar,
     context_menu,
     folder_browser::{self, FileColumnDragFeedback},
@@ -35,6 +36,9 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
         && let Some(progress) = state.folder_progress.as_ref()
     {
         layers.push(status_bar::job_details_popover(progress));
+    }
+    if state.transaction_list_open {
+        layers.push(transaction_list_modal(state));
     }
     if let Some(overlay) = tag_completion_overlay {
         layers.push(overlay);
@@ -393,4 +397,114 @@ fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ])
     .padding(4.0)
     .fill()
+}
+
+fn transaction_list_modal(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let items = state.transaction_history.list_items();
+    let summary = transaction_list_summary(state);
+    let list = if items.is_empty() {
+        ui::column([
+            ui::text_line("No transactions registered", 24.0).fill_width(),
+            ui::text_line("Undoable actions will appear here.", 22.0).fill_width(),
+        ])
+        .spacing(4.0)
+        .fill_width()
+    } else {
+        ui::scroll(
+            ui::column(
+                items
+                    .into_iter()
+                    .map(transaction_list_row)
+                    .collect::<Vec<_>>(),
+            )
+            .spacing(4.0)
+            .fill_width(),
+        )
+        .fill_width()
+        .fill_height()
+    };
+    let content = ui::column([summary, list])
+        .spacing(6.0)
+        .fill_width()
+        .fill_height();
+
+    ui::closeable_panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Transactions", content)
+                .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
+                .padding(8.0)
+                .spacing(6.0)
+                .title_height(24.0),
+            ui::Vector2::new(420.0, 300.0),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::Center)
+        .vertical(ui::LayerVerticalAnchor::Center),
+        GuiMessage::CloseTransactionList,
+    )
+    .key("transaction-list-modal")
+    .id(TRANSACTION_LIST_MODAL_ID)
+}
+
+fn transaction_list_summary(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let undo = if state.transaction_history.can_undo() {
+        "undo ready"
+    } else {
+        "no undo"
+    };
+    let redo = if state.transaction_history.can_redo() {
+        "redo ready"
+    } else {
+        "no redo"
+    };
+    let active = if state.transaction_history.is_transaction_open() {
+        "open transaction"
+    } else {
+        "closed"
+    };
+    ui::text_line(format!("{undo} | {redo} | {active}"), 20.0)
+        .key("transaction-list-summary")
+        .fill_width()
+}
+
+fn transaction_list_row(
+    item: crate::gui_app::transaction_history::TransactionListItem,
+) -> ui::View<GuiMessage> {
+    let action_label = match item.action_count {
+        1 => String::from("1 action"),
+        count => format!("{count} actions"),
+    };
+    let action_summary = if item.action_labels.is_empty() {
+        action_label
+    } else {
+        format!("{}: {}", action_label, item.action_labels.join(", "))
+    };
+    ui::row([
+        ui::passive_badge(item.state.label().to_string())
+            .style(transaction_list_state_style(item.state))
+            .size(58.0, 20.0),
+        ui::text_line(item.label, 22.0).fill_width(),
+        ui::text_line(action_summary, 22.0).width(150.0),
+    ])
+    .key(format!("transaction-list-row-{}", item.id))
+    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+    .padding_x(6.0)
+    .spacing(6.0)
+    .fill_width()
+    .height(26.0)
+}
+
+fn transaction_list_state_style(
+    state: crate::gui_app::transaction_history::TransactionListState,
+) -> ui::WidgetStyle {
+    match state {
+        crate::gui_app::transaction_history::TransactionListState::Active => {
+            ui::WidgetStyle::strong(ui::WidgetTone::Warning)
+        }
+        crate::gui_app::transaction_history::TransactionListState::Undoable => {
+            ui::WidgetStyle::strong(ui::WidgetTone::Accent)
+        }
+        crate::gui_app::transaction_history::TransactionListState::Redoable => {
+            ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
+        }
+    }
 }

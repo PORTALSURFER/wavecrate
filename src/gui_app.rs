@@ -36,6 +36,7 @@ mod shortcuts;
 mod state;
 mod status_bar;
 mod toolbar;
+mod transaction_history;
 mod waveform;
 mod waveform_panel;
 #[cfg(test)]
@@ -74,10 +75,10 @@ pub(in crate::gui_app) use state::{
     PLAYBACK_START_ACTIVE_SOURCE_GRACE, PendingPlaybackStart, PendingSamplePlayback,
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT, SampleFileSignature,
-    SampleLoadResult, SampleNameViewMode, UNCACHED_SAMPLE_LOAD_DEBOUNCE, VOLUME_PERSIST_DEBOUNCE,
-    VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID, VOLUME_SLIDER_WIDTH, WAVEFORM_PANEL_HEIGHT,
-    WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_VIEW_HEIGHT, WAVEFORM_WIDGET_ID, WaveformCacheEntry,
-    WaveformCacheWarmResult,
+    SampleLoadResult, SampleNameViewMode, TRANSACTION_LIST_MODAL_ID, UNCACHED_SAMPLE_LOAD_DEBOUNCE,
+    VOLUME_PERSIST_DEBOUNCE, VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID, VOLUME_SLIDER_WIDTH,
+    WAVEFORM_PANEL_HEIGHT, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_VIEW_HEIGHT, WAVEFORM_WIDGET_ID,
+    WaveformCacheEntry, WaveformCacheWarmResult,
 };
 #[cfg(test)]
 use toolbar::{

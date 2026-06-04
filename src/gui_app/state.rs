@@ -23,6 +23,7 @@ use super::folder_browser::{
     FolderScanResult,
 };
 use super::metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
+use super::transaction_history::TransactionHistory;
 use super::waveform::{WaveformFile, WaveformInteraction, WaveformState};
 
 pub(in crate::gui_app) const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
@@ -48,6 +49,7 @@ pub(in crate::gui_app) const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 pub(in crate::gui_app) const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
 pub(in crate::gui_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 360.0;
 pub(in crate::gui_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 344.0;
+pub(in crate::gui_app) const TRANSACTION_LIST_MODAL_ID: u64 = 31_200;
 pub(in crate::gui_app) const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
 pub(in crate::gui_app) const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
 pub(in crate::gui_app) const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
@@ -159,6 +161,10 @@ pub(in crate::gui_app) enum GuiMessage {
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
+    UndoTransaction,
+    RedoTransaction,
+    ToggleTransactionList,
+    CloseTransactionList,
     FocusRenameInput(u64),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,
@@ -272,6 +278,9 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) audio_settings_open: bool,
     pub(in crate::gui_app) audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
     pub(in crate::gui_app) job_details_open: bool,
+    pub(in crate::gui_app) transaction_list_open: bool,
+    pub(in crate::gui_app) transaction_history: TransactionHistory<GuiAppState>,
+    pub(in crate::gui_app) transaction_restoring: bool,
     pub(in crate::gui_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::gui_app) waveform_loading_label: Option<String>,
     pub(in crate::gui_app) audio_settings_error: Option<String>,

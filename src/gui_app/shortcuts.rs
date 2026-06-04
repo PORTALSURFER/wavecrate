@@ -32,6 +32,10 @@ pub(super) fn default_gui_shortcut_resolution(
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
         )
         .push_when(
+            state.transaction_list_open,
+            ui::ShortcutLayer::modal_escape(GuiMessage::CloseTransactionList),
+        )
+        .push_when(
             state.metadata_tag_completion_active(),
             metadata_tag_completion_shortcuts(),
         )
@@ -94,6 +98,10 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::L),
             GuiMessage::ToggleLoopPlayback,
         )
+        .bind(
+            ui::KeyPress::with_shift(ui::KeyCode::U),
+            GuiMessage::ToggleTransactionList,
+        )
         .bind(ui::KeyPress::new(ui::KeyCode::N), new_item_action(state))
         .bind(
             ui::KeyPress::new(ui::KeyCode::OpenBracket),
@@ -123,7 +131,28 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::ArrowRight),
             GuiMessage::ExpandSelectedFolder,
         );
-    bind_collection_shortcuts(layer)
+    bind_undo_shortcuts(bind_collection_shortcuts(layer))
+}
+
+fn bind_undo_shortcuts(layer: ui::ShortcutLayer<GuiMessage>) -> ui::ShortcutLayer<GuiMessage> {
+    layer
+        .bind(
+            ui::KeyPress::with_command(ui::KeyCode::Z),
+            GuiMessage::UndoTransaction,
+        )
+        .bind(
+            ui::KeyPress {
+                key: ui::KeyCode::Z,
+                command: true,
+                shift: true,
+                alt: false,
+            },
+            GuiMessage::RedoTransaction,
+        )
+        .bind(
+            ui::KeyPress::with_command(ui::KeyCode::Y),
+            GuiMessage::RedoTransaction,
+        )
 }
 
 fn bind_collection_shortcuts(

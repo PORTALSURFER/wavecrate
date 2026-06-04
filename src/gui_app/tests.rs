@@ -20,6 +20,7 @@ mod sample_browser;
 mod shortcuts_context;
 mod status_bar;
 mod toolbar_playback;
+mod transactions;
 mod waveform_playback;
 mod window_chrome;
 
@@ -65,6 +66,9 @@ fn gui_state_for_span_tests() -> GuiAppState {
         audio_settings_open: false,
         audio_settings_dropdown: ui::ExclusiveOpen::new(),
         job_details_open: false,
+        transaction_list_open: false,
+        transaction_history: Default::default(),
+        transaction_restoring: false,
         context_menu: None,
         waveform_loading_label: None,
         audio_settings_error: None,
@@ -182,6 +186,53 @@ fn collection_shortcut_toggles_selected_sample_membership() {
 }
 
 #[test]
+fn collection_assignment_transaction_undoes_and_redoes_membership() {
+    let (mut state, source_root, selected_file) = gui_state_with_temp_sample("undo-collection.wav");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+
+    state.apply_message(
+        super::GuiMessage::AssignSelectedCollection(collection),
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(state.transaction_history.list_items().len(), 1);
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("undo-collection.wav"))
+            .expect("collections"),
+        vec![collection]
+    );
+
+    state.apply_message(
+        super::GuiMessage::UndoTransaction,
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("undo-collection.wav"))
+            .expect("collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert!(
+        !state
+            .folder_browser
+            .selected_source_audio_files()
+            .into_iter()
+            .find(|file| file.id == selected_file)
+            .expect("sample")
+            .belongs_to_collection(collection)
+    );
+
+    state.apply_message(
+        super::GuiMessage::RedoTransaction,
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("undo-collection.wav"))
+            .expect("collections"),
+        vec![collection]
+    );
+}
+
+#[test]
 fn sample_context_menu_removes_item_from_active_collection_view() {
     let (mut state, source_root, selected_file) = gui_state_with_temp_sample("remove.wav");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
@@ -277,6 +328,9 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         audio_settings_open: false,
         audio_settings_dropdown: ui::ExclusiveOpen::new(),
         job_details_open: false,
+        transaction_list_open: false,
+        transaction_history: Default::default(),
+        transaction_restoring: false,
         context_menu: None,
         waveform_loading_label: None,
         audio_settings_error: None,

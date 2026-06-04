@@ -24,6 +24,28 @@ enum CollectionOperation {
     Remove,
 }
 
+impl CollectionOperation {
+    fn inverted(self) -> Self {
+        match self {
+            Self::Add => Self::Remove,
+            Self::Remove => Self::Add,
+        }
+    }
+}
+
+impl CollectionUpdate {
+    fn inverted(mut self) -> Self {
+        self.operation = self.operation.inverted();
+        self
+    }
+}
+
+#[derive(Default)]
+struct CollectionUpdateCounts {
+    added: usize,
+    removed: usize,
+}
+
 impl GuiAppState {
     pub(super) fn assign_selected_collection(
         &mut self,
@@ -134,51 +156,23 @@ impl GuiAppState {
             return;
         }
 
-        let mut added = 0usize;
-        let mut removed = 0usize;
-        let mut last_error = None;
-        for (root, source_updates) in group_updates_by_source(updates) {
-            match persist_collection_updates(&root, &source_updates) {
-                Ok(()) => {
-                    for update in source_updates {
-                        match update.operation {
-                            CollectionOperation::Add => {
-                                if self
-                                    .folder_browser
-                                    .set_file_collection_state(&update.absolute_path, collection)
-                                {
-                                    added += 1;
-                                }
-                            }
-                            CollectionOperation::Remove => {
-                                if self
-                                    .folder_browser
-                                    .remove_file_collection_state(&update.absolute_path, collection)
-                                {
-                                    removed += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(error) => last_error = Some(error),
+        let counts = match self.apply_collection_update_states(&updates) {
+            Ok(counts) => counts,
+            Err(error) => {
+                self.sample_status = format!("Collection update failed: {error}");
+                emit_gui_action(
+                    command.action_name(),
+                    Some("browser"),
+                    Some(trigger),
+                    "error",
+                    started_at,
+                    Some(self.sample_status.as_str()),
+                );
+                return;
             }
-        }
+        };
 
-        if let Some(error) = last_error {
-            self.sample_status = format!("Collection update failed: {error}");
-            emit_gui_action(
-                command.action_name(),
-                Some("browser"),
-                Some(trigger),
-                "error",
-                started_at,
-                Some(self.sample_status.as_str()),
-            );
-            return;
-        }
-
-        self.sample_status = collection_status(collection, added, removed, command);
+        self.sample_status = collection_status(collection, counts.added, counts.removed, command);
         emit_gui_action(
             command.action_name(),
             Some("browser"),
@@ -187,6 +181,75 @@ impl GuiAppState {
             started_at,
             None,
         );
+        if counts.added > 0 || counts.removed > 0 {
+            self.register_collection_transaction(collection, command, updates);
+        }
+    }
+
+    fn register_collection_transaction(
+        &mut self,
+        collection: SampleCollection,
+        command: CollectionCommand,
+        updates: Vec<CollectionUpdate>,
+    ) {
+        let hotkey = crate::gui_app::folder_browser::collection_hotkey(collection);
+        let label = match command {
+            CollectionCommand::Add => format!("Add to Collection {hotkey}"),
+            CollectionCommand::Remove => format!("Remove from Collection {hotkey}"),
+            CollectionCommand::Toggle => format!("Toggle Collection {hotkey}"),
+        };
+        let undo_updates = updates
+            .iter()
+            .cloned()
+            .map(CollectionUpdate::inverted)
+            .collect::<Vec<_>>();
+        let redo_updates = updates;
+        self.begin_transaction(label);
+        self.register_transaction_action(
+            "Apply collection changes",
+            move |state| {
+                state
+                    .apply_collection_update_states(&undo_updates)
+                    .map(|_| ())
+            },
+            move |state| {
+                state
+                    .apply_collection_update_states(&redo_updates)
+                    .map(|_| ())
+            },
+        );
+        self.commit_transaction();
+    }
+
+    fn apply_collection_update_states(
+        &mut self,
+        updates: &[CollectionUpdate],
+    ) -> Result<CollectionUpdateCounts, String> {
+        let mut counts = CollectionUpdateCounts::default();
+        for (root, source_updates) in group_updates_by_source(updates.to_vec()) {
+            persist_collection_updates(&root, &source_updates)?;
+            for update in source_updates {
+                match update.operation {
+                    CollectionOperation::Add => {
+                        if self
+                            .folder_browser
+                            .set_file_collection_state(&update.absolute_path, update.collection)
+                        {
+                            counts.added += 1;
+                        }
+                    }
+                    CollectionOperation::Remove => {
+                        if self
+                            .folder_browser
+                            .remove_file_collection_state(&update.absolute_path, update.collection)
+                        {
+                            counts.removed += 1;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(counts)
     }
 }
 
