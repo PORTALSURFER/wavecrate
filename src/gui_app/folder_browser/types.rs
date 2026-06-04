@@ -14,6 +14,38 @@ pub(in crate::gui_app) struct FolderDropResult {
     pub(in crate::gui_app) status: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) enum FileMoveConflictResolution {
+    Overwrite,
+    Rename,
+    Skip,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct FileMoveConflict {
+    pub(in crate::gui_app) source_path: PathBuf,
+    pub(in crate::gui_app) destination_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct FileMoveConflictBatch {
+    pub(in crate::gui_app) target_folder: PathBuf,
+    pub(in crate::gui_app) conflicts: Vec<FileMoveConflict>,
+    pub(in crate::gui_app) current_index: usize,
+    pub(in crate::gui_app) resolved_count: usize,
+    pub(in crate::gui_app) skipped_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct FileMoveConflictView {
+    pub(in crate::gui_app) source_path: PathBuf,
+    pub(in crate::gui_app) destination_path: PathBuf,
+    pub(in crate::gui_app) file_name: String,
+    pub(in crate::gui_app) destination_folder: String,
+    pub(in crate::gui_app) current_number: usize,
+    pub(in crate::gui_app) total_count: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) struct RenamePathRemap {
     pub(in crate::gui_app) old_path: PathBuf,

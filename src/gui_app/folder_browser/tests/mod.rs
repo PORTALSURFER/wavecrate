@@ -1,6 +1,6 @@
 use super::{
-    FolderBrowserMessage, FolderBrowserState, FolderDragPreview, FolderScanDiscoveryBatch,
-    MIN_FILE_COLUMN_WIDTH, path_id, scan_source_with_progress,
+    FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderDragPreview,
+    FolderScanDiscoveryBatch, MIN_FILE_COLUMN_WIDTH, path_id, scan_source_with_progress,
 };
 use radiant::{
     layout::Point,

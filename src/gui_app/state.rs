@@ -172,6 +172,8 @@ pub(in crate::gui_app) enum GuiMessage {
     RemoveContextSampleFromCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
+    ResolveFileMoveConflict(super::folder_browser::FileMoveConflictResolution),
+    CancelFileMoveConflicts,
     CopyContextPath,
     OpenContextTarget,
     MoveContextTargetToTrash,

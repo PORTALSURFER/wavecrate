@@ -7,9 +7,9 @@ use wavecrate::sample_sources::SampleCollection;
 
 use super::{
     CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, DEFAULT_FILTER_PANEL_HEIGHT,
-    FileColumn, FileEntry, FileRenameEdit, FolderBrowserDrag, FolderBrowserMessage, FolderEntry,
-    FolderRenameEdit, SampleCollectionConfig, SourceEntry, default_file_columns, default_root_path,
-    load_root_folder, placeholder_folder,
+    FileColumn, FileEntry, FileMoveConflictBatch, FileRenameEdit, FolderBrowserDrag,
+    FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig, SourceEntry,
+    default_file_columns, default_root_path, load_root_folder, placeholder_folder,
 };
 
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
@@ -31,6 +31,7 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) drag_pointer: Option<Point>,
     pub(super) drop_target_folder: Option<String>,
     pub(super) drop_target_collection: Option<SampleCollection>,
+    pub(super) pending_file_move_conflicts: Option<FileMoveConflictBatch>,
     pub(super) drag_revision: ui::RevisionCounter,
     pub(super) collections: Vec<SampleCollectionConfig>,
     pub(super) selected_collection: Option<SampleCollection>,
@@ -96,6 +97,7 @@ impl FolderBrowserState {
             drag_pointer: None,
             drop_target_folder: None,
             drop_target_collection: None,
+            pending_file_move_conflicts: None,
             drag_revision: ui::RevisionCounter::default(),
             collections: Self::default_collections(),
             selected_collection: None,

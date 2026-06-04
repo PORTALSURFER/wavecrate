@@ -66,11 +66,13 @@ mod tree_view_window;
 
 mod types;
 pub(super) use types::{
-    FileColumnDragFeedback, FileDeleteTargetView, FileRenameView, FolderBrowserMessage,
-    FolderDeleteTargetView, FolderDragPreview, FolderDropResult, FolderScanDiscovery,
-    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest, FolderScanResult,
-    RemovedSource, RenameCommitResult, RenamePathRemap, RenameTargetView,
+    FileColumnDragFeedback, FileDeleteTargetView, FileMoveConflictResolution, FileMoveConflictView,
+    FileRenameView, FolderBrowserMessage, FolderDeleteTargetView, FolderDragPreview,
+    FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress,
+    FolderScanRequest, FolderScanResult, RemovedSource, RenameCommitResult, RenamePathRemap,
+    RenameTargetView,
 };
+use types::{FileMoveConflict, FileMoveConflictBatch};
 
 mod tag_completion;
 pub(super) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};

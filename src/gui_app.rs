@@ -52,7 +52,9 @@ use file_actions::format_copy_path;
 #[cfg(test)]
 use file_actions::normalize_wav_file_in_place;
 use file_actions::sample_path_label;
-use folder_browser::{FolderBrowserMessage, FolderBrowserState, FolderScanProgress};
+use folder_browser::{
+    FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderScanProgress,
+};
 use launch::emit_gui_action;
 pub(crate) use launch::run;
 #[cfg(test)]

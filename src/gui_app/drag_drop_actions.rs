@@ -4,8 +4,8 @@ use std::{fs, path::PathBuf, time::Instant};
 use wavecrate::external_clipboard;
 
 use super::{
-    DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH, FolderBrowserMessage, GuiAppState, GuiMessage,
-    emit_gui_action, sample_path_label,
+    DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH, FileMoveConflictResolution, FolderBrowserMessage,
+    GuiAppState, GuiMessage, emit_gui_action, sample_path_label,
 };
 
 impl GuiAppState {
@@ -238,9 +238,7 @@ impl GuiAppState {
         context.end_drag_session();
         match self.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(result) => {
-                for (old_path, new_path) in &result.moved_paths {
-                    self.waveform.rewrite_path_prefix(old_path, new_path);
-                }
+                self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.sample_status = status;
                 }
@@ -269,6 +267,57 @@ impl GuiAppState {
                     Some(&error),
                 );
             }
+        }
+    }
+
+    pub(super) fn resolve_file_move_conflict(&mut self, resolution: FileMoveConflictResolution) {
+        let started_at = Instant::now();
+        match self
+            .folder_browser
+            .resolve_next_file_move_conflict(resolution)
+        {
+            Ok(result) => {
+                self.apply_moved_sample_paths(&result.moved_paths);
+                if let Some(status) = result.status {
+                    self.sample_status = status;
+                }
+                emit_gui_action(
+                    "browser.drag_drop.file_conflict.resolve",
+                    Some("browser"),
+                    None,
+                    if result.moved_paths.is_empty() {
+                        "skipped"
+                    } else {
+                        "success"
+                    },
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "browser.drag_drop.file_conflict.resolve",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(super) fn cancel_file_move_conflicts(&mut self) {
+        if let Some(status) = self.folder_browser.cancel_file_move_conflicts() {
+            self.sample_status = status;
+        }
+    }
+
+    fn apply_moved_sample_paths(&mut self, moved_paths: &[(PathBuf, PathBuf)]) {
+        for (old_path, new_path) in moved_paths {
+            self.waveform.rewrite_path_prefix(old_path, new_path);
+            self.remap_renamed_waveform_cache_path(old_path, new_path);
         }
     }
 }

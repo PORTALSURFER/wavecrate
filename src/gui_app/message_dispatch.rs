@@ -183,6 +183,10 @@ impl GuiAppState {
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
+            GuiMessage::ResolveFileMoveConflict(resolution) => {
+                self.resolve_file_move_conflict(resolution);
+            }
+            GuiMessage::CancelFileMoveConflicts => self.cancel_file_move_conflicts(),
             GuiMessage::CopyContextPath => self.copy_context_path(context),
             GuiMessage::TrashFolderDialogFinished(result) => {
                 self.finish_trash_folder_dialog(result);

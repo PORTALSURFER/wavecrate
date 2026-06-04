@@ -140,6 +140,48 @@ fn gui_state_with_temp_sample(name: &str) -> (GuiAppState, tempfile::TempDir, St
 }
 
 #[test]
+fn file_move_conflict_dialog_renders_resolution_choices() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let source = drums.join("kick.wav");
+    let destination = loops.join("kick.wav");
+    fs::write(&source, b"source").expect("write source");
+    fs::write(&destination, b"destination").expect("write destination");
+    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state
+        .folder_browser
+        .apply_message(super::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+        ));
+    state
+        .folder_browser
+        .select_file(source.display().to_string());
+    state
+        .folder_browser
+        .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
+    state
+        .folder_browser
+        .drop_drag_on_folder(&loops.display().to_string())
+        .expect("drop should park conflict");
+
+    let frame =
+        super::view(&mut state).view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+
+    assert!(frame.paint_plan.contains_text("File Move Conflict"));
+    assert!(frame.paint_plan.contains_text("Conflict 1 of 1"));
+    assert!(frame.paint_plan.contains_text("kick.wav"));
+    assert!(frame.paint_plan.contains_text("Overwrite"));
+    assert!(frame.paint_plan.contains_text("Rename"));
+    assert!(frame.paint_plan.contains_text("Skip"));
+}
+
+#[test]
 fn delete_selected_file_moves_it_to_configured_trash_folder() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
