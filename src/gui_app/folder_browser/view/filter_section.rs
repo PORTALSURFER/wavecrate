@@ -39,12 +39,10 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
     let panel = ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Filter",
-            ui::column([
-                filter_row("name", "Name", "Any"),
-                filter_row("type", "Type", "Audio"),
-            ])
-            .fill_width()
-            .spacing(1.0),
+            ui::property_rows([
+                ui::PropertyRow::new("name", "Name", "Any"),
+                ui::PropertyRow::new("type", "Type", "Audio"),
+            ]),
         )
         .trailing_resize_handle("filter-resize-handle", |message| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message))
@@ -64,25 +62,6 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
     {
         panel
     }
-}
-
-fn filter_row(id: &str, label: &str, value: &str) -> ui::View<GuiMessage> {
-    ui::row([
-        ui::text(label.to_string())
-            .key(format!("filter-{id}-label"))
-            .size(112.0, 20.0),
-        ui::text(value.to_string())
-            .key(format!("filter-{id}-value"))
-            .fill_width()
-            .height(20.0),
-    ])
-    .key(format!("filter-row-{id}"))
-    .fill_width()
-    .height(24.0)
-    .padding_x(6.0)
-    .padding_y(1.0)
-    .spacing(6.0)
-    .hoverable()
 }
 
 #[cfg(test)]
