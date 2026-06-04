@@ -44,6 +44,19 @@ pub(super) fn metadata_tag_input_width_for_char_count(
     )
 }
 
+pub(super) fn metadata_tag_input_width_for_segments<'a>(
+    segments: impl IntoIterator<Item = &'a str>,
+    min_width: f32,
+    max_width: f32,
+) -> f32 {
+    ui::estimated_text_width_for_segments_in_range(
+        segments,
+        metadata_tag_input_width_estimate(),
+        min_width,
+        max_width,
+    )
+}
+
 fn metadata_tag_input_width_estimate() -> ui::TextWidthEstimate {
     ui::TextWidthEstimate::new(
         METADATA_TAG_INPUT_CHARACTER_ADVANCE,

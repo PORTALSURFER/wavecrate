@@ -7,8 +7,8 @@ use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_ta
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
     metadata_tag_category_id_for_display, order_metadata_tags_for_display, rows_height,
-    tag_field_layout, tag_field_rows, tag_input_display_value, tag_input_width,
-    tag_input_width_for_placeholder, tag_pill_width,
+    tag_field_layout, tag_field_rows, tag_input_width_with_completion,
+    tag_input_width_with_completion_or_placeholder, tag_pill_width,
 };
 use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
@@ -119,11 +119,14 @@ fn tag_entry_field(
     order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
 
     let pending_category_tag = tag_pending_category_tag.map(str::to_string);
-    let display_value = tag_input_display_value(tag_draft, tag_completion_suffix);
     let input_width = if pending_category_tag.is_some() {
-        tag_input_width(display_value.as_str())
+        tag_input_width_with_completion(tag_draft, tag_completion_suffix)
     } else {
-        tag_input_width_for_placeholder(display_value.as_str(), tag_input_placeholder)
+        tag_input_width_with_completion_or_placeholder(
+            tag_draft,
+            tag_completion_suffix,
+            tag_input_placeholder,
+        )
     };
     let rows = tag_field_rows(
         &visible_tags,
@@ -181,8 +184,7 @@ pub(in crate::gui_app) fn tag_field_height(
         }
     }
     order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
-    let input_width =
-        tag_input_width(tag_input_display_value(tag_draft, tag_completion_suffix).as_str());
+    let input_width = tag_input_width_with_completion(tag_draft, tag_completion_suffix);
     let rows = tag_field_rows(
         &visible_tags,
         tag_display_categories,

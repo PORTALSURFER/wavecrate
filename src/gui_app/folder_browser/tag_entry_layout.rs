@@ -1,5 +1,6 @@
 use crate::gui_app::metadata_tag_metrics::{
-    metadata_tag_input_width_for_char_count, metadata_tag_pill_width,
+    metadata_tag_input_width_for_char_count, metadata_tag_input_width_for_segments,
+    metadata_tag_pill_width,
 };
 use crate::gui_app::metadata_tags::{
     MetadataTagDisplayCategory, inferred_metadata_tag_category_id_for_name,
@@ -154,23 +155,39 @@ fn tag_field_metrics() -> ui::FlowFieldMetrics {
     )
 }
 
-pub(super) fn tag_input_display_value(tag_draft: &str, completion_suffix: Option<&str>) -> String {
-    completion_suffix
-        .filter(|suffix| !suffix.is_empty())
-        .map(|suffix| format!("{tag_draft}{suffix}"))
-        .unwrap_or_else(|| tag_draft.to_string())
+pub(super) fn tag_input_width_with_completion(
+    tag_draft: &str,
+    completion_suffix: Option<&str>,
+) -> f32 {
+    match completion_suffix.filter(|suffix| !suffix.is_empty()) {
+        Some(suffix) => metadata_tag_input_width_for_segments([tag_draft, suffix], 61.0, 180.0),
+        None => tag_input_width(tag_draft),
+    }
 }
 
 pub(super) fn tag_input_width(value: &str) -> f32 {
     metadata_tag_input_width_for_char_count(value.chars().count().max(7), 61.0, 180.0)
 }
 
-pub(super) fn tag_input_width_for_placeholder(value: &str, placeholder: &str) -> f32 {
+pub(super) fn tag_input_width_with_completion_or_placeholder(
+    tag_draft: &str,
+    completion_suffix: Option<&str>,
+    placeholder: &str,
+) -> f32 {
     metadata_tag_input_width_for_char_count(
-        value.chars().count().max(placeholder.chars().count()),
+        tag_input_visible_char_count(tag_draft, completion_suffix).max(placeholder.chars().count()),
         61.0,
         180.0,
     )
+}
+
+fn tag_input_visible_char_count(tag_draft: &str, completion_suffix: Option<&str>) -> usize {
+    tag_draft.chars().count()
+        + completion_suffix
+            .filter(|suffix| !suffix.is_empty())
+            .map(str::chars)
+            .map(Iterator::count)
+            .unwrap_or(0)
 }
 
 pub(super) fn tag_pill_width(tag: &str) -> f32 {
