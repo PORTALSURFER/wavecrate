@@ -1,18 +1,14 @@
 use radiant::{
     gui::types::{Rect, Rgba8},
-    gui::visualization::{
-        CanvasSelectionBodyHandlePaintParts, CanvasSelectionEdgeVisualPaintParts,
-        CanvasSelectionGeometry, CanvasSelectionTrailingControlPaintParts,
-    },
+    gui::visualization::CanvasSelectionGeometry,
     runtime::PaintPrimitive,
 };
 
 use super::{
     WaveformSelectionEdge, WaveformWidget,
     widget_geometry::{
-        SELECTION_EXPORT_HANDLE_SIZE, SELECTION_HANDLE_VERTICAL_INSET,
-        SELECTION_MOVE_HANDLE_END_INSET, SELECTION_MOVE_HANDLE_HEIGHT,
-        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, SELECTION_RESIZE_HANDLE_WIDTH, drag_handle_role,
+        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, drag_handle_role, selection_export_handle_style,
+        selection_move_handle_style, selection_resize_edge_style,
     },
 };
 
@@ -264,11 +260,9 @@ impl WaveformWidget {
             geometry.push_edge_visual_fill(
                 primitives,
                 self.common.id,
-                CanvasSelectionEdgeVisualPaintParts::new(
+                selection_resize_edge_style().paint_parts(
                     bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
                     drag_handle_role(edge),
-                    SELECTION_RESIZE_HANDLE_WIDTH,
-                    SELECTION_HANDLE_VERTICAL_INSET,
                     color,
                 ),
             );
@@ -284,13 +278,7 @@ impl WaveformWidget {
         geometry.push_body_handle_fill(
             primitives,
             self.common.id,
-            CanvasSelectionBodyHandlePaintParts::new(
-                SELECTION_MOVE_HANDLE_HEIGHT,
-                SELECTION_MOVE_HANDLE_END_INSET,
-                0.28,
-                1.0,
-                color,
-            ),
+            selection_move_handle_style().paint_parts(color),
         );
     }
 
@@ -303,7 +291,7 @@ impl WaveformWidget {
         geometry.push_trailing_control_fill(
             primitives,
             self.common.id,
-            CanvasSelectionTrailingControlPaintParts::new(SELECTION_EXPORT_HANDLE_SIZE, 0.0, color),
+            selection_export_handle_style().paint_parts(color),
         );
     }
 }
