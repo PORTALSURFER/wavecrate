@@ -20,18 +20,14 @@ pub(in crate::gui_app) fn tag_completion_overlay(
         return ui::empty().fill_width();
     }
     let parts = tag_completion_options(options, content_width);
-    let height = parts.height();
-    let list = ui::compact_option_list_from_parts(parts)
-        .fill_width()
-        .height(height);
-    ui::anchored_layer(
-        list,
-        ui::Vector2::new(content_width, height),
+    ui::compact_option_list_anchored(ui::CompactOptionListAnchoredParts::new(
+        parts,
+        content_width,
         ui::LayerHorizontalAnchor::Start,
         ui::LayerVerticalAnchor::End,
         inset_x,
         inset_y,
-    )
+    ))
     .key("metadata-tag-completion-overlay")
 }
 
