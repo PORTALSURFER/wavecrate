@@ -125,10 +125,6 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
     }
 }
 
-pub(super) fn rows_height(row_count: usize) -> f32 {
-    ui::flow_rows_height(row_count, tag_field_flow_metrics())
-}
-
 pub(super) fn tag_field_layout(row_count: usize, content_width: f32) -> ui::FlowFieldLayout {
     tag_field_metrics().layout_for_content_width(content_width, row_count)
 }

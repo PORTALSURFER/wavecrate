@@ -132,14 +132,17 @@ fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, _tag_input_rect: Rect) -> O
 #[test]
 fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     let mut state = gui_state_for_span_tests();
-    let selected_file = state
+    let source_root = tempfile::tempdir().expect("source root");
+    let expandable_child = source_root.path().join("Child Folder");
+    fs::create_dir_all(expandable_child.join("Nested")).expect("expandable child folder");
+    let selected_file = source_root.path().join("tag-target.wav");
+    fs::write(&selected_file, []).expect("sample file");
+    state.folder_browser = super::super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state
         .folder_browser
-        .selected_audio_files()
-        .first()
-        .expect("default browser should expose audio files")
-        .id
-        .clone();
-    state.folder_browser.select_file(selected_file);
+        .select_file(selected_file.display().to_string());
     state
         .metadata_tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);

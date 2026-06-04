@@ -76,7 +76,11 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn collections_list_height(&self) -> f32 {
-        collection_rows_height(self.collections.len())
+        ui::fixed_row_stack_height(
+            self.collections.len(),
+            COLLECTION_ROW_HEIGHT,
+            COLLECTION_ROW_SPACING,
+        )
     }
 
     pub(in crate::gui_app) fn max_collections_panel_height(&self) -> f32 {
@@ -348,15 +352,11 @@ impl FolderBrowserState {
     }
 }
 
-fn collection_rows_height(row_count: usize) -> f32 {
-    ui::fixed_row_stack_height(row_count, COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING)
-}
-
 fn useful_collections_panel_height(row_count: usize) -> f32 {
     COLLAPSED_COLLECTIONS_PANEL_HEIGHT
         + COLLECTIONS_PANEL_HEADER_CONTENT_SPACING
         + COLLECTIONS_LIST_SCROLL_CHROME
-        + collection_rows_height(row_count)
+        + ui::fixed_row_stack_height(row_count, COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING)
 }
 
 pub(in crate::gui_app) fn collection_hotkey(collection: SampleCollection) -> char {

@@ -6,8 +6,8 @@ use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_ta
 
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
-    metadata_tag_category_id_for_display, order_metadata_tags_for_display, rows_height,
-    tag_field_layout, tag_field_rows, tag_input_width_with_completion,
+    metadata_tag_category_id_for_display, order_metadata_tags_for_display, tag_field_layout,
+    tag_field_rows, tag_input_width_with_completion,
     tag_input_width_with_completion_or_placeholder, tag_pill_width,
 };
 use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
@@ -166,7 +166,7 @@ fn tag_entry_field(
             .collect::<Vec<_>>(),
     )
     .fill_width()
-    .height(rows_height(row_count))
+    .height(field_layout.content_height)
     .spacing(TAG_FIELD_LINE_GAP);
 
     if field_layout.requires_scroll {
