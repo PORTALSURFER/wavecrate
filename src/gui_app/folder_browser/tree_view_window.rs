@@ -34,13 +34,13 @@ impl FolderBrowserState {
         let selected_id = selected_index
             .filter(|_| self.selected_collection.is_none())
             .map(|_| self.selected_folder.clone());
+        let projection =
+            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
+                .with_context_row();
         self.tree_view_controller
-            .configure_and_focus_changed_optional_with_context_row(
+            .configure_projection_and_focus_changed_optional(
                 &mut self.tree_view_follow_selection,
-                total_items,
-                viewport_rows,
-                overscan_rows,
-                guard_rows,
+                projection,
                 ui::VirtualListFocusTarget::new(selected_id, selected_index),
             )
     }
