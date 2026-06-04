@@ -85,6 +85,30 @@ fn metadata_section_keeps_configured_height_without_selected_file() {
 }
 
 #[test]
+fn metadata_section_collapses_to_header_only_height() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.folder_browser.apply_message(
+        super::super::super::FolderBrowserMessage::ResizeMetadataPanel(
+            radiant::widgets::DragHandleMessage::DoubleActivate {
+                position: Point::new(0.0, 200.0),
+            },
+        ),
+    );
+
+    let frame = super::super::super::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let metadata_rect = frame
+        .paint_plan
+        .first_widget_rect(super::super::super::folder_browser::METADATA_SIDEBAR_PANEL_ID)
+        .expect("metadata panel should paint");
+
+    assert_eq!(
+        metadata_rect.height(),
+        super::super::super::folder_browser::COLLAPSED_METADATA_PANEL_HEIGHT
+    );
+}
+
+#[test]
 fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     let browser = super::super::super::FolderBrowserState::load_default();
     let completion_options = vec![

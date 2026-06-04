@@ -1,6 +1,7 @@
 use super::*;
-use crate::gui_app::folder_browser::collections::{
-    COLLAPSED_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT,
+use crate::gui_app::folder_browser::{
+    collections::{COLLAPSED_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT},
+    tag_editor::COLLAPSED_METADATA_PANEL_HEIGHT,
 };
 
 #[test]
@@ -225,7 +226,10 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, 1_000.0),
     });
 
-    assert!(browser.metadata_panel_height < initial_height);
+    assert_eq!(
+        browser.metadata_panel_height,
+        COLLAPSED_METADATA_PANEL_HEIGHT
+    );
 
     browser.resize_metadata_panel(DragHandleMessage::Ended {
         position: Point::new(0.0, 1_000.0),
@@ -236,7 +240,7 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
 }
 
 #[test]
-fn metadata_panel_double_click_collapses_to_stable_minimum() {
+fn metadata_panel_double_click_collapses_to_header_only_height() {
     let root = temp_source_root("wavecrate-gui-metadata-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
 
@@ -244,8 +248,10 @@ fn metadata_panel_double_click_collapses_to_stable_minimum() {
         position: Point::new(0.0, 200.0),
     });
 
-    assert!(browser.metadata_panel_height > 0.0);
-    assert!(browser.metadata_panel_height < 148.0);
+    assert_eq!(
+        browser.metadata_panel_height,
+        COLLAPSED_METADATA_PANEL_HEIGHT
+    );
     assert!(browser.metadata_panel_resize.is_none());
     let _ = fs::remove_dir_all(root);
 }

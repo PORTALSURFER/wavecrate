@@ -15,11 +15,13 @@ use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 #[cfg(test)]
 pub(in crate::gui_app) const METADATA_SIDEBAR_PANEL_ID: u64 = 0x5743_0000_0000_5448;
-const MIN_METADATA_PANEL_HEIGHT: f32 = 72.0;
 const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
+pub(in crate::gui_app) const COLLAPSED_METADATA_PANEL_HEIGHT: f32 =
+    METADATA_PANEL_PADDING * 2.0 + METADATA_PANEL_TITLE_HEIGHT;
+const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn metadata_panel_height(&self) -> f32 {
@@ -34,7 +36,7 @@ impl FolderBrowserState {
             self.metadata_panel_height,
             MIN_METADATA_PANEL_HEIGHT,
             MAX_METADATA_PANEL_HEIGHT,
-            MIN_METADATA_PANEL_HEIGHT,
+            COLLAPSED_METADATA_PANEL_HEIGHT,
         ) {
             self.metadata_panel_height = height;
         }
