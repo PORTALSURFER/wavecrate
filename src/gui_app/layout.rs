@@ -267,18 +267,11 @@ fn metadata_tag_category_header(
         .style(style)
         .actions(
             ui::InteractiveRowActions::new()
-                .drop({
-                    let category_id = category_for_input.clone();
-                    move || GuiMessage::DropMetadataTagOnCategory {
-                        category_id: category_id.clone(),
-                    }
-                })
-                .hover_drop({
-                    let category_id = category_for_input.clone();
-                    move |_| GuiMessage::HoverMetadataTagDropCategory {
-                        category_id: category_id.clone(),
-                    }
-                })
+                .drop_target_key(
+                    category_for_input.clone(),
+                    |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
+                    |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
+                )
                 .activate(move || {
                     GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
                 }),
@@ -339,18 +332,11 @@ fn metadata_tag_library_row(
                         drag,
                     }
                 })
-                .drop({
-                    let category_id = category_for_input.clone();
-                    move || GuiMessage::DropMetadataTagOnCategory {
-                        category_id: category_id.clone(),
-                    }
-                })
-                .hover_drop({
-                    let category_id = category_for_input;
-                    move |_| GuiMessage::HoverMetadataTagDropCategory {
-                        category_id: category_id.clone(),
-                    }
-                })
+                .drop_target_key(
+                    category_for_input,
+                    |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
+                    |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
+                )
                 .activate(move || GuiMessage::ToggleMetadataTag(tag_for_input.clone())),
         )
         .key(format!("metadata-tag-library-row-{tag}"))
@@ -368,18 +354,11 @@ fn metadata_tag_empty_category_target(
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
         .row(|row| row.tracked_drop_target(drag_active && !locked, active_drop_target))
-        .actions(
-            ui::InteractiveRowActions::new()
-                .drop({
-                    let category_id = category_for_input.clone();
-                    move || GuiMessage::DropMetadataTagOnCategory {
-                        category_id: category_id.clone(),
-                    }
-                })
-                .hover_drop(move |_| GuiMessage::HoverMetadataTagDropCategory {
-                    category_id: category_for_input.clone(),
-                }),
-        )
+        .actions(ui::InteractiveRowActions::new().drop_target_key(
+            category_for_input,
+            |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
+            |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
+        ))
         .key(format!("metadata-tag-empty-category-{category_id}"))
         .fill_width()
         .height(20.0)
