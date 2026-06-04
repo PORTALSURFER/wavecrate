@@ -10,7 +10,7 @@ use crate::gui_app::{
     toolbar::main_toolbar,
     waveform_panel::waveform_panel,
 };
-use radiant::{gui::types::Point, prelude as ui};
+use radiant::prelude as ui;
 
 const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
 const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
@@ -49,22 +49,9 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn sample_column_drag_preview(feedback: &FileColumnDragFeedback) -> ui::View<GuiMessage> {
-    const OFFSET_X: f32 = 12.0;
-    const OFFSET_Y: f32 = 14.0;
     let size = ui::Vector2::new(feedback.width.clamp(64.0, 180.0), 22.0);
-    ui::floating_layer(
-        Point::new(feedback.pointer.x + OFFSET_X, feedback.pointer.y + OFFSET_Y),
-        size,
-        ui::row([ui::text(feedback.label.clone())
-            .align_text(ui::TextAlign::Left)
-            .truncate()
-            .fill_width()
-            .height(20.0)])
-        .padding_x(8.0)
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .fill(),
-    )
-    .key("sample-column-drag-preview")
+    ui::drag_preview_sized(feedback.label.clone(), feedback.pointer, size)
+        .key("sample-column-drag-preview")
 }
 
 fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
