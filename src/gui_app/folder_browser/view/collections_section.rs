@@ -150,7 +150,7 @@ fn collection_swatch(color: ui::Rgba8) -> ui::View<GuiMessage> {
 /// Builds the fixed-width assigned-sample count cell.
 fn collection_count(count: usize) -> ui::View<GuiMessage> {
     if count == 0 {
-        return ui::empty().width(28.0).height(COLLECTION_ROW_HEIGHT);
+        return ui::empty().intrinsic();
     }
     ui::text(count.to_string())
         .align_text(ui::TextAlign::Right)
@@ -259,6 +259,23 @@ mod tests {
                     | PaintPrimitive::Text(_)
             )
         }));
+    }
+
+    #[test]
+    /// Empty collections should not reserve trailing count-cell layout space.
+    fn collection_count_collapses_empty_placeholder_layout() {
+        const EMPTY_COUNT_NODE_ID: u64 = 0x5743_0000_0000_4c04;
+        let layout = ui::row([
+            ui::text_line("Collection 1", COLLECTION_ROW_HEIGHT),
+            collection_count(0).id(EMPTY_COUNT_NODE_ID),
+        ])
+        .view_layout_at_size(ui::Vector2::new(240.0, COLLECTION_ROW_HEIGHT));
+        let rect = layout
+            .rects
+            .get(&EMPTY_COUNT_NODE_ID)
+            .expect("empty collection count layout rect");
+
+        assert_eq!(rect.width(), 0.0);
     }
 
     #[test]
