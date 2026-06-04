@@ -168,6 +168,8 @@ Wavecrate should optimize for:
 - gentle library-hygiene workflows that encourage users to keep reviewing, rating, and cleaning their libraries
 - traceable behavior when something goes wrong
 
+The GUI thread is for UI work: input handling, selection state, lightweight view-model updates, rendering coordination, and applying completed results. It should remain non-blocking at all times. Any loading, decoding, file I/O, cache hydration, waveform preparation, audio analysis, edit rendering, database/index work, metadata writing, cleanup, logging flush, or other operation that can take noticeable time must be offloaded to background work with clear state handoff back to the UI. Blocking the GUI thread is acceptable only for operations that are proven trivial, bounded, and not practically offloadable.
+
 Perceived stalls are product bugs. If a source scan, decode, rename, edit render, waveform update, BPM/grid metadata calculation, transient analysis, similarity analysis job, database/index update, logging flush, or metadata update can take noticeable time, it belongs off the GUI thread with clear state handoff back to the UI.
 
 ## Non-Goals
@@ -2291,9 +2293,11 @@ Wavecrate should handle large sources without freezing or rebuilding unnecessary
 
 Important performance rules:
 
+* the GUI thread must not perform loading, decoding, cache hydration, filesystem scanning, database/index work, metadata writes, analysis, rendering/export work, cleanup, or other potentially slow operations
 * source scanning must stream discoveries to the UI incrementally
 * long audio files must remain navigable without loading unnecessary full-resolution UI data at once
 * folder and sample views should be virtualized or windowed for large datasets
+* sample selection, folder navigation, filtering, sorting, rating, tagging, and transport commands should update UI state immediately and queue any slow work instead of waiting for it
 * sample decode and waveform preparation must run in background work
 * duplicate fingerprinting, BPM/grid metadata work, transient detection, silence detection, similarity analysis, and later 2D map generation must run in background work
 * destructive edit rendering and file overwrite work must avoid blocking the GUI thread
