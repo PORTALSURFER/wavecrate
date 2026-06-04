@@ -213,20 +213,12 @@ pub(in crate::gui_app) struct SampleLoadResult {
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformCacheEntry {
-    pub(in crate::gui_app) file: std::sync::Arc<super::waveform::WaveformFile>,
-    pub(in crate::gui_app) signature: SampleFileSignature,
     pub(in crate::gui_app) byte_len: usize,
 }
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformCacheWarmResult {
     pub(in crate::gui_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::gui_app) struct SampleFileSignature {
-    pub(in crate::gui_app) size_bytes: u64,
-    pub(in crate::gui_app) modified_ns: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

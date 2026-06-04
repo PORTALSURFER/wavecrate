@@ -310,10 +310,13 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
 
     assert!(
-        state.sample_load_task.active().is_none(),
-        "repeat selection should reuse the in-memory waveform cache instead of queuing decode work"
+        state.deferred_sample_load_task.active().is_some(),
+        "repeat selection should still defer loading work instead of touching cache on the UI thread"
     );
-    assert_eq!(state.waveform_loading_label, None);
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "repeat selection must not synchronously start decode work"
+    );
     assert_eq!(state.waveform.file_name(), sample_name);
 }
 
@@ -402,7 +405,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
 }
 
 #[test]
-fn sample_selection_reuses_persisted_cache_after_restart() {
+fn sample_selection_queues_persisted_cache_load_after_restart() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("cached.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -438,29 +441,27 @@ fn sample_selection_reuses_persisted_cache_after_restart() {
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
-        "selection should hydrate the persisted cache immediately instead of debouncing a decode"
+        state.deferred_sample_load_task.active().is_some(),
+        "selection should debounce persisted cache hydration instead of reading it on the UI thread"
     );
     assert!(
         state.sample_load_task.active().is_none(),
-        "selection should not queue uncached decode work for a reusable persisted cache"
-    );
-    assert_eq!(state.waveform_loading_label, None);
-    assert_eq!(state.waveform.file_name(), sample_name);
-    assert!(
-        state.waveform.playback_samples().is_some(),
-        "persisted cache selection should restore playback samples for instant playback"
+        "selection should not start worker loading until the deferred load fires"
     );
     assert!(
-        state
+        state.waveform_loading_label.as_deref() == Some(sample_name.as_str()),
+        "selection may update loading UI, but not hydrate audio cache synchronously"
+    );
+    assert!(
+        !state
             .waveform_cache
             .contains_key(&PathBuf::from(&sample_path)),
-        "persisted cache hydration should promote the file into the memory cache"
+        "persisted cache hydration must stay off the UI thread until background loading completes"
     );
 }
 
 #[test]
-fn persisted_cache_is_warmed_into_memory_after_restart() {
+fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("warm-before-click.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -483,18 +484,9 @@ fn persisted_cache_is_warmed_into_memory_after_restart() {
         !state.waveform_cache.contains_key(&sample_path),
         "restart indicator refresh should not synchronously deserialize cached waveforms"
     );
-    assert_eq!(
-        state.waveform_cache_warm_pending.iter().collect::<Vec<_>>(),
-        vec![&sample_path]
-    );
-
-    let result =
-        super::super::sample_load_actions::warm_persisted_waveform_cache(vec![sample_path.clone()]);
-    state.apply_waveform_cache_warm_result(result);
-
     assert!(
-        state.waveform_cache.contains_key(&sample_path),
-        "background warm should make the cached sample memory-hot before first click"
+        state.waveform_cache_warm_pending.is_empty(),
+        "playback-ready persisted caches should not be loaded into memory from UI refresh"
     );
 
     let mut context = ui::UpdateContext::default();
@@ -506,9 +498,12 @@ fn persisted_cache_is_warmed_into_memory_after_restart() {
         &mut context,
     );
 
-    assert!(state.deferred_sample_load_task.active().is_none());
+    assert!(
+        state.deferred_sample_load_task.active().is_some(),
+        "selection of a playback-ready cached file must still defer load handling off the UI thread"
+    );
     assert!(state.sample_load_task.active().is_none());
-    assert_eq!(state.waveform.path(), sample_path);
+    assert_ne!(state.waveform.path(), sample_path);
 }
 
 #[test]

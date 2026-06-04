@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, Instant},
 };
 
@@ -97,21 +97,6 @@ impl GuiAppState {
     ) {
         let started_at = Instant::now();
         self.cancel_inflight_sample_load();
-        let cache_lookup_started_at = Instant::now();
-        if let Some(waveform) = self.cached_waveform_state(Path::new(&path)) {
-            log_slow_sample_load_phase(
-                "browser.select_sample.cache_lookup",
-                &path,
-                cache_lookup_started_at,
-            );
-            self.finish_cached_sample_load(waveform, autoplay, started_at);
-            return;
-        }
-        log_slow_sample_load_phase(
-            "browser.select_sample.cache_lookup",
-            &path,
-            cache_lookup_started_at,
-        );
         self.prepare_uncached_sample_load(path.as_str(), "load_deferred", started_at);
         self.schedule_deferred_sample_load(
             path,
@@ -174,7 +159,7 @@ impl GuiAppState {
         ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
-        check_cache: bool,
+        _check_cache: bool,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -191,28 +176,6 @@ impl GuiAppState {
                 None,
             );
             return;
-        }
-        if check_cache {
-            let cache_lookup_started_at = Instant::now();
-            if let Some(waveform) = self.cached_waveform_state(Path::new(&path)) {
-                log_slow_sample_load_phase(
-                    "browser.select_sample.deferred_cache_lookup",
-                    &path,
-                    cache_lookup_started_at,
-                );
-                self.finish_cached_sample_load(waveform, autoplay, started_at);
-                return;
-            }
-            log_slow_sample_load_phase(
-                "browser.select_sample.deferred_cache_lookup",
-                &path,
-                cache_lookup_started_at,
-            );
-            self.prepare_uncached_sample_load(
-                path.as_str(),
-                "navigation_load_uncached",
-                started_at,
-            );
         }
         self.start_uncached_sample_load(path, autoplay, context, started_at);
     }
@@ -398,89 +361,6 @@ impl GuiAppState {
                     Some("browser"),
                     Some(&label),
                     "error",
-                    started_at,
-                    Some(&err),
-                );
-            }
-        }
-    }
-
-    fn finish_cached_sample_load(
-        &mut self,
-        waveform: WaveformState,
-        autoplay: bool,
-        started_at: Instant,
-    ) {
-        if !autoplay && self.waveform.is_playing() {
-            let stop_started_at = Instant::now();
-            if let Some(player) = self.audio_player.as_mut() {
-                player.stop();
-            }
-            self.waveform.stop_playback();
-            self.current_playback_span = None;
-            log_slow_sample_load_phase(
-                "browser.select_sample.cache_finish.stop_previous",
-                waveform.path().to_string_lossy().as_ref(),
-                stop_started_at,
-            );
-        }
-        let file_name = waveform.file_name();
-        self.cancel_inflight_sample_load();
-        self.waveform_loading_label = None;
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
-        let replace_started_at = Instant::now();
-        self.replace_waveform_deferred(waveform);
-        log_slow_sample_load_phase(
-            "browser.select_sample.cache_finish.replace_waveform",
-            &file_name,
-            replace_started_at,
-        );
-        if self.start_pending_sample_playback(&file_name, started_at) {
-            return;
-        }
-        if !autoplay {
-            self.sample_status = format!("Loaded {file_name}");
-            emit_gui_action(
-                "browser.select_sample",
-                Some("browser"),
-                Some(&file_name),
-                "cache_loaded",
-                started_at,
-                None,
-            );
-            return;
-        }
-        let playback_started_at = Instant::now();
-        match self.start_playback_current_span(0.0, 1.0) {
-            Ok(()) => {
-                log_slow_sample_load_phase(
-                    "browser.select_sample.cache_finish.start_playback",
-                    &file_name,
-                    playback_started_at,
-                );
-                self.sample_status = format!("Playing {file_name}");
-                emit_gui_action(
-                    "browser.select_sample",
-                    Some("browser"),
-                    Some(&file_name),
-                    "cache_playing",
-                    started_at,
-                    None,
-                );
-            }
-            Err(err) => {
-                log_slow_sample_load_phase(
-                    "browser.select_sample.cache_finish.start_playback",
-                    &file_name,
-                    playback_started_at,
-                );
-                self.sample_status = format!("Loaded {file_name} | playback unavailable: {err}");
-                emit_gui_action(
-                    "browser.select_sample",
-                    Some("browser"),
-                    Some(&file_name),
-                    "cache_loaded_playback_error",
                     started_at,
                     Some(&err),
                 );

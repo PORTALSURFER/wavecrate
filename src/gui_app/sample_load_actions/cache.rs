@@ -2,74 +2,31 @@ use radiant::prelude as ui;
 use std::{collections::hash_map::Entry, path::Path, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::gui_app::waveform::{
-    WaveformFile, cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
     load_cached_waveform_file_for_playback,
 };
 use crate::gui_app::{
-    GuiAppState, GuiMessage, SampleFileSignature, WaveformCacheEntry, WaveformCacheWarmResult,
-    WaveformState,
+    GuiAppState, GuiMessage, WaveformCacheEntry, WaveformCacheWarmResult, WaveformState,
 };
-
-use super::deferred_drop::defer_large_drop;
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
 
 impl GuiAppState {
-    pub(super) fn cached_waveform_state(&mut self, path: &Path) -> Option<WaveformState> {
-        let started_at = Instant::now();
-        let path = path.to_path_buf();
-        if let Some(file) = self.cached_memory_waveform_file(&path) {
-            self.touch_waveform_cache_path(path.clone());
-            log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
-            return Some(WaveformState::from_cached_file(file));
-        }
-        if cached_waveform_file_playback_ready_exists(&path)
-            && let Some(file) = load_cached_waveform_file_for_playback(path.clone()).map(Arc::new)
-        {
-            let waveform = WaveformState::from_cached_file(file);
-            self.remember_waveform(&waveform);
-            log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
-            return Some(waveform);
-        }
-        self.cached_sample_paths.remove(&path.display().to_string());
-        log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
-        None
-    }
-
-    fn cached_memory_waveform_file(&mut self, path: &Path) -> Option<Arc<WaveformFile>> {
-        let entry = self.waveform_cache.get(path)?;
-        let signature_started_at = Instant::now();
-        let signature = sample_file_signature(path)?;
-        log_slow_cache_phase("browser.sample_cache.signature", path, signature_started_at);
-        if entry.signature != signature {
-            self.remove_waveform_cache_path(path);
-            self.cached_sample_paths.remove(&path.display().to_string());
-            return None;
-        }
-        Some(Arc::clone(&entry.file))
-    }
-
     pub(super) fn remember_waveform(&mut self, waveform: &WaveformState) {
         if !waveform.has_loaded_sample() {
             return;
         }
         let started_at = Instant::now();
-        let path = waveform.path();
-        let Some(signature) = sample_file_signature(&path) else {
-            return;
-        };
         let entry = WaveformCacheEntry {
             byte_len: waveform.audio_bytes().len()
                 + waveform
                     .playback_samples()
                     .map(|samples| samples.len() * std::mem::size_of::<f32>())
                     .unwrap_or(0),
-            file: waveform.file(),
-            signature,
         };
-        self.insert_waveform_cache_entry(path, entry);
+        self.insert_waveform_cache_entry(waveform.path(), entry);
         log_slow_cache_phase(
             "browser.sample_cache.remember",
             &waveform.path(),
@@ -90,7 +47,6 @@ impl GuiAppState {
                 self.cached_sample_paths.insert(file_id);
             } else if cached_waveform_file_playback_ready_exists(&path) {
                 self.cached_sample_paths.insert(file_id);
-                self.queue_waveform_cache_warm(path);
             } else if cached_waveform_file_exists(&path) {
                 self.cached_sample_paths.remove(&file_id);
                 self.queue_waveform_cache_warm(path);
@@ -191,7 +147,6 @@ impl GuiAppState {
                     .waveform_cache_bytes
                     .saturating_sub(old_entry.byte_len)
                     .saturating_add(occupied.get().byte_len);
-                defer_large_drop(old_entry);
             }
             Entry::Vacant(vacant) => {
                 self.waveform_cache_bytes =
@@ -228,7 +183,6 @@ impl GuiAppState {
             return false;
         };
         self.waveform_cache_bytes = self.waveform_cache_bytes.saturating_sub(entry.byte_len);
-        defer_large_drop(entry);
         true
     }
 
@@ -251,22 +205,6 @@ pub(in crate::gui_app) fn warm_persisted_waveform_cache(
         })
         .collect();
     WaveformCacheWarmResult { loaded }
-}
-
-fn sample_file_signature(path: &Path) -> Option<SampleFileSignature> {
-    let metadata = std::fs::metadata(path).ok()?;
-    let modified_ns = metadata
-        .modified()
-        .ok()?
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .ok()?
-        .as_nanos()
-        .try_into()
-        .ok()?;
-    Some(SampleFileSignature {
-        size_bytes: metadata.len(),
-        modified_ns,
-    })
 }
 
 fn log_slow_cache_phase(event: &'static str, path: &Path, started_at: Instant) {
