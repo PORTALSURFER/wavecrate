@@ -22,7 +22,7 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let mut refreshed_hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
         false, false, false, false, false,
     );
-    refreshed_hit_target.common_mut().state = hit_target.common().state;
+    refreshed_hit_target.synchronize_from_previous(&hit_target);
     let output = refreshed_hit_target
         .handle_input(
             bounds,
@@ -48,7 +48,7 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
             })
         )
     );
-    assert!(!refreshed_hit_target.common().state.pressed);
+    assert!(!refreshed_hit_target.common().is_pressed());
 }
 
 #[test]

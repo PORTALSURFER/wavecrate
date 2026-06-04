@@ -16,11 +16,11 @@ fn paints_hover_fill(plan: &SurfacePaintPlan) -> bool {
 }
 
 fn is_hovered(target: &SampleFileHitTarget) -> bool {
-    target.common().state.hovered
+    target.common().is_hovered()
 }
 
 fn is_pressed(target: &SampleFileHitTarget) -> bool {
-    target.common().state.pressed
+    target.common().is_pressed()
 }
 
 #[test]

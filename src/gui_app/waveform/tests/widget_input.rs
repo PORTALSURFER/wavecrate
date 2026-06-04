@@ -103,7 +103,7 @@ fn empty_waveform_keeps_hover_cursor_but_emits_no_interactions() {
             .is_none()
     );
     assert!(
-        widget.common.state.hovered,
+        widget.common.is_hovered(),
         "empty waveform should keep pointer-hover state for the visual cursor path"
     );
     for input in [

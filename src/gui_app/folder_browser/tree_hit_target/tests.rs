@@ -13,7 +13,7 @@ fn row_bounds() -> Rect {
 }
 
 fn is_hovered(target: &FolderTreeHitTarget) -> bool {
-    target.common().state.hovered
+    target.common().is_hovered()
 }
 
 #[test]

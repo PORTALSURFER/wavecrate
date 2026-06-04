@@ -125,7 +125,7 @@ fn audio_engine_pill_activates_settings_toggle() {
         })
         .expect("audio pill should use a Radiant badge");
 
-    assert!(pill.common.state.active);
+    assert!(pill.common.is_active());
     assert_eq!(
         surface.dispatch_widget_output(
             crate::gui_app::AUDIO_ENGINE_PILL_ID,
@@ -151,7 +151,7 @@ fn general_settings_button_opens_general_tab() {
         })
         .expect("general settings button should use a Radiant icon button");
 
-    assert!(button.common.state.active);
+    assert!(button.common.is_active());
     assert_eq!(
         surface.dispatch_widget_output(
             crate::gui_app::GENERAL_SETTINGS_BUTTON_ID,
