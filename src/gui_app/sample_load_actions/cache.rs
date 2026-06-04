@@ -2,7 +2,8 @@ use radiant::prelude as ui;
 use std::{collections::hash_map::Entry, path::Path, path::PathBuf, sync::Arc, time::Instant};
 
 use crate::gui_app::waveform::{
-    WaveformFile, cached_waveform_file_exists, load_cached_waveform_file_for_playback,
+    WaveformFile, cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    load_cached_waveform_file_for_playback,
 };
 use crate::gui_app::{
     GuiAppState, GuiMessage, SampleFileSignature, WaveformCacheEntry, WaveformCacheWarmResult,
@@ -24,7 +25,9 @@ impl GuiAppState {
             log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
             return Some(WaveformState::from_cached_file(file));
         }
-        if let Some(file) = load_cached_waveform_file_for_playback(path.clone()).map(Arc::new) {
+        if cached_waveform_file_playback_ready_exists(&path)
+            && let Some(file) = load_cached_waveform_file_for_playback(path.clone()).map(Arc::new)
+        {
             let waveform = WaveformState::from_cached_file(file);
             self.remember_waveform(&waveform);
             log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
@@ -85,8 +88,11 @@ impl GuiAppState {
             let path = PathBuf::from(&file_id);
             if self.waveform_cache.contains_key(&path) {
                 self.cached_sample_paths.insert(file_id);
-            } else if cached_waveform_file_exists(&path) {
+            } else if cached_waveform_file_playback_ready_exists(&path) {
                 self.cached_sample_paths.insert(file_id);
+                self.queue_waveform_cache_warm(path);
+            } else if cached_waveform_file_exists(&path) {
+                self.cached_sample_paths.remove(&file_id);
                 self.queue_waveform_cache_warm(path);
             } else {
                 self.cached_sample_paths.remove(&file_id);
@@ -227,7 +233,7 @@ impl GuiAppState {
     }
 
     fn remove_cached_sample_path_if_not_persisted(&mut self, path: &Path) {
-        if !cached_waveform_file_exists(path) {
+        if !cached_waveform_file_playback_ready_exists(path) {
             self.cached_sample_paths.remove(&path.display().to_string());
         }
     }

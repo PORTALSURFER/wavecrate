@@ -424,6 +424,106 @@ fn persisted_cache_is_warmed_into_memory_after_restart() {
 }
 
 #[test]
+fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("summary-only.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+    let sample_path = PathBuf::from(&sample_path_string);
+
+    let waveform =
+        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.refresh_persisted_waveform_cache_indicators();
+
+    assert!(
+        !state.cached_sample_paths.contains(&sample_path_string),
+        "summary-only persisted cache must not paint the row as playback-ready"
+    );
+    assert_eq!(
+        state.waveform_cache_warm_pending.iter().collect::<Vec<_>>(),
+        vec![&sample_path],
+        "summary-only persisted cache should still be warmed in the background"
+    );
+}
+
+#[test]
+fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("summary-only-click.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+    let sample_path = PathBuf::from(&sample_path_string);
+
+    let waveform =
+        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.refresh_persisted_waveform_cache_indicators();
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.deferred_sample_load_task.active().is_some(),
+        "summary-only cache selection should not synchronously decode long playback samples"
+    );
+    assert_eq!(
+        state.waveform.path(),
+        PathBuf::from("synthetic-waveform"),
+        "selection should wait for the normal loading pipeline instead of hydrating a partial cache"
+    );
+}
+
+#[test]
+fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("summary-only-warm.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+    let sample_path = PathBuf::from(&sample_path_string);
+
+    let waveform =
+        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
+
+    let result =
+        super::super::sample_load_actions::warm_persisted_waveform_cache(vec![sample_path.clone()]);
+    assert_eq!(result.loaded.len(), 1);
+
+    let mut restarted_state = gui_state_for_span_tests();
+    restarted_state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    restarted_state.refresh_persisted_waveform_cache_indicators();
+
+    assert!(
+        restarted_state
+            .cached_sample_paths
+            .contains(&sample_path_string),
+        "background warm should persist playback readiness for future restarts"
+    );
+}
+
+#[test]
 fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());

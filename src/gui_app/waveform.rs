@@ -336,8 +336,11 @@ mod audio_file;
 pub(super) use audio_file::WaveformFile;
 #[cfg(test)]
 pub(super) use audio_file::store_cached_waveform_file_for_tests;
+#[cfg(test)]
+pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
 pub(in crate::gui_app) use audio_file::{
-    cached_waveform_file_exists, load_cached_waveform_file_for_playback,
+    cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    load_cached_waveform_file_for_playback,
 };
 #[cfg(test)]
 use audio_file::{

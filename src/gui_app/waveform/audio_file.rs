@@ -37,12 +37,20 @@ use wav_decode::load_wav_waveform_file_with_progress;
 
 mod waveform_cache;
 pub(in crate::gui_app) use waveform_cache::{
-    cached_waveform_file_exists, load_cached_waveform_file_for_playback,
+    cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    load_cached_waveform_file_for_playback,
 };
 use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file};
 #[cfg(test)]
 pub(in crate::gui_app) fn store_cached_waveform_file_for_tests(file: &WaveformFile) {
     waveform_cache::store_cached_waveform_file(file);
+}
+
+#[cfg(test)]
+pub(in crate::gui_app) fn store_summary_only_cached_waveform_file_for_tests(file: &WaveformFile) {
+    let mut file = file.clone();
+    file.playback_samples = None;
+    waveform_cache::store_cached_waveform_file(&file);
 }
 
 #[derive(Clone, Debug)]
@@ -102,6 +110,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
             && let Ok(samples) = wav_decode::read_wav_playback_samples(&bytes)
         {
             file.playback_samples = Some(Arc::from(samples));
+            store_cached_waveform_file(&file);
         }
         progress(0.99);
         return Ok(file);
