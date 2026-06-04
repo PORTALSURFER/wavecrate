@@ -293,13 +293,9 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_parts(
         ui::PanelSectionParts::new("Metadata", content)
-            .trailing(
-                ui::drag_handle_mapped(|message| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message))
-                })
-                .key("metadata-resize-handle")
-                .size(26.0, 18.0),
-            )
+            .trailing_resize_handle("metadata-resize-handle", |message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message))
+            })
             .padding(METADATA_PANEL_PADDING)
             .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
             .title_height(METADATA_PANEL_TITLE_HEIGHT)

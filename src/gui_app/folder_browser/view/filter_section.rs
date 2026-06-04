@@ -46,13 +46,9 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
             .fill_width()
             .spacing(1.0),
         )
-        .trailing(
-            ui::drag_handle_mapped(|message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message))
-            })
-            .key("filter-resize-handle")
-            .size(26.0, 18.0),
-        )
+        .trailing_resize_handle("filter-resize-handle", |message| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message))
+        })
         .padding(FILTER_PANEL_PADDING)
         .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING)
         .title_height(FILTER_PANEL_HEADER_HEIGHT)

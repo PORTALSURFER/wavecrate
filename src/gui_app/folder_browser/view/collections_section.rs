@@ -34,13 +34,9 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
             .fill_width()
             .fill_height(),
         )
-        .trailing(
-            ui::drag_handle_mapped(|message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
-            })
-            .key("collections-resize-handle")
-            .size(26.0, 18.0),
-        )
+        .trailing_resize_handle("collections-resize-handle", |message| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
+        })
         .padding(COLLECTIONS_PANEL_PADDING)
         .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
         .title_height(COLLECTIONS_PANEL_HEADER_HEIGHT)
