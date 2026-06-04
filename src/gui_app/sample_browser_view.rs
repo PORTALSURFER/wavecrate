@@ -20,12 +20,17 @@ pub(super) fn sample_browser(
     state: &mut GuiAppState,
     suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
-    let window = state.folder_browser.follow_selected_file_view(
-        SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
-        SAMPLE_BROWSER_OVERSCAN_ROWS,
-        SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-    );
-    let audio_files = state.folder_browser.selected_audio_files();
+    let window = state
+        .folder_browser
+        .follow_selected_file_view_matching_tags(
+            SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+            SAMPLE_BROWSER_OVERSCAN_ROWS,
+            SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+            &state.metadata_tags_by_file,
+        );
+    let audio_files = state
+        .folder_browser
+        .selected_audio_files_matching_tags(&state.metadata_tags_by_file);
     let audio_count = audio_files.len();
     let columns = state.folder_browser.visible_file_columns();
     let browser = ui::column([

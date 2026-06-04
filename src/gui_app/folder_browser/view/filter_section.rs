@@ -1,5 +1,5 @@
 use radiant::{prelude as ui, widgets::TextInputMessageKind};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
@@ -17,6 +17,7 @@ const FILTER_ROW_HORIZONTAL_PADDING: f32 = 6.0;
 const FILTER_ROW_VERTICAL_PADDING: f32 = 1.0;
 const FILTER_ROW_SPACING: f32 = 6.0;
 const NAME_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4602;
+const TAG_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4603;
 
 #[cfg(test)]
 const FILTER_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4601;
@@ -45,6 +46,10 @@ impl FolderBrowserState {
         self.name_filter.as_str()
     }
 
+    pub(in crate::gui_app) fn tag_filter(&self) -> &str {
+        self.tag_filter.as_str()
+    }
+
     pub(in crate::gui_app) fn apply_name_filter_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
@@ -59,6 +64,40 @@ impl FolderBrowserState {
         self.name_filter = value;
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
+    }
+
+    pub(in crate::gui_app) fn apply_tag_filter_input(
+        &mut self,
+        message: radiant::widgets::TextInputMessage,
+    ) {
+        if message.kind() == TextInputMessageKind::CompletionRequested {
+            return;
+        }
+        let value = message.into_value();
+        if self.tag_filter == value {
+            return;
+        }
+        self.tag_filter = value;
+        self.reset_file_view();
+    }
+
+    pub(in crate::gui_app) fn retain_visible_file_selection_after_tag_filter(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) {
+        let visible_ids = self
+            .selected_audio_files_matching_tags(tags_by_file)
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<HashSet<_>>();
+        self.selected_file_ids.retain(|id| visible_ids.contains(id));
+        if self
+            .selected_file
+            .as_ref()
+            .is_some_and(|id| !visible_ids.contains(id))
+        {
+            self.selected_file = None;
+        }
     }
 
     fn retain_visible_file_selection_after_filter(&mut self) {
@@ -82,7 +121,7 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
     let panel = ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Filter",
-            ui::column([name_filter_row(state), type_filter_row()])
+            ui::column([name_filter_row(state), tag_filter_row(state)])
                 .fill_width()
                 .spacing(1.0),
         )
@@ -124,14 +163,19 @@ fn name_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     )
 }
 
-fn type_filter_row() -> ui::View<GuiMessage> {
+fn tag_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     filter_row(
-        "type",
-        ui::text("Type")
-            .key("filter-type-label")
+        "tags",
+        ui::text("Tags")
+            .key("filter-tags-label")
             .size(FILTER_ROW_LABEL_WIDTH, 20.0),
-        ui::text("Audio")
-            .key("filter-type-value")
+        ui::text_input(state.tag_filter().to_owned())
+            .placeholder("Any")
+            .message_event(|message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::TagFilterInput(message))
+            })
+            .id(TAG_FILTER_INPUT_ID)
+            .key("filter-tags-input")
             .fill_width()
             .height(20.0),
     )
@@ -198,6 +242,31 @@ mod tests {
                 .paint_plan
                 .contains_text_after_x("Any", input.rect.min.x),
             "name filter should not paint Any as a read-only property value"
+        );
+    }
+
+    #[test]
+    fn filter_section_replaces_type_value_with_tag_text_input() {
+        let state = FolderBrowserState::load_default();
+
+        let frame = filter_section(&state)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let inputs = frame.paint_plan.text_inputs().collect::<Vec<_>>();
+
+        assert!(
+            frame.paint_plan.contains_text("Tags"),
+            "tag filter label should be projected"
+        );
+        assert!(
+            !frame.paint_plan.contains_text("Type"),
+            "old type filter label should be removed"
+        );
+        assert_eq!(
+            inputs
+                .iter()
+                .map(|input| input.widget_id)
+                .collect::<Vec<_>>(),
+            vec![NAME_FILTER_INPUT_ID, TAG_FILTER_INPUT_ID]
         );
     }
 }

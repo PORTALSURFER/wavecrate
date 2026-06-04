@@ -22,7 +22,10 @@ impl GuiAppState {
         }
         let path = self.waveform.path();
         if self.folder_browser.focus_file_across_sources(&path) {
-            if let Some(index) = self.folder_browser.selected_audio_file_index() {
+            if let Some(index) = self
+                .folder_browser
+                .selected_audio_file_index_matching_tags(&self.metadata_tags_by_file)
+            {
                 context.scroll_into_view_snapped(
                     crate::gui_app::SAMPLE_BROWSER_LIST_ID,
                     index as f32 * crate::gui_app::SAMPLE_BROWSER_ROW_HEIGHT,

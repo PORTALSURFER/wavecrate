@@ -37,6 +37,7 @@ impl GuiAppState {
         }
         self.metadata_tags_by_file
             .insert(file_id.clone(), file_tags);
+        self.retain_visible_file_selection_after_metadata_tag_change();
         match added.as_slice() {
             [] => {}
             [tag] => self.sample_status = format!("Added tag {tag}"),
@@ -111,6 +112,7 @@ impl GuiAppState {
         if self.selected_metadata_tag.as_deref() == Some(tag.as_str()) {
             self.selected_metadata_tag = None;
         }
+        self.retain_visible_file_selection_after_metadata_tag_change();
         self.sample_status = format!("Removed tag {tag}");
         let request = MetadataTagPersistRequest {
             absolute_path,

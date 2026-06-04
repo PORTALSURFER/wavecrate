@@ -1,5 +1,8 @@
 use radiant::{gui::types::Point, prelude as ui};
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 use wavecrate::sample_sources::SampleCollection;
 
 use super::{
@@ -19,6 +22,7 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
     pub(super) name_filter: String,
+    pub(super) tag_filter: String,
     pub(super) expanded_folders: HashSet<String>,
     pub(super) folders: Vec<FolderEntry>,
     pub(super) rename_edit: Option<FolderRenameEdit>,
@@ -83,6 +87,7 @@ impl FolderBrowserState {
             selected_file: None,
             selected_file_ids: HashSet::new(),
             name_filter: String::new(),
+            tag_filter: String::new(),
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
             rename_edit: None,
@@ -143,6 +148,15 @@ impl FolderBrowserState {
         };
         filter_audio_files_by_name(&mut files, &self.name_filter);
         self.sort_files(&mut files);
+        files
+    }
+
+    pub(in crate::gui_app) fn selected_audio_files_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Vec<&FileEntry> {
+        let mut files = self.selected_audio_files();
+        filter_audio_files_by_tags(&mut files, tags_by_file, &self.tag_filter);
         files
     }
 
@@ -216,6 +230,9 @@ impl FolderBrowserState {
             | FolderBrowserMessage::DropOnCollection(_) => {}
             FolderBrowserMessage::NameFilterInput(message) => {
                 self.apply_name_filter_input(message);
+            }
+            FolderBrowserMessage::TagFilterInput(message) => {
+                self.apply_tag_filter_input(message);
             }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);
@@ -312,4 +329,34 @@ fn filter_audio_files_by_name(files: &mut Vec<&FileEntry>, name_filter: &str) {
     files.retain(|file| {
         file.name.to_lowercase().contains(&query) || file.stem.to_lowercase().contains(&query)
     });
+}
+
+fn filter_audio_files_by_tags(
+    files: &mut Vec<&FileEntry>,
+    tags_by_file: &HashMap<String, Vec<String>>,
+    tag_filter: &str,
+) {
+    let required_tags = parsed_tag_filter(tag_filter);
+    if required_tags.is_empty() {
+        return;
+    }
+    files.retain(|file| {
+        let Some(file_tags) = tags_by_file.get(&file.id) else {
+            return false;
+        };
+        required_tags.iter().all(|required| {
+            file_tags
+                .iter()
+                .any(|tag| tag.trim().eq_ignore_ascii_case(required))
+        })
+    });
+}
+
+fn parsed_tag_filter(tag_filter: &str) -> Vec<String> {
+    tag_filter
+        .split(',')
+        .map(str::trim)
+        .filter(|tag| !tag.is_empty())
+        .map(|tag| tag.to_ascii_lowercase())
+        .collect()
 }

@@ -104,6 +104,7 @@ pub(in crate::gui_app) enum FolderBrowserMessage {
     BeginCreateSubfolder,
     RenameInput(TextInputMessage),
     NameFilterInput(TextInputMessage),
+    TagFilterInput(TextInputMessage),
     SortFileColumn(String),
     ResizeFileColumn(String, DragHandleMessage),
     DragFileColumn(String, DragHandleMessage),

@@ -1,5 +1,5 @@
 use radiant::{prelude as ui, widgets::PointerModifiers};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use wavecrate::sample_sources::Rating;
 
@@ -154,6 +154,7 @@ impl FolderBrowserState {
             .unwrap_or_default()
     }
 
+    #[cfg(test)]
     pub(in crate::gui_app) fn navigate_vertical(
         &mut self,
         delta: i32,
@@ -167,6 +168,25 @@ impl FolderBrowserState {
         }
         if self.selected_file.is_some() {
             return self.navigate_selected_file(delta, extend);
+        }
+        self.navigate_selected_folder(delta);
+        None
+    }
+
+    pub(in crate::gui_app) fn navigate_vertical_matching_tags(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<String> {
+        if delta == 0 || self.rename_active() {
+            return None;
+        }
+        if self.selected_collection.is_some() && self.selected_file.is_none() {
+            return self.navigate_into_active_file_list_matching_tags(delta, tags_by_file);
+        }
+        if self.selected_file.is_some() {
+            return self.navigate_selected_file_matching_tags(delta, extend, tags_by_file);
         }
         self.navigate_selected_folder(delta);
         None
@@ -227,21 +247,58 @@ impl FolderBrowserState {
         true
     }
 
+    #[cfg(test)]
     fn navigate_selected_file(&mut self, delta: i32, extend: bool) -> Option<String> {
         let file_ids = self.selected_audio_file_ids();
+        self.navigate_selected_file_in_ids(delta, extend, &file_ids)
+    }
+
+    fn navigate_selected_file_matching_tags(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<String> {
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        self.navigate_selected_file_in_ids(delta, extend, &file_ids)
+    }
+
+    fn navigate_selected_file_in_ids(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        file_ids: &[String],
+    ) -> Option<String> {
         let mut selection = self.file_selection_model();
         let target = if extend {
-            selection.navigate_preserving_existing(delta as isize, &file_ids)?
+            selection.navigate_preserving_existing(delta as isize, file_ids)?
         } else {
-            selection.navigate(delta as isize, &file_ids, false)?
+            selection.navigate(delta as isize, file_ids, false)?
         };
         self.apply_file_selection_model(selection);
         Some(target)
     }
 
     /// Selects the first reachable file when collection mode owns navigation focus.
+    #[cfg(test)]
     fn navigate_into_active_file_list(&mut self, delta: i32) -> Option<String> {
         let file_ids = self.selected_audio_file_ids();
+        let target = if delta < 0 {
+            file_ids.last()
+        } else {
+            file_ids.first()
+        }?
+        .clone();
+        self.select_file(target.clone());
+        Some(target)
+    }
+
+    fn navigate_into_active_file_list_matching_tags(
+        &mut self,
+        delta: i32,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<String> {
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         let target = if delta < 0 {
             file_ids.last()
         } else {
@@ -292,11 +349,27 @@ impl FolderBrowserState {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::gui_app) fn select_all_audio_files(&mut self) -> usize {
         if self.rename_active() {
             return self.selected_file_ids.len();
         }
         let ids = self.selected_audio_file_ids();
+        self.select_audio_file_ids(ids)
+    }
+
+    pub(in crate::gui_app) fn select_all_audio_files_matching_tags(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> usize {
+        if self.rename_active() {
+            return self.selected_file_ids.len();
+        }
+        let ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        self.select_audio_file_ids(ids)
+    }
+
+    fn select_audio_file_ids(&mut self, ids: Vec<String>) -> usize {
         let mut selection = self.file_selection_model();
         selection.select_all(&ids);
         self.apply_file_selection_model(selection);
@@ -305,6 +378,16 @@ impl FolderBrowserState {
 
     fn selected_audio_file_ids(&self) -> Vec<String> {
         self.selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect()
+    }
+
+    fn selected_audio_file_ids_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        self.selected_audio_files_matching_tags(tags_by_file)
             .into_iter()
             .map(|file| file.id.clone())
             .collect()

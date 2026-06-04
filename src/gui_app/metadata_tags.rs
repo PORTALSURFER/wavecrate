@@ -47,6 +47,11 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn retain_visible_file_selection_after_metadata_tag_change(&mut self) {
+        self.folder_browser
+            .retain_visible_file_selection_after_tag_filter(&self.metadata_tags_by_file);
+    }
+
     pub(super) fn selected_metadata_tags(&self) -> &[String] {
         self.folder_browser
             .selected_file_id()

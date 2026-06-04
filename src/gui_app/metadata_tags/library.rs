@@ -163,6 +163,7 @@ impl GuiAppState {
             }
         }
 
+        self.retain_visible_file_selection_after_metadata_tag_change();
         self.persist_user_configuration("metadata.tags.dictionary.delete", Instant::now());
         self.sample_status = if removed_count == 0 {
             format!("Deleted tag {tag}")
