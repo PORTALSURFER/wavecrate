@@ -13,9 +13,9 @@ impl WaveformWidget {
         bounds: Rect,
     ) {
         let mapper = self.timeline_mapper(bounds);
-        let Some(selection_rect) = self.edit_preview.selection_rect(mapper) else {
+        if self.edit_preview.selection_rect(mapper).is_none() {
             return;
-        };
+        }
         let accent = Rgba8 {
             r: 82,
             g: 168,
@@ -34,7 +34,7 @@ impl WaveformWidget {
                 },
             );
         }
-        self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
+        self.append_edit_fade_curve_paint(primitives, bounds, accent);
         if let Some(handle_geometry) = self
             .edit_preview
             .handle_geometry(mapper, EDIT_FADE_HANDLE_SIZE)
