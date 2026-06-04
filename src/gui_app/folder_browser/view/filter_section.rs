@@ -1,4 +1,5 @@
-use radiant::prelude as ui;
+use radiant::{prelude as ui, widgets::TextInputMessageKind};
+use std::collections::HashSet;
 
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
@@ -10,6 +11,12 @@ pub(in crate::gui_app::folder_browser) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 
     FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
 pub(in crate::gui_app::folder_browser) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 76.0;
+const FILTER_ROW_HEIGHT: f32 = 24.0;
+const FILTER_ROW_LABEL_WIDTH: f32 = 112.0;
+const FILTER_ROW_HORIZONTAL_PADDING: f32 = 6.0;
+const FILTER_ROW_VERTICAL_PADDING: f32 = 1.0;
+const FILTER_ROW_SPACING: f32 = 6.0;
+const NAME_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4602;
 
 #[cfg(test)]
 const FILTER_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4601;
@@ -33,16 +40,51 @@ impl FolderBrowserState {
             ),
         );
     }
+
+    pub(in crate::gui_app) fn name_filter(&self) -> &str {
+        self.name_filter.as_str()
+    }
+
+    pub(in crate::gui_app) fn apply_name_filter_input(
+        &mut self,
+        message: radiant::widgets::TextInputMessage,
+    ) {
+        if message.kind() == TextInputMessageKind::CompletionRequested {
+            return;
+        }
+        let value = message.into_value();
+        if self.name_filter == value {
+            return;
+        }
+        self.name_filter = value;
+        self.retain_visible_file_selection_after_filter();
+        self.reset_file_view();
+    }
+
+    fn retain_visible_file_selection_after_filter(&mut self) {
+        let visible_ids = self
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<HashSet<_>>();
+        self.selected_file_ids.retain(|id| visible_ids.contains(id));
+        if self
+            .selected_file
+            .as_ref()
+            .is_some_and(|id| !visible_ids.contains(id))
+        {
+            self.selected_file = None;
+        }
+    }
 }
 
 pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Filter",
-            ui::property_rows([
-                ui::PropertyRow::new("name", "Name", "Any"),
-                ui::PropertyRow::new("type", "Type", "Audio"),
-            ]),
+            ui::column([name_filter_row(state), type_filter_row()])
+                .fill_width()
+                .spacing(1.0),
         )
         .trailing_resize_handle("filter-resize-handle", |message| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message))
@@ -62,6 +104,52 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
     {
         panel
     }
+}
+
+fn name_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+    filter_row(
+        "name",
+        ui::text("Name")
+            .key("filter-name-label")
+            .size(FILTER_ROW_LABEL_WIDTH, 20.0),
+        ui::text_input(state.name_filter().to_owned())
+            .placeholder("Any")
+            .message_event(|message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::NameFilterInput(message))
+            })
+            .id(NAME_FILTER_INPUT_ID)
+            .key("filter-name-input")
+            .fill_width()
+            .height(20.0),
+    )
+}
+
+fn type_filter_row() -> ui::View<GuiMessage> {
+    filter_row(
+        "type",
+        ui::text("Type")
+            .key("filter-type-label")
+            .size(FILTER_ROW_LABEL_WIDTH, 20.0),
+        ui::text("Audio")
+            .key("filter-type-value")
+            .fill_width()
+            .height(20.0),
+    )
+}
+
+fn filter_row(
+    id: &'static str,
+    label: ui::View<GuiMessage>,
+    value: ui::View<GuiMessage>,
+) -> ui::View<GuiMessage> {
+    ui::row([label, value])
+        .key(format!("filter-row-{id}"))
+        .fill_width()
+        .height(FILTER_ROW_HEIGHT)
+        .padding_x(FILTER_ROW_HORIZONTAL_PADDING)
+        .padding_y(FILTER_ROW_VERTICAL_PADDING)
+        .spacing(FILTER_ROW_SPACING)
+        .hoverable()
 }
 
 #[cfg(test)]
@@ -86,5 +174,30 @@ mod tests {
             .expect("filter section layout rect");
 
         assert_eq!(section.height(), state.filter_panel_height());
+    }
+
+    #[test]
+    fn filter_section_projects_name_text_input() {
+        let state = FolderBrowserState::load_default();
+
+        let frame = filter_section(&state)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let input = frame
+            .paint_plan
+            .first_text_input()
+            .expect("name filter should project a text input");
+
+        assert_eq!(input.widget_id, NAME_FILTER_INPUT_ID);
+        assert_eq!(input.state.value, "");
+        assert_eq!(
+            input.placeholder.as_ref().map(|value| value.as_str()),
+            Some("Any")
+        );
+        assert!(
+            !frame
+                .paint_plan
+                .contains_text_after_x("Any", input.rect.min.x),
+            "name filter should not paint Any as a read-only property value"
+        );
     }
 }

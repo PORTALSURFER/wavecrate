@@ -242,6 +242,54 @@ fn filter_panel_double_click_collapses_to_header_only_height() {
 }
 
 #[test]
+fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
+    let root = temp_source_root("wavecrate-gui-name-filter");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("Deep Kick.wav");
+    let snare = drums.join("Snare.wav");
+    let hat = drums.join("Hat.wav");
+    for file in [&kick, &snare, &hat] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&snare));
+
+    browser.apply_message(FolderBrowserMessage::NameFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("kick"),
+        },
+    ));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Deep Kick.wav"]
+    );
+    assert_eq!(browser.selected_file_id(), None);
+
+    browser.apply_message(FolderBrowserMessage::NameFilterInput(
+        TextInputMessage::Changed {
+            value: String::new(),
+        },
+    ));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Deep Kick.wav", "Hat.wav", "Snare.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn metadata_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-metadata-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());

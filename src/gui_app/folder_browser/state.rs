@@ -18,6 +18,7 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) selected_folder: String,
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
+    pub(super) name_filter: String,
     pub(super) expanded_folders: HashSet<String>,
     pub(super) folders: Vec<FolderEntry>,
     pub(super) rename_edit: Option<FolderRenameEdit>,
@@ -81,6 +82,7 @@ impl FolderBrowserState {
             selected_folder: root_id.clone(),
             selected_file: None,
             selected_file_ids: HashSet::new(),
+            name_filter: String::new(),
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
             rename_edit: None,
@@ -139,6 +141,7 @@ impl FolderBrowserState {
                 .filter(|file| file.is_audio())
                 .collect::<Vec<_>>()
         };
+        filter_audio_files_by_name(&mut files, &self.name_filter);
         self.sort_files(&mut files);
         files
     }
@@ -211,6 +214,9 @@ impl FolderBrowserState {
             | FolderBrowserMessage::RenameInput(_)
             | FolderBrowserMessage::DropOnFolder(_)
             | FolderBrowserMessage::DropOnCollection(_) => {}
+            FolderBrowserMessage::NameFilterInput(message) => {
+                self.apply_name_filter_input(message);
+            }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);
             }
@@ -296,4 +302,14 @@ fn collect_collection_audio_files<'a>(
     for child in &folder.children {
         collect_collection_audio_files(child, collection, files);
     }
+}
+
+fn filter_audio_files_by_name(files: &mut Vec<&FileEntry>, name_filter: &str) {
+    let query = name_filter.trim().to_lowercase();
+    if query.is_empty() {
+        return;
+    }
+    files.retain(|file| {
+        file.name.to_lowercase().contains(&query) || file.stem.to_lowercase().contains(&query)
+    });
 }
