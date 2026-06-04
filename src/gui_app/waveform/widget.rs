@@ -3,7 +3,10 @@ use radiant::{
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
-    runtime::PaintPrimitive,
+    runtime::{
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
+        PaintPrimitive,
+    },
     theme::ThemeTokens,
     widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
@@ -13,22 +16,15 @@ use crate::gui_app::{GuiMessage, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformFile, WaveformInteraction,
-    WaveformSignalWidget, WaveformState, WaveformViewport, edit_preview_for_selection,
+    WaveformState, WaveformViewport, audio_file::gain_preview_for_selection,
+    edit_preview_for_selection,
 };
 
 pub(in crate::gui_app) fn waveform_viewport_view(state: &WaveformState) -> ui::View<GuiMessage> {
     ui::stack([
-        ui::custom_widget(
-            WaveformSignalWidget::new(
-                state.file(),
-                state.viewport(),
-                state.edit_selection(),
-                state.active_drag_kind(),
-            ),
-            |_| None,
-        )
-        .id(WAVEFORM_SIGNAL_WIDGET_ID)
-        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
+        waveform_signal_surface_view(state.file(), state.viewport(), state.edit_selection())
+            .id(WAVEFORM_SIGNAL_WIDGET_ID)
+            .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         ui::custom_widget(
             WaveformWidget::new(WaveformWidgetProps::from_state(state)),
             |output| {
@@ -42,6 +38,41 @@ pub(in crate::gui_app) fn waveform_viewport_view(state: &WaveformState) -> ui::V
     ])
     .id(10)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
+}
+
+pub(in crate::gui_app::waveform) fn waveform_signal_surface_view(
+    file: Arc<WaveformFile>,
+    viewport: WaveformViewport,
+    edit_selection: Option<wavecrate::selection::SelectionRange>,
+) -> ui::View<GuiMessage> {
+    ui::gpu_surface_configured_from_parts(
+        ui::GpuSurfaceConfiguredParts::new(
+            file.path_hash(),
+            file.content_revision(),
+            GpuSurfaceContent::SignalSummaryBands {
+                frames: file.frames,
+                band_count: super::BAND_COUNT,
+                frame_range: [viewport.start as f32, viewport.end as f32],
+                summary: Arc::clone(&file.gpu_signal_summary),
+                gain_preview: gain_preview_for_selection(edit_selection),
+            },
+        )
+        .capabilities(GpuSurfaceCapabilities {
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: true,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                GpuSurfaceLineStyle {
+                    color: ui::Rgba8 {
+                        r: 255,
+                        g: 255,
+                        b: 255,
+                        a: 235,
+                    },
+                    width: 1.0,
+                },
+            ),
+        }),
+    )
 }
 
 #[derive(Clone, Debug)]

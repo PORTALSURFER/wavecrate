@@ -349,12 +349,11 @@ use audio_file::{
     load_waveform_file, load_waveform_file_with_progress_and_cancel,
 };
 
-mod signal_widget;
-use signal_widget::WaveformSignalWidget;
-
 mod widget;
 #[cfg(test)]
 pub(super) use widget::WaveformWidgetProps;
+#[cfg(test)]
+pub(in crate::gui_app::waveform) use widget::waveform_signal_surface_view;
 pub(super) use widget::{WaveformWidget, waveform_viewport_view};
 
 mod widget_geometry;

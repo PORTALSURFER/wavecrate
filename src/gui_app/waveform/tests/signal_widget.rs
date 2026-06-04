@@ -3,13 +3,7 @@ use super::*;
 #[test]
 fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
     let state = WaveformState::synthetic_for_tests();
-    let widget = WaveformSignalWidget::new(
-        state.file(),
-        state.viewport(),
-        state.edit_selection(),
-        state.active_drag_kind(),
-    );
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let plan = waveform_signal_surface_plan(state.file(), state.viewport(), state.edit_selection());
 
     let surface = plan
         .gpu_surfaces()
@@ -36,8 +30,7 @@ fn signal_widget_attaches_active_edit_fade_gain_preview() {
     let viewport = super::WaveformViewport::full(file.frames);
     let edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
-    let widget = WaveformSignalWidget::new(Arc::clone(&file), viewport, edit_selection, None);
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection);
 
     let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 
@@ -93,15 +86,7 @@ fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
     let viewport = super::WaveformViewport::full(file.frames);
     let edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
-    let widget = WaveformSignalWidget::new(
-        Arc::clone(&file),
-        viewport,
-        edit_selection,
-        Some(WaveformActiveDragKind::EditFade(
-            WaveformEditFadeHandle::InEnd,
-        )),
-    );
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection);
 
     let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 

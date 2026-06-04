@@ -1,12 +1,14 @@
 use super::{
-    BAND_COUNT, WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction,
-    WaveformSelectionEdge, WaveformSelectionKind, WaveformSignalWidget, WaveformState,
-    WaveformViewport, WaveformWidget, WaveformWidgetProps, downmix_to_mono, split_frequency_bands,
-    waveform_file_from_mono_samples,
+    BAND_COUNT, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
+    WaveformSelectionKind, WaveformState, WaveformViewport, WaveformWidget, WaveformWidgetProps,
+    downmix_to_mono, split_frequency_bands, waveform_file_from_mono_samples,
+    waveform_signal_surface_view,
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},
+    prelude::IntoView,
     runtime::{GpuSurfaceContent, PaintFillRect, PaintStrokePolyline, SurfacePaintPlan},
+    theme::ThemeTokens,
     widgets::{PointerButton, Widget, WidgetInput},
 };
 use std::{fs, sync::Arc};
@@ -34,12 +36,25 @@ fn stroke_polylines(plan: &SurfacePaintPlan) -> Vec<&PaintStrokePolyline> {
 
 fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
     let viewport = super::WaveformViewport::full(file.frames);
-    let widget = WaveformSignalWidget::new(file, viewport, None, None);
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let plan = waveform_signal_surface_plan(file, viewport, None);
     plan.gpu_surfaces()
         .map(|surface| surface.revision)
         .next()
         .expect("waveform gpu surface")
+}
+
+fn waveform_signal_surface_plan(
+    file: Arc<super::WaveformFile>,
+    viewport: super::WaveformViewport,
+    edit_selection: Option<wavecrate::selection::SelectionRange>,
+) -> SurfacePaintPlan {
+    let view = waveform_signal_surface_view(file, viewport, edit_selection)
+        .id(crate::gui_app::WAVEFORM_SIGNAL_WIDGET_ID)
+        .size(200.0, 80.0);
+    let surface = view.into_surface();
+    let bounds = Rect::from_size(200.0, 80.0);
+    let layout = radiant::layout::layout_tree(&surface.layout_node(), bounds);
+    surface.paint_plan(&layout, &ThemeTokens::default())
 }
 
 fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
