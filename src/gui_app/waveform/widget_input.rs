@@ -21,10 +21,12 @@ impl WaveformWidget {
             return None;
         }
         let event = self.gesture.handle_input(bounds, &input)?;
+        let pointer_inside = event.pointer_is_inside(bounds);
+        let has_loaded_sample = self.has_loaded_sample();
         match event {
             CanvasGestureEvent::Hover(pointer) => {
-                self.common.state.hovered = pointer.is_inside(bounds);
-                if !self.has_loaded_sample() {
+                self.common.state.hovered = pointer_inside;
+                if !has_loaded_sample {
                     return None;
                 }
                 if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
@@ -40,8 +42,7 @@ impl WaveformWidget {
                     })
                 })
             }
-            CanvasGestureEvent::Wheel { pointer, .. } if !pointer.is_inside(bounds) => None,
-            CanvasGestureEvent::Wheel { pointer, .. } if !self.has_loaded_sample() => None,
+            CanvasGestureEvent::Wheel { .. } if !pointer_inside || !has_loaded_sample => None,
             CanvasGestureEvent::Wheel { pointer, delta } => {
                 Some(WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
@@ -52,28 +53,26 @@ impl WaveformWidget {
                 pointer,
                 button: PointerButton::Primary,
                 ..
-            } if self.has_loaded_sample() && pointer.is_inside(bounds) => {
-                self.handle_primary_press(bounds, pointer)
-            }
+            } if has_loaded_sample && pointer_inside => self.handle_primary_press(bounds, pointer),
             CanvasGestureEvent::DoubleClick {
                 pointer,
                 button: PointerButton::Primary,
                 ..
-            } if self.has_loaded_sample() && pointer.is_inside(bounds) => {
+            } if has_loaded_sample && pointer_inside => {
                 self.handle_primary_double_click(bounds, pointer)
             }
             CanvasGestureEvent::Press {
                 pointer,
                 button: PointerButton::Secondary,
                 ..
-            } if self.has_loaded_sample() && pointer.is_inside(bounds) => {
+            } if has_loaded_sample && pointer_inside => {
                 self.handle_secondary_press(bounds, pointer)
             }
             CanvasGestureEvent::Press {
                 pointer,
                 button: PointerButton::Auxiliary,
                 ..
-            } if self.has_loaded_sample() && pointer.is_inside(bounds) => {
+            } if has_loaded_sample && pointer_inside => {
                 Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
                     visible_ratio: pointer.normalized_x(),
                 }))
@@ -82,7 +81,7 @@ impl WaveformWidget {
                 pointer,
                 button: PointerButton::Primary,
                 ..
-            } if self.has_loaded_sample()
+            } if has_loaded_sample
                 && self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) =>
             {
                 Some(WidgetOutput::typed(
@@ -95,7 +94,7 @@ impl WaveformWidget {
                 pointer,
                 button: PointerButton::Primary,
                 ..
-            } if self.has_loaded_sample() && self.primary_release_finishes_drag() => {
+            } if has_loaded_sample && self.primary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: pointer.normalized_x(),
                 }))
@@ -104,7 +103,7 @@ impl WaveformWidget {
                 pointer,
                 button: PointerButton::Secondary,
                 ..
-            } if self.has_loaded_sample() && self.secondary_release_finishes_drag() => {
+            } if has_loaded_sample && self.secondary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: pointer.normalized_x(),
                 }))
@@ -113,7 +112,7 @@ impl WaveformWidget {
                 pointer,
                 button: PointerButton::Auxiliary,
                 ..
-            } if self.has_loaded_sample()
+            } if has_loaded_sample
                 && self.active_drag_kind == Some(WaveformActiveDragKind::Pan) =>
             {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
