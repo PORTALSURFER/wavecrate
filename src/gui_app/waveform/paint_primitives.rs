@@ -6,10 +6,6 @@ use radiant::{
 use super::WaveformWidget;
 
 impl WaveformWidget {
-    pub(super) fn push_fill(&self, primitives: &mut Vec<PaintPrimitive>, rect: Rect, color: Rgba8) {
-        radiant::runtime::push_visible_fill_rect(primitives, self.common.id, rect, color);
-    }
-
     pub(super) fn push_visible_range_fill(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
