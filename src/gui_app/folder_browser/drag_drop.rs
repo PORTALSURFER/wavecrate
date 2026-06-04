@@ -107,6 +107,13 @@ impl FolderBrowserState {
         self.drop_target_collection = None;
     }
 
+    pub(in crate::gui_app) fn clear_drop_target_folder(&mut self, position: Point) {
+        self.update_drag_pointer(position);
+        if self.drop_target_folder.take().is_some() {
+            self.drag_revision.bump();
+        }
+    }
+
     pub(in crate::gui_app) fn hovered_drop_target_folder_id(&self) -> Option<String> {
         self.drop_target_folder.clone()
     }

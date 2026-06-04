@@ -119,6 +119,7 @@ pub(in crate::gui_app) fn folder_browser_view(
 fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
     let visible_folders = state.visible_folders();
     let selected_index = visible_folders.iter().position(|folder| folder.selected);
+    let drag_revision = state.drag_revision();
     let window = state.follow_selected_tree_view(
         visible_folders.len(),
         selected_index,
@@ -137,7 +138,7 @@ fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
         ui::virtual_list_window(
             window,
             TREE_ROW_HEIGHT,
-            move |index| folder_row(visible_folders[index].clone()),
+            move |index| folder_row(visible_folders[index].clone(), drag_revision),
             TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
         )
         .id(FOLDER_TREE_LIST_ID)
@@ -147,7 +148,7 @@ fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
+fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
     if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
         let caret = draft.chars().count();
@@ -217,7 +218,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
             ),
         },
     )
-    .key(format!("folder-row-hit-{id}"))
+    .key(format!("folder-row-hit-{id}-{drag_revision}"))
     .fill_width()
     .height(22.0);
 

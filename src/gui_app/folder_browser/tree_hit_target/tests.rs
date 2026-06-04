@@ -124,6 +124,24 @@ fn current_drop_target_hover_stays_local() {
 }
 
 #[test]
+fn drag_candidate_refresh_clears_retained_hover() {
+    let mut previous = FolderTreeHitTarget::new("loops", false, false, false, false, false, false);
+    previous.handle_input(
+        row_bounds(),
+        WidgetInput::pointer_move(Point::new(40.0, 9.0)),
+    );
+    assert!(is_hovered(&previous));
+
+    let mut refreshed = FolderTreeHitTarget::new("loops", false, false, true, false, true, false);
+    refreshed.synchronize_from_previous(&previous);
+
+    assert!(
+        !is_hovered(&refreshed),
+        "drag-candidate rows must not inherit stale hover paint from the pre-drag tree"
+    );
+}
+
+#[test]
 fn invalid_drag_hover_only_reports_when_it_can_clear_existing_target() {
     let bounds = row_bounds();
     let mut quiet_invalid =

@@ -212,8 +212,7 @@ impl FolderBrowserState {
             | FolderBrowserMessage::DropOnFolder(_)
             | FolderBrowserMessage::DropOnCollection(_) => {}
             FolderBrowserMessage::ClearDropTarget(position) => {
-                self.update_drag_pointer(position);
-                self.drop_target_folder = None;
+                self.clear_drop_target_folder(position);
             }
             FolderBrowserMessage::HoverDropTarget(id, position) => {
                 self.update_drag_pointer(position);

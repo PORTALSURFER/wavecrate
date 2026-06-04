@@ -89,6 +89,33 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
     assert!(hovered.drop_candidate);
     assert!(hovered.drop_target);
 
+    let revision_before_exit = browser.drag_revision();
+    browser.apply_message(FolderBrowserMessage::ClearDropTarget(Point::new(
+        90.0, 120.0,
+    )));
+    assert_eq!(
+        browser.drag_revision(),
+        revision_before_exit + 1,
+        "clearing a folder drop target must refresh retained folder hit targets"
+    );
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .all(|folder| !folder.drop_target)
+    );
+
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&loops),
+        Point::new(50.0, 60.0),
+    ));
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.drop_target)
+    );
+
     browser.apply_message(FolderBrowserMessage::HoverDropTarget(
         path_id(&kicks),
         Point::new(70.0, 80.0),

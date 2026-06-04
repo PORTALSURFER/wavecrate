@@ -38,7 +38,7 @@ impl FolderTreeHitTarget {
         drop_candidate: bool,
         drop_target_active: bool,
     ) -> Self {
-        let row = ui::interactive_row()
+        let mut row = ui::interactive_row()
             .draggable()
             .drag_active(drag_active)
             .drag_source(drag_source)
@@ -50,8 +50,11 @@ impl FolderTreeHitTarget {
                 drop_candidate,
                 drop_target_active,
             )
-            .custom_paint_hit_target()
-            .widget();
+            .custom_paint_hit_target();
+        if drag_active || drop_target_active {
+            row = row.clear_hover_on_sync();
+        }
+        let row = row.widget();
         let actions = ui::InteractiveRowActions::new()
             .activate(|| FolderTreeHitMessage::Activate)
             .double_activate(|| FolderTreeHitMessage::Activate)
