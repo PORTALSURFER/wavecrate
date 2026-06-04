@@ -3,11 +3,8 @@ use super::{
     WAVEFORM_WIDGET_ID, emit_gui_action,
 };
 use radiant::{
-    gui::{
-        feedback::push_horizontal_value_cursor_fill,
-        types::{Rect, Rgba8},
-    },
-    runtime::{PaintPrimitive, TransientOverlayContext},
+    gui::types::{Rect, Rgba8},
+    runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
 
 const PLAYBACK_CURSOR_COLOR: Rgba8 = Rgba8 {
@@ -213,9 +210,7 @@ impl FrameRepaintScopeSnapshot {
 }
 
 fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, ratio: f32) {
-    push_horizontal_value_cursor_fill(
-        primitives,
-        WAVEFORM_WIDGET_ID,
+    WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID).push_horizontal_value_cursor_fill(
         bounds,
         ratio,
         PLAYBACK_CURSOR_WIDTH,
