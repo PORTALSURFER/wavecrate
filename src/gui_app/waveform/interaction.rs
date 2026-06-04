@@ -1,9 +1,6 @@
 use radiant::gui::{
-    range::{
-        NormalizedRange, NormalizedRangeDrag, NormalizedRangeEdge, normalized_fraction_to_micros,
-        normalized_fraction_to_milli,
-    },
-    visualization::{TimelineEditPreview, TimelineEditPreviewParts},
+    range::{NormalizedRange, NormalizedRangeDrag, NormalizedRangeEdge},
+    visualization::{TimelineEditPreview, TimelineEditRamp},
 };
 
 use super::{
@@ -162,28 +159,11 @@ pub(super) fn edit_preview_for_selection(
     };
     let start = selection.start();
     let end = selection.end();
-    let width = selection.width();
     let fade_in = selection.fade_in();
     let fade_out = selection.fade_out();
-    TimelineEditPreview::from_parts(TimelineEditPreviewParts {
-        selection: Some(NormalizedRange::from_fractions(start, end)),
-        leading_end_milli: fade_in
-            .map(|fade| normalized_fraction_to_milli(start + width * fade.length)),
-        leading_end_micros: fade_in
-            .map(|fade| normalized_fraction_to_micros(start + width * fade.length)),
-        leading_inner_start_milli: fade_in
-            .map(|fade| normalized_fraction_to_milli(start - width * fade.mute)),
-        leading_inner_start_micros: fade_in
-            .map(|fade| normalized_fraction_to_micros(start - width * fade.mute)),
-        leading_curve_milli: fade_in.map(|fade| normalized_fraction_to_milli(fade.curve)),
-        trailing_start_milli: fade_out
-            .map(|fade| normalized_fraction_to_milli(end - width * fade.length)),
-        trailing_start_micros: fade_out
-            .map(|fade| normalized_fraction_to_micros(end - width * fade.length)),
-        trailing_inner_end_milli: fade_out
-            .map(|fade| normalized_fraction_to_milli(end + width * fade.mute)),
-        trailing_inner_end_micros: fade_out
-            .map(|fade| normalized_fraction_to_micros(end + width * fade.mute)),
-        trailing_curve_milli: fade_out.map(|fade| normalized_fraction_to_milli(fade.curve)),
-    })
+    TimelineEditPreview::from_normalized_ramps(
+        NormalizedRange::from_fractions(start, end),
+        fade_in.map(|fade| TimelineEditRamp::new(fade.length, fade.mute, Some(fade.curve))),
+        fade_out.map(|fade| TimelineEditRamp::new(fade.length, fade.mute, Some(fade.curve))),
+    )
 }
