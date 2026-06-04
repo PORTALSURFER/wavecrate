@@ -25,21 +25,19 @@ const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn metadata_panel_height(&self) -> f32 {
-        self.metadata_panel_height
+        self.metadata_panel.size()
     }
 
     pub(super) fn resize_metadata_panel(&mut self, message: DragHandleMessage) {
-        if let Some(height) = ui::update_collapsible_panel_resize_drag(
-            &mut self.metadata_panel_resize,
+        self.metadata_panel.resize_collapsible(
             message,
-            ui::PanelResizeEdge::Top,
-            self.metadata_panel_height,
-            MIN_METADATA_PANEL_HEIGHT,
-            MAX_METADATA_PANEL_HEIGHT,
-            COLLAPSED_METADATA_PANEL_HEIGHT,
-        ) {
-            self.metadata_panel_height = height;
-        }
+            ui::CollapsiblePanelResizeConstraints::new(
+                ui::PanelResizeEdge::Top,
+                MIN_METADATA_PANEL_HEIGHT,
+                MAX_METADATA_PANEL_HEIGHT,
+                COLLAPSED_METADATA_PANEL_HEIGHT,
+            ),
+        );
     }
 }
 

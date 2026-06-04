@@ -152,7 +152,7 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
     let mut browser = FolderBrowserState::from_root(root.clone());
 
     assert_eq!(
-        browser.collections_panel_height,
+        browser.collections_panel.size(),
         super::super::DEFAULT_COLLECTIONS_PANEL_HEIGHT
     );
 
@@ -163,7 +163,7 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, 120.0),
     });
     assert_eq!(
-        browser.collections_panel_height,
+        browser.collections_panel.size(),
         browser.max_collections_panel_height()
     );
 
@@ -171,7 +171,7 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, 1_000.0),
     });
     assert_eq!(
-        browser.collections_panel_height,
+        browser.collections_panel.size(),
         MIN_COLLECTIONS_PANEL_HEIGHT
     );
 
@@ -179,10 +179,10 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, -1_000.0),
     });
     assert_eq!(
-        browser.collections_panel_height,
+        browser.collections_panel.size(),
         browser.max_collections_panel_height()
     );
-    assert!(browser.collection_panel_resize.is_none());
+    assert!(!browser.collections_panel.is_resizing());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -200,10 +200,10 @@ fn collections_panel_splitter_double_click_collapses_height() {
     });
 
     assert_eq!(
-        browser.collections_panel_height,
+        browser.collections_panel.size(),
         COLLAPSED_COLLECTIONS_PANEL_HEIGHT
     );
-    assert!(browser.collection_panel_resize.is_none());
+    assert!(!browser.collections_panel.is_resizing());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -212,7 +212,7 @@ fn collections_panel_splitter_double_click_collapses_height() {
 fn filter_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-filter-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.filter_panel_height;
+    let initial_height = browser.filter_panel.size();
 
     browser.resize_filter_panel(DragHandleMessage::Started {
         position: Point::new(0.0, 200.0),
@@ -221,19 +221,19 @@ fn filter_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, 120.0),
     });
 
-    assert!(browser.filter_panel_height > initial_height);
+    assert!(browser.filter_panel.size() > initial_height);
 
     browser.resize_filter_panel(DragHandleMessage::Moved {
         position: Point::new(0.0, 1_000.0),
     });
 
-    assert_eq!(browser.filter_panel_height, COLLAPSED_FILTER_PANEL_HEIGHT);
+    assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
 
     browser.resize_filter_panel(DragHandleMessage::Ended {
         position: Point::new(0.0, 1_000.0),
     });
 
-    assert!(browser.filter_panel_resize.is_none());
+    assert!(!browser.filter_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -246,8 +246,8 @@ fn filter_panel_double_click_collapses_to_header_only_height() {
         position: Point::new(0.0, 200.0),
     });
 
-    assert_eq!(browser.filter_panel_height, COLLAPSED_FILTER_PANEL_HEIGHT);
-    assert!(browser.filter_panel_resize.is_none());
+    assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
+    assert!(!browser.filter_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -255,7 +255,7 @@ fn filter_panel_double_click_collapses_to_header_only_height() {
 fn metadata_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-metadata-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.metadata_panel_height;
+    let initial_height = browser.metadata_panel.size();
 
     browser.resize_metadata_panel(DragHandleMessage::Started {
         position: Point::new(0.0, 200.0),
@@ -264,14 +264,14 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, 120.0),
     });
 
-    assert!(browser.metadata_panel_height > initial_height);
+    assert!(browser.metadata_panel.size() > initial_height);
 
     browser.resize_metadata_panel(DragHandleMessage::Moved {
         position: Point::new(0.0, 1_000.0),
     });
 
     assert_eq!(
-        browser.metadata_panel_height,
+        browser.metadata_panel.size(),
         COLLAPSED_METADATA_PANEL_HEIGHT
     );
 
@@ -279,7 +279,7 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
         position: Point::new(0.0, 1_000.0),
     });
 
-    assert!(browser.metadata_panel_resize.is_none());
+    assert!(!browser.metadata_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -293,10 +293,10 @@ fn metadata_panel_double_click_collapses_to_header_only_height() {
     });
 
     assert_eq!(
-        browser.metadata_panel_height,
+        browser.metadata_panel.size(),
         COLLAPSED_METADATA_PANEL_HEIGHT
     );
-    assert!(browser.metadata_panel_resize.is_none());
+    assert!(!browser.metadata_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 

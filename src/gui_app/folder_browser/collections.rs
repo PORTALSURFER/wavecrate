@@ -72,7 +72,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn collections_panel_height(&self) -> f32 {
-        self.collections_panel_height
+        self.collections_panel.size()
     }
 
     pub(in crate::gui_app) fn collections_list_height(&self) -> f32 {
@@ -211,18 +211,15 @@ impl FolderBrowserState {
     }
 
     pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
-        let max_height = self.max_collections_panel_height();
-        if let Some(height) = ui::update_collapsible_panel_resize_drag(
-            &mut self.collection_panel_resize,
+        self.collections_panel.resize_collapsible(
             message,
-            ui::PanelResizeEdge::Top,
-            self.collections_panel_height,
-            MIN_COLLECTIONS_PANEL_HEIGHT,
-            max_height,
-            COLLAPSED_COLLECTIONS_PANEL_HEIGHT,
-        ) {
-            self.collections_panel_height = height;
-        }
+            ui::CollapsiblePanelResizeConstraints::new(
+                ui::PanelResizeEdge::Top,
+                MIN_COLLECTIONS_PANEL_HEIGHT,
+                self.max_collections_panel_height(),
+                COLLAPSED_COLLECTIONS_PANEL_HEIGHT,
+            ),
+        );
     }
 
     pub(super) fn activate_collection(&mut self, collection: SampleCollection) {

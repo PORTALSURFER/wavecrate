@@ -190,8 +190,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
 #[test]
 fn sample_selection_loads_selected_file_into_waveform() {
     let mut state = GuiAppState {
-        folder_width: DEFAULT_FOLDER_WIDTH,
-        folder_resize: None,
+        folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
         folder_browser: super::super::FolderBrowserState::load_default(),
         waveform: super::super::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),

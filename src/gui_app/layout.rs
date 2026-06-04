@@ -81,7 +81,8 @@ fn metadata_tag_completion_overlay(state: &GuiAppState) -> Option<ui::View<GuiMe
     let completion_suffix = state.metadata_tag_completion_suffix();
     let selected_metadata_tags = state.selected_metadata_tags().to_vec();
     let display_categories = state.selected_metadata_tag_display_categories();
-    let tag_field_content_width = folder_browser::tag_field_content_width(state.folder_width);
+    let tag_field_content_width =
+        folder_browser::tag_field_content_width(state.folder_panel.size());
     let tag_field_height = folder_browser::tag_field_height(
         state.metadata_tag_draft.as_str(),
         state.metadata_tag_tokens.as_slice(),
@@ -107,7 +108,7 @@ fn metadata_tag_completion_overlay(state: &GuiAppState) -> Option<ui::View<GuiMe
 }
 
 fn folder_sidebar(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    let folder_width = state.folder_width;
+    let folder_width = state.folder_panel.size();
     let has_selected_file = state.folder_browser.selected_file_id().is_some();
     let pending_category_tag = state
         .pending_metadata_tag_category_tag()
@@ -402,7 +403,7 @@ fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         main_toolbar(state),
         waveform_panel(state),
-        sample_browser(state, state.folder_resize.is_some()),
+        sample_browser(state, state.folder_panel.is_resizing()),
     ])
     .padding(4.0)
     .fill()

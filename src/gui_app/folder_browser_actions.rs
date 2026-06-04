@@ -15,16 +15,14 @@ impl GuiAppState {
         let phase = message.phase();
         let should_log = !message.is_moved();
         let outcome = phase.as_str();
-        if let Some(width) = ui::update_panel_resize_drag(
-            &mut self.folder_resize,
+        self.folder_panel.resize(
             message,
-            ui::PanelResizeEdge::Right,
-            self.folder_width,
-            MIN_FOLDER_WIDTH,
-            MAX_FOLDER_WIDTH,
-        ) {
-            self.folder_width = width;
-        }
+            ui::PanelResizeConstraints::new(
+                ui::PanelResizeEdge::Right,
+                MIN_FOLDER_WIDTH,
+                MAX_FOLDER_WIDTH,
+            ),
+        );
         if should_log {
             emit_gui_action(
                 "layout.resize_folder_browser",

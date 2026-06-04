@@ -34,8 +34,7 @@ fn first_visible_asset_file_path(browser: &super::FolderBrowserState) -> String 
 
 fn gui_state_for_span_tests() -> GuiAppState {
     GuiAppState {
-        folder_width: DEFAULT_FOLDER_WIDTH,
-        folder_resize: None,
+        folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
         folder_browser: super::FolderBrowserState::load_default(),
         waveform: super::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
@@ -247,8 +246,7 @@ fn start_deferred_sample_load_for_tests(
 #[test]
 fn folder_browser_splitter_resizes_and_clamps_width() {
     let mut state = GuiAppState {
-        folder_width: DEFAULT_FOLDER_WIDTH,
-        folder_resize: None,
+        folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
         folder_browser: super::FolderBrowserState::load_default(),
         waveform: super::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
@@ -316,18 +314,18 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         position: Point::new(160.0, 0.0),
     });
 
-    assert_eq!(state.folder_width, DEFAULT_FOLDER_WIDTH + 60.0);
+    assert_eq!(state.folder_panel.size(), DEFAULT_FOLDER_WIDTH + 60.0);
 
     state.resize_folder_browser(DragHandleMessage::Moved {
         position: Point::new(900.0, 0.0),
     });
-    assert_eq!(state.folder_width, MAX_FOLDER_WIDTH);
+    assert_eq!(state.folder_panel.size(), MAX_FOLDER_WIDTH);
 
     state.resize_folder_browser(DragHandleMessage::Ended {
         position: Point::new(-900.0, 0.0),
     });
-    assert_eq!(state.folder_width, MIN_FOLDER_WIDTH);
-    assert!(state.folder_resize.is_none());
+    assert_eq!(state.folder_panel.size(), MIN_FOLDER_WIDTH);
+    assert!(!state.folder_panel.is_resizing());
 }
 
 #[test]

@@ -25,8 +25,7 @@ impl GuiAppState {
             has_configured_sources && !folder_browser.selected_source_loaded();
         let (worker_sender, worker_receiver) = mpsc::channel();
         let mut state = Self {
-            folder_width: DEFAULT_FOLDER_WIDTH,
-            folder_resize: None,
+            folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
             folder_browser,
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Select a sample to load"),

@@ -240,8 +240,7 @@ impl PartialEq for SampleLoadResult {
 }
 
 pub(in crate::gui_app) struct GuiAppState {
-    pub(in crate::gui_app) folder_width: f32,
-    pub(in crate::gui_app) folder_resize: Option<ui::PanelResizeDrag>,
+    pub(in crate::gui_app) folder_panel: ui::PanelResizeState,
     pub(in crate::gui_app) folder_browser: FolderBrowserState,
     pub(in crate::gui_app) waveform: WaveformState,
     pub(in crate::gui_app) sample_status: String,

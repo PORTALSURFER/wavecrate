@@ -16,24 +16,22 @@ const FILTER_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4601;
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn filter_panel_height(&self) -> f32 {
-        self.filter_panel_height
+        self.filter_panel.size()
     }
 
     pub(in crate::gui_app::folder_browser) fn resize_filter_panel(
         &mut self,
         message: ui::DragHandleMessage,
     ) {
-        if let Some(height) = ui::update_collapsible_panel_resize_drag(
-            &mut self.filter_panel_resize,
+        self.filter_panel.resize_collapsible(
             message,
-            ui::PanelResizeEdge::Top,
-            self.filter_panel_height,
-            MIN_FILTER_PANEL_HEIGHT,
-            MAX_FILTER_PANEL_HEIGHT,
-            COLLAPSED_FILTER_PANEL_HEIGHT,
-        ) {
-            self.filter_panel_height = height;
-        }
+            ui::CollapsiblePanelResizeConstraints::new(
+                ui::PanelResizeEdge::Top,
+                MIN_FILTER_PANEL_HEIGHT,
+                MAX_FILTER_PANEL_HEIGHT,
+                COLLAPSED_FILTER_PANEL_HEIGHT,
+            ),
+        );
     }
 }
 
