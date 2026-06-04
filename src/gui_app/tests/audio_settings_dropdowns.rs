@@ -8,9 +8,7 @@ fn audio_settings_texts(state: &crate::gui_app::GuiAppState) -> Vec<String> {
     crate::gui_app::audio_settings_popover(state)
         .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0))
         .paint_plan
-        .text_runs()
-        .map(|text| text.text.as_str().to_string())
-        .collect()
+        .text_label_strings()
 }
 
 #[test]
@@ -209,7 +207,7 @@ fn text_top(frame: &radiant::runtime::SurfaceFrame, label: &str) -> f32 {
 fn text_index(frame: &radiant::runtime::SurfaceFrame, label: &str) -> usize {
     frame
         .paint_plan
-        .text_runs()
-        .position(|text| text.text.as_str() == label)
+        .text_labels()
+        .position(|text| text == label)
         .unwrap_or_else(|| panic!("expected text {label}"))
 }

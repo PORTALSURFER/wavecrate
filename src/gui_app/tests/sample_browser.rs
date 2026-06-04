@@ -62,11 +62,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
         .expect("default assets include an audio sample");
     let frame = crate::gui_app::sample_browser(&mut state, false)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
-    let texts = frame
-        .paint_plan
-        .text_runs()
-        .map(|text| text.text.as_str().to_string())
-        .collect::<Vec<_>>();
+    let texts = frame.paint_plan.text_label_strings();
 
     assert!(
         texts.iter().any(|text| text.starts_with("Name")),

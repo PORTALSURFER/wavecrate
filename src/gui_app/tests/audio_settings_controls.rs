@@ -20,11 +20,7 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
     });
     let frame = crate::gui_app::top_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
-    let texts = frame
-        .paint_plan
-        .text_runs()
-        .map(|text| text.text.as_str().to_string())
-        .collect::<Vec<_>>();
+    let texts = frame.paint_plan.text_label_strings();
     let slider_fills = frame
         .paint_plan
         .visible_fill_rects_for_widget(crate::gui_app::VOLUME_SLIDER_ID)
@@ -260,11 +256,7 @@ fn audio_settings_popover_stays_output_only() {
     state.audio_sample_rates = vec![44_100, 48_000];
     let frame = crate::gui_app::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
-    let texts = frame
-        .paint_plan
-        .text_runs()
-        .map(|text| text.text.as_str().to_string())
-        .collect::<Vec<_>>();
+    let texts = frame.paint_plan.text_label_strings();
 
     assert!(
         !texts.iter().any(|text| text == "Audio Engine"),
