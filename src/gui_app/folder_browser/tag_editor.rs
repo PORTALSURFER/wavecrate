@@ -6,9 +6,9 @@ use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_ta
 
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
-    capped_rows_height, metadata_tag_category_id_for_display, order_metadata_tags_for_display,
-    rows_height, tag_field_requires_scroll, tag_field_rows, tag_input_display_value,
-    tag_input_width, tag_input_width_for_placeholder, tag_pill_width,
+    metadata_tag_category_id_for_display, order_metadata_tags_for_display, rows_height,
+    tag_field_layout, tag_field_rows, tag_input_display_value, tag_input_width,
+    tag_input_width_for_placeholder, tag_pill_width,
 };
 use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
@@ -132,6 +132,7 @@ fn tag_entry_field(
         content_width,
     );
     let row_count = rows.len();
+    let field_layout = tag_field_layout(row_count, content_width);
     let content = ui::column(
         rows.into_iter()
             .enumerate()
@@ -152,7 +153,7 @@ fn tag_entry_field(
     .height(rows_height(row_count))
     .spacing(TAG_FIELD_LINE_GAP);
 
-    if tag_field_requires_scroll(row_count) {
+    if field_layout.requires_scroll {
         ui::scroll(content)
             .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .padding(3.0)
@@ -189,7 +190,7 @@ pub(in crate::gui_app) fn tag_field_height(
         content_width,
     )
     .len();
-    capped_rows_height(rows)
+    tag_field_layout(rows, content_width).field_height
 }
 
 fn tag_text_input(

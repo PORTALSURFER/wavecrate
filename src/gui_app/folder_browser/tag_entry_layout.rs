@@ -128,16 +128,12 @@ pub(super) fn rows_height(row_count: usize) -> f32 {
     ui::flow_rows_height(row_count, tag_field_flow_metrics())
 }
 
-pub(super) fn capped_rows_height(row_count: usize) -> f32 {
-    tag_field_metrics().visible_field_height(row_count)
+pub(super) fn tag_field_layout(row_count: usize, content_width: f32) -> ui::FlowFieldLayout {
+    tag_field_metrics().layout_for_content_width(content_width, row_count)
 }
 
 pub(in crate::gui_app) fn tag_field_content_width(sidebar_width: f32) -> f32 {
     tag_field_metrics().content_width(sidebar_width)
-}
-
-pub(super) fn tag_field_requires_scroll(row_count: usize) -> bool {
-    tag_field_metrics().requires_scroll(row_count)
 }
 
 fn tag_field_flow_metrics() -> ui::FlowLayoutMetrics {
