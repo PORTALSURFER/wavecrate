@@ -5818,7 +5818,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate"
-version = "0.0.1"
+version = "19.0.1"
 dependencies = [
  "arboard",
  "base64",
@@ -5882,7 +5882,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-analysis"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "blake3",
  "directories",
@@ -5907,7 +5907,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-analysis-admin"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "hdbscan",
  "rusqlite",
@@ -5917,7 +5917,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-bench-cli"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "hound",
  "rand 0.9.2",
@@ -5931,7 +5931,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-installer"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "image",
  "open",
@@ -5944,7 +5944,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-library"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "directories",
  "libc",
@@ -5961,7 +5961,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-scan"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "blake3",
  "libc",
@@ -5973,14 +5973,14 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-similarity-prep"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "wavecrate",
 ]
 
 [[package]]
 name = "wavecrate-updater-helper"
-version = "19.0.0"
+version = "19.0.1"
 dependencies = [
  "wavecrate",
 ]
