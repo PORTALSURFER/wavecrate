@@ -9,12 +9,8 @@ use super::FolderTreeHitTarget;
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        ui::push_dense_row_chrome(
-            primitives,
-            self.row.id(),
-            bounds,
-            self.background_chrome_parts(),
-        );
+        self.row
+            .push_dense_chrome(primitives, bounds, self.background_chrome_parts());
     }
 
     pub(super) fn paint_label(
@@ -40,10 +36,9 @@ impl FolderTreeHitTarget {
     }
 
     fn background_chrome_parts(&self) -> ui::DenseRowChromeParts {
-        let mut parts = ui::DenseRowChromeParts::new(
-            self.row.dense_visual_state(self.background_state_parts()),
-            self.background_palette(),
-        );
+        let mut parts = self
+            .row
+            .dense_chrome_parts(self.background_state_parts(), self.background_palette());
         if self.drop_target {
             parts = parts.outline(Self::drop_target_outline());
         }

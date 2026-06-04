@@ -93,18 +93,18 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        ui::push_dense_row_chrome(primitives, self.row.id(), bounds, self.chrome_parts());
+        self.row
+            .push_dense_chrome(primitives, bounds, self.chrome_parts());
     }
 }
 
 impl SampleFileHitTarget {
     fn chrome_parts(&self) -> ui::DenseRowChromeParts {
-        let mut parts = ui::DenseRowChromeParts::new(
-            self.row
-                .dense_visual_state(ui::InteractiveRowVisualStateParts {
-                    selected: self.selected,
-                    ..ui::InteractiveRowVisualStateParts::default()
-                }),
+        let mut parts = self.row.dense_chrome_parts(
+            ui::InteractiveRowVisualStateParts {
+                selected: self.selected,
+                ..ui::InteractiveRowVisualStateParts::default()
+            },
             self.chrome_palette(),
         );
         if self.cached && !self.selected {
