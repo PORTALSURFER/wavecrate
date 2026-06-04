@@ -459,6 +459,125 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
 }
 
 #[test]
+fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let old_path = source_root.path().join("loaded.wav");
+    write_test_wav_i16(&old_path, &[0, 1024, -1024, 512]);
+    let new_path = source_root.path().join("renamed.wav");
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state
+        .folder_browser
+        .select_file(old_path.display().to_string());
+    state.waveform =
+        super::super::WaveformState::load_path(old_path.clone()).expect("sample loads");
+    let loaded = state.waveform.clone();
+    state.remember_waveform(&loaded);
+    assert!(state.waveform_cache.contains_key(&old_path));
+    assert!(
+        state
+            .cached_sample_paths
+            .contains(&old_path.display().to_string())
+    );
+
+    state
+        .folder_browser
+        .begin_rename_selected()
+        .expect("rename can start")
+        .expect("rename input");
+    state.apply_folder_browser_rename_input(radiant::widgets::TextInputMessage::Submitted {
+        value: String::from("renamed"),
+    });
+
+    assert_eq!(state.waveform.path(), new_path);
+    assert!(state.waveform.has_loaded_sample());
+    assert!(state.waveform_cache.contains_key(&new_path));
+    assert!(!state.waveform_cache.contains_key(&old_path));
+    assert!(
+        state
+            .cached_sample_paths
+            .contains(&new_path.display().to_string())
+    );
+    assert!(
+        !state
+            .cached_sample_paths
+            .contains(&old_path.display().to_string())
+    );
+    assert!(state.deferred_sample_load_task.active().is_none());
+    assert!(state.sample_load_task.active().is_none());
+    let new_id = new_path.display().to_string();
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(new_id.as_str())
+    );
+}
+
+#[test]
+fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let old_folder = source_root.path().join("drums");
+    fs::create_dir_all(&old_folder).expect("create source folder");
+    let old_path = old_folder.join("loaded.wav");
+    write_test_wav_i16(&old_path, &[0, 1024, -1024, 512]);
+    let new_folder = source_root.path().join("breaks");
+    let new_path = new_folder.join("loaded.wav");
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::FolderBrowser(
+            super::super::FolderBrowserMessage::ActivateFolder(old_folder.display().to_string()),
+        ),
+        &mut context,
+    );
+    state
+        .folder_browser
+        .select_file(old_path.display().to_string());
+    state.waveform =
+        super::super::WaveformState::load_path(old_path.clone()).expect("sample loads");
+    let loaded = state.waveform.clone();
+    state.remember_waveform(&loaded);
+
+    state.apply_message(
+        super::super::GuiMessage::FolderBrowser(
+            super::super::FolderBrowserMessage::ActivateFolder(old_folder.display().to_string()),
+        ),
+        &mut context,
+    );
+    state
+        .folder_browser
+        .begin_rename_selected()
+        .expect("rename can start")
+        .expect("rename input");
+    state.apply_folder_browser_rename_input(radiant::widgets::TextInputMessage::Submitted {
+        value: String::from("breaks"),
+    });
+
+    assert_eq!(state.waveform.path(), new_path);
+    assert!(state.waveform.has_loaded_sample());
+    assert!(state.waveform_cache.contains_key(&new_path));
+    assert!(!state.waveform_cache.contains_key(&old_path));
+    assert!(
+        state
+            .cached_sample_paths
+            .contains(&new_path.display().to_string())
+    );
+    assert!(
+        !state
+            .cached_sample_paths
+            .contains(&old_path.display().to_string())
+    );
+    assert!(state.deferred_sample_load_task.active().is_none());
+    assert!(state.sample_load_task.active().is_none());
+}
+
+#[test]
 fn sample_selection_queues_persisted_cache_load_after_restart() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("cached.wav");

@@ -40,7 +40,8 @@ fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
         .apply_rename_input(TextInputMessage::Submitted {
             value: String::from("breaks"),
         })
-        .expect("rename status");
+        .expect("rename status")
+        .status;
 
     assert_eq!(status, "Renamed folder to breaks");
     assert!(!drums.exists());
@@ -87,7 +88,8 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
         .apply_rename_input(TextInputMessage::Submitted {
             value: String::from("loops"),
         })
-        .expect("create status");
+        .expect("create status")
+        .status;
 
     assert_eq!(status, "Created folder loops");
     assert!(!pending.exists());
@@ -182,7 +184,8 @@ fn file_rename_hides_and_preserves_extension() {
         .apply_rename_input(TextInputMessage::Submitted {
             value: String::from("snare loop"),
         })
-        .expect("rename status");
+        .expect("rename status")
+        .status;
 
     assert_eq!(status, "Renamed file to snare loop.wav");
     assert!(!kick.exists());
@@ -225,7 +228,8 @@ fn file_rename_submission_cannot_change_extension() {
         .apply_rename_input(TextInputMessage::Submitted {
             value: String::from("snare.aiff"),
         })
-        .expect("rename status");
+        .expect("rename status")
+        .status;
 
     assert_eq!(status, "Renamed file to snare.aiff.wav");
     assert!(!kick.exists());

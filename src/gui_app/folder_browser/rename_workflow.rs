@@ -2,7 +2,8 @@ use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::{fs, path::PathBuf};
 
 use super::{
-    FolderBrowserState, FolderEntry, FolderRenameEdit, FolderRenameKind, RenameTargetView,
+    FolderBrowserState, FolderEntry, FolderRenameEdit, FolderRenameKind, RenameCommitResult,
+    RenameTargetView,
     path_helpers::{
         folder_label, next_available_folder_name, path_id, rename_input_id, valid_folder_name,
     },
@@ -132,7 +133,7 @@ impl FolderBrowserState {
     pub(in crate::gui_app) fn apply_rename_input(
         &mut self,
         message: TextInputMessage,
-    ) -> Option<String> {
+    ) -> Option<RenameCommitResult> {
         let parts = message.parts();
         if parts.kind == TextInputMessageKind::CompletionRequested {
             return None;
@@ -140,7 +141,7 @@ impl FolderBrowserState {
 
         let value = parts.value.to_owned();
         if let Some(status) = self.apply_collection_rename_input(&message) {
-            return Some(status);
+            return Some(RenameCommitResult::status(status));
         }
 
         if parts.kind == TextInputMessageKind::Submitted {
@@ -166,9 +167,9 @@ impl FolderBrowserState {
         self.collection_rename_edit = None;
     }
 
-    fn commit_rename(&mut self, value: String) -> String {
+    fn commit_rename(&mut self, value: String) -> RenameCommitResult {
         let Some(edit) = self.rename_edit.take() else {
-            return String::from("No folder rename in progress");
+            return RenameCommitResult::status("No folder rename in progress");
         };
         match edit.kind.clone() {
             FolderRenameKind::Rename => self.commit_existing_folder_rename(edit, value),
@@ -178,27 +179,35 @@ impl FolderBrowserState {
         }
     }
 
-    fn commit_existing_folder_rename(&mut self, edit: FolderRenameEdit, value: String) -> String {
+    fn commit_existing_folder_rename(
+        &mut self,
+        edit: FolderRenameEdit,
+        value: String,
+    ) -> RenameCommitResult {
         let new_name = value.trim();
         if !valid_folder_name(new_name) {
-            return String::from("Folder rename failed: use a plain folder name");
+            return RenameCommitResult::status("Folder rename failed: use a plain folder name");
         }
         let old_path = PathBuf::from(&edit.folder_id);
         let Some(parent) = old_path.parent() else {
-            return String::from("Folder rename failed: selected folder has no parent");
+            return RenameCommitResult::status(
+                "Folder rename failed: selected folder has no parent",
+            );
         };
         let new_path = parent.join(new_name);
         if old_path == new_path {
-            return String::from("Folder rename unchanged");
+            return RenameCommitResult::status("Folder rename unchanged");
         }
         if new_path.exists() {
-            return format!("Folder rename failed: {new_name} already exists");
+            return RenameCommitResult::status(format!(
+                "Folder rename failed: {new_name} already exists"
+            ));
         }
         if let Err(error) = fs::rename(&old_path, &new_path) {
-            return format!("Folder rename failed: {error}");
+            return RenameCommitResult::status(format!("Folder rename failed: {error}"));
         }
         self.rewrite_renamed_folder_paths(&old_path, &new_path);
-        format!("Renamed folder to {new_name}")
+        RenameCommitResult::remapped(format!("Renamed folder to {new_name}"), old_path, new_path)
     }
 
     fn commit_created_subfolder(
@@ -206,21 +215,23 @@ impl FolderBrowserState {
         edit: FolderRenameEdit,
         parent_id: String,
         value: String,
-    ) -> String {
+    ) -> RenameCommitResult {
         let new_name = value.trim();
         if !valid_folder_name(new_name) {
             self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-            return String::from("New folder failed: use a plain folder name");
+            return RenameCommitResult::status("New folder failed: use a plain folder name");
         }
         let parent_path = PathBuf::from(&parent_id);
         let new_path = parent_path.join(new_name);
         if new_path.exists() {
             self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-            return format!("New folder failed: {new_name} already exists");
+            return RenameCommitResult::status(format!(
+                "New folder failed: {new_name} already exists"
+            ));
         }
         if let Err(error) = fs::create_dir(&new_path) {
             self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-            return format!("New folder failed: {error}");
+            return RenameCommitResult::status(format!("New folder failed: {error}"));
         }
 
         self.remove_pending_created_folder(&edit.folder_id, &parent_id);
@@ -239,6 +250,6 @@ impl FolderBrowserState {
         self.selected_file = None;
         self.selected_file_ids.clear();
         self.reset_file_view();
-        format!("Created folder {new_name}")
+        RenameCommitResult::status(format!("Created folder {new_name}"))
     }
 }

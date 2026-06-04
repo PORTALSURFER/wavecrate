@@ -14,6 +14,38 @@ pub(in crate::gui_app) struct FolderDropResult {
     pub(in crate::gui_app) status: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct RenamePathRemap {
+    pub(in crate::gui_app) old_path: PathBuf,
+    pub(in crate::gui_app) new_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct RenameCommitResult {
+    pub(in crate::gui_app) status: String,
+    pub(in crate::gui_app) path_remap: Option<RenamePathRemap>,
+}
+
+impl RenameCommitResult {
+    pub(in crate::gui_app) fn status(status: impl Into<String>) -> Self {
+        Self {
+            status: status.into(),
+            path_remap: None,
+        }
+    }
+
+    pub(in crate::gui_app) fn remapped(
+        status: impl Into<String>,
+        old_path: PathBuf,
+        new_path: PathBuf,
+    ) -> Self {
+        Self {
+            status: status.into(),
+            path_remap: Some(RenamePathRemap { old_path, new_path }),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui_app) struct FolderDragPreview {
     pub(in crate::gui_app) label: String,

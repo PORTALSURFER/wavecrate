@@ -14,7 +14,7 @@ const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
 
 impl GuiAppState {
-    pub(super) fn remember_waveform(&mut self, waveform: &WaveformState) {
+    pub(in crate::gui_app) fn remember_waveform(&mut self, waveform: &WaveformState) {
         if !waveform.has_loaded_sample() {
             return;
         }
@@ -32,6 +32,50 @@ impl GuiAppState {
             &waveform.path(),
             started_at,
         );
+    }
+
+    pub(in crate::gui_app) fn remap_renamed_waveform_cache_path(
+        &mut self,
+        old_path: &Path,
+        new_path: &Path,
+    ) {
+        let cache_paths = self.waveform_cache.keys().cloned().collect::<Vec<_>>();
+        for path in cache_paths {
+            let Some(mapped) = remapped_cache_path(&path, old_path, new_path) else {
+                continue;
+            };
+            if mapped == path {
+                continue;
+            }
+            if let Some(entry) = self.waveform_cache.remove(&path) {
+                self.waveform_cache.insert(mapped, entry);
+            }
+        }
+
+        self.waveform_cache_order = self
+            .waveform_cache_order
+            .iter()
+            .map(|path| {
+                remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
+            })
+            .collect();
+        self.waveform_cache_warm_pending = self
+            .waveform_cache_warm_pending
+            .iter()
+            .map(|path| {
+                remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
+            })
+            .collect();
+        self.cached_sample_paths = self
+            .cached_sample_paths
+            .iter()
+            .map(|id| {
+                let path = PathBuf::from(id);
+                remapped_cache_path(&path, old_path, new_path)
+                    .map(|mapped| mapped.display().to_string())
+                    .unwrap_or_else(|| id.clone())
+            })
+            .collect();
     }
 
     pub(in crate::gui_app) fn refresh_persisted_waveform_cache_indicators(&mut self) {
@@ -191,6 +235,15 @@ impl GuiAppState {
             self.cached_sample_paths.remove(&path.display().to_string());
         }
     }
+}
+
+fn remapped_cache_path(path: &Path, old_path: &Path, new_path: &Path) -> Option<PathBuf> {
+    if path == old_path {
+        return Some(new_path.to_path_buf());
+    }
+    path.strip_prefix(old_path)
+        .ok()
+        .map(|relative| new_path.join(relative))
 }
 
 pub(in crate::gui_app) fn warm_persisted_waveform_cache(

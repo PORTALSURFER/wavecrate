@@ -69,7 +69,7 @@ pub(super) use types::{
     FileColumnDragFeedback, FileDeleteTargetView, FileRenameView, FolderBrowserMessage,
     FolderDeleteTargetView, FolderDragPreview, FolderDropResult, FolderScanDiscovery,
     FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest, FolderScanResult,
-    RemovedSource, RenameTargetView,
+    RemovedSource, RenameCommitResult, RenamePathRemap, RenameTargetView,
 };
 
 mod tag_completion;

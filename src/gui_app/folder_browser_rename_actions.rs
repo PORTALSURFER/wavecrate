@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 
-use super::{GuiAppState, GuiMessage, emit_gui_action, logging};
+use super::{GuiAppState, GuiMessage, emit_gui_action, folder_browser::RenamePathRemap, logging};
 
 impl GuiAppState {
     pub(super) fn begin_folder_browser_rename(
@@ -120,8 +120,11 @@ impl GuiAppState {
     ) {
         let started_at = Instant::now();
         let input_action = rename_input_action(&message);
-        if let Some(status) = self.folder_browser.apply_rename_input(message) {
-            self.sample_status = status;
+        if let Some(result) = self.folder_browser.apply_rename_input(message) {
+            if let Some(remap) = result.path_remap {
+                self.apply_browser_rename_path_remap(&remap);
+            }
+            self.sample_status = result.status;
         }
         if let Some(action) = input_action {
             emit_gui_action(
@@ -133,6 +136,12 @@ impl GuiAppState {
                 None,
             );
         }
+    }
+
+    fn apply_browser_rename_path_remap(&mut self, remap: &RenamePathRemap) {
+        self.waveform
+            .rewrite_path_prefix(&remap.old_path, &remap.new_path);
+        self.remap_renamed_waveform_cache_path(&remap.old_path, &remap.new_path);
     }
 }
 

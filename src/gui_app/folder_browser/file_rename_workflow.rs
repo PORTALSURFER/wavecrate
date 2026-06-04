@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use super::{
-    FileRenameEdit, FileRenameView, FolderBrowserState,
+    FileRenameEdit, FileRenameView, FolderBrowserState, RenameCommitResult,
     path_helpers::{
         file_rename_draft, file_rename_input_id, resolved_file_rename, valid_file_name,
     },
@@ -41,31 +41,33 @@ impl FolderBrowserState {
         Some(input_id)
     }
 
-    pub(super) fn commit_file_rename(&mut self, value: String) -> String {
+    pub(super) fn commit_file_rename(&mut self, value: String) -> RenameCommitResult {
         let Some(edit) = self.file_rename_edit.take() else {
-            return String::from("No file rename in progress");
+            return RenameCommitResult::status("No file rename in progress");
         };
         let old_path = PathBuf::from(&edit.file_id);
         let Some(parent) = old_path.parent() else {
-            return String::from("File rename failed: selected file has no parent");
+            return RenameCommitResult::status("File rename failed: selected file has no parent");
         };
         let Some(new_name) = resolved_file_rename(&old_path, value.trim()) else {
-            return String::from("File rename failed: use a plain file name");
+            return RenameCommitResult::status("File rename failed: use a plain file name");
         };
         if !valid_file_name(&new_name) {
-            return String::from("File rename failed: use a plain file name");
+            return RenameCommitResult::status("File rename failed: use a plain file name");
         }
         let new_path = parent.join(&new_name);
         if old_path == new_path {
-            return String::from("File rename unchanged");
+            return RenameCommitResult::status("File rename unchanged");
         }
         if new_path.exists() {
-            return format!("File rename failed: {new_name} already exists");
+            return RenameCommitResult::status(format!(
+                "File rename failed: {new_name} already exists"
+            ));
         }
         if let Err(error) = fs::rename(&old_path, &new_path) {
-            return format!("File rename failed: {error}");
+            return RenameCommitResult::status(format!("File rename failed: {error}"));
         }
         self.rewrite_renamed_file_path(&old_path, &new_path);
-        format!("Renamed file to {new_name}")
+        RenameCommitResult::remapped(format!("Renamed file to {new_name}"), old_path, new_path)
     }
 }
