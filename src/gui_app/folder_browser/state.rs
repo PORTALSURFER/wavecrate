@@ -3,9 +3,10 @@ use std::{collections::HashSet, path::PathBuf};
 use wavecrate::sample_sources::SampleCollection;
 
 use super::{
-    CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, FileColumn, FileEntry, FileRenameEdit,
-    FolderBrowserDrag, FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig,
-    SourceEntry, default_file_columns, default_root_path, load_root_folder, placeholder_folder,
+    CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, DEFAULT_FILTER_PANEL_HEIGHT,
+    FileColumn, FileEntry, FileRenameEdit, FolderBrowserDrag, FolderBrowserMessage, FolderEntry,
+    FolderRenameEdit, SampleCollectionConfig, SourceEntry, default_file_columns, default_root_path,
+    load_root_folder, placeholder_folder,
 };
 
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
@@ -31,6 +32,8 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) collection_rename_edit: Option<CollectionRenameEdit>,
     pub(super) collections_panel_height: f32,
     pub(super) collection_panel_resize: Option<ui::PanelResizeDrag>,
+    pub(super) filter_panel_height: f32,
+    pub(super) filter_panel_resize: Option<ui::PanelResizeDrag>,
     pub(super) metadata_panel_height: f32,
     pub(super) metadata_panel_resize: Option<ui::PanelResizeDrag>,
     pub(super) file_columns: Vec<FileColumn>,
@@ -95,6 +98,8 @@ impl FolderBrowserState {
             collection_rename_edit: None,
             collections_panel_height: DEFAULT_COLLECTIONS_PANEL_HEIGHT,
             collection_panel_resize: None,
+            filter_panel_height: DEFAULT_FILTER_PANEL_HEIGHT,
+            filter_panel_resize: None,
             metadata_panel_height: DEFAULT_METADATA_PANEL_HEIGHT,
             metadata_panel_resize: None,
             file_columns: default_file_columns(),
@@ -249,6 +254,9 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::ResizeCollectionsPanel(message) => {
                 self.resize_collections_panel(message);
+            }
+            FolderBrowserMessage::ResizeFilterPanel(message) => {
+                self.resize_filter_panel(message);
             }
             FolderBrowserMessage::ResizeMetadataPanel(message) => {
                 self.resize_metadata_panel(message);

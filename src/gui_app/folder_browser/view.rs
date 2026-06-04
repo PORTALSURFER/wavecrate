@@ -15,9 +15,14 @@ use super::{
 };
 
 mod collections_section;
+mod filter_section;
 mod source_section;
 
 use collections_section::collections_section;
+#[cfg(test)]
+pub(super) use filter_section::COLLAPSED_FILTER_PANEL_HEIGHT;
+pub(super) use filter_section::DEFAULT_FILTER_PANEL_HEIGHT;
+use filter_section::filter_section;
 use source_section::source_selector;
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
@@ -52,7 +57,7 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
         folder_tree_view(state),
         selected_folder_status(state),
         collections_section(state),
-        filter_section(),
+        filter_section(state),
         metadata_section(
             metadata_tag_draft,
             metadata_tag_tokens,
@@ -251,15 +256,4 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
         })
         .unwrap_or_else(|| String::from("No folder selected"));
     ui::text_line(label, 20.0)
-}
-
-fn filter_section() -> ui::View<GuiMessage> {
-    ui::property_panel(
-        "Filter",
-        [
-            ui::PropertyRow::new("name", "Name", "Any"),
-            ui::PropertyRow::new("type", "Type", "Audio"),
-        ],
-    )
-    .height(76.0)
 }

@@ -82,6 +82,9 @@ mod tag_entry_layout;
 pub(super) use tag_entry_layout::tag_field_content_width;
 mod view;
 #[cfg(test)]
+pub(in crate::gui_app::folder_browser) use view::COLLAPSED_FILTER_PANEL_HEIGHT;
+pub(in crate::gui_app::folder_browser) use view::DEFAULT_FILTER_PANEL_HEIGHT;
+#[cfg(test)]
 pub(super) use view::folder_browser_view;
 pub(super) use view::folder_browser_view_mut;
 

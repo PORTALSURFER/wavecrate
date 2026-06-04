@@ -71,6 +71,7 @@ pub(in crate::gui_app) enum FolderBrowserMessage {
     ClearDropTarget(Point),
     DropOnFolder(String),
     ResizeCollectionsPanel(DragHandleMessage),
+    ResizeFilterPanel(DragHandleMessage),
     ResizeMetadataPanel(DragHandleMessage),
     ActivateCollection(SampleCollection),
     RenameCollection(SampleCollection),
