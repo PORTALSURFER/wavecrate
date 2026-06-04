@@ -3,7 +3,7 @@
 use super::GuiMessage;
 
 pub(super) const TREE_ROW_HEIGHT: f32 = 23.0;
-const TREE_DEPTH_INDENT: f32 = 4.0;
+const TREE_DEPTH_INDENT: f32 = 10.0;
 
 mod collections;
 use collections::{CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, SampleCollectionConfig};
@@ -60,6 +60,7 @@ pub(super) use state::{FolderBrowserDropTarget, FolderBrowserState};
 
 mod tree_state;
 
+mod tree_guides;
 mod tree_hit_target;
 
 mod tree_view_window;

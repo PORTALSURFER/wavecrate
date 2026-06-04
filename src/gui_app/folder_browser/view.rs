@@ -9,8 +9,8 @@ use crate::gui_app::{
 use super::tag_editor::{metadata_section, tag_field_height};
 use super::tag_entry_layout::tag_field_content_width;
 use super::{
-    FolderBrowserDropTarget, FolderBrowserMessage, FolderBrowserState, GuiMessage,
-    TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder, plural,
+    FolderBrowserDropTarget, FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_ROW_HEIGHT,
+    VisibleFolder, plural, tree_guides,
     tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
 };
 
@@ -138,26 +138,69 @@ fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
         .key("folder-drop-clear-target")
         .input_only()
         .fill(),
-        ui::virtual_list_window(
-            window,
-            TREE_ROW_HEIGHT,
-            move |index| folder_row(visible_folders[index].clone(), drag_revision),
-            TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
-        )
-        .id(FOLDER_TREE_LIST_ID)
-        .fill_width()
-        .fill_height(),
+        folder_tree_window(visible_folders, window, drag_revision)
+            .id(FOLDER_TREE_LIST_ID)
+            .fill_width()
+            .fill_height(),
     ])
     .fill()
+}
+
+fn folder_tree_window(
+    visible_folders: Vec<VisibleFolder>,
+    window: ui::VirtualListWindow,
+    drag_revision: u64,
+) -> ui::View<GuiMessage> {
+    let row_height = TREE_ROW_HEIGHT;
+    let projected_len = window.window_len();
+    let mut children = Vec::with_capacity(projected_len + 2);
+
+    let top_spacer_height = row_height * window.window_start as f32;
+    if top_spacer_height > 0.0 {
+        children.push(ui::spacer().height(top_spacer_height).fill_width());
+    }
+
+    if projected_len > 0 {
+        let rows = ui::column((window.window_start..window.window_end).map(|index| {
+            folder_row(visible_folders[index].clone(), drag_revision).height(row_height)
+        }))
+        .spacing(0.0)
+        .fill_width()
+        .height(row_height * projected_len as f32);
+        children.push(
+            ui::stack([
+                rows,
+                tree_guides::folder_tree_guides_overlay(
+                    &visible_folders,
+                    window.window_start,
+                    window.window_end,
+                ),
+            ])
+            .fill_width()
+            .height(row_height * projected_len as f32),
+        );
+    }
+
+    let bottom_items = window.total_items.saturating_sub(window.window_end);
+    let bottom_spacer_height = row_height * bottom_items as f32;
+    if bottom_spacer_height > 0.0 {
+        children.push(ui::spacer().height(bottom_spacer_height).fill_width());
+    }
+
+    ui::virtual_scroll(
+        ui::column(children).spacing(0.0).fill_width(),
+        TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
+    )
+    .style(ui::WidgetStyle::default())
+    .fill_height()
 }
 
 fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
     if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
         let caret = draft.chars().count();
-        let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
         return ui::row([
-            ui::spacer().width(indent).height(22.0),
+            tree_guides::folder_tree_indent(folder.depth),
             ui::text_input(draft)
                 .selection(0, caret)
                 .message_event(|message| {
@@ -176,7 +219,6 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
         .hoverable();
     }
 
-    let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
     let label_text = folder.name.clone();
     let expander = if folder.has_children && !folder.is_source_root {
         let expander_label = if folder.expanded { "[-]" } else { "[+]" };
@@ -226,7 +268,7 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
     .height(22.0);
 
     ui::row([
-        ui::spacer().width(indent).height(22.0),
+        tree_guides::folder_tree_indent(folder.depth),
         expander,
         hit_target.fill_width().height(22.0),
     ])
