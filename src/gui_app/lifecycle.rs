@@ -54,6 +54,7 @@ impl GuiAppState {
             audio_sample_rates: Vec::new(),
             persisted_settings: config.core.clone(),
             audio_settings_open: false,
+            app_settings_tab: Default::default(),
             audio_settings_dropdown: ui::ExclusiveOpen::new(),
             job_details_open: false,
             transaction_list_open: false,

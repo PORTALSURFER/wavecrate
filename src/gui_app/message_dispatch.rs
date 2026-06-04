@@ -107,6 +107,8 @@ impl GuiAppState {
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
             GuiMessage::SetVolume(volume) => self.set_volume(volume),
             GuiMessage::ToggleAudioSettings => self.toggle_audio_settings(),
+            GuiMessage::OpenGeneralSettings => self.open_general_settings(),
+            GuiMessage::SelectSettingsTab(tab) => self.select_settings_tab(tab),
             GuiMessage::CloseAudioSettings => {
                 self.close_audio_settings_window();
             }

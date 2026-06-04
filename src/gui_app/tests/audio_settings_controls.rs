@@ -3,7 +3,9 @@ use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::Vector2,
     prelude::IntoView,
-    widgets::{BadgeMessage, BadgeWidget, WidgetStyle, WidgetTone},
+    widgets::{
+        BadgeMessage, BadgeWidget, ButtonMessage, IconButtonWidget, WidgetStyle, WidgetTone,
+    },
 };
 use std::time::{Duration, Instant};
 
@@ -134,6 +136,64 @@ fn audio_engine_pill_activates_settings_toggle() {
 }
 
 #[test]
+fn general_settings_button_opens_general_tab() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.audio_settings_open = true;
+    state.app_settings_tab = crate::gui_app::AppSettingsTab::General;
+    let surface = crate::gui_app::top_status_bar(&state).into_surface();
+    let button = surface
+        .find_widget(crate::gui_app::GENERAL_SETTINGS_BUTTON_ID)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<IconButtonWidget>()
+        })
+        .expect("general settings button should use a Radiant icon button");
+
+    assert!(button.common.state.active);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            crate::gui_app::GENERAL_SETTINGS_BUTTON_ID,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(crate::gui_app::GuiMessage::OpenGeneralSettings)
+    );
+}
+
+#[test]
+fn settings_top_bar_actions_open_expected_tabs() {
+    let mut state = gui_state_for_span_tests();
+    let mut context = radiant::prelude::UpdateContext::default();
+
+    state.apply_message(
+        crate::gui_app::GuiMessage::OpenGeneralSettings,
+        &mut context,
+    );
+    assert!(state.audio_settings_open);
+    assert_eq!(
+        state.app_settings_tab,
+        crate::gui_app::AppSettingsTab::General
+    );
+
+    state.apply_message(
+        crate::gui_app::GuiMessage::ToggleAudioSettings,
+        &mut context,
+    );
+    assert!(state.audio_settings_open);
+    assert_eq!(
+        state.app_settings_tab,
+        crate::gui_app::AppSettingsTab::AudioEngine
+    );
+
+    state.apply_message(
+        crate::gui_app::GuiMessage::ToggleAudioSettings,
+        &mut context,
+    );
+    assert!(!state.audio_settings_open);
+}
+
+#[test]
 fn audio_settings_snapshot_uses_cached_device_options() {
     let mut state = gui_state_for_span_tests();
     state.audio_hosts = vec![crate::gui_app::AudioHostSummary {
@@ -240,9 +300,10 @@ fn audio_sample_rate_label_matches_status_chip_format() {
 }
 
 #[test]
-fn audio_settings_popover_stays_output_only() {
+fn settings_window_shows_audio_engine_tab_controls() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_settings_error = None;
+    state.app_settings_tab = crate::gui_app::AppSettingsTab::AudioEngine;
     state.audio_hosts = vec![crate::gui_app::AudioHostSummary {
         id: String::from("asio"),
         label: String::from("ASIO"),
@@ -255,22 +316,43 @@ fn audio_settings_popover_stays_output_only() {
     }];
     state.audio_sample_rates = vec![44_100, 48_000];
     let frame = crate::gui_app::audio_settings_popover(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
     let texts = frame.paint_plan.text_label_strings();
 
-    assert!(
-        !texts.iter().any(|text| text == "Audio Engine"),
-        "{texts:?}"
-    );
+    assert!(texts.iter().any(|text| text == "Settings"), "{texts:?}");
+    assert!(texts.iter().any(|text| text == "General"), "{texts:?}");
+    assert!(texts.iter().any(|text| text == "Audio Engine"), "{texts:?}");
     assert!(texts.iter().any(|text| text == "Backend"), "{texts:?}");
     assert!(texts.iter().any(|text| text == "Output"), "{texts:?}");
     assert!(texts.iter().any(|text| text == "Sample Rate"), "{texts:?}");
     assert!(
-        texts.iter().any(|text| text == "Clear Rebuildable Caches"),
+        !texts.iter().any(|text| text == "Clear Rebuildable Caches"),
         "{texts:?}"
     );
     assert!(
         !texts.iter().any(|text| text.contains("Input")),
         "{texts:?}"
     );
+}
+
+#[test]
+fn settings_window_general_tab_shows_general_controls() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.audio_settings_error = None;
+    state.app_settings_tab = crate::gui_app::AppSettingsTab::General;
+
+    let frame = crate::gui_app::audio_settings_popover(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
+    let texts = frame.paint_plan.text_label_strings();
+
+    assert!(texts.iter().any(|text| text == "Settings"), "{texts:?}");
+    assert!(texts.iter().any(|text| text == "General"), "{texts:?}");
+    assert!(texts.iter().any(|text| text == "Audio Engine"), "{texts:?}");
+    assert!(
+        texts.iter().any(|text| text == "Clear Rebuildable Caches"),
+        "{texts:?}"
+    );
+    assert!(!texts.iter().any(|text| text == "Backend"), "{texts:?}");
+    assert!(!texts.iter().any(|text| text == "Output"), "{texts:?}");
+    assert!(!texts.iter().any(|text| text == "Sample Rate"), "{texts:?}");
 }

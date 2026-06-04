@@ -14,11 +14,9 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_settings_error = None;
     let frame = super::super::audio_settings_popover(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
-    assert!(
-        !frame.paint_plan.contains_text("Audio Engine"),
-        "audio settings should rely on the native window title"
-    );
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
+    assert!(frame.paint_plan.contains_text("Settings"));
+    assert!(frame.paint_plan.contains_text("Audio Engine"));
     let backend_rect = frame
         .paint_plan
         .first_text_run("Backend")
@@ -26,11 +24,11 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
         .expect("audio settings backend label paints");
 
     assert!(
-        (66.0..=74.0).contains(&backend_rect.min.x),
+        (146.0..=170.0).contains(&backend_rect.min.x),
         "{backend_rect:?}"
     );
     assert!(
-        (41.0..=49.0).contains(&backend_rect.min.y),
+        (34.0..=52.0).contains(&backend_rect.min.y),
         "{backend_rect:?}"
     );
 }

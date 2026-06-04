@@ -47,8 +47,11 @@ pub(in crate::gui_app) const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_
 pub(in crate::gui_app) const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
 pub(in crate::gui_app) const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 pub(in crate::gui_app) const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
-pub(in crate::gui_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 360.0;
-pub(in crate::gui_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 344.0;
+pub(in crate::gui_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = 31_110;
+pub(in crate::gui_app) const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
+pub(in crate::gui_app) const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
+pub(in crate::gui_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 520.0;
+pub(in crate::gui_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 380.0;
 pub(in crate::gui_app) const TRANSACTION_LIST_MODAL_ID: u64 = 31_200;
 pub(in crate::gui_app) const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
 pub(in crate::gui_app) const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
@@ -66,6 +69,18 @@ pub(in crate::gui_app) enum AudioSettingsDropdown {
     Backend,
     Output,
     SampleRate,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) enum AppSettingsTab {
+    General,
+    AudioEngine,
+}
+
+impl Default for AppSettingsTab {
+    fn default() -> Self {
+        Self::AudioEngine
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -117,6 +132,8 @@ pub(in crate::gui_app) enum GuiMessage {
     ToggleLoopPlayback,
     SetVolume(f32),
     ToggleAudioSettings,
+    OpenGeneralSettings,
+    SelectSettingsTab(AppSettingsTab),
     CloseAudioSettings,
     ToggleAudioBackendDropdown,
     ToggleAudioOutputDropdown,
@@ -278,6 +295,7 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) audio_sample_rates: Vec<u32>,
     pub(in crate::gui_app) persisted_settings: AppSettingsCore,
     pub(in crate::gui_app) audio_settings_open: bool,
+    pub(in crate::gui_app) app_settings_tab: AppSettingsTab,
     pub(in crate::gui_app) audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
     pub(in crate::gui_app) job_details_open: bool,
     pub(in crate::gui_app) transaction_list_open: bool,

@@ -3,7 +3,7 @@ use radiant::prelude as ui;
 #[cfg(test)]
 use super::GuiAppState;
 use super::{
-    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsDropdown,
+    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AppSettingsTab, AudioSettingsDropdown,
     AudioSettingsSnapshot, GuiMessage,
 };
 
@@ -11,6 +11,10 @@ const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;
 const AUDIO_SETTINGS_ROW_SPACING: f32 = 7.0;
 const AUDIO_SETTINGS_DROPDOWN_GAP: f32 = 3.0;
 const AUDIO_SETTINGS_LABELED_ROW_HEIGHT: f32 = 45.0;
+const SETTINGS_SIDEBAR_WIDTH: f32 = 132.0;
+const SETTINGS_CONTENT_X: f32 = AUDIO_SETTINGS_PANEL_PADDING + SETTINGS_SIDEBAR_WIDTH + 8.0;
+const SETTINGS_CONTENT_WIDTH: f32 =
+    AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0 - SETTINGS_SIDEBAR_WIDTH - 8.0;
 
 #[cfg(test)]
 pub(in crate::gui_app) fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -21,10 +25,10 @@ pub(in crate::gui_app) fn audio_settings_popover(state: &GuiAppState) -> ui::Vie
 pub(in crate::gui_app) fn audio_settings_window_view(
     snapshot: &AudioSettingsSnapshot,
 ) -> ui::View<GuiMessage> {
-    let panel = ui::column(audio_settings_panel_rows(snapshot))
+    let panel = ui::row([settings_sidebar(snapshot), settings_content(snapshot)])
         .key("audio-settings-window")
         .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
-        .spacing(AUDIO_SETTINGS_ROW_SPACING)
+        .spacing(8.0)
         .padding(AUDIO_SETTINGS_PANEL_PADDING)
         .width(AUDIO_SETTINGS_POPUP_WIDTH)
         .height(AUDIO_SETTINGS_POPUP_HEIGHT);
@@ -43,6 +47,50 @@ pub(in crate::gui_app) fn audio_settings_window_view(
     }
 }
 
+fn settings_sidebar(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::column([
+        ui::text_line("Settings", 24.0).key("settings-sidebar-title"),
+        settings_tab_button("General", AppSettingsTab::General, snapshot.tab),
+        settings_tab_button("Audio Engine", AppSettingsTab::AudioEngine, snapshot.tab),
+        ui::spacer().fill_width().fill_height(),
+    ])
+    .key("settings-sidebar")
+    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+    .padding(6.0)
+    .spacing(4.0)
+    .width(SETTINGS_SIDEBAR_WIDTH)
+    .fill_height()
+}
+
+fn settings_tab_button(
+    label: &'static str,
+    tab: AppSettingsTab,
+    selected: AppSettingsTab,
+) -> ui::View<GuiMessage> {
+    let style = if tab == selected {
+        ui::WidgetStyle::strong(ui::WidgetTone::Accent)
+    } else {
+        ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
+    };
+    ui::button(label)
+        .style(style)
+        .message(GuiMessage::SelectSettingsTab(tab))
+        .key(format!("settings-tab-{label}"))
+        .fill_width()
+        .height(28.0)
+}
+
+fn settings_content(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    let rows = match snapshot.tab {
+        AppSettingsTab::General => general_settings_panel_rows(),
+        AppSettingsTab::AudioEngine => audio_settings_panel_rows(snapshot),
+    };
+    ui::column(rows)
+        .key("settings-content")
+        .spacing(AUDIO_SETTINGS_ROW_SPACING)
+        .fill()
+}
+
 fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
     let mut rows = vec![audio_engine_detail_row(snapshot)];
     if let Some(error) = snapshot.error.as_ref() {
@@ -57,8 +105,14 @@ fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<G
         "Sample Rate",
         audio_sample_rate_dropdown(snapshot),
     ));
-    rows.push(cache_maintenance_section());
     rows
+}
+
+fn general_settings_panel_rows() -> Vec<ui::View<GuiMessage>> {
+    vec![
+        ui::text_line("General", 24.0).key("general-settings-title"),
+        cache_maintenance_section(),
+    ]
 }
 
 fn audio_engine_detail_row(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -126,11 +180,11 @@ fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View
         return ui::empty().fill_width();
     };
     ui::dropdown_menu_overlay_below_stacked_labeled_control(
-        AUDIO_SETTINGS_PANEL_PADDING,
+        SETTINGS_CONTENT_X,
         AUDIO_SETTINGS_PANEL_PADDING,
         audio_settings_dropdown_cursor(snapshot, row_index),
         AUDIO_SETTINGS_DROPDOWN_GAP,
-        Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
+        Some(SETTINGS_CONTENT_WIDTH),
         options,
     )
 }

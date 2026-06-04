@@ -3,8 +3,8 @@ use std::time::Instant;
 use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supported_sample_rates};
 
 use super::{
-    AudioSettingsDropdown, GuiAppState, GuiMessage, VOLUME_PERSIST_DEBOUNCE, emit_gui_action,
-    format_sample_rate_label,
+    AppSettingsTab, AudioSettingsDropdown, GuiAppState, GuiMessage, VOLUME_PERSIST_DEBOUNCE,
+    emit_gui_action, format_sample_rate_label,
 };
 
 mod options;
@@ -159,10 +159,10 @@ impl GuiAppState {
 
     pub(super) fn toggle_audio_settings(&mut self) {
         let started_at = Instant::now();
-        if self.audio_settings_open {
+        if self.audio_settings_open && self.app_settings_tab == AppSettingsTab::AudioEngine {
             self.close_audio_settings_window();
         } else {
-            self.open_audio_settings_window();
+            self.open_settings_window(AppSettingsTab::AudioEngine);
         }
         emit_gui_action(
             "audio.settings.toggle",
@@ -178,9 +178,37 @@ impl GuiAppState {
         );
     }
 
-    pub(super) fn open_audio_settings_window(&mut self) {
+    pub(super) fn open_general_settings(&mut self) {
+        let started_at = Instant::now();
+        self.open_settings_window(AppSettingsTab::General);
+        emit_gui_action(
+            "settings.general.open",
+            Some("top_bar"),
+            None,
+            "opened",
+            started_at,
+            None,
+        );
+    }
+
+    pub(super) fn select_settings_tab(&mut self, tab: AppSettingsTab) {
+        let started_at = Instant::now();
+        self.app_settings_tab = tab;
+        self.close_audio_settings_dropdowns();
+        emit_gui_action(
+            "settings.tab.select",
+            Some("settings"),
+            Some(tab.analytics_label()),
+            "selected",
+            started_at,
+            None,
+        );
+    }
+
+    fn open_settings_window(&mut self, tab: AppSettingsTab) {
         self.refresh_audio_options();
         self.audio_settings_open = true;
+        self.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();
         self.audio_settings_error = None;
     }
@@ -329,6 +357,15 @@ impl GuiAppState {
         self.audio_settings_error = None;
         self.audio_player = Some(player);
         Ok(())
+    }
+}
+
+impl AppSettingsTab {
+    fn analytics_label(self) -> &'static str {
+        match self {
+            Self::General => "general",
+            Self::AudioEngine => "audio_engine",
+        }
     }
 }
 
