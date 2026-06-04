@@ -237,24 +237,14 @@ fn audio_settings_dropdown_cursor(
     snapshot: &AudioSettingsSnapshot,
     labeled_rows_before: usize,
 ) -> ui::StackedLayoutCursor {
-    let detail_row = ui::StackedLayoutItem::new(20.0, AUDIO_SETTINGS_ROW_SPACING);
-    let optional_error_row = snapshot
-        .error
-        .is_some()
-        .then_some(ui::StackedLayoutItem::new(20.0, AUDIO_SETTINGS_ROW_SPACING));
-    let labeled_rows = std::iter::repeat_n(
-        ui::StackedLayoutItem::new(
+    ui::StackedLayoutCursor::new()
+        .advanced(20.0, AUDIO_SETTINGS_ROW_SPACING)
+        .advanced_if(snapshot.error.is_some(), 20.0, AUDIO_SETTINGS_ROW_SPACING)
+        .advanced_many(
+            labeled_rows_before,
             AUDIO_SETTINGS_LABELED_ROW_HEIGHT,
             AUDIO_SETTINGS_ROW_SPACING,
-        ),
-        labeled_rows_before,
-    );
-
-    ui::StackedLayoutCursor::from_items(
-        std::iter::once(detail_row)
-            .chain(optional_error_row)
-            .chain(labeled_rows),
-    )
+        )
 }
 
 fn audio_host_dropdown_options(
