@@ -263,18 +263,17 @@ fn sample_collection_cell(
 fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
     let indicator = RatingIndicator::new(file.rating, file.rating_locked);
     if indicator.shows_keep_badge() {
-        return ui::compact_details_cell(
-            ui::anchored_layer(
+        return ui::compact_details_anchored_cell_from_parts(
+            ui::CompactDetailsAnchoredCellParts::new(
                 ui::passive_badge("KEEP").style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning)),
                 ui::Vector2::new(38.0, 14.0),
-                ui::LayerHorizontalAnchor::End,
-                ui::LayerVerticalAnchor::Start,
-                2.0,
-                3.0,
             )
-            .key(format!("sample-rating-{}", file.id)),
-            Some(width),
-        );
+            .width(Some(width))
+            .horizontal(ui::LayerHorizontalAnchor::End)
+            .vertical(ui::LayerVerticalAnchor::Start)
+            .inset(2.0, 3.0),
+        )
+        .key(format!("sample-rating-{}", file.id));
     }
 
     ui::compact_details_cell(
