@@ -13,8 +13,7 @@ pub(super) const TOOLBAR_STOP_ID: u64 = 32_103;
 pub(super) const TOOLBAR_RANDOM_ID: u64 = 32_104;
 
 pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    let sample_loaded = state.waveform.has_loaded_sample();
-    let sample_selected = state.folder_browser.selected_file_id().is_some();
+    let random_available = state.random_playback_available();
     ui::toolbar_from_parts(
         ui::ToolbarParts::new([
             toolbar_icon_button(
@@ -32,7 +31,7 @@ pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
             toolbar_icon_button(
                 TOOLBAR_RANDOM_ID,
                 ToolbarIcon::Random,
-                sample_loaded || sample_selected,
+                random_available,
                 false,
             ),
             toolbar_icon_button(

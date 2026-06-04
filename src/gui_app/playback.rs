@@ -20,6 +20,12 @@ mod span;
 const RANDOM_AUDITION_SECONDS: f32 = 4.0;
 
 impl GuiAppState {
+    pub(super) fn random_playback_available(&self) -> bool {
+        self.waveform.has_loaded_sample()
+            || self.folder_browser.selected_file_id().is_some()
+            || self.folder_browser.random_playback_available()
+    }
+
     pub(super) fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         let started_at = Instant::now();
         if let Some(path) = self.folder_browser.selected_file_id()
@@ -112,10 +118,10 @@ impl GuiAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if let Some(path) = self.folder_browser.selected_file_id()
-            && self.waveform.path() != Path::new(path)
+        if let Some(path) = self.folder_browser.selected_file_id().map(str::to_owned)
+            && self.waveform.path() != Path::new(&path)
         {
-            let label = sample_path_label(path);
+            let label = sample_path_label(&path);
             emit_gui_action(
                 "playback.play_random_sample_range",
                 Some("transport"),
@@ -125,7 +131,26 @@ impl GuiAppState {
                 None,
             );
             self.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition { unit });
-            self.load_sample_without_autoplay(path.to_string(), context);
+            self.load_sample_without_autoplay(path, context);
+            return;
+        }
+
+        if !self.waveform.has_loaded_sample()
+            && let Some(path) = self.folder_browser.random_playback_candidate(unit)
+        {
+            let label = sample_path_label(&path);
+            emit_gui_action(
+                "playback.play_random_sample_range",
+                Some("transport"),
+                Some(&label),
+                "load_queued",
+                started_at,
+                None,
+            );
+            self.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition { unit });
+            self.folder_browser
+                .focus_file_across_sources(Path::new(&path));
+            self.load_sample_without_autoplay(path, context);
             return;
         }
         let file_name = self.waveform.file_name();

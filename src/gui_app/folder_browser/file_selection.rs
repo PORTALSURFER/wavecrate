@@ -98,6 +98,29 @@ impl FolderBrowserState {
             .map(PathBuf::from)
     }
 
+    pub(in crate::gui_app) fn random_playback_available(&self) -> bool {
+        !self.selected_audio_file_ids().is_empty()
+            || self
+                .selected_source_audio_files()
+                .into_iter()
+                .next()
+                .is_some()
+    }
+
+    pub(in crate::gui_app) fn random_playback_candidate(&self, unit: f32) -> Option<String> {
+        let visible_files = self.selected_audio_file_ids();
+        if let Some(candidate) = random_candidate_from_ids(&visible_files, unit) {
+            return Some(candidate);
+        }
+
+        let source_files = self
+            .selected_source_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        random_candidate_from_ids(&source_files, unit)
+    }
+
     pub(in crate::gui_app) fn selected_file_rating_candidates(
         &self,
     ) -> Vec<SelectedFileRatingCandidate> {
@@ -342,6 +365,16 @@ impl FolderBrowserState {
         }
         changed
     }
+}
+
+fn random_candidate_from_ids(file_ids: &[String], unit: f32) -> Option<String> {
+    let len = file_ids.len();
+    if len == 0 {
+        return None;
+    }
+    let normalized = unit.clamp(0.0, 1.0);
+    let index = ((normalized * len as f32).floor() as usize).min(len - 1);
+    Some(file_ids[index].clone())
 }
 
 fn first_audio_file_in_folder(folder: &super::FolderEntry) -> Option<&str> {
