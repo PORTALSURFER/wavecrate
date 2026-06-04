@@ -179,7 +179,6 @@ fn collection_row_input_id(collection: wavecrate::sample_sources::SampleCollecti
 mod tests {
     use super::*;
     use radiant::prelude::IntoView;
-    use radiant::runtime::PaintPrimitive;
     use wavecrate::sample_sources::SampleCollection;
 
     /// Builds a minimal collection view for interaction tests.
@@ -247,14 +246,9 @@ mod tests {
         let frame = collection_count(0)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(28.0, COLLECTION_ROW_HEIGHT));
 
-        assert!(frame.paint_plan.primitives.iter().all(|primitive| {
-            !matches!(
-                primitive,
-                PaintPrimitive::FillRect(_)
-                    | PaintPrimitive::StrokeRect(_)
-                    | PaintPrimitive::Text(_)
-            )
-        }));
+        assert!(frame.paint_plan.fill_rects().next().is_none());
+        assert!(frame.paint_plan.stroke_rects().next().is_none());
+        assert!(frame.paint_plan.text_runs().next().is_none());
     }
 
     #[test]

@@ -56,11 +56,9 @@ fn top_status_bar_does_not_paint_flexible_spacer_rectangle() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 30.0));
 
     assert!(
-        !frame.paint_plan.primitives.iter().any(|primitive| {
-            primitive
-                .rect()
-                .is_some_and(|rect| rect.width() > 240.0 && rect.height() >= 20.0)
-        }),
+        !frame
+            .paint_plan
+            .contains_paint_rect_matching(|rect| rect.width() > 240.0 && rect.height() >= 20.0),
         "top status bar spacer should render as empty space"
     );
 }
