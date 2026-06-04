@@ -5,7 +5,7 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{Event, TransientOverlayContext, UiSurface},
+    runtime::{Event, PaintTextInput, TransientOverlayContext, UiSurface},
     widgets::{DragHandleMessage, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
@@ -630,8 +630,12 @@ fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
 }
 
 fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {
+    metadata_tag_text_input(frame).map(|input| input.widget_id)
+}
+
+fn metadata_tag_text_input(frame: &ui::SurfaceFrame) -> Option<&PaintTextInput> {
     frame
         .paint_plan
-        .first_text_input()
-        .map(|input| input.widget_id)
+        .text_inputs()
+        .find(|input| input.widget_id == super::folder_browser::METADATA_TAG_INPUT_ID)
 }

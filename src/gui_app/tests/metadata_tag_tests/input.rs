@@ -21,10 +21,11 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     )
     .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
-    assert!(frame.paint_plan.contains_text("Metadata"));
+    assert!(frame.paint_plan.contains_text("Tags"));
+    assert!(!frame.paint_plan.contains_text("Metadata"));
     assert!(!frame.paint_plan.contains_text("Tags (1)"));
     assert!(!frame.paint_plan.contains_text("kick"));
-    assert!(!frame.paint_plan.contains_text_input());
+    assert!(metadata_tag_text_input(&frame).is_none());
 }
 
 #[test]
@@ -640,10 +641,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
     .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(frame.paint_plan.contains_text("kick"));
-    let tag_input = frame
-        .paint_plan
-        .first_text_input()
-        .expect("tag input should paint");
+    let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");
     assert_eq!(tag_input.state.value, "ki");
     assert_eq!(tag_input.state.selection_anchor, 2);
     assert_eq!(tag_input.state.caret, 2);
@@ -674,10 +672,8 @@ fn folder_browser_metadata_category_completion_renders_above_tag_input() {
         gui_state_with_temp_sample("baseline-tag-target.wav");
     let baseline_frame = super::super::super::view(&mut baseline_state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
-    let baseline_tag_input = baseline_frame
-        .paint_plan
-        .first_text_input()
-        .expect("baseline tag input should paint");
+    let baseline_tag_input =
+        metadata_tag_text_input(&baseline_frame).expect("baseline tag input should paint");
 
     let (mut state, _source_root, _selected_file) =
         gui_state_with_temp_sample("category-tag-target.wav");
@@ -689,10 +685,7 @@ fn folder_browser_metadata_category_completion_renders_above_tag_input() {
     let frame = super::super::super::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
-    let tag_input = frame
-        .paint_plan
-        .first_text_input()
-        .expect("tag input should paint");
+    let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");
     let final_option = frame
         .paint_plan
         .first_text_rect("Tuning/Scale")

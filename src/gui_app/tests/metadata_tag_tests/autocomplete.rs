@@ -9,10 +9,8 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
     state.metadata_tag_draft = String::from("ki");
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
-    let input_id = runtime
-        .frame_with_default_theme()
-        .paint_plan
-        .first_text_input()
+    let frame = runtime.frame_with_default_theme();
+    let input_id = metadata_tag_text_input(&frame)
         .map(|input| input.widget_id)
         .expect("metadata tag input should paint");
     assert!(runtime.focus_widget(input_id));
@@ -49,10 +47,8 @@ fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_sugg
         .insert(String::from("known.wav"), vec![String::from("kick")]);
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
-    let input_id = runtime
-        .frame_with_default_theme()
-        .paint_plan
-        .first_text_input()
+    let frame = runtime.frame_with_default_theme();
+    let input_id = metadata_tag_text_input(&frame)
         .map(|input| input.widget_id)
         .expect("metadata tag input should paint");
     assert!(runtime.focus_widget(input_id));
@@ -102,9 +98,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
-    let input_rect = frame
-        .paint_plan
-        .first_text_input()
+    let input_rect = metadata_tag_text_input(&frame)
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = input_rect.center();
@@ -154,9 +148,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
-    let input_rect = frame
-        .paint_plan
-        .first_text_input()
+    let input_rect = metadata_tag_text_input(&frame)
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = input_rect.center();
@@ -201,9 +193,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
-    let input_rect = frame
-        .paint_plan
-        .first_text_input()
+    let input_rect = metadata_tag_text_input(&frame)
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = input_rect.center();
@@ -255,9 +245,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
 
     let mut runtime = gui_runtime_for_tests(state, Vector2::new(589.0, 571.0));
     let frame = runtime.frame_with_default_theme();
-    let input_rect = frame
-        .paint_plan
-        .first_text_input()
+    let input_rect = metadata_tag_text_input(&frame)
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = input_rect.center();

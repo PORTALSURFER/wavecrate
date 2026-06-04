@@ -21,19 +21,21 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Filter"));
-    assert!(frame.paint_plan.contains_text("Metadata"));
+    assert!(frame.paint_plan.contains_text("Tags"));
+    assert!(!frame.paint_plan.contains_text("Metadata"));
+    assert!(!frame.paint_plan.contains_text("Tags (1)"));
     assert!(!frame.paint_plan.contains_text("Tagging"));
     assert!(frame.paint_plan.contains_text("kick"));
-    let tags_header = frame
+    let tag_count = frame
         .paint_plan
-        .first_text_rect("Tags (1)")
-        .expect("metadata tags header should paint");
+        .first_text_rect("(1)")
+        .expect("metadata tag count should paint");
     assert!(
         frame
             .paint_plan
             .svgs()
-            .any(|svg| svg.rect.min.x > tags_header.max.x && svg.rect.min.y <= tags_header.max.y),
-        "metadata tag library disclosure icon should paint beside the tags header"
+            .any(|svg| svg.rect.min.x > tag_count.max.x && svg.rect.min.y <= tag_count.max.y),
+        "metadata tag library disclosure icon should paint beside the tag count"
     );
 }
 

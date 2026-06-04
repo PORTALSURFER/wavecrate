@@ -12,6 +12,9 @@ use super::tag_entry_layout::{
 };
 use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
+#[cfg(test)]
+pub(in crate::gui_app) const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
+#[cfg(not(test))]
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 #[cfg(test)]
 pub(in crate::gui_app) const METADATA_SIDEBAR_PANEL_ID: u64 = 0x5743_0000_0000_5448;
@@ -21,7 +24,9 @@ const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
-const METADATA_TAG_HEADER_HEIGHT: f32 = 22.0;
+const METADATA_HEADER_TRAILING_HEIGHT: f32 = 20.0;
+const METADATA_HEADER_RESIZE_HANDLE_WIDTH: f32 = 26.0;
+const METADATA_HEADER_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
 pub(in crate::gui_app) const COLLAPSED_METADATA_PANEL_HEIGHT: f32 =
     METADATA_PANEL_PADDING * 2.0 + METADATA_PANEL_TITLE_HEIGHT;
 const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
@@ -59,53 +64,26 @@ pub(super) fn metadata_section(
     has_selected_file: bool,
 ) -> ui::View<GuiMessage> {
     if !has_selected_file {
-        return metadata_sidebar_panel(ui::empty().fill_width().fill_height(), panel_height);
+        return metadata_sidebar_panel(ui::empty().fill_width().fill_height(), None, panel_height);
     }
 
     metadata_sidebar_panel(
-        ui::column([
-            ui::row([
-                ui::text(format!("Tags ({})", tags.len()))
-                    .height(22.0)
-                    .fill_width(),
-                {
-                    let toggle = ui::disclosure_button(false)
-                        .message(GuiMessage::ToggleMetadataTagLibrary)
-                        .key("metadata-tag-library-toggle")
-                        .size(24.0, 20.0);
-                    #[cfg(test)]
-                    {
-                        toggle.id(METADATA_TAG_LIBRARY_TOGGLE_ID)
-                    }
-                    #[cfg(not(test))]
-                    {
-                        toggle
-                    }
-                },
-            ])
-            .spacing(4.0)
-            .fill_width()
-            .height(METADATA_TAG_HEADER_HEIGHT)
-            .key("metadata-tag-library-toggle-row"),
-            tag_entry_field(
-                tag_draft,
-                tag_tokens,
-                tag_pending_category_tag,
-                tag_input_placeholder,
-                tag_completion_suffix,
-                tags,
-                tag_display_categories,
-                selected_metadata_tag,
-                tag_field_height,
-                tag_field_content_width,
-            )
-            .key("metadata-tag-entry-field")
-            .fill_width()
-            .height(tag_field_height),
-        ])
+        tag_entry_field(
+            tag_draft,
+            tag_tokens,
+            tag_pending_category_tag,
+            tag_input_placeholder,
+            tag_completion_suffix,
+            tags,
+            tag_display_categories,
+            selected_metadata_tag,
+            tag_field_height,
+            tag_field_content_width,
+        )
+        .key("metadata-tag-entry-field")
         .fill_width()
-        .fill_height()
-        .spacing(3.0),
+        .height(tag_field_height),
+        Some(tags.len()),
         panel_height,
     )
 }
@@ -213,8 +191,6 @@ pub(in crate::gui_app) fn metadata_tag_completion_bottom_inset(panel_height: f32
         - METADATA_PANEL_PADDING
         - METADATA_PANEL_TITLE_HEIGHT
         - METADATA_PANEL_HEADER_CONTENT_SPACING
-        - METADATA_TAG_HEADER_HEIGHT
-        - TAG_FIELD_LINE_GAP
 }
 
 fn tag_text_input(
@@ -304,12 +280,14 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
 }
 
-fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
+fn metadata_sidebar_panel(
+    content: ui::View<GuiMessage>,
+    tag_count: Option<usize>,
+    height: f32,
+) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_parts(
-        ui::PanelSectionParts::new("Metadata", content)
-            .trailing_resize_handle("metadata-resize-handle", |message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message))
-            })
+        ui::PanelSectionParts::new("Tags", content)
+            .trailing(metadata_header_trailing(tag_count))
             .padding(METADATA_PANEL_PADDING)
             .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
             .title_height(METADATA_PANEL_TITLE_HEIGHT)
@@ -323,5 +301,45 @@ fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::Vie
     #[cfg(not(test))]
     {
         panel
+    }
+}
+
+fn metadata_header_trailing(tag_count: Option<usize>) -> ui::View<GuiMessage> {
+    let mut controls = Vec::new();
+    if let Some(count) = tag_count {
+        controls.push(
+            ui::text(format!("({count})"))
+                .height(METADATA_HEADER_TRAILING_HEIGHT)
+                .width(32.0),
+        );
+        controls.push(metadata_tag_library_toggle());
+    }
+    controls.push(
+        ui::drag_handle_mapped(|message| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message))
+        })
+        .key("metadata-resize-handle")
+        .size(
+            METADATA_HEADER_RESIZE_HANDLE_WIDTH,
+            METADATA_HEADER_RESIZE_HANDLE_HEIGHT,
+        ),
+    );
+    ui::row(controls)
+        .spacing(4.0)
+        .height(METADATA_HEADER_TRAILING_HEIGHT)
+}
+
+fn metadata_tag_library_toggle() -> ui::View<GuiMessage> {
+    let toggle = ui::disclosure_button(false)
+        .message(GuiMessage::ToggleMetadataTagLibrary)
+        .key("metadata-tag-library-toggle")
+        .size(24.0, 20.0);
+    #[cfg(test)]
+    {
+        toggle.id(METADATA_TAG_LIBRARY_TOGGLE_ID)
+    }
+    #[cfg(not(test))]
+    {
+        toggle
     }
 }

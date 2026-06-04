@@ -80,7 +80,8 @@ mod tag_editor;
 pub(super) use tag_editor::metadata_tag_completion_bottom_inset;
 #[cfg(test)]
 pub(super) use tag_editor::{
-    COLLAPSED_METADATA_PANEL_HEIGHT, METADATA_SIDEBAR_PANEL_ID, METADATA_TAG_LIBRARY_TOGGLE_ID,
+    COLLAPSED_METADATA_PANEL_HEIGHT, METADATA_SIDEBAR_PANEL_ID, METADATA_TAG_INPUT_ID,
+    METADATA_TAG_LIBRARY_TOGGLE_ID,
 };
 mod tag_entry_layout;
 pub(super) use tag_entry_layout::tag_field_content_width;
