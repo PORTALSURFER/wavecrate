@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -118,6 +118,9 @@ impl GuiAppState {
         self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
+        if self.start_loaded_navigation_sample(path.as_str(), context, started_at) {
+            return;
+        }
         self.sample_status = format!("Selected {}", sample_path_label(path.as_str()));
         emit_gui_action(
             "browser.select_sample",
@@ -134,6 +137,56 @@ impl GuiAppState {
             KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
             context,
         );
+    }
+
+    fn start_loaded_navigation_sample(
+        &mut self,
+        path: &str,
+        context: &mut ui::UpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        if !self.waveform.has_loaded_sample() || self.waveform.path() != Path::new(path) {
+            return false;
+        }
+
+        self.maybe_open_audio_player(context);
+        let file_name = self.waveform.file_name();
+        match self.start_playback_current_span(0.0, 1.0) {
+            Ok(()) => {
+                self.sample_status = format!("Playing {file_name}");
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&file_name),
+                    "loaded_playback_started",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) if self.pending_playback_start.is_some() => {
+                self.sample_status = format!("Playing {file_name} when audio output is ready");
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&file_name),
+                    "loaded_playback_pending",
+                    started_at,
+                    Some(&err),
+                );
+            }
+            Err(err) => {
+                self.sample_status = format!("Loaded {file_name} | playback unavailable: {err}");
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&file_name),
+                    "loaded_playback_error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
+        true
     }
 
     fn schedule_deferred_sample_load(

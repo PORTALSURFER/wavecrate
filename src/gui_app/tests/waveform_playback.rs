@@ -405,6 +405,60 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
 }
 
 #[test]
+fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
+    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+        return;
+    };
+    let source_root = tempfile::tempdir().expect("source root");
+    for (name, samples) in [
+        ("a.wav", &[0, 256, -256, 512][..]),
+        ("b.wav", &[0, 1024, -2048, 4096, -1024, 512][..]),
+    ] {
+        write_test_wav_i16(&source_root.path().join(name), samples);
+    }
+
+    let mut state = gui_state_for_span_tests();
+    state.audio_player = Some(player);
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let files = state.folder_browser.selected_audio_files();
+    assert!(files.len() >= 2, "expected two visible samples");
+    let first = files[0].id.clone();
+    let second = files[1].id.clone();
+    state.folder_browser.select_file(first);
+    state.waveform =
+        super::super::WaveformState::load_path(PathBuf::from(&second)).expect("sample loads");
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(second.as_str())
+    );
+    assert!(
+        state.waveform.is_playing(),
+        "resident waveform should audition immediately during keyboard navigation"
+    );
+    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        state.deferred_sample_load_task.active().is_none(),
+        "already loaded navigation target should not queue a deferred reload"
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "already loaded navigation target must not start decode work"
+    );
+}
+
+#[test]
 fn sample_selection_queues_persisted_cache_load_after_restart() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("cached.wav");
