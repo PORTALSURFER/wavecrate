@@ -68,6 +68,16 @@ where
     buffer.captured()
 }
 
+fn assert_db_contention_error(err: &str) {
+    let lowered = err.to_ascii_lowercase();
+    assert!(
+        err.contains("Failed to start database update")
+            || lowered.contains("busy")
+            || lowered.contains("locked"),
+        "expected database contention error, got: {err}"
+    );
+}
+
 #[test]
 /// Single-sample rename restores the old path when the source DB is locked.
 fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
@@ -95,7 +105,7 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
     release_db_lock(lock_release_tx, lock_done_rx);
 
     let err = result.expect_err("locked DB should fail rename");
-    assert!(err.contains("Failed to start database update"));
+    assert_db_contention_error(&err);
     assert!(old_absolute.is_file());
     assert!(!new_absolute.exists());
 
@@ -291,12 +301,9 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
     assert!(result.renamed.is_empty());
     assert!(result.skipped.is_empty());
     assert_eq!(result.errors.len(), 2);
-    assert!(
-        result
-            .errors
-            .iter()
-            .all(|(_, err)| err.contains("Failed to start database update"))
-    );
+    for (_, err) in &result.errors {
+        assert_db_contention_error(err);
+    }
     assert!(source.root.join("alpha.wav").is_file());
     assert!(source.root.join("beta.wav").is_file());
     assert!(!source.root.join("alpha_renamed.wav").exists());

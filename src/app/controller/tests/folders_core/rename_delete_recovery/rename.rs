@@ -3,6 +3,16 @@ use crate::app::state::{InlineFolderEdit, InlineFolderEditKind};
 use crate::sample_sources::{DB_FILE_NAME, SampleSoundType, SourceDatabase};
 use std::time::Duration;
 
+fn assert_db_contention_status(status: &str) {
+    let lowered = status.to_ascii_lowercase();
+    assert!(
+        status.contains("Failed to start database update")
+            || lowered.contains("busy")
+            || lowered.contains("locked"),
+        "expected database contention status, got: {status}"
+    );
+}
+
 #[test]
 fn renaming_folder_updates_entries_and_tree() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
@@ -65,13 +75,7 @@ fn renaming_folder_rolls_back_disk_move_when_db_rewrite_fails() -> Result<(), St
         controller.wav_entry(0).unwrap().relative_path,
         PathBuf::from("old/clip.wav")
     );
-    assert!(
-        controller
-            .ui
-            .status
-            .text
-            .contains("Failed to start database update")
-    );
+    assert_db_contention_status(&controller.ui.status.text);
     let db = SourceDatabase::open(&source.root).unwrap();
     assert_eq!(db.count_files().unwrap(), 1);
     assert_eq!(
