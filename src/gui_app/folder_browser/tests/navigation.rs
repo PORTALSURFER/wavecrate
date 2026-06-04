@@ -191,6 +191,7 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
 fn collections_panel_splitter_double_click_collapses_height() {
     let root = temp_source_root("wavecrate-gui-collections-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
+    let initial_height = browser.collections_panel.size();
     browser.resize_collections_panel(DragHandleMessage::Started {
         position: Point::new(0.0, 200.0),
     });
@@ -203,6 +204,13 @@ fn collections_panel_splitter_double_click_collapses_height() {
         browser.collections_panel.size(),
         COLLAPSED_COLLECTIONS_PANEL_HEIGHT
     );
+    assert!(!browser.collections_panel.is_resizing());
+
+    browser.resize_collections_panel(DragHandleMessage::DoubleActivate {
+        position: Point::new(0.0, 200.0),
+    });
+
+    assert_eq!(browser.collections_panel.size(), initial_height);
     assert!(!browser.collections_panel.is_resizing());
 
     let _ = fs::remove_dir_all(root);
@@ -241,12 +249,20 @@ fn filter_panel_splitter_resizes_and_clamps_height() {
 fn filter_panel_double_click_collapses_to_header_only_height() {
     let root = temp_source_root("wavecrate-gui-filter-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
+    let initial_height = browser.filter_panel.size();
 
     browser.resize_filter_panel(DragHandleMessage::DoubleActivate {
         position: Point::new(0.0, 200.0),
     });
 
     assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
+    assert!(!browser.filter_panel.is_resizing());
+
+    browser.resize_filter_panel(DragHandleMessage::DoubleActivate {
+        position: Point::new(0.0, 200.0),
+    });
+
+    assert_eq!(browser.filter_panel.size(), initial_height);
     assert!(!browser.filter_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
@@ -287,6 +303,7 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
 fn metadata_panel_double_click_collapses_to_header_only_height() {
     let root = temp_source_root("wavecrate-gui-metadata-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
+    let initial_height = browser.metadata_panel.size();
 
     browser.resize_metadata_panel(DragHandleMessage::DoubleActivate {
         position: Point::new(0.0, 200.0),
@@ -296,6 +313,13 @@ fn metadata_panel_double_click_collapses_to_header_only_height() {
         browser.metadata_panel.size(),
         COLLAPSED_METADATA_PANEL_HEIGHT
     );
+    assert!(!browser.metadata_panel.is_resizing());
+
+    browser.resize_metadata_panel(DragHandleMessage::DoubleActivate {
+        position: Point::new(0.0, 200.0),
+    });
+
+    assert_eq!(browser.metadata_panel.size(), initial_height);
     assert!(!browser.metadata_panel.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
