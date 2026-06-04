@@ -93,82 +93,60 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        self.paint_selection_fill(primitives, bounds);
-        self.paint_interaction_fill(primitives, bounds);
-        self.paint_loaded_marker(primitives, bounds);
-        self.paint_selection_marker(primitives, bounds);
+        ui::push_dense_row_chrome(primitives, self.row.id(), bounds, self.chrome_parts());
     }
 }
 
 impl SampleFileHitTarget {
-    fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        self.row.push_dense_fill(
-            primitives,
-            bounds,
-            ui::InteractiveRowVisualStateParts {
-                selected: self.selected,
-                ..ui::InteractiveRowVisualStateParts::default()
-            },
-            ui::DenseRowPalette::new().selected(Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 120,
-            }),
+    fn chrome_parts(&self) -> ui::DenseRowChromeParts {
+        let mut parts = ui::DenseRowChromeParts::new(
+            self.row
+                .dense_visual_state(ui::InteractiveRowVisualStateParts {
+                    selected: self.selected,
+                    ..ui::InteractiveRowVisualStateParts::default()
+                }),
+            self.chrome_palette(),
         );
+        if self.cached && !self.selected {
+            parts = parts.trailing_marker(ui::DenseRowMarkerStyle::new(
+                ui::DenseRowMarkerParts::trailing(2.0),
+                Rgba8 {
+                    r: 226,
+                    g: 226,
+                    b: 226,
+                    a: 210,
+                },
+            ));
+        }
+        if self.selected {
+            parts = parts.leading_marker(ui::DenseRowMarkerStyle::new(
+                ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+                Rgba8 {
+                    r: 255,
+                    g: 82,
+                    b: 62,
+                    a: 245,
+                },
+            ));
+        }
+        parts
     }
 
-    fn paint_loaded_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if !self.cached || self.selected {
-            return;
+    fn chrome_palette(&self) -> ui::DenseRowPalette {
+        let mut palette = ui::DenseRowPalette::new().selected(Rgba8 {
+            r: 255,
+            g: 82,
+            b: 62,
+            a: 120,
+        });
+        if self.should_paint_interaction_fill() {
+            palette = palette.hovered(HOVER_FILL).pressed(PRESSED_FILL);
         }
-        ui::push_dense_row_vertical_marker(
-            primitives,
-            self.row.id(),
-            bounds,
-            ui::DenseRowMarkerParts::trailing(2.0),
-            Rgba8 {
-                r: 226,
-                g: 226,
-                b: 226,
-                a: 210,
-            },
-        );
+        palette
     }
 
-    fn paint_interaction_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if self.suppress_hover {
-            return;
-        }
-        if self.drag_active && !self.drag_source {
-            return;
-        }
-        self.row.push_dense_fill(
-            primitives,
-            bounds,
-            ui::InteractiveRowVisualStateParts::default(),
-            ui::DenseRowPalette::new()
-                .hovered(HOVER_FILL)
-                .pressed(PRESSED_FILL),
-        );
-    }
-
-    fn paint_selection_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if !self.selected {
-            return;
-        }
-        ui::push_dense_row_vertical_marker(
-            primitives,
-            self.row.id(),
-            bounds,
-            ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
-            Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 245,
-            },
-        );
+    fn should_paint_interaction_fill(&self) -> bool {
+        !self.suppress_hover && (!self.drag_active || self.drag_source)
     }
 }
 

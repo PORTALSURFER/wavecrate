@@ -9,34 +9,11 @@ use super::FolderTreeHitTarget;
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        self.row.push_dense_fill(
-            primitives,
-            bounds,
-            self.background_state_parts(),
-            self.background_palette(),
-        );
-    }
-
-    pub(super) fn paint_drop_target_outline(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-    ) {
-        if !self.drop_target {
-            return;
-        }
-        ui::push_dense_row_inset_stroke(
+        ui::push_dense_row_chrome(
             primitives,
             self.row.id(),
             bounds,
-            0.5,
-            Rgba8 {
-                r: 255,
-                g: 180,
-                b: 130,
-                a: 210,
-            },
-            1.0,
+            self.background_chrome_parts(),
         );
     }
 
@@ -60,6 +37,30 @@ impl FolderTreeHitTarget {
             active_target: self.drop_target,
             candidate: self.drop_candidate,
         }
+    }
+
+    fn background_chrome_parts(&self) -> ui::DenseRowChromeParts {
+        let mut parts = ui::DenseRowChromeParts::new(
+            self.row.dense_visual_state(self.background_state_parts()),
+            self.background_palette(),
+        );
+        if self.drop_target {
+            parts = parts.outline(Self::drop_target_outline());
+        }
+        parts
+    }
+
+    fn drop_target_outline() -> ui::DenseRowOutlineStyle {
+        ui::DenseRowOutlineStyle::new(
+            0.5,
+            Rgba8 {
+                r: 255,
+                g: 180,
+                b: 130,
+                a: 210,
+            },
+            1.0,
+        )
     }
 
     fn background_palette(&self) -> ui::DenseRowPalette {
