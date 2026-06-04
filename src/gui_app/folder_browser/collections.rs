@@ -352,10 +352,7 @@ impl FolderBrowserState {
 }
 
 fn collection_rows_height(row_count: usize) -> f32 {
-    if row_count == 0 {
-        return 0.0;
-    }
-    COLLECTION_ROW_HEIGHT * row_count as f32 + COLLECTION_ROW_SPACING * (row_count - 1) as f32
+    ui::fixed_row_stack_height(row_count, COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING)
 }
 
 fn useful_collections_panel_height(row_count: usize) -> f32 {
