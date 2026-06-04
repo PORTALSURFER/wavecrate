@@ -7,7 +7,7 @@ use radiant::{
 };
 use wavecrate::sample_sources::SampleCollection;
 
-use super::{FolderBrowserDrag, FolderBrowserState};
+use super::{FolderBrowserDrag, FolderBrowserDropTarget, FolderBrowserState};
 
 pub(in crate::gui_app) const COLLECTION_ROW_HEIGHT: f32 = 22.0;
 pub(in crate::gui_app) const COLLECTION_ROW_SPACING: f32 = 1.0;
@@ -97,7 +97,9 @@ impl FolderBrowserState {
                 name: collection.name.clone(),
                 color: collection.color,
                 selected: self.selected_collection == Some(collection.collection),
-                drop_target: self.drop_target_collection == Some(collection.collection),
+                drop_target: self
+                    .drop_target
+                    .is_open(&FolderBrowserDropTarget::Collection(collection.collection)),
                 drag_active: self.file_drag_active(),
                 assigned_count: counts
                     .get(&collection.collection.index())
@@ -308,7 +310,15 @@ impl FolderBrowserState {
         position: Point,
     ) {
         self.update_drag_pointer(position);
-        self.drop_target_collection = self.file_drag_active().then_some(collection);
+        let changed = if self.file_drag_active() {
+            self.drop_target
+                .open_changed(FolderBrowserDropTarget::Collection(collection))
+        } else {
+            self.drop_target.close_changed()
+        };
+        if changed {
+            self.drag_revision.bump();
+        }
     }
 
     fn collection_counts(&self) -> BTreeMap<u8, usize> {

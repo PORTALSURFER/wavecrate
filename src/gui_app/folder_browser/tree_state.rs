@@ -1,4 +1,6 @@
-use super::{FolderBrowserState, FolderEntry, VisibleFolder, path_helpers::path_id};
+use super::{
+    FolderBrowserDropTarget, FolderBrowserState, FolderEntry, VisibleFolder, path_helpers::path_id,
+};
 
 impl FolderBrowserState {
     pub(super) fn selected_folder(&self) -> Option<&FolderEntry> {
@@ -110,7 +112,10 @@ impl FolderBrowserState {
     ) {
         let is_source_root = self.selected_folder_is_source_root_id(&folder.id);
         let drag_active = self.drag.is_some();
-        let drop_target_active = self.drop_target_folder.is_some();
+        let drop_target_active = matches!(
+            self.drop_target.current(),
+            Some(FolderBrowserDropTarget::Folder(_))
+        );
         let drag_source = matches!(
             self.drag.as_ref(),
             Some(super::FolderBrowserDrag::Folder { folder_id }) if folder_id == &folder.id
@@ -132,7 +137,9 @@ impl FolderBrowserState {
             drag_source,
             drop_candidate,
             drop_target: drop_candidate
-                && self.drop_target_folder.as_deref() == Some(folder.id.as_str()),
+                && self
+                    .drop_target
+                    .is_open(&FolderBrowserDropTarget::Folder(folder.id.clone())),
             drop_target_active,
             rename_draft: self
                 .rename_edit

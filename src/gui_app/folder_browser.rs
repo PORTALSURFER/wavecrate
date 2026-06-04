@@ -56,7 +56,7 @@ use state_types::{
 };
 
 mod state;
-pub(super) use state::FolderBrowserState;
+pub(super) use state::{FolderBrowserDropTarget, FolderBrowserState};
 
 mod tree_state;
 

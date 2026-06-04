@@ -29,8 +29,7 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) file_rename_edit: Option<FileRenameEdit>,
     pub(super) drag: Option<FolderBrowserDrag>,
     pub(super) drag_pointer: Option<Point>,
-    pub(super) drop_target_folder: Option<String>,
-    pub(super) drop_target_collection: Option<SampleCollection>,
+    pub(super) drop_target: ui::ExclusiveOpen<FolderBrowserDropTarget>,
     pub(super) pending_file_move_conflicts: Option<FileMoveConflictBatch>,
     pub(super) drag_revision: ui::RevisionCounter,
     pub(super) collections: Vec<SampleCollectionConfig>,
@@ -47,6 +46,12 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) file_view_controller: ui::VirtualListController,
     pub(super) tree_view_follow_selection: ui::VirtualListFollowState<String>,
     pub(super) file_view_follow_selection: ui::VirtualListFollowState<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) enum FolderBrowserDropTarget {
+    Folder(String),
+    Collection(SampleCollection),
 }
 
 impl FolderBrowserState {
@@ -95,8 +100,7 @@ impl FolderBrowserState {
             file_rename_edit: None,
             drag: None,
             drag_pointer: None,
-            drop_target_folder: None,
-            drop_target_collection: None,
+            drop_target: ui::ExclusiveOpen::new(),
             pending_file_move_conflicts: None,
             drag_revision: ui::RevisionCounter::default(),
             collections: Self::default_collections(),

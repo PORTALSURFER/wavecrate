@@ -2,8 +2,8 @@ use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
 use std::path::{Path, PathBuf};
 
 use super::{
-    FolderBrowserDrag, FolderBrowserState, FolderDragPreview, FolderDropResult,
-    path_helpers::file_label,
+    FolderBrowserDrag, FolderBrowserDropTarget, FolderBrowserState, FolderDragPreview,
+    FolderDropResult, path_helpers::file_label,
 };
 
 impl FolderBrowserState {
@@ -25,7 +25,7 @@ impl FolderBrowserState {
         };
         self.drag = Some(FolderBrowserDrag::Files { file_ids });
         self.drag_pointer = Some(position);
-        self.drop_target_folder = None;
+        self.clear_drop_targets_for_new_drag();
     }
 
     pub(in crate::gui_app) fn begin_extracted_file_drag(&mut self, path: PathBuf, position: Point) {
@@ -34,7 +34,7 @@ impl FolderBrowserState {
         }
         self.drag = Some(FolderBrowserDrag::ExtractedFile { path });
         self.drag_pointer = Some(position);
-        self.drop_target_folder = None;
+        self.clear_drop_targets_for_new_drag();
     }
 
     pub(in crate::gui_app) fn update_drag_pointer(&mut self, position: Point) {
@@ -94,28 +94,31 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn clear_drag(&mut self) {
-        if self.drag.is_some()
-            || self.drag_pointer.is_some()
-            || self.drop_target_folder.is_some()
-            || self.drop_target_collection.is_some()
-        {
+        if self.drag.is_some() || self.drag_pointer.is_some() || self.drop_target.any_open() {
             self.drag_revision.bump();
         }
         self.drag = None;
         self.drag_pointer = None;
-        self.drop_target_folder = None;
-        self.drop_target_collection = None;
+        self.drop_target.close();
     }
 
     pub(in crate::gui_app) fn clear_drop_target_folder(&mut self, position: Point) {
         self.update_drag_pointer(position);
-        if self.drop_target_folder.take().is_some() {
+        if self
+            .drop_target
+            .current()
+            .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(_)))
+            && self.drop_target.close_changed()
+        {
             self.drag_revision.bump();
         }
     }
 
     pub(in crate::gui_app) fn hovered_drop_target_folder_id(&self) -> Option<String> {
-        self.drop_target_folder.clone()
+        match self.drop_target.current() {
+            Some(FolderBrowserDropTarget::Folder(folder_id)) => Some(folder_id.clone()),
+            _ => None,
+        }
     }
 
     pub(in crate::gui_app) fn drop_drag_on_folder(
@@ -132,7 +135,7 @@ impl FolderBrowserState {
                 status: Some(String::from("Drop target unchanged")),
             });
         }
-        self.drop_target_folder = None;
+        self.drop_target.close();
         let result = match drag {
             FolderBrowserDrag::Folder { folder_id } => {
                 self.move_folder_to_folder(&folder_id, target_folder_id)?
@@ -159,7 +162,7 @@ impl FolderBrowserState {
             if self.find_folder(&folder_id).is_some() {
                 self.drag = Some(FolderBrowserDrag::Folder { folder_id });
                 self.drag_pointer = Some(position);
-                self.drop_target_folder = None;
+                self.clear_drop_targets_for_new_drag();
             }
         } else if let Some(position) = message.moved_position() {
             self.update_drag_pointer(position);
@@ -169,10 +172,20 @@ impl FolderBrowserState {
     }
 
     pub(super) fn hover_drop_target_folder(&mut self, folder_id: &str) {
-        if self.can_drop_drag_on_folder(folder_id) {
-            self.drop_target_folder = Some(folder_id.to_owned());
+        let changed = if self.can_drop_drag_on_folder(folder_id) {
+            self.drop_target
+                .open_changed(FolderBrowserDropTarget::Folder(folder_id.to_owned()))
         } else {
-            self.drop_target_folder = None;
+            self.drop_target.close_changed()
+        };
+        if changed {
+            self.drag_revision.bump();
+        }
+    }
+
+    fn clear_drop_targets_for_new_drag(&mut self) {
+        if self.drop_target.close_changed() {
+            self.drag_revision.bump();
         }
     }
 

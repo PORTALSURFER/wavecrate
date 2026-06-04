@@ -9,8 +9,8 @@ use crate::gui_app::{
 use super::tag_editor::{metadata_section, tag_field_height};
 use super::tag_entry_layout::tag_field_content_width;
 use super::{
-    FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
-    VisibleFolder, plural,
+    FolderBrowserDropTarget, FolderBrowserMessage, FolderBrowserState, GuiMessage,
+    TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder, plural,
     tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
 };
 
@@ -128,13 +128,16 @@ fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
         FOLDER_TREE_EDGE_CONTEXT_ROWS,
     );
     ui::stack([
-        ui::pointer_move_shield(state.drop_target_folder.is_some())
-            .on_pointer_move(|position| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
-            })
-            .key("folder-drop-clear-target")
-            .input_only()
-            .fill(),
+        ui::pointer_move_shield(matches!(
+            state.drop_target.current(),
+            Some(FolderBrowserDropTarget::Folder(_))
+        ))
+        .on_pointer_move(|position| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+        })
+        .key("folder-drop-clear-target")
+        .input_only()
+        .fill(),
         ui::virtual_list_window(
             window,
             TREE_ROW_HEIGHT,
