@@ -263,7 +263,7 @@ fn metadata_tag_category_header(
     .fill_width()
     .height(22.0);
     ui::interactive_row_underlay(visual)
-        .row(|row| row.tracked_drop_target(drag_active && !locked, drop_hover))
+        .tracked_drop_target(drag_active && !locked, drop_hover)
         .style(style)
         .actions(
             ui::InteractiveRowActions::new()
@@ -341,7 +341,7 @@ fn metadata_tag_empty_category_target(
     let category_for_input = category_id.to_string();
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
-        .row(|row| row.tracked_drop_target(drag_active && !locked, active_drop_target))
+        .tracked_drop_target(drag_active && !locked, active_drop_target)
         .actions(ui::InteractiveRowActions::new().drop_target_key(
             category_for_input,
             |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },

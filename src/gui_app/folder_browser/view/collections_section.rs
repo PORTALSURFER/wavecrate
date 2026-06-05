@@ -94,7 +94,7 @@ fn collection_input(
     collection: &SampleCollectionView,
 ) -> ui::View<GuiMessage> {
     ui::interactive_row_underlay(visual)
-        .row(|row| row.tracked_drop_target(collection.drag_active, collection.drop_target))
+        .tracked_drop_target(collection.drag_active, collection.drop_target)
         .input_id(collection_row_input_id(collection_id))
         .style(collection_input_style(collection))
         .actions(
