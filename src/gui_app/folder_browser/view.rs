@@ -155,51 +155,37 @@ fn folder_tree_window(
     window: ui::VirtualListWindow,
     drag_revision: u64,
 ) -> ui::View<GuiMessage> {
-    let row_height = TREE_ROW_HEIGHT;
-    let projected_len = window.window_len();
-    let mut children = Vec::with_capacity(projected_len + 2);
-
-    let top_spacer_height = row_height * window.window_start as f32;
-    if top_spacer_height > 0.0 {
-        children.push(ui::spacer().height(top_spacer_height).fill_width());
-    }
-
-    if projected_len > 0 {
-        let guide_rows = folder_tree_guide_rows(&visible_folders);
-        let guide_style = folder_tree_guide_style();
-        let rows = ui::column((window.window_start..window.window_end).map(|index| {
-            folder_row(visible_folders[index].clone(), drag_revision).height(row_height)
-        }))
-        .spacing(0.0)
-        .fill_width()
-        .height(row_height * projected_len as f32);
-        children.push(
-            ui::stack([
-                rows,
-                ui::tree_guide_overlay(
-                    &guide_rows,
-                    window.window_start,
-                    window.window_end,
-                    guide_style,
-                ),
-            ])
-            .fill_width()
-            .height(row_height * projected_len as f32),
-        );
-    }
-
-    let bottom_items = window.total_items.saturating_sub(window.window_end);
-    let bottom_spacer_height = row_height * bottom_items as f32;
-    if bottom_spacer_height > 0.0 {
-        children.push(ui::spacer().height(bottom_spacer_height).fill_width());
-    }
-
-    ui::virtual_scroll(
-        ui::column(children).spacing(0.0).fill_width(),
+    ui::virtual_list_window_body(
+        window,
+        TREE_ROW_HEIGHT,
+        |window| folder_tree_window_body(&visible_folders, window, drag_revision),
         TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
     .style(ui::WidgetStyle::default())
     .fill_height()
+}
+
+fn folder_tree_window_body(
+    visible_folders: &[VisibleFolder],
+    window: ui::VirtualListWindow,
+    drag_revision: u64,
+) -> ui::View<GuiMessage> {
+    let guide_rows = folder_tree_guide_rows(visible_folders);
+    let guide_style = folder_tree_guide_style();
+    let rows = ui::column((window.window_start..window.window_end).map(|index| {
+        folder_row(visible_folders[index].clone(), drag_revision).height(TREE_ROW_HEIGHT)
+    }))
+    .spacing(0.0)
+    .fill_width();
+    ui::stack([
+        rows,
+        ui::tree_guide_overlay(
+            &guide_rows,
+            window.window_start,
+            window.window_end,
+            guide_style,
+        ),
+    ])
 }
 
 fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
