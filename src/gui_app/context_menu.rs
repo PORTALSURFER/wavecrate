@@ -5,8 +5,6 @@ use radiant::prelude as ui;
 use std::path::{Path, PathBuf};
 use wavecrate::sample_sources::SampleCollection;
 
-const CONTEXT_MENU_WIDTH: f32 = 210.0;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum BrowserContextTargetKind {
     Source,
@@ -59,9 +57,8 @@ pub(super) fn missing_target_message(kind: &BrowserContextTargetKind) -> &'stati
 }
 
 pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
-    ui::dismissible_context_menu_with_width(
+    ui::dismissible_context_menu_auto_width(
         menu.anchor,
-        CONTEXT_MENU_WIDTH,
         menu.title.clone(),
         context_menu_commands(menu),
         GuiMessage::CloseContextMenu,
