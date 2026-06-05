@@ -53,7 +53,13 @@ impl FolderEntry {
         let old_id = path_id(old_path);
         for file in &mut self.files {
             if file.id == old_id {
-                *file = file_entry(&PathBuf::from(new_path));
+                let previous = file.clone();
+                let mut renamed = file_entry(&PathBuf::from(new_path));
+                renamed.rating = previous.rating;
+                renamed.rating_locked = previous.rating_locked;
+                renamed.collection = previous.collection;
+                renamed.collections = previous.collections;
+                *file = renamed;
                 self.files.sort_by(|a, b| {
                     a.name
                         .to_ascii_lowercase()

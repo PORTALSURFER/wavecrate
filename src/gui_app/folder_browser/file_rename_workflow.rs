@@ -1,4 +1,5 @@
 use std::{fs, path::PathBuf};
+use wavecrate::sample_sources::SourceDatabase;
 
 use super::{
     FileRenameEdit, FileRenameView, FolderBrowserState, RenameCommitResult,
@@ -67,7 +68,37 @@ impl FolderBrowserState {
         if let Err(error) = fs::rename(&old_path, &new_path) {
             return RenameCommitResult::status(format!("File rename failed: {error}"));
         }
+        let metadata_remap_result = self.persist_renamed_file_metadata(&old_path, &new_path);
         self.rewrite_renamed_file_path(&old_path, &new_path);
-        RenameCommitResult::remapped(format!("Renamed file to {new_name}"), old_path, new_path)
+        let status = match metadata_remap_result {
+            Ok(()) => format!("Renamed file to {new_name}"),
+            Err(error) => {
+                format!("Renamed file to {new_name}; metadata update failed: {error}")
+            }
+        };
+        RenameCommitResult::remapped(status, old_path, new_path)
+    }
+
+    fn persist_renamed_file_metadata(
+        &self,
+        old_path: &std::path::Path,
+        new_path: &std::path::Path,
+    ) -> Result<(), String> {
+        let Some((root, old_relative)) = self.source_relative_file_path(old_path) else {
+            return Ok(());
+        };
+        let Some((_, new_relative)) = self.source_relative_file_path(new_path) else {
+            return Ok(());
+        };
+        let db =
+            SourceDatabase::open_for_user_metadata_write(&root).map_err(|err| err.to_string())?;
+        let mut batch = db.write_batch().map_err(|err| err.to_string())?;
+        batch
+            .remap_wav_file_path(&old_relative, &new_relative)
+            .map_err(|err| err.to_string())?;
+        batch
+            .remap_analysis_sample_identity(&old_relative, &new_relative)
+            .map_err(|err| err.to_string())?;
+        batch.commit().map_err(|err| err.to_string())
     }
 }

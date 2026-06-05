@@ -94,6 +94,60 @@ pub(super) fn delete_path_statement(
     Ok(())
 }
 
+pub(super) fn remap_wav_file_path_statement(
+    tx: &Transaction<'_>,
+    old_relative_path: &Path,
+    new_relative_path: &Path,
+) -> Result<(), SourceDbError> {
+    let old_path = normalize_relative_path(old_relative_path)?;
+    let new_path = normalize_relative_path(new_relative_path)?;
+    if old_path == new_path {
+        return Ok(());
+    }
+
+    tx.prepare_cached(DELETE_WAV_FILE_SQL)
+        .map_err(map_sql_error)?
+        .execute(params![new_path.as_str()])
+        .map_err(map_sql_error)?;
+    let changed = tx
+        .prepare_cached(
+            "INSERT INTO wav_files (
+                 path, file_size, modified_ns, tag, looped, locked, sound_type,
+                 user_tag, tag_named, missing, extension, last_played_at, collection
+             )
+             SELECT ?2, file_size, modified_ns, tag, looped, locked, sound_type,
+                    user_tag, tag_named, missing, extension, last_played_at, collection
+             FROM wav_files
+             WHERE path = ?1",
+        )
+        .map_err(map_sql_error)?
+        .execute(params![old_path.as_str(), new_path.as_str()])
+        .map_err(map_sql_error)?;
+    if changed == 0 {
+        return Ok(());
+    }
+
+    tx.prepare_cached(
+        "INSERT OR IGNORE INTO wav_file_tags (path, tag_id)
+         SELECT ?2, tag_id FROM wav_file_tags WHERE path = ?1",
+    )
+    .map_err(map_sql_error)?
+    .execute(params![old_path.as_str(), new_path.as_str()])
+    .map_err(map_sql_error)?;
+    tx.prepare_cached(
+        "INSERT OR IGNORE INTO wav_file_collections (path, collection)
+         SELECT ?2, collection FROM wav_file_collections WHERE path = ?1",
+    )
+    .map_err(map_sql_error)?
+    .execute(params![old_path.as_str(), new_path.as_str()])
+    .map_err(map_sql_error)?;
+    tx.prepare_cached(DELETE_WAV_FILE_SQL)
+        .map_err(map_sql_error)?
+        .execute(params![old_path])
+        .map_err(map_sql_error)?;
+    Ok(())
+}
+
 pub(super) fn remap_analysis_sample_identity_statement(
     tx: &Transaction<'_>,
     old_relative_path: &Path,

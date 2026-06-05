@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tempfile::tempdir;
 
-use super::super::super::SourceDatabase;
+use super::super::super::{Rating, SampleCollection, SourceDatabase};
 
 #[test]
 fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
@@ -36,6 +36,37 @@ fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
     }
     assert_eq!(job_relative_path(&db, new_sample_id), "renamed.wav");
     assert_eq!(analysis_version(&db, new_sample_id), "analysis_v1_test");
+}
+
+#[test]
+fn wav_path_remap_preserves_user_metadata_and_collection_memberships() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let old = Path::new("old.wav");
+    let new = Path::new("renamed.wav");
+    let first = SampleCollection::new(0).unwrap();
+    let second = SampleCollection::new(1).unwrap();
+
+    db.upsert_file(old, 10, 5).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch.set_tag(old, Rating::KEEP_1).unwrap();
+    batch.set_locked(old, true).unwrap();
+    batch.add_collection(old, second).unwrap();
+    batch.add_collection(old, first).unwrap();
+    batch.assign_tag_to_path(old, "break").unwrap();
+    batch.remap_wav_file_path(old, new).unwrap();
+    batch.commit().unwrap();
+
+    assert!(db.entry_for_path(old).unwrap().is_none());
+    let renamed = db.entry_for_path(new).unwrap().expect("renamed row");
+    assert_eq!(renamed.tag, Rating::KEEP_1);
+    assert!(renamed.locked);
+    assert_eq!(db.collections_for_path(old).unwrap(), Vec::new());
+    assert_eq!(db.collections_for_path(new).unwrap(), vec![first, second]);
+    assert_eq!(
+        db.tag_labels_for_path(new).unwrap(),
+        vec![String::from("break")]
+    );
 }
 
 fn insert_analysis_artifacts(db: &SourceDatabase, sample_id: &str) {

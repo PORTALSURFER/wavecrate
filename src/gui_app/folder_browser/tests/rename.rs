@@ -243,6 +243,60 @@ fn file_rename_submission_cannot_change_extension() {
 }
 
 #[test]
+fn file_rename_keeps_active_collection_item_visible_and_persisted() {
+    let root = temp_source_root("wavecrate-gui-file-rename-collection");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create nested folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let collection = SampleCollection::new(1).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(&root).expect("db");
+    db.upsert_file(std::path::Path::new("drums/kick.wav"), 8, 5)
+        .expect("upsert file");
+    let mut batch = db.write_batch().expect("write batch");
+    batch
+        .add_collection(std::path::Path::new("drums/kick.wav"), collection)
+        .expect("add collection");
+    batch.commit().expect("commit collection");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+    browser.select_file(path_id(&kick));
+    browser
+        .begin_rename_selected()
+        .expect("rename can start")
+        .expect("rename input id");
+
+    let status = browser
+        .apply_rename_input(TextInputMessage::Submitted {
+            value: String::from("snare"),
+        })
+        .expect("rename status")
+        .status;
+
+    assert_eq!(status, "Renamed file to snare.wav");
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| (file.name.as_str(), file.belongs_to_collection(collection)))
+            .collect::<Vec<_>>(),
+        vec![("snare.wav", true)]
+    );
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("drums/kick.wav"))
+            .expect("old collections"),
+        Vec::<SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(std::path::Path::new("drums/snare.wav"))
+            .expect("new collections"),
+        vec![collection]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn root_folder_rename_is_rejected_from_tree() {
     let root = temp_source_root("wavecrate-gui-root-rename");
     let mut browser = FolderBrowserState::from_root(root.clone());
