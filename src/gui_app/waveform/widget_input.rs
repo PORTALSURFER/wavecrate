@@ -1,9 +1,6 @@
 use radiant::{
     gui::types::Rect,
-    widgets::{
-        CanvasGestureEvent, CanvasPointer, DragHandleMessage, PointerButton, WidgetInput,
-        WidgetOutput,
-    },
+    widgets::{CanvasPointer, DragHandleMessage, PointerButton, WidgetInput, WidgetOutput},
 };
 
 use super::{
@@ -23,104 +20,86 @@ impl WaveformWidget {
         let event = self.gesture.handle_input(bounds, &input)?;
         let pointer_inside = event.pointer_is_inside(bounds);
         let has_loaded_sample = self.has_loaded_sample();
-        match event {
-            CanvasGestureEvent::Hover(pointer) => {
-                self.common.state.hovered = pointer_inside;
-                if !has_loaded_sample {
-                    return None;
-                }
-                if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
-                    return Some(WidgetOutput::typed(
-                        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::moved(
-                            pointer.position,
-                        )),
-                    ));
-                }
-                self.active_drag_kind.map(|_| {
-                    WidgetOutput::typed(WaveformInteraction::UpdateSelection {
-                        visible_ratio: pointer.normalized_x(),
-                    })
-                })
+        if let Some(pointer) = event.hover_pointer() {
+            self.common.state.hovered = pointer_inside;
+            if !has_loaded_sample {
+                return None;
             }
-            CanvasGestureEvent::Wheel { .. } if !pointer_inside || !has_loaded_sample => None,
-            CanvasGestureEvent::Wheel { pointer, delta } => {
-                Some(WidgetOutput::typed(WaveformInteraction::Wheel {
+            if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
+                return Some(WidgetOutput::typed(
+                    WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::moved(
+                        pointer.position,
+                    )),
+                ));
+            }
+            return self.active_drag_kind.map(|_| {
+                WidgetOutput::typed(WaveformInteraction::UpdateSelection {
+                    visible_ratio: pointer.normalized_x(),
+                })
+            });
+        }
+        if let Some((pointer, delta)) = event.wheel_pointer_delta() {
+            return (pointer_inside && has_loaded_sample).then(|| {
+                WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
                     anchor_ratio: pointer.normalized_x(),
-                }))
-            }
-            CanvasGestureEvent::Press {
-                pointer,
-                button: PointerButton::Primary,
-                ..
-            } if has_loaded_sample && pointer_inside => self.handle_primary_press(bounds, pointer),
-            CanvasGestureEvent::DoubleClick {
-                pointer,
-                button: PointerButton::Primary,
-                ..
-            } if has_loaded_sample && pointer_inside => {
-                self.handle_primary_double_click(bounds, pointer)
-            }
-            CanvasGestureEvent::Press {
-                pointer,
-                button: PointerButton::Secondary,
-                ..
-            } if has_loaded_sample && pointer_inside => {
-                self.handle_secondary_press(bounds, pointer)
-            }
-            CanvasGestureEvent::Press {
-                pointer,
-                button: PointerButton::Auxiliary,
-                ..
-            } if has_loaded_sample && pointer_inside => {
-                Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
-                    visible_ratio: pointer.normalized_x(),
-                }))
-            }
-            CanvasGestureEvent::Release {
-                pointer,
-                button: PointerButton::Primary,
-                ..
-            } if has_loaded_sample
-                && self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) =>
-            {
-                Some(WidgetOutput::typed(
+                })
+            });
+        }
+        if !has_loaded_sample {
+            return None;
+        }
+        if let Some(pointer) = event.press_pointer(PointerButton::Primary)
+            && pointer_inside
+        {
+            return self.handle_primary_press(bounds, pointer);
+        }
+        if let Some(pointer) = event.double_click_pointer(PointerButton::Primary)
+            && pointer_inside
+        {
+            return self.handle_primary_double_click(bounds, pointer);
+        }
+        if let Some(pointer) = event.press_pointer(PointerButton::Secondary)
+            && pointer_inside
+        {
+            return self.handle_secondary_press(bounds, pointer);
+        }
+        if let Some(pointer) = event.press_pointer(PointerButton::Auxiliary)
+            && pointer_inside
+        {
+            return Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
+                visible_ratio: pointer.normalized_x(),
+            }));
+        }
+        if let Some(pointer) = event.release_pointer(PointerButton::Primary) {
+            if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
+                return Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::ended(
                         pointer.position,
                     )),
-                ))
+                ));
             }
-            CanvasGestureEvent::Release {
-                pointer,
-                button: PointerButton::Primary,
-                ..
-            } if has_loaded_sample && self.primary_release_finishes_drag() => {
-                Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
+            if self.primary_release_finishes_drag() {
+                return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: pointer.normalized_x(),
-                }))
+                }));
             }
-            CanvasGestureEvent::Release {
-                pointer,
-                button: PointerButton::Secondary,
-                ..
-            } if has_loaded_sample && self.secondary_release_finishes_drag() => {
-                Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
-                    visible_ratio: pointer.normalized_x(),
-                }))
-            }
-            CanvasGestureEvent::Release {
-                pointer,
-                button: PointerButton::Auxiliary,
-                ..
-            } if has_loaded_sample
-                && self.active_drag_kind == Some(WaveformActiveDragKind::Pan) =>
-            {
-                Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
-                    visible_ratio: pointer.normalized_x(),
-                }))
-            }
-            _ => None,
         }
+        if let Some(pointer) = event.release_pointer(PointerButton::Secondary)
+            && self.secondary_release_finishes_drag()
+        {
+            return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
+                visible_ratio: pointer.normalized_x(),
+            }));
+        }
+        if let Some(pointer) = event.release_pointer(PointerButton::Auxiliary)
+            && self.active_drag_kind == Some(WaveformActiveDragKind::Pan)
+        {
+            return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
+                visible_ratio: pointer.normalized_x(),
+            }));
+        }
+        None
     }
 
     fn handle_primary_press(&self, bounds: Rect, pointer: CanvasPointer) -> Option<WidgetOutput> {
