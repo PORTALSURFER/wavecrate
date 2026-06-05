@@ -53,6 +53,15 @@ pub(in crate::gui_app) fn store_summary_only_cached_waveform_file_for_tests(file
     waveform_cache::store_cached_waveform_file(&file);
 }
 
+#[cfg(test)]
+pub(in crate::gui_app) fn test_waveform_file_from_mono_samples(
+    path: PathBuf,
+    audio_bytes: Arc<[u8]>,
+    samples: Vec<f32>,
+) -> WaveformFile {
+    waveform_file_from_mono_samples(path, audio_bytes, 48_000, 1, samples)
+}
+
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformFile {
     pub(super) path: PathBuf,

@@ -42,6 +42,12 @@ impl WaveformState {
         Ok(Self::from_file(file))
     }
 
+    pub(super) fn load_persisted_playback_cache(path: PathBuf) -> Result<Self, String> {
+        let file = load_cached_waveform_file_for_playback(path.clone())
+            .ok_or_else(|| format!("playback-ready waveform cache miss: {}", path.display()))?;
+        Ok(Self::from_file(Arc::new(file)))
+    }
+
     #[cfg(test)]
     pub(super) fn load_path_with_progress(
         path: PathBuf,
@@ -369,6 +375,8 @@ pub(super) use audio_file::WaveformFile;
 pub(super) use audio_file::store_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
+#[cfg(test)]
+pub(super) use audio_file::test_waveform_file_from_mono_samples;
 pub(in crate::gui_app) use audio_file::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
     load_cached_waveform_file_for_playback,

@@ -753,7 +753,9 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
 }
 
 #[test]
-fn sample_selection_queues_persisted_cache_load_after_restart() {
+fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("cached.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -789,27 +791,29 @@ fn sample_selection_queues_persisted_cache_load_after_restart() {
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_some(),
-        "selection should debounce persisted cache hydration instead of reading it on the UI thread"
+        state.deferred_sample_load_task.active().is_none(),
+        "playback-ready persisted cache should not wait for a debounce after restart"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
-        "selection should not start worker loading until the deferred load fires"
+        state.sample_load_task.active().is_some(),
+        "playback-ready persisted cache should start worker loading immediately"
     );
     assert!(
         state.waveform_loading_label.as_deref() == Some(sample_name.as_str()),
-        "selection may update loading UI, but not hydrate audio cache synchronously"
+        "selection should show loading state while the persisted cache is promoted"
     );
     assert!(
         !state
             .waveform_cache
             .contains_key(&PathBuf::from(&sample_path)),
-        "persisted cache hydration must stay off the UI thread until background loading completes"
+        "persisted cache promotion must stay off the UI thread until background loading completes"
     );
 }
 
 #[test]
 fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("warm-before-click.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -847,24 +851,52 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_some(),
-        "selection of a playback-ready cached file must still defer load handling off the UI thread"
+        state.deferred_sample_load_task.active().is_none(),
+        "selection of a playback-ready cached file should not wait for debounce"
     );
-    assert!(state.sample_load_task.active().is_none());
+    assert!(state.sample_load_task.active().is_some());
     assert_ne!(state.waveform.path(), sample_path);
+
+    let ticket = state
+        .sample_load_task
+        .active()
+        .expect("persisted cache load queued");
+    state.apply_message(
+        super::super::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
+            ticket,
+            output: super::super::SampleLoadResult {
+                path: sample_path_string,
+                result: super::super::WaveformState::load_persisted_playback_cache(
+                    sample_path.clone(),
+                ),
+                autoplay: false,
+            },
+        }),
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.path(), sample_path);
+    assert!(
+        state.waveform.audio_bytes().is_empty(),
+        "playback-ready persisted cache should not reread source WAV bytes"
+    );
 }
 
 #[test]
 fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("summary-only.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let sample_path_string = sample_path.display().to_string();
     let sample_path = PathBuf::from(&sample_path_string);
 
-    let waveform =
-        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
-    let file = waveform.file();
+    let file = super::super::waveform::test_waveform_file_from_mono_samples(
+        sample_path.clone(),
+        fs::read(&sample_path).expect("read wav").into(),
+        vec![0.0, 0.25, -0.25, 0.5, -0.5, 0.125],
+    );
     super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
@@ -886,15 +918,19 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
 
 #[test]
 fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("summary-only-click.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let sample_path_string = sample_path.display().to_string();
     let sample_path = PathBuf::from(&sample_path_string);
 
-    let waveform =
-        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
-    let file = waveform.file();
+    let file = super::super::waveform::test_waveform_file_from_mono_samples(
+        sample_path.clone(),
+        fs::read(&sample_path).expect("read wav").into(),
+        vec![0.0, 0.25, -0.25, 0.5, -0.5, 0.125],
+    );
     super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
@@ -925,15 +961,19 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
 
 #[test]
 fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("summary-only-warm.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let sample_path_string = sample_path.display().to_string();
     let sample_path = PathBuf::from(&sample_path_string);
 
-    let waveform =
-        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
-    let file = waveform.file();
+    let file = super::super::waveform::test_waveform_file_from_mono_samples(
+        sample_path.clone(),
+        fs::read(&sample_path).expect("read wav").into(),
+        vec![0.0, 0.25, -0.25, 0.5, -0.5, 0.125],
+    );
     super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
     let result =

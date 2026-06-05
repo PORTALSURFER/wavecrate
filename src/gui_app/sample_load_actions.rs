@@ -10,6 +10,7 @@ use super::{
     SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState, emit_gui_action,
     sample_path_label,
 };
+use crate::gui_app::waveform::cached_waveform_file_playback_ready_exists;
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
 
 mod cache;
@@ -100,6 +101,9 @@ impl GuiAppState {
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
+        if self.start_persisted_cached_sample_load(path.as_str(), autoplay, context, started_at) {
+            return;
+        }
         self.prepare_uncached_sample_load(path.as_str(), "load_deferred", started_at);
         self.schedule_deferred_sample_load(
             path,
@@ -125,6 +129,9 @@ impl GuiAppState {
             return;
         }
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
+            return;
+        }
+        if self.start_persisted_cached_sample_load(path.as_str(), true, context, started_at) {
             return;
         }
         self.sample_status = format!("Selected {}", sample_path_label(path.as_str()));
@@ -213,6 +220,27 @@ impl GuiAppState {
                 );
             }
         }
+        true
+    }
+
+    fn start_persisted_cached_sample_load(
+        &mut self,
+        path: &str,
+        autoplay: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        if !cached_waveform_file_playback_ready_exists(Path::new(path)) {
+            return false;
+        }
+        self.prepare_uncached_sample_load(path, "persistent_cache_load_queued", started_at);
+        self.start_sample_load_with_priority(
+            path.to_owned(),
+            autoplay,
+            context,
+            ui::TaskPriority::Interactive,
+            true,
+        );
         true
     }
 
@@ -365,11 +393,28 @@ impl GuiAppState {
             started_at,
             None,
         );
+        self.start_sample_load_with_priority(
+            path,
+            autoplay,
+            context,
+            ui::TaskPriority::Idle,
+            false,
+        );
+    }
+
+    fn start_sample_load_with_priority(
+        &mut self,
+        path: String,
+        autoplay: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+        priority: ui::TaskPriority,
+        persisted_cache_only: bool,
+    ) {
         let sender = self.worker_sender.clone();
         self.sample_load_cancel = Some(context.spawn_cancellable_latest_with_priority(
             &mut self.sample_load_task,
             "gui-sample-load",
-            ui::TaskPriority::Idle,
+            priority,
             move |ticket, token| {
                 if token.is_cancelled() {
                     return SampleLoadResult {
@@ -388,13 +433,17 @@ impl GuiAppState {
                         let _ = sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
                     }),
                 );
-                let result = WaveformState::load_path_with_progress_and_cancel(
-                    PathBuf::from(&path),
-                    |progress| {
-                        progress_reporter.borrow_mut().report(progress);
-                    },
-                    || token.is_cancelled(),
-                );
+                let result = if persisted_cache_only {
+                    WaveformState::load_persisted_playback_cache(PathBuf::from(&path))
+                } else {
+                    WaveformState::load_path_with_progress_and_cancel(
+                        PathBuf::from(&path),
+                        |progress| {
+                            progress_reporter.borrow_mut().report(progress);
+                        },
+                        || token.is_cancelled(),
+                    )
+                };
                 SampleLoadResult {
                     path,
                     result,
