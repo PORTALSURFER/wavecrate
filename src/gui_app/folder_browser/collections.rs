@@ -362,10 +362,17 @@ impl FolderBrowserState {
 }
 
 fn useful_collections_panel_height(row_count: usize) -> f32 {
-    COLLAPSED_COLLECTIONS_PANEL_HEIGHT
-        + COLLECTIONS_PANEL_HEADER_CONTENT_SPACING
-        + COLLECTIONS_LIST_SCROLL_CHROME
-        + ui::fixed_row_stack_height(row_count, COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING)
+    collections_panel_geometry().section_height_for_content_height(
+        COLLECTIONS_LIST_SCROLL_CHROME
+            + ui::fixed_row_stack_height(row_count, COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING),
+    )
+}
+
+fn collections_panel_geometry() -> ui::PanelSectionGeometry {
+    ui::PanelSectionGeometry::new()
+        .padding(COLLECTIONS_PANEL_PADDING)
+        .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
+        .title_height(COLLECTIONS_PANEL_HEADER_HEIGHT)
 }
 
 pub(in crate::gui_app) fn collection_hotkey(collection: SampleCollection) -> char {
