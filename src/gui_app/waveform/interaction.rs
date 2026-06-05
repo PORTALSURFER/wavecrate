@@ -133,15 +133,18 @@ impl WaveformSelectionResizeDrag {
     }
 
     pub(super) fn apply(self, ratio: f32) -> wavecrate::selection::SelectionRange {
-        let edge = match self.edge {
-            WaveformSelectionEdge::Start => NormalizedRangeEdge::Start,
-            WaveformSelectionEdge::End => NormalizedRangeEdge::End,
-        };
-        let base = match self.edge {
-            WaveformSelectionEdge::Start => NormalizedRange::from_fractions(0.0, self.fixed_ratio),
-            WaveformSelectionEdge::End => NormalizedRange::from_fractions(self.fixed_ratio, 1.0),
-        };
-        selection_from_normalized_range(base.with_edge_fraction(edge, ratio))
+        selection_from_normalized_range(NormalizedRange::from_edge_fraction(
+            normalized_range_edge(self.edge),
+            self.fixed_ratio,
+            ratio,
+        ))
+    }
+}
+
+fn normalized_range_edge(edge: WaveformSelectionEdge) -> NormalizedRangeEdge {
+    match edge {
+        WaveformSelectionEdge::Start => NormalizedRangeEdge::Start,
+        WaveformSelectionEdge::End => NormalizedRangeEdge::End,
     }
 }
 
