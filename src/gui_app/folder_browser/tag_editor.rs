@@ -254,14 +254,10 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
         .style(style)
         .actions(
             ui::InteractiveRowActions::new()
-                .secondary({
-                    let tag = tag_for_input.clone();
-                    move |position| GuiMessage::OpenMetadataTagContextMenu {
-                        tag: tag.clone(),
-                        position,
-                    }
+                .secondary_key(tag_for_input.clone(), |tag, position| {
+                    GuiMessage::OpenMetadataTagContextMenu { tag, position }
                 })
-                .activate(move || GuiMessage::SelectMetadataTag(tag_for_input.clone())),
+                .activate_key(tag_for_input, GuiMessage::SelectMetadataTag),
         )
         .key(format!("metadata-tag-accepted-{tag}"))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT);

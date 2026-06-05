@@ -272,9 +272,7 @@ fn metadata_tag_category_header(
                     |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
                     |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
                 )
-                .activate(move || {
-                    GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
-                }),
+                .activate_key(category_for_input, GuiMessage::ToggleMetadataTagCategory),
         )
         .key(format!("metadata-tag-category-{}", category_id))
         .fill_width()
@@ -318,26 +316,18 @@ fn metadata_tag_library_row(
     badge
         .actions(
             ui::InteractiveRowActions::new()
-                .secondary({
-                    let tag = tag_for_input.clone();
-                    move |position| GuiMessage::OpenMetadataTagContextMenu {
-                        tag: tag.clone(),
-                        position,
-                    }
+                .secondary_key(tag_for_input.clone(), |tag, position| {
+                    GuiMessage::OpenMetadataTagContextMenu { tag, position }
                 })
-                .drag({
-                    let tag = tag_for_input.clone();
-                    move |drag| GuiMessage::DragMetadataTag {
-                        tag: tag.clone(),
-                        drag,
-                    }
+                .drag_key(tag_for_input.clone(), |tag, drag| {
+                    GuiMessage::DragMetadataTag { tag, drag }
                 })
                 .drop_target_key(
                     category_for_input,
                     |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
                     |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
                 )
-                .activate(move || GuiMessage::ToggleMetadataTag(tag_for_input.clone())),
+                .activate_key(tag_for_input, GuiMessage::ToggleMetadataTag),
         )
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)

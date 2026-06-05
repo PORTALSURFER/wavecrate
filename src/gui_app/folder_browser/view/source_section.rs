@@ -32,9 +32,7 @@ pub(super) fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage
 }
 
 fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiMessage> {
-    let id = source.id.clone();
     let row_key = source.id.clone();
-    let menu_id = source.id.clone();
     let selected = state.selected_source == source.id;
     let label = if source.loading_task.is_some() {
         format!("{} (scanning)", source.label)
@@ -42,22 +40,17 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
         source.label.clone()
     };
     let visual = ui::text_line(label, 24.0).padding_x(8.0);
-    let activate_id = id.clone();
-    let context_id = menu_id.clone();
     ui::interactive_row_underlay(visual)
         .input_id(source_row_input_id(source.id.as_str()))
         .actions(
             ui::InteractiveRowActions::new()
-                .secondary(move |position| {
+                .secondary_key(source.id.clone(), |source_id, position| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                        context_id.clone(),
-                        position,
+                        source_id, position,
                     ))
                 })
-                .activate(move || {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(
-                        activate_id.clone(),
-                    ))
+                .activate_key(source.id.clone(), |source_id| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
                 }),
         )
         .key(format!("source-row-{row_key}"))

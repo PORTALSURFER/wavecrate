@@ -99,21 +99,26 @@ fn collection_input(
         .style(collection_input_style(collection))
         .actions(
             ui::InteractiveRowActions::new()
-                .drop(move || {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))
-                })
-                .hover_drop(move |position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
-                        collection_id,
-                        position,
-                    ))
-                })
-                .activate(move || {
+                .drop_target_key(
+                    collection_id,
+                    |collection_id| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(
+                            collection_id,
+                        ))
+                    },
+                    |collection_id, position| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
+                            collection_id,
+                            position,
+                        ))
+                    },
+                )
+                .activate_key(collection_id, |collection_id| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
                         collection_id,
                     ))
                 })
-                .double_activate(move || {
+                .double_activate_key(collection_id, |collection_id| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
                 }),
         )
