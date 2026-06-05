@@ -2,7 +2,7 @@ use radiant::{
     gui::types::{Rect, Rgba8},
     gui::visualization::{
         CanvasSelectionAffordancePaintParts, CanvasSelectionAffordanceStyle,
-        CanvasSelectionGeometry,
+        CanvasSelectionGeometry, CanvasSelectionPaintStyle,
     },
     runtime::{PaintPrimitive, WidgetPaint},
 };
@@ -87,21 +87,15 @@ impl WaveformWidget {
         geometry: CanvasSelectionGeometry,
     ) {
         let flash_active = self.play_selection_flash_frames > 0;
-        let cursor_color = PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 255, 230);
+        let style = play_selection_paint_style(flash_active);
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
             geometry.end_fraction,
             1.0,
-            PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 118, 48),
+            style.fill_color(),
         );
-        self.append_selection_boundary_cursors(
-            paint,
-            bounds,
-            self.play_selection,
-            cursor_color,
-            1.25,
-        );
+        self.append_selection_boundary_cursors(paint, bounds, self.play_selection, style, 1.25);
         self.append_selection_affordance_paint(
             paint,
             geometry,
@@ -109,12 +103,9 @@ impl WaveformWidget {
                 .with_edge(selection_resize_edge_style())
                 .with_body(selection_move_handle_style())
                 .with_trailing_control(selection_export_handle_style()),
-            CanvasSelectionAffordancePaintParts::new(
+            style.affordance_paint_parts(
                 bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
-            )
-            .edge_color(PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 255, 220))
-            .body_color(PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 245, 185))
-            .trailing_control_color(PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 255, 235)),
+            ),
         );
     }
 
@@ -124,27 +115,20 @@ impl WaveformWidget {
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
-        let cursor_color = EDIT_SELECTION_COLOR.with_alpha(230);
+        let style = edit_selection_paint_style();
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
             geometry.end_fraction,
             1.0,
-            EDIT_SELECTION_COLOR.with_alpha(46),
+            style.fill_color(),
         );
-        self.append_selection_boundary_cursors(
-            paint,
-            bounds,
-            self.edit_selection,
-            cursor_color,
-            1.25,
-        );
+        self.append_selection_boundary_cursors(paint, bounds, self.edit_selection, style, 1.25);
         self.append_selection_affordance_paint(
             paint,
             geometry,
             CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
-            CanvasSelectionAffordancePaintParts::new(bounds)
-                .body_color(EDIT_SELECTION_COLOR.with_alpha(180)),
+            style.affordance_paint_parts(bounds),
         );
     }
 
@@ -184,7 +168,7 @@ impl WaveformWidget {
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
         selection: Option<wavecrate::selection::SelectionRange>,
-        color: Rgba8,
+        style: CanvasSelectionPaintStyle,
         width: f32,
     ) {
         let Some(selection) = selection else {
@@ -193,7 +177,12 @@ impl WaveformWidget {
         let visible_boundaries = [selection.start(), selection.end()]
             .into_iter()
             .filter_map(|ratio| self.visible_ratio_for_absolute(Some(ratio)));
-        paint.push_horizontal_value_cursor_fills(bounds, visible_boundaries, width.max(2.0), color);
+        paint.push_horizontal_value_cursor_fills(
+            bounds,
+            visible_boundaries,
+            width.max(2.0),
+            style.cursor_color(),
+        );
     }
 
     fn append_selection_affordance_paint(
@@ -206,4 +195,20 @@ impl WaveformWidget {
         let widget_id = paint.widget_id();
         style.push_fills(paint.primitives_mut(), widget_id, geometry, parts);
     }
+}
+
+const fn play_selection_paint_style(flash_active: bool) -> CanvasSelectionPaintStyle {
+    CanvasSelectionPaintStyle::new(PLAY_SELECTION_COLOR)
+        .fill_alpha(if flash_active { 118 } else { 48 })
+        .cursor_alpha(if flash_active { 255 } else { 230 })
+        .edge_alpha(if flash_active { 255 } else { 220 })
+        .body_alpha(if flash_active { 245 } else { 185 })
+        .trailing_control_alpha(if flash_active { 255 } else { 235 })
+}
+
+const fn edit_selection_paint_style() -> CanvasSelectionPaintStyle {
+    CanvasSelectionPaintStyle::new(EDIT_SELECTION_COLOR)
+        .fill_alpha(46)
+        .cursor_alpha(230)
+        .body_alpha(180)
 }
