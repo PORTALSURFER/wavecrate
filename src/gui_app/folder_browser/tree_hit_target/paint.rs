@@ -64,8 +64,7 @@ impl FolderTreeHitTarget {
                 b: 62,
                 a: 105,
             })
-            .hovered(interaction_fill)
-            .pressed(interaction_fill)
+            .interaction_fills(interaction_fill, interaction_fill)
             .active_target(Rgba8 {
                 r: 255,
                 g: 130,

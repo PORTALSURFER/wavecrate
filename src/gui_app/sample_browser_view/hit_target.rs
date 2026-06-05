@@ -124,16 +124,14 @@ impl SampleFileHitTarget {
     }
 
     fn chrome_palette(&self) -> ui::DenseRowPalette {
-        let mut palette = ui::DenseRowPalette::new().selected(Rgba8 {
-            r: 255,
-            g: 82,
-            b: 62,
-            a: 120,
-        });
-        if self.row.paints_interaction_fill() {
-            palette = palette.hovered(HOVER_FILL).pressed(PRESSED_FILL);
-        }
-        palette
+        ui::DenseRowPalette::new()
+            .selected(Rgba8 {
+                r: 255,
+                g: 82,
+                b: 62,
+                a: 120,
+            })
+            .interaction_fills_if(self.row.paints_interaction_fill(), HOVER_FILL, PRESSED_FILL)
     }
 }
 
