@@ -38,7 +38,7 @@ use wav_decode::load_wav_waveform_file_with_progress;
 mod waveform_cache;
 pub(in crate::gui_app) use waveform_cache::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
-    load_cached_waveform_file_for_playback,
+    flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
 };
 use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file_in_background};
 #[cfg(test)]

@@ -5,7 +5,7 @@ use std::{
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, Condvar, LazyLock, Mutex},
     thread,
     time::{Duration, Instant, SystemTime},
 };
@@ -13,10 +13,12 @@ use std::{
 use super::{WaveformFile, content_revision_for_audio_bytes};
 
 const CACHE_FORMAT_VERSION: u32 = 2;
-const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 2 * 1024 * 1024 * 1024;
-const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
-static BACKGROUND_STORE_IN_FLIGHT: LazyLock<Mutex<HashSet<PathBuf>>> =
-    LazyLock::new(|| Mutex::new(HashSet::new()));
+const GIB: usize = 1024 * 1024 * 1024;
+const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 8 * GIB;
+const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 64 * GIB as u64;
+const BACKGROUND_STORE_SHUTDOWN_WAIT: Duration = Duration::from_secs(30);
+static BACKGROUND_STORE_TRACKER: LazyLock<BackgroundStoreTracker> =
+    LazyLock::new(BackgroundStoreTracker::default);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CachedWaveformFile {
@@ -152,16 +154,57 @@ pub(super) fn store_cached_waveform_file_in_background(file: &WaveformFile) {
 }
 
 fn begin_background_store(cache_path: &Path) -> bool {
-    let Ok(mut in_flight) = BACKGROUND_STORE_IN_FLIGHT.lock() else {
+    let Ok(mut in_flight) = BACKGROUND_STORE_TRACKER.in_flight.lock() else {
         return true;
     };
     in_flight.insert(cache_path.to_path_buf())
 }
 
 fn finish_background_store(cache_path: &Path) {
-    if let Ok(mut in_flight) = BACKGROUND_STORE_IN_FLIGHT.lock() {
+    if let Ok(mut in_flight) = BACKGROUND_STORE_TRACKER.in_flight.lock() {
         in_flight.remove(cache_path);
+        BACKGROUND_STORE_TRACKER.empty.notify_all();
     }
+}
+
+pub(in crate::gui_app) fn flush_background_waveform_cache_stores_for_shutdown() {
+    let started_at = Instant::now();
+    let Ok(mut in_flight) = BACKGROUND_STORE_TRACKER.in_flight.lock() else {
+        return;
+    };
+    while !in_flight.is_empty() {
+        let remaining = BACKGROUND_STORE_SHUTDOWN_WAIT.saturating_sub(started_at.elapsed());
+        if remaining.is_zero() {
+            break;
+        }
+        let Ok((next_in_flight, timeout)) = BACKGROUND_STORE_TRACKER
+            .empty
+            .wait_timeout(in_flight, remaining)
+        else {
+            return;
+        };
+        in_flight = next_in_flight;
+        if timeout.timed_out() {
+            break;
+        }
+    }
+    if !in_flight.is_empty() {
+        tracing::warn!(
+            target: "wavecrate::debug::sample_cache",
+            event = "browser.sample_cache.shutdown_flush_timeout",
+            pending = in_flight.len(),
+            elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+            "Timed out waiting for waveform cache persistence during shutdown"
+        );
+    } else {
+        log_slow_cache_shutdown_flush(started_at);
+    }
+}
+
+#[derive(Default)]
+struct BackgroundStoreTracker {
+    in_flight: Mutex<HashSet<PathBuf>>,
+    empty: Condvar,
 }
 
 struct CachedWaveformStoreJob {
@@ -225,6 +268,19 @@ fn log_slow_cache_store(path: &Path, started_at: Instant) {
         elapsed_ms = elapsed.as_secs_f64() * 1000.0,
         path = %path.display(),
         "Slow waveform cache persistence"
+    );
+}
+
+fn log_slow_cache_shutdown_flush(started_at: Instant) {
+    let elapsed = started_at.elapsed();
+    if elapsed < Duration::from_millis(8) {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::sample_cache",
+        event = "browser.sample_cache.shutdown_flush",
+        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        "Waited for waveform cache persistence during shutdown"
     );
 }
 
@@ -667,6 +723,39 @@ mod tests {
         finish_background_store(&cache_path);
         assert!(begin_background_store(&cache_path));
         finish_background_store(&cache_path);
+    }
+
+    #[test]
+    fn shutdown_flush_waits_for_background_store_completion() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cache_path = dir.path().join("shutdown-cache.wfc");
+        assert!(begin_background_store(&cache_path));
+
+        let worker_cache_path = cache_path.clone();
+        let worker = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(20));
+            finish_background_store(&worker_cache_path);
+        });
+
+        let started_at = Instant::now();
+        flush_background_waveform_cache_stores_for_shutdown();
+        assert!(
+            started_at.elapsed() >= Duration::from_millis(15),
+            "shutdown flush should wait for active cache persistence"
+        );
+        worker.join().expect("store worker finishes");
+        assert!(begin_background_store(&cache_path));
+        finish_background_store(&cache_path);
+    }
+
+    #[test]
+    fn persisted_waveform_cache_budget_keeps_multiple_full_song_payloads() {
+        let stereo_ten_minute_payload =
+            48_000_u64 * 2 * 10 * 60 * std::mem::size_of::<f32>() as u64;
+        assert!(
+            stereo_ten_minute_payload * 12 < MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
+            "persistent cache should retain a useful set of full-song playback payloads"
+        );
     }
 
     fn set_file_modified_seconds(path: &Path, seconds: i64) {

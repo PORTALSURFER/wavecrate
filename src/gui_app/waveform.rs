@@ -379,7 +379,7 @@ pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
 pub(super) use audio_file::test_waveform_file_from_mono_samples;
 pub(in crate::gui_app) use audio_file::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
-    load_cached_waveform_file_for_playback,
+    flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
 };
 #[cfg(test)]
 use audio_file::{

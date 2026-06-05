@@ -90,6 +90,7 @@ pub(crate) fn run() -> Result<(), String> {
             )
             .subscriptions(GuiAppState::worker_subscription)
             .auxiliary_windows(audio_settings::auxiliary_windows)
+            .on_shutdown(GuiAppState::shutdown)
             .on_scroll(|state, update, _context| {
                 if update.node_id == SAMPLE_BROWSER_LIST_ID {
                     state

@@ -263,6 +263,15 @@ impl GuiAppState {
         .map_err(|err| err.to_string())?;
         self.folder_browser.save_source_scan_cache()
     }
+
+    pub(super) fn shutdown(&mut self) -> Option<serde_json::Value> {
+        let started_at = Instant::now();
+        crate::gui_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+        let elapsed = started_at.elapsed();
+        Some(serde_json::json!({
+            "waveform_cache_shutdown_flush_ms": duration_ms(elapsed),
+        }))
+    }
 }
 
 fn duration_ms(duration: Duration) -> f64 {
