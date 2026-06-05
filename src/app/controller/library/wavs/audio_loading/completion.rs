@@ -19,6 +19,7 @@ impl AppController {
                 intent: pending.intent,
                 decoded: outcome.decoded,
                 bytes: outcome.bytes,
+                audio_path: outcome.audio_path,
             }));
         self.note_browser_selection_staged(&pending.source_id, &pending.relative_path);
         let message =
@@ -69,6 +70,7 @@ impl AppController {
             result.metadata,
             &decoded,
             loaded_bytes,
+            staged.audio_path.clone(),
             result.transients,
             result.stretched,
         );
@@ -104,6 +106,7 @@ impl AppController {
             result.metadata,
             &decoded,
             loaded_bytes,
+            None,
             result.transients,
             result.stretched,
         );
@@ -160,6 +163,7 @@ impl AppController {
             handoff.decoded.channels,
             Arc::clone(&handoff.decoded.samples),
             Arc::clone(&handoff.bytes),
+            handoff.audio_path.clone(),
         )?;
         self.ui.waveform.notice = None;
         if matches!(handoff.intent, AudioLoadIntent::Selection) {
@@ -207,6 +211,7 @@ impl AppController {
         metadata: crate::app::controller::playback::audio_cache::FileMetadata,
         decoded: &Arc<DecodedWaveform>,
         loaded_bytes: Arc<[u8]>,
+        audio_path: Option<PathBuf>,
         transients: Arc<[f32]>,
         stretched: bool,
     ) {
@@ -219,6 +224,7 @@ impl AppController {
             metadata,
             Arc::clone(decoded),
             loaded_bytes,
+            audio_path,
             transients.clone(),
         );
         let source_id = source_id.clone();

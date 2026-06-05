@@ -31,6 +31,7 @@ pub(crate) struct CachedAudio {
     pub metadata: FileMetadata,
     pub decoded: Arc<DecodedWaveform>,
     pub bytes: Arc<[u8]>,
+    pub audio_path: Option<PathBuf>,
     pub transients: Arc<[f32]>,
 }
 
@@ -69,6 +70,7 @@ impl AudioCache {
         metadata: FileMetadata,
         decoded: Arc<DecodedWaveform>,
         bytes: Arc<[u8]>,
+        audio_path: Option<PathBuf>,
         transients: Arc<[f32]>,
     ) {
         self.entries.insert(
@@ -77,6 +79,7 @@ impl AudioCache {
                 metadata,
                 decoded,
                 bytes,
+                audio_path,
                 transients,
             },
         );
@@ -172,6 +175,7 @@ mod tests {
             build_metadata(1),
             decoded(),
             vec![1, 2].into(),
+            None,
             transients(),
         );
 
@@ -189,6 +193,7 @@ mod tests {
             build_metadata(1),
             decoded(),
             vec![1, 2].into(),
+            None,
             transients(),
         );
 
@@ -210,6 +215,7 @@ mod tests {
             build_metadata(1),
             decoded(),
             Vec::new().into(),
+            None,
             transients(),
         );
         cache.insert(
@@ -217,6 +223,7 @@ mod tests {
             build_metadata(1),
             decoded(),
             Vec::new().into(),
+            None,
             transients(),
         );
         cache.insert(
@@ -224,6 +231,7 @@ mod tests {
             build_metadata(1),
             decoded(),
             Vec::new().into(),
+            None,
             transients(),
         );
 
@@ -242,6 +250,7 @@ mod tests {
             build_metadata(1),
             decoded(),
             vec![1, 2].into(),
+            None,
             Arc::from(vec![0.1, 0.2]),
         );
 

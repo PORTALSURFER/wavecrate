@@ -98,6 +98,7 @@ fn transient_results_update_cache_only_for_non_stretched_waveforms() {
         metadata,
         decoded,
         loaded_audio,
+        None,
         Arc::from(vec![0.05]),
     );
     let cached_transients: Arc<[f32]> = Arc::from(vec![0.2, 0.6]);

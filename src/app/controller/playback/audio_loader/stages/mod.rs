@@ -26,25 +26,24 @@ pub(super) fn load_audio_inner(
     job: &AudioLoadJob,
     latest_request_id: &AtomicU64,
 ) -> Result<Option<AudioLoadOutcome>, AudioLoadError> {
+    if job.stretch_ratio.is_none()
+        && let Some(metadata) = io::load_metadata_stage(job, latest_request_id)?
+        && let Some(hit) =
+            load_persistent_waveform_cache_entry(&job.source_id, &job.relative_path, metadata)
+    {
+        return Ok(Some(AudioLoadOutcome {
+            decoded: hit.decoded,
+            bytes: Arc::from([]),
+            audio_path: Some(job.root.join(&job.relative_path)),
+            metadata,
+            transients: Some(hit.transients),
+            stretched: false,
+        }));
+    }
+
     let Some(io_stage) = io::load_io_stage(job, latest_request_id)? else {
         return Ok(None);
     };
-
-    if job.stretch_ratio.is_none()
-        && let Some(hit) = load_persistent_waveform_cache_entry(
-            &job.source_id,
-            &job.relative_path,
-            io_stage.metadata,
-        )
-    {
-        return Ok(Some(transients::finalize_stage(
-            hit.decoded,
-            Arc::<[u8]>::from(io_stage.bytes),
-            io_stage.metadata,
-            Some(hit.transients),
-            false,
-        )));
-    }
 
     let Some(decoded) = decode::decode_stage(renderer, job, latest_request_id, &io_stage.bytes)?
     else {

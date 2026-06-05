@@ -23,6 +23,7 @@ fn cached_audio_hit_reuses_cached_transients() {
         metadata,
         decoded,
         bytes.into(),
+        None,
         cached_transients.clone(),
     );
 
@@ -61,6 +62,7 @@ fn queued_selection_applies_memory_cached_audio_without_worker_roundtrip() {
         metadata,
         decoded.clone(),
         bytes.into(),
+        None,
         cached_transients.clone(),
     );
     let (audio_job_tx, audio_job_rx) = std::sync::mpsc::channel();

@@ -130,6 +130,7 @@ impl AppController {
                                 relative_path: &pending.relative_path,
                                 decoded: Arc::new(decoded),
                                 bytes: bytes.into(),
+                                audio_path: None,
                                 intent: AudioLoadIntent::Selection,
                                 preserve_selections: false,
                                 transients: None,

@@ -50,7 +50,6 @@ impl AudioPlayer {
         let duration = self
             .track_duration
             .ok_or_else(|| "Load a .wav file first".to_string())?;
-        let bytes = self.audio_bytes()?;
         if duration <= 0.0 {
             return Err("Load a .wav file first".into());
         }
@@ -86,8 +85,9 @@ impl AudioPlayer {
                     span_samples,
                 ))
             } else {
+                let source = self.audio_source()?;
                 let loop_source = LazyRepeatingSpanSource::new(
-                    bytes,
+                    source,
                     sample_rate,
                     channels,
                     0,
@@ -129,7 +129,6 @@ impl AudioPlayer {
         duration: f32,
         looped: bool,
     ) -> Result<(), String> {
-        let bytes = self.audio_bytes()?;
         if duration <= 0.0 {
             return Err("Load a .wav file first".into());
         }
@@ -162,8 +161,9 @@ impl AudioPlayer {
                         span.samples,
                     ))
                 } else {
+                    let source = self.audio_source()?;
                     let loop_source = LazyRepeatingSpanSource::new(
-                        bytes,
+                        source,
                         sample_rate,
                         channels,
                         span.start_frame,
@@ -198,8 +198,9 @@ impl AudioPlayer {
                         end_sample,
                     ))
                 } else {
+                    let source = self.audio_source()?;
                     let lazy_source = LazySpanSource::new(
-                        bytes,
+                        source,
                         sample_rate,
                         channels,
                         span.start_frame,
@@ -230,7 +231,6 @@ impl AudioPlayer {
         duration: f32,
         offset_seconds: f32,
     ) -> Result<(), String> {
-        let bytes = self.audio_bytes()?;
         if duration <= 0.0 {
             return Err("Load a .wav file first".into());
         }
@@ -268,8 +268,9 @@ impl AudioPlayer {
                     span.samples,
                 ))
             } else {
+                let source = self.audio_source()?;
                 let loop_source = LazyRepeatingSpanSource::new(
-                    bytes,
+                    source,
                     sample_rate,
                     channels,
                     span.start_frame,

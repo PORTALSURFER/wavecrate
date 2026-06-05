@@ -121,6 +121,7 @@ pub(crate) struct StagedAudioHandoff {
     pub(crate) intent: AudioLoadIntent,
     pub(crate) decoded: Arc<crate::waveform::DecodedWaveform>,
     pub(crate) bytes: Arc<[u8]>,
+    pub(crate) audio_path: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]

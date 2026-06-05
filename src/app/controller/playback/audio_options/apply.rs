@@ -68,12 +68,21 @@ pub(super) fn rebuild_audio_player(controller: &mut AppController) -> Result<(),
     if let Some(audio) = loaded_audio {
         let mut player = player_rc.borrow_mut();
         player.stop();
-        player.set_audio_with_metadata(
-            audio.bytes.clone(),
-            audio.duration_seconds,
-            audio.sample_rate,
-            audio.channels as usize,
-        );
+        if audio.bytes.is_empty() {
+            player.set_audio_file_with_metadata(
+                audio.root.join(&audio.relative_path),
+                audio.duration_seconds,
+                audio.sample_rate,
+                audio.channels as usize,
+            );
+        } else {
+            player.set_audio_with_metadata(
+                audio.bytes.clone(),
+                audio.duration_seconds,
+                audio.sample_rate,
+                audio.channels as usize,
+            );
+        }
     }
     update_audio_output_status(controller);
     Ok(())

@@ -1,6 +1,8 @@
 //! Symphonia-based audio decoder implementing the `Source` trait.
 
+use std::fs::File;
 use std::io::Cursor;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use symphonia::core::audio::{AudioBufferRef, Signal};
@@ -82,6 +84,14 @@ impl SymphoniaDecoder {
     pub fn from_bytes(data: Arc<[u8]>) -> Result<Self, String> {
         let cursor = Cursor::new(data);
         let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
+        Self::new(mss)
+    }
+
+    /// Create a decoder from an audio file path.
+    pub fn from_path(path: &Path) -> Result<Self, String> {
+        let file = File::open(path)
+            .map_err(|err| format!("Failed to open audio file {}: {err}", path.display()))?;
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
         Self::new(mss)
     }
 

@@ -6,6 +6,7 @@ pub(crate) struct FinishWaveformLoadShared<'a> {
     pub(crate) relative_path: &'a Path,
     pub(crate) decoded: Arc<DecodedWaveform>,
     pub(crate) bytes: Arc<[u8]>,
+    pub(crate) audio_path: Option<PathBuf>,
     pub(crate) intent: AudioLoadIntent,
     pub(crate) preserve_selections: bool,
     pub(crate) transients: Option<Arc<[f32]>>,
@@ -22,6 +23,7 @@ impl AppController {
             relative_path,
             decoded,
             bytes,
+            audio_path,
             intent,
             preserve_selections,
             transients,
@@ -52,6 +54,7 @@ impl AppController {
             channels,
             playback_samples,
             bytes,
+            audio_path,
         )?;
         if matches!(intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(relative_path);
@@ -79,6 +82,7 @@ impl AppController {
         channels: u16,
         playback_samples: Arc<[f32]>,
         bytes: Arc<[u8]>,
+        audio_path: Option<PathBuf>,
     ) -> Result<(), String> {
         self.sample_view.wav.loaded_audio = Some(LoadedAudio {
             source_id: source.id.clone(),
@@ -93,7 +97,23 @@ impl AppController {
             Ok(Some(player)) => {
                 let mut player = player.borrow_mut();
                 player.stop();
-                if playback_samples.is_empty() {
+                if playback_samples.is_empty() && bytes.is_empty() {
+                    if let Some(path) = audio_path {
+                        player.set_audio_file_with_metadata(
+                            path,
+                            duration_seconds,
+                            sample_rate,
+                            channels as usize,
+                        );
+                    } else {
+                        player.set_audio_with_metadata(
+                            bytes,
+                            duration_seconds,
+                            sample_rate,
+                            channels as usize,
+                        );
+                    }
+                } else if playback_samples.is_empty() {
                     player.set_audio_with_metadata(
                         bytes,
                         duration_seconds,

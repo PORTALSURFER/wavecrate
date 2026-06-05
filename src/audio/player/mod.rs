@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -11,6 +12,12 @@ mod progress;
 mod state;
 pub(crate) use edit_fade_impl::{EditFadeHandle, EditFadeSource};
 
+#[derive(Clone)]
+pub(crate) enum AudioPlaybackSource {
+    Bytes(Arc<[u8]>),
+    File(PathBuf),
+}
+
 /// Simple audio helper that plays a loaded wav buffer and reports progress.
 pub struct AudioPlayer {
     pub(crate) edit_fade_handle: EditFadeHandle,
@@ -18,7 +25,7 @@ pub struct AudioPlayer {
     active_sources: usize,
     fade_out: Option<FadeOutHandle>,
     sink_format: Option<(u32, u16)>,
-    current_audio: Option<Arc<[u8]>>,
+    current_audio: Option<AudioPlaybackSource>,
     playback_samples: Option<Arc<[f32]>>,
     track_duration: Option<f32>,
     track_total_frames: Option<u64>,
