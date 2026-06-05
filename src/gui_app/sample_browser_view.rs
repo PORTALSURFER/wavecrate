@@ -7,7 +7,7 @@ use super::{
 };
 
 mod hit_target;
-pub(super) use hit_target::{SampleFileHitMessage, SampleFileHitTarget};
+pub(super) use hit_target::SampleFileHitTarget;
 
 mod row_widgets;
 mod rows;

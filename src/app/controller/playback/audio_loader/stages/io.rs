@@ -2,7 +2,7 @@ use super::super::{AudioLoadError, AudioLoadJob};
 use super::IoStageOutput;
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use std::{
-    fs,
+    fs::{self, Metadata},
     io::Read,
     path::{Component, Path},
     sync::atomic::AtomicU64,
@@ -16,6 +16,29 @@ use super::super::telemetry::{
 
 /// Chunk size for stale-aware incremental audio file reads.
 pub(super) const AUDIO_LOADER_READ_CHUNK_BYTES: usize = 128 * 1024;
+
+pub(super) fn load_metadata_stage(
+    job: &AudioLoadJob,
+    latest_request_id: &AtomicU64,
+) -> Result<Option<FileMetadata>, AudioLoadError> {
+    ensure_safe_relative_path(&job.relative_path)?;
+    if stale_and_record(job.request_id, latest_request_id, StaleDropStage::PreIo) {
+        return Ok(None);
+    }
+    let full_path = job.root.join(&job.relative_path);
+    let fs_metadata = fs::metadata(&full_path).map_err(|err| {
+        let missing = err.kind() == std::io::ErrorKind::NotFound;
+        if missing {
+            AudioLoadError::Missing(format!("File missing: {} ({err})", full_path.display()))
+        } else {
+            AudioLoadError::Failed(format!(
+                "Failed to read metadata for {}: {err}",
+                full_path.display()
+            ))
+        }
+    })?;
+    file_metadata(&full_path, &fs_metadata).map(Some)
+}
 
 /// Read metadata/bytes for one load request and sanitize bytes for decoding.
 pub(super) fn load_io_stage(
@@ -67,6 +90,17 @@ pub(super) fn load_io_stage(
         record_io_duration(start.elapsed());
     }
 
+    if stale_and_record(job.request_id, latest_request_id, StaleDropStage::PostIo) {
+        return Ok(None);
+    }
+
+    Ok(Some(IoStageOutput {
+        bytes,
+        metadata: file_metadata(&full_path, &fs_metadata)?,
+    }))
+}
+
+fn file_metadata(full_path: &Path, fs_metadata: &Metadata) -> Result<FileMetadata, AudioLoadError> {
     let modified_ns = fs_metadata
         .modified()
         .map_err(|err| {
@@ -83,18 +117,10 @@ pub(super) fn load_io_stage(
             ))
         })?
         .as_nanos() as i64;
-
-    if stale_and_record(job.request_id, latest_request_id, StaleDropStage::PostIo) {
-        return Ok(None);
-    }
-
-    Ok(Some(IoStageOutput {
-        bytes,
-        metadata: FileMetadata {
-            file_size: fs_metadata.len(),
-            modified_ns,
-        },
-    }))
+    Ok(FileMetadata {
+        file_size: fs_metadata.len(),
+        modified_ns,
+    })
 }
 
 /// Read bytes incrementally and abort early when a stale request is detected.

@@ -1,27 +1,20 @@
 use radiant::{
-    gui::types::{Point, Rect},
+    gui::types::Rect,
     layout::LayoutOutput,
     prelude as ui,
     runtime::{PaintPrimitive, PaintText},
     theme::ThemeTokens,
-    widgets::{DragHandleMessage, InteractiveRowWidget},
+    widgets::InteractiveRowWidget,
 };
 
-mod paint;
+use crate::gui_app::{FolderBrowserMessage, GuiMessage};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum FolderTreeHitMessage {
-    Activate,
-    ContextMenu(Point),
-    Drag(DragHandleMessage),
-    Drop,
-    HoverDropTarget(Point),
-}
+mod paint;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderTreeHitTarget {
     row: InteractiveRowWidget,
-    actions: ui::InteractiveRowActions<FolderTreeHitMessage>,
+    actions: ui::InteractiveRowActions<GuiMessage>,
     label: PaintText,
     selected: bool,
     drop_target: bool,
@@ -30,6 +23,7 @@ pub(super) struct FolderTreeHitTarget {
 
 impl FolderTreeHitTarget {
     pub(super) fn new(
+        id: String,
         label: impl Into<PaintText>,
         selected: bool,
         drop_target: bool,
@@ -52,11 +46,20 @@ impl FolderTreeHitTarget {
         }
         let row = row.widget();
         let actions = ui::InteractiveRowActions::new()
-            .activate_or_double(|| FolderTreeHitMessage::Activate)
-            .secondary(FolderTreeHitMessage::ContextMenu)
-            .drag(FolderTreeHitMessage::Drag)
-            .hover_drop(FolderTreeHitMessage::HoverDropTarget)
-            .drop(|| FolderTreeHitMessage::Drop);
+            .activate_or_double_secondary_drag_drop_target_key(
+                id,
+                |id| GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id)),
+                |id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::OpenFolderContextMenu(
+                        id, position,
+                    ))
+                },
+                |id, drag| GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag)),
+                |id| GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id)),
+                |id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverDropTarget(id, position))
+                },
+            );
         Self {
             row,
             actions,
@@ -69,7 +72,7 @@ impl FolderTreeHitTarget {
 }
 
 impl ui::EmbeddedInteractiveRowWidget for FolderTreeHitTarget {
-    type Message = FolderTreeHitMessage;
+    type Message = GuiMessage;
 
     fn interactive_row(&self) -> &InteractiveRowWidget {
         &self.row

@@ -1,15 +1,16 @@
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::{OutputAdapter, Source};
 use tracing::warn;
 
 #[cfg(test)]
+use std::sync::Arc;
+#[cfg(test)]
 use super::super::DEFAULT_ANTI_CLIP_FADE;
 #[cfg(test)]
 use super::super::fade::{EdgeFade, fade_duration};
 use super::super::fade::{FadeOutHandle, FadeOutOnRequest, fade_frames_for_duration};
-use super::AudioPlayer;
+use super::{AudioPlaybackSource, AudioPlayer};
 #[cfg(test)]
 use crate::mixer::{decoder_from_bytes, map_seek_error};
 
@@ -80,7 +81,7 @@ impl AudioPlayer {
         started_at.elapsed()
     }
 
-    pub(super) fn audio_bytes(&self) -> Result<Arc<[u8]>, String> {
+    pub(super) fn audio_source(&self) -> Result<AudioPlaybackSource, String> {
         self.current_audio
             .as_ref()
             .cloned()

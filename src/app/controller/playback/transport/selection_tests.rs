@@ -24,6 +24,7 @@ fn update_selection_drag_materializes_exact_anchor_before_snapping() {
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.bpm_value = Some(120.0);

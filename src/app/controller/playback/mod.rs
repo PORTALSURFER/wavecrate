@@ -259,6 +259,7 @@ impl AppController {
                 bytes: Vec::new().into(),
                 duration_seconds,
                 sample_rate: 48_000,
+                channels: 1,
             });
     }
     /// Apply a committed playback selection range and refresh dependent labels/preview state.

@@ -71,6 +71,7 @@ impl AppController {
                 metadata,
                 decoded.clone(),
                 bytes.clone(),
+                None,
                 transients.clone(),
             );
             self.persist_waveform_cache(&source.id, relative_path, metadata, &decoded, &transients);
@@ -80,6 +81,7 @@ impl AppController {
             relative_path,
             decoded,
             bytes,
+            audio_path: None,
             intent: AudioLoadIntent::Selection,
             preserve_selections: is_refresh,
             transients: Some(transients),

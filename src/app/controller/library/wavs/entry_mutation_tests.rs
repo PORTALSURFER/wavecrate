@@ -65,6 +65,7 @@ fn update_selection_paths_rewrites_compare_anchor_and_loaded_state() {
         bytes: Arc::<[u8]>::from(vec![0_u8].into_boxed_slice()),
         duration_seconds: 1.0,
         sample_rate: 44_100,
+        channels: 1,
     });
     controller.sample_view.wav.compare_anchor = Some(CompareAnchorSample {
         source_id: source.id.clone(),

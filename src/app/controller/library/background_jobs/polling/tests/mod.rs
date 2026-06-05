@@ -37,6 +37,7 @@ fn decode_audio_outcome(
     AudioLoadOutcome {
         decoded,
         bytes,
+        audio_path: None,
         metadata,
         transients: None,
         stretched: false,

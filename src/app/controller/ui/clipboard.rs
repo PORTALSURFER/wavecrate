@@ -261,6 +261,7 @@ mod tests {
             bytes: Arc::from(Vec::<u8>::new()),
             duration_seconds: 0.1,
             sample_rate: 44_100,
+            channels: 1,
         });
 
         let paths = controller.selected_sample_paths().unwrap();

@@ -1,4 +1,5 @@
 use std::io::Cursor;
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::Source;
@@ -6,6 +7,10 @@ use crate::decoder::SymphoniaDecoder;
 
 pub(crate) fn decoder_from_bytes(bytes: Arc<[u8]>) -> Result<SymphoniaDecoder, String> {
     SymphoniaDecoder::from_bytes(bytes)
+}
+
+pub(crate) fn decoder_from_path(path: &Path) -> Result<SymphoniaDecoder, String> {
+    SymphoniaDecoder::from_path(path)
 }
 
 pub(crate) fn decoder_duration(bytes: &Arc<[u8]>) -> Option<f32> {

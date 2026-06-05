@@ -205,6 +205,7 @@ mod tests {
                 bytes: std::sync::Arc::from(Vec::<u8>::new()),
                 duration_seconds: 1.0,
                 sample_rate: 44_100,
+                channels: 1,
             });
         let snapshot = controller
             .current_browser_feature_cache_snapshot()

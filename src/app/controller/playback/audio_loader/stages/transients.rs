@@ -30,6 +30,7 @@ pub(super) fn finalize_stage(
     AudioLoadOutcome {
         decoded,
         bytes,
+        audio_path: None,
         metadata,
         transients,
         stretched,

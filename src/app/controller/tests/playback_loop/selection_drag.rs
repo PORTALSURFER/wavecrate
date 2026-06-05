@@ -216,6 +216,7 @@ fn zero_width_selection_does_not_truncate_seek_playback() {
         bytes: std::fs::read(&wav_path).expect("wav bytes").into(),
         duration_seconds: duration,
         sample_rate: 8,
+        channels: 1,
     });
     controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
 

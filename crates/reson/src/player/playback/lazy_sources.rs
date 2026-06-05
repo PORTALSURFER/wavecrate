@@ -4,9 +4,10 @@ use crate::Source;
 use crate::timebase::duration_for_frames;
 
 use super::super::super::decoder::SymphoniaDecoder;
-use super::super::super::mixer::{decoder_from_bytes, map_seek_error};
+use super::super::super::mixer::{decoder_from_bytes, decoder_from_path, map_seek_error};
+use super::super::AudioPlaybackSource;
 pub(super) struct LazySpanSource {
-    bytes: Arc<[u8]>,
+    source: AudioPlaybackSource,
     decoder: Option<SymphoniaDecoder>,
     sample_rate: u32,
     channels: u16,
@@ -18,7 +19,7 @@ pub(super) struct LazySpanSource {
 
 impl LazySpanSource {
     pub(super) fn new(
-        bytes: Arc<[u8]>,
+        source: AudioPlaybackSource,
         sample_rate: u32,
         channels: u16,
         start_frame: u64,
@@ -28,7 +29,7 @@ impl LazySpanSource {
         let sample_rate = sample_rate.max(1);
         let channels = channels.max(1);
         Self {
-            bytes,
+            source,
             decoder: None,
             sample_rate,
             channels,
@@ -41,7 +42,7 @@ impl LazySpanSource {
 
     fn decoder_mut(&mut self) -> Option<&mut SymphoniaDecoder> {
         if self.decoder.is_none() {
-            match decoder_from_bytes(Arc::clone(&self.bytes)).and_then(|mut decoder| {
+            match decoder_from_audio_source(&self.source).and_then(|mut decoder| {
                 decoder.try_seek(self.seek_to).map_err(map_seek_error)?;
                 Ok(decoder)
             }) {
@@ -106,7 +107,7 @@ impl Source for LazySpanSource {
 }
 
 pub(super) struct LazyRepeatingSpanSource {
-    bytes: Arc<[u8]>,
+    source: AudioPlaybackSource,
     decoder: Option<SymphoniaDecoder>,
     sample_rate: u32,
     channels: u16,
@@ -119,7 +120,7 @@ pub(super) struct LazyRepeatingSpanSource {
 
 impl LazyRepeatingSpanSource {
     pub(super) fn new(
-        bytes: Arc<[u8]>,
+        source: AudioPlaybackSource,
         sample_rate: u32,
         channels: u16,
         start_frame: u64,
@@ -131,7 +132,7 @@ impl LazyRepeatingSpanSource {
         let span_samples = span_samples.max(channels as u64);
         let initial_offset_samples = offset_frames.saturating_mul(channels as u64) % span_samples;
         Self {
-            bytes,
+            source,
             decoder: None,
             sample_rate,
             channels,
@@ -157,7 +158,7 @@ impl LazyRepeatingSpanSource {
 
     fn seek_to_cycle_position(&mut self, cycle_sample_offset: u64) -> Result<(), ()> {
         let frame_offset = cycle_sample_offset / self.channels as u64;
-        match decoder_from_bytes(Arc::clone(&self.bytes)).and_then(|mut decoder| {
+        match decoder_from_audio_source(&self.source).and_then(|mut decoder| {
             decoder
                 .try_seek(duration_for_frames(
                     self.start_frame.saturating_add(frame_offset),
@@ -181,6 +182,13 @@ impl LazyRepeatingSpanSource {
 
     fn restart_cycle(&mut self) -> Option<()> {
         self.seek_to_cycle_position(0).ok()
+    }
+}
+
+fn decoder_from_audio_source(source: &AudioPlaybackSource) -> Result<SymphoniaDecoder, String> {
+    match source {
+        AudioPlaybackSource::Bytes(bytes) => decoder_from_bytes(Arc::clone(bytes)),
+        AudioPlaybackSource::File(path) => decoder_from_path(path),
     }
 }
 

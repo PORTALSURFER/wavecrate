@@ -23,6 +23,7 @@ fn cached_audio_hit_reuses_cached_transients() {
         metadata,
         decoded,
         bytes.into(),
+        None,
         cached_transients.clone(),
     );
 
@@ -39,13 +40,70 @@ fn cached_audio_hit_reuses_cached_transients() {
 }
 
 #[test]
-fn persistent_waveform_cache_survives_controller_restart() {
+fn queued_selection_applies_memory_cached_audio_without_worker_roundtrip() {
+    let (mut controller, source, rel) = controller_with_audio_file("cached-queue.wav");
+
+    let metadata = controller
+        .current_file_metadata(&source, rel.as_path())
+        .expect("metadata");
+    let bytes = controller
+        .read_waveform_bytes(&source, rel.as_path())
+        .expect("bytes");
+    let decoded = Arc::new(
+        controller
+            .sample_view
+            .renderer
+            .decode_from_bytes(&bytes)
+            .expect("decode"),
+    );
+    let cached_transients: Arc<[f32]> = Arc::from(vec![0.25]);
+    controller.audio.cache.insert(
+        CacheKey::new(&source.id, rel.as_path()),
+        metadata,
+        decoded.clone(),
+        bytes.into(),
+        None,
+        cached_transients.clone(),
+    );
+    let (audio_job_tx, audio_job_rx) = std::sync::mpsc::channel();
+    controller.runtime.jobs.audio_job_tx = audio_job_tx;
+
+    controller
+        .queue_audio_load_for(&source, rel.as_path(), AudioLoadIntent::Selection, None)
+        .expect("queue cached load");
+
+    assert!(
+        audio_job_rx.try_recv().is_err(),
+        "resident cached audio should apply without a worker roundtrip"
+    );
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(rel.as_path())
+    );
+    assert_eq!(
+        controller
+            .sample_view
+            .waveform
+            .decoded
+            .as_ref()
+            .map(|decoded| decoded.cache_token),
+        Some(decoded.cache_token)
+    );
+    assert_eq!(
+        controller.ui.waveform.transients.as_ref(),
+        cached_transients.as_ref()
+    );
+    assert!(controller.runtime.jobs.pending_audio().is_none());
+    assert!(controller.ui.waveform.loading.is_none());
+}
+
+#[test]
+fn persistent_waveform_cache_is_not_hydrated_on_controller_thread_after_restart() {
     let cache_root = tempdir().expect("tempdir");
     let _guard = ConfigBaseGuard::set(cache_root.path().to_path_buf());
     let (mut first, source, rel) = controller_with_audio_file("persistent.wav");
 
     load_selection_waveform(&mut first, &source, rel.as_path());
-    let first_transients = first.ui.waveform.transients.clone();
     assert!(
         first
             .audio
@@ -58,6 +116,7 @@ fn persistent_waveform_cache_survives_controller_restart() {
             )
             .is_some()
     );
+    assert!(first.ui.waveform.transient_cache_token.is_some());
 
     let renderer = WaveformRenderer::new(10, 10);
     let mut second = AppController::new(renderer, None);
@@ -74,16 +133,12 @@ fn persistent_waveform_cache_survives_controller_restart() {
         .try_use_cached_audio(&source, rel.as_path(), AudioLoadIntent::Selection)
         .expect("persistent cache lookup");
 
-    assert!(used);
-    assert!(second.sample_view.waveform.decoded.is_some());
-    assert_eq!(
-        second.ui.waveform.transients.as_ref(),
-        first_transients.as_ref()
+    assert!(
+        !used,
+        "persistent cache hydration should stay off the controller thread"
     );
-    assert_eq!(
-        second.ui.waveform.transient_cache_token.is_some(),
-        first.ui.waveform.transient_cache_token.is_some()
-    );
+    assert!(second.sample_view.waveform.decoded.is_none());
+    assert!(second.ui.waveform.transients.is_empty());
 }
 
 #[test]
@@ -113,8 +168,8 @@ fn queued_load_uses_persistent_waveform_cache_after_controller_restart() {
 
     let job = audio_job_rx.try_recv().expect("queued audio job");
     assert!(
-        job.prepared.is_some(),
-        "restart load should queue a prepared cached payload instead of a full decode"
+        job.prepared.is_none(),
+        "restart load should let the background loader hydrate persistent cache data"
     );
     assert_eq!(job.relative_path, rel);
     assert!(second.runtime.jobs.pending_audio().is_some());
@@ -128,7 +183,8 @@ fn queued_load_uses_persistent_waveform_cache_after_controller_restart() {
                     .current_file_metadata(&source, job.relative_path.as_path())
                     .expect("metadata"),
             )
-            .is_some()
+            .is_none(),
+        "queueing should not hydrate the in-memory cache on the controller thread"
     );
 }
 

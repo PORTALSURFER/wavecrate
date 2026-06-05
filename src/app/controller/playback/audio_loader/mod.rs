@@ -54,6 +54,7 @@ pub(crate) struct PreparedAudioLoad {
 pub(crate) struct AudioLoadOutcome {
     pub decoded: Arc<DecodedWaveform>,
     pub bytes: Arc<[u8]>,
+    pub audio_path: Option<PathBuf>,
     pub metadata: FileMetadata,
     pub transients: Option<Arc<[f32]>>,
     pub stretched: bool,
@@ -288,6 +289,7 @@ fn load_audio_primary(
         return Ok(Some(AudioLoadOutcome {
             decoded: Arc::clone(&prepared.decoded),
             bytes: Arc::clone(&prepared.bytes),
+            audio_path: None,
             metadata: prepared.metadata,
             transients: Some(Arc::clone(&prepared.transients)),
             stretched: prepared.stretched,

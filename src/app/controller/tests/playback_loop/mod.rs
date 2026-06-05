@@ -29,6 +29,7 @@ fn setup_looping_controller(selection: SelectionRange) -> Option<AppController> 
         bytes,
         duration_seconds: duration,
         sample_rate: 8,
+        channels: 1,
     });
     controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
     controller.selection_state.range.set_range(Some(selection));

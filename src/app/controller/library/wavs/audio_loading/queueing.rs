@@ -130,7 +130,7 @@ impl AppController {
             render_spec: self.initial_waveform_render_spec(),
             prepared: None,
         };
-        if self.try_queue_cached_audio_load(source, relative_path, intent)? {
+        if self.try_apply_cached_audio_load(source, relative_path, intent)? {
             return Ok(());
         }
         if self.runtime.jobs.send_audio_job(job).is_err() {

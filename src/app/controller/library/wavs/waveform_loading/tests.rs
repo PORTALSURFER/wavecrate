@@ -51,6 +51,7 @@ fn finish_waveform_load_shared_resets_selection_state_for_new_sample() {
             relative_path,
             decoded,
             bytes,
+            audio_path: None,
             intent: AudioLoadIntent::Selection,
             preserve_selections: false,
             transients: Some(Arc::from([])),

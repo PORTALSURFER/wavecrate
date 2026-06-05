@@ -6,6 +6,7 @@ pub(crate) struct FinishWaveformLoadShared<'a> {
     pub(crate) relative_path: &'a Path,
     pub(crate) decoded: Arc<DecodedWaveform>,
     pub(crate) bytes: Arc<[u8]>,
+    pub(crate) audio_path: Option<PathBuf>,
     pub(crate) intent: AudioLoadIntent,
     pub(crate) preserve_selections: bool,
     pub(crate) transients: Option<Arc<[f32]>>,
@@ -22,12 +23,15 @@ impl AppController {
             relative_path,
             decoded,
             bytes,
+            audio_path,
             intent,
             preserve_selections,
             transients,
         } = params;
         let duration_seconds = decoded.duration_seconds;
         let sample_rate = decoded.sample_rate;
+        let channels = decoded.channels;
+        let playback_samples = Arc::clone(&decoded.samples);
         self.apply_waveform_image_shared(decoded, transients);
         if !preserve_selections {
             self.ui.waveform.view = WaveformView::default();
@@ -42,7 +46,16 @@ impl AppController {
         self.runtime.jobs.set_staged_audio_handoff(None);
         self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
         self.set_ui_loaded_wav(Some(relative_path.to_path_buf()));
-        self.sync_loaded_audio(source, relative_path, duration_seconds, sample_rate, bytes)?;
+        self.sync_loaded_audio(
+            source,
+            relative_path,
+            duration_seconds,
+            sample_rate,
+            channels,
+            playback_samples,
+            bytes,
+            audio_path,
+        )?;
         if matches!(intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(relative_path);
             self.apply_loaded_sample_loop_marker(source, relative_path);
@@ -66,7 +79,10 @@ impl AppController {
         relative_path: &Path,
         duration_seconds: f32,
         sample_rate: u32,
+        channels: u16,
+        playback_samples: Arc<[f32]>,
         bytes: Arc<[u8]>,
+        audio_path: Option<PathBuf>,
     ) -> Result<(), String> {
         self.sample_view.wav.loaded_audio = Some(LoadedAudio {
             source_id: source.id.clone(),
@@ -75,12 +91,44 @@ impl AppController {
             bytes: Arc::clone(&bytes),
             duration_seconds,
             sample_rate,
+            channels,
         });
         match self.ensure_player() {
             Ok(Some(player)) => {
                 let mut player = player.borrow_mut();
                 player.stop();
-                player.set_audio(bytes, duration_seconds);
+                if playback_samples.is_empty() && bytes.is_empty() {
+                    if let Some(path) = audio_path {
+                        player.set_audio_file_with_metadata(
+                            path,
+                            duration_seconds,
+                            sample_rate,
+                            channels as usize,
+                        );
+                    } else {
+                        player.set_audio_with_metadata(
+                            bytes,
+                            duration_seconds,
+                            sample_rate,
+                            channels as usize,
+                        );
+                    }
+                } else if playback_samples.is_empty() {
+                    player.set_audio_with_metadata(
+                        bytes,
+                        duration_seconds,
+                        sample_rate,
+                        channels as usize,
+                    );
+                } else {
+                    player.set_audio_samples_with_metadata(
+                        bytes,
+                        playback_samples,
+                        duration_seconds,
+                        sample_rate,
+                        channels as usize,
+                    );
+                }
             }
             Ok(None) => {}
             Err(err) => self.set_status(err, StatusTone::Warning),

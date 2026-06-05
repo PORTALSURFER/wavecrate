@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -8,7 +9,7 @@ use super::super::output::{AudioOutputConfig, ResolvedOutput, open_output_stream
 use super::super::routing::duration_from_secs_f32;
 use super::super::timebase::seconds_to_frames_round;
 
-use super::{AudioPlayer, EditFadeHandle, EditFadeRange};
+use super::{AudioPlaybackSource, AudioPlayer, EditFadeHandle, EditFadeRange};
 
 impl AudioPlayer {
     /// Create a new audio player using the default output device.
@@ -55,8 +56,8 @@ impl AudioPlayer {
         };
         let audio: Arc<[u8]> = data.into();
         let provided = duration.max(0.0);
-        let fallback = decoder_duration(&audio)
-            .or_else(|| wav_header_duration(&audio))
+        let fallback = wav_header_duration(&audio)
+            .or_else(|| decoder_duration(&audio))
             .unwrap_or(0.0);
 
         let wav_spec = wav_spec_from_bytes(&audio);
@@ -71,7 +72,7 @@ impl AudioPlayer {
             .filter(|frames| *frames > 0);
         self.track_channels = channels;
         self.sample_rate = sample_rate;
-        self.current_audio = Some(audio);
+        self.current_audio = Some(AudioPlaybackSource::Bytes(audio));
         self.playback_samples = None;
         self.reset_playback_state();
     }
@@ -95,7 +96,26 @@ impl AudioPlayer {
         self.track_total_frames = Some(seconds_to_frames_round(duration, sample_rate).max(1));
         self.track_channels = Some(channels.clamp(1, u16::MAX as usize) as u16);
         self.sample_rate = Some(sample_rate);
-        self.current_audio = Some(audio);
+        self.current_audio = Some(AudioPlaybackSource::Bytes(audio));
+        self.playback_samples = None;
+        self.reset_playback_state();
+    }
+
+    /// Store an audio file path with caller-provided timing metadata.
+    pub fn set_audio_file_with_metadata(
+        &mut self,
+        path: impl Into<PathBuf>,
+        duration: f32,
+        sample_rate: u32,
+        channels: usize,
+    ) {
+        let duration = duration.max(0.0);
+        let sample_rate = sample_rate.max(1);
+        self.track_duration = Some(duration);
+        self.track_total_frames = Some(seconds_to_frames_round(duration, sample_rate).max(1));
+        self.track_channels = Some(channels.clamp(1, u16::MAX as usize) as u16);
+        self.sample_rate = Some(sample_rate);
+        self.current_audio = Some(AudioPlaybackSource::File(path.into()));
         self.playback_samples = None;
         self.reset_playback_state();
     }
@@ -117,7 +137,7 @@ impl AudioPlayer {
         self.track_total_frames = Some(seconds_to_frames_round(duration, sample_rate).max(1));
         self.track_channels = Some(channels.clamp(1, u16::MAX as usize) as u16);
         self.sample_rate = Some(sample_rate);
-        self.current_audio = Some(audio);
+        self.current_audio = Some(AudioPlaybackSource::Bytes(audio));
         self.playback_samples = Some(samples);
         self.reset_playback_state();
     }

@@ -139,6 +139,7 @@ mod tests {
             bytes: Arc::from(Vec::<u8>::new()),
             duration_seconds: 1.0,
             sample_rate: 44_100,
+            channels: 1,
         });
         seed_similarity_row(&source, "anchor.wav", &[1.0, 0.0], Some(&[1.0, 0.0, 0.25]));
         seed_similarity_row(&source, "close.wav", &[0.8, 0.2], Some(&[0.8, 0.2, 0.25]));
