@@ -76,8 +76,11 @@ impl WaveformWidget {
         bounds: Rect,
         range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<CanvasSelectionGeometry> {
-        let range = self.visible_normalized_range_for_selection(range)?;
-        CanvasSelectionGeometry::new(bounds, range.start_fraction(), range.end_fraction())
+        CanvasSelectionGeometry::from_viewport_range(
+            bounds,
+            self.viewport_scope(),
+            normalized_range_for_selection(range?),
+        )
     }
 
     fn viewport_scope(&self) -> radiant::prelude::IndexViewportScope {
