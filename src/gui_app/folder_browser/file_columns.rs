@@ -20,20 +20,21 @@ impl FolderBrowserState {
 
     pub(in crate::gui_app) fn file_column_drag_feedback(&self) -> Option<FileColumnDragFeedback> {
         let drag = self.file_column_reorder.as_ref()?;
+        let feedback = ui::details_column_drag_feedback(
+            drag,
+            &self.details_column_placements(),
+            FILE_COLUMN_GAP,
+            FILE_COLUMN_DROP_MARKER_HANDLE_OFFSET,
+        )?;
         let column = self
             .file_columns
             .iter()
-            .find(|column| column.id == drag.column_id)?;
-        let marker_x = (drag
-            .current_marker_x(&self.details_column_placements(), FILE_COLUMN_GAP)?
-            - drag.content_left
-            - FILE_COLUMN_DROP_MARKER_HANDLE_OFFSET)
-            .max(0.0);
+            .find(|column| column.id == feedback.column_id)?;
         Some(FileColumnDragFeedback {
             label: column.label.clone(),
-            pointer: drag.pointer,
-            width: column.width,
-            marker_x,
+            pointer: feedback.pointer,
+            width: feedback.width,
+            marker_x: feedback.marker_x,
         })
     }
 
