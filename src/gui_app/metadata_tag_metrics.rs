@@ -20,6 +20,13 @@ pub(super) fn metadata_tag_pill_width(tag: &str) -> f32 {
     )
 }
 
+pub(super) fn metadata_tag_input_width_policy(
+    min_width: f32,
+    max_width: f32,
+) -> ui::TextInputWidthPolicy {
+    ui::TextInputWidthPolicy::new(metadata_tag_input_width_estimate(), min_width, max_width)
+}
+
 fn metadata_tag_pill_metrics() -> ui::InlineBadgeMetrics {
     ui::InlineBadgeMetrics::new(
         METADATA_TAG_PILL_FONT_SIZE,
@@ -28,32 +35,6 @@ fn metadata_tag_pill_metrics() -> ui::InlineBadgeMetrics {
         METADATA_TAG_PILL_GAP,
         METADATA_TAG_PILL_CLUSTER_GAP,
         METADATA_TAG_PILL_MIN_HEIGHT,
-    )
-}
-
-pub(super) fn metadata_tag_input_width_for_char_count(
-    char_count: usize,
-    min_width: f32,
-    max_width: f32,
-) -> f32 {
-    ui::estimated_text_width_for_char_count_in_range(
-        char_count,
-        metadata_tag_input_width_estimate(),
-        min_width,
-        max_width,
-    )
-}
-
-pub(super) fn metadata_tag_input_width_for_segments<'a>(
-    segments: impl IntoIterator<Item = &'a str>,
-    min_width: f32,
-    max_width: f32,
-) -> f32 {
-    ui::estimated_text_width_for_segments_in_range(
-        segments,
-        metadata_tag_input_width_estimate(),
-        min_width,
-        max_width,
     )
 }
 

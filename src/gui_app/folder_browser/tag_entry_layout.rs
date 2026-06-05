@@ -1,6 +1,5 @@
 use crate::gui_app::metadata_tag_metrics::{
-    metadata_tag_input_width_for_char_count, metadata_tag_input_width_for_segments,
-    metadata_tag_pill_width,
+    metadata_tag_input_width_policy, metadata_tag_pill_width,
 };
 use crate::gui_app::metadata_tags::{
     MetadataTagDisplayCategory, inferred_metadata_tag_category_id_for_name,
@@ -16,6 +15,9 @@ const TAG_FIELD_VERTICAL_CHROME: f32 = 6.0;
 const TAG_FIELD_MIN_CONTENT_WIDTH: f32 = 120.0;
 const MAX_TAG_FIELD_ROWS: usize = 6;
 const MIN_TAG_INPUT_REMAINING_WIDTH: f32 = 180.0;
+const TAG_INPUT_MIN_WIDTH: f32 = 61.0;
+const TAG_INPUT_MAX_WIDTH: f32 = 180.0;
+const TAG_INPUT_MIN_VISIBLE_CHARS: usize = 7;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum TagEntryRowItem {
@@ -155,14 +157,7 @@ pub(super) fn tag_input_width_with_completion(
     tag_draft: &str,
     completion_suffix: Option<&str>,
 ) -> f32 {
-    match completion_suffix.filter(|suffix| !suffix.is_empty()) {
-        Some(suffix) => metadata_tag_input_width_for_segments([tag_draft, suffix], 61.0, 180.0),
-        None => tag_input_width(tag_draft),
-    }
-}
-
-pub(super) fn tag_input_width(value: &str) -> f32 {
-    metadata_tag_input_width_for_char_count(value.chars().count().max(7), 61.0, 180.0)
+    tag_input_width_policy().width_for_value_and_completion_suffix(tag_draft, completion_suffix)
 }
 
 pub(super) fn tag_input_width_with_completion_or_placeholder(
@@ -170,20 +165,16 @@ pub(super) fn tag_input_width_with_completion_or_placeholder(
     completion_suffix: Option<&str>,
     placeholder: &str,
 ) -> f32 {
-    metadata_tag_input_width_for_char_count(
-        tag_input_visible_char_count(tag_draft, completion_suffix).max(placeholder.chars().count()),
-        61.0,
-        180.0,
+    tag_input_width_policy().width_for_value_completion_or_placeholder(
+        tag_draft,
+        completion_suffix,
+        placeholder,
     )
 }
 
-fn tag_input_visible_char_count(tag_draft: &str, completion_suffix: Option<&str>) -> usize {
-    tag_draft.chars().count()
-        + completion_suffix
-            .filter(|suffix| !suffix.is_empty())
-            .map(str::chars)
-            .map(Iterator::count)
-            .unwrap_or(0)
+fn tag_input_width_policy() -> ui::TextInputWidthPolicy {
+    metadata_tag_input_width_policy(TAG_INPUT_MIN_WIDTH, TAG_INPUT_MAX_WIDTH)
+        .with_min_visible_chars(TAG_INPUT_MIN_VISIBLE_CHARS)
 }
 
 pub(super) fn tag_pill_width(tag: &str) -> f32 {
@@ -198,7 +189,7 @@ mod tests {
     fn pending_category_and_input_wrap_as_one_group() {
         let accepted = String::from("short");
         let pending_label = "deep-kick ->";
-        let input_width = tag_input_width("sound-type");
+        let input_width = tag_input_width_with_completion("sound-type", None);
         let content_width =
             tag_pill_width(&accepted) + TAG_FIELD_ITEM_GAP + tag_pill_width(pending_label) + 1.0;
 

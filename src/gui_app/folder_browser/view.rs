@@ -51,6 +51,7 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
         metadata_tag_draft,
         metadata_tag_tokens,
         metadata_tag_pending_category_tag,
+        metadata_tag_input_placeholder,
         metadata_tag_completion_suffix,
         metadata_tags,
         metadata_tag_display_categories,

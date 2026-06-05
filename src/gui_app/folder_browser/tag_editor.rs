@@ -161,6 +161,7 @@ pub(in crate::gui_app) fn tag_field_height(
     tag_draft: &str,
     tag_tokens: &[String],
     tag_pending_category_tag: Option<&str>,
+    tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
     tags: &[String],
     tag_display_categories: &[MetadataTagDisplayCategory],
@@ -173,7 +174,15 @@ pub(in crate::gui_app) fn tag_field_height(
         }
     }
     order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
-    let input_width = tag_input_width_with_completion(tag_draft, tag_completion_suffix);
+    let input_width = if tag_pending_category_tag.is_some() {
+        tag_input_width_with_completion(tag_draft, tag_completion_suffix)
+    } else {
+        tag_input_width_with_completion_or_placeholder(
+            tag_draft,
+            tag_completion_suffix,
+            tag_input_placeholder,
+        )
+    };
     let rows = tag_field_rows(
         &visible_tags,
         tag_display_categories,
