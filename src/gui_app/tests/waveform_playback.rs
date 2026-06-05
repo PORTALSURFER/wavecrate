@@ -371,6 +371,9 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     let loaded = super::super::WaveformState::load_path(sample_path.clone()).expect("sample loads");
     state.remember_waveform(&loaded);
     state.waveform = super::super::WaveformState::synthetic_for_tests();
+    state.waveform_loading_label = Some(String::from("previous.wav"));
+    state.waveform_loading_progress = 0.42;
+    state.waveform_loading_target_progress = 0.84;
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -382,6 +385,9 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     );
 
     assert_eq!(state.waveform.path(), sample_path);
+    assert_eq!(state.waveform_loading_label, None);
+    assert_eq!(state.waveform_loading_progress, 0.0);
+    assert_eq!(state.waveform_loading_target_progress, 0.0);
     assert!(
         state.deferred_sample_load_task.active().is_none(),
         "memory-cached repeat selection should not debounce a reload"
@@ -396,6 +402,49 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         state.sample_status
     );
     assert!(state.cached_sample_paths.contains(&sample_path_string));
+}
+
+#[test]
+fn memory_cached_load_without_autoplay_stops_current_playback_state() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let current_path = source_root.path().join("current.wav");
+    let cached_path = source_root.path().join("cached.wav");
+    write_test_wav_i16(&current_path, &[0, 256, -256, 512]);
+    write_test_wav_i16(&cached_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let cached_path_string = cached_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+
+    let cached = super::super::WaveformState::load_path(cached_path.clone()).expect("sample loads");
+    state.remember_waveform(&cached);
+
+    state.waveform =
+        super::super::WaveformState::load_path(current_path).expect("current sample loads");
+    state.waveform.start_playback(0.25);
+    state.current_playback_span = Some((0.25, 1.0));
+
+    let mut context = ui::UpdateContext::default();
+    state.load_sample_without_autoplay(cached_path_string, &mut context);
+
+    assert_eq!(state.waveform.path(), cached_path);
+    assert!(!state.waveform.is_playing());
+    assert_eq!(state.current_playback_span, None);
+    assert!(
+        state.deferred_sample_load_task.active().is_none(),
+        "memory-cached non-autoplay load should not debounce a reload"
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "memory-cached non-autoplay load should not queue decode work"
+    );
+    assert!(
+        state.sample_status.contains("Loaded cached.wav"),
+        "cached non-autoplay load should update status, got {}",
+        state.sample_status
+    );
 }
 
 #[test]

@@ -162,6 +162,8 @@ impl GuiAppState {
         let waveform = WaveformState::from_cached_file(file);
         let file_name = waveform.file_name();
         self.touch_cached_waveform_path(PathBuf::from(path));
+        self.stop_current_sample_playback_for_load();
+        self.clear_sample_loading_state();
         self.replace_waveform_deferred(waveform);
         if !autoplay {
             self.sample_status = format!("Loaded {file_name}");
@@ -212,6 +214,24 @@ impl GuiAppState {
             }
         }
         true
+    }
+
+    fn clear_sample_loading_state(&mut self) {
+        self.waveform_loading_label = None;
+        self.waveform_loading_progress = 0.0;
+        self.waveform_loading_target_progress = 0.0;
+        self.sample_load_cancel = None;
+    }
+
+    fn stop_current_sample_playback_for_load(&mut self) {
+        if !self.waveform.is_playing() {
+            return;
+        }
+        if let Some(player) = self.audio_player.as_mut() {
+            player.stop();
+        }
+        self.waveform.stop_playback();
+        self.current_playback_span = None;
     }
 
     fn start_loaded_navigation_sample(
@@ -314,13 +334,7 @@ impl GuiAppState {
         outcome: &'static str,
         started_at: Instant,
     ) {
-        if self.waveform.is_playing() {
-            if let Some(player) = self.audio_player.as_mut() {
-                player.stop();
-            }
-            self.waveform.stop_playback();
-            self.current_playback_span = None;
-        }
+        self.stop_current_sample_playback_for_load();
         self.sample_status = format!("Loading {}", sample_path_label(path));
         let label = sample_path_label(path);
         self.waveform_loading_label = Some(label.clone());
@@ -408,10 +422,7 @@ impl GuiAppState {
             );
             return;
         }
-        self.waveform_loading_label = None;
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
-        self.sample_load_cancel = None;
+        self.clear_sample_loading_state();
         match load.result {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
