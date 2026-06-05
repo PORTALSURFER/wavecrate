@@ -1,9 +1,11 @@
-use radiant::gui::types::{Point, Rect, Rgba8};
+use radiant::gui::types::{Rect, Rgba8};
 use radiant::layout::LayoutOutput;
 use radiant::prelude as ui;
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
-use radiant::widgets::{DragHandleMessage, InteractiveRowWidget, PointerModifiers};
+use radiant::widgets::InteractiveRowWidget;
+
+use crate::gui_app::GuiMessage;
 
 const HOVER_FILL: Rgba8 = Rgba8 {
     r: 255,
@@ -21,7 +23,7 @@ const PRESSED_FILL: Rgba8 = Rgba8 {
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct SampleFileHitTarget {
     row: InteractiveRowWidget,
-    actions: ui::InteractiveRowActions<SampleFileHitMessage>,
+    actions: ui::InteractiveRowActions<GuiMessage>,
     selected: bool,
     drag_active: bool,
     drag_source: bool,
@@ -29,15 +31,9 @@ pub(in crate::gui_app) struct SampleFileHitTarget {
     suppress_hover: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui_app) enum SampleFileHitMessage {
-    Activate(PointerModifiers),
-    ContextMenu(Point),
-    Drag(DragHandleMessage),
-}
-
 impl SampleFileHitTarget {
     pub(in crate::gui_app) fn new(
+        path: String,
         selected: bool,
         drag_active: bool,
         drag_source: bool,
@@ -52,9 +48,12 @@ impl SampleFileHitTarget {
             .custom_paint_hit_target()
             .widget();
         let actions = ui::InteractiveRowActions::new()
-            .activate_or_double_with_modifiers(SampleFileHitMessage::Activate)
-            .secondary(SampleFileHitMessage::ContextMenu)
-            .drag(SampleFileHitMessage::Drag);
+            .activate_or_double_with_modifiers_secondary_drag_key(
+                path,
+                |path, modifiers| GuiMessage::SelectSampleWithModifiers { path, modifiers },
+                |path, position| GuiMessage::OpenSampleContextMenu { path, position },
+                |path, drag| GuiMessage::DragSampleFile { path, drag },
+            );
         Self {
             row,
             actions,
@@ -68,7 +67,7 @@ impl SampleFileHitTarget {
 }
 
 impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
-    type Message = SampleFileHitMessage;
+    type Message = GuiMessage;
 
     fn interactive_row(&self) -> &InteractiveRowWidget {
         &self.row

@@ -2,8 +2,8 @@ use radiant::prelude as ui;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use super::SampleFileHitTarget;
 use super::row_widgets::RatingIndicator;
-use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
     GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
     SampleNameViewMode,
@@ -119,21 +119,15 @@ fn sample_file_hit_target(
     suppress_hover: bool,
 ) -> ui::View<GuiMessage> {
     ui::custom_widget_mapped(
-        SampleFileHitTarget::new(selected, drag_active, drag_source, cached, suppress_hover),
-        move |message| match message {
-            SampleFileHitMessage::Activate(modifiers) => GuiMessage::SelectSampleWithModifiers {
-                path: hit_path.clone(),
-                modifiers,
-            },
-            SampleFileHitMessage::ContextMenu(position) => GuiMessage::OpenSampleContextMenu {
-                path: hit_path.clone(),
-                position,
-            },
-            SampleFileHitMessage::Drag(drag) => GuiMessage::DragSampleFile {
-                path: hit_path.clone(),
-                drag,
-            },
-        },
+        SampleFileHitTarget::new(
+            hit_path,
+            selected,
+            drag_active,
+            drag_source,
+            cached,
+            suppress_hover,
+        ),
+        |message| message,
     )
     .key(format!("sample-row-hit-{}-{drag_revision}", file.id))
     .fill_width()

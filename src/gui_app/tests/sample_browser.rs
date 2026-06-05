@@ -7,21 +7,34 @@ use radiant::{
 
 use super::{gui_runtime_for_tests, gui_state_with_temp_sample};
 
+fn sample_hit_target(
+    selected: bool,
+    drag_active: bool,
+    drag_source: bool,
+    cached: bool,
+    suppress_hover: bool,
+) -> crate::gui_app::sample_browser_view::SampleFileHitTarget {
+    crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        String::from("sample.wav"),
+        selected,
+        drag_active,
+        drag_source,
+        cached,
+        suppress_hover,
+    )
+}
+
 #[test]
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let bounds = Rect::from_size(160.0, 22.0);
-    let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
-        false, false, false, false, false,
-    );
+    let mut hit_target = sample_hit_target(false, false, false, false, false);
 
     assert_eq!(
         hit_target.handle_input(bounds, WidgetInput::primary_press(Point::new(24.0, 10.0)),),
         None
     );
 
-    let mut refreshed_hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
-        false, false, false, false, false,
-    );
+    let mut refreshed_hit_target = sample_hit_target(false, false, false, false, false);
     refreshed_hit_target.synchronize_from_previous(&hit_target);
     let output = refreshed_hit_target
         .handle_input(
@@ -39,14 +52,15 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         .expect("sample row should activate after a frame refresh");
 
     assert_eq!(
-        output.typed_copied::<crate::gui_app::sample_browser_view::SampleFileHitMessage>(),
-        Some(
-            crate::gui_app::sample_browser_view::SampleFileHitMessage::Activate(PointerModifiers {
+        output.typed_cloned::<crate::gui_app::GuiMessage>(),
+        Some(crate::gui_app::GuiMessage::SelectSampleWithModifiers {
+            path: String::from("sample.wav"),
+            modifiers: PointerModifiers {
                 command: true,
                 shift: true,
                 ..Default::default()
-            })
-        )
+            },
+        })
     );
     assert!(!refreshed_hit_target.common().is_pressed());
 }
@@ -395,9 +409,7 @@ fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
 
 #[test]
 fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
-    let widget = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
-        true, false, false, false, false,
-    );
+    let widget = sample_hit_target(true, false, false, false, false);
     let bounds = Rect::from_xy_size(12.0, 8.0, 240.0, 22.0);
     let plan = widget.paint_plan_with_defaults(bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
@@ -425,9 +437,7 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
 #[test]
 fn sample_browser_row_hover_paints_bright_background_without_marker() {
     let bounds = Rect::from_size(180.0, 22.0);
-    let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
-        false, false, false, false, false,
-    );
+    let mut hit_target = sample_hit_target(false, false, false, false, false);
 
     assert_eq!(
         hit_target.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 10.0)),),
