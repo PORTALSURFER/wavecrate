@@ -45,13 +45,10 @@ impl SampleFileHitTarget {
         suppress_hover: bool,
     ) -> Self {
         let row = ui::interactive_row()
-            .draggable()
-            .drag_active(drag_active)
-            .drag_source(drag_source)
+            .tracked_drag_source(drag_active, drag_source)
             .suppress_hover(suppress_hover)
             .clear_hover_on_sync()
             .activation_modifiers()
-            .pointer_motion_during_interaction()
             .custom_paint_hit_target()
             .widget();
         let actions = ui::InteractiveRowActions::new()
