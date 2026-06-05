@@ -451,12 +451,7 @@ impl FolderBrowserState {
 }
 
 fn random_candidate_from_ids(file_ids: &[String], unit: f32) -> Option<String> {
-    let len = file_ids.len();
-    if len == 0 {
-        return None;
-    }
-    let normalized = unit.clamp(0.0, 1.0);
-    let index = ((normalized * len as f32).floor() as usize).min(len - 1);
+    let index = ui::unit_interval_index(unit, file_ids.len())?;
     Some(file_ids[index].clone())
 }
 

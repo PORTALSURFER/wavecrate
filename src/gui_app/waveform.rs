@@ -340,11 +340,8 @@ pub(in crate::gui_app) fn random_marked_play_range_for_unit(
     ranges: &[wavecrate::selection::SelectionRange],
     unit: f32,
 ) -> Option<wavecrate::selection::SelectionRange> {
-    if ranges.is_empty() {
-        return None;
-    }
-    let index = (unit.clamp(0.0, 1.0) * ranges.len() as f32).floor() as usize;
-    ranges.get(index.min(ranges.len() - 1)).copied()
+    let index = ui::unit_interval_index(unit, ranges.len())?;
+    ranges.get(index).copied()
 }
 
 mod types;
