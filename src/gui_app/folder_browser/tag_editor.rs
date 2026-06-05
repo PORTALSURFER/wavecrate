@@ -195,10 +195,8 @@ pub(in crate::gui_app) fn tag_field_height(
 }
 
 pub(in crate::gui_app) fn metadata_tag_completion_bottom_inset(panel_height: f32) -> f32 {
-    panel_height
-        - METADATA_PANEL_PADDING
-        - METADATA_PANEL_TITLE_HEIGHT
-        - METADATA_PANEL_HEADER_CONTENT_SPACING
+    metadata_sidebar_panel_parts(ui::empty(), None, panel_height)
+        .content_top_inset_from_bottom(panel_height)
 }
 
 fn tag_text_input(
@@ -287,15 +285,9 @@ fn metadata_sidebar_panel(
     tag_count: Option<usize>,
     height: f32,
 ) -> ui::View<GuiMessage> {
-    let panel = ui::panel_section_from_parts(
-        ui::PanelSectionParts::new("Tags", content)
-            .trailing(metadata_header_trailing(tag_count))
-            .padding(METADATA_PANEL_PADDING)
-            .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
-            .title_height(METADATA_PANEL_TITLE_HEIGHT)
-            .height(height),
-    )
-    .fill_width();
+    let panel =
+        ui::panel_section_from_parts(metadata_sidebar_panel_parts(content, tag_count, height))
+            .fill_width();
     #[cfg(test)]
     {
         panel.id(METADATA_SIDEBAR_PANEL_ID)
@@ -304,6 +296,19 @@ fn metadata_sidebar_panel(
     {
         panel
     }
+}
+
+fn metadata_sidebar_panel_parts(
+    content: ui::View<GuiMessage>,
+    tag_count: Option<usize>,
+    height: f32,
+) -> ui::PanelSectionParts<GuiMessage> {
+    ui::PanelSectionParts::new("Tags", content)
+        .trailing(metadata_header_trailing(tag_count))
+        .padding(METADATA_PANEL_PADDING)
+        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
+        .title_height(METADATA_PANEL_TITLE_HEIGHT)
+        .height(height)
 }
 
 fn metadata_header_trailing(tag_count: Option<usize>) -> ui::View<GuiMessage> {
