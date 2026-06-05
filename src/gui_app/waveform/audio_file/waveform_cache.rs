@@ -1,11 +1,11 @@
 use radiant::runtime::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::hash_map::DefaultHasher,
+    collections::{HashSet, hash_map::DefaultHasher},
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, LazyLock, Mutex},
     thread,
     time::{Duration, Instant, SystemTime},
 };
@@ -15,6 +15,8 @@ use super::{WaveformFile, content_revision_for_audio_bytes};
 const CACHE_FORMAT_VERSION: u32 = 2;
 const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 2 * 1024 * 1024 * 1024;
 const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+static BACKGROUND_STORE_IN_FLIGHT: LazyLock<Mutex<HashSet<PathBuf>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CachedWaveformFile {
@@ -125,13 +127,20 @@ pub(super) fn store_cached_waveform_file_in_background(file: &WaveformFile) {
     let Some(job) = CachedWaveformStoreJob::new(file) else {
         return;
     };
+    if !begin_background_store(&job.cache_path) {
+        return;
+    }
     let path = job.file.path.clone();
+    let worker_cache_path = job.cache_path.clone();
+    let spawn_error_cache_path = worker_cache_path.clone();
     let _ = thread::Builder::new()
         .name(String::from("waveform-cache-store"))
         .spawn(move || {
             store_cached_waveform_file_now(job);
+            finish_background_store(&worker_cache_path);
         })
         .map_err(|err| {
+            finish_background_store(&spawn_error_cache_path);
             tracing::warn!(
                 target: "wavecrate::debug::sample_cache",
                 event = "browser.sample_cache.store_spawn_error",
@@ -140,6 +149,19 @@ pub(super) fn store_cached_waveform_file_in_background(file: &WaveformFile) {
                 "Failed to spawn waveform cache persistence"
             );
         });
+}
+
+fn begin_background_store(cache_path: &Path) -> bool {
+    let Ok(mut in_flight) = BACKGROUND_STORE_IN_FLIGHT.lock() else {
+        return true;
+    };
+    in_flight.insert(cache_path.to_path_buf())
+}
+
+fn finish_background_store(cache_path: &Path) {
+    if let Ok(mut in_flight) = BACKGROUND_STORE_IN_FLIGHT.lock() {
+        in_flight.remove(cache_path);
+    }
 }
 
 struct CachedWaveformStoreJob {
@@ -632,6 +654,19 @@ mod tests {
         fs::write(&path, [1_u8, 2, 3, 4, 5]).expect("modify sample");
 
         assert!(load_cached_waveform_file(path, Arc::from([1_u8, 2, 3, 4, 5])).is_none());
+    }
+
+    #[test]
+    fn background_store_in_flight_guard_coalesces_duplicate_cache_paths() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cache_path = dir.path().join("same-cache.wfc");
+
+        assert!(begin_background_store(&cache_path));
+        assert!(!begin_background_store(&cache_path));
+
+        finish_background_store(&cache_path);
+        assert!(begin_background_store(&cache_path));
+        finish_background_store(&cache_path);
     }
 
     fn set_file_modified_seconds(path: &Path, seconds: i64) {

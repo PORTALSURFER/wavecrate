@@ -124,6 +124,9 @@ impl GuiAppState {
         if self.start_loaded_navigation_sample(path.as_str(), context, started_at) {
             return;
         }
+        if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
+            return;
+        }
         self.sample_status = format!("Selected {}", sample_path_label(path.as_str()));
         emit_gui_action(
             "browser.select_sample",

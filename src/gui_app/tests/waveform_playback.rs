@@ -483,6 +483,54 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
 }
 
 #[test]
+fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("a.wav");
+    let second_path = source_root.path().join("b.wav");
+    write_test_wav_i16(&first_path, &[0, 256, -256, 512]);
+    write_test_wav_i16(&second_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let first = first_path.display().to_string();
+    let second = second_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.folder_browser.select_file(first);
+    let loaded = super::super::WaveformState::load_path(second_path.clone()).expect("sample loads");
+    state.remember_waveform(&loaded);
+    state.waveform = super::super::WaveformState::synthetic_for_tests();
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(second.as_str())
+    );
+    assert_eq!(state.waveform.path(), second_path);
+    assert!(
+        state.deferred_sample_load_task.active().is_none(),
+        "memory-cached keyboard navigation should not debounce a reload"
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "memory-cached keyboard navigation should not queue decode work"
+    );
+    assert!(
+        state.sample_status.contains("b.wav"),
+        "cached keyboard navigation should update the visible status, got {}",
+        state.sample_status
+    );
+}
+
+#[test]
 fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;
