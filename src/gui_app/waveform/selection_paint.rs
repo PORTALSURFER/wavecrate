@@ -244,16 +244,10 @@ impl WaveformWidget {
         let Some(selection) = selection else {
             return;
         };
-        for ratio in [selection.start(), selection.end()] {
-            if let Some(visible_ratio) = self.visible_ratio_for_absolute(Some(ratio)) {
-                paint.push_horizontal_value_cursor_fill(
-                    bounds,
-                    visible_ratio,
-                    width.max(2.0),
-                    color,
-                );
-            }
-        }
+        let visible_boundaries = [selection.start(), selection.end()]
+            .into_iter()
+            .filter_map(|ratio| self.visible_ratio_for_absolute(Some(ratio)));
+        paint.push_horizontal_value_cursor_fills(bounds, visible_boundaries, width.max(2.0), color);
     }
 
     fn append_selection_resize_handles(
