@@ -162,8 +162,8 @@ Semantics:
 - when absent, launch logs keep the normal always-on baseline (`info` level plus
   warnings/errors) and richer action/DB reconstruction events stay disabled
 - when present and `RUST_LOG` is unset, Wavecrate installs the default filter
-  `wavecrate=debug,info` so Wavecrate-owned debug events are visible without turning
-  third-party crates up to `debug`
+  `wavecrate=debug,perf=info,info` so Wavecrate-owned debug events and opt-in
+  performance events are visible without turning third-party crates up to `debug`
 - when present and `RUST_LOG` is also set, `RUST_LOG` still owns the final
   filter expression, but Wavecrate still treats the run as debug mode for
   diagnostics that explicitly gate on the Wavecrate-owned debug feature
@@ -191,8 +191,9 @@ Accepted truthy values: `1`, `true`, `yes`, `on`. Accepted falsy values: `0`,
 
 - `RUST_LOG`
 Controls logging verbosity via `tracing_subscriber::EnvFilter`. When unset,
-Wavecrate defaults to `info`, or to `wavecrate=debug,info` when the Wavecrate-owned
-debug feature is enabled via `--log`, `-log`, or `WAVECRATE_DEBUG_LOGGING`.
+Wavecrate defaults to `info`, or to `wavecrate=debug,perf=info,info` when the
+Wavecrate-owned debug feature is enabled via `--log`, `-log`, or
+`WAVECRATE_DEBUG_LOGGING`.
 `RUST_LOG` overrides that default filter when it is set.
 
 ### Debug log workflow
@@ -236,8 +237,9 @@ Enables opt-in structured hot-path telemetry logs for latency-sensitive paths.
 Current coverage includes browser search workers, audio loader stages, cached
 playback startup, persistent waveform-cache reads, Reson decoder open/probe/seek,
 async decode prefill, and audio stream append handoff. Use with `--log` or an
-appropriate `RUST_LOG` filter so `perf::audio_start` and `perf::hotpath` events
-are written to the launch log. Accepted values: `1`, `true`, `on`, `yes`.
+`--log` or an equivalent `RUST_LOG` filter so `perf::audio_start` and
+`perf::hotpath` events are written to the launch log. Accepted values: `1`,
+`true`, `on`, `yes`.
 
 - `RESON_PLAYBACK_TELEMETRY`
 Enables only Reson playback-engine hot-path logs, including decoder setup,

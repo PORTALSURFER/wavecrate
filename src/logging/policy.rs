@@ -16,7 +16,7 @@ pub const DEBUG_LOGGING_ARG: &str = "--log";
 pub const DEBUG_LOGGING_SHORT_ARG: &str = "-log";
 const RUST_LOG_ENV_VAR: &str = "RUST_LOG";
 const DEFAULT_FILTER: &str = "info";
-const DEBUG_FILTER: &str = "wavecrate=debug,info";
+const DEBUG_FILTER: &str = "wavecrate=debug,perf=info,info";
 
 /// Resolved mode for Wavecrate-owned debug diagnostics.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
