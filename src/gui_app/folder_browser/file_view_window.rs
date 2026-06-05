@@ -44,21 +44,17 @@ impl FolderBrowserState {
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
         let audio_files = self.selected_audio_files();
-        let total_items = audio_files.len();
-        let focus_target = ui::VirtualListFocusTarget::from_slice_by(
+        let focus = ui::VirtualListSliceFocus::from_slice_by(
             &audio_files,
+            viewport_rows,
+            overscan_rows,
+            guard_rows,
             self.selected_file.clone(),
             |file, key| file.id.as_str() == key.as_str(),
-        );
-        let projection =
-            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
-                .with_context_row();
+        )
+        .with_context_row();
         self.file_view_controller
-            .configure_projection_and_focus_changed_optional(
-                &mut self.file_view_follow_selection,
-                projection,
-                focus_target,
-            )
+            .configure_slice_focus_changed_optional(&mut self.file_view_follow_selection, focus)
     }
 
     pub(in crate::gui_app) fn follow_selected_file_view_matching_tags(
@@ -69,21 +65,17 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> ui::VirtualListWindow {
         let audio_files = self.selected_audio_files_matching_tags(tags_by_file);
-        let total_items = audio_files.len();
-        let focus_target = ui::VirtualListFocusTarget::from_slice_by(
+        let focus = ui::VirtualListSliceFocus::from_slice_by(
             &audio_files,
+            viewport_rows,
+            overscan_rows,
+            guard_rows,
             self.selected_file.clone(),
             |file, key| file.id.as_str() == key.as_str(),
-        );
-        let projection =
-            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
-                .with_context_row();
+        )
+        .with_context_row();
         self.file_view_controller
-            .configure_projection_and_focus_changed_optional(
-                &mut self.file_view_follow_selection,
-                projection,
-                focus_target,
-            )
+            .configure_slice_focus_changed_optional(&mut self.file_view_follow_selection, focus)
     }
 
     pub(in crate::gui_app) fn selected_audio_file_index_matching_tags(

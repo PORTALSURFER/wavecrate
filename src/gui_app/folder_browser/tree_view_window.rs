@@ -34,19 +34,16 @@ impl FolderBrowserState {
             .selected_collection
             .is_none()
             .then(|| self.selected_folder.clone());
-        let total_items = visible_folders.len();
-        let projection =
-            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
-                .with_context_row();
+        let focus = ui::VirtualListSliceFocus::from_slice_by(
+            visible_folders,
+            viewport_rows,
+            overscan_rows,
+            guard_rows,
+            selected_id,
+            |folder, key| folder.id.as_str() == key.as_str(),
+        )
+        .with_context_row();
         self.tree_view_controller
-            .configure_projection_and_focus_changed_optional(
-                &mut self.tree_view_follow_selection,
-                projection,
-                ui::VirtualListFocusTarget::from_slice_by(
-                    visible_folders,
-                    selected_id,
-                    |folder, key| folder.id.as_str() == key.as_str(),
-                ),
-            )
+            .configure_slice_focus_changed_optional(&mut self.tree_view_follow_selection, focus)
     }
 }
