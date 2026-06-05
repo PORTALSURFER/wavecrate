@@ -39,8 +39,7 @@ impl FolderTreeHitTarget {
         drop_target_active: bool,
     ) -> Self {
         let mut row = ui::interactive_row()
-            .tracked_drag_source(drag_active, drag_source)
-            .drag_source_motion(true)
+            .tracked_drag_source_with_motion(drag_active, drag_source)
             .tracked_drop_candidate(
                 drag_active && !drag_source,
                 drop_target,

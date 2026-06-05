@@ -307,8 +307,7 @@ fn metadata_tag_library_row(
 
     if !locked {
         badge = badge
-            .tracked_drag_source(drag_active, drag_source)
-            .drag_source_motion(true)
+            .tracked_drag_source_with_motion(drag_active, drag_source)
             .tracked_drop_target(drag_active, active_drop_target);
     }
     badge
