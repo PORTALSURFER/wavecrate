@@ -1,47 +1,26 @@
-use std::time::Duration;
+//! Compatibility exports for Wavecrate's reusable audio foundation.
+//!
+//! Generic audio infrastructure lives in the `reson` crate. This module keeps
+//! existing Wavecrate imports stable and owns conversion from Wavecrate-specific
+//! selection state into neutral realtime audio fade ranges.
 
-mod device;
-/// Audio input device enumeration and configuration helpers.
-pub mod input;
-/// Audio output device enumeration and stream helpers.
-pub mod output;
-/// Recording and input monitoring helpers.
-pub mod recording;
+pub use reson::*;
 
-mod async_decode;
-/// Low-level decoder wrapper for Symphonia.
-pub mod decoder;
-mod fade;
-mod loop_diagnostic;
-mod mixer;
-mod player;
-mod routing;
-mod source;
-mod time_stretch;
-mod timebase;
+use crate::selection::SelectionRange;
 
-pub use input::{
-    AudioInputConfig, AudioInputError, ResolvedInput, ResolvedInputConfig,
-    available_input_channel_count, available_input_devices, available_input_hosts,
-    resolve_input_stream_config, supported_input_sample_rates,
-};
-pub use output::{
-    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioOutputError, ResolvedOutput,
-    available_devices, available_hosts, open_output_stream, supported_sample_rates,
-};
-pub use player::AudioPlayer;
-pub use recording::{AudioRecorder, InputMonitor, RecordingOutcome};
-pub(crate) use time_stretch::Wsola;
-
-pub(crate) use async_decode::AsyncSource;
-#[cfg(test)]
-pub(crate) use fade::{EdgeFade, FadeOutHandle, FadeOutOnRequest, fade_duration};
-#[cfg(test)]
-pub(crate) use routing::normalized_progress;
-pub(crate) use source::OutputAdapter;
-pub use source::{SamplesBuffer, Source};
-
-pub(crate) const DEFAULT_ANTI_CLIP_FADE: Duration = Duration::from_millis(2);
-
-#[cfg(test)]
-mod tests;
+/// Convert a Wavecrate waveform selection into a reusable `reson` edit-fade range.
+pub fn edit_fade_range_from_selection(range: Option<SelectionRange>) -> Option<EditFadeRange> {
+    range.map(|range| {
+        EditFadeRange::new(
+            range.start(),
+            range.end(),
+            range.gain(),
+            range
+                .fade_in()
+                .map(|fade| FadeParams::new(fade.length, fade.curve, fade.mute)),
+            range
+                .fade_out()
+                .map(|fade| FadeParams::new(fade.length, fade.curve, fade.mute)),
+        )
+    })
+}

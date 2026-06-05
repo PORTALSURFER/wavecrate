@@ -59,7 +59,9 @@ impl GuiAppState {
 
     pub(in crate::gui_app) fn sync_edit_fade_audio_state(&mut self) {
         if let Some(player) = self.audio_player.as_ref() {
-            player.set_edit_fade_state(self.waveform.edit_selection());
+            player.set_edit_fade_state(wavecrate::audio::edit_fade_range_from_selection(
+                self.waveform.edit_selection(),
+            ));
         }
     }
 

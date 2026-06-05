@@ -1,0 +1,181 @@
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use crate::{OutputAdapter, Source};
+use tracing::warn;
+
+#[cfg(test)]
+use super::super::DEFAULT_ANTI_CLIP_FADE;
+#[cfg(test)]
+use super::super::fade::{EdgeFade, fade_duration};
+use super::super::fade::{FadeOutHandle, FadeOutOnRequest, fade_frames_for_duration};
+use super::AudioPlayer;
+#[cfg(test)]
+use crate::mixer::{decoder_from_bytes, map_seek_error};
+
+impl AudioPlayer {
+    pub(super) fn effective_volume(&self) -> f32 {
+        let volume = self.volume * self.playback_gain;
+        if volume.is_finite() {
+            volume.max(0.0)
+        } else {
+            0.0
+        }
+    }
+
+    pub(super) fn reset_playback_state(&mut self) {
+        self.started_at = None;
+        self.play_span = None;
+        self.play_span_frames = None;
+        self.looping = false;
+        self.loop_offset = None;
+        self.loop_offset_frames = None;
+        #[cfg(test)]
+        {
+            self.elapsed_override = None;
+        }
+    }
+
+    pub(super) fn build_sink_with_fade<S: Source + Send + 'static>(
+        &mut self,
+        source: S,
+    ) -> Result<(FadeOutHandle, (u32, u16)), String> {
+        let _volume = self.effective_volume();
+        let target_sample_rate = self.output.sample_rate.max(1);
+        let target_channels = self.output.channel_count.max(1);
+        let source: Box<dyn Source + Send> =
+            if source.sample_rate() == target_sample_rate && source.channels() == target_channels {
+                Box::new(source)
+            } else {
+                Box::new(OutputAdapter::new(
+                    source,
+                    target_sample_rate,
+                    target_channels,
+                ))
+            };
+        let format = (source.sample_rate(), source.channels());
+        let handle = FadeOutHandle::new();
+
+        self.stream
+            .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0)
+            .map_err(|err| {
+                warn!("Failed to append audio source: {err}");
+                err
+            })?;
+        self.active_sources = self.active_sources.saturating_add(1);
+
+        Ok((handle, format))
+    }
+
+    /// Create a monitor sink that taps the current output stream state.
+    pub fn create_monitor_sink(&self, volume: f32) -> crate::output::MonitorSink {
+        self.stream.monitor_sink(volume)
+    }
+
+    pub(super) fn elapsed_since(&self, started_at: Instant) -> Duration {
+        #[cfg(test)]
+        if let Some(override_elapsed) = self.elapsed_override {
+            return override_elapsed;
+        }
+        started_at.elapsed()
+    }
+
+    pub(super) fn audio_bytes(&self) -> Result<Arc<[u8]>, String> {
+        self.current_audio
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| "Load a .wav file first".to_string())
+    }
+
+    pub(super) fn anti_clip_fade(&self) -> Duration {
+        if self.anti_clip_enabled {
+            self.anti_clip_fade
+        } else {
+            Duration::ZERO
+        }
+    }
+
+    pub(super) fn normalized_span(&self, start: f64, end: f64) -> Result<(f32, f32, f32), String> {
+        let duration = self
+            .track_duration
+            .ok_or_else(|| "Load a .wav file first".to_string())?;
+        if duration <= 0.0 {
+            return Err("Load a .wav file first".into());
+        }
+        let (start, end) = if start <= end {
+            (start, end)
+        } else {
+            (end, start)
+        };
+        let duration64 = f64::from(duration);
+        let clamped_start = start.clamp(0.0, 1.0) * duration64;
+        let clamped_end = end.clamp(0.0, 1.0) * duration64;
+        let mut bounded_start = clamped_start.min(duration64) as f32;
+        let mut bounded_end = clamped_end.min(duration64) as f32;
+        let min_span = self.min_span_seconds.unwrap_or(0.01);
+        if bounded_end <= bounded_start {
+            bounded_end = (bounded_start + min_span).min(duration);
+            if bounded_end <= bounded_start {
+                bounded_start = (duration - min_span).max(0.0);
+                bounded_end = duration.max(bounded_start + 0.001);
+            }
+        }
+        Ok((bounded_start, bounded_end, duration))
+    }
+
+    pub(super) fn fade_out_current_sink(&mut self, fade: Duration) {
+        if self.active_sources == 0 {
+            return;
+        }
+        let handle = self.fade_out.take();
+        let format = self.sink_format.take();
+        self.active_sources = 0;
+
+        let Some(handle) = handle else {
+            if self.stream.clear_sources().is_err() {
+                warn!("Failed to clear audio sources: output stream unavailable");
+            }
+            return;
+        };
+        let Some((sample_rate, _channels)) = format else {
+            if self.stream.clear_sources().is_err() {
+                warn!("Failed to clear audio sources: output stream unavailable");
+            }
+            return;
+        };
+        if fade.is_zero() {
+            if self.stream.clear_sources().is_err() {
+                warn!("Failed to clear audio sources: output stream unavailable");
+            }
+            return;
+        }
+        let fade_frames = fade_frames_for_duration(sample_rate, fade);
+        handle.request_fade_out_frames(fade_frames);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn span_sample_count(
+        bytes: Arc<[u8]>,
+        start_seconds: f32,
+        end_seconds: f32,
+    ) -> Result<(usize, u32, u16), String> {
+        let mut source = decoder_from_bytes(bytes)?;
+        source
+            .try_seek(Duration::from_secs_f32(start_seconds))
+            .map_err(map_seek_error)?;
+        let span_length = (end_seconds - start_seconds).max(0.001);
+        let fade = fade_duration(span_length, DEFAULT_ANTI_CLIP_FADE);
+        let limited = source
+            .fade_in(fade)
+            .take_duration(Duration::from_secs_f32(span_length))
+            .buffered();
+        let mut faded = EdgeFade::new(limited, fade);
+        let sample_rate = faded.sample_rate();
+        let channels = faded.channels();
+        let mut count = 0usize;
+        while faded.next().is_some() {
+            count = count.saturating_add(1);
+        }
+        Ok((count, sample_rate, channels))
+    }
+}

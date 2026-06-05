@@ -4352,6 +4352,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
+name = "reson"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "hound",
+ "ringbuf",
+ "serde",
+ "serde_json",
+ "symphonia",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "rfd"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5825,7 +5840,6 @@ dependencies = [
  "bincode",
  "blake3",
  "chacha20poly1305",
- "cpal",
  "criterion",
  "crossbeam-queue",
  "directories",
@@ -5847,8 +5861,8 @@ dependencies = [
  "raw-window-handle",
  "rayon",
  "regex",
+ "reson",
  "rfd",
- "ringbuf",
  "rusqlite",
  "semver",
  "serde",

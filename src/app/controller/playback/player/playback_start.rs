@@ -90,7 +90,9 @@ fn configure_player_for_playback(controller: &AppController, player: &Rc<RefCell
         .set_min_span_seconds(super::super::bpm_min_selection_seconds(controller));
     player
         .borrow()
-        .set_edit_fade_state(controller.ui.waveform.edit_selection);
+        .set_edit_fade_state(crate::audio::edit_fade_range_from_selection(
+            controller.ui.waveform.edit_selection,
+        ));
 }
 
 fn playback_selection(controller: &AppController) -> Option<SelectionRange> {

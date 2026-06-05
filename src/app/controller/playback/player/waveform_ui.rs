@@ -15,7 +15,9 @@ pub(crate) fn apply_edit_selection(controller: &mut AppController, range: Option
     let previous = controller.ui.waveform.edit_selection;
     controller.ui.waveform.edit_selection = range;
     if let Some(player) = controller.audio.player.as_ref() {
-        player.borrow().set_edit_fade_state(range);
+        player
+            .borrow()
+            .set_edit_fade_state(crate::audio::edit_fade_range_from_selection(range));
     }
     let had_effects = previous.is_some_and(|selection| selection.has_edit_effects());
     let has_effects = range.is_some_and(|selection| selection.has_edit_effects());

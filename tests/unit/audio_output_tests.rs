@@ -25,7 +25,7 @@ fn sample_rate_filter_returns_common_values() {
 
 #[test]
 fn callback_propagates_error() {
-    use crate::audio::Source;
+    use crate::Source;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -92,7 +92,7 @@ fn callback_propagates_error() {
 
 #[test]
 fn callback_clears_sources_with_command() {
-    use crate::audio::Source;
+    use crate::Source;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -157,7 +157,7 @@ fn callback_clears_sources_with_command() {
 
 #[test]
 fn callback_stays_non_blocking_under_command_contention() {
-    use crate::audio::Source;
+    use crate::Source;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
     use std::sync::mpsc;
     use std::sync::{Barrier, Mutex};
@@ -263,7 +263,7 @@ fn resolved_output_uses_fallback_stream_config() {
 
 #[test]
 fn callback_clears_sources_with_pending_flag() {
-    use crate::audio::Source;
+    use crate::Source;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -317,7 +317,7 @@ fn callback_clears_sources_with_pending_flag() {
 
 #[test]
 fn callback_drops_stale_queue_entries_after_pending_clear() {
-    use crate::audio::Source;
+    use crate::Source;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;

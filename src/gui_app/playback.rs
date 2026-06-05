@@ -4,7 +4,7 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
-use wavecrate::audio::AudioPlayer;
+use wavecrate::audio::{AudioPlayer, edit_fade_range_from_selection};
 
 use super::{
     GuiAppState, GuiMessage, PLAYBACK_START_ACTIVE_SOURCE_GRACE, PendingPlaybackStart,
@@ -304,7 +304,9 @@ impl GuiAppState {
             metadata_started_at,
         );
         let fade_started_at = Instant::now();
-        player.set_edit_fade_state(self.waveform.edit_selection());
+        player.set_edit_fade_state(edit_fade_range_from_selection(
+            self.waveform.edit_selection(),
+        ));
         log_slow_playback_phase(
             "playback.start.set_edit_fade",
             &file_name,
