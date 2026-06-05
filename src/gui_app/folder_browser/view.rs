@@ -205,19 +205,16 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
             .key(format!("folder-expander-spacer-{id}"))
             .size(FOLDER_EXPANDER_WIDTH, 22.0)
     };
-    let hit_target = ui::custom_widget_mapped(
-        FolderTreeHitTarget::new(
-            id.clone(),
-            label_text,
-            folder.selected,
-            folder.drop_target,
-            folder.drag_active,
-            folder.drag_source,
-            folder.drop_candidate,
-            folder.drop_target_active,
-        ),
-        |message| message,
-    )
+    let hit_target = ui::custom_widget_direct(FolderTreeHitTarget::new(
+        id.clone(),
+        label_text,
+        folder.selected,
+        folder.drop_target,
+        folder.drag_active,
+        folder.drag_source,
+        folder.drop_candidate,
+        folder.drop_target_active,
+    ))
     .key(format!("folder-row-hit-{id}-{drag_revision}"))
     .fill_width()
     .height(22.0);

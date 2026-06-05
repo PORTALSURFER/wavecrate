@@ -174,13 +174,12 @@ impl LazyRepeatingSpanSource {
     }
 
     fn decoder_mut(&mut self) -> Option<&mut SymphoniaDecoder> {
-        if self.decoder.is_none() {
-            if self
+        if self.decoder.is_none()
+            && self
                 .seek_to_cycle_position(self.initial_offset_samples)
                 .is_err()
-            {
-                return None;
-            }
+        {
+            return None;
         }
         self.decoder.as_mut()
     }

@@ -118,17 +118,14 @@ fn sample_file_hit_target(
     hit_path: String,
     suppress_hover: bool,
 ) -> ui::View<GuiMessage> {
-    ui::custom_widget_mapped(
-        SampleFileHitTarget::new(
-            hit_path,
-            selected,
-            drag_active,
-            drag_source,
-            cached,
-            suppress_hover,
-        ),
-        |message| message,
-    )
+    ui::custom_widget_direct(SampleFileHitTarget::new(
+        hit_path,
+        selected,
+        drag_active,
+        drag_source,
+        cached,
+        suppress_hover,
+    ))
     .key(format!("sample-row-hit-{}-{drag_revision}", file.id))
     .fill_width()
     .height(22.0)
