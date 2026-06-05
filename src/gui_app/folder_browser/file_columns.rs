@@ -102,53 +102,27 @@ impl FolderBrowserState {
     }
 
     pub(super) fn sort_files(&self, files: &mut Vec<&FileEntry>) {
-        files.sort_by(|a, b| {
-            let ordering = match self.file_sort.column_id.as_str() {
-                "extension" => a
-                    .extension
-                    .to_ascii_lowercase()
-                    .cmp(&b.extension.to_ascii_lowercase())
-                    .then_with(|| {
-                        a.name
-                            .to_ascii_lowercase()
-                            .cmp(&b.name.to_ascii_lowercase())
-                    }),
-                "size" => a.size_bytes.cmp(&b.size_bytes).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "modified" => a.modified_rank.cmp(&b.modified_rank).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "kind" => a.kind.cmp(&b.kind).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "rating" => a.rating.val().cmp(&b.rating.val()).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "collection" => a
-                    .first_collection()
-                    .map(|collection| collection.index())
-                    .cmp(&b.first_collection().map(|collection| collection.index()))
-                    .then_with(|| {
-                        a.name
-                            .to_ascii_lowercase()
-                            .cmp(&b.name.to_ascii_lowercase())
-                    }),
-                "path" => a.id.cmp(&b.id),
-                _ => a
-                    .name
-                    .to_ascii_lowercase()
-                    .cmp(&b.name.to_ascii_lowercase()),
-            };
-            self.file_sort.direction.apply_ordering(ordering)
-        });
+        match self.file_sort.column_id.as_str() {
+            "extension" => files.sort_by_cached_key(|file| {
+                (file.extension.to_ascii_lowercase(), file.name_sort_key())
+            }),
+            "size" => files.sort_by_cached_key(|file| (file.size_bytes, file.name_sort_key())),
+            "modified" => {
+                files.sort_by_cached_key(|file| (file.modified_rank, file.name_sort_key()))
+            }
+            "kind" => files.sort_by_cached_key(|file| (file.kind.clone(), file.name_sort_key())),
+            "rating" => files.sort_by_cached_key(|file| (file.rating.val(), file.name_sort_key())),
+            "collection" => files.sort_by_cached_key(|file| {
+                (
+                    file.first_collection().map(|collection| collection.index()),
+                    file.name_sort_key(),
+                )
+            }),
+            "path" => files.sort_by(|a, b| a.id.cmp(&b.id)),
+            _ => files.sort_by_cached_key(|file| file.name_sort_key()),
+        }
+        if self.file_sort.direction == ui::SortDirection::Descending {
+            files.reverse();
+        }
     }
 }

@@ -20,6 +20,10 @@ pub(in crate::gui_app) struct FileEntry {
 }
 
 impl FileEntry {
+    pub(super) fn name_sort_key(&self) -> String {
+        self.name.to_ascii_lowercase()
+    }
+
     pub(super) fn is_audio(&self) -> bool {
         self.kind == "Audio"
     }

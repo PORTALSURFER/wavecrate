@@ -95,11 +95,7 @@ pub(crate) fn run() -> Result<(), String> {
                 if update.node_id == SAMPLE_BROWSER_LIST_ID {
                     state
                         .folder_browser
-                        .set_file_view_start_from_scroll_offset_matching_tags(
-                            update.offset.y,
-                            SAMPLE_BROWSER_ROW_HEIGHT,
-                            &state.metadata_tags_by_file,
-                        );
+                        .track_file_view_scroll_offset(update.offset.y, SAMPLE_BROWSER_ROW_HEIGHT);
                 } else if update.node_id == FOLDER_TREE_LIST_ID {
                     state
                         .folder_browser

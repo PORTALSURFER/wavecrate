@@ -166,6 +166,37 @@ impl FolderBrowserState {
         files
     }
 
+    pub(in crate::gui_app) fn selected_audio_file_count_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> usize {
+        let name_query = normalized_name_filter(&self.name_filter);
+        let required_tags = parsed_tag_filter(&self.tag_filter);
+        if let Some(collection) = self.selected_collection {
+            return self
+                .selected_source_root_folder()
+                .map(|folder| {
+                    count_matching_audio_files_in_folder(
+                        folder,
+                        &name_query,
+                        &required_tags,
+                        tags_by_file,
+                        Some(collection),
+                    )
+                })
+                .unwrap_or_default();
+        }
+
+        self.selected_files()
+            .iter()
+            .filter(|file| {
+                file.is_audio()
+                    && audio_file_matches_name_query(file, &name_query)
+                    && audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+            })
+            .count()
+    }
+
     pub(in crate::gui_app) fn selected_source_audio_files(&self) -> Vec<&FileEntry> {
         let mut files = Vec::new();
         if let Some(folder) = self.selected_source_root_folder() {
@@ -327,14 +358,42 @@ fn collect_collection_audio_files<'a>(
     }
 }
 
+fn count_matching_audio_files_in_folder(
+    folder: &FolderEntry,
+    name_query: &str,
+    required_tags: &[String],
+    tags_by_file: &HashMap<String, Vec<String>>,
+    collection: Option<SampleCollection>,
+) -> usize {
+    let local_count = folder
+        .files
+        .iter()
+        .filter(|file| {
+            file.is_audio()
+                && collection.is_none_or(|collection| file.belongs_to_collection(collection))
+                && audio_file_matches_name_query(file, name_query)
+                && audio_file_matches_parsed_tags(file, tags_by_file, required_tags)
+        })
+        .count();
+    local_count
+        + folder
+            .children
+            .iter()
+            .map(|child| {
+                count_matching_audio_files_in_folder(
+                    child,
+                    name_query,
+                    required_tags,
+                    tags_by_file,
+                    collection,
+                )
+            })
+            .sum::<usize>()
+}
+
 fn filter_audio_files_by_name(files: &mut Vec<&FileEntry>, name_filter: &str) {
-    let query = name_filter.trim().to_lowercase();
-    if query.is_empty() {
-        return;
-    }
-    files.retain(|file| {
-        file.name.to_lowercase().contains(&query) || file.stem.to_lowercase().contains(&query)
-    });
+    let query = normalized_name_filter(name_filter);
+    files.retain(|file| audio_file_matches_name_query(file, &query));
 }
 
 fn filter_audio_files_by_tags(
@@ -343,19 +402,31 @@ fn filter_audio_files_by_tags(
     tag_filter: &str,
 ) {
     let required_tags = parsed_tag_filter(tag_filter);
+    files.retain(|file| audio_file_matches_parsed_tags(file, tags_by_file, &required_tags));
+}
+
+fn audio_file_matches_name_query(file: &FileEntry, query: &str) -> bool {
+    query.is_empty()
+        || file.name.to_ascii_lowercase().contains(query)
+        || file.stem.to_ascii_lowercase().contains(query)
+}
+
+fn audio_file_matches_parsed_tags(
+    file: &FileEntry,
+    tags_by_file: &HashMap<String, Vec<String>>,
+    required_tags: &[String],
+) -> bool {
     if required_tags.is_empty() {
-        return;
+        return true;
     }
-    files.retain(|file| {
-        let Some(file_tags) = tags_by_file.get(&file.id) else {
-            return false;
-        };
-        required_tags.iter().all(|required| {
-            file_tags
-                .iter()
-                .any(|tag| tag.trim().eq_ignore_ascii_case(required))
-        })
-    });
+    let Some(file_tags) = tags_by_file.get(&file.id) else {
+        return false;
+    };
+    required_tags.iter().all(|required| {
+        file_tags
+            .iter()
+            .any(|tag| tag.trim().eq_ignore_ascii_case(required))
+    })
 }
 
 fn parsed_tag_filter(tag_filter: &str) -> Vec<String> {
@@ -365,4 +436,8 @@ fn parsed_tag_filter(tag_filter: &str) -> Vec<String> {
         .filter(|tag| !tag.is_empty())
         .map(|tag| tag.to_ascii_lowercase())
         .collect()
+}
+
+fn normalized_name_filter(name_filter: &str) -> String {
+    name_filter.trim().to_ascii_lowercase()
 }

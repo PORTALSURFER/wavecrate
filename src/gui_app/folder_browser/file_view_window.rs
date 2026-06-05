@@ -25,15 +25,13 @@ impl FolderBrowserState {
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
-    pub(in crate::gui_app) fn set_file_view_start_from_scroll_offset_matching_tags(
+    pub(in crate::gui_app) fn track_file_view_scroll_offset(
         &mut self,
         offset_y: f32,
         row_height: f32,
-        tags_by_file: &HashMap<String, Vec<String>>,
     ) {
-        let total_items = self.selected_audio_files_matching_tags(tags_by_file).len();
         self.file_view_controller
-            .set_scroll_offset_for_items(total_items, offset_y, row_height);
+            .set_scroll_offset(offset_y, row_height);
     }
 
     #[cfg(test)]
@@ -64,6 +62,20 @@ impl FolderBrowserState {
         guard_rows: usize,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> ui::VirtualListWindow {
+        let selected_file = self.selected_file.clone();
+        if self.file_view_follow_selection.focus_key() == selected_file.as_ref() {
+            let projection = ui::VirtualListProjection::new(
+                self.selected_audio_file_count_matching_tags(tags_by_file),
+                viewport_rows,
+                overscan_rows,
+                guard_rows,
+            )
+            .with_context_row();
+            self.file_view_controller.configure_projection(projection);
+            self.file_view_controller.clear_focus();
+            return self.file_view_controller.resolve();
+        }
+
         let audio_files = self.selected_audio_files_matching_tags(tags_by_file);
         let focus = ui::VirtualListSliceFocus::from_slice_by(
             &audio_files,
