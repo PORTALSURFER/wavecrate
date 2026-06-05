@@ -1,8 +1,5 @@
 use radiant::{
-    gui::{
-        types::{Rect, Rgba8},
-        visualization::TimelineEditCurveStrokeParts,
-    },
+    gui::{types::Rect, visualization::TimelineEditPaintStyle},
     runtime::PaintPrimitive,
 };
 
@@ -13,18 +10,13 @@ impl WaveformWidget {
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
-        color: Rgba8,
+        style: TimelineEditPaintStyle,
     ) {
         let Some(selection) = self.edit_selection else {
             return;
         };
         let mapper = self.timeline_mapper(bounds);
-        let parts = TimelineEditCurveStrokeParts::new(
-            self.common.id,
-            mapper,
-            Rgba8 { a: 225, ..color },
-            2.0,
-        );
+        let parts = style.curve_stroke_parts(self.common.id, mapper, 2.0);
         self.edit_preview
             .push_standard_ramp_curve_strokes(primitives, parts, |_, position| {
                 Some(selection.gain_at_position(position, 0.0))
