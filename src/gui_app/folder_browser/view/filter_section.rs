@@ -11,11 +11,6 @@ pub(in crate::gui_app::folder_browser) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 
     FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
 pub(in crate::gui_app::folder_browser) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 76.0;
-const FILTER_ROW_HEIGHT: f32 = 24.0;
-const FILTER_ROW_LABEL_WIDTH: f32 = 112.0;
-const FILTER_ROW_HORIZONTAL_PADDING: f32 = 6.0;
-const FILTER_ROW_VERTICAL_PADDING: f32 = 1.0;
-const FILTER_ROW_SPACING: f32 = 6.0;
 const NAME_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4602;
 const TAG_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4603;
 
@@ -145,11 +140,9 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
 }
 
 fn name_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
-    filter_row(
+    ui::form_row(
         "name",
-        ui::text("Name")
-            .key("filter-name-label")
-            .size(FILTER_ROW_LABEL_WIDTH, 20.0),
+        ui::text("Name").key("filter-name-label"),
         ui::text_input(state.name_filter().to_owned())
             .placeholder("Any")
             .message_event(|message| {
@@ -157,17 +150,14 @@ fn name_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
             })
             .id(NAME_FILTER_INPUT_ID)
             .key("filter-name-input")
-            .fill_width()
-            .height(20.0),
+            .fill_width(),
     )
 }
 
 fn tag_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
-    filter_row(
+    ui::form_row(
         "tags",
-        ui::text("Tags")
-            .key("filter-tags-label")
-            .size(FILTER_ROW_LABEL_WIDTH, 20.0),
+        ui::text("Tags").key("filter-tags-label"),
         ui::text_input(state.tag_filter().to_owned())
             .placeholder("Any")
             .message_event(|message| {
@@ -175,24 +165,8 @@ fn tag_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
             })
             .id(TAG_FILTER_INPUT_ID)
             .key("filter-tags-input")
-            .fill_width()
-            .height(20.0),
+            .fill_width(),
     )
-}
-
-fn filter_row(
-    id: &'static str,
-    label: ui::View<GuiMessage>,
-    value: ui::View<GuiMessage>,
-) -> ui::View<GuiMessage> {
-    ui::row([label, value])
-        .key(format!("filter-row-{id}"))
-        .fill_width()
-        .height(FILTER_ROW_HEIGHT)
-        .padding_x(FILTER_ROW_HORIZONTAL_PADDING)
-        .padding_y(FILTER_ROW_VERTICAL_PADDING)
-        .spacing(FILTER_ROW_SPACING)
-        .hoverable()
 }
 
 #[cfg(test)]
