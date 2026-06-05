@@ -52,8 +52,7 @@ impl SampleFileHitTarget {
             .custom_paint_hit_target()
             .widget();
         let actions = ui::InteractiveRowActions::new()
-            .activate_with_modifiers(SampleFileHitMessage::Activate)
-            .double_activate(|| SampleFileHitMessage::Activate(PointerModifiers::default()))
+            .activate_or_double_with_modifiers(SampleFileHitMessage::Activate)
             .secondary(SampleFileHitMessage::ContextMenu)
             .drag(SampleFileHitMessage::Drag);
         Self {

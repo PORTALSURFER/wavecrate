@@ -194,6 +194,21 @@ fn primary_activation_preserves_release_modifiers() {
 }
 
 #[test]
+/// Verifies sample-row double activation uses the normal activation action.
+fn double_activation_uses_normal_sample_activation() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut target = SampleFileHitTarget::new(false, false, false, false, false);
+
+    assert_eq!(
+        message_from(target.handle_input(
+            bounds,
+            WidgetInput::primary_double_click(Point::new(34.0, 8.0))
+        )),
+        SampleFileHitMessage::Activate(PointerModifiers::default())
+    );
+}
+
+#[test]
 /// Verifies retained pressed state survives without carrying stale hover.
 fn pressed_state_survives_retained_widget_refresh_without_hover() {
     let bounds = Rect::from_size(120.0, 22.0);
