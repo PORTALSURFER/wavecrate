@@ -13,6 +13,7 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::probe::Hint;
 
 use super::Source;
+use crate::telemetry;
 
 fn duration_from_frames(frames: u64, sample_rate: u32) -> Duration {
     let sample_rate = sample_rate.max(1) as u64;
@@ -42,6 +43,7 @@ impl SymphoniaDecoder {
 
     /// Create a decoder for a media source stream with an explicit extension hint.
     pub fn new_with_hint(mss: MediaSourceStream, hint_str: &str) -> Result<Self, String> {
+        let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
         let mut hint = Hint::new();
         hint.with_extension(hint_str);
 
@@ -68,7 +70,7 @@ impl SymphoniaDecoder {
             .n_frames
             .map(|frames| duration_from_frames(frames, sample_rate));
 
-        Ok(Self {
+        let decoder = Self {
             reader,
             decoder,
             buffer: Vec::new(),
@@ -77,22 +79,74 @@ impl SymphoniaDecoder {
             channels,
             total_duration,
             last_error: None,
-        })
+        };
+        if let Some(started_at) = started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_decoder",
+                stage = "probe_and_create",
+                hint = hint_str,
+                sample_rate,
+                channels,
+                has_total_duration = decoder.total_duration.is_some(),
+                elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                "Audio decoder stage"
+            );
+        }
+        Ok(decoder)
     }
 
     /// Create a decoder from an in-memory byte buffer.
     pub fn from_bytes(data: Arc<[u8]>) -> Result<Self, String> {
+        let byte_len = data.len();
+        let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
         let cursor = Cursor::new(data);
         let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
-        Self::new(mss)
+        let result = Self::new(mss);
+        if let Some(started_at) = started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_decoder",
+                stage = "from_bytes",
+                byte_len,
+                success = result.is_ok(),
+                elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                "Audio decoder stage"
+            );
+        }
+        result
     }
 
     /// Create a decoder from an audio file path.
     pub fn from_path(path: &Path) -> Result<Self, String> {
+        let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
+        let open_started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
         let file = File::open(path)
             .map_err(|err| format!("Failed to open audio file {}: {err}", path.display()))?;
+        if let Some(open_started_at) = open_started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_decoder",
+                stage = "file_open",
+                path = %path.display(),
+                elapsed_ms = telemetry::elapsed_ms(open_started_at.elapsed()),
+                "Audio decoder stage"
+            );
+        }
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
-        Self::new(mss)
+        let result = Self::new(mss);
+        if let Some(started_at) = started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_decoder",
+                stage = "from_path",
+                path = %path.display(),
+                success = result.is_ok(),
+                elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                "Audio decoder stage"
+            );
+        }
+        result
     }
 
     /// Record a hint for the decoder (currently a no-op).
@@ -103,7 +157,9 @@ impl SymphoniaDecoder {
 
     /// Attempt to seek to an absolute playback timestamp.
     pub fn try_seek(&mut self, duration: Duration) -> Result<(), String> {
-        self.reader
+        let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
+        let result = self
+            .reader
             .seek(
                 symphonia::core::formats::SeekMode::Coarse,
                 symphonia::core::formats::SeekTo::Time {
@@ -114,7 +170,19 @@ impl SymphoniaDecoder {
                     track_id: None,
                 },
             )
-            .map_err(|e| format!("Seek failed: {}", e))?;
+            .map_err(|e| format!("Seek failed: {}", e));
+        if let Some(started_at) = started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_decoder",
+                stage = "seek",
+                seek_ms = duration.as_secs_f64() * 1_000.0,
+                success = result.is_ok(),
+                elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                "Audio decoder stage"
+            );
+        }
+        result?;
 
         self.buffer.clear();
         self.buffer_pos = 0;

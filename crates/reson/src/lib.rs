@@ -17,6 +17,7 @@ mod mixer;
 mod player;
 mod routing;
 mod source;
+mod telemetry;
 mod time_stretch;
 mod timebase;
 /// WAV header repair helpers for streaming and in-memory decode paths.

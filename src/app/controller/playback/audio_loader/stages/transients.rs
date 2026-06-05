@@ -9,7 +9,7 @@ use std::{
 
 use super::super::telemetry::{
     StaleDropStage, audio_loader_telemetry_enabled, record_alloc_estimate_bytes,
-    record_output_bytes, record_transient_duration, stale_and_record,
+    record_output_bytes, record_request_stage, record_transient_duration, stale_and_record,
 };
 
 /// Finalize a successful staged load and account for output/allocation telemetry.
@@ -65,6 +65,16 @@ fn build_transient_result_with_hook(
     .into();
     if let Some(start) = transient_start {
         record_transient_duration(start.elapsed());
+        record_request_stage(
+            pending.request_id,
+            &pending.source_id,
+            &pending.relative_path,
+            "transient_stage",
+            Some(start),
+            Some(pending.metadata.file_size),
+            None,
+            None,
+        );
     }
     after_transients();
     if stale_and_record(

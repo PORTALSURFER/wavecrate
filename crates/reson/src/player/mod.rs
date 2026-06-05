@@ -19,6 +19,15 @@ pub(crate) enum AudioPlaybackSource {
     File(PathBuf),
 }
 
+impl AudioPlaybackSource {
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            Self::Bytes(_) => "bytes",
+            Self::File(_) => "file",
+        }
+    }
+}
+
 /// Simple audio helper that plays a loaded wav buffer and reports progress.
 pub struct AudioPlayer {
     pub(crate) edit_fade_handle: EditFadeHandle,

@@ -231,6 +231,19 @@ warning noise in test/bench logs.
 
 ## UI and runtime profiling
 
+- `WAVECRATE_HOTPATH_TELEMETRY`
+Enables opt-in structured hot-path telemetry logs for latency-sensitive paths.
+Current coverage includes browser search workers, audio loader stages, cached
+playback startup, persistent waveform-cache reads, Reson decoder open/probe/seek,
+async decode prefill, and audio stream append handoff. Use with `--log` or an
+appropriate `RUST_LOG` filter so `perf::audio_start` and `perf::hotpath` events
+are written to the launch log. Accepted values: `1`, `true`, `on`, `yes`.
+
+- `RESON_PLAYBACK_TELEMETRY`
+Enables only Reson playback-engine hot-path logs, including decoder setup,
+seeking, async-source prefill, and output-stream append. `WAVECRATE_HOTPATH_TELEMETRY`
+also enables these Reson logs. Accepted values: `1`, `true`, `on`, `yes`.
+
 - `WAVECRATE_BROWSER_SEARCH_OFFLOAD_THRESHOLD`
 Wav-entry threshold used by browser search to switch from synchronous layout
 path recompute to async search jobs. Default: `5000`.

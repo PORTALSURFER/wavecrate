@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, atomic::AtomicU64},
 };
 
-use super::telemetry::{StaleDropStage, stale_and_record};
+use super::telemetry::{StaleDropStage, record_request_stage, stage_timer, stale_and_record};
 
 mod decode;
 mod io;
@@ -26,19 +26,63 @@ pub(super) fn load_audio_inner(
     job: &AudioLoadJob,
     latest_request_id: &AtomicU64,
 ) -> Result<Option<AudioLoadOutcome>, AudioLoadError> {
+    let load_started_at = stage_timer();
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "load_inner_start",
+        load_started_at,
+        None,
+        None,
+        None,
+    );
     if job.stretch_ratio.is_none()
         && let Some(metadata) = io::load_metadata_stage(job, latest_request_id)?
-        && let Some(hit) =
-            load_persistent_waveform_cache_entry(&job.source_id, &job.relative_path, metadata)
     {
-        return Ok(Some(AudioLoadOutcome {
-            decoded: hit.decoded,
-            bytes: Arc::from([]),
-            audio_path: Some(job.root.join(&job.relative_path)),
-            metadata,
-            transients: Some(hit.transients),
-            stretched: false,
-        }));
+        let cache_started_at = stage_timer();
+        if let Some(hit) =
+            load_persistent_waveform_cache_entry(&job.source_id, &job.relative_path, metadata)
+        {
+            record_request_stage(
+                job.request_id,
+                &job.source_id,
+                &job.relative_path,
+                "persistent_cache_hit",
+                cache_started_at,
+                Some(metadata.file_size),
+                None,
+                Some("hit"),
+            );
+            record_request_stage(
+                job.request_id,
+                &job.source_id,
+                &job.relative_path,
+                "load_inner_complete",
+                load_started_at,
+                Some(metadata.file_size),
+                Some(0),
+                Some("persistent_hit"),
+            );
+            return Ok(Some(AudioLoadOutcome {
+                decoded: hit.decoded,
+                bytes: Arc::from([]),
+                audio_path: Some(job.root.join(&job.relative_path)),
+                metadata,
+                transients: Some(hit.transients),
+                stretched: false,
+            }));
+        }
+        record_request_stage(
+            job.request_id,
+            &job.source_id,
+            &job.relative_path,
+            "persistent_cache_miss",
+            cache_started_at,
+            Some(metadata.file_size),
+            None,
+            Some("miss"),
+        );
     }
 
     let Some(io_stage) = io::load_io_stage(job, latest_request_id)? else {
@@ -69,13 +113,28 @@ pub(super) fn load_audio_inner(
         return Ok(None);
     }
 
-    Ok(Some(transients::finalize_stage(
+    let outcome = transients::finalize_stage(
         stretch_output.decoded,
         stretch_output.bytes,
         io_stage.metadata,
         None,
         stretch_output.stretched,
-    )))
+    );
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "load_inner_complete",
+        load_started_at,
+        Some(outcome.metadata.file_size),
+        Some(outcome.bytes.len()),
+        Some(if outcome.stretched {
+            "stretched"
+        } else {
+            "decoded"
+        }),
+    );
+    Ok(Some(outcome))
 }
 
 pub(super) fn build_transient_result(

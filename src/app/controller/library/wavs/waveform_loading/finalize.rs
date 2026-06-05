@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::playback::telemetry::{log_audio_start_stage, stage_timer};
 
 /// Immutable payload and context required to finalize one shared waveform load.
 pub(crate) struct FinishWaveformLoadShared<'a> {
@@ -46,6 +47,16 @@ impl AppController {
         self.runtime.jobs.set_staged_audio_handoff(None);
         self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
         self.set_ui_loaded_wav(Some(relative_path.to_path_buf()));
+        let sync_started_at = stage_timer();
+        let byte_len = bytes.len();
+        let sample_len = playback_samples.len();
+        let source_kind = if playback_samples.is_empty() && byte_len == 0 {
+            "file"
+        } else if playback_samples.is_empty() {
+            "bytes"
+        } else {
+            "samples"
+        };
         self.sync_loaded_audio(
             source,
             relative_path,
@@ -56,6 +67,16 @@ impl AppController {
             bytes,
             audio_path,
         )?;
+        log_audio_start_stage(
+            "finish_waveform_load_shared",
+            Some(&source.id),
+            Some(relative_path),
+            sync_started_at,
+            Some(source_kind),
+            None,
+            Some(byte_len),
+            Some(sample_len),
+        );
         if matches!(intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(relative_path);
             self.apply_loaded_sample_loop_marker(source, relative_path);
@@ -93,8 +114,18 @@ impl AppController {
             sample_rate,
             channels,
         });
+        let source_kind = if playback_samples.is_empty() && bytes.is_empty() {
+            "file"
+        } else if playback_samples.is_empty() {
+            "bytes"
+        } else {
+            "samples"
+        };
+        let byte_len = bytes.len();
+        let sample_len = playback_samples.len();
         match self.ensure_player() {
             Ok(Some(player)) => {
+                let player_started_at = stage_timer();
                 let mut player = player.borrow_mut();
                 player.stop();
                 if playback_samples.is_empty() && bytes.is_empty() {
@@ -129,6 +160,16 @@ impl AppController {
                         channels as usize,
                     );
                 }
+                log_audio_start_stage(
+                    "sync_loaded_audio_player_set",
+                    Some(&source.id),
+                    Some(relative_path),
+                    player_started_at,
+                    Some(source_kind),
+                    None,
+                    Some(byte_len),
+                    Some(sample_len),
+                );
             }
             Ok(None) => {}
             Err(err) => self.set_status(err, StatusTone::Warning),

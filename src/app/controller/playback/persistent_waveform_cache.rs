@@ -14,12 +14,14 @@ use crate::sample_sources::SourceId;
 use crate::waveform::DecodedWaveform;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 use self::entry::{CACHE_VERSION, PersistentWaveformEntry};
 
 /// Extension used for persistent waveform cache payload files.
 const CACHE_FILE_EXTENSION: &str = "bin";
+static PERSISTENT_WAVEFORM_CACHE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 
 /// Persistent waveform cache hit hydrated from disk and ready for controller use.
 #[derive(Clone)]
@@ -81,8 +83,26 @@ pub(crate) fn load_persistent_waveform_cache_entry(
     relative_path: &Path,
     metadata: FileMetadata,
 ) -> Option<PersistentWaveformHit> {
+    let telemetry_enabled =
+        crate::hotpath_telemetry::enabled(&PERSISTENT_WAVEFORM_CACHE_TELEMETRY_ENABLED);
+    let started_at = telemetry_enabled.then(Instant::now);
     let path = cache_file_path(source_id, relative_path, metadata).ok()?;
+    let read_started_at = telemetry_enabled.then(Instant::now);
     let bytes = std::fs::read(&path).ok()?;
+    if let Some(read_started_at) = read_started_at {
+        tracing::info!(
+            target: "perf::audio_start",
+            module = "persistent_waveform_cache",
+            stage = "read",
+            source_id = %source_id.as_str(),
+            path = %relative_path.display(),
+            cache_bytes = bytes.len(),
+            file_size = metadata.file_size,
+            elapsed_ms = read_started_at.elapsed().as_secs_f64() * 1_000.0,
+            "Persistent waveform cache stage"
+        );
+    }
+    let decode_started_at = telemetry_enabled.then(Instant::now);
     let entry: PersistentWaveformEntry = match bincode::deserialize(&bytes) {
         Ok(entry) => entry,
         Err(err) => {
@@ -94,11 +114,40 @@ pub(crate) fn load_persistent_waveform_cache_entry(
             return None;
         }
     };
+    if let Some(decode_started_at) = decode_started_at {
+        tracing::info!(
+            target: "perf::audio_start",
+            module = "persistent_waveform_cache",
+            stage = "deserialize",
+            source_id = %source_id.as_str(),
+            path = %relative_path.display(),
+            cache_bytes = bytes.len(),
+            file_size = metadata.file_size,
+            elapsed_ms = decode_started_at.elapsed().as_secs_f64() * 1_000.0,
+            "Persistent waveform cache stage"
+        );
+    }
     if entry.version() != CACHE_VERSION {
         let _ = std::fs::remove_file(&path);
         return None;
     }
-    Some(entry.into_hit())
+    let hit = entry.into_hit();
+    if let Some(started_at) = started_at {
+        tracing::info!(
+            target: "perf::audio_start",
+            module = "persistent_waveform_cache",
+            stage = "load_hit",
+            source_id = %source_id.as_str(),
+            path = %relative_path.display(),
+            cache_bytes = bytes.len(),
+            file_size = metadata.file_size,
+            decoded_samples = hit.decoded.samples.len(),
+            transients = hit.transients.len(),
+            elapsed_ms = started_at.elapsed().as_secs_f64() * 1_000.0,
+            "Persistent waveform cache stage"
+        );
+    }
+    Some(hit)
 }
 
 /// Persist one waveform cache entry without requiring controller access.

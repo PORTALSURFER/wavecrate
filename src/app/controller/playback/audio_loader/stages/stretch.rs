@@ -9,7 +9,7 @@ use std::{
 
 use super::super::telemetry::{
     StaleDropStage, audio_loader_telemetry_enabled, record_alloc_estimate_bytes,
-    record_stretch_duration, stale_and_record,
+    record_request_stage, record_stretch_duration, stale_and_record,
 };
 
 #[cfg(test)]
@@ -94,6 +94,20 @@ fn run_stretch_stage_with_hook(
 
     if let Some(start) = stretch_start {
         record_stretch_duration(start.elapsed());
+        record_request_stage(
+            job.request_id,
+            &job.source_id,
+            &job.relative_path,
+            "stretch_stage",
+            Some(start),
+            None,
+            Some(final_bytes.len()),
+            Some(if stretched {
+                "stretched"
+            } else {
+                "stretch_failed"
+            }),
+        );
     }
 
     Ok(Some(StretchStageOutput {

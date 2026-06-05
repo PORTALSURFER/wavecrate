@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::playback::telemetry::{log_audio_start_stage, stage_timer};
 use std::time::Instant;
 
 mod loading;
@@ -16,6 +17,7 @@ pub(crate) fn play_audio(
     looped: bool,
     start_override: Option<f64>,
 ) -> Result<(), String> {
+    let play_started_at = stage_timer();
     if controller.is_recording() {
         return Err("Stop recording before playback".into());
     }
@@ -25,6 +27,16 @@ pub(crate) fn play_audio(
         controller.flush_pending_browser_focus_commit();
     }
     if let Some((source, relative_path)) = browser_selection_playback_target(controller) {
+        log_audio_start_stage(
+            "play_audio_queue_explicit_target",
+            Some(&source.id),
+            Some(&relative_path),
+            play_started_at,
+            None,
+            Some("pending_load"),
+            None,
+            None,
+        );
         return queue_or_load_explicit_pending_playback(
             controller,
             &source,
@@ -35,6 +47,16 @@ pub(crate) fn play_audio(
         );
     }
     if controller.sample_view.wav.loaded_audio.is_none() {
+        log_audio_start_stage(
+            "play_audio_queue_pending",
+            None,
+            None,
+            play_started_at,
+            None,
+            Some("pending_load"),
+            None,
+            None,
+        );
         return queue_or_load_pending_playback(controller, looped, start_override);
     }
 
@@ -48,10 +70,61 @@ pub(crate) fn play_audio(
     let (audition_start, audition_end) = audition_span(selection, looped, start_override, span_end);
     let audition_gain = normalized_audition_gain(controller, audition_start, audition_end);
     player.borrow_mut().set_playback_gain(audition_gain);
+    let source_id = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .map(|audio| audio.source_id.clone());
+    let relative_path = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .map(|audio| audio.relative_path.clone());
+    let source_kind = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .map(|audio| {
+            if audio.bytes.is_empty() {
+                "file"
+            } else {
+                "bytes"
+            }
+        });
+    let byte_len = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .map(|audio| audio.bytes.len());
+    let start_range_started_at = stage_timer();
     let start = start_player_range(&player, selection, looped, start_override, span_end)?;
+    log_audio_start_stage(
+        "start_player_range",
+        source_id.as_ref(),
+        relative_path.as_deref(),
+        start_range_started_at,
+        source_kind,
+        None,
+        byte_len,
+        None,
+    );
     sync_playback_ui(controller, start, span_end, start_override);
     refresh_waveform_image_if_view_stale(controller);
     controller.record_loaded_audio_playback();
+    log_audio_start_stage(
+        "play_audio_complete",
+        source_id.as_ref(),
+        relative_path.as_deref(),
+        play_started_at,
+        source_kind,
+        None,
+        byte_len,
+        None,
+    );
     Ok(())
 }
 

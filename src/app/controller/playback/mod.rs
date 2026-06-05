@@ -26,6 +26,7 @@ mod playhead_trail;
 mod random_nav;
 mod random_nav_facade;
 mod tagging;
+pub(crate) mod telemetry;
 mod transport;
 /// Waveform selection/cursor/zoom action facade methods.
 mod waveform_actions;

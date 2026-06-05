@@ -7,7 +7,8 @@ use std::{
 };
 
 use super::super::telemetry::{
-    StaleDropStage, audio_loader_telemetry_enabled, record_decode_duration, stale_and_record,
+    StaleDropStage, audio_loader_telemetry_enabled, record_decode_duration, record_request_stage,
+    stale_and_record,
 };
 
 /// Decode sanitized wav bytes into waveform/sample payloads.
@@ -23,6 +24,16 @@ pub(super) fn decode_stage(
     })?;
     if let Some(start) = decode_start {
         record_decode_duration(start.elapsed());
+        record_request_stage(
+            job.request_id,
+            &job.source_id,
+            &job.relative_path,
+            "decode_stage",
+            Some(start),
+            None,
+            Some(bytes.len()),
+            None,
+        );
     }
 
     if stale_and_record(

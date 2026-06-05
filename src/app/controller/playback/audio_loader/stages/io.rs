@@ -11,7 +11,7 @@ use std::{
 
 use super::super::telemetry::{
     StaleDropStage, audio_loader_telemetry_enabled, record_io_duration, record_read_bytes,
-    stale_and_record,
+    record_request_stage, stage_timer, stale_and_record,
 };
 
 /// Chunk size for stale-aware incremental audio file reads.
@@ -21,6 +21,7 @@ pub(super) fn load_metadata_stage(
     job: &AudioLoadJob,
     latest_request_id: &AtomicU64,
 ) -> Result<Option<FileMetadata>, AudioLoadError> {
+    let started_at = stage_timer();
     ensure_safe_relative_path(&job.relative_path)?;
     if stale_and_record(job.request_id, latest_request_id, StaleDropStage::PreIo) {
         return Ok(None);
@@ -37,7 +38,18 @@ pub(super) fn load_metadata_stage(
             ))
         }
     })?;
-    file_metadata(&full_path, &fs_metadata).map(Some)
+    let metadata = file_metadata(&full_path, &fs_metadata)?;
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "metadata_stage",
+        started_at,
+        Some(metadata.file_size),
+        None,
+        None,
+    );
+    Ok(Some(metadata))
 }
 
 /// Read metadata/bytes for one load request and sanitize bytes for decoding.
@@ -45,6 +57,7 @@ pub(super) fn load_io_stage(
     job: &AudioLoadJob,
     latest_request_id: &AtomicU64,
 ) -> Result<Option<IoStageOutput>, AudioLoadError> {
+    let stage_started_at = stage_timer();
     ensure_safe_relative_path(&job.relative_path)?;
     if stale_and_record(job.request_id, latest_request_id, StaleDropStage::PreIo) {
         return Ok(None);
@@ -52,6 +65,7 @@ pub(super) fn load_io_stage(
 
     let io_start = audio_loader_telemetry_enabled().then(Instant::now);
     let full_path = job.root.join(&job.relative_path);
+    let metadata_started_at = stage_timer();
     let fs_metadata = fs::metadata(&full_path).map_err(|err| {
         let missing = err.kind() == std::io::ErrorKind::NotFound;
         if missing {
@@ -63,7 +77,18 @@ pub(super) fn load_io_stage(
             ))
         }
     })?;
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "io_metadata",
+        metadata_started_at,
+        Some(fs_metadata.len()),
+        None,
+        None,
+    );
 
+    let open_started_at = stage_timer();
     let file = fs::File::open(&full_path).map_err(|err| {
         let missing = err.kind() == std::io::ErrorKind::NotFound;
         if missing {
@@ -72,8 +97,19 @@ pub(super) fn load_io_stage(
             AudioLoadError::Failed(format!("Failed to read {}: {err}", full_path.display()))
         }
     })?;
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "io_open",
+        open_started_at,
+        Some(fs_metadata.len()),
+        None,
+        None,
+    );
 
     let reserve_len = usize::try_from(fs_metadata.len()).unwrap_or(0);
+    let read_started_at = stage_timer();
     let bytes = read_bytes_chunked_with_stale_check(file, reserve_len, || {
         stale_and_record(job.request_id, latest_request_id, StaleDropStage::PostIo)
     })
@@ -83,9 +119,30 @@ pub(super) fn load_io_stage(
     let Some(bytes) = bytes else {
         return Ok(None);
     };
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "io_read",
+        read_started_at,
+        Some(fs_metadata.len()),
+        Some(bytes.len()),
+        None,
+    );
 
     record_read_bytes(bytes.len());
+    let sanitize_started_at = stage_timer();
     let bytes = crate::wav_sanitize::sanitize_wav_bytes(bytes);
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "io_sanitize",
+        sanitize_started_at,
+        Some(fs_metadata.len()),
+        Some(bytes.len()),
+        None,
+    );
     if let Some(start) = io_start {
         record_io_duration(start.elapsed());
     }
@@ -94,10 +151,18 @@ pub(super) fn load_io_stage(
         return Ok(None);
     }
 
-    Ok(Some(IoStageOutput {
-        bytes,
-        metadata: file_metadata(&full_path, &fs_metadata)?,
-    }))
+    let metadata = file_metadata(&full_path, &fs_metadata)?;
+    record_request_stage(
+        job.request_id,
+        &job.source_id,
+        &job.relative_path,
+        "io_stage",
+        stage_started_at,
+        Some(metadata.file_size),
+        Some(bytes.len()),
+        None,
+    );
+    Ok(Some(IoStageOutput { bytes, metadata }))
 }
 
 fn file_metadata(full_path: &Path, fs_metadata: &Metadata) -> Result<FileMetadata, AudioLoadError> {

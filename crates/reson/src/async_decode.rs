@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use ringbuf::{HeapRb, traits::*};
 
 use crate::Source;
+use crate::telemetry;
 
 const DEFAULT_BUFFER_SECONDS: f32 = 1.0;
 const PRODUCER_BACKOFF: Duration = Duration::from_millis(1);
@@ -48,6 +49,7 @@ where
     ///
     /// Non-finite or tiny buffer sizes are sanitized through [`buffer_samples`].
     pub(crate) fn with_buffer_seconds(source: S, buffer_seconds: f32) -> Self {
+        let construct_started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
         let sample_rate = source.sample_rate();
         let channels = source.channels();
         let total_duration = source.total_duration();
@@ -66,6 +68,8 @@ where
         let spawn_result = thread::Builder::new()
             .name("audio-decode".to_string())
             .spawn(move || {
+                let worker_started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
+                let mut produced_samples = 0usize;
                 let decode_result = panic::catch_unwind(AssertUnwindSafe(|| {
                     let mut source = source;
                     loop {
@@ -81,6 +85,7 @@ where
                                     }
                                     match producer.try_push(sample) {
                                         Ok(()) => {
+                                            produced_samples = produced_samples.saturating_add(1);
                                             break;
                                         }
                                         Err(returned) => {
@@ -110,6 +115,16 @@ where
                     ));
                 }
                 thread_done.store(true, Ordering::Release);
+                if let Some(worker_started_at) = worker_started_at {
+                    tracing::info!(
+                        target: "perf::audio_start",
+                        module = "reson_async_source",
+                        stage = "worker_finished",
+                        produced_samples,
+                        elapsed_ms = telemetry::elapsed_ms(worker_started_at.elapsed()),
+                        "Async decode stage"
+                    );
+                }
             });
 
         let worker = match spawn_result {
@@ -123,7 +138,7 @@ where
             }
         };
 
-        Self {
+        let created = Self {
             consumer,
             sample_rate,
             channels,
@@ -133,7 +148,21 @@ where
             stop,
             last_error,
             _marker: PhantomData,
+        };
+        if let Some(construct_started_at) = construct_started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_async_source",
+                stage = "construct",
+                sample_rate,
+                channels,
+                buffer_samples,
+                worker_started = created.worker.is_some(),
+                elapsed_ms = telemetry::elapsed_ms(construct_started_at.elapsed()),
+                "Async decode stage"
+            );
         }
+        created
     }
 
     /// Join the worker once it is known to be finished.
@@ -171,20 +200,75 @@ where
     }
 
     fn prefill_samples(&mut self, target_samples: usize, timeout: Duration) -> usize {
+        let started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
         if target_samples == 0 {
-            return self.consumer.occupied_len();
+            let available = self.consumer.occupied_len();
+            if let Some(started_at) = started_at {
+                tracing::info!(
+                    target: "perf::audio_start",
+                    module = "reson_async_source",
+                    stage = "prefill",
+                    target_samples,
+                    available_samples = available,
+                    done = self.done.load(Ordering::Acquire),
+                    timeout_ms = timeout.as_secs_f64() * 1_000.0,
+                    elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                    "Async decode stage"
+                );
+            }
+            return available;
         }
         let deadline = Instant::now() + timeout;
         loop {
             let available = self.consumer.occupied_len();
             if available >= target_samples {
+                if let Some(started_at) = started_at {
+                    tracing::info!(
+                        target: "perf::audio_start",
+                        module = "reson_async_source",
+                        stage = "prefill",
+                        target_samples,
+                        available_samples = available,
+                        done = self.done.load(Ordering::Acquire),
+                        timeout_ms = timeout.as_secs_f64() * 1_000.0,
+                        elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                        "Async decode stage"
+                    );
+                }
                 return available;
             }
             if self.done.load(Ordering::Acquire) {
                 self.join_finished_worker();
-                return self.consumer.occupied_len();
+                let available = self.consumer.occupied_len();
+                if let Some(started_at) = started_at {
+                    tracing::info!(
+                        target: "perf::audio_start",
+                        module = "reson_async_source",
+                        stage = "prefill",
+                        target_samples,
+                        available_samples = available,
+                        done = true,
+                        timeout_ms = timeout.as_secs_f64() * 1_000.0,
+                        elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                        "Async decode stage"
+                    );
+                }
+                return available;
             }
             if Instant::now() >= deadline {
+                if let Some(started_at) = started_at {
+                    tracing::info!(
+                        target: "perf::audio_start",
+                        module = "reson_async_source",
+                        stage = "prefill_timeout",
+                        target_samples,
+                        available_samples = available,
+                        done = self.done.load(Ordering::Acquire),
+                        timeout_ms = timeout.as_secs_f64() * 1_000.0,
+                        elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                        "Async decode stage"
+                    );
+                }
                 return available;
             }
             thread::sleep(PREFILL_POLL);

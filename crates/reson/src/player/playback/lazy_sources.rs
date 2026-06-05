@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::Source;
+use crate::telemetry;
 use crate::timebase::duration_for_frames;
 
 use super::super::super::decoder::SymphoniaDecoder;
@@ -42,12 +43,40 @@ impl LazySpanSource {
 
     fn decoder_mut(&mut self) -> Option<&mut SymphoniaDecoder> {
         if self.decoder.is_none() {
+            let source_kind = self.source.kind();
+            let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
             match decoder_from_audio_source(&self.source).and_then(|mut decoder| {
-                decoder.try_seek(self.seek_to).map_err(map_seek_error)?;
+                let seek_started_at =
+                    telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
+                let seek = decoder.try_seek(self.seek_to).map_err(map_seek_error);
+                if let Some(seek_started_at) = seek_started_at {
+                    tracing::info!(
+                        target: "perf::audio_start",
+                        module = "reson_lazy_source",
+                        stage = "span_seek",
+                        source_kind,
+                        seek_ms = self.seek_to.as_secs_f64() * 1_000.0,
+                        success = seek.is_ok(),
+                        elapsed_ms = telemetry::elapsed_ms(seek_started_at.elapsed()),
+                        "Lazy playback source stage"
+                    );
+                }
+                seek?;
                 Ok(decoder)
             }) {
                 Ok(decoder) => {
                     self.decoder = Some(decoder);
+                    if let Some(started_at) = started_at {
+                        tracing::info!(
+                            target: "perf::audio_start",
+                            module = "reson_lazy_source",
+                            stage = "span_decoder_ready",
+                            source_kind,
+                            remaining_samples = self.remaining_samples,
+                            elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                            "Lazy playback source stage"
+                        );
+                    }
                 }
                 Err(error) => {
                     self.last_error = Some(error);
@@ -158,18 +187,46 @@ impl LazyRepeatingSpanSource {
 
     fn seek_to_cycle_position(&mut self, cycle_sample_offset: u64) -> Result<(), ()> {
         let frame_offset = cycle_sample_offset / self.channels as u64;
+        let source_kind = self.source.kind();
+        let seek_to = duration_for_frames(
+            self.start_frame.saturating_add(frame_offset),
+            self.sample_rate,
+        );
+        let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
         match decoder_from_audio_source(&self.source).and_then(|mut decoder| {
-            decoder
-                .try_seek(duration_for_frames(
-                    self.start_frame.saturating_add(frame_offset),
-                    self.sample_rate,
-                ))
-                .map_err(map_seek_error)?;
+            let seek_started_at =
+                telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
+            let seek = decoder.try_seek(seek_to).map_err(map_seek_error);
+            if let Some(seek_started_at) = seek_started_at {
+                tracing::info!(
+                    target: "perf::audio_start",
+                    module = "reson_lazy_source",
+                    stage = "repeat_seek",
+                    source_kind,
+                    seek_ms = seek_to.as_secs_f64() * 1_000.0,
+                    success = seek.is_ok(),
+                    elapsed_ms = telemetry::elapsed_ms(seek_started_at.elapsed()),
+                    "Lazy playback source stage"
+                );
+            }
+            seek?;
             Ok(decoder)
         }) {
             Ok(decoder) => {
                 self.decoder = Some(decoder);
                 self.samples_into_cycle = cycle_sample_offset.min(self.span_samples);
+                if let Some(started_at) = started_at {
+                    tracing::info!(
+                        target: "perf::audio_start",
+                        module = "reson_lazy_source",
+                        stage = "repeat_decoder_ready",
+                        source_kind,
+                        cycle_sample_offset,
+                        span_samples = self.span_samples,
+                        elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                        "Lazy playback source stage"
+                    );
+                }
                 Ok(())
             }
             Err(error) => {
@@ -186,9 +243,41 @@ impl LazyRepeatingSpanSource {
 }
 
 fn decoder_from_audio_source(source: &AudioPlaybackSource) -> Result<SymphoniaDecoder, String> {
+    let source_kind = source.kind();
+    let started_at = telemetry::playback_telemetry_enabled().then(std::time::Instant::now);
     match source {
-        AudioPlaybackSource::Bytes(bytes) => decoder_from_bytes(Arc::clone(bytes)),
-        AudioPlaybackSource::File(path) => decoder_from_path(path),
+        AudioPlaybackSource::Bytes(bytes) => {
+            let result = decoder_from_bytes(Arc::clone(bytes));
+            if let Some(started_at) = started_at {
+                tracing::info!(
+                    target: "perf::audio_start",
+                    module = "reson_lazy_source",
+                    stage = "decoder_from_source",
+                    source_kind,
+                    byte_len = bytes.len(),
+                    success = result.is_ok(),
+                    elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                    "Lazy playback source stage"
+                );
+            }
+            result
+        }
+        AudioPlaybackSource::File(path) => {
+            let result = decoder_from_path(path);
+            if let Some(started_at) = started_at {
+                tracing::info!(
+                    target: "perf::audio_start",
+                    module = "reson_lazy_source",
+                    stage = "decoder_from_source",
+                    source_kind,
+                    path = %path.display(),
+                    success = result.is_ok(),
+                    elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                    "Lazy playback source stage"
+                );
+            }
+            result
+        }
     }
 }
 

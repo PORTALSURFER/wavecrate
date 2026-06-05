@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::Source;
+use crate::telemetry;
 
 use super::super::DEFAULT_ANTI_CLIP_FADE;
 use super::super::output::{AudioOutputConfig, ResolvedOutput, open_output_stream};
@@ -99,6 +100,22 @@ impl AudioPlayer {
         self.current_audio = Some(AudioPlaybackSource::Bytes(audio));
         self.playback_samples = None;
         self.reset_playback_state();
+        if telemetry::playback_telemetry_enabled() {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_player",
+                stage = "set_audio_with_metadata",
+                source_kind = "bytes",
+                byte_len = self.current_audio.as_ref().and_then(|source| match source {
+                    AudioPlaybackSource::Bytes(bytes) => Some(bytes.len()),
+                    AudioPlaybackSource::File(_) => None,
+                }).unwrap_or(0),
+                duration_ms = duration as f64 * 1_000.0,
+                sample_rate,
+                channels = channels.clamp(1, u16::MAX as usize),
+                "Audio player stage"
+            );
+        }
     }
 
     /// Store an audio file path with caller-provided timing metadata.
@@ -118,6 +135,18 @@ impl AudioPlayer {
         self.current_audio = Some(AudioPlaybackSource::File(path.into()));
         self.playback_samples = None;
         self.reset_playback_state();
+        if telemetry::playback_telemetry_enabled() {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_player",
+                stage = "set_audio_file_with_metadata",
+                source_kind = "file",
+                duration_ms = duration as f64 * 1_000.0,
+                sample_rate,
+                channels = channels.clamp(1, u16::MAX as usize),
+                "Audio player stage"
+            );
+        }
     }
 
     /// Store audio bytes and decoded playback samples with caller-provided
@@ -140,6 +169,23 @@ impl AudioPlayer {
         self.current_audio = Some(AudioPlaybackSource::Bytes(audio));
         self.playback_samples = Some(samples);
         self.reset_playback_state();
+        if telemetry::playback_telemetry_enabled() {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_player",
+                stage = "set_audio_samples_with_metadata",
+                source_kind = "samples",
+                byte_len = self.current_audio.as_ref().and_then(|source| match source {
+                    AudioPlaybackSource::Bytes(bytes) => Some(bytes.len()),
+                    AudioPlaybackSource::File(_) => None,
+                }).unwrap_or(0),
+                sample_len = self.playback_samples.as_ref().map(|samples| samples.len()).unwrap_or(0),
+                duration_ms = duration as f64 * 1_000.0,
+                sample_rate,
+                channels = channels.clamp(1, u16::MAX as usize),
+                "Audio player stage"
+            );
+        }
     }
 
     /// Adjust master output volume for current and future playback.

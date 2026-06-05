@@ -1,10 +1,9 @@
 use std::time::{Duration, Instant};
 
+use crate::telemetry;
 use crate::{OutputAdapter, Source};
 use tracing::warn;
 
-#[cfg(test)]
-use std::sync::Arc;
 #[cfg(test)]
 use super::super::DEFAULT_ANTI_CLIP_FADE;
 #[cfg(test)]
@@ -13,6 +12,8 @@ use super::super::fade::{FadeOutHandle, FadeOutOnRequest, fade_frames_for_durati
 use super::{AudioPlaybackSource, AudioPlayer};
 #[cfg(test)]
 use crate::mixer::{decoder_from_bytes, map_seek_error};
+#[cfg(test)]
+use std::sync::Arc;
 
 impl AudioPlayer {
     pub(super) fn effective_volume(&self) -> f32 {
@@ -41,11 +42,14 @@ impl AudioPlayer {
         &mut self,
         source: S,
     ) -> Result<(FadeOutHandle, (u32, u16)), String> {
+        let started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
         let _volume = self.effective_volume();
         let target_sample_rate = self.output.sample_rate.max(1);
         let target_channels = self.output.channel_count.max(1);
+        let input_sample_rate = source.sample_rate();
+        let input_channels = source.channels();
         let source: Box<dyn Source + Send> =
-            if source.sample_rate() == target_sample_rate && source.channels() == target_channels {
+            if input_sample_rate == target_sample_rate && input_channels == target_channels {
                 Box::new(source)
             } else {
                 Box::new(OutputAdapter::new(
@@ -57,13 +61,42 @@ impl AudioPlayer {
         let format = (source.sample_rate(), source.channels());
         let handle = FadeOutHandle::new();
 
+        let append_started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
         self.stream
             .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0)
             .map_err(|err| {
                 warn!("Failed to append audio source: {err}");
                 err
             })?;
+        if let Some(append_started_at) = append_started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_player",
+                stage = "append_source",
+                input_sample_rate,
+                input_channels,
+                target_sample_rate,
+                target_channels,
+                adapted = input_sample_rate != target_sample_rate || input_channels != target_channels,
+                elapsed_ms = telemetry::elapsed_ms(append_started_at.elapsed()),
+                "Audio player stage"
+            );
+        }
         self.active_sources = self.active_sources.saturating_add(1);
+        if let Some(started_at) = started_at {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_player",
+                stage = "build_sink_with_fade",
+                input_sample_rate,
+                input_channels,
+                target_sample_rate,
+                target_channels,
+                adapted = input_sample_rate != target_sample_rate || input_channels != target_channels,
+                elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+                "Audio player stage"
+            );
+        }
 
         Ok((handle, format))
     }

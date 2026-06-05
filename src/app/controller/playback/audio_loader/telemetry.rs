@@ -1,10 +1,12 @@
 use super::is_stale_request;
 use crate::hotpath_telemetry;
+use crate::sample_sources::SourceId;
+use std::path::Path;
 use std::sync::{
     OnceLock,
     atomic::{AtomicU64, Ordering},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const AUDIO_LOADER_TELEMETRY_LOG_EVERY: u64 = 128;
 
@@ -42,6 +44,44 @@ pub(super) enum StaleDropStage {
 
 pub(super) fn audio_loader_telemetry_enabled() -> bool {
     hotpath_telemetry::enabled(&AUDIO_LOADER_TELEMETRY_ENABLED)
+}
+
+pub(super) fn stage_timer() -> Option<Instant> {
+    audio_loader_telemetry_enabled().then(Instant::now)
+}
+
+pub(super) fn elapsed_ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
+}
+
+pub(super) fn record_request_stage(
+    request_id: u64,
+    source_id: &SourceId,
+    relative_path: &Path,
+    stage: &'static str,
+    started_at: Option<Instant>,
+    file_size: Option<u64>,
+    byte_len: Option<usize>,
+    cache_state: Option<&'static str>,
+) {
+    if !audio_loader_telemetry_enabled() {
+        return;
+    }
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "wavecrate_audio_loader",
+        request_id,
+        source_id = %source_id.as_str(),
+        path = %relative_path.display(),
+        stage,
+        file_size = file_size.unwrap_or(0),
+        byte_len = byte_len.unwrap_or(0),
+        cache_state = cache_state.unwrap_or(""),
+        elapsed_ms = started_at
+            .map(|started_at| elapsed_ms(started_at.elapsed()))
+            .unwrap_or(0.0),
+        "Audio load request stage"
+    );
 }
 
 fn record_audio_loader_duration(counter: &AtomicU64, duration: Duration) {

@@ -2,11 +2,26 @@ use super::super::*;
 use crate::app::controller::playback::audio_cache::CacheKey;
 use crate::app::controller::playback::audio_loader::{AudioTransientResult, AudioVisualResult};
 use crate::app::controller::playback::persistent_waveform_cache::persist_waveform_cache_entry;
+use crate::app::controller::playback::telemetry::{log_audio_start_stage, stage_timer};
 use std::sync::Arc;
 use std::thread;
 
 impl AppController {
     pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
+        log_audio_start_stage(
+            "handle_audio_loaded",
+            Some(&pending.source_id),
+            Some(&pending.relative_path),
+            None,
+            Some(if outcome.bytes.is_empty() {
+                "file"
+            } else {
+                "bytes"
+            }),
+            None,
+            Some(outcome.bytes.len()),
+            Some(outcome.decoded.samples.len()),
+        );
         let duration_seconds = outcome.decoded.duration_seconds;
         let sample_rate = outcome.decoded.sample_rate;
         self.runtime
@@ -28,6 +43,7 @@ impl AppController {
     }
 
     pub(crate) fn handle_audio_visual_loaded(&mut self, result: AudioVisualResult) {
+        let started_at = stage_timer();
         let Some(staged) = self.runtime.jobs.staged_audio_handoff() else {
             return;
         };
@@ -75,6 +91,20 @@ impl AppController {
             result.stretched,
         );
         self.finalize_staged_audio_handoff(result.cache_token);
+        log_audio_start_stage(
+            "handle_audio_visual_loaded",
+            Some(&result.source_id),
+            Some(&result.relative_path),
+            started_at,
+            Some(if staged.bytes.is_empty() {
+                "file"
+            } else {
+                "bytes"
+            }),
+            None,
+            Some(staged.bytes.len()),
+            Some(staged.decoded.samples.len()),
+        );
     }
 
     pub(crate) fn handle_audio_transients_loaded(&mut self, result: AudioTransientResult) {
@@ -149,6 +179,7 @@ impl AppController {
         source: &SampleSource,
         handoff: &StagedAudioHandoff,
     ) -> Result<(), String> {
+        let started_at = stage_timer();
         let relative_path = handoff.relative_path.as_path();
         let duration_seconds = handoff.decoded.duration_seconds;
         let sample_rate = handoff.decoded.sample_rate;
@@ -165,6 +196,20 @@ impl AppController {
             Arc::clone(&handoff.bytes),
             handoff.audio_path.clone(),
         )?;
+        log_audio_start_stage(
+            "apply_loaded_audio_handoff",
+            Some(&source.id),
+            Some(relative_path),
+            started_at,
+            Some(if handoff.bytes.is_empty() {
+                "file"
+            } else {
+                "bytes"
+            }),
+            None,
+            Some(handoff.bytes.len()),
+            Some(handoff.decoded.samples.len()),
+        );
         self.ui.waveform.notice = None;
         if matches!(handoff.intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(relative_path);
@@ -175,6 +220,7 @@ impl AppController {
 
     /// Publish one staged audio load once waveform visuals for the same decode are ready.
     pub(crate) fn finalize_staged_audio_handoff(&mut self, cache_token: u64) {
+        let started_at = stage_timer();
         if self.runtime.pending_waveform_render.is_some() {
             return;
         }
@@ -202,6 +248,20 @@ impl AppController {
             self.refresh_similarity_sort_for_loaded_sample();
         }
         self.maybe_trigger_pending_playback();
+        log_audio_start_stage(
+            "finalize_staged_audio_handoff",
+            Some(&staged.source_id),
+            Some(&staged.relative_path),
+            started_at,
+            Some(if staged.bytes.is_empty() {
+                "file"
+            } else {
+                "bytes"
+            }),
+            None,
+            Some(staged.bytes.len()),
+            Some(staged.decoded.samples.len()),
+        );
     }
 
     fn cache_loaded_waveform_transients(
