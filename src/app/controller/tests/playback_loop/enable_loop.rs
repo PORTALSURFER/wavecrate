@@ -24,6 +24,7 @@ fn enabling_loop_while_playing_restarts_in_looped_mode() {
         bytes: std::fs::read(&wav_path).expect("wav bytes").into(),
         duration_seconds: 30.0,
         sample_rate: 8,
+        channels: 1,
     });
     controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
 
@@ -69,6 +70,7 @@ fn enabling_loop_while_playing_uses_full_selection() {
         bytes: std::fs::read(&wav_path).expect("wav bytes").into(),
         duration_seconds: duration,
         sample_rate: 8,
+        channels: 1,
     });
     controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
 
@@ -124,6 +126,7 @@ fn toggle_loop_persists_hidden_selected_paths() {
             .into(),
         duration_seconds: 1.0,
         sample_rate: 8,
+        channels: 1,
     });
     controller.ui.waveform.bpm_value = Some(120.0);
 

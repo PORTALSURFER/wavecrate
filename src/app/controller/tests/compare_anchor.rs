@@ -181,6 +181,7 @@ fn browser_playback_returns_to_focused_sample_after_compare_replay() {
         bytes: Vec::new().into(),
         duration_seconds: 1.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("anchor.wav"));
     controller.ui.loaded_wav = Some(PathBuf::from("anchor.wav"));

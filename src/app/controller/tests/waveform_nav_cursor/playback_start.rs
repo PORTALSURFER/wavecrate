@@ -136,6 +136,7 @@ fn space_play_from_start_uses_visible_playmark_selection_span() {
         bytes,
         duration_seconds: duration,
         sample_rate: 8,
+        channels: 1,
     });
     controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
     let selection = crate::selection::SelectionRange::new(0.25, 0.6);
@@ -266,6 +267,7 @@ fn play_waveform_at_precise_clears_outside_play_selection_before_starting_audio(
         bytes,
         duration_seconds: duration,
         sample_rate: 8,
+        channels: 1,
     });
     controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
     let selection = crate::selection::SelectionRange::new(0.2, 0.4);

@@ -86,6 +86,7 @@ fn set_waveform_selection_range_milli_snaps_resize_endpoint_when_bpm_snap_enable
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.relative_bpm_grid_enabled = true;
@@ -114,6 +115,7 @@ fn set_waveform_selection_range_milli_snaps_resize_endpoint_to_global_grid_when_
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.relative_bpm_grid_enabled = false;
@@ -143,6 +145,7 @@ fn set_waveform_selection_range_milli_snaps_new_selection_from_exact_anchor_when
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.relative_bpm_grid_enabled = true;
@@ -170,6 +173,7 @@ fn set_waveform_selection_range_milli_snaps_new_selection_to_global_grid_when_re
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.relative_bpm_grid_enabled = false;
@@ -197,6 +201,7 @@ fn set_waveform_selection_range_milli_snaps_visible_edge_without_preserve_flag()
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.bpm_value = Some(60.0);
@@ -230,6 +235,7 @@ fn set_waveform_selection_range_milli_preserves_left_view_edge_when_requested() 
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.bpm_value = Some(60.0);
@@ -263,6 +269,7 @@ fn set_waveform_selection_range_milli_snaps_translated_range_when_bpm_snap_enabl
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.relative_bpm_grid_enabled = true;
@@ -291,6 +298,7 @@ fn set_waveform_selection_range_milli_snaps_translated_range_to_global_grid_when
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.relative_bpm_grid_enabled = false;

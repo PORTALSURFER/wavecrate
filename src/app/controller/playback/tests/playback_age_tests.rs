@@ -41,6 +41,7 @@ fn flush_pending_age_update_commit_persists_last_played_after_deadline() {
         bytes: Vec::new().into(),
         duration_seconds: 1.0,
         sample_rate: 48_000,
+        channels: 1,
     });
 
     controller.record_loaded_audio_playback();

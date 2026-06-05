@@ -100,6 +100,7 @@ fn toggle_loop_lock_does_not_persist_sample_loop_marker() {
             bytes: Vec::new().into(),
             duration_seconds: 1.0,
             sample_rate: 48_000,
+            channels: 1,
         });
 
     toggle_loop_lock(&mut controller);

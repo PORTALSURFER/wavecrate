@@ -12,6 +12,7 @@ fn selection_duration_label_uses_loaded_audio() {
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     let label = controller.selection_duration_label(SelectionRange::new(0.25, 0.75));
     assert_eq!(label.as_deref(), Some("2.00 s"));

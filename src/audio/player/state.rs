@@ -58,8 +58,8 @@ impl AudioPlayer {
         };
         let audio: Arc<[u8]> = data.into();
         let provided = duration.max(0.0);
-        let fallback = decoder_duration(&audio)
-            .or_else(|| wav_header_duration(&audio))
+        let fallback = wav_header_duration(&audio)
+            .or_else(|| decoder_duration(&audio))
             .unwrap_or(0.0);
 
         let wav_spec = wav_spec_from_bytes(&audio);

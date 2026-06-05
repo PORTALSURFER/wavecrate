@@ -157,6 +157,8 @@ impl AppController {
             relative_path,
             duration_seconds,
             sample_rate,
+            handoff.decoded.channels,
+            Arc::clone(&handoff.decoded.samples),
             Arc::clone(&handoff.bytes),
         )?;
         self.ui.waveform.notice = None;

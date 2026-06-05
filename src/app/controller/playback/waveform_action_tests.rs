@@ -105,6 +105,7 @@ fn set_waveform_edit_selection_range_milli_snaps_translated_range_when_bpm_snap_
         bytes: Vec::new().into(),
         duration_seconds: 4.0,
         sample_rate: 48_000,
+        channels: 1,
     });
     controller.ui.waveform.bpm_snap_enabled = true;
     controller.ui.waveform.bpm_value = Some(120.0);

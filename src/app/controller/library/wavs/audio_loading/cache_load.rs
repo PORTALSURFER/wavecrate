@@ -3,7 +3,7 @@ use crate::app::controller::playback::audio_cache::{CacheKey, CachedAudio, FileM
 use crate::app::controller::playback::audio_loader::PreparedAudioLoad;
 
 impl AppController {
-    fn cached_audio_for_load(
+    fn memory_cached_audio_for_load(
         &mut self,
         source: &SampleSource,
         relative_path: &Path,
@@ -13,39 +13,11 @@ impl AppController {
             Err(_) => return Ok(None),
         };
         let key = CacheKey::new(&source.id, relative_path);
-        if let Some(hit) = self.audio.cache.get(&key, metadata) {
-            return Ok(Some((metadata, hit)));
-        }
-        let Some(hit) = self.load_persistent_waveform_cache(&source.id, relative_path, metadata)
-        else {
-            return Ok(None);
-        };
-        let bytes: Arc<[u8]> = match self.read_waveform_bytes(source, relative_path) {
-            Ok(bytes) => Arc::from(bytes),
-            Err(err) => {
-                tracing::warn!(
-                    "Failed to hydrate waveform cache bytes for {}: {err}",
-                    relative_path.display()
-                );
-                return Ok(None);
-            }
-        };
-        self.audio.cache.insert(
-            key,
-            metadata,
-            hit.decoded.clone(),
-            bytes.clone(),
-            hit.transients.clone(),
-        );
-        Ok(Some((
-            metadata,
-            CachedAudio {
-                metadata,
-                decoded: hit.decoded,
-                bytes,
-                transients: hit.transients,
-            },
-        )))
+        Ok(self
+            .audio
+            .cache
+            .get(&key, metadata)
+            .map(|hit| (metadata, hit)))
     }
 
     pub(crate) fn try_queue_cached_audio_load(
@@ -59,7 +31,8 @@ impl AppController {
         {
             return Ok(false);
         }
-        let Some((metadata, hit)) = self.cached_audio_for_load(source, relative_path)? else {
+        let Some((metadata, hit)) = self.memory_cached_audio_for_load(source, relative_path)?
+        else {
             return Ok(false);
         };
         let request_id = self.runtime.jobs.next_audio_request_id();
@@ -103,7 +76,8 @@ impl AppController {
         {
             return Ok(false);
         }
-        let Some((_metadata, hit)) = self.cached_audio_for_load(source, relative_path)? else {
+        let Some((_metadata, hit)) = self.memory_cached_audio_for_load(source, relative_path)?
+        else {
             return Ok(false);
         };
         let duration_seconds = hit.decoded.duration_seconds;
