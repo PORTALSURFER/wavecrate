@@ -251,13 +251,11 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
     let tag_for_input = tag.to_string();
     let mut badge = ui::interactive_badge(tag.to_string())
         .style(style)
-        .actions(
-            ui::InteractiveRowActions::new()
-                .secondary_key(tag_for_input.clone(), |tag, position| {
-                    GuiMessage::OpenMetadataTagContextMenu { tag, position }
-                })
-                .activate_key(tag_for_input, GuiMessage::SelectMetadataTag),
-        )
+        .actions(ui::InteractiveRowActions::new().activate_secondary_key(
+            tag_for_input,
+            GuiMessage::SelectMetadataTag,
+            |tag, position| GuiMessage::OpenMetadataTagContextMenu { tag, position },
+        ))
         .key(format!("metadata-tag-accepted-{tag}"))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT);
     if !selected && !metadata_tag_category_is_pinned(category_id) {

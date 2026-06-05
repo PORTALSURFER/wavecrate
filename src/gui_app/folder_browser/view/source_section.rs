@@ -42,17 +42,15 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
     let visual = ui::text_line(label, 24.0).padding_x(8.0);
     ui::interactive_row_underlay(visual)
         .input_id(source_row_input_id(source.id.as_str()))
-        .actions(
-            ui::InteractiveRowActions::new()
-                .secondary_key(source.id.clone(), |source_id, position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                        source_id, position,
-                    ))
-                })
-                .activate_key(source.id.clone(), |source_id| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
-                }),
-        )
+        .actions(ui::InteractiveRowActions::new().activate_secondary_key(
+            source.id.clone(),
+            |source_id| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id)),
+            |source_id, position| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                    source_id, position,
+                ))
+            },
+        ))
         .key(format!("source-row-{row_key}"))
         .style(source_row_style(selected))
         .fill_width()
