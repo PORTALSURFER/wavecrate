@@ -1,13 +1,16 @@
 use radiant::{
     gui::types::{Rect, Rgba8},
-    gui::visualization::CanvasSelectionGeometry,
+    gui::visualization::{
+        CanvasSelectionAffordancePaintParts, CanvasSelectionAffordanceStyle,
+        CanvasSelectionGeometry,
+    },
     runtime::{PaintPrimitive, WidgetPaint},
 };
 
 use super::{
-    WaveformSelectionEdge, WaveformWidget,
+    WaveformWidget,
     widget_geometry::{
-        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, drag_handle_role, selection_export_handle_style,
+        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, selection_export_handle_style,
         selection_move_handle_style, selection_resize_edge_style,
     },
 };
@@ -106,36 +109,34 @@ impl WaveformWidget {
             cursor_color,
             1.25,
         );
-        self.append_selection_resize_handles(
+        self.append_selection_affordance_paint(
             paint,
-            bounds,
             geometry,
-            Rgba8 {
+            CanvasSelectionAffordanceStyle::new()
+                .with_edge(selection_resize_edge_style())
+                .with_body(selection_move_handle_style())
+                .with_trailing_control(selection_export_handle_style()),
+            CanvasSelectionAffordancePaintParts::new(
+                bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
+            )
+            .edge_color(Rgba8 {
                 r: 255,
                 g: 142,
                 b: 92,
                 a: if flash_active { 255 } else { 220 },
-            },
-        );
-        self.append_selection_move_handle(
-            paint,
-            geometry,
-            Rgba8 {
+            })
+            .body_color(Rgba8 {
                 r: 255,
                 g: 142,
                 b: 92,
                 a: if flash_active { 245 } else { 185 },
-            },
-        );
-        self.append_selection_export_handle(
-            paint,
-            geometry,
-            Rgba8 {
+            })
+            .trailing_control_color(Rgba8 {
                 r: 255,
                 g: 142,
                 b: 92,
                 a: if flash_active { 255 } else { 235 },
-            },
+            }),
         );
     }
 
@@ -170,15 +171,16 @@ impl WaveformWidget {
             cursor_color,
             1.25,
         );
-        self.append_selection_move_handle(
+        self.append_selection_affordance_paint(
             paint,
             geometry,
-            Rgba8 {
+            CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
+            CanvasSelectionAffordancePaintParts::new(bounds).body_color(Rgba8 {
                 r: 82,
                 g: 168,
                 b: 255,
                 a: 180,
-            },
+            }),
         );
     }
 
@@ -250,52 +252,14 @@ impl WaveformWidget {
         paint.push_horizontal_value_cursor_fills(bounds, visible_boundaries, width.max(2.0), color);
     }
 
-    fn append_selection_resize_handles(
-        &self,
-        paint: &mut WidgetPaint<'_>,
-        bounds: Rect,
-        geometry: CanvasSelectionGeometry,
-        color: Rgba8,
-    ) {
-        let widget_id = paint.widget_id();
-        for edge in [WaveformSelectionEdge::Start, WaveformSelectionEdge::End] {
-            geometry.push_edge_visual_fill(
-                paint.primitives_mut(),
-                widget_id,
-                selection_resize_edge_style().paint_parts(
-                    bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
-                    drag_handle_role(edge),
-                    color,
-                ),
-            );
-        }
-    }
-
-    fn append_selection_move_handle(
+    fn append_selection_affordance_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
         geometry: CanvasSelectionGeometry,
-        color: Rgba8,
+        style: CanvasSelectionAffordanceStyle,
+        parts: CanvasSelectionAffordancePaintParts,
     ) {
         let widget_id = paint.widget_id();
-        geometry.push_body_handle_fill(
-            paint.primitives_mut(),
-            widget_id,
-            selection_move_handle_style().paint_parts(color),
-        );
-    }
-
-    fn append_selection_export_handle(
-        &self,
-        paint: &mut WidgetPaint<'_>,
-        geometry: CanvasSelectionGeometry,
-        color: Rgba8,
-    ) {
-        let widget_id = paint.widget_id();
-        geometry.push_trailing_control_fill(
-            paint.primitives_mut(),
-            widget_id,
-            selection_export_handle_style().paint_parts(color),
-        );
+        style.push_fills(paint.primitives_mut(), widget_id, geometry, parts);
     }
 }

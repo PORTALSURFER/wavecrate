@@ -93,13 +93,6 @@ fn normalized_range_for_selection(range: wavecrate::selection::SelectionRange) -
     NormalizedRange::from_fractions(range.start(), range.end())
 }
 
-pub(super) fn drag_handle_role(edge: WaveformSelectionEdge) -> DragHandleRole {
-    match edge {
-        WaveformSelectionEdge::Start => DragHandleRole::Start,
-        WaveformSelectionEdge::End => DragHandleRole::End,
-    }
-}
-
 fn selection_export_affordance_style() -> CanvasSelectionAffordanceStyle {
     CanvasSelectionAffordanceStyle::new().with_trailing_control(selection_export_handle_style())
 }
