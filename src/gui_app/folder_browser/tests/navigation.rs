@@ -687,9 +687,8 @@ fn folder_tree_follow_window_tracks_selected_folder() {
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&root.join("folder_12")));
     let visible = browser.visible_folders();
-    let selected = visible.iter().position(|folder| folder.selected);
 
-    let window = browser.follow_selected_tree_view(visible.len(), selected, 6, 1, 1);
+    let window = browser.follow_selected_tree_view(&visible, 6, 1, 1);
 
     assert_eq!(window.viewport_start, 10);
     assert_eq!(browser.tree_view_start(), 10);
@@ -705,11 +704,10 @@ fn folder_tree_scroll_tracking_is_not_overridden_by_unchanged_selection_follow()
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&root.join("folder_12")));
     let visible = browser.visible_folders();
-    let selected = visible.iter().position(|folder| folder.selected);
 
     assert_eq!(
         browser
-            .follow_selected_tree_view(visible.len(), selected, 6, 1, 1)
+            .follow_selected_tree_view(&visible, 6, 1, 1)
             .viewport_start,
         10
     );
@@ -720,7 +718,7 @@ fn folder_tree_scroll_tracking_is_not_overridden_by_unchanged_selection_follow()
 
     assert_eq!(
         browser
-            .follow_selected_tree_view(visible.len(), selected, 6, 1, 1)
+            .follow_selected_tree_view(&visible, 6, 1, 1)
             .viewport_start,
         19
     );

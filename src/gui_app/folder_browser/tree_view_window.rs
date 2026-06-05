@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::FolderBrowserState;
+use super::{FolderBrowserState, VisibleFolder};
 
 impl FolderBrowserState {
     #[cfg(test)]
@@ -23,25 +23,30 @@ impl FolderBrowserState {
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
-    pub(in crate::gui_app) fn follow_selected_tree_view(
+    pub(in crate::gui_app::folder_browser) fn follow_selected_tree_view(
         &mut self,
-        total_items: usize,
-        selected_index: Option<usize>,
+        visible_folders: &[VisibleFolder],
         viewport_rows: usize,
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
-        let selected_id = selected_index
-            .filter(|_| self.selected_collection.is_none())
-            .map(|_| self.selected_folder.clone());
+        let selected_id = self
+            .selected_collection
+            .is_none()
+            .then(|| self.selected_folder.clone());
+        let total_items = visible_folders.len();
+        let projection =
+            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
+                .with_context_row();
         self.tree_view_controller
-            .configure_and_focus_changed_optional_with_context_row(
+            .configure_projection_and_focus_changed_optional(
                 &mut self.tree_view_follow_selection,
-                total_items,
-                viewport_rows,
-                overscan_rows,
-                guard_rows,
-                ui::VirtualListFocusTarget::new(selected_id, selected_index),
+                projection,
+                ui::VirtualListFocusTarget::from_slice_by(
+                    visible_folders,
+                    selected_id,
+                    |folder, key| folder.id.as_str() == key.as_str(),
+                ),
             )
     }
 }

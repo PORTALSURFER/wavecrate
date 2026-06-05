@@ -124,11 +124,9 @@ pub(in crate::gui_app) fn folder_browser_view(
 
 fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
     let visible_folders = state.visible_folders();
-    let selected_index = visible_folders.iter().position(|folder| folder.selected);
     let drag_revision = state.drag_revision();
     let window = state.follow_selected_tree_view(
-        visible_folders.len(),
-        selected_index,
+        &visible_folders,
         FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
         FOLDER_TREE_OVERSCAN_ROWS,
         FOLDER_TREE_EDGE_CONTEXT_ROWS,
