@@ -55,18 +55,40 @@ pub(super) fn sample_browser(
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
     .fill();
-    if !state.folder_browser.extracted_file_drag_active() {
+    if !state.folder_browser.extracted_file_drag_active()
+        && state
+            .folder_browser
+            .hovered_drop_target_folder_id()
+            .is_none()
+    {
         return browser;
     }
-    ui::stack([
-        browser,
-        ui::pointer_drop_shield(true)
-            .on_drop(GuiMessage::DropWaveformSelectionOnSampleList)
-            .key("sample-list-waveform-drop-target")
-            .input_only()
-            .fill(),
-    ])
-    .fill()
+    let mut layers = vec![browser];
+    if state.folder_browser.extracted_file_drag_active() {
+        layers.push(
+            ui::pointer_drop_shield(true)
+                .on_drop(GuiMessage::DropWaveformSelectionOnSampleList)
+                .key("sample-list-waveform-drop-target")
+                .input_only()
+                .fill(),
+        );
+    }
+    if state
+        .folder_browser
+        .hovered_drop_target_folder_id()
+        .is_some()
+    {
+        layers.push(
+            ui::pointer_move_shield(true)
+                .on_pointer_move(|position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+                })
+                .key("sample-list-clear-folder-drop-target")
+                .input_only()
+                .fill(),
+        );
+    }
+    ui::stack(layers).fill()
 }
 
 fn sample_browser_header_bar(

@@ -4,8 +4,11 @@ use radiant::{
     runtime::{Event, SurfaceFrame},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
 };
+use std::fs;
 
 use super::{gui_runtime_for_tests, gui_state_with_temp_sample};
+
+const FOLDER_DROP_TARGET_FILL: Rgba8 = Rgba8::new(255, 130, 78, 220);
 
 fn sample_hit_target(
     selected: bool,
@@ -366,6 +369,85 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
         "drop marker should paint at the resize handle before Modified, not in front of its label, marker={:?}, modified={modified_rect:?}, gap={handle_gap}",
         marker.rect
     );
+}
+
+#[test]
+fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
+    let mut state = crate::gui_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let sample = drums.join("kick.wav");
+    fs::write(&sample, []).expect("write sample");
+    state.folder_browser = crate::gui_app::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state
+        .folder_browser
+        .apply_message(crate::gui_app::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+        ));
+    state
+        .folder_browser
+        .select_file(sample.display().to_string());
+
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let initial_frame = runtime.frame_with_default_theme();
+    let sample_press = text_center(&initial_frame, "kick");
+    let sample_drag_start = Point::new(sample_press.x + 16.0, sample_press.y);
+    let loops_target = text_center(&initial_frame, "loops");
+
+    let press_target = runtime.dispatch_event(Event::primary_press(sample_press));
+    let drag_start_target = runtime.dispatch_event(Event::pointer_move(sample_drag_start));
+    runtime.dispatch_event(Event::pointer_move(loops_target));
+
+    assert!(
+        press_target.is_some(),
+        "sample row should accept drag press"
+    );
+    assert!(
+        drag_start_target.is_some(),
+        "sample row should emit the drag start before folder hover"
+    );
+    let dragging_frame = runtime.frame_with_default_theme();
+    assert!(
+        dragging_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == FOLDER_DROP_TARGET_FILL),
+        "active folder drop target should paint its background highlight"
+    );
+
+    runtime.dispatch_event(Event::pointer_move(sample_press));
+    let returned_frame = runtime.frame_with_default_theme();
+    assert!(
+        !returned_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == FOLDER_DROP_TARGET_FILL),
+        "moving back over the sample list should clear the folder drop target"
+    );
+
+    runtime.dispatch_event(Event::primary_release(sample_press));
+    let released_frame = runtime.frame_with_default_theme();
+    assert!(
+        !released_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == FOLDER_DROP_TARGET_FILL),
+        "dropping back on the sample list must not leave stale folder drop feedback"
+    );
+}
+
+fn text_center(frame: &SurfaceFrame, label: &str) -> Point {
+    frame
+        .paint_plan
+        .text_runs()
+        .find(|text| text.text.as_str() == label)
+        .map(|text| text.rect.center())
+        .unwrap_or_else(|| panic!("{label} should paint"))
 }
 
 #[test]

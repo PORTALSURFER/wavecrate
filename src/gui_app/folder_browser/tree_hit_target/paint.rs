@@ -43,9 +43,9 @@ impl FolderTreeHitTarget {
                 r: 255,
                 g: 180,
                 b: 130,
-                a: 210,
+                a: 235,
             },
-            1.0,
+            1.5,
         )
     }
 
@@ -69,13 +69,13 @@ impl FolderTreeHitTarget {
                 r: 255,
                 g: 130,
                 b: 78,
-                a: 150,
+                a: 220,
             })
             .candidate_hovered(Rgba8 {
                 r: 255,
                 g: 122,
                 b: 74,
-                a: 110,
+                a: 150,
             })
     }
 

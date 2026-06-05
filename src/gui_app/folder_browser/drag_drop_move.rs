@@ -6,7 +6,7 @@ use std::{
 
 use super::{
     FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution, FileMoveConflictView,
-    FolderBrowserState, FolderDropResult, plural,
+    FolderBrowserState, FolderDropResult, path_helpers::path_id, plural,
 };
 
 #[derive(Debug, Default)]
@@ -110,10 +110,19 @@ impl FolderBrowserState {
             Vec::new()
         } else {
             let completed = rename_files_with_rollback(&plan.ready)?;
+            let previous_selected_folder = self.selected_folder.clone();
+            let previous_selected_file = self.selected_file.clone();
+            let previous_selected_file_ids = self.selected_file_ids.clone();
             if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
                 rollback_completed_file_moves(&completed);
                 return Err(error);
             }
+            self.restore_source_selection_after_file_drop(
+                previous_selected_folder,
+                previous_selected_file,
+                previous_selected_file_ids,
+                &completed,
+            );
             completed
         };
         if !plan.conflicts.is_empty() {
@@ -130,6 +139,52 @@ impl FolderBrowserState {
             moved_paths: completed.clone(),
             status: Some(status),
         })
+    }
+
+    fn restore_source_selection_after_file_drop(
+        &mut self,
+        selected_folder: String,
+        selected_file: Option<String>,
+        selected_file_ids: HashSet<String>,
+        moved_paths: &[(PathBuf, PathBuf)],
+    ) {
+        if self.find_folder(&selected_folder).is_none() {
+            return;
+        }
+
+        let moved_ids = moved_paths
+            .iter()
+            .map(|(old_path, _)| path_id(old_path))
+            .collect::<HashSet<_>>();
+        self.selected_folder = selected_folder;
+
+        let visible_ids = self
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        let visible_id_set = visible_ids.iter().cloned().collect::<HashSet<_>>();
+        self.selected_file_ids = selected_file_ids
+            .into_iter()
+            .filter(|id| !moved_ids.contains(id) && visible_id_set.contains(id))
+            .collect();
+        self.selected_file = selected_file
+            .filter(|id| !moved_ids.contains(id) && visible_id_set.contains(id))
+            .or_else(|| {
+                visible_ids
+                    .iter()
+                    .find(|id| self.selected_file_ids.contains(*id))
+                    .cloned()
+            });
+
+        if self.selected_file.is_none()
+            && self.selected_file_ids.is_empty()
+            && let Some(first_visible) = visible_ids.first().cloned()
+        {
+            self.selected_file = Some(first_visible.clone());
+            self.selected_file_ids.insert(first_visible);
+        }
+        self.reset_file_view();
     }
 
     pub(super) fn move_extracted_file_to_folder(

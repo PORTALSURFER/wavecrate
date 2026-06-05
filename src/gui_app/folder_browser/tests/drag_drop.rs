@@ -459,18 +459,15 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
     assert!(hat.is_file());
     assert!(moved_kick.is_file());
     assert!(moved_snare.is_file());
-    assert_eq!(browser.selected_folder, path_id(&loops));
-    assert_eq!(
-        browser.selected_file_paths(),
-        vec![moved_kick.clone(), moved_snare.clone()]
-    );
+    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
     assert_eq!(
         browser
             .selected_audio_files()
             .iter()
             .map(|file| file.name.as_str())
             .collect::<Vec<_>>(),
-        vec!["kick.wav", "snare.wav"]
+        vec!["hat.wav"]
     );
     let _ = fs::remove_dir_all(root);
 }
