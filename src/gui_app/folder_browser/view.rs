@@ -10,8 +10,7 @@ use super::tag_editor::{metadata_section, tag_field_height};
 use super::tag_entry_layout::tag_field_content_width;
 use super::{
     FolderBrowserDropTarget, FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_ROW_HEIGHT,
-    VisibleFolder, plural,
-    tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
+    VisibleFolder, plural, tree_hit_target::FolderTreeHitTarget,
 };
 
 mod collections_section;
@@ -206,9 +205,9 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
             .key(format!("folder-expander-spacer-{id}"))
             .size(FOLDER_EXPANDER_WIDTH, 22.0)
     };
-    let hit_id = id.clone();
     let hit_target = ui::custom_widget_mapped(
         FolderTreeHitTarget::new(
+            id.clone(),
             label_text,
             folder.selected,
             folder.drop_target,
@@ -217,23 +216,7 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
             folder.drop_candidate,
             folder.drop_target_active,
         ),
-        move |message| match message {
-            FolderTreeHitMessage::Activate => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(hit_id.clone()))
-            }
-            FolderTreeHitMessage::ContextMenu(position) => GuiMessage::FolderBrowser(
-                FolderBrowserMessage::OpenFolderContextMenu(hit_id.clone(), position),
-            ),
-            FolderTreeHitMessage::Drag(drag) => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(hit_id.clone(), drag))
-            }
-            FolderTreeHitMessage::Drop => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(hit_id.clone()))
-            }
-            FolderTreeHitMessage::HoverDropTarget(position) => GuiMessage::FolderBrowser(
-                FolderBrowserMessage::HoverDropTarget(hit_id.clone(), position),
-            ),
-        },
+        |message| message,
     )
     .key(format!("folder-row-hit-{id}-{drag_revision}"))
     .fill_width()
