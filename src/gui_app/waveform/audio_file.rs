@@ -50,6 +50,7 @@ pub(in crate::gui_app) fn store_cached_waveform_file_for_tests(file: &WaveformFi
 pub(in crate::gui_app) fn store_summary_only_cached_waveform_file_for_tests(file: &WaveformFile) {
     let mut file = file.clone();
     file.playback_samples = None;
+    file.playback_cache_file = None;
     waveform_cache::store_cached_waveform_file(&file);
 }
 
@@ -67,11 +68,24 @@ pub(in crate::gui_app) struct WaveformFile {
     pub(super) path: PathBuf,
     pub(super) audio_bytes: Arc<[u8]>,
     pub(super) playback_samples: Option<Arc<[f32]>>,
+    pub(super) playback_cache_file: Option<PersistedPlaybackCacheFile>,
     pub(super) content_revision: u64,
     pub(super) sample_rate: u32,
     pub(super) channels: usize,
     pub(super) frames: usize,
     pub(super) gpu_signal_summary: Arc<GpuSignalSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct PersistedPlaybackCacheFile {
+    pub(in crate::gui_app) path: PathBuf,
+    pub(in crate::gui_app) sample_count: u64,
+}
+
+impl PersistedPlaybackCacheFile {
+    pub(in crate::gui_app) fn new(path: PathBuf, sample_count: u64) -> Option<Self> {
+        (sample_count > 0).then_some(Self { path, sample_count })
+    }
 }
 
 impl WaveformFile {
@@ -289,6 +303,7 @@ fn waveform_file_from_mono_samples_with_progress_and_cancel(
         content_revision: content_revision_for_audio_bytes(&audio_bytes),
         audio_bytes,
         playback_samples: None,
+        playback_cache_file: None,
         sample_rate,
         channels,
         frames: mono_samples.len(),

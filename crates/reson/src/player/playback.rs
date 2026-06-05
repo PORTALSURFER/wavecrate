@@ -3,9 +3,12 @@ use crate::timebase::{frames_to_seconds, seconds_to_frames_round};
 use crate::{AsyncSource, Source};
 
 use super::super::fade::{EdgeFade, fade_duration};
-use super::{AudioPlayer, EditFadeSource};
+use super::{AudioPlaybackSource, AudioPlayer, EditFadeSource};
 
-use lazy_sources::{LazyRepeatingSpanSource, LazySpanSource};
+use lazy_sources::{
+    InterleavedF32FileRepeatingSpanSource, InterleavedF32FileSpanSource, LazyRepeatingSpanSource,
+    LazySpanSource,
+};
 use span::QuantizedSpan;
 mod lazy_sources;
 mod span;
@@ -85,15 +88,14 @@ impl AudioPlayer {
                     span_samples,
                 ))
             } else {
-                let source = self.audio_source()?;
-                let loop_source = LazyRepeatingSpanSource::new(
-                    source,
+                let loop_source = repeating_source_for_audio_source(
+                    self.audio_source()?,
                     sample_rate,
                     channels,
                     0,
                     span_samples,
                     offset_frames,
-                );
+                )?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
@@ -161,15 +163,14 @@ impl AudioPlayer {
                         span.samples,
                     ))
                 } else {
-                    let source = self.audio_source()?;
-                    let loop_source = LazyRepeatingSpanSource::new(
-                        source,
+                    let loop_source = repeating_source_for_audio_source(
+                        self.audio_source()?,
                         sample_rate,
                         channels,
                         span.start_frame,
                         span.samples,
                         0,
-                    );
+                    )?;
                     let mut async_source = AsyncSource::new(loop_source);
                     async_source.prefill();
                     Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
@@ -198,15 +199,14 @@ impl AudioPlayer {
                         end_sample,
                     ))
                 } else {
-                    let source = self.audio_source()?;
-                    let lazy_source = LazySpanSource::new(
-                        source,
+                    let lazy_source = span_source_for_audio_source(
+                        self.audio_source()?,
                         sample_rate,
                         channels,
                         span.start_frame,
                         span.samples,
                         duration,
-                    );
+                    )?;
                     let mut async_source = AsyncSource::new(lazy_source);
                     async_source.prefill();
                     Box::new(async_source.take_samples(span.samples as usize).buffered())
@@ -268,15 +268,14 @@ impl AudioPlayer {
                     span.samples,
                 ))
             } else {
-                let source = self.audio_source()?;
-                let loop_source = LazyRepeatingSpanSource::new(
-                    source,
+                let loop_source = repeating_source_for_audio_source(
+                    self.audio_source()?,
                     sample_rate,
                     channels,
                     span.start_frame,
                     span.samples,
                     offset_frames,
-                );
+                )?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
                 let editable = EditFadeSource::new_looped(
@@ -319,5 +318,67 @@ impl AudioPlayer {
         {
             self.elapsed_override = None;
         }
+    }
+}
+
+fn span_source_for_audio_source(
+    source: AudioPlaybackSource,
+    sample_rate: u32,
+    channels: u16,
+    start_frame: u64,
+    span_samples: u64,
+    duration: f32,
+) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
+    match source {
+        AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
+            Ok(Box::new(InterleavedF32FileSpanSource::new(
+                path,
+                sample_rate,
+                channels,
+                start_frame,
+                span_samples,
+                sample_count,
+                duration,
+            )))
+        }
+        source => Ok(Box::new(LazySpanSource::new(
+            source,
+            sample_rate,
+            channels,
+            start_frame,
+            span_samples,
+            duration,
+        ))),
+    }
+}
+
+fn repeating_source_for_audio_source(
+    source: AudioPlaybackSource,
+    sample_rate: u32,
+    channels: u16,
+    start_frame: u64,
+    span_samples: u64,
+    offset_frames: u64,
+) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
+    match source {
+        AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
+            Ok(Box::new(InterleavedF32FileRepeatingSpanSource::new(
+                path,
+                sample_rate,
+                channels,
+                start_frame,
+                span_samples,
+                offset_frames,
+                sample_count,
+            )))
+        }
+        source => Ok(Box::new(LazyRepeatingSpanSource::new(
+            source,
+            sample_rate,
+            channels,
+            start_frame,
+            span_samples,
+            offset_frames,
+        ))),
     }
 }

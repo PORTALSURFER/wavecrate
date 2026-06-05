@@ -4,15 +4,17 @@ use std::{
     collections::{HashSet, hash_map::DefaultHasher},
     fs,
     hash::{Hash, Hasher},
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
     sync::{Arc, Condvar, LazyLock, Mutex},
     thread,
     time::{Duration, Instant, SystemTime},
 };
 
-use super::{WaveformFile, content_revision_for_audio_bytes};
+use super::{PersistedPlaybackCacheFile, WaveformFile, content_revision_for_audio_bytes};
 
-const CACHE_FORMAT_VERSION: u32 = 2;
+const CACHE_FORMAT_VERSION: u32 = 3;
+const CACHE_FORMAT_VERSION_V2: u32 = 2;
 const GIB: usize = 1024 * 1024 * 1024;
 const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 8 * GIB;
 const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 64 * GIB as u64;
@@ -31,7 +33,27 @@ struct CachedWaveformFile {
     channels: usize,
     frames: usize,
     summary: CachedGpuSignalSummary,
+    playback_cache: Option<CachedPlaybackCacheFile>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct CachedWaveformFileV2 {
+    version: u32,
+    path: PathBuf,
+    file_len: u64,
+    modified_ns: u128,
+    content_revision: u64,
+    sample_rate: u32,
+    channels: usize,
+    frames: usize,
+    summary: CachedGpuSignalSummary,
     playback_samples: Option<Vec<f32>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct CachedPlaybackCacheFile {
+    sample_count: u64,
+    byte_len: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -58,8 +80,11 @@ pub(super) fn load_cached_waveform_file(
     audio_bytes: Arc<[u8]>,
 ) -> Option<WaveformFile> {
     let identity = CacheIdentity::for_path(&path).ok()?;
-    let cached = read_cached_waveform_file(&path, &identity)?;
-    cached.into_waveform_file(path, audio_bytes, identity)
+    if let Some(cached) = read_cached_waveform_file(&path, &identity) {
+        return cached.into_waveform_file(path, audio_bytes, identity);
+    }
+    read_cached_waveform_file_v2(&path, &identity)
+        .and_then(|cached| cached.into_waveform_file(path, audio_bytes, identity))
 }
 
 pub(in crate::gui_app) fn load_cached_waveform_file_for_playback(
@@ -67,8 +92,9 @@ pub(in crate::gui_app) fn load_cached_waveform_file_for_playback(
 ) -> Option<WaveformFile> {
     let started_at = Instant::now();
     let identity = CacheIdentity::for_path(&path).ok()?;
-    let cached = read_cached_waveform_file(&path, &identity)?;
-    if cached.playback_samples.is_some() {
+    if let Some(cached) = read_cached_waveform_file(&path, &identity)
+        && cached.playback_cache.is_some()
+    {
         let file = cached.into_playback_ready_waveform_file(path.clone(), identity)?;
         mark_cached_waveform_file_playback_ready(&path);
         log_slow_cache_phase(
@@ -78,6 +104,20 @@ pub(in crate::gui_app) fn load_cached_waveform_file_for_playback(
         );
         return Some(file);
     }
+    if let Some(cached_v2) = read_cached_waveform_file_v2(&path, &identity)
+        && cached_v2.playback_samples.is_some()
+    {
+        let file = cached_v2.into_playback_ready_waveform_file(path.clone(), identity)?;
+        log_slow_cache_phase(
+            "browser.sample_cache.load_v2_playback_ready",
+            &path,
+            started_at,
+        );
+        store_cached_waveform_file_in_background(&file);
+        return Some(file);
+    }
+
+    let cached = read_cached_waveform_file(&path, &identity)?;
 
     let audio_bytes: Arc<[u8]> = Arc::from(fs::read(&path).ok()?);
     let mut file = cached.into_waveform_file(path.clone(), audio_bytes, identity)?;
@@ -99,6 +139,8 @@ pub(in crate::gui_app) fn cached_waveform_file_exists(path: &Path) -> bool {
         return false;
     };
     cache_path_for_identity(path, &identity).is_ok_and(|path| path.is_file())
+        || cache_path_for_identity_with_version(path, &identity, CACHE_FORMAT_VERSION_V2)
+            .is_ok_and(|path| path.is_file())
 }
 
 pub(in crate::gui_app) fn cached_waveform_file_playback_ready_exists(path: &Path) -> bool {
@@ -108,13 +150,53 @@ pub(in crate::gui_app) fn cached_waveform_file_playback_ready_exists(path: &Path
     let Ok(cache_path) = cache_path_for_identity(path, &identity) else {
         return false;
     };
-    cache_path.is_file() && playback_ready_marker_path(&cache_path).is_file()
+    if cache_path.is_file()
+        && playback_ready_marker_path(&cache_path).is_file()
+        && read_cached_waveform_file(path, &identity)
+            .and_then(|cached| cached.playback_cache_file(&cache_path))
+            .is_some()
+    {
+        return true;
+    }
+    cache_path_for_identity_with_version(path, &identity, CACHE_FORMAT_VERSION_V2).is_ok_and(
+        |v2_cache_path| {
+            v2_cache_path.is_file() && playback_ready_marker_path(&v2_cache_path).is_file()
+        },
+    )
 }
 
 fn read_cached_waveform_file(path: &Path, identity: &CacheIdentity) -> Option<CachedWaveformFile> {
     let cache_path = cache_path_for_identity(path, identity).ok()?;
+    let read_started_at = Instant::now();
+    let bytes = fs::read(&cache_path).ok()?;
+    log_slow_cache_phase("browser.sample_cache.metadata_read", path, read_started_at);
+    let deserialize_started_at = Instant::now();
+    let cached: CachedWaveformFile = bincode::deserialize(&bytes).ok()?;
+    log_slow_cache_phase(
+        "browser.sample_cache.metadata_deserialize",
+        path,
+        deserialize_started_at,
+    );
+    Some(cached)
+}
+
+fn read_cached_waveform_file_v2(
+    path: &Path,
+    identity: &CacheIdentity,
+) -> Option<CachedWaveformFileV2> {
+    let cache_path =
+        cache_path_for_identity_with_version(path, identity, CACHE_FORMAT_VERSION_V2).ok()?;
+    let read_started_at = Instant::now();
     let bytes = fs::read(cache_path).ok()?;
-    bincode::deserialize(&bytes).ok()
+    log_slow_cache_phase("browser.sample_cache.v2_read", path, read_started_at);
+    let deserialize_started_at = Instant::now();
+    let cached: CachedWaveformFileV2 = bincode::deserialize(&bytes).ok()?;
+    log_slow_cache_phase(
+        "browser.sample_cache.v2_deserialize",
+        path,
+        deserialize_started_at,
+    );
+    Some(cached)
 }
 
 #[cfg(test)]
@@ -215,7 +297,11 @@ struct CachedWaveformStoreJob {
 
 impl CachedWaveformStoreJob {
     fn new(file: &WaveformFile) -> Option<Self> {
-        if file.path.as_os_str().is_empty() || file.audio_bytes.is_empty() {
+        if file.path.as_os_str().is_empty()
+            || (file.audio_bytes.is_empty()
+                && file.playback_samples.is_none()
+                && file.playback_cache_file.is_none())
+        {
             return None;
         }
         let identity = CacheIdentity::for_path(&file.path).ok()?;
@@ -230,8 +316,14 @@ impl CachedWaveformStoreJob {
 
 fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) {
     let started_at = Instant::now();
-    let cached = CachedWaveformFile::from_waveform_file(&job.file, &job.identity);
-    let playback_ready = cached.playback_samples.is_some();
+    update_playback_ready_marker(&job.cache_path, false);
+    let sidecar_path = playback_sidecar_path(&job.cache_path);
+    let sidecar = persist_playback_sidecar(&job.file, &sidecar_path);
+    if sidecar.is_none() {
+        let _ = fs::remove_file(&sidecar_path);
+    }
+    let cached = CachedWaveformFile::from_waveform_file(&job.file, &job.identity, sidecar);
+    let playback_ready = cached.playback_cache.is_some();
     let Ok(bytes) = bincode::serialize(&cached) else {
         return;
     };
@@ -241,6 +333,54 @@ fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) {
         prune_waveform_cache_dir(&job.cache_path, MAX_PERSISTED_WAVEFORM_CACHE_BYTES);
     }
     log_slow_cache_store(&job.file.path, started_at);
+}
+
+fn persist_playback_sidecar(
+    file: &WaveformFile,
+    sidecar_path: &Path,
+) -> Option<CachedPlaybackCacheFile> {
+    if let Some(samples) = file.playback_samples.as_ref() {
+        return write_playback_sidecar(samples, sidecar_path);
+    }
+    let cache_file = file.playback_cache_file.as_ref()?;
+    if cache_file.path == sidecar_path
+        && playback_sidecar_valid(sidecar_path, cache_file.sample_count)
+    {
+        return Some(CachedPlaybackCacheFile {
+            sample_count: cache_file.sample_count,
+            byte_len: cache_file
+                .sample_count
+                .checked_mul(std::mem::size_of::<f32>() as u64)?,
+        });
+    }
+    None
+}
+
+fn write_playback_sidecar(
+    samples: &Arc<[f32]>,
+    sidecar_path: &Path,
+) -> Option<CachedPlaybackCacheFile> {
+    let sample_bytes = samples.len().checked_mul(std::mem::size_of::<f32>())?;
+    if sample_bytes > MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES {
+        let _ = fs::remove_file(sidecar_path);
+        return None;
+    }
+    let temp_path = sidecar_path.with_extension("pcm.tmp");
+    let file = fs::File::create(&temp_path).ok()?;
+    let mut writer = BufWriter::new(file);
+    for sample in samples.iter() {
+        writer.write_all(&sample.to_le_bytes()).ok()?;
+    }
+    writer.flush().ok()?;
+    drop(writer);
+    if fs::rename(&temp_path, sidecar_path).is_err() {
+        let _ = fs::remove_file(&temp_path);
+        return None;
+    }
+    Some(CachedPlaybackCacheFile {
+        sample_count: samples.len() as u64,
+        byte_len: sample_bytes as u64,
+    })
 }
 
 fn log_slow_cache_phase(event: &'static str, path: &Path, started_at: Instant) {
@@ -307,9 +447,17 @@ impl CacheIdentity {
 }
 
 fn cache_path_for_identity(path: &Path, identity: &CacheIdentity) -> Result<PathBuf, String> {
+    cache_path_for_identity_with_version(path, identity, CACHE_FORMAT_VERSION)
+}
+
+fn cache_path_for_identity_with_version(
+    path: &Path,
+    identity: &CacheIdentity,
+    version: u32,
+) -> Result<PathBuf, String> {
     let dir = wavecrate::app_dirs::waveform_cache_dir().map_err(|err| err.to_string())?;
     let mut hasher = DefaultHasher::new();
-    CACHE_FORMAT_VERSION.hash(&mut hasher);
+    version.hash(&mut hasher);
     path.to_string_lossy().hash(&mut hasher);
     identity.file_len.hash(&mut hasher);
     identity.modified_ns.hash(&mut hasher);
@@ -318,6 +466,18 @@ fn cache_path_for_identity(path: &Path, identity: &CacheIdentity) -> Result<Path
 
 fn playback_ready_marker_path(cache_path: &Path) -> PathBuf {
     cache_path.with_extension("ready")
+}
+
+fn playback_sidecar_path(cache_path: &Path) -> PathBuf {
+    cache_path.with_extension("pcm")
+}
+
+fn playback_sidecar_valid(sidecar_path: &Path, sample_count: u64) -> bool {
+    let expected_len = sample_count.saturating_mul(std::mem::size_of::<f32>() as u64);
+    sample_count > 0
+        && sidecar_path
+            .metadata()
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() == expected_len)
 }
 
 fn mark_cached_waveform_file_playback_ready(path: &Path) {
@@ -357,6 +517,12 @@ fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
             let _ = fs::remove_file(path);
             continue;
         }
+        if path.extension().is_some_and(|extension| extension == "pcm") {
+            if !path.with_extension("wfc").is_file() {
+                let _ = fs::remove_file(path);
+            }
+            continue;
+        }
         if path
             .extension()
             .is_some_and(|extension| extension == "ready")
@@ -375,7 +541,12 @@ fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
         if !metadata.is_file() {
             continue;
         }
-        let len = metadata.len();
+        let sidecar_path = playback_sidecar_path(&path);
+        let sidecar_len = sidecar_path
+            .metadata()
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        let len = metadata.len().saturating_add(sidecar_len);
         total_bytes = total_bytes.saturating_add(len);
         cache_entries.push(CacheFileForPrune {
             path,
@@ -398,6 +569,7 @@ fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
         }
         if fs::remove_file(&entry.path).is_ok() {
             let _ = fs::remove_file(playback_ready_marker_path(&entry.path));
+            let _ = fs::remove_file(playback_sidecar_path(&entry.path));
             total_bytes = total_bytes.saturating_sub(entry.len);
         }
     }
@@ -411,7 +583,11 @@ struct CacheFileForPrune {
 }
 
 impl CachedWaveformFile {
-    fn from_waveform_file(file: &WaveformFile, identity: &CacheIdentity) -> Self {
+    fn from_waveform_file(
+        file: &WaveformFile,
+        identity: &CacheIdentity,
+        playback_cache: Option<CachedPlaybackCacheFile>,
+    ) -> Self {
         Self {
             version: CACHE_FORMAT_VERSION,
             path: file.path.clone(),
@@ -422,7 +598,7 @@ impl CachedWaveformFile {
             channels: file.channels,
             frames: file.frames,
             summary: CachedGpuSignalSummary::from_summary(&file.gpu_signal_summary),
-            playback_samples: playback_samples_for_cache(file),
+            playback_cache,
         }
     }
 
@@ -440,7 +616,81 @@ impl CachedWaveformFile {
         Some(WaveformFile {
             path,
             audio_bytes,
+            playback_samples: None,
+            playback_cache_file: None,
+            content_revision: self.content_revision,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            frames: self.frames,
+            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
+        })
+    }
+
+    fn into_playback_ready_waveform_file(
+        self,
+        path: PathBuf,
+        identity: CacheIdentity,
+    ) -> Option<WaveformFile> {
+        if !self.matches_identity(&path, &identity) || self.playback_cache.is_none() {
+            return None;
+        }
+        let cache_path = cache_path_for_identity(&path, &identity).ok()?;
+        let playback_cache_file = self.playback_cache_file(&cache_path)?;
+        Some(WaveformFile {
+            path,
+            audio_bytes: Arc::from([]),
+            playback_samples: None,
+            playback_cache_file: Some(playback_cache_file),
+            content_revision: self.content_revision,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            frames: self.frames,
+            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
+        })
+    }
+
+    fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {
+        self.version == CACHE_FORMAT_VERSION
+            && self.path == path
+            && self.file_len == identity.file_len
+            && self.modified_ns == identity.modified_ns
+            && self.sample_rate != 0
+            && self.channels != 0
+            && self.frames != 0
+    }
+
+    fn playback_cache_file(&self, cache_path: &Path) -> Option<PersistedPlaybackCacheFile> {
+        let playback_cache = self.playback_cache.as_ref()?;
+        let sidecar_path = playback_sidecar_path(cache_path);
+        if !playback_sidecar_valid(&sidecar_path, playback_cache.sample_count)
+            || playback_cache.byte_len
+                != playback_cache
+                    .sample_count
+                    .saturating_mul(std::mem::size_of::<f32>() as u64)
+        {
+            return None;
+        }
+        PersistedPlaybackCacheFile::new(sidecar_path, playback_cache.sample_count)
+    }
+}
+
+impl CachedWaveformFileV2 {
+    fn into_waveform_file(
+        self,
+        path: PathBuf,
+        audio_bytes: Arc<[u8]>,
+        identity: CacheIdentity,
+    ) -> Option<WaveformFile> {
+        if !self.matches_identity(&path, &identity)
+            || self.content_revision != content_revision_for_audio_bytes(&audio_bytes)
+        {
+            return None;
+        }
+        Some(WaveformFile {
+            path,
+            audio_bytes,
             playback_samples: self.playback_samples.map(Arc::from),
+            playback_cache_file: None,
             content_revision: self.content_revision,
             sample_rate: self.sample_rate,
             channels: self.channels,
@@ -461,6 +711,7 @@ impl CachedWaveformFile {
             path,
             audio_bytes: Arc::from([]),
             playback_samples: self.playback_samples.map(Arc::from),
+            playback_cache_file: None,
             content_revision: self.content_revision,
             sample_rate: self.sample_rate,
             channels: self.channels,
@@ -470,7 +721,7 @@ impl CachedWaveformFile {
     }
 
     fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {
-        self.version == CACHE_FORMAT_VERSION
+        self.version == CACHE_FORMAT_VERSION_V2
             && self.path == path
             && self.file_len == identity.file_len
             && self.modified_ns == identity.modified_ns
@@ -478,22 +729,6 @@ impl CachedWaveformFile {
             && self.channels != 0
             && self.frames != 0
     }
-}
-
-fn playback_samples_for_cache(file: &WaveformFile) -> Option<Vec<f32>> {
-    playback_samples_for_cache_with_limit(file, MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES)
-}
-
-fn playback_samples_for_cache_with_limit(
-    file: &WaveformFile,
-    max_bytes: usize,
-) -> Option<Vec<f32>> {
-    let samples = file.playback_samples.as_ref()?;
-    let sample_bytes = samples.len().checked_mul(std::mem::size_of::<f32>())?;
-    if sample_bytes > max_bytes {
-        return None;
-    }
-    Some(samples.as_ref().to_vec())
 }
 
 impl CachedGpuSignalSummary {
@@ -594,13 +829,8 @@ mod tests {
         assert_eq!(cached.sample_rate, file.sample_rate);
         assert_eq!(cached.frames, file.frames);
         assert_eq!(cached.gpu_signal_summary, file.gpu_signal_summary);
-        assert_eq!(
-            cached
-                .playback_samples
-                .as_ref()
-                .map(|samples| samples.as_ref()),
-            Some([0.0, 0.5, -0.5, 0.25].as_slice())
-        );
+        assert!(cached.playback_samples.is_none());
+        assert!(cached.playback_cache_file.is_none());
         assert!(cached_waveform_file_exists(&path));
         assert!(cached_waveform_file_playback_ready_exists(&path));
         let playback_file =
@@ -609,13 +839,14 @@ mod tests {
             playback_file.audio_bytes.is_empty(),
             "playback-ready cache hits should not reread the source WAV before playback"
         );
-        assert!(playback_file.playback_samples.is_some());
+        assert!(playback_file.playback_samples.is_none());
+        assert!(playback_file.playback_cache_file.is_some());
     }
 
     #[test]
-    fn waveform_cache_skips_oversized_playback_payloads() {
+    fn waveform_cache_writes_raw_little_endian_sidecar() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("huge.wav");
+        let path = dir.path().join("sidecar.wav");
         fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
         let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
         let mut file = waveform_file_from_mono_samples(
@@ -627,7 +858,14 @@ mod tests {
         );
         file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.5, -0.5, 0.25, 0.125]));
 
-        assert!(playback_samples_for_cache_with_limit(&file, 16).is_none());
+        let sidecar_path = dir.path().join("sidecar.pcm");
+        assert!(
+            write_playback_sidecar(&file.playback_samples.clone().unwrap(), &sidecar_path)
+                .is_some()
+        );
+        assert!(sidecar_path.is_file());
+        let bytes = fs::read(sidecar_path).expect("read sidecar");
+        assert_eq!(&bytes[4..8], &0.5_f32.to_le_bytes());
     }
 
     #[test]
@@ -665,7 +903,8 @@ mod tests {
         );
         file.playback_samples = Some(Arc::from(vec![0.0_f32; 64]));
 
-        assert!(playback_samples_for_cache(&file).is_some());
+        store_cached_waveform_file(&file);
+        assert!(cached_waveform_file_playback_ready_exists(&file.path));
     }
 
     #[test]
@@ -675,7 +914,9 @@ mod tests {
         let newer_path = dir.path().join("newer.wfc");
         let pinned_path = dir.path().join("pinned.wfc");
         let temp_path = dir.path().join("stale.tmp");
+        let old_sidecar = playback_sidecar_path(&old_path);
         fs::write(&old_path, [0_u8; 4]).expect("write old cache");
+        fs::write(&old_sidecar, [9_u8; 8]).expect("write old sidecar");
         fs::write(&newer_path, [1_u8; 4]).expect("write newer cache");
         fs::write(&pinned_path, [2_u8; 4]).expect("write pinned cache");
         fs::write(&temp_path, [3_u8; 4]).expect("write temp cache");
@@ -687,9 +928,82 @@ mod tests {
         prune_waveform_cache_dir(&pinned_path, 8);
 
         assert!(!old_path.exists());
+        assert!(!old_sidecar.exists());
         assert!(!temp_path.exists());
         assert!(newer_path.exists());
         assert!(pinned_path.exists());
+    }
+
+    #[test]
+    fn waveform_cache_ready_marker_requires_valid_sidecar() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("missing-sidecar.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let mut file = waveform_file_from_mono_samples(
+            path.clone(),
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+        file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.5, -0.5, 0.25]));
+
+        store_cached_waveform_file(&file);
+        let identity = CacheIdentity::for_path(&path).expect("identity");
+        let cache_path = cache_path_for_identity(&path, &identity).expect("cache path");
+        fs::remove_file(playback_sidecar_path(&cache_path)).expect("remove sidecar");
+
+        assert!(!cached_waveform_file_playback_ready_exists(&path));
+        assert!(load_cached_waveform_file_for_playback(path).is_none());
+    }
+
+    #[test]
+    fn waveform_cache_migrates_v2_embedded_payload_to_v3_sidecar() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("legacy.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let mut file = waveform_file_from_mono_samples(
+            path.clone(),
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+        file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.5, -0.5, 0.25]));
+        let identity = CacheIdentity::for_path(&path).expect("identity");
+        let v2_cache_path =
+            cache_path_for_identity_with_version(&path, &identity, CACHE_FORMAT_VERSION_V2)
+                .expect("v2 cache path");
+        fs::create_dir_all(v2_cache_path.parent().expect("cache dir")).expect("cache dir");
+        let legacy = CachedWaveformFileV2 {
+            version: CACHE_FORMAT_VERSION_V2,
+            path: path.clone(),
+            file_len: identity.file_len,
+            modified_ns: identity.modified_ns,
+            content_revision: file.content_revision,
+            sample_rate: file.sample_rate,
+            channels: file.channels,
+            frames: file.frames,
+            summary: CachedGpuSignalSummary::from_summary(&file.gpu_signal_summary),
+            playback_samples: Some(vec![0.0_f32, 0.5, -0.5, 0.25]),
+        };
+        fs::write(
+            &v2_cache_path,
+            bincode::serialize(&legacy).expect("serialize v2"),
+        )
+        .expect("write v2");
+        update_playback_ready_marker(&v2_cache_path, true);
+
+        let migrated_once =
+            load_cached_waveform_file_for_playback(path.clone()).expect("v2 cache hit");
+        assert!(migrated_once.playback_samples.is_some());
+        flush_background_waveform_cache_stores_for_shutdown();
+
+        let migrated = load_cached_waveform_file_for_playback(path).expect("v3 playback cache hit");
+        assert!(migrated.playback_samples.is_none());
+        assert!(migrated.playback_cache_file.is_some());
     }
 
     #[test]

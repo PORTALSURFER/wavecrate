@@ -316,7 +316,9 @@ impl WaveformState {
 
     pub(super) fn has_loaded_sample(&self) -> bool {
         !self.file.path.as_os_str().is_empty()
-            && (!self.file.audio_bytes.is_empty() || self.file.playback_samples.is_some())
+            && (!self.file.audio_bytes.is_empty()
+                || self.file.playback_samples.is_some()
+                || self.file.playback_cache_file.is_some())
     }
 
     pub(super) fn audio_bytes(&self) -> Arc<[u8]> {
@@ -325,6 +327,12 @@ impl WaveformState {
 
     pub(super) fn playback_samples(&self) -> Option<Arc<[f32]>> {
         self.file.playback_samples.as_ref().map(Arc::clone)
+    }
+
+    pub(super) fn playback_cache_file(
+        &self,
+    ) -> Option<crate::gui_app::waveform::audio_file::PersistedPlaybackCacheFile> {
+        self.file.playback_cache_file.clone()
     }
 
     pub(super) fn visible_fraction(&self) -> f32 {

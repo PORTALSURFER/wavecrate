@@ -265,8 +265,11 @@ impl GuiAppState {
             .audio_player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
+        let playback_cache_file = self.waveform.playback_cache_file();
         let source_kind = if self.waveform.playback_samples().is_some() {
             "decoded_samples"
+        } else if playback_cache_file.is_some() {
+            "interleaved_f32_file"
         } else {
             "audio_bytes"
         };
@@ -285,6 +288,14 @@ impl GuiAppState {
             player.set_audio_samples_with_metadata(
                 self.waveform.audio_bytes(),
                 samples,
+                duration,
+                self.waveform.sample_rate(),
+                self.waveform.channels(),
+            );
+        } else if let Some(cache_file) = playback_cache_file {
+            player.set_interleaved_f32_file_with_metadata(
+                cache_file.path,
+                cache_file.sample_count,
                 duration,
                 self.waveform.sample_rate(),
                 self.waveform.channels(),

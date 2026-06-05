@@ -71,6 +71,10 @@ function Get-PersistenceProfile {
   if ($script:Sandbox) {
     return "sandbox"
   }
+  $sandboxBase = Get-SandboxConfigBase
+  if ([string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_HOME) -and (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
+    return "sandbox"
+  }
   return "live"
 }
 

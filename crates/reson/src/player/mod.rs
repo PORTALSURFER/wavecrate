@@ -17,6 +17,7 @@ pub use edit_fade_impl::{EditFadeRange, FadeParams};
 pub(crate) enum AudioPlaybackSource {
     Bytes(Arc<[u8]>),
     File(PathBuf),
+    InterleavedF32File { path: PathBuf, sample_count: u64 },
 }
 
 impl AudioPlaybackSource {
@@ -24,6 +25,7 @@ impl AudioPlaybackSource {
         match self {
             Self::Bytes(_) => "bytes",
             Self::File(_) => "file",
+            Self::InterleavedF32File { .. } => "interleaved_f32_file",
         }
     }
 }

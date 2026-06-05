@@ -109,6 +109,7 @@ impl AudioPlayer {
                 byte_len = self.current_audio.as_ref().and_then(|source| match source {
                     AudioPlaybackSource::Bytes(bytes) => Some(bytes.len()),
                     AudioPlaybackSource::File(_) => None,
+                    AudioPlaybackSource::InterleavedF32File { .. } => None,
                 }).unwrap_or(0),
                 duration_ms = duration as f64 * 1_000.0,
                 sample_rate,
@@ -149,6 +150,40 @@ impl AudioPlayer {
         }
     }
 
+    /// Store a raw little-endian interleaved f32 sample file with caller-provided timing metadata.
+    pub fn set_interleaved_f32_file_with_metadata(
+        &mut self,
+        path: impl Into<PathBuf>,
+        sample_count: u64,
+        duration: f32,
+        sample_rate: u32,
+        channels: usize,
+    ) {
+        let path = path.into();
+        let duration = duration.max(0.0);
+        let sample_rate = sample_rate.max(1);
+        self.track_duration = Some(duration);
+        self.track_total_frames = Some(seconds_to_frames_round(duration, sample_rate).max(1));
+        self.track_channels = Some(channels.clamp(1, u16::MAX as usize) as u16);
+        self.sample_rate = Some(sample_rate);
+        self.current_audio = Some(AudioPlaybackSource::InterleavedF32File { path, sample_count });
+        self.playback_samples = None;
+        self.reset_playback_state();
+        if telemetry::playback_telemetry_enabled() {
+            tracing::info!(
+                target: "perf::audio_start",
+                module = "reson_player",
+                stage = "set_interleaved_f32_file_with_metadata",
+                source_kind = "interleaved_f32_file",
+                sample_count,
+                duration_ms = duration as f64 * 1_000.0,
+                sample_rate,
+                channels = channels.clamp(1, u16::MAX as usize),
+                "Audio player stage"
+            );
+        }
+    }
+
     /// Store audio bytes and decoded playback samples with caller-provided
     /// timing metadata.
     pub fn set_audio_samples_with_metadata(
@@ -178,6 +213,7 @@ impl AudioPlayer {
                 byte_len = self.current_audio.as_ref().and_then(|source| match source {
                     AudioPlaybackSource::Bytes(bytes) => Some(bytes.len()),
                     AudioPlaybackSource::File(_) => None,
+                    AudioPlaybackSource::InterleavedF32File { .. } => None,
                 }).unwrap_or(0),
                 sample_len = self.playback_samples.as_ref().map(|samples| samples.len()).unwrap_or(0),
                 duration_ms = duration as f64 * 1_000.0,
