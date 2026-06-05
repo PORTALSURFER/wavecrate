@@ -358,6 +358,47 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("resident.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let loaded = super::super::WaveformState::load_path(sample_path.clone()).expect("sample loads");
+    state.remember_waveform(&loaded);
+    state.waveform = super::super::WaveformState::synthetic_for_tests();
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.path(), sample_path);
+    assert!(
+        state.deferred_sample_load_task.active().is_none(),
+        "memory-cached repeat selection should not debounce a reload"
+    );
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "memory-cached repeat selection should not queue decode work"
+    );
+    assert!(
+        state.sample_status.contains("resident.wav"),
+        "cached selection should update the visible status, got {}",
+        state.sample_status
+    );
+    assert!(state.cached_sample_paths.contains(&sample_path_string));
+}
+
+#[test]
 fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     let source_root = tempfile::tempdir().expect("source root");
     for name in ["a.wav", "b.wav", "c.wav"] {
@@ -828,6 +869,8 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
     let _waveform =
         super::super::WaveformState::load_path(sample_path.clone().into()).expect("load sample");
 
+    wait_for_playback_ready_cache(&sample_path);
+
     let mut restarted_state = gui_state_for_span_tests();
     restarted_state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
@@ -838,6 +881,17 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
         restarted_state.cached_sample_paths.contains(&sample_path),
         "freshly loaded cache indicator should survive immediate restart"
     );
+}
+
+fn wait_for_playback_ready_cache(sample_path: &str) {
+    let path = PathBuf::from(sample_path);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while std::time::Instant::now() < deadline {
+        if super::super::waveform::cached_waveform_file_playback_ready_exists(&path) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 
 #[test]

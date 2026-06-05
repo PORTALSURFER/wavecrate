@@ -19,12 +19,14 @@ impl GuiAppState {
             return;
         }
         let started_at = Instant::now();
+        let file = waveform.file();
         let entry = WaveformCacheEntry {
             byte_len: waveform.audio_bytes().len()
                 + waveform
                     .playback_samples()
                     .map(|samples| samples.len() * std::mem::size_of::<f32>())
                     .unwrap_or(0),
+            file,
         };
         self.insert_waveform_cache_entry(waveform.path(), entry);
         log_slow_cache_phase(
@@ -199,11 +201,11 @@ impl GuiAppState {
             }
         }
         self.cached_sample_paths.insert(path.display().to_string());
-        self.touch_waveform_cache_path(path);
+        self.touch_cached_waveform_path(path);
         self.enforce_waveform_cache_limit();
     }
 
-    fn touch_waveform_cache_path(&mut self, path: std::path::PathBuf) {
+    pub(super) fn touch_cached_waveform_path(&mut self, path: std::path::PathBuf) {
         self.waveform_cache_order.retain(|cached| cached != &path);
         self.waveform_cache_order.push_back(path);
     }

@@ -97,6 +97,9 @@ impl GuiAppState {
     ) {
         let started_at = Instant::now();
         self.cancel_inflight_sample_load();
+        if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
+            return;
+        }
         self.prepare_uncached_sample_load(path.as_str(), "load_deferred", started_at);
         self.schedule_deferred_sample_load(
             path,
@@ -137,6 +140,75 @@ impl GuiAppState {
             KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
             context,
         );
+    }
+
+    fn start_memory_cached_sample(
+        &mut self,
+        path: &str,
+        autoplay: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        let Some(file) = self
+            .waveform_cache
+            .get(Path::new(path))
+            .map(|entry| std::sync::Arc::clone(&entry.file))
+        else {
+            return false;
+        };
+        let waveform = WaveformState::from_cached_file(file);
+        let file_name = waveform.file_name();
+        self.touch_cached_waveform_path(PathBuf::from(path));
+        self.replace_waveform_deferred(waveform);
+        if !autoplay {
+            self.sample_status = format!("Loaded {file_name}");
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&file_name),
+                "memory_cache_loaded",
+                started_at,
+                None,
+            );
+            return true;
+        }
+        self.maybe_open_audio_player(context);
+        match self.start_playback_current_span(0.0, 1.0) {
+            Ok(()) => {
+                self.sample_status = format!("Playing {file_name}");
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&file_name),
+                    "memory_cache_playing",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) if self.pending_playback_start.is_some() => {
+                self.sample_status = format!("Playing {file_name} when audio output is ready");
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&file_name),
+                    "memory_cache_pending",
+                    started_at,
+                    Some(&err),
+                );
+            }
+            Err(err) => {
+                self.sample_status = format!("Loaded {file_name} | playback unavailable: {err}");
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&file_name),
+                    "memory_cache_playback_error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
+        true
     }
 
     fn start_loaded_navigation_sample(

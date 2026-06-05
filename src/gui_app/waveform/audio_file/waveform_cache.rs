@@ -6,6 +6,7 @@ use std::{
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Arc,
+    thread,
     time::{Duration, Instant, SystemTime},
 };
 
@@ -60,17 +61,32 @@ pub(super) fn load_cached_waveform_file(
 pub(in crate::gui_app) fn load_cached_waveform_file_for_playback(
     path: PathBuf,
 ) -> Option<WaveformFile> {
+    let started_at = Instant::now();
+    let identity = CacheIdentity::for_path(&path).ok()?;
+    let cached = read_cached_waveform_file(&path, &identity)?;
+    if cached.playback_samples.is_some() {
+        let file = cached.into_playback_ready_waveform_file(path.clone(), identity)?;
+        mark_cached_waveform_file_playback_ready(&path);
+        log_slow_cache_phase(
+            "browser.sample_cache.load_playback_ready",
+            &path,
+            started_at,
+        );
+        return Some(file);
+    }
+
     let audio_bytes: Arc<[u8]> = Arc::from(fs::read(&path).ok()?);
-    let mut file = load_cached_waveform_file(path.clone(), audio_bytes)?;
+    let mut file = cached.into_waveform_file(path.clone(), audio_bytes, identity)?;
     if file.playback_samples.is_none()
         && super::is_wav_path(&path)
         && let Ok(samples) = super::wav_decode::read_wav_playback_samples(&file.audio_bytes)
     {
         file.playback_samples = Some(Arc::from(samples));
-        store_cached_waveform_file(&file);
+        store_cached_waveform_file_in_background(&file);
     } else if file.playback_samples.is_some() {
         mark_cached_waveform_file_playback_ready(&path);
     }
+    log_slow_cache_phase("browser.sample_cache.load_for_playback", &path, started_at);
     file.playback_samples.is_some().then_some(file)
 }
 
@@ -97,28 +113,83 @@ fn read_cached_waveform_file(path: &Path, identity: &CacheIdentity) -> Option<Ca
     bincode::deserialize(&bytes).ok()
 }
 
+#[cfg(test)]
 pub(super) fn store_cached_waveform_file(file: &WaveformFile) {
-    if file.path.as_os_str().is_empty() || file.audio_bytes.is_empty() {
+    let Some(job) = CachedWaveformStoreJob::new(file) else {
         return;
+    };
+    store_cached_waveform_file_now(job);
+}
+
+pub(super) fn store_cached_waveform_file_in_background(file: &WaveformFile) {
+    let Some(job) = CachedWaveformStoreJob::new(file) else {
+        return;
+    };
+    let path = job.file.path.clone();
+    let _ = thread::Builder::new()
+        .name(String::from("waveform-cache-store"))
+        .spawn(move || {
+            store_cached_waveform_file_now(job);
+        })
+        .map_err(|err| {
+            tracing::warn!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.store_spawn_error",
+                path = %path.display(),
+                error = %err,
+                "Failed to spawn waveform cache persistence"
+            );
+        });
+}
+
+struct CachedWaveformStoreJob {
+    file: WaveformFile,
+    identity: CacheIdentity,
+    cache_path: PathBuf,
+}
+
+impl CachedWaveformStoreJob {
+    fn new(file: &WaveformFile) -> Option<Self> {
+        if file.path.as_os_str().is_empty() || file.audio_bytes.is_empty() {
+            return None;
+        }
+        let identity = CacheIdentity::for_path(&file.path).ok()?;
+        let cache_path = cache_path_for_identity(&file.path, &identity).ok()?;
+        Some(Self {
+            file: file.clone(),
+            identity,
+            cache_path,
+        })
     }
+}
+
+fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) {
     let started_at = Instant::now();
-    let Ok(identity) = CacheIdentity::for_path(&file.path) else {
-        return;
-    };
-    let Ok(cache_path) = cache_path_for_identity(&file.path, &identity) else {
-        return;
-    };
-    let cached = CachedWaveformFile::from_waveform_file(file, &identity);
+    let cached = CachedWaveformFile::from_waveform_file(&job.file, &job.identity);
     let playback_ready = cached.playback_samples.is_some();
     let Ok(bytes) = bincode::serialize(&cached) else {
         return;
     };
-    let temp_path = cache_path.with_extension("tmp");
-    if fs::write(&temp_path, bytes).is_ok() && fs::rename(temp_path, &cache_path).is_ok() {
-        update_playback_ready_marker(&cache_path, playback_ready);
-        prune_waveform_cache_dir(&cache_path, MAX_PERSISTED_WAVEFORM_CACHE_BYTES);
+    let temp_path = job.cache_path.with_extension("tmp");
+    if fs::write(&temp_path, bytes).is_ok() && fs::rename(temp_path, &job.cache_path).is_ok() {
+        update_playback_ready_marker(&job.cache_path, playback_ready);
+        prune_waveform_cache_dir(&job.cache_path, MAX_PERSISTED_WAVEFORM_CACHE_BYTES);
     }
-    log_slow_cache_store(&file.path, started_at);
+    log_slow_cache_store(&job.file.path, started_at);
+}
+
+fn log_slow_cache_phase(event: &'static str, path: &Path, started_at: Instant) {
+    let elapsed = started_at.elapsed();
+    if elapsed < Duration::from_millis(8) {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::sample_cache",
+        event,
+        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        path = %path.display(),
+        "Slow waveform cache phase"
+    );
 }
 
 fn log_slow_cache_store(path: &Path, started_at: Instant) {
@@ -300,6 +371,26 @@ impl CachedWaveformFile {
         })
     }
 
+    fn into_playback_ready_waveform_file(
+        self,
+        path: PathBuf,
+        identity: CacheIdentity,
+    ) -> Option<WaveformFile> {
+        if !self.matches_identity(&path, &identity) || self.playback_samples.is_none() {
+            return None;
+        }
+        Some(WaveformFile {
+            path,
+            audio_bytes: Arc::from([]),
+            playback_samples: self.playback_samples.map(Arc::from),
+            content_revision: self.content_revision,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            frames: self.frames,
+            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
+        })
+    }
+
     fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {
         self.version == CACHE_FORMAT_VERSION
             && self.path == path
@@ -434,10 +525,13 @@ mod tests {
         );
         assert!(cached_waveform_file_exists(&path));
         assert!(cached_waveform_file_playback_ready_exists(&path));
+        let playback_file =
+            load_cached_waveform_file_for_playback(path).expect("playback-ready cache hit");
         assert!(
-            load_cached_waveform_file_for_playback(path)
-                .is_some_and(|file| file.playback_samples.is_some())
+            playback_file.audio_bytes.is_empty(),
+            "playback-ready cache hits should not reread the source WAV before playback"
         );
+        assert!(playback_file.playback_samples.is_some());
     }
 
     #[test]

@@ -211,6 +211,7 @@ pub(in crate::gui_app) struct SampleLoadResult {
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformCacheEntry {
     pub(in crate::gui_app) byte_len: usize,
+    pub(in crate::gui_app) file: Arc<WaveformFile>,
 }
 
 #[derive(Clone, Debug)]

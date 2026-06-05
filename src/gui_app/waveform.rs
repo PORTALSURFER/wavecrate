@@ -223,6 +223,11 @@ impl WaveformState {
         if !self.has_loaded_sample() {
             return Err(String::from("Load a sample before extracting"));
         }
+        if self.file.audio_bytes.is_empty() {
+            return Err(String::from(
+                "Reload the sample before extracting from a playback cache",
+            ));
+        }
         if !is_wav_path(&self.file.path) {
             return Err(String::from("Extraction currently supports WAV files"));
         }
@@ -304,7 +309,8 @@ impl WaveformState {
     }
 
     pub(super) fn has_loaded_sample(&self) -> bool {
-        !self.file.audio_bytes.is_empty() && !self.file.path.as_os_str().is_empty()
+        !self.file.path.as_os_str().is_empty()
+            && (!self.file.audio_bytes.is_empty() || self.file.playback_samples.is_some())
     }
 
     pub(super) fn audio_bytes(&self) -> Arc<[u8]> {

@@ -40,7 +40,7 @@ pub(in crate::gui_app) use waveform_cache::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
     load_cached_waveform_file_for_playback,
 };
-use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file};
+use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file_in_background};
 #[cfg(test)]
 pub(in crate::gui_app) fn store_cached_waveform_file_for_tests(file: &WaveformFile) {
     waveform_cache::store_cached_waveform_file(file);
@@ -100,6 +100,13 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         return Err(String::from("cancelled"));
     }
     progress(0.0);
+    if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
+        progress(0.99);
+        return Ok(file);
+    }
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
     let bytes = read_audio_file_with_progress(&path, 0.0, 0.08, &progress, &cancelled)?;
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -110,7 +117,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
             && let Ok(samples) = wav_decode::read_wav_playback_samples(&bytes)
         {
             file.playback_samples = Some(Arc::from(samples));
-            store_cached_waveform_file(&file);
+            store_cached_waveform_file_in_background(&file);
         }
         progress(0.99);
         return Ok(file);
@@ -129,7 +136,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         if cancelled() {
             return Err(String::from("cancelled"));
         }
-        store_cached_waveform_file(&file);
+        store_cached_waveform_file_in_background(&file);
         return Ok(file);
     }
     if cancelled() {
@@ -176,7 +183,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    store_cached_waveform_file(&file);
+    store_cached_waveform_file_in_background(&file);
     Ok(file)
 }
 
