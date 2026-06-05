@@ -6,14 +6,8 @@ fn focused_browser_mark_uses_random_preview_follow_up() {
     write_browser_mark_wavs(&source.root);
     controller.settings.feature_flags.autoplay_selection = false;
     controller.ui.browser.search.random_navigation_mode = true;
-    controller
-        .history
-        .random_history
-        .mark_played(&source.id, &PathBuf::from("one.wav"));
-    controller
-        .history
-        .random_history
-        .mark_played(&source.id, &PathBuf::from("two.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source.id, &PathBuf::from("one.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source.id, &PathBuf::from("two.wav"));
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_sample_mark();
@@ -60,14 +54,9 @@ fn focused_browser_mark_uses_random_preview_follow_up_repeatedly() {
     write_test_wav(&source.root.join("four.wav"), &[0.0, 0.1]);
     controller.settings.feature_flags.autoplay_selection = false;
     controller.ui.browser.search.random_navigation_mode = true;
+    controller.mark_random_navigation_path_for_current_list(&source.id, &PathBuf::from("two.wav"));
     controller
-        .history
-        .random_history
-        .mark_played(&source.id, &PathBuf::from("two.wav"));
-    controller
-        .history
-        .random_history
-        .mark_played(&source.id, &PathBuf::from("three.wav"));
+        .mark_random_navigation_path_for_current_list(&source.id, &PathBuf::from("three.wav"));
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_sample_mark();
@@ -143,14 +132,8 @@ fn marked_filter_mark_review_uses_random_follow_up_when_random_mode_is_enabled()
     controller.toggle_browser_sample_mark();
     controller.toggle_browser_marked_filter();
     controller.ui.browser.search.random_navigation_mode = true;
-    controller
-        .history
-        .random_history
-        .mark_played(&source.id, &PathBuf::from("one.wav"));
-    controller
-        .history
-        .random_history
-        .mark_played(&source.id, &PathBuf::from("two.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source.id, &PathBuf::from("one.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source.id, &PathBuf::from("two.wav"));
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_sample_mark();

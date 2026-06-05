@@ -5,10 +5,16 @@ pub(crate) fn nudge_selection(controller: &mut AppController, offset: isize) {
     if list_len == 0 {
         return;
     };
-    if controller.random_navigation_mode_enabled() && offset != 0 {
-        controller.focus_random_visible_sample();
-        controller.request_async_preview_playback_for_focused_selection();
-        return;
+    if controller.random_navigation_mode_enabled() {
+        if offset > 0 {
+            controller.focus_random_visible_sample();
+            controller.request_async_preview_playback_for_focused_selection();
+            return;
+        }
+        if offset < 0 {
+            controller.play_previous_random_sample();
+            return;
+        }
     }
     let next_row = visible_row_after_offset(controller, offset, list_len);
     controller.focus_browser_row_only(next_row);

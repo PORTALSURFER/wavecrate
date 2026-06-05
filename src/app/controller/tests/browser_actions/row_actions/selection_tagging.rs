@@ -143,10 +143,7 @@ fn nudge_selection_uses_random_mode_pool_without_repeating_current_row() {
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     controller.focus_browser_row_only(0);
     controller.toggle_random_navigation_mode();
-    controller
-        .history
-        .random_history
-        .mark_played(&source.id, Path::new("two.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source.id, Path::new("two.wav"));
 
     controller.nudge_selection(1);
 

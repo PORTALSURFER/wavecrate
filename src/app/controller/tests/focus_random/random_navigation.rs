@@ -98,10 +98,21 @@ fn random_history_steps_backward() {
         .map(|(row, _)| row);
     controller.play_random_visible_sample_with_seed(5);
 
+    let first_path = first_expected
+        .and_then(|row| controller.visible_browser_index(row))
+        .and_then(|idx| controller.wav_entry(idx))
+        .map(|entry| entry.relative_path.clone());
     let mut rng = StdRng::seed_from_u64(9);
     let second_expected = visible_indices(&controller)
         .into_iter()
         .enumerate()
+        .filter(|(_, idx)| {
+            first_path.as_ref().is_none_or(|path| {
+                controller
+                    .wav_entry(*idx)
+                    .is_none_or(|entry| &entry.relative_path != path)
+            })
+        })
         .choose(&mut rng)
         .map(|(row, _)| row);
     controller.play_random_visible_sample_with_seed(9);
@@ -119,6 +130,31 @@ fn random_history_steps_backward() {
         controller.ui.browser.selection.selected_visible,
         first_expected
     );
+}
+
+#[test]
+fn backward_random_navigation_follows_played_history() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.ui.browser.search.random_navigation_mode = true;
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.play_random_visible_sample_with_seed(4);
+    let first_path = controller.sample_view.wav.selected_wav.clone();
+    controller.play_random_visible_sample_with_seed(8);
+    assert_ne!(controller.sample_view.wav.selected_wav, first_path);
+
+    controller.focus_browser_delta_action(-1);
+
+    assert_eq!(controller.sample_view.wav.selected_wav, first_path);
+    assert_eq!(controller.history.random_history.cursor, Some(0));
 }
 
 #[test]
@@ -203,18 +239,15 @@ fn toggling_random_navigation_marks_current_focus_as_visited() {
 
     controller.toggle_random_navigation_mode();
 
-    assert!(
-        controller
-            .history
-            .random_history
-            .has_played(&source.id, Path::new("one.wav"))
-    );
-    assert!(
-        !controller
-            .history
-            .random_history
-            .has_played(&source.id, Path::new("two.wav"))
-    );
+    let played = controller
+        .history
+        .random_history
+        .current_list
+        .as_ref()
+        .map(|list| &list.played)
+        .expect("random navigation list");
+    assert!(played.contains(Path::new("one.wav")));
+    assert!(!played.contains(Path::new("two.wav")));
 }
 
 #[test]
@@ -265,5 +298,44 @@ fn random_sample_navigation_avoids_repeats() {
     assert!(
         played.contains(&path),
         "Should repeat after all were played"
+    );
+}
+
+#[test]
+fn random_navigation_played_set_resets_when_visible_list_changes() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("other_one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("other_two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("list_shared.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("list_fresh.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller
+        .mark_random_navigation_path_for_current_list(&source.id, Path::new("list_shared.wav"));
+
+    controller.set_browser_search("list");
+    assert_eq!(visible_indices(&controller), vec![2, 3]);
+
+    let seed = (0..100)
+        .find(|seed| {
+            let mut rng = StdRng::seed_from_u64(*seed);
+            visible_indices(&controller)
+                .into_iter()
+                .enumerate()
+                .choose(&mut rng)
+                .map(|(row, _)| row)
+                == Some(0)
+        })
+        .expect("seed choosing the first narrowed row");
+
+    controller.play_random_visible_sample_with_seed(seed);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("list_shared.wav"))
     );
 }

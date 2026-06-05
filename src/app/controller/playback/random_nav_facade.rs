@@ -40,6 +40,15 @@ impl AppController {
         random_nav::record_random_navigation_target_for_source(self, source_id, relative_path);
     }
 
+    #[cfg(test)]
+    pub(crate) fn mark_random_navigation_path_for_current_list(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &Path,
+    ) {
+        random_nav::mark_random_navigation_path_for_current_list(self, source_id, relative_path);
+    }
+
     /// Play the previous entry from the random history stack.
     pub fn play_previous_random_sample(&mut self) {
         let started_at = Instant::now();

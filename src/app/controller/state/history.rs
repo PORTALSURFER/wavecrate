@@ -39,39 +39,75 @@ pub(crate) struct RandomHistoryEntry {
 }
 
 pub(crate) struct RandomHistoryState {
-    /// Random samples already visited this session, tracked per source.
-    pub(crate) played_by_source: HashMap<SourceId, HashSet<PathBuf>>,
+    /// Random samples already visited for the currently visible browser list.
+    pub(crate) current_list: Option<RandomPlayedList>,
     pub(crate) entries: VecDeque<RandomHistoryEntry>,
     pub(crate) cursor: Option<usize>,
+}
+
+pub(crate) struct RandomPlayedList {
+    pub(crate) source_id: SourceId,
+    pub(crate) fingerprint: u64,
+    pub(crate) played: HashSet<PathBuf>,
 }
 
 impl RandomHistoryState {
     pub(crate) fn new() -> Self {
         Self {
-            played_by_source: HashMap::new(),
+            current_list: None,
             entries: VecDeque::new(),
             cursor: None,
         }
     }
 
-    /// Returns true when a sample was already visited for random navigation.
-    pub(crate) fn has_played(&self, source_id: &SourceId, relative_path: &Path) -> bool {
-        self.played_by_source
-            .get(source_id)
-            .is_some_and(|set| set.contains(relative_path))
+    pub(crate) fn ensure_current_list(&mut self, source_id: &SourceId, fingerprint: u64) {
+        let list_matches = self
+            .current_list
+            .as_ref()
+            .is_some_and(|list| &list.source_id == source_id && list.fingerprint == fingerprint);
+        if !list_matches {
+            self.current_list = Some(RandomPlayedList {
+                source_id: source_id.clone(),
+                fingerprint,
+                played: HashSet::new(),
+            });
+        }
     }
 
-    /// Marks a sample as visited for random navigation in the current session.
-    pub(crate) fn mark_played(&mut self, source_id: &SourceId, relative_path: &Path) {
-        self.played_by_source
-            .entry(source_id.clone())
-            .or_default()
-            .insert(relative_path.to_path_buf());
+    /// Returns true when a sample was already visited for the active visible list.
+    pub(crate) fn has_played_in_list(
+        &self,
+        source_id: &SourceId,
+        fingerprint: u64,
+        relative_path: &Path,
+    ) -> bool {
+        self.current_list.as_ref().is_some_and(|list| {
+            &list.source_id == source_id
+                && list.fingerprint == fingerprint
+                && list.played.contains(relative_path)
+        })
     }
 
-    /// Clears the visited set for a source, starting a new random cycle.
-    pub(crate) fn reset_played_for_source(&mut self, source_id: &SourceId) {
-        self.played_by_source.remove(source_id);
+    /// Marks a sample as visited for random navigation in the active visible list.
+    pub(crate) fn mark_played_in_list(
+        &mut self,
+        source_id: &SourceId,
+        fingerprint: u64,
+        relative_path: &Path,
+    ) {
+        self.ensure_current_list(source_id, fingerprint);
+        if let Some(list) = self.current_list.as_mut() {
+            list.played.insert(relative_path.to_path_buf());
+        }
+    }
+
+    /// Clears the visited set for the active list, starting a new random cycle.
+    pub(crate) fn reset_played_for_list(&mut self, source_id: &SourceId, fingerprint: u64) {
+        self.current_list = Some(RandomPlayedList {
+            source_id: source_id.clone(),
+            fingerprint,
+            played: HashSet::new(),
+        });
     }
 }
 

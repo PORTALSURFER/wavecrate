@@ -15,14 +15,8 @@ fn advance_after_rating_respects_random_navigation() {
     controller.settings.controls.advance_after_rating = true;
 
     let id = source.id.clone();
-    controller
-        .history
-        .random_history
-        .mark_played(&id, &PathBuf::from("a.wav"));
-    controller
-        .history
-        .random_history
-        .mark_played(&id, &PathBuf::from("b.wav"));
+    controller.mark_random_navigation_path_for_current_list(&id, &PathBuf::from("a.wav"));
+    controller.mark_random_navigation_path_for_current_list(&id, &PathBuf::from("b.wav"));
 
     controller.focus_browser_row(0);
     assert_eq!(controller.selected_row_index(), Some(0));
@@ -88,14 +82,8 @@ fn rating_previous_random_history_entry_restores_waveform_for_replacement() {
     controller.toggle_random_navigation_mode();
 
     let source_id = source.id.clone();
-    controller
-        .history
-        .random_history
-        .mark_played(&source_id, Path::new("b.wav"));
-    controller
-        .history
-        .random_history
-        .mark_played(&source_id, Path::new("c.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source_id, Path::new("b.wav"));
+    controller.mark_random_navigation_path_for_current_list(&source_id, Path::new("c.wav"));
     controller
         .history
         .random_history
