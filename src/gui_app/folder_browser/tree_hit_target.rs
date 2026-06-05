@@ -52,8 +52,7 @@ impl FolderTreeHitTarget {
         }
         let row = row.widget();
         let actions = ui::InteractiveRowActions::new()
-            .activate(|| FolderTreeHitMessage::Activate)
-            .double_activate(|| FolderTreeHitMessage::Activate)
+            .activate_or_double(|| FolderTreeHitMessage::Activate)
             .secondary(FolderTreeHitMessage::ContextMenu)
             .drag(FolderTreeHitMessage::Drag)
             .hover_drop(FolderTreeHitMessage::HoverDropTarget)

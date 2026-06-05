@@ -83,6 +83,20 @@ fn active_drag_release_on_target_row_emits_drop_without_press_capture() {
 }
 
 #[test]
+fn double_activation_uses_normal_folder_activation() {
+    let bounds = row_bounds();
+    let mut target = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
+
+    assert_eq!(
+        message_from(target.handle_input(
+            bounds,
+            WidgetInput::primary_double_click(Point::new(12.0, 9.0))
+        )),
+        FolderTreeHitMessage::Activate
+    );
+}
+
+#[test]
 fn drop_target_paints_highlighted_label_text() {
     let bounds = row_bounds();
     let target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
