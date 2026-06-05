@@ -91,8 +91,7 @@ impl ui::EmbeddedInteractiveRowWidget for FolderTreeHitTarget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        self.paint_background(primitives, bounds);
-        self.paint_label(primitives, bounds, _theme);
+        self.paint_row(primitives, bounds, _theme);
     }
 }
 

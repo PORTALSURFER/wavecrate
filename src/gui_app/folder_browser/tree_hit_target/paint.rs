@@ -8,21 +8,16 @@ use radiant::{
 use super::FolderTreeHitTarget;
 
 impl FolderTreeHitTarget {
-    pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        self.row
-            .push_dense_chrome(primitives, bounds, self.background_chrome_parts());
-    }
-
-    pub(super) fn paint_label(
+    pub(super) fn paint_row(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
         theme: &ThemeTokens,
     ) {
-        ui::push_dense_row_label(
+        self.row.push_dense_labeled_chrome(
             primitives,
-            self.row.id(),
             bounds,
+            self.background_chrome_parts(),
             ui::DenseRowLabelParts::new(self.label.clone(), self.label_color(theme)),
         );
     }
