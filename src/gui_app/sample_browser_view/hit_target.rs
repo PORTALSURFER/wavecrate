@@ -25,10 +25,7 @@ pub(in crate::gui_app) struct SampleFileHitTarget {
     row: InteractiveRowWidget,
     actions: ui::InteractiveRowActions<GuiMessage>,
     selected: bool,
-    drag_active: bool,
-    drag_source: bool,
     cached: bool,
-    suppress_hover: bool,
 }
 
 impl SampleFileHitTarget {
@@ -58,10 +55,7 @@ impl SampleFileHitTarget {
             row,
             actions,
             selected,
-            drag_active,
-            drag_source,
             cached,
-            suppress_hover,
         }
     }
 }
@@ -134,14 +128,10 @@ impl SampleFileHitTarget {
             b: 62,
             a: 120,
         });
-        if self.should_paint_interaction_fill() {
+        if self.row.paints_interaction_fill() {
             palette = palette.hovered(HOVER_FILL).pressed(PRESSED_FILL);
         }
         palette
-    }
-
-    fn should_paint_interaction_fill(&self) -> bool {
-        !self.suppress_hover && (!self.drag_active || self.drag_source)
     }
 }
 
