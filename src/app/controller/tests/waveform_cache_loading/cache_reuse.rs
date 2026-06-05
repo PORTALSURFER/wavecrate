@@ -39,6 +39,63 @@ fn cached_audio_hit_reuses_cached_transients() {
 }
 
 #[test]
+fn queued_selection_applies_memory_cached_audio_without_worker_roundtrip() {
+    let (mut controller, source, rel) = controller_with_audio_file("cached-queue.wav");
+
+    let metadata = controller
+        .current_file_metadata(&source, rel.as_path())
+        .expect("metadata");
+    let bytes = controller
+        .read_waveform_bytes(&source, rel.as_path())
+        .expect("bytes");
+    let decoded = Arc::new(
+        controller
+            .sample_view
+            .renderer
+            .decode_from_bytes(&bytes)
+            .expect("decode"),
+    );
+    let cached_transients: Arc<[f32]> = Arc::from(vec![0.25]);
+    controller.audio.cache.insert(
+        CacheKey::new(&source.id, rel.as_path()),
+        metadata,
+        decoded.clone(),
+        bytes.into(),
+        cached_transients.clone(),
+    );
+    let (audio_job_tx, audio_job_rx) = std::sync::mpsc::channel();
+    controller.runtime.jobs.audio_job_tx = audio_job_tx;
+
+    controller
+        .queue_audio_load_for(&source, rel.as_path(), AudioLoadIntent::Selection, None)
+        .expect("queue cached load");
+
+    assert!(
+        audio_job_rx.try_recv().is_err(),
+        "resident cached audio should apply without a worker roundtrip"
+    );
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(rel.as_path())
+    );
+    assert_eq!(
+        controller
+            .sample_view
+            .waveform
+            .decoded
+            .as_ref()
+            .map(|decoded| decoded.cache_token),
+        Some(decoded.cache_token)
+    );
+    assert_eq!(
+        controller.ui.waveform.transients.as_ref(),
+        cached_transients.as_ref()
+    );
+    assert!(controller.runtime.jobs.pending_audio().is_none());
+    assert!(controller.ui.waveform.loading.is_none());
+}
+
+#[test]
 fn persistent_waveform_cache_is_not_hydrated_on_controller_thread_after_restart() {
     let cache_root = tempdir().expect("tempdir");
     let _guard = ConfigBaseGuard::set(cache_root.path().to_path_buf());
