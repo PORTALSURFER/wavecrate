@@ -219,8 +219,7 @@ impl FolderBrowserState {
     pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
         self.collections_panel.resize_collapsible(
             message,
-            ui::CollapsiblePanelResizeConstraints::new(
-                ui::PanelResizeEdge::Top,
+            ui::CollapsiblePanelResizeConstraints::top(
                 MIN_COLLECTIONS_PANEL_HEIGHT,
                 self.max_collections_panel_height(),
                 COLLAPSED_COLLECTIONS_PANEL_HEIGHT,

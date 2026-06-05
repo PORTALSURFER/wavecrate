@@ -17,11 +17,7 @@ impl GuiAppState {
         let outcome = phase.as_str();
         self.folder_panel.resize(
             message,
-            ui::PanelResizeConstraints::new(
-                ui::PanelResizeEdge::Right,
-                MIN_FOLDER_WIDTH,
-                MAX_FOLDER_WIDTH,
-            ),
+            ui::PanelResizeConstraints::right(MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH),
         );
         if should_log {
             emit_gui_action(

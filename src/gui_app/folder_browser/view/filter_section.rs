@@ -33,8 +33,7 @@ impl FolderBrowserState {
     ) {
         self.filter_panel.resize_collapsible(
             message,
-            ui::CollapsiblePanelResizeConstraints::new(
-                ui::PanelResizeEdge::Top,
+            ui::CollapsiblePanelResizeConstraints::top(
                 MIN_FILTER_PANEL_HEIGHT,
                 MAX_FILTER_PANEL_HEIGHT,
                 COLLAPSED_FILTER_PANEL_HEIGHT,

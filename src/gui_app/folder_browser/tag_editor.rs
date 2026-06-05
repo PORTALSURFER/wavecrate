@@ -39,8 +39,7 @@ impl FolderBrowserState {
     pub(super) fn resize_metadata_panel(&mut self, message: DragHandleMessage) {
         self.metadata_panel.resize_collapsible(
             message,
-            ui::CollapsiblePanelResizeConstraints::new(
-                ui::PanelResizeEdge::Top,
+            ui::CollapsiblePanelResizeConstraints::top(
                 MIN_METADATA_PANEL_HEIGHT,
                 MAX_METADATA_PANEL_HEIGHT,
                 COLLAPSED_METADATA_PANEL_HEIGHT,
