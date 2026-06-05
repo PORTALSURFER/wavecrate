@@ -38,8 +38,8 @@ impl WaveformWidget {
                 })
             });
         }
-        if let Some((pointer, delta)) = event.wheel_pointer_delta() {
-            return (pointer_inside && has_loaded_sample).then(|| {
+        if let Some((pointer, delta)) = event.wheel_pointer_delta_inside(bounds) {
+            return has_loaded_sample.then(|| {
                 WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
                     anchor_ratio: pointer.normalized_x(),
@@ -49,24 +49,16 @@ impl WaveformWidget {
         if !has_loaded_sample {
             return None;
         }
-        if let Some(pointer) = event.press_pointer(PointerButton::Primary)
-            && pointer_inside
-        {
+        if let Some(pointer) = event.press_pointer_inside(bounds, PointerButton::Primary) {
             return self.handle_primary_press(bounds, pointer);
         }
-        if let Some(pointer) = event.double_click_pointer(PointerButton::Primary)
-            && pointer_inside
-        {
+        if let Some(pointer) = event.double_click_pointer_inside(bounds, PointerButton::Primary) {
             return self.handle_primary_double_click(bounds, pointer);
         }
-        if let Some(pointer) = event.press_pointer(PointerButton::Secondary)
-            && pointer_inside
-        {
+        if let Some(pointer) = event.press_pointer_inside(bounds, PointerButton::Secondary) {
             return self.handle_secondary_press(bounds, pointer);
         }
-        if let Some(pointer) = event.press_pointer(PointerButton::Auxiliary)
-            && pointer_inside
-        {
+        if let Some(pointer) = event.press_pointer_inside(bounds, PointerButton::Auxiliary) {
             return Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
                 visible_ratio: pointer.normalized_x(),
             }));
