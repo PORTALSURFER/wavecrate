@@ -89,36 +89,38 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
 
 impl SampleFileHitTarget {
     fn chrome_parts(&self) -> ui::DenseRowChromeParts {
-        let mut parts = self.row.dense_chrome_parts(
-            ui::InteractiveRowVisualStateParts {
-                selected: self.selected,
-                ..ui::InteractiveRowVisualStateParts::default()
-            },
-            self.chrome_palette(),
-        );
-        if self.cached && !self.selected {
-            parts = parts.trailing_marker(ui::DenseRowMarkerStyle::new(
-                ui::DenseRowMarkerParts::trailing(2.0),
-                Rgba8 {
-                    r: 226,
-                    g: 226,
-                    b: 226,
-                    a: 210,
+        self.row
+            .dense_chrome_parts(
+                ui::InteractiveRowVisualStateParts {
+                    selected: self.selected,
+                    ..ui::InteractiveRowVisualStateParts::default()
                 },
-            ));
-        }
-        if self.selected {
-            parts = parts.leading_marker(ui::DenseRowMarkerStyle::new(
-                ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
-                Rgba8 {
-                    r: 255,
-                    g: 82,
-                    b: 62,
-                    a: 245,
-                },
-            ));
-        }
-        parts
+                self.chrome_palette(),
+            )
+            .trailing_marker_if(
+                self.cached && !self.selected,
+                ui::DenseRowMarkerStyle::new(
+                    ui::DenseRowMarkerParts::trailing(2.0),
+                    Rgba8 {
+                        r: 226,
+                        g: 226,
+                        b: 226,
+                        a: 210,
+                    },
+                ),
+            )
+            .leading_marker_if(
+                self.selected,
+                ui::DenseRowMarkerStyle::new(
+                    ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+                    Rgba8 {
+                        r: 255,
+                        g: 82,
+                        b: 62,
+                        a: 245,
+                    },
+                ),
+            )
     }
 
     fn chrome_palette(&self) -> ui::DenseRowPalette {

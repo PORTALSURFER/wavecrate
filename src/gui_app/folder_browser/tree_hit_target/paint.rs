@@ -31,13 +31,9 @@ impl FolderTreeHitTarget {
     }
 
     fn background_chrome_parts(&self) -> ui::DenseRowChromeParts {
-        let mut parts = self
-            .row
-            .dense_chrome_parts(self.background_state_parts(), self.background_palette());
-        if self.drop_target {
-            parts = parts.outline(Self::drop_target_outline());
-        }
-        parts
+        self.row
+            .dense_chrome_parts(self.background_state_parts(), self.background_palette())
+            .outline_if(self.drop_target, Self::drop_target_outline())
     }
 
     fn drop_target_outline() -> ui::DenseRowOutlineStyle {
