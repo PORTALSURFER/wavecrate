@@ -27,6 +27,9 @@ const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
     b: 219,
     a: 225,
 };
+const PLAY_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 142, 92, 255);
+const EDIT_SELECTION_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
+const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
 const IMPLICIT_SAMPLE_START_RATIO: f32 = 0.000_1;
 
@@ -84,23 +87,13 @@ impl WaveformWidget {
         geometry: CanvasSelectionGeometry,
     ) {
         let flash_active = self.play_selection_flash_frames > 0;
-        let cursor_color = Rgba8 {
-            r: 255,
-            g: 142,
-            b: 92,
-            a: if flash_active { 255 } else { 230 },
-        };
+        let cursor_color = PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 255, 230);
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
             geometry.end_fraction,
             1.0,
-            Rgba8 {
-                r: 255,
-                g: 142,
-                b: 92,
-                a: if flash_active { 118 } else { 48 },
-            },
+            PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 118, 48),
         );
         self.append_selection_boundary_cursors(
             paint,
@@ -119,24 +112,9 @@ impl WaveformWidget {
             CanvasSelectionAffordancePaintParts::new(
                 bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
             )
-            .edge_color(Rgba8 {
-                r: 255,
-                g: 142,
-                b: 92,
-                a: if flash_active { 255 } else { 220 },
-            })
-            .body_color(Rgba8 {
-                r: 255,
-                g: 142,
-                b: 92,
-                a: if flash_active { 245 } else { 185 },
-            })
-            .trailing_control_color(Rgba8 {
-                r: 255,
-                g: 142,
-                b: 92,
-                a: if flash_active { 255 } else { 235 },
-            }),
+            .edge_color(PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 255, 220))
+            .body_color(PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 245, 185))
+            .trailing_control_color(PLAY_SELECTION_COLOR.with_alpha_if(flash_active, 255, 235)),
         );
     }
 
@@ -146,23 +124,13 @@ impl WaveformWidget {
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
-        let cursor_color = Rgba8 {
-            r: 82,
-            g: 168,
-            b: 255,
-            a: 230,
-        };
+        let cursor_color = EDIT_SELECTION_COLOR.with_alpha(230);
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
             geometry.end_fraction,
             1.0,
-            Rgba8 {
-                r: 82,
-                g: 168,
-                b: 255,
-                a: 46,
-            },
+            EDIT_SELECTION_COLOR.with_alpha(46),
         );
         self.append_selection_boundary_cursors(
             paint,
@@ -175,12 +143,8 @@ impl WaveformWidget {
             paint,
             geometry,
             CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
-            CanvasSelectionAffordancePaintParts::new(bounds).body_color(Rgba8 {
-                r: 82,
-                g: 168,
-                b: 255,
-                a: 180,
-            }),
+            CanvasSelectionAffordancePaintParts::new(bounds)
+                .body_color(EDIT_SELECTION_COLOR.with_alpha(180)),
         );
     }
 
@@ -195,12 +159,7 @@ impl WaveformWidget {
                 bounds,
                 play_mark_ratio,
                 2.0,
-                Rgba8 {
-                    r: 255,
-                    g: 142,
-                    b: 92,
-                    a: 230,
-                },
+                PLAY_SELECTION_COLOR.with_alpha(230),
             );
         }
         if self.edit_selection.is_none()
@@ -210,28 +169,13 @@ impl WaveformWidget {
                 bounds,
                 edit_mark_ratio,
                 2.0,
-                Rgba8 {
-                    r: 82,
-                    g: 168,
-                    b: 255,
-                    a: 230,
-                },
+                EDIT_SELECTION_COLOR.with_alpha(230),
             );
         }
         if !self.playing
             && let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio)
         {
-            paint.push_horizontal_value_cursor_fill(
-                bounds,
-                playhead_ratio,
-                2.0,
-                Rgba8 {
-                    r: 71,
-                    g: 220,
-                    b: 255,
-                    a: 245,
-                },
-            );
+            paint.push_horizontal_value_cursor_fill(bounds, playhead_ratio, 2.0, PLAYHEAD_COLOR);
         }
     }
 
