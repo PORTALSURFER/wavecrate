@@ -98,7 +98,8 @@ impl FolderTreeHitTarget {
     }
 
     fn label_is_highlighted(&self) -> bool {
-        let state = self.row.dense_visual_state(self.background_state_parts());
-        state.active_target || (state.hovered && state.candidate) || state.selected
+        self.row
+            .dense_visual_state(self.background_state_parts())
+            .emphasizes_label()
     }
 }
