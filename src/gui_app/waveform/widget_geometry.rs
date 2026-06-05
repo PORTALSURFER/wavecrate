@@ -1,3 +1,4 @@
+use radiant::gui::range::NormalizedRange;
 use radiant::gui::types::{Point, Rect};
 use radiant::gui::visualization::{
     CanvasSelectionAffordanceStyle, CanvasSelectionBodyHandleStyle, CanvasSelectionEdgeVisualStyle,
@@ -58,13 +59,12 @@ impl WaveformWidget {
         waveform_selection_edge(role)
     }
 
-    pub(super) fn visible_range_for_selection(
+    pub(super) fn visible_normalized_range_for_selection(
         &self,
         range: Option<wavecrate::selection::SelectionRange>,
-    ) -> Option<(f32, f32)> {
-        let range = range?;
+    ) -> Option<NormalizedRange> {
         self.viewport_scope()
-            .visible_range_from_absolute(range.start(), range.end())
+            .visible_normalized_range(normalized_range_for_selection(range?))
     }
 
     pub(super) fn visible_ratio_for_absolute(&self, ratio: Option<f32>) -> Option<f32> {
@@ -76,8 +76,8 @@ impl WaveformWidget {
         bounds: Rect,
         range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<CanvasSelectionGeometry> {
-        let (start, end) = self.visible_range_for_selection(range)?;
-        CanvasSelectionGeometry::new(bounds, start.min(end), start.max(end))
+        let range = self.visible_normalized_range_for_selection(range)?;
+        CanvasSelectionGeometry::new(bounds, range.start_fraction(), range.end_fraction())
     }
 
     fn viewport_scope(&self) -> radiant::prelude::IndexViewportScope {
@@ -87,6 +87,10 @@ impl WaveformWidget {
             super::MIN_VISIBLE_FRAMES,
         )
     }
+}
+
+fn normalized_range_for_selection(range: wavecrate::selection::SelectionRange) -> NormalizedRange {
+    NormalizedRange::from_fractions(range.start(), range.end())
 }
 
 pub(super) fn drag_handle_role(edge: WaveformSelectionEdge) -> DragHandleRole {

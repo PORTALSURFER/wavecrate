@@ -96,12 +96,12 @@ fn selection_range_projects_visible_ratios_inside_viewport() {
         visible_ratio: 0.75,
     });
     let widget = waveform_widget_for_state(&state);
-    let (start, end) = widget
-        .visible_range_for_selection(state.edit_selection())
+    let range = widget
+        .visible_normalized_range_for_selection(state.edit_selection())
         .expect("selection range");
 
-    assert!((start - 0.25).abs() < 0.001);
-    assert!((end - 0.75).abs() < 0.001);
+    assert!((range.start_fraction() - 0.25).abs() < 0.001);
+    assert!((range.end_fraction() - 0.75).abs() < 0.001);
 }
 
 #[test]

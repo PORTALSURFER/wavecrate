@@ -46,15 +46,15 @@ impl WaveformWidget {
 
     fn append_extracted_range_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
         for range in &self.extracted_ranges {
-            if let Some((start, end)) = self.visible_range_for_selection(Some(*range)) {
+            if let Some(range) = self.visible_normalized_range_for_selection(Some(*range)) {
                 paint.push_horizontal_value_range_fill(
                     bounds,
-                    start,
-                    end,
+                    range.start_fraction(),
+                    range.end_fraction(),
                     1.0,
                     EXTRACTED_RANGE_FILL,
                 );
-                self.append_extracted_range_rails(paint, bounds, start, end);
+                self.append_extracted_range_rails(paint, bounds, range);
             }
         }
     }
@@ -63,13 +63,12 @@ impl WaveformWidget {
         &self,
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
-        start: f32,
-        end: f32,
+        range: radiant::gui::range::NormalizedRange,
     ) {
         paint.push_horizontal_value_range_edge_fills(
             bounds,
-            start,
-            end,
+            range.start_fraction(),
+            range.end_fraction(),
             EXTRACTED_RANGE_RAIL_HEIGHT,
             EXTRACTED_RANGE_RAIL,
         );
