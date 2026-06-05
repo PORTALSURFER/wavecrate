@@ -41,7 +41,7 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
     };
     let visual = ui::text_line(label, 24.0).padding_x(8.0);
     ui::interactive_row_underlay(visual)
-        .input_id(source_row_input_id(source.id.as_str()))
+        .stable_input_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str())
         .actions(ui::InteractiveRowActions::new().activate_secondary_key(
             source.id.clone(),
             |source_id| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id)),
@@ -65,10 +65,6 @@ fn source_row_style(selected: bool) -> ui::WidgetStyle {
     }
 }
 
-fn source_row_input_id(source_id: &str) -> u64 {
-    ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source_id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,7 +82,7 @@ mod tests {
 
         assert_eq!(
             source_row(&state, &source).view_dispatch_widget_output(
-                source_row_input_id(source.id.as_str()),
+                ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
                 ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
             ),
             Some(GuiMessage::FolderBrowser(
@@ -104,7 +100,7 @@ mod tests {
 
         assert_eq!(
             source_row(&state, &source).view_dispatch_widget_output(
-                source_row_input_id(source.id.as_str()),
+                ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
                 ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
             ),
             Some(GuiMessage::FolderBrowser(

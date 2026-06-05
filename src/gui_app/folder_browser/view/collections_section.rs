@@ -95,7 +95,7 @@ fn collection_input(
 ) -> ui::View<GuiMessage> {
     ui::interactive_row_underlay(visual)
         .tracked_drop_target(collection.drag_active, collection.drop_target)
-        .input_id(collection_row_input_id(collection_id))
+        .stable_u64_input_id(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64)
         .style(collection_input_style(collection))
         .actions(
             ui::InteractiveRowActions::new()
@@ -174,11 +174,6 @@ fn collection_input_style(collection: &SampleCollectionView) -> ui::WidgetStyle 
     }
 }
 
-/// Returns the stable input widget id for a collection row.
-fn collection_row_input_id(collection: wavecrate::sample_sources::SampleCollection) -> u64 {
-    ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection.index() as u64)
-}
-
 /// Collection-section view tests.
 #[cfg(test)]
 mod tests {
@@ -215,7 +210,7 @@ mod tests {
         assert!(matches!(
             collection_input(collection_id, collection_visual(&collection), &collection)
                 .view_dispatch_widget_output(
-                collection_row_input_id(collection_id),
+                ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64),
                 ui::WidgetOutput::typed(ui::InteractiveRowMessage::DoubleActivate),
             ),
             Some(GuiMessage::FolderBrowser(
@@ -232,7 +227,10 @@ mod tests {
         let surface = collection_input(collection_id, collection_visual(&collection), &collection)
             .into_surface();
         let widget = surface
-            .find_widget(collection_row_input_id(collection_id))
+            .find_widget(ui::stable_widget_id_u64(
+                COLLECTION_ROW_INPUT_SCOPE,
+                collection_id.index() as u64,
+            ))
             .and_then(|widget| {
                 widget
                     .widget()
