@@ -155,37 +155,16 @@ fn folder_tree_window(
     window: ui::VirtualListWindow,
     drag_revision: u64,
 ) -> ui::View<GuiMessage> {
-    ui::virtual_list_window_body(
+    ui::virtual_tree_list_window(
         window,
         TREE_ROW_HEIGHT,
-        |window| folder_tree_window_body(&visible_folders, window, drag_revision),
+        &folder_tree_guide_rows(&visible_folders),
+        folder_tree_guide_style(),
+        |index| folder_row(visible_folders[index].clone(), drag_revision),
         TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
     .style(ui::WidgetStyle::default())
     .fill_height()
-}
-
-fn folder_tree_window_body(
-    visible_folders: &[VisibleFolder],
-    window: ui::VirtualListWindow,
-    drag_revision: u64,
-) -> ui::View<GuiMessage> {
-    let guide_rows = folder_tree_guide_rows(visible_folders);
-    let guide_style = folder_tree_guide_style();
-    let rows = ui::column((window.window_start..window.window_end).map(|index| {
-        folder_row(visible_folders[index].clone(), drag_revision).height(TREE_ROW_HEIGHT)
-    }))
-    .spacing(0.0)
-    .fill_width();
-    ui::stack([
-        rows,
-        ui::tree_guide_overlay(
-            &guide_rows,
-            window.window_start,
-            window.window_end,
-            guide_style,
-        ),
-    ])
 }
 
 fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
