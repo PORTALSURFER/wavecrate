@@ -165,6 +165,16 @@ impl GuiAppState {
         self.sample_status = format!("Extracted {}", sample_path_label(&path));
     }
 
+    pub(super) fn cancel_browser_drag_on_sample_list(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.folder_browser.clear_drag();
+        self.clear_pending_internal_file_drag_paths();
+        context.end_drag_session();
+        self.sample_status = String::from("Drag cancelled");
+    }
+
     fn arm_browser_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         let drag = self.folder_browser.drag_preview().map(|preview| {
             ui::DragRequest::new(

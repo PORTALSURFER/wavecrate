@@ -433,6 +433,15 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
     runtime.dispatch_event(Event::primary_release(sample_press));
     let released_frame = runtime.frame_with_default_theme();
     assert!(
+        !runtime.bridge().state().folder_browser.drag_active(),
+        "dropping back on the sample list must cancel the browser drag"
+    );
+    assert_eq!(
+        runtime.bridge().state().sample_status,
+        "Drag cancelled",
+        "dropping back on the sample list should be reported as cancellation"
+    );
+    assert!(
         !released_frame
             .paint_plan
             .fill_rects()

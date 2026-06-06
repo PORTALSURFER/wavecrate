@@ -55,7 +55,8 @@ pub(super) fn sample_browser(
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
     .fill();
-    if !state.folder_browser.extracted_file_drag_active()
+    if !state.folder_browser.file_drag_active()
+        && !state.folder_browser.extracted_file_drag_active()
         && state
             .folder_browser
             .hovered_drop_target_folder_id()
@@ -64,6 +65,26 @@ pub(super) fn sample_browser(
         return browser;
     }
     let mut layers = vec![browser];
+    if state.folder_browser.file_drag_active() {
+        layers.push(
+            ui::pointer_shield(true)
+                .pointer_move(false)
+                .pointer_press(false)
+                .mapped(|message| match message {
+                    ui::PointerShieldMessage::PointerRelease { .. }
+                    | ui::PointerShieldMessage::PointerDrop { .. } => {
+                        GuiMessage::CancelBrowserDragOnSampleList
+                    }
+                    ui::PointerShieldMessage::PointerMove { .. }
+                    | ui::PointerShieldMessage::PointerPress { .. } => {
+                        GuiMessage::CancelBrowserDragOnSampleList
+                    }
+                })
+                .key("sample-list-browser-drag-cancel-target")
+                .input_only()
+                .fill(),
+        );
+    }
     if state.folder_browser.extracted_file_drag_active() {
         layers.push(
             ui::pointer_drop_shield(true)

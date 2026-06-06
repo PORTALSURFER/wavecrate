@@ -196,6 +196,7 @@ pub(in crate::gui_app) enum GuiMessage {
     SelectAllSamples,
     CollapseSelectedFolder,
     ExpandSelectedFolder,
+    CancelBrowserDragOnSampleList,
     DropWaveformSelectionOnSampleList,
     Waveform(WaveformInteraction),
     NativeFileDrop(NativeFileDrop),

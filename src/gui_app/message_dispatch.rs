@@ -233,6 +233,9 @@ impl GuiAppState {
             GuiMessage::ExpandSelectedFolder => {
                 self.expand_selected_folder();
             }
+            GuiMessage::CancelBrowserDragOnSampleList => {
+                self.cancel_browser_drag_on_sample_list(context);
+            }
             GuiMessage::DropWaveformSelectionOnSampleList => {
                 self.drop_waveform_play_selection_on_sample_list(context);
             }
