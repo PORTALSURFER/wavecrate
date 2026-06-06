@@ -18,6 +18,7 @@ pub(super) struct BrowserContextMenu {
     pub(super) kind: BrowserContextTargetKind,
     pub(super) path: PathBuf,
     pub(super) source_id: Option<String>,
+    pub(super) source_removable: bool,
     pub(super) metadata_tag: Option<String>,
     pub(super) collection: Option<SampleCollection>,
     pub(super) anchor: Point,
@@ -90,8 +91,15 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         );
     }
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
-        actions
-            .push(ui::MenuCommand::new("Remove Source", GuiMessage::RemoveContextSource).danger());
+        actions.push(ui::MenuCommand::new(
+            "Refresh Source",
+            GuiMessage::RefreshContextSource,
+        ));
+        if menu.source_removable {
+            actions.push(
+                ui::MenuCommand::new("Remove Source", GuiMessage::RemoveContextSource).danger(),
+            );
+        }
     }
     if menu.kind == BrowserContextTargetKind::Sample && menu.collection.is_some() {
         actions.push(

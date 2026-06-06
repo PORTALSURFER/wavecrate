@@ -118,6 +118,7 @@ fn default_gui_removes_context_source_from_app_config() {
         kind: super::super::BrowserContextTargetKind::Source,
         path: source_root.path().to_path_buf(),
         source_id: Some(source_root.path().to_string_lossy().to_string()),
+        source_removable: true,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(12.0, 24.0),
@@ -130,4 +131,51 @@ fn default_gui_removes_context_source_from_app_config() {
     assert!(loaded.sources.is_empty());
     assert!(state.sample_status.contains("Removed source"));
     assert!(state.folder_browser.root_path().ends_with("assets"));
+}
+
+#[test]
+fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write sample");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 100)
+        .expect("new source requests scan");
+    let source_id = request.source_id.clone();
+    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    state.finish_folder_scan(result);
+    state.context_menu = Some(super::super::BrowserContextMenu {
+        kind: super::super::BrowserContextTargetKind::Source,
+        path: source_root.path().to_path_buf(),
+        source_id: Some(source_id.clone()),
+        source_removable: true,
+        metadata_tag: None,
+        collection: None,
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("source root"),
+    });
+    let visible_before = state.folder_browser.selected_audio_files().len();
+    let mut context = ui::UpdateContext::default();
+
+    state.refresh_context_source(&mut context);
+
+    assert_eq!(state.context_menu, None);
+    let task_id = state
+        .folder_progress
+        .as_ref()
+        .expect("refresh should show scan progress")
+        .task_id;
+    assert!(
+        state.folder_browser.scan_is_active(&source_id, task_id),
+        "refresh should queue the next background scan task"
+    );
+    assert_eq!(
+        state.folder_browser.selected_audio_files().len(),
+        visible_before,
+        "refresh should keep the current cached tree visible while the scan runs"
+    );
+    assert!(state.sample_status.contains("Scanning source"));
 }

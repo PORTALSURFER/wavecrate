@@ -26,14 +26,12 @@ impl GuiAppState {
             return;
         };
         let title = context_menu_title(&path);
-        let source_id = self
-            .folder_browser
-            .source_is_removable(&source_id)
-            .then_some(source_id);
+        let source_removable = self.folder_browser.source_is_removable(&source_id);
         self.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Source,
             path,
-            source_id,
+            source_id: Some(source_id),
+            source_removable,
             metadata_tag: None,
             collection: None,
             anchor: position,
@@ -76,6 +74,7 @@ impl GuiAppState {
             title: context_menu_title(&path),
             path,
             source_id: None,
+            source_removable: false,
             metadata_tag: None,
             collection: None,
             anchor: position,
@@ -118,6 +117,7 @@ impl GuiAppState {
             title: sample_path_label(&path),
             path,
             source_id: None,
+            source_removable: false,
             metadata_tag: None,
             collection,
             anchor: position,
@@ -133,6 +133,7 @@ impl GuiAppState {
             kind: BrowserContextTargetKind::MetadataTag,
             path: Path::new("").to_path_buf(),
             source_id: None,
+            source_removable: false,
             metadata_tag: Some(tag.clone()),
             collection: None,
             anchor: position,

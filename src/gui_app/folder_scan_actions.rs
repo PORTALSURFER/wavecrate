@@ -169,6 +169,51 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn refresh_source(
+        &mut self,
+        id: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let task_id = self.next_folder_task_id();
+        if let Some(request) = self.folder_browser.begin_source_scan(id, task_id) {
+            let label = request.label.clone();
+            self.context_menu = None;
+            emit_gui_action(
+                "folder_browser.source.refresh",
+                Some("sources"),
+                Some(&label),
+                "scan_queued",
+                started_at,
+                None,
+            );
+            self.launch_folder_scan(request, context);
+        } else {
+            self.context_menu = None;
+            self.sample_status = String::from("Source refresh is already running");
+            emit_gui_action(
+                "folder_browser.source.refresh",
+                Some("sources"),
+                None,
+                "short_circuit",
+                started_at,
+                Some("source_not_queued"),
+            );
+        }
+    }
+
+    pub(super) fn refresh_context_source(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let Some(menu) = self.context_menu.clone() else {
+            return;
+        };
+        let Some(source_id) = menu.source_id else {
+            self.context_menu = None;
+            self.sample_status = String::from("Source is unavailable");
+            return;
+        };
+        self.refresh_source(source_id, context);
+    }
+
     pub(super) fn maybe_startup_source_scan(
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,

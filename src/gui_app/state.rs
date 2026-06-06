@@ -177,6 +177,7 @@ pub(in crate::gui_app) enum GuiMessage {
     CopyContextPath,
     OpenContextTarget,
     MoveContextTargetToTrash,
+    RefreshContextSource,
     RemoveContextSource,
     CloseContextMenu,
     ToggleJobDetails,

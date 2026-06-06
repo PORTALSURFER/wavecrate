@@ -22,7 +22,7 @@ impl GuiAppState {
             );
             return;
         }
-        let Some(source_id) = menu.source_id else {
+        if !menu.source_removable {
             self.sample_status = String::from("Default source cannot be removed");
             emit_gui_action(
                 "browser.context_menu.source.remove",
@@ -31,6 +31,18 @@ impl GuiAppState {
                 "blocked",
                 started_at,
                 Some("source not removable"),
+            );
+            return;
+        }
+        let Some(source_id) = menu.source_id else {
+            self.sample_status = String::from("Source is unavailable");
+            emit_gui_action(
+                "browser.context_menu.source.remove",
+                Some("sources"),
+                Some(context_menu::target_label(&menu.path).as_str()),
+                "error",
+                started_at,
+                Some("source unavailable"),
             );
             return;
         };

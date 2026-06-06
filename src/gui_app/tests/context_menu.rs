@@ -6,6 +6,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         kind: super::super::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
         source_id: None,
+        source_removable: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -33,6 +34,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         kind: super::super::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
         source_id: None,
+        source_removable: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -70,6 +72,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         kind: super::super::BrowserContextTargetKind::Source,
         path: PathBuf::from("C:\\Samples"),
         source_id: Some(String::from("source_id::samples")),
+        source_removable: true,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -78,7 +81,27 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
     let frame = super::super::context_menu::overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
+    assert!(frame.paint_plan.contains_text("Refresh Source"));
     assert!(frame.paint_plan.contains_text("Remove Source"));
+}
+
+#[test]
+fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
+    let menu = super::super::BrowserContextMenu {
+        kind: super::super::BrowserContextTargetKind::Source,
+        path: PathBuf::from("C:\\Wavecrate\\assets"),
+        source_id: Some(String::from("assets")),
+        source_removable: false,
+        metadata_tag: None,
+        collection: None,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Assets"),
+    };
+    let frame = super::super::context_menu::overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text("Refresh Source"));
+    assert!(!frame.paint_plan.contains_text("Remove Source"));
 }
 
 #[test]
@@ -87,6 +110,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
         kind: super::super::BrowserContextTargetKind::Sample,
         path: PathBuf::from("C:\\Samples\\kick.wav"),
         source_id: None,
+        source_removable: false,
         metadata_tag: None,
         collection: wavecrate::sample_sources::SampleCollection::new(0),
         anchor: Point::new(72.0, 142.0),

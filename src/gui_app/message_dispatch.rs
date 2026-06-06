@@ -199,6 +199,7 @@ impl GuiAppState {
             GuiMessage::ContextTargetOpenFinished { kind, path, result } => {
                 self.finish_context_target_open(kind, path, result);
             }
+            GuiMessage::RefreshContextSource => self.refresh_context_source(context),
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
                 self.context_menu = None;

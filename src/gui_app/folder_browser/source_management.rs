@@ -189,10 +189,15 @@ impl FolderBrowserState {
         &mut self,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
-        let index = self
-            .sources
-            .iter()
-            .position(|source| source.id == self.selected_source)?;
+        self.begin_source_scan(self.selected_source.clone(), task_id)
+    }
+
+    pub(in crate::gui_app) fn begin_source_scan(
+        &mut self,
+        id: String,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        let index = self.sources.iter().position(|source| source.id == id)?;
         if self.sources[index].loading_task.is_some() {
             return None;
         }
