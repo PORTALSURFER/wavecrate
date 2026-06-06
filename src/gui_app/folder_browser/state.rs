@@ -228,7 +228,7 @@ impl FolderBrowserState {
         files
     }
 
-    fn selected_source_root_folder(&self) -> Option<&FolderEntry> {
+    pub(super) fn selected_source_root_folder(&self) -> Option<&FolderEntry> {
         self.folders.first().or_else(|| {
             self.sources
                 .iter()
@@ -295,6 +295,9 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);
+            }
+            FolderBrowserMessage::ClearDropTargetUnless(id, position) => {
+                self.clear_drop_target_folder_unless(&id, position);
             }
             FolderBrowserMessage::HoverDropTarget(id, position) => {
                 self.update_drag_pointer(position);

@@ -237,7 +237,7 @@ fn invalid_drag_hover_only_reports_when_it_can_clear_existing_target() {
             clearing_invalid
                 .handle_input(bounds, WidgetInput::pointer_move(Point::new(40.0, 9.0)),)
         ),
-        folder_message(FolderBrowserMessage::HoverDropTarget(
+        folder_message(FolderBrowserMessage::ClearDropTargetUnless(
             String::from("kicks"),
             Point::new(40.0, 9.0),
         )),

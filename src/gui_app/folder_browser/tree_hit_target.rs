@@ -56,8 +56,13 @@ impl FolderTreeHitTarget {
                 },
                 |id, drag| GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag)),
                 |id| GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id)),
-                |id, position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverDropTarget(id, position))
+                move |id, position| {
+                    let message = if drop_target_active && !drop_candidate {
+                        FolderBrowserMessage::ClearDropTargetUnless(id, position)
+                    } else {
+                        FolderBrowserMessage::HoverDropTarget(id, position)
+                    };
+                    GuiMessage::FolderBrowser(message)
                 },
             );
         Self {

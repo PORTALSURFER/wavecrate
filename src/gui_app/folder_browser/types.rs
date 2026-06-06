@@ -122,6 +122,7 @@ pub(in crate::gui_app) enum FolderBrowserMessage {
     OpenFolderContextMenu(String, Point),
     DragFolder(String, DragHandleMessage),
     HoverDropTarget(String, Point),
+    ClearDropTargetUnless(String, Point),
     ClearDropTarget(Point),
     DropOnFolder(String),
     ResizeCollectionsPanel(DragHandleMessage),

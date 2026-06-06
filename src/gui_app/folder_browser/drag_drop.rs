@@ -114,6 +114,22 @@ impl FolderBrowserState {
         }
     }
 
+    pub(in crate::gui_app) fn clear_drop_target_folder_unless(
+        &mut self,
+        retained_folder_id: &str,
+        position: Point,
+    ) {
+        self.update_drag_pointer(position);
+        if self
+            .drop_target
+            .current()
+            .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(folder_id) if folder_id == retained_folder_id))
+        {
+            return;
+        }
+        self.clear_drop_target_folder(position);
+    }
+
     pub(in crate::gui_app) fn hovered_drop_target_folder_id(&self) -> Option<String> {
         match self.drop_target.current() {
             Some(FolderBrowserDropTarget::Folder(folder_id)) => Some(folder_id.clone()),
@@ -223,10 +239,7 @@ impl FolderBrowserState {
             }
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| {
                 let path = Path::new(id);
-                self.selected_audio_files()
-                    .iter()
-                    .any(|file| file.id == *id)
-                    && path.parent() != Some(target_path)
+                self.source_contains_audio_file(id) && path.parent() != Some(target_path)
             }),
             Some(FolderBrowserDrag::ExtractedFile { path }) => {
                 path.is_file() && path.parent() != Some(target_path)
@@ -234,4 +247,20 @@ impl FolderBrowserState {
             None => false,
         }
     }
+
+    fn source_contains_audio_file(&self, file_id: &str) -> bool {
+        self.selected_source_root_folder()
+            .is_some_and(|folder| folder_contains_audio_file(folder, file_id))
+    }
+}
+
+fn folder_contains_audio_file(folder: &super::FolderEntry, file_id: &str) -> bool {
+    folder
+        .files
+        .iter()
+        .any(|file| file.id == file_id && file.is_audio())
+        || folder
+            .children
+            .iter()
+            .any(|child| folder_contains_audio_file(child, file_id))
 }
