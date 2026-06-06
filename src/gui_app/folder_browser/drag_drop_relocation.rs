@@ -62,6 +62,7 @@ impl FolderBrowserState {
             .map(|id| rewrite_path_id(id, old_path, new_path))
             .collect();
         self.expanded_folders.insert(target_parent_id);
+        self.bump_file_content_revision();
         Ok(())
     }
 
@@ -128,6 +129,7 @@ impl FolderBrowserState {
         self.selected_folder = target_parent_id.clone();
         self.reset_file_view();
         self.expanded_folders.insert(target_parent_id);
+        self.bump_file_content_revision();
         Ok(())
     }
 }

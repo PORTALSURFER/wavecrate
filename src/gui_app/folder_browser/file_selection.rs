@@ -77,6 +77,7 @@ impl FolderBrowserState {
             let root = self.sources[index].root.clone();
             self.sources[index].root_folder = Some(load_root_folder(root));
             self.sources[index].loading_task = None;
+            self.bump_file_content_revision();
         }
     }
 
@@ -426,6 +427,7 @@ impl FolderBrowserState {
         };
         upsert_file(&mut parent_folder.files, file_entry(&path.to_path_buf()));
         self.folders = vec![root_folder.clone()];
+        self.bump_file_content_revision();
         true
     }
 
@@ -445,6 +447,9 @@ impl FolderBrowserState {
             if source.id == self.selected_source {
                 self.folders = vec![root_folder.clone()];
             }
+        }
+        if changed {
+            self.bump_file_content_revision();
         }
         changed
     }

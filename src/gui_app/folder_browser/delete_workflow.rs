@@ -111,6 +111,7 @@ impl FolderBrowserState {
         self.selected_file = None;
         self.selected_file_ids.clear();
         self.expanded_folders.retain(|id| id != &folder_id);
+        self.bump_file_content_revision();
         true
     }
 
@@ -145,6 +146,7 @@ impl FolderBrowserState {
             self.selected_file = None;
         }
         self.selected_file_ids.retain(|id| !target_ids.contains(id));
+        self.bump_file_content_revision();
         true
     }
 }

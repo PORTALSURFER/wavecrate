@@ -189,7 +189,21 @@ impl FolderBrowserState {
         &mut self,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
-        self.begin_select_source(self.selected_source.clone(), task_id)
+        let index = self
+            .sources
+            .iter()
+            .position(|source| source.id == self.selected_source)?;
+        if self.sources[index].loading_task.is_some() {
+            return None;
+        }
+        self.sources[index].loading_task = Some(task_id);
+        let source = self.sources[index].clone();
+        Some(FolderScanRequest {
+            task_id,
+            source_id: source.id,
+            label: source.label,
+            root: source.root,
+        })
     }
 
     pub(in crate::gui_app) fn selected_source_loaded(&self) -> bool {
@@ -216,6 +230,8 @@ impl FolderBrowserState {
         source.root_folder = Some(result.folder.clone());
         if should_select {
             self.select_loaded_source(source_id, result.folder);
+        } else {
+            self.bump_file_content_revision();
         }
         true
     }
@@ -256,6 +272,7 @@ impl FolderBrowserState {
         }
         if changed && self.selected_source == batch.source_id {
             self.folders = vec![root_folder.clone()];
+            self.bump_file_content_revision();
         }
         changed
     }
@@ -274,6 +291,7 @@ impl FolderBrowserState {
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![folder];
+        self.bump_file_content_revision();
     }
 
     fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
@@ -290,6 +308,7 @@ impl FolderBrowserState {
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
+        self.bump_file_content_revision();
     }
 
     fn install_default_assets_source(&mut self) {

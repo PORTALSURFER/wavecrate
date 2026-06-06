@@ -41,7 +41,7 @@ impl FolderTreeHitTarget {
                 drop_target_active,
             )
             .custom_paint_hit_target();
-        if drag_active || drop_target_active {
+        if (drag_active || drop_target_active) && !drop_target {
             row = row.clear_hover_on_sync();
         }
         let row = row.widget();

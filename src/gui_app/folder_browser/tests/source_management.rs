@@ -104,10 +104,11 @@ fn deferred_sample_sources_reuse_persisted_scan_cache() {
     let mut reloaded = FolderBrowserState::from_sample_sources_deferred(&sources);
 
     assert!(reloaded.selected_source_loaded());
-    assert!(
-        reloaded.begin_selected_source_scan(7).is_none(),
-        "cached selected source should not queue a startup scan"
-    );
+    let request = reloaded
+        .begin_selected_source_scan(7)
+        .expect("cached selected source should still queue a refresh scan");
+    assert_eq!(request.root, root);
+    assert!(reloaded.scan_is_active(&request.source_id, 7));
     reloaded.activate_folder(path_id(&drums));
     assert_eq!(
         reloaded

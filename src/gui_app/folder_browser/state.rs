@@ -1,5 +1,6 @@
 use radiant::{gui::types::Point, prelude as ui};
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     path::PathBuf,
 };
@@ -46,12 +47,29 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) file_view_controller: ui::VirtualListController,
     pub(super) tree_view_follow_selection: ui::VirtualListFollowState<String>,
     pub(super) file_view_follow_selection: ui::VirtualListFollowState<String>,
+    file_content_revision: u64,
+    selected_audio_projection_cache: RefCell<Option<SelectedAudioProjectionCache>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) enum FolderBrowserDropTarget {
     Folder(String),
     Collection(SampleCollection),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SelectedAudioProjectionCache {
+    key: SelectedAudioProjectionKey,
+    indices: Vec<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SelectedAudioProjectionKey {
+    folder_id: String,
+    name_filter: String,
+    sort_column_id: String,
+    sort_descending: bool,
+    content_revision: u64,
 }
 
 impl FolderBrowserState {
@@ -117,6 +135,8 @@ impl FolderBrowserState {
             file_view_controller: ui::VirtualListController::default(),
             tree_view_follow_selection: ui::VirtualListFollowState::default(),
             file_view_follow_selection: ui::VirtualListFollowState::default(),
+            file_content_revision: 0,
+            selected_audio_projection_cache: RefCell::new(None),
         }
     }
 
@@ -140,21 +160,23 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn selected_audio_files(&self) -> Vec<&FileEntry> {
-        let mut files = if let Some(collection) = self.selected_collection {
+        if let Some(collection) = self.selected_collection {
             let mut files = Vec::new();
             if let Some(folder) = self.selected_source_root_folder() {
                 collect_collection_audio_files(folder, collection, &mut files);
             }
-            files
-        } else {
-            self.selected_files()
-                .iter()
-                .filter(|file| file.is_audio())
-                .collect::<Vec<_>>()
+            filter_audio_files_by_name(&mut files, &self.name_filter);
+            self.sort_files(&mut files);
+            return files;
+        }
+
+        let Some(folder) = self.selected_folder() else {
+            return Vec::new();
         };
-        filter_audio_files_by_name(&mut files, &self.name_filter);
-        self.sort_files(&mut files);
-        files
+        self.selected_folder_audio_file_indices(folder)
+            .into_iter()
+            .filter_map(|index| folder.files.get(index))
+            .collect()
     }
 
     pub(in crate::gui_app) fn selected_audio_files_matching_tags(
@@ -323,6 +345,79 @@ impl FolderBrowserState {
             FolderBrowserMessage::HoverCollectionDropTarget(collection, position) => {
                 self.hover_drop_target_collection(collection, position);
             }
+        }
+    }
+
+    pub(super) fn bump_file_content_revision(&mut self) {
+        self.file_content_revision = self.file_content_revision.saturating_add(1);
+        self.selected_audio_projection_cache.get_mut().take();
+    }
+
+    fn selected_folder_audio_file_indices(&self, folder: &FolderEntry) -> Vec<usize> {
+        let key = SelectedAudioProjectionKey {
+            folder_id: folder.id.clone(),
+            name_filter: normalized_name_filter(&self.name_filter),
+            sort_column_id: self.file_sort.column_id.clone(),
+            sort_descending: self.file_sort.direction == ui::SortDirection::Descending,
+            content_revision: self.file_content_revision,
+        };
+        if let Some(cache) = self.selected_audio_projection_cache.borrow().as_ref()
+            && cache.key == key
+        {
+            return cache.indices.clone();
+        }
+
+        let mut indices = folder
+            .files
+            .iter()
+            .enumerate()
+            .filter(|(_, file)| {
+                file.is_audio() && audio_file_matches_name_query(file, &key.name_filter)
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        self.sort_file_indices(folder, &mut indices);
+        *self.selected_audio_projection_cache.borrow_mut() = Some(SelectedAudioProjectionCache {
+            key,
+            indices: indices.clone(),
+        });
+        indices
+    }
+
+    fn sort_file_indices(&self, folder: &FolderEntry, indices: &mut [usize]) {
+        match self.file_sort.column_id.as_str() {
+            "extension" => indices.sort_by_cached_key(|index| {
+                let file = &folder.files[*index];
+                (file.extension.to_ascii_lowercase(), file.name_sort_key())
+            }),
+            "size" => indices.sort_by_cached_key(|index| {
+                let file = &folder.files[*index];
+                (file.size_bytes, file.name_sort_key())
+            }),
+            "modified" => indices.sort_by_cached_key(|index| {
+                let file = &folder.files[*index];
+                (file.modified_rank, file.name_sort_key())
+            }),
+            "kind" => indices.sort_by_cached_key(|index| {
+                let file = &folder.files[*index];
+                (file.kind.clone(), file.name_sort_key())
+            }),
+            "rating" => indices.sort_by_cached_key(|index| {
+                let file = &folder.files[*index];
+                (file.rating.val(), file.name_sort_key())
+            }),
+            "collection" => indices.sort_by_cached_key(|index| {
+                let file = &folder.files[*index];
+                (
+                    file.first_collection().map(|collection| collection.index()),
+                    file.name_sort_key(),
+                )
+            }),
+            "path" => indices.sort_by(|a, b| folder.files[*a].id.cmp(&folder.files[*b].id)),
+            _ => indices.sort_by_cached_key(|index| folder.files[*index].name_sort_key()),
+        }
+        if self.file_sort.direction == ui::SortDirection::Descending {
+            indices.reverse();
         }
     }
 }

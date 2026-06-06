@@ -204,6 +204,24 @@ fn drag_candidate_refresh_clears_retained_hover() {
 }
 
 #[test]
+fn active_drop_target_refresh_preserves_retained_hover() {
+    let mut previous = folder_hit_target("loops", false, true, true, false, true, true);
+    previous.handle_input(
+        row_bounds(),
+        WidgetInput::pointer_move(Point::new(40.0, 9.0)),
+    );
+    assert!(is_hovered(&previous));
+
+    let mut refreshed = folder_hit_target("loops", false, true, true, false, true, true);
+    refreshed.synchronize_from_previous(&previous);
+
+    assert!(
+        is_hovered(&refreshed),
+        "active folder drop targets must keep hover feedback across drag-state refreshes"
+    );
+}
+
+#[test]
 fn invalid_drag_hover_only_reports_when_it_can_clear_existing_target() {
     let bounds = row_bounds();
     let mut quiet_invalid = folder_hit_target("kicks", false, false, true, false, false, false);

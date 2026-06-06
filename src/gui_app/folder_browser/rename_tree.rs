@@ -39,6 +39,7 @@ impl FolderBrowserState {
             .iter()
             .map(|id| rewrite_path_id(id, old_path, new_path))
             .collect();
+        self.bump_file_content_revision();
     }
 
     pub(super) fn rewrite_renamed_file_path(&mut self, old_path: &Path, new_path: &Path) {
@@ -57,6 +58,7 @@ impl FolderBrowserState {
         self.selected_file = Some(new_id);
         self.selected_file_ids.clear();
         self.selected_file_ids.insert(path_id(new_path));
+        self.bump_file_content_revision();
     }
 
     pub(super) fn discard_pending_created_folder(&mut self) {
@@ -97,6 +99,7 @@ impl FolderBrowserState {
         let changed = root_folder.remove_child_by_id(folder_id);
         if changed {
             self.folders = vec![root_folder.clone()];
+            self.bump_file_content_revision();
         }
         changed
     }
@@ -118,6 +121,7 @@ impl FolderBrowserState {
         let changed = upsert_folder(&mut parent.children, folder);
         if changed {
             self.folders = vec![root_folder.clone()];
+            self.bump_file_content_revision();
         }
         changed
     }

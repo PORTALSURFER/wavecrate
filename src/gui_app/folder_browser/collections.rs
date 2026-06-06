@@ -134,6 +134,9 @@ impl FolderBrowserState {
                 updated |= root_folder.set_file_collection(path_id.as_ref(), collection);
             }
         }
+        if updated {
+            self.bump_file_content_revision();
+        }
         updated
     }
 
@@ -153,6 +156,9 @@ impl FolderBrowserState {
             }
         }
         self.reconcile_active_collection_selection(collection);
+        if updated {
+            self.bump_file_content_revision();
+        }
         updated
     }
 
