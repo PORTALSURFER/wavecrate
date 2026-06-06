@@ -63,7 +63,10 @@ impl GuiAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) -> bool {
         let should_cancel = match drop.phase {
-            NativeFileDropPhase::Hover => false,
+            NativeFileDropPhase::Hover => drop
+                .path
+                .as_deref()
+                .is_some_and(|path| self.is_pending_internal_file_drag_path(path)),
             NativeFileDropPhase::Cancel => !self.pending_internal_file_drag_paths.is_empty(),
             NativeFileDropPhase::Drop => drop
                 .path
@@ -74,7 +77,9 @@ impl GuiAppState {
             return false;
         }
         self.native_file_drop_hover = None;
-        self.clear_pending_internal_file_drag_paths();
+        if !matches!(drop.phase, NativeFileDropPhase::Hover) {
+            self.clear_pending_internal_file_drag_paths();
+        }
         context.end_drag_session();
         self.sample_status = String::from("Drag cancelled");
         true

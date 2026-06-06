@@ -243,6 +243,13 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
     );
 
     state.apply_native_file_drop(
+        NativeFileDrop::hover(source.clone(), Some(Point::new(80.0, 40.0)), None),
+        &mut context,
+    );
+    assert_eq!(state.native_file_drop_hover, None);
+    assert_eq!(state.sample_status, "Drag cancelled");
+
+    state.apply_native_file_drop(
         NativeFileDrop::dropped(source.clone(), Some(Point::new(80.0, 40.0)), None),
         &mut context,
     );
