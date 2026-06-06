@@ -202,6 +202,87 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn refresh_source_after_filesystem_change(
+        &mut self,
+        source_id: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if self.folder_browser.source_root_path(&source_id).is_none() {
+            self.pending_source_refreshes.remove(&source_id);
+            emit_gui_action(
+                "folder_browser.source.filesystem_change",
+                Some("sources"),
+                Some(&source_id),
+                "ignored",
+                started_at,
+                Some("source_not_found"),
+            );
+            return;
+        }
+        if self.folder_progress.is_some() {
+            self.pending_source_refreshes.insert(source_id.clone());
+            emit_gui_action(
+                "folder_browser.source.filesystem_change",
+                Some("sources"),
+                Some(&source_id),
+                "deferred",
+                started_at,
+                Some("scan_already_running"),
+            );
+            return;
+        }
+        self.queue_filesystem_source_refresh(source_id, started_at, context);
+    }
+
+    pub(super) fn maybe_run_pending_source_refresh(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if self.folder_progress.is_some() {
+            return;
+        }
+        let Some(source_id) = self.pending_source_refreshes.iter().next().cloned() else {
+            return;
+        };
+        self.pending_source_refreshes.remove(&source_id);
+        self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+    }
+
+    fn queue_filesystem_source_refresh(
+        &mut self,
+        source_id: String,
+        started_at: Instant,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let task_id = self.next_folder_task_id();
+        if let Some(request) = self
+            .folder_browser
+            .begin_source_scan(source_id.clone(), task_id)
+        {
+            let label = request.label.clone();
+            emit_gui_action(
+                "folder_browser.source.filesystem_change",
+                Some("sources"),
+                Some(&label),
+                "scan_queued",
+                started_at,
+                None,
+            );
+            self.launch_folder_scan(request, context);
+            return;
+        }
+        self.pending_source_refreshes.insert(source_id.clone());
+        emit_gui_action(
+            "folder_browser.source.filesystem_change",
+            Some("sources"),
+            Some(&source_id),
+            "deferred",
+            started_at,
+            Some("source_not_queued"),
+        );
+    }
+
     pub(super) fn refresh_context_source(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         let Some(menu) = self.context_menu.clone() else {
             return;
@@ -316,6 +397,7 @@ impl GuiAppState {
             self.refresh_persisted_metadata_tags_for_source(&source_id);
             self.refresh_persisted_waveform_cache_indicators();
             self.persist_user_configuration("folder_browser.sources.persist", started_at);
+            self.sync_source_watcher();
         } else {
             emit_gui_action(
                 "folder_browser.scan.finish",

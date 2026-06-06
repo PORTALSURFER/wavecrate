@@ -27,6 +27,10 @@ fn default_gui_loads_persisted_sources_and_audio_output() {
     let state = GuiAppState::load_default().expect("default state loads persisted config");
 
     assert_eq!(state.folder_browser.root_path(), source_root.path());
+    assert!(
+        state.startup_source_scan_pending,
+        "configured sources should always refresh on startup"
+    );
     assert_eq!(state.audio_output_config.host.as_deref(), Some("test-host"));
     assert_eq!(
         state.audio_output_config.device.as_deref(),
@@ -63,6 +67,10 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
     let state = GuiAppState::load_default().expect("default state loads persisted cache");
 
     assert!(state.folder_browser.selected_source_loaded());
+    assert!(
+        state.startup_source_scan_pending,
+        "cached source trees should still be refreshed and pruned after startup"
+    );
     assert!(
         state.cached_sample_paths.contains(&sample_id),
         "startup should mark cached rows bright when source contents are restored from scan cache"
@@ -178,4 +186,97 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         "refresh should keep the current cached tree visible while the scan runs"
     );
     assert!(state.sample_status.contains("Scanning source"));
+}
+
+#[test]
+fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write sample");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 100)
+        .expect("new source requests scan");
+    let source_id = request.source_id.clone();
+    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    state.finish_folder_scan(result);
+    let visible_before = state.folder_browser.selected_audio_files().len();
+    let mut context = ui::UpdateContext::default();
+
+    state.apply_message(
+        super::super::GuiMessage::SourceFilesystemChanged {
+            source_id: source_id.clone(),
+        },
+        &mut context,
+    );
+
+    let task_id = state
+        .folder_progress
+        .as_ref()
+        .expect("filesystem change should show scan progress")
+        .task_id;
+    assert!(state.folder_browser.scan_is_active(&source_id, task_id));
+    assert_eq!(
+        state.folder_browser.selected_audio_files().len(),
+        visible_before,
+        "live sync should keep the current cached tree visible while the scan runs"
+    );
+}
+
+#[test]
+fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write sample");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 100)
+        .expect("new source requests scan");
+    let source_id = request.source_id.clone();
+    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    state.finish_folder_scan(result);
+    let mut context = ui::UpdateContext::default();
+    state.refresh_source_after_filesystem_change(source_id.clone(), &mut context);
+
+    state.apply_message(
+        super::super::GuiMessage::SourceFilesystemChanged {
+            source_id: source_id.clone(),
+        },
+        &mut context,
+    );
+    assert!(state.pending_source_refreshes.contains(&source_id));
+
+    let active_task = state
+        .folder_progress
+        .as_ref()
+        .expect("first refresh should be active")
+        .task_id;
+    assert!(
+        state.folder_browser.scan_is_active(&source_id, active_task),
+        "first scan should still own the active task"
+    );
+    let finished = super::super::folder_browser::scan_source_with_progress(
+        super::super::folder_browser::FolderScanRequest {
+            task_id: active_task,
+            source_id: source_id.clone(),
+            label: String::from("source"),
+            root: source_root.path().to_path_buf(),
+        },
+        |_| {},
+        |_| {},
+    );
+    state.finish_folder_scan(finished);
+    state.maybe_run_pending_source_refresh(&mut context);
+
+    let next_task = state
+        .folder_progress
+        .as_ref()
+        .expect("pending refresh should start after active scan")
+        .task_id;
+    assert_ne!(next_task, active_task);
+    assert!(state.folder_browser.scan_is_active(&source_id, next_task));
 }

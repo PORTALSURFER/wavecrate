@@ -196,6 +196,40 @@ fn selected_source_refresh_prunes_deleted_cached_folders_on_finish() {
 }
 
 #[test]
+fn selected_source_refresh_prunes_deleted_cached_files_on_finish() {
+    let root = temp_source_root("wavecrate-gui-source-refresh-prune-file");
+    let drums = root.join("drums");
+    let stale_sample = drums.join("stale.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&stale_sample, [0_u8; 8]).expect("write stale sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["stale.wav"]
+    );
+    fs::remove_file(&stale_sample).expect("remove stale sample");
+
+    let request = browser
+        .begin_selected_source_scan(94)
+        .expect("selected source refresh should queue");
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    assert!(browser.apply_scan_finished(result));
+
+    browser.activate_folder(path_id(&drums));
+    assert!(
+        browser.selected_audio_files().is_empty(),
+        "refresh should remove deleted samples from the selected folder listing"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn completed_scan_discovery_prunes_deleted_root_child_before_finish() {
     let root = temp_source_root("wavecrate-gui-source-discovery-prune-root");
     let keep = root.join("keep");

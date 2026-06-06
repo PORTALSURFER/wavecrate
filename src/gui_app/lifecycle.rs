@@ -21,9 +21,14 @@ impl GuiAppState {
             .map_err(|err| format!("load app configuration: {err}"))?;
         let has_configured_sources = !config.sources.is_empty();
         let folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
-        let startup_source_scan_pending =
-            has_configured_sources && !folder_browser.selected_source_loaded();
+        let startup_source_scan_pending = has_configured_sources;
         let (worker_sender, worker_receiver) = mpsc::channel();
+        let source_watcher = has_configured_sources.then(|| {
+            super::source_watcher::GuiSourceWatcherHandle::spawn(
+                config.sources.clone(),
+                worker_sender.clone(),
+            )
+        });
         let mut state = Self {
             folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
             folder_browser,
@@ -38,6 +43,8 @@ impl GuiAppState {
             audio_open_task: ui::LatestTask::new(),
             audio_open_results: Default::default(),
             folder_progress: None,
+            pending_source_refreshes: Default::default(),
+            source_watcher,
             normalization_progress: None,
             progress_tick: 0.0,
             frame_cadence: ui::FrameCadenceMonitor::new(),
@@ -103,6 +110,23 @@ impl GuiAppState {
             None,
         );
         Ok(state)
+    }
+
+    pub(super) fn sync_source_watcher(&mut self) {
+        let sources = self.folder_browser.configured_sample_sources();
+        if sources.is_empty() {
+            self.source_watcher = None;
+            return;
+        }
+        match &self.source_watcher {
+            Some(watcher) => watcher.replace_sources(sources),
+            None => {
+                self.source_watcher = Some(super::source_watcher::GuiSourceWatcherHandle::spawn(
+                    sources,
+                    self.worker_sender.clone(),
+                ));
+            }
+        }
     }
 
     pub(super) fn persist_user_configuration(&mut self, action: &'static str, started_at: Instant) {

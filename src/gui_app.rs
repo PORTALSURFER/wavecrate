@@ -33,6 +33,7 @@ mod sample_load_actions;
 mod sample_ratings;
 mod selected_file_actions;
 mod shortcuts;
+mod source_watcher;
 mod state;
 mod status_bar;
 mod toolbar;

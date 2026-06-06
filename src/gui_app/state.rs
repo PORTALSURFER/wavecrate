@@ -23,6 +23,7 @@ use super::folder_browser::{
     FolderScanResult,
 };
 use super::metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
+use super::source_watcher::GuiSourceWatcherHandle;
 use super::transaction_history::TransactionHistory;
 use super::waveform::{WaveformFile, WaveformInteraction, WaveformState};
 
@@ -97,6 +98,9 @@ pub(in crate::gui_app) enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
+    SourceFilesystemChanged {
+        source_id: String,
+    },
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),
     SelectSampleWithModifiers {
@@ -275,6 +279,8 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) audio_open_results:
         Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
     pub(in crate::gui_app) folder_progress: Option<FolderScanProgress>,
+    pub(in crate::gui_app) pending_source_refreshes: HashSet<String>,
+    pub(in crate::gui_app) source_watcher: Option<GuiSourceWatcherHandle>,
     pub(in crate::gui_app) normalization_progress: Option<NormalizationProgress>,
     pub(in crate::gui_app) progress_tick: f32,
     pub(in crate::gui_app) frame_cadence: ui::FrameCadenceMonitor,

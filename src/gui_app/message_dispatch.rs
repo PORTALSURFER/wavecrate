@@ -65,6 +65,9 @@ impl GuiAppState {
                 self.apply_folder_scan_discovery_batch(batch);
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
+            GuiMessage::SourceFilesystemChanged { source_id } => {
+                self.refresh_source_after_filesystem_change(source_id, context);
+            }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);
             }
@@ -246,6 +249,7 @@ impl GuiAppState {
             GuiMessage::Frame => {
                 self.maybe_open_audio_player(context);
                 self.maybe_startup_source_scan(context);
+                self.maybe_run_pending_source_refresh(context);
                 self.maybe_auto_load_startup_sample(context);
                 self.maybe_start_waveform_cache_warm(context);
                 self.advance_frame();

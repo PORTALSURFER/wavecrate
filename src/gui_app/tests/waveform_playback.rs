@@ -240,6 +240,8 @@ fn sample_selection_loads_selected_file_into_waveform() {
         audio_open_task: ui::LatestTask::new(),
         audio_open_results: Default::default(),
         folder_progress: None,
+        pending_source_refreshes: Default::default(),
+        source_watcher: None,
         normalization_progress: None,
         progress_tick: 0.0,
         frame_cadence: ui::FrameCadenceMonitor::new(),

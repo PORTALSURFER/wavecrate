@@ -58,6 +58,7 @@ impl GuiAppState {
                 }
                 self.sample_status = format!("Removed source {}", removed.label);
                 self.persist_user_configuration("folder_browser.source.remove.persist", started_at);
+                self.sync_source_watcher();
                 emit_gui_action(
                     "browser.context_menu.source.remove",
                     Some("sources"),
