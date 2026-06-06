@@ -19,6 +19,9 @@ impl GuiAppState {
             self.apply_native_file_drop_during_browser_drag(drop, context);
             return;
         }
+        if self.cancel_pending_internal_file_drag_drop(&drop, context) {
+            return;
+        }
         let over_waveform = native_file_drop_targets_waveform(drop.target_widget);
         match drop.phase {
             NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path, over_waveform),
@@ -47,10 +50,34 @@ impl GuiAppState {
             NativeFileDropPhase::Hover => {}
             NativeFileDropPhase::Cancel | NativeFileDropPhase::Drop => {
                 self.folder_browser.clear_drag();
+                self.clear_pending_internal_file_drag_paths();
                 context.end_drag_session();
                 self.sample_status = String::from("Drag cancelled");
             }
         }
+    }
+
+    fn cancel_pending_internal_file_drag_drop(
+        &mut self,
+        drop: &NativeFileDrop,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) -> bool {
+        let should_cancel = match drop.phase {
+            NativeFileDropPhase::Hover => false,
+            NativeFileDropPhase::Cancel => !self.pending_internal_file_drag_paths.is_empty(),
+            NativeFileDropPhase::Drop => drop
+                .path
+                .as_deref()
+                .is_some_and(|path| self.is_pending_internal_file_drag_path(path)),
+        };
+        if !should_cancel {
+            return false;
+        }
+        self.native_file_drop_hover = None;
+        self.clear_pending_internal_file_drag_paths();
+        context.end_drag_session();
+        self.sample_status = String::from("Drag cancelled");
+        true
     }
 
     fn track_native_file_hover(&mut self, path: Option<PathBuf>, over_waveform: bool) {

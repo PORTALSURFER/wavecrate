@@ -67,6 +67,7 @@ impl GuiAppState {
             pending_playback_start: None,
             pending_sample_playback: None,
             native_file_drop_hover: None,
+            pending_internal_file_drag_paths: Default::default(),
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),
             metadata_tag_input_mode: Default::default(),

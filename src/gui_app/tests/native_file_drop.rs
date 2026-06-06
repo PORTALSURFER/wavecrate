@@ -1,4 +1,5 @@
 use super::{gui_state_for_span_tests, temp_gui_root, write_test_wav_i16};
+use radiant::widgets::DragHandleMessage;
 use radiant::{gui::types::Point, prelude as ui, runtime::NativeFileDrop};
 use std::fs;
 
@@ -187,6 +188,62 @@ fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(source.clone(), Some(Point::new(8.0, 8.0)), None),
+        &mut context,
+    );
+
+    assert!(source.is_file());
+    assert!(!drums.join("kick_copy001.wav").exists());
+    assert!(!loops.join("kick.wav").exists());
+    assert!(!state.folder_browser.drag_active());
+    assert_eq!(state.sample_status, "Drag cancelled");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copying() {
+    let root = temp_gui_root("wavecrate-native-file-drop-internal-release-root");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums");
+    fs::create_dir_all(&loops).expect("create loops");
+    let source = drums.join("kick.wav");
+    write_test_wav_i16(&source, &[0, 100, -100]);
+    let source_id = source.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = crate::gui_app::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(root.clone()),
+    ]);
+    state
+        .folder_browser
+        .apply_message(crate::gui_app::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+        ));
+    state.folder_browser.select_file(source_id.clone());
+    let mut context = ui::UpdateContext::default();
+
+    state.apply_message(
+        crate::gui_app::GuiMessage::DragSampleFile {
+            path: source_id.clone(),
+            drag: DragHandleMessage::started(Point::new(4.0, 8.0)),
+        },
+        &mut context,
+    );
+    state
+        .folder_browser
+        .apply_message(crate::gui_app::FolderBrowserMessage::HoverDropTarget(
+            loops.display().to_string(),
+            Point::new(16.0, 18.0),
+        ));
+    state.apply_message(
+        crate::gui_app::GuiMessage::DragSampleFile {
+            path: source_id,
+            drag: DragHandleMessage::ended(Point::new(80.0, 40.0)),
+        },
+        &mut context,
+    );
+
+    state.apply_native_file_drop(
+        NativeFileDrop::dropped(source.clone(), Some(Point::new(80.0, 40.0)), None),
         &mut context,
     );
 

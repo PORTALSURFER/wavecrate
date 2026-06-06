@@ -303,6 +303,7 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) pending_playback_start: Option<PendingPlaybackStart>,
     pub(in crate::gui_app) pending_sample_playback: Option<PendingSamplePlayback>,
     pub(in crate::gui_app) native_file_drop_hover: Option<NativeFileDropHover>,
+    pub(in crate::gui_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
     pub(in crate::gui_app) metadata_tag_draft: String,
     pub(in crate::gui_app) metadata_tag_tokens: Vec<String>,
     pub(in crate::gui_app) metadata_tag_input_mode: MetadataTagInputMode,

@@ -1,6 +1,10 @@
 use radiant::prelude as ui;
 use radiant::widgets::{DragHandleMessage, DragHandlePhase};
-use std::{fs, path::PathBuf, time::Instant};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 use wavecrate::external_clipboard;
 
 use super::{
@@ -23,7 +27,12 @@ impl GuiAppState {
             DragHandlePhase::Moved => {
                 self.folder_browser.update_drag_pointer(drag.position());
             }
-            _ if drag.is_finished() => {
+            DragHandlePhase::Ended => {
+                self.folder_browser.clear_drag();
+                context.end_drag_session();
+            }
+            DragHandlePhase::Cancelled => {
+                self.clear_pending_internal_file_drag_paths();
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
             }
@@ -58,6 +67,7 @@ impl GuiAppState {
                 }
             }
             DragHandlePhase::Cancelled => {
+                self.clear_pending_internal_file_drag_paths();
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
             }
@@ -108,7 +118,13 @@ impl GuiAppState {
                 self.folder_browser.update_drag_pointer(drag.position());
                 true
             }
-            _ if drag.is_finished() => {
+            DragHandlePhase::Ended => {
+                self.folder_browser.clear_drag();
+                context.end_drag_session();
+                true
+            }
+            DragHandlePhase::Cancelled => {
+                self.clear_pending_internal_file_drag_paths();
                 self.folder_browser.clear_drag();
                 context.end_drag_session();
                 true
@@ -143,6 +159,7 @@ impl GuiAppState {
             return;
         };
         context.end_drag_session();
+        self.clear_pending_internal_file_drag_paths();
         self.folder_browser.clear_drag();
         self.folder_browser.refresh_file_path(&path);
         self.sample_status = format!("Extracted {}", sample_path_label(&path));
@@ -161,6 +178,7 @@ impl GuiAppState {
             )
         });
         let external = self.folder_browser.external_drag_request();
+        self.arm_pending_internal_file_drag_paths(external.as_ref());
 
         context.begin_drag_session(drag, external, GuiMessage::ExternalDragCompleted);
     }
@@ -217,6 +235,7 @@ impl GuiAppState {
     ) {
         context.end_drag();
         self.folder_browser.clear_drag();
+        self.clear_pending_internal_file_drag_paths();
         self.sample_status = match result {
             Ok(outcome) if outcome.accepted() => match outcome.effect {
                 ui::ExternalDragEffect::Copy => String::from("Dragged item externally"),
@@ -236,6 +255,7 @@ impl GuiAppState {
     ) {
         let started_at = Instant::now();
         context.end_drag_session();
+        self.clear_pending_internal_file_drag_paths();
         match self.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(result) => {
                 self.apply_moved_sample_paths(&result.moved_paths);
@@ -320,4 +340,30 @@ impl GuiAppState {
             self.remap_renamed_waveform_cache_path(old_path, new_path);
         }
     }
+
+    pub(super) fn arm_pending_internal_file_drag_paths(
+        &mut self,
+        request: Option<&ui::ExternalDragRequest>,
+    ) {
+        self.pending_internal_file_drag_paths.clear();
+        let Some(ui::ExternalDragPayload::Files(paths)) = request.map(|request| &request.payload)
+        else {
+            return;
+        };
+        self.pending_internal_file_drag_paths
+            .extend(paths.iter().map(|path| normalized_drag_path(path)));
+    }
+
+    pub(super) fn clear_pending_internal_file_drag_paths(&mut self) {
+        self.pending_internal_file_drag_paths.clear();
+    }
+
+    pub(super) fn is_pending_internal_file_drag_path(&self, path: &Path) -> bool {
+        self.pending_internal_file_drag_paths
+            .contains(&normalized_drag_path(path))
+    }
+}
+
+fn normalized_drag_path(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
