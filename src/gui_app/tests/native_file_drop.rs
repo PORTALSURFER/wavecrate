@@ -164,6 +164,36 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
 }
 
 #[test]
+fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
+    let root = temp_gui_root("wavecrate-native-file-drop-same-folder-root");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums");
+    let source = drums.join("kick.wav");
+    write_test_wav_i16(&source, &[0, 100, -100]);
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = crate::gui_app::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(root.clone()),
+    ]);
+    state
+        .folder_browser
+        .apply_message(crate::gui_app::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+        ));
+    let mut context = ui::UpdateContext::default();
+
+    state.apply_native_file_drop(
+        NativeFileDrop::dropped(source.clone(), Some(Point::new(8.0, 8.0)), None),
+        &mut context,
+    );
+
+    assert!(source.is_file());
+    assert!(!drums.join("kick_copy001.wav").exists());
+    assert_eq!(state.sample_status, "Drag cancelled");
+    assert!(state.deferred_sample_load_task.active().is_none());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
     let root = temp_gui_root("wavecrate-native-file-drop-internal-root");
     let drums = root.join("drums");

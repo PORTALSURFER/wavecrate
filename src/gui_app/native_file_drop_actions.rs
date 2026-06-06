@@ -114,6 +114,18 @@ impl GuiAppState {
             );
             return;
         }
+        if self.drop_targets_selected_folder_file(&path) {
+            self.sample_status = String::from("Drag cancelled");
+            emit_gui_action(
+                "waveform.external_file_drop",
+                Some("waveform"),
+                None,
+                "cancelled",
+                started_at,
+                Some("drop target unchanged"),
+            );
+            return;
+        }
 
         match self.copy_external_file_to_selected_folder(&path) {
             Ok(copied) => self.load_copied_external_file(copied, context, started_at),
@@ -129,6 +141,16 @@ impl GuiAppState {
                 );
             }
         }
+    }
+
+    fn drop_targets_selected_folder_file(&self, source: &Path) -> bool {
+        let Some(target_folder) = self.folder_browser.selected_folder_path() else {
+            return false;
+        };
+        let Some(file_name) = source.file_name() else {
+            return false;
+        };
+        paths_refer_to_same_file(source, &target_folder.join(file_name))
     }
 
     fn copy_external_file_to_selected_folder(&mut self, source: &Path) -> Result<PathBuf, String> {
@@ -221,4 +243,11 @@ fn unique_copy_destination(first_candidate: &Path) -> PathBuf {
         }
     }
     unreachable!("unbounded copy suffix search should find a destination")
+}
+
+fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
 }
