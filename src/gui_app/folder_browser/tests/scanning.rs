@@ -194,3 +194,69 @@ fn selected_source_refresh_prunes_deleted_cached_folders_on_finish() {
     assert!(browser.find_folder(&path_id(&stale)).is_none());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn completed_scan_discovery_prunes_deleted_root_child_before_finish() {
+    let root = temp_source_root("wavecrate-gui-source-discovery-prune-root");
+    let keep = root.join("keep");
+    let stale = root.join("stale");
+    fs::create_dir_all(&keep).expect("create keep folder");
+    fs::create_dir_all(&stale).expect("create stale folder");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.find_folder(&path_id(&stale)).is_some());
+    fs::remove_dir_all(&stale).expect("remove stale folder");
+
+    let request = browser
+        .begin_selected_source_scan(92)
+        .expect("selected source refresh should queue");
+    let mut discovery_events = Vec::new();
+    let result = scan_source_with_progress(request, |_| {}, |event| discovery_events.push(event));
+
+    for event in discovery_events {
+        browser.apply_scan_discovered(event);
+    }
+    assert!(browser.find_folder(&path_id(&keep)).is_some());
+    assert!(
+        browser.find_folder(&path_id(&stale)).is_none(),
+        "completed root discovery should replace cached root children before final scan finish"
+    );
+
+    assert!(browser.apply_scan_finished(result));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn completed_scan_discovery_prunes_deleted_nested_child_before_finish() {
+    let root = temp_source_root("wavecrate-gui-source-discovery-prune-nested");
+    let parent = root.join("drums");
+    let keep = parent.join("keep");
+    let stale = parent.join("stale");
+    fs::create_dir_all(&keep).expect("create keep folder");
+    fs::create_dir_all(&stale).expect("create stale folder");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.find_folder(&path_id(&stale)).is_some());
+    fs::remove_dir_all(&stale).expect("remove stale folder");
+
+    let request = browser
+        .begin_selected_source_scan(93)
+        .expect("selected source refresh should queue");
+    let mut discovery_events = Vec::new();
+    let result = scan_source_with_progress(request, |_| {}, |event| discovery_events.push(event));
+
+    for event in discovery_events {
+        browser.apply_scan_discovered(event);
+        if browser.find_folder(&path_id(&stale)).is_none() {
+            break;
+        }
+    }
+    assert!(browser.find_folder(&path_id(&keep)).is_some());
+    assert!(
+        browser.find_folder(&path_id(&stale)).is_none(),
+        "completed nested-folder discovery should replace stale cached children without waiting for final finish"
+    );
+
+    assert!(browser.apply_scan_finished(result));
+    let _ = fs::remove_dir_all(root);
+}

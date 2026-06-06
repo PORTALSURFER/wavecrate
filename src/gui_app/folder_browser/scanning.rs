@@ -69,6 +69,12 @@ pub(in crate::gui_app) fn scan_source_with_progress(
     let file_count = scan.counter.files;
     let folder_count = scan.counter.folders;
     drop(scan);
+    discovered(FolderScanDiscovery {
+        task_id: request.task_id,
+        source_id: request.source_id.clone(),
+        parent_id: path_id(&request.root),
+        item: FolderScanItem::CompletedFolder(folder.clone()),
+    });
     FolderScanResult {
         task_id: request.task_id,
         source_id: request.source_id,
@@ -192,7 +198,7 @@ where
             task_id: self.request.task_id,
             source_id: self.request.source_id.clone(),
             parent_id: parent_id.to_string(),
-            item: FolderScanItem::Folder(folder),
+            item: FolderScanItem::CompletedFolder(folder),
         });
     }
 

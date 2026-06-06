@@ -179,6 +179,7 @@ pub(in crate::gui_app) struct FolderScanProgress {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) enum FolderScanItem {
     Folder(FolderEntry),
+    CompletedFolder(FolderEntry),
     File(FileEntry),
 }
 
