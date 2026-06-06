@@ -15,6 +15,10 @@ impl GuiAppState {
         drop: NativeFileDrop,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
+        if self.folder_browser.drag_active() {
+            self.apply_native_file_drop_during_browser_drag(drop, context);
+            return;
+        }
         let over_waveform = native_file_drop_targets_waveform(drop.target_widget);
         match drop.phase {
             NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path, over_waveform),
@@ -29,6 +33,22 @@ impl GuiAppState {
                 if over_waveform {
                     self.drop_external_file_on_waveform(path, context);
                 }
+            }
+        }
+    }
+
+    fn apply_native_file_drop_during_browser_drag(
+        &mut self,
+        drop: NativeFileDrop,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.native_file_drop_hover = None;
+        match drop.phase {
+            NativeFileDropPhase::Hover => {}
+            NativeFileDropPhase::Cancel | NativeFileDropPhase::Drop => {
+                self.folder_browser.clear_drag();
+                context.end_drag_session();
+                self.sample_status = String::from("Drag cancelled");
             }
         }
     }
