@@ -719,6 +719,48 @@ fn clear_drop_target_unless_preserves_current_folder_target() {
 }
 
 #[test]
+fn file_drag_hover_moves_between_folder_targets() {
+    let root = temp_source_root("wavecrate-gui-file-drag-target-handoff");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    let one_shots = root.join("one-shots");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    fs::create_dir_all(&one_shots).expect("create one-shots folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&loops),
+        Point::new(50.0, 60.0),
+    ));
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&one_shots),
+        Point::new(50.0, 82.0),
+    ));
+
+    assert_eq!(
+        browser.hovered_drop_target_folder_id(),
+        Some(path_id(&one_shots))
+    );
+    let folders = browser.visible_folders();
+    assert!(
+        folders
+            .iter()
+            .any(|folder| folder.id == path_id(&one_shots) && folder.drop_target)
+    );
+    assert!(
+        folders
+            .iter()
+            .all(|folder| folder.id != path_id(&loops) || !folder.drop_target)
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn folder_hover_without_active_drag_does_not_mark_drop_target() {
     let root = temp_source_root("wavecrate-gui-folder-hover-no-drag");
     let loops = root.join("loops");

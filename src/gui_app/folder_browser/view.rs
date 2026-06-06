@@ -9,8 +9,8 @@ use crate::gui_app::{
 use super::tag_editor::{metadata_section, tag_field_height};
 use super::tag_entry_layout::tag_field_content_width;
 use super::{
-    FolderBrowserDropTarget, FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_ROW_HEIGHT,
-    VisibleFolder, plural, tree_hit_target::FolderTreeHitTarget,
+    FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_ROW_HEIGHT, VisibleFolder, plural,
+    tree_hit_target::FolderTreeHitTarget,
 };
 
 mod collections_section;
@@ -131,23 +131,10 @@ fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
         FOLDER_TREE_OVERSCAN_ROWS,
         FOLDER_TREE_EDGE_CONTEXT_ROWS,
     );
-    ui::stack([
-        ui::pointer_move_shield(matches!(
-            state.drop_target.current(),
-            Some(FolderBrowserDropTarget::Folder(_))
-        ))
-        .on_pointer_move(|position| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
-        })
-        .key("folder-drop-clear-target")
-        .input_only()
-        .fill(),
-        folder_tree_window(visible_folders, window, drag_revision)
-            .id(FOLDER_TREE_LIST_ID)
-            .fill_width()
-            .fill_height(),
-    ])
-    .fill()
+    folder_tree_window(visible_folders, window, drag_revision)
+        .id(FOLDER_TREE_LIST_ID)
+        .fill_width()
+        .fill_height()
 }
 
 fn folder_tree_window(
