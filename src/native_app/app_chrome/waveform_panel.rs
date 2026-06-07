@@ -1,17 +1,41 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, NativeFileDropHover};
 use crate::native_app::waveform::{self, WaveformInteraction, WaveformState};
 
 pub(in crate::native_app) const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
 pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 
-pub(in crate::native_app) fn waveform_panel(state: &NativeAppState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) struct WaveformPanelViewModel<'a> {
+    waveform: &'a WaveformState,
+    loading_label: Option<&'a str>,
+    loading_progress: f32,
+    drop_hover: Option<&'a NativeFileDropHover>,
+    block_input_while_loading: bool,
+}
+
+impl<'a> WaveformPanelViewModel<'a> {
+    pub(in crate::native_app) fn from_app_state(state: &'a NativeAppState) -> Self {
+        let loading_label = state.waveform_loading_label.as_deref();
+        Self {
+            waveform: &state.waveform,
+            loading_label,
+            loading_progress: state.waveform_loading_progress,
+            drop_hover: state.native_file_drop_hover.as_ref(),
+            block_input_while_loading: loading_label.is_some()
+                && !state.folder_browser.drag_active(),
+        }
+    }
+}
+
+pub(in crate::native_app) fn waveform_panel(
+    model: WaveformPanelViewModel<'_>,
+) -> ui::View<GuiMessage> {
     ui::column([
-        waveform_panel_header(&state.waveform),
-        ui::text_line(waveform_title(&state.waveform), 18.0),
-        waveform_viewport_with_loading_state(state),
-        waveform_scrollbar(&state.waveform),
+        waveform_panel_header(model.waveform),
+        ui::text_line(waveform_title(model.waveform), 18.0),
+        waveform_viewport_with_loading_state(&model),
+        waveform_scrollbar(model.waveform),
     ])
     .spacing(2.0)
     .style(ui::WidgetStyle::default())
@@ -23,20 +47,19 @@ fn waveform_panel_header(_waveform: &WaveformState) -> ui::View<GuiMessage> {
     ui::text_line("Waveform", 18.0)
 }
 
-fn waveform_viewport_with_loading_state(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let viewport = waveform::waveform_viewport_view(&state.waveform)
+fn waveform_viewport_with_loading_state(
+    model: &WaveformPanelViewModel<'_>,
+) -> ui::View<GuiMessage> {
+    let viewport = waveform::waveform_viewport_view(model.waveform)
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT);
     let mut layers = vec![viewport];
-    if let Some(hover) = state.native_file_drop_hover.as_ref() {
+    if let Some(hover) = model.drop_hover {
         layers.push(waveform_drop_hover_visual(hover.supported));
     }
-    if state.waveform_loading_label.is_some() {
-        layers.push(waveform_loading_visual(
-            state.waveform_loading_label.as_deref().unwrap_or_default(),
-            state.waveform_loading_progress,
-        ));
-        if !state.folder_browser.drag_active() {
+    if let Some(label) = model.loading_label {
+        layers.push(waveform_loading_visual(label, model.loading_progress));
+        if model.block_input_while_loading {
             layers.push(
                 ui::pointer_shield(true)
                     .view()

@@ -8,7 +8,7 @@ use crate::native_app::app_chrome::library_browser::sample_browser_view::{
 };
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
-use crate::native_app::app_chrome::waveform_panel::waveform_panel;
+use crate::native_app::app_chrome::waveform_panel::{WaveformPanelViewModel, waveform_panel};
 use crate::native_app::audio::audio_settings::top_status_bar;
 use crate::native_app::library_browser::folder_browser::FileColumnDragFeedback;
 use crate::native_app::transaction_history::TRANSACTION_LIST_MODAL_ID;
@@ -344,7 +344,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
 
 fn main_area(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(state);
-    let waveform = waveform_panel(state);
+    let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
     let suppress_sample_hover = state.folder_panel.is_resizing();
     let sample_browser_model = SampleBrowserViewModel::from_app_state(state, suppress_sample_hover);
     ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
