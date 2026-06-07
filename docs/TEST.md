@@ -105,7 +105,7 @@ Use for tooling, fixtures, and numerical-reference flows.
 ### Wavecrate UI projection compatibility tests
 
 Use for Wavecrate-owned projection snapshot and behavior changes. Default GUI
-work should prefer focused tests around `src/gui_app.rs` and the relevant
+work should prefer focused tests around `src/native_app.rs` and the relevant
 Radiant public API surface.
 
 - targeted snapshot suites:

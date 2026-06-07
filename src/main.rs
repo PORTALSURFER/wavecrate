@@ -10,10 +10,10 @@
 
 #[cfg(not(wavecrate_internal_build))]
 mod app_registration;
-mod gui_app;
+mod native_app;
 
 fn main() -> Result<(), String> {
     #[cfg(not(wavecrate_internal_build))]
     app_registration::ensure_registration()?;
-    gui_app::run()
+    native_app::run()
 }

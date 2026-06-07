@@ -4,11 +4,11 @@ use crate::{
     app_core::actions::{
         GUI_ACTION_CATALOG, NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot,
     },
-    gui_runtime::capture_gui_automation_snapshot,
     gui_test::{
         GuiActionTraceEvent, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
         build_model_summary,
     },
+    native_runtime::capture_gui_automation_snapshot,
 };
 
 /// Build one artifact bundle from the current bridge projection and trace state.

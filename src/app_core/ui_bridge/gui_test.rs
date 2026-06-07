@@ -3,11 +3,11 @@
 use crate::app_core::actions::NativeUiAction;
 use crate::{
     app_core::actions::NativeAppModel,
-    gui_runtime::capture_gui_automation_snapshot,
     gui_test::{
         GuiTestArtifactBundle, GuiTestModeConfig, build_model_summary, catalog_report,
         trace_event_for_action, write_artifact_bundle,
     },
+    native_runtime::capture_gui_automation_snapshot,
 };
 use std::path::PathBuf;
 use tracing::warn;

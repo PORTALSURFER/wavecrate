@@ -59,8 +59,8 @@ use super::state::audio::{
 };
 use super::state::runtime::{UpdateCheckResult, WavLoadJob, WavLoadResult};
 use crate::app::state::FolderPaneId;
-use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
+use crate::ui_primitives::repaint::{RepaintSignal, SharedRepaintSignal};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::PathBuf,

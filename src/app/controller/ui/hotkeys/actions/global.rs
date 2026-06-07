@@ -1,6 +1,6 @@
 use super::super::types::{HotkeyAction, HotkeyGesture, HotkeyScope, KeyPress};
 use crate::app_core::actions::{NativeBrowserTagTarget, NativeUiAction};
-use crate::gui::input::KeyCode as Key;
+use crate::ui_primitives::input::KeyCode as Key;
 
 const GLOBAL: HotkeyScope = HotkeyScope::Global;
 

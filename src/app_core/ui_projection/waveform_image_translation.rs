@@ -1,6 +1,6 @@
 //! Shared waveform-image translation helpers for ui-projection paths.
 
-use crate::gui::types::ImageRgba;
+use crate::ui_primitives::types::ImageRgba;
 use crate::waveform::WaveformImage;
 use std::sync::Arc;
 

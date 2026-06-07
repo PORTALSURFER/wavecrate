@@ -51,18 +51,6 @@ mod env_flags;
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.
 pub mod external_drag;
-/// Backend-agnostic GUI façade for the `radiant`-based UI stack.
-///
-/// This crate exposes GUI declarations (`radiant` APIs) to application code while
-/// keeping widget behavior, layout policy, input semantics, and rendering inside
-/// the `radiant` crate.
-pub mod gui;
-/// Shared runtime host glue that starts native `radiant` hosts.
-///
-/// The runtime boundary only adapts launch options and forwards lifecycle/error
-/// events; it does not define UI widgets, input handling policies, or layout
-/// logic.
-pub mod gui_runtime;
 /// GUI test contracts, scenario types, and artifact helpers.
 pub mod gui_test;
 /// Shared helpers for low-overhead hot-path telemetry instrumentation.
@@ -72,10 +60,22 @@ mod http_client;
 pub mod issue_gateway;
 /// Logging setup helpers.
 pub mod logging;
+/// Shared runtime host glue that starts native `radiant` hosts.
+///
+/// The runtime boundary only adapts launch options and forwards lifecycle/error
+/// events; it does not define UI widgets, input handling policies, or layout
+/// logic.
+pub mod native_runtime;
 /// Sample source management.
 pub mod sample_sources;
 /// Selection math utilities.
 pub mod selection;
+/// Backend-agnostic GUI façade for the `radiant`-based UI stack.
+///
+/// This crate exposes GUI declarations (`radiant` APIs) to application code while
+/// keeping widget behavior, layout policy, input semantics, and rendering inside
+/// the `radiant` crate.
+pub mod ui_primitives;
 /// Optional SQLite extension loader.
 pub use wavecrate_library::sqlite_ext;
 /// Update check + installer helper utilities.

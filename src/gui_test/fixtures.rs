@@ -10,11 +10,11 @@ use crate::{
         ui_bridge::{WavecrateUiBridge, new_ui_bridge, new_ui_bridge_with_controller},
     },
     app_dirs::PersistenceProfileGuard,
-    gui::repaint::RepaintSignal,
     gui_test::{
         GuiTestModeConfig, canonical_gui_test_fixture_tag, gui_test_fixture_uses_isolated_startup,
         gui_test_fixture_uses_live_profile,
     },
+    ui_primitives::repaint::RepaintSignal,
     waveform::WaveformRenderer,
 };
 use std::sync::Arc;
@@ -119,7 +119,7 @@ impl GuiFixtureBridge {
     }
 
     /// Flush one bridge shutdown hook exactly once before fixture teardown.
-    fn emit_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {
+    fn emit_runtime_exit(&mut self) -> Option<crate::native_runtime::NativeShutdownTimingArtifact> {
         if self.shutdown_emitted {
             return None;
         }
@@ -181,7 +181,7 @@ impl NativeAppBridge for GuiFixtureBridge {
         GuiFixtureBridge::observe_frame_result(self, result);
     }
 
-    fn on_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {
+    fn on_runtime_exit(&mut self) -> Option<crate::native_runtime::NativeShutdownTimingArtifact> {
         self.emit_runtime_exit()
     }
 }

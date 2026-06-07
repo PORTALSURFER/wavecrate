@@ -3,7 +3,7 @@ use super::super::*;
 use super::common::{prepare_browser_sample, visible_indices};
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::{FocusContext, SampleBrowserTab};
-use crate::gui::input::KeyCode;
+use crate::ui_primitives::input::KeyCode;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;

@@ -2,7 +2,7 @@
 //!
 //! These helpers project controller state into Wavecrate-owned DTOs and translate
 //! normalized UI ranges back into controller-domain selection math. New default
-//! GUI work should compose Radiant's current public API through `src/gui_app.rs`
+//! GUI work should compose Radiant's current public API through `src/native_app.rs`
 //! instead of expanding this compatibility surface.
 
 use super::controller::{
@@ -47,7 +47,7 @@ use crate::app_core::state::{
     SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
-use crate::gui::types::ImageRgba;
+use crate::ui_primitives::types::ImageRgba;
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     sync::Arc,

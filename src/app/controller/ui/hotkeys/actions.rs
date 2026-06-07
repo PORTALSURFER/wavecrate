@@ -102,7 +102,7 @@ mod tests {
     use crate::app::controller::ui::hotkeys;
     use crate::app::state::FocusContext;
     use crate::app_core::actions::NativeUiAction;
-    use crate::gui::input::KeyCode;
+    use crate::ui_primitives::input::KeyCode;
 
     #[test]
     fn hotkey_registry_ids_are_unique() {

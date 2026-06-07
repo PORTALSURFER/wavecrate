@@ -1,7 +1,7 @@
 use super::super::types::{HotkeyAction, HotkeyGesture, HotkeyScope};
 use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
-use crate::gui::input::KeyCode as Key;
+use crate::ui_primitives::input::KeyCode as Key;
 
 const SOURCES: HotkeyScope = HotkeyScope::Focus(FocusContext::SourcesList);
 

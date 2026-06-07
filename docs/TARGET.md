@@ -107,7 +107,7 @@ Prefer incremental changes that move Wavecrate closer to this target while prese
 The current codebase has one Wavecrate desktop UI surface and several supporting
 runtime/test surfaces:
 
-- `src/gui_app.rs` is the Wavecrate desktop UI entrypoint and should be treated as the place for new Wavecrate desktop UI behavior.
+- `src/native_app.rs` is the Wavecrate desktop UI entrypoint and should be treated as the place for new Wavecrate desktop UI behavior.
 - `src/app_core/**` contains host-facing projections, action catalog state, and controller integration used by tests and companion runtime surfaces.
 - `src/app/controller/**` contains older controller workflow logic that may still be the best evidence for mature behavior such as rating, filtering, trash configuration, similarity, recording experiments, and recovery flows, but it should not be used to re-expand the legacy UI path by default.
 
@@ -2323,8 +2323,10 @@ Wavecrate owns product behavior. Radiant owns reusable GUI capability. The audio
 Route changes by ownership before editing:
 
 * domain workflows, persistence orchestration, and application state belong in `src/`
-* default product-specific GUI behavior belongs in `src/gui_app.rs` and `src/app_core/**`
-* current default-GUI folder/file drag/drop behavior belongs under `src/gui_app/folder_browser/**`
+* default product-specific GUI behavior belongs in `src/native_app.rs` and `src/app_core/**`
+* current default-GUI folder/file drag/drop behavior belongs under `src/native_app/folder_browser/**`
+* generic UI vocabulary re-exported for Wavecrate code belongs in `src/ui_primitives/**`
+* native host launch, lifecycle, automation, and shutdown adaptation belongs in `src/native_runtime/**`
 * do not route current product drag/drop fixes to `src/app/controller/ui/drag_drop_controller/**` unless a task explicitly names that deprecated compatibility controller
 * reusable UI, runtime, layout, widget, input, focus, invalidation, rendering, and test primitives belong in `vendor/radiant`
 * runtime compatibility behavior should stay inside runtime/test surfaces rather than leaking into generic Radiant modules
@@ -2339,9 +2341,13 @@ Normal Wavecrate view-construction modules should prefer `use radiant::prelude a
 
 `src/app_core/**` owns host-facing projections, action catalog state, UI bridge projection/invalidation rules, and controller integration used by tests and companion runtime surfaces. It should avoid direct filesystem mutation policy outside the persistence layer and new coupling back into the removed legacy UI boundary.
 
-`src/gui_app.rs` owns the default Wavecrate desktop GUI entrypoint and composition of Radiant application, runtime, widget, and GPU-surface APIs for the sample-workstation UI. Its support modules under `src/gui_app/**` own Wavecrate-specific product UI behavior and should avoid owning reusable Radiant behavior or reintroducing dependencies on the deprecated legacy UI path.
+`src/native_app.rs` owns the default Wavecrate desktop GUI entrypoint and composition of Radiant application, runtime, widget, and GPU-surface APIs for the sample-workstation UI. Its support modules under `src/native_app/**` own Wavecrate-specific product UI behavior and should avoid owning reusable Radiant behavior or reintroducing dependencies on the deprecated legacy UI path.
 
-`src/app/controller/ui/drag_drop_controller/**` owns controller-level drag/drop behavior still exercised by compatibility tests. It is not the default target for current `src/gui_app.rs` product drag/drop bugs.
+`src/ui_primitives/**` owns Wavecrate's thin, backend-agnostic UI primitive vocabulary re-export boundary. It should not own widget construction, product state transitions, layout policy, hit testing, input propagation, or rendering orchestration.
+
+`src/native_runtime/**` owns Wavecrate's native host adaptation around Radiant runtime launch, automation snapshots, timing artifacts, and shutdown reporting. It should not own product UI behavior or reusable Radiant widget/runtime primitives.
+
+`src/app/controller/ui/drag_drop_controller/**` owns controller-level drag/drop behavior still exercised by compatibility tests. It is not the default target for current `src/native_app.rs` product drag/drop bugs.
 
 `src/sample_sources/**` owns database schema, read/write APIs, journal-backed file operations, and crash recovery behavior for file and folder mutations. It should avoid UI policy and rendering behavior.
 

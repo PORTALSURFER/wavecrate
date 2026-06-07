@@ -3,8 +3,8 @@ use super::super::super::test_support::{
 };
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
-use crate::gui::input::KeyCode;
 use crate::selection::SelectionRange;
+use crate::ui_primitives::input::KeyCode;
 
 fn waveform_hotkey(key: KeyCode, shift: bool, alt: bool) -> hotkeys::HotkeyAction {
     hotkeys::iter_actions()

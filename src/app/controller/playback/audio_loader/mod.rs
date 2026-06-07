@@ -3,7 +3,7 @@ use crate::app::controller::library::wavs::waveform_rendering::{
     InitialWaveformRenderSpec, PreparedWaveformVisual, prepare_initial_waveform_visual,
 };
 use crate::app::controller::playback::audio_cache::FileMetadata;
-use crate::gui::types::ImageRgba;
+use crate::ui_primitives::types::ImageRgba;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     path::PathBuf,

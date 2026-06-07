@@ -4,7 +4,7 @@ use crate::{
         NativeFocusContextModel, NativeProgressOverlayModel, NativeSourceRowModel,
         native_folder_row_model,
     },
-    gui_runtime::capture_gui_automation_snapshot,
+    native_runtime::capture_gui_automation_snapshot,
 };
 
 fn child<'a>(

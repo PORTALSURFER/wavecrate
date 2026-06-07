@@ -96,7 +96,7 @@ impl AppController {
                 .max(1);
             Some(signature)
         };
-        let projected_image: Option<Arc<crate::gui::types::ImageRgba>> = image
+        let projected_image: Option<Arc<crate::ui_primitives::types::ImageRgba>> = image
             .size
             .iter()
             .all(|component| *component > 0)
@@ -114,7 +114,7 @@ impl AppController {
     pub(crate) fn store_prepared_waveform_image(
         &mut self,
         image: Option<WaveformImage>,
-        projected_image: Option<Arc<crate::gui::types::ImageRgba>>,
+        projected_image: Option<Arc<crate::ui_primitives::types::ImageRgba>>,
         meta: Option<WaveformRenderMeta>,
     ) {
         let signature = image.as_ref().and_then(|image| {

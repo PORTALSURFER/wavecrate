@@ -46,7 +46,10 @@ impl NativeAppBridge for WavecrateUiBridge {
     }
 
     /// Install runtime repaint signal for async job completion wakeups.
-    fn install_repaint_signal(&mut self, signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {
+    fn install_repaint_signal(
+        &mut self,
+        signal: Arc<dyn crate::ui_primitives::repaint::RepaintSignal>,
+    ) {
         self.controller.set_repaint_signal(signal);
     }
 
@@ -111,7 +114,7 @@ impl NativeAppBridge for WavecrateUiBridge {
     }
 
     /// Flush pending work and persist config during runtime shutdown.
-    fn on_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {
+    fn on_runtime_exit(&mut self) -> Option<crate::native_runtime::NativeShutdownTimingArtifact> {
         if self.runtime_exit_emitted {
             return None;
         }
@@ -127,7 +130,7 @@ impl NativeAppBridge for WavecrateUiBridge {
             detached = controller_timing.detached,
             "Requested native controller shutdown"
         );
-        Some(crate::gui_runtime::NativeShutdownTimingArtifact {
+        Some(crate::native_runtime::NativeShutdownTimingArtifact {
             status: exit_status(failure_reason.as_ref(), controller_timing.detached),
             failure_reason,
             bridge_exit_flush_ms: Some(bridge_exit_flush_ms),

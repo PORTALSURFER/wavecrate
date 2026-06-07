@@ -8,7 +8,7 @@ use super::{
     NativeAppModel, NativeDirtySegments, NativeFrameBuildResult, NativeMotionModel,
     NativeSegmentRevisions, NativeUiAction,
 };
-use crate::{gui::repaint::RepaintSignal, gui_runtime::NativeShutdownTimingArtifact};
+use crate::{native_runtime::NativeShutdownTimingArtifact, ui_primitives::repaint::RepaintSignal};
 use std::{path::PathBuf, sync::Arc};
 
 /// Host bridge used by Wavecrate's UI runtime adapter.

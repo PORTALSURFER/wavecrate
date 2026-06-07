@@ -1,7 +1,7 @@
 use super::JobMessageSender;
 use super::{AudioLoadResult, JobMessage, RecordingWaveformLoadResult, SearchResult};
 use crate::app::controller::state::runtime::WavLoadResult;
-use crate::gui::repaint::SharedRepaintSignal;
+use crate::ui_primitives::repaint::SharedRepaintSignal;
 use std::{
     sync::{Arc, mpsc::Receiver},
     thread,

@@ -1,6 +1,6 @@
 //! Runtime and CLI configuration for deterministic GUI test flows.
 
-use crate::{app_dirs, env_flags::env_var_truthy, gui_runtime::NativeRunOptions};
+use crate::{app_dirs, env_flags::env_var_truthy, native_runtime::NativeRunOptions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
