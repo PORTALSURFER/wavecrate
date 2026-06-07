@@ -1,13 +1,15 @@
 use radiant::prelude as ui;
 
+use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::library_browser::folder_browser::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
     FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, FolderBrowserMessage, FolderBrowserState,
     TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder,
 };
-use crate::native_app::metadata::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
+#[cfg(test)]
+use crate::native_app::metadata::MetadataTagCompletionOption;
+use crate::native_app::metadata::MetadataTagDisplayCategory;
 
-use crate::native_app::app::GuiMessage;
 use tag_editor::{metadata_section, tag_field_height};
 use tree_hit_target::FolderTreeHitTarget;
 
@@ -39,6 +41,70 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
     a: 152,
 };
 
+pub(in crate::native_app) struct FolderSidebarViewModel<'a> {
+    folder_browser: &'a mut FolderBrowserState,
+    sidebar_width: f32,
+    has_selected_file: bool,
+    metadata_tag_draft: &'a str,
+    metadata_tag_tokens: &'a [String],
+    metadata_tag_pending_category_tag: Option<String>,
+    metadata_tag_input_placeholder: &'static str,
+    metadata_tag_completion_suffix: Option<String>,
+    metadata_tags: Vec<String>,
+    metadata_tag_display_categories: Vec<MetadataTagDisplayCategory>,
+    selected_metadata_tag: Option<String>,
+}
+
+impl<'a> FolderSidebarViewModel<'a> {
+    pub(in crate::native_app) fn from_app_state(state: &'a mut NativeAppState) -> Self {
+        let sidebar_width = state.folder_panel.size();
+        let has_selected_file = state.folder_browser.selected_file_id().is_some();
+        let metadata_tag_pending_category_tag = state
+            .pending_metadata_tag_category_tag()
+            .map(str::to_string);
+        let metadata_tag_completion_suffix = state.metadata_tag_completion_suffix();
+        let metadata_tags = state.selected_metadata_tags().to_vec();
+        let metadata_tag_display_categories = state.selected_metadata_tag_display_categories();
+        let selected_metadata_tag = state.selected_metadata_tag.clone();
+        let metadata_tag_input_placeholder = state.metadata_tag_input_placeholder();
+
+        Self {
+            folder_browser: &mut state.folder_browser,
+            sidebar_width,
+            has_selected_file,
+            metadata_tag_draft: state.metadata_tag_draft.as_str(),
+            metadata_tag_tokens: state.metadata_tag_tokens.as_slice(),
+            metadata_tag_pending_category_tag,
+            metadata_tag_input_placeholder,
+            metadata_tag_completion_suffix,
+            metadata_tags,
+            metadata_tag_display_categories,
+            selected_metadata_tag,
+        }
+    }
+}
+
+pub(in crate::native_app) fn folder_sidebar(
+    model: FolderSidebarViewModel<'_>,
+) -> ui::View<GuiMessage> {
+    let sidebar_width = model.sidebar_width;
+    folder_browser_view_mut(
+        model.folder_browser,
+        sidebar_width,
+        model.has_selected_file,
+        model.metadata_tag_draft,
+        model.metadata_tag_tokens,
+        model.metadata_tag_pending_category_tag.as_deref(),
+        model.metadata_tag_input_placeholder,
+        model.metadata_tag_completion_suffix.as_deref(),
+        model.metadata_tags.as_slice(),
+        model.metadata_tag_display_categories.as_slice(),
+        model.selected_metadata_tag.as_deref(),
+    )
+    .width(sidebar_width)
+    .fill_height()
+}
+
 pub(in crate::native_app) fn folder_browser_view_mut(
     state: &mut FolderBrowserState,
     sidebar_width: f32,
@@ -48,7 +114,6 @@ pub(in crate::native_app) fn folder_browser_view_mut(
     metadata_tag_pending_category_tag: Option<&str>,
     metadata_tag_input_placeholder: &str,
     metadata_tag_completion_suffix: Option<&str>,
-    _metadata_tag_completion_options: &[MetadataTagCompletionOption],
     metadata_tags: &[String],
     metadata_tag_display_categories: &[MetadataTagDisplayCategory],
     selected_metadata_tag: Option<&str>,
@@ -107,7 +172,7 @@ pub(in crate::native_app) fn folder_browser_view(
     metadata_tag_pending_category_tag: Option<&str>,
     metadata_tag_input_placeholder: &str,
     metadata_tag_completion_suffix: Option<&str>,
-    metadata_tag_completion_options: &[MetadataTagCompletionOption],
+    _metadata_tag_completion_options: &[MetadataTagCompletionOption],
     metadata_tags: &[String],
     metadata_tag_display_categories: &[MetadataTagDisplayCategory],
     selected_metadata_tag: Option<&str>,
@@ -122,7 +187,6 @@ pub(in crate::native_app) fn folder_browser_view(
         metadata_tag_pending_category_tag,
         metadata_tag_input_placeholder,
         metadata_tag_completion_suffix,
-        metadata_tag_completion_options,
         metadata_tags,
         metadata_tag_display_categories,
         selected_metadata_tag,

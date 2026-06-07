@@ -1,6 +1,10 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
-use crate::native_app::app_chrome::library_browser::folder_sidebar;
-use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
+use crate::native_app::app_chrome::library_browser::folder_sidebar::{
+    self, FolderSidebarViewModel,
+};
+use crate::native_app::app_chrome::library_browser::sample_browser_view::{
+    SampleBrowserViewModel, sample_browser,
+};
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
@@ -68,7 +72,7 @@ fn sample_column_drag_preview(feedback: &FileColumnDragFeedback) -> ui::View<Gui
 }
 
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    let mut children = vec![folder_sidebar(state)];
+    let mut children = vec![folder_sidebar_panel(state)];
     if state.metadata_tag_library_open && state.folder_browser.selected_file_id().is_some() {
         children.push(metadata_tag_library_panel(state));
     }
@@ -106,34 +110,8 @@ fn metadata_tag_completion_overlay(state: &NativeAppState) -> Option<ui::View<Gu
     ))
 }
 
-fn folder_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    let folder_width = state.folder_panel.size();
-    let has_selected_file = state.folder_browser.selected_file_id().is_some();
-    let pending_category_tag = state
-        .pending_metadata_tag_category_tag()
-        .map(str::to_string);
-    let completion_suffix = state.metadata_tag_completion_suffix();
-    let completion_options = state.metadata_tag_completion_options();
-    let selected_metadata_tags = state.selected_metadata_tags().to_vec();
-    let display_categories = state.selected_metadata_tag_display_categories();
-    let selected_metadata_tag = state.selected_metadata_tag.clone();
-    let input_placeholder = state.metadata_tag_input_placeholder();
-    folder_sidebar::folder_browser_view_mut(
-        &mut state.folder_browser,
-        folder_width,
-        has_selected_file,
-        state.metadata_tag_draft.as_str(),
-        state.metadata_tag_tokens.as_slice(),
-        pending_category_tag.as_deref(),
-        input_placeholder,
-        completion_suffix.as_deref(),
-        completion_options.as_slice(),
-        selected_metadata_tags.as_slice(),
-        display_categories.as_slice(),
-        selected_metadata_tag.as_deref(),
-    )
-    .width(folder_width)
-    .fill_height()
+fn folder_sidebar_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+    folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
 fn metadata_tag_library_panel(state: &NativeAppState) -> ui::View<GuiMessage> {
@@ -365,13 +343,13 @@ fn folder_splitter() -> ui::View<GuiMessage> {
 }
 
 fn main_area(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    ui::column([
-        main_toolbar(state),
-        waveform_panel(state),
-        sample_browser(state, state.folder_panel.is_resizing()),
-    ])
-    .padding(4.0)
-    .fill()
+    let toolbar = main_toolbar(state);
+    let waveform = waveform_panel(state);
+    let suppress_sample_hover = state.folder_panel.is_resizing();
+    let sample_browser_model = SampleBrowserViewModel::from_app_state(state, suppress_sample_hover);
+    ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
+        .padding(4.0)
+        .fill()
 }
 
 fn transaction_list_modal(state: &NativeAppState) -> ui::View<GuiMessage> {
