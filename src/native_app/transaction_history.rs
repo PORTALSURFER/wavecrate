@@ -1,8 +1,10 @@
 use std::collections::VecDeque;
 
 use crate::native_app::app_scope::NativeAppState;
+use crate::native_app::widget_ids;
 
-pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = 31_200;
+pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 =
+    widget_ids::TRANSACTION_LIST_MODAL_ID;
 
 const DEFAULT_TRANSACTION_LIMIT: usize = 128;
 

@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use crate::native_app::app_scope::GuiMessage;
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
+use crate::native_app::widget_ids;
 
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformFile, WaveformInteraction,
@@ -37,7 +38,7 @@ pub(in crate::native_app) fn waveform_viewport_view(state: &WaveformState) -> ui
         .id(WAVEFORM_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
     ])
-    .id(10)
+    .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
 }
 

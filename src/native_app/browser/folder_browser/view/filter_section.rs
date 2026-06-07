@@ -1,6 +1,8 @@
 use radiant::{prelude as ui, widgets::TextInputMessageKind};
 use std::collections::{HashMap, HashSet};
 
+use crate::native_app::widget_ids;
+
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
@@ -11,11 +13,11 @@ pub(in crate::native_app::browser::folder_browser) const COLLAPSED_FILTER_PANEL_
     FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
 pub(in crate::native_app::browser::folder_browser) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 76.0;
-const NAME_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4602;
-const TAG_FILTER_INPUT_ID: u64 = 0x5743_0000_0000_4603;
+const NAME_FILTER_INPUT_ID: u64 = widget_ids::NAME_FILTER_INPUT_ID;
+const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 
 #[cfg(test)]
-const FILTER_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4601;
+const FILTER_SECTION_NODE_ID: u64 = widget_ids::FILTER_SECTION_NODE_ID;
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn filter_panel_height(&self) -> f32 {

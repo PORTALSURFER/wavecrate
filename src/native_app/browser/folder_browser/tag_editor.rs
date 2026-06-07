@@ -5,6 +5,7 @@ use crate::native_app::metadata_tags::MetadataTagDisplayCategory;
 use crate::native_app::metadata_tags::{
     metadata_tag_category_is_pinned, metadata_tag_category_style,
 };
+use crate::native_app::widget_ids;
 
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
@@ -15,13 +16,15 @@ use super::tag_entry_layout::{
 use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
 #[cfg(test)]
-pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
+pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = widget_ids::METADATA_TAG_INPUT_ID;
 #[cfg(not(test))]
-const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
+const METADATA_TAG_INPUT_ID: u64 = widget_ids::METADATA_TAG_INPUT_ID;
 #[cfg(test)]
-pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 = 0x5743_0000_0000_5448;
+pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 =
+    widget_ids::METADATA_SIDEBAR_PANEL_ID;
 #[cfg(test)]
-pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 = 0x5743_0000_0000_5449;
+pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 =
+    widget_ids::METADATA_TAG_LIBRARY_TOGGLE_ID;
 const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;

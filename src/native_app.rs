@@ -13,6 +13,7 @@ mod state;
 mod test_support;
 mod transaction_history;
 mod waveform;
+mod widget_ids;
 mod workflows;
 
 pub(crate) use shell::run;

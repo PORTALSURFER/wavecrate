@@ -1,16 +1,17 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app_scope::{GuiMessage, NativeAppState};
+use crate::native_app::widget_ids;
 
 const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const TOOLBAR_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
 const TOOLBAR_ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(145, 145, 145, 255);
 
-pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = 32_100;
-const TOOLBAR_LOOP_ID: u64 = 32_101;
-const TOOLBAR_PLAY_ID: u64 = 32_102;
-pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = 32_103;
-pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = 32_104;
+pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = widget_ids::TOOLBAR_FOCUS_LOADED_ID;
+const TOOLBAR_LOOP_ID: u64 = widget_ids::TOOLBAR_LOOP_ID;
+const TOOLBAR_PLAY_ID: u64 = widget_ids::TOOLBAR_PLAY_ID;
+pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = widget_ids::TOOLBAR_STOP_ID;
+pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RANDOM_ID;
 
 pub(in crate::native_app) fn main_toolbar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let random_available = state.random_playback_available();

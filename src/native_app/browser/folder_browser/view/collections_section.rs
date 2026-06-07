@@ -1,5 +1,7 @@
 use radiant::prelude as ui;
 
+use crate::native_app::widget_ids;
+
 use super::super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SampleCollectionView,
     collections::{
@@ -10,9 +12,9 @@ use super::super::{
 
 const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
 /// Stable layout node id for collection-panel resize regression coverage.
-const COLLECTIONS_SECTION_NODE_ID: u64 = 0x5743_0000_0000_4c02;
+const COLLECTIONS_SECTION_NODE_ID: u64 = widget_ids::COLLECTIONS_SECTION_NODE_ID;
 /// Stable layout node id for the collection rows scroll viewport.
-const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = 0x5743_0000_0000_4c03;
+const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = widget_ids::COLLECTIONS_LIST_SCROLL_NODE_ID;
 
 pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let rows = state
@@ -257,7 +259,7 @@ mod tests {
     #[test]
     /// Empty collections should not reserve trailing count-cell layout space.
     fn collection_count_collapses_empty_placeholder_layout() {
-        const EMPTY_COUNT_NODE_ID: u64 = 0x5743_0000_0000_4c04;
+        const EMPTY_COUNT_NODE_ID: u64 = widget_ids::EMPTY_COLLECTION_COUNT_NODE_ID;
         let layout = ui::row([
             ui::text_line("Collection 1", COLLECTION_ROW_HEIGHT),
             collection_count(0).id(EMPTY_COUNT_NODE_ID),

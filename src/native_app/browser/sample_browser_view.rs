@@ -4,8 +4,9 @@ use crate::native_app::app_scope::{GuiMessage, NativeAppState, SampleNameViewMod
 use crate::native_app::browser::folder_browser::{
     FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
 };
+use crate::native_app::widget_ids;
 
-pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = 30_000;
+pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = widget_ids::SAMPLE_BROWSER_LIST_ID;
 pub(in crate::native_app) const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
 pub(in crate::native_app) const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;
 pub(in crate::native_app) const SAMPLE_BROWSER_OVERSCAN_ROWS: usize = 4;
@@ -18,8 +19,8 @@ mod row_widgets;
 mod rows;
 use rows::sample_browser_rows;
 
-const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = 0x5743_0000_0000_4801;
-const SAMPLE_HEADER_RESIZE_SCOPE: u64 = 0x5743_0000_0000_4802;
+const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = widget_ids::SAMPLE_HEADER_SORT_DRAG_ID;
+const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
 
 pub(in crate::native_app) fn sample_browser(
     state: &mut NativeAppState,

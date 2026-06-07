@@ -4,13 +4,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
-pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = 31_000;
+use crate::native_app::widget_ids;
+
+pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
 pub(in crate::native_app) const VOLUME_SLIDER_WIDTH: f32 = 92.0;
 pub(in crate::native_app) const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
-pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
+pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = widget_ids::AUDIO_ENGINE_PILL_ID;
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
-pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = 31_110;
+pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 =
+    widget_ids::GENERAL_SETTINGS_BUTTON_ID;
 pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
 pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
 pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 520.0;
