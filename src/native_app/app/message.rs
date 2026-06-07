@@ -14,7 +14,7 @@ use crate::native_app::browser::folder_browser::{
     FolderScanResult,
 };
 use crate::native_app::context_menu::BrowserContextTargetKind;
-use crate::native_app::metadata_tags::MetadataTagPersistResult;
+use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::waveform::WaveformInteraction;
 
 #[derive(Clone, Debug, PartialEq)]

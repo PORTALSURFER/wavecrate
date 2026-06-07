@@ -11,7 +11,7 @@ const METADATA_TAG_PILL_MAX_WIDTH: f32 = 180.0;
 const METADATA_TAG_INPUT_CHARACTER_ADVANCE: f32 = 7.0;
 const METADATA_TAG_INPUT_PADDING: f32 = 12.0;
 
-pub(super) fn metadata_tag_pill_width(tag: &str) -> f32 {
+pub(in crate::native_app) fn metadata_tag_pill_width(tag: &str) -> f32 {
     ui::inline_badge_width_in_range(
         tag,
         metadata_tag_pill_metrics(),
@@ -20,7 +20,7 @@ pub(super) fn metadata_tag_pill_width(tag: &str) -> f32 {
     )
 }
 
-pub(super) fn metadata_tag_input_width_policy(
+pub(in crate::native_app) fn metadata_tag_input_width_policy(
     min_width: f32,
     max_width: f32,
 ) -> ui::TextInputWidthPolicy {

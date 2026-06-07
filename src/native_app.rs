@@ -5,8 +5,7 @@ mod audio;
 mod browser;
 mod chrome;
 mod context_menu;
-mod metadata_tag_metrics;
-mod metadata_tags;
+mod metadata;
 mod shell;
 #[cfg(test)]
 mod test_support;

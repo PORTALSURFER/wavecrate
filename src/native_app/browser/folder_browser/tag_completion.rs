@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::metadata_tags::MetadataTagCompletionOption;
+use crate::native_app::metadata::MetadataTagCompletionOption;
 
 use super::GuiMessage;
 

@@ -324,7 +324,7 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         Some(&vec![String::from("deep-kick"), String::from("warm-tone")])
     );
 
-    super::super::super::metadata_tags::persist_metadata_tag_additions_for_tests(
+    super::super::super::metadata::persist_metadata_tag_additions_for_tests(
         sample_path.clone(),
         source_root.path().to_path_buf(),
         PathBuf::from("persistent-tag.wav"),
@@ -340,7 +340,7 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         vec![String::from("deep-kick"), String::from("warm-tone")]
     );
 
-    super::super::super::metadata_tags::persist_metadata_tag_removals_for_tests(
+    super::super::super::metadata::persist_metadata_tag_removals_for_tests(
         sample_path.clone(),
         source_root.path().to_path_buf(),
         PathBuf::from("persistent-tag.wav"),
@@ -620,12 +620,12 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
 fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_options() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let completion_options = vec![
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
+        super::super::super::metadata::MetadataTagCompletionOption {
             tag: String::from("kick"),
             category: "Sound Type",
             selected: true,
         },
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
+        super::super::super::metadata::MetadataTagCompletionOption {
             tag: String::from("kicker"),
             category: "Character",
             selected: false,

@@ -23,7 +23,7 @@ use crate::native_app::browser::folder_browser::{
 };
 use crate::native_app::browser::source_watcher::GuiSourceWatcherHandle;
 use crate::native_app::context_menu::BrowserContextMenu;
-use crate::native_app::metadata_tags::MetadataTagInputMode;
+use crate::native_app::metadata::MetadataTagInputMode;
 use crate::native_app::transaction_history::TransactionHistory;
 use crate::native_app::waveform::WaveformState;
 

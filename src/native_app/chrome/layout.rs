@@ -9,8 +9,8 @@ use crate::native_app::transaction_history::TRANSACTION_LIST_MODAL_ID;
 use crate::native_app::{
     app::FileMoveConflictResolution,
     context_menu,
-    metadata_tag_metrics::metadata_tag_pill_width,
-    metadata_tags::{MetadataTagCategoryGroup, metadata_tag_category_tone},
+    metadata::metadata_tag_pill_width,
+    metadata::{MetadataTagCategoryGroup, metadata_tag_category_tone},
 };
 use radiant::prelude as ui;
 

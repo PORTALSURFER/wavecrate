@@ -1,10 +1,8 @@
 use radiant::prelude as ui;
 use radiant::widgets::DragHandleMessage;
 
-use crate::native_app::metadata_tags::MetadataTagDisplayCategory;
-use crate::native_app::metadata_tags::{
-    metadata_tag_category_is_pinned, metadata_tag_category_style,
-};
+use crate::native_app::metadata::MetadataTagDisplayCategory;
+use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_category_style};
 use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{

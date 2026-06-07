@@ -109,13 +109,11 @@ fn metadata_section_collapses_to_header_only_height() {
 #[test]
 fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
-    let completion_options = vec![
-        super::super::super::metadata_tags::MetadataTagCompletionOption {
-            tag: String::from("Sound Type"),
-            category: "Group",
-            selected: true,
-        },
-    ];
+    let completion_options = vec![super::super::super::metadata::MetadataTagCompletionOption {
+        tag: String::from("Sound Type"),
+        category: "Group",
+        selected: true,
+    }];
     let frame = crate::native_app::browser::folder_browser::folder_browser_view(
         &browser,
         260.0,

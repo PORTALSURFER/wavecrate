@@ -4,6 +4,7 @@ use radiant::prelude as ui;
 use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::time::Instant;
 
+pub(super) use metrics::{metadata_tag_input_width_policy, metadata_tag_pill_width};
 pub(in crate::native_app) use style::{
     metadata_tag_category_is_pinned, metadata_tag_category_style, metadata_tag_category_tone,
 };
@@ -25,6 +26,7 @@ pub(super) use vocabulary::{
 mod assignment;
 mod completion;
 mod library;
+mod metrics;
 mod persistence;
 mod style;
 mod types;

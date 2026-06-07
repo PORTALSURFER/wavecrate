@@ -172,23 +172,23 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
         String::from("loop"),
     ];
     let categories = vec![
-        super::super::super::metadata_tags::MetadataTagDisplayCategory {
+        super::super::super::metadata::MetadataTagDisplayCategory {
             tag: String::from("warm"),
             category_id: "character",
         },
-        super::super::super::metadata_tags::MetadataTagDisplayCategory {
+        super::super::super::metadata::MetadataTagDisplayCategory {
             tag: String::from("artist1"),
             category_id: "prefix",
         },
-        super::super::super::metadata_tags::MetadataTagDisplayCategory {
+        super::super::super::metadata::MetadataTagDisplayCategory {
             tag: String::from("dorian"),
             category_id: "tuning-scale",
         },
-        super::super::super::metadata_tags::MetadataTagDisplayCategory {
+        super::super::super::metadata::MetadataTagDisplayCategory {
             tag: String::from("hat"),
             category_id: "sound-type",
         },
-        super::super::super::metadata_tags::MetadataTagDisplayCategory {
+        super::super::super::metadata::MetadataTagDisplayCategory {
             tag: String::from("loop"),
             category_id: "playback-type",
         },

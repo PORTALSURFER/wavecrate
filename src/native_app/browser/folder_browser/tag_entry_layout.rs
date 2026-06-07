@@ -1,10 +1,8 @@
-use crate::native_app::metadata_tag_metrics::{
-    metadata_tag_input_width_policy, metadata_tag_pill_width,
-};
-use crate::native_app::metadata_tags::{
+use crate::native_app::metadata::{
     MetadataTagDisplayCategory, inferred_metadata_tag_category_id_for_name,
     metadata_tag_category_order,
 };
+use crate::native_app::metadata::{metadata_tag_input_width_policy, metadata_tag_pill_width};
 use radiant::prelude as ui;
 
 pub(super) const TAG_FIELD_CONTROL_HEIGHT: f32 = 18.0;
