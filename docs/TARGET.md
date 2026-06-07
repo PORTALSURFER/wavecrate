@@ -2324,7 +2324,7 @@ Route changes by ownership before editing:
 
 * domain workflows, persistence orchestration, and application state belong in `src/`
 * default product-specific GUI behavior belongs in `src/native_app.rs` and `src/app_core/**`
-* current default-GUI folder/file drag/drop behavior belongs under `src/native_app/folder_browser/**`
+* current default-GUI folder/file drag/drop behavior belongs under `src/native_app/library_browser/**` until the sample-library domain modules are split from app-chrome rendering
 * generic UI vocabulary re-exported for Wavecrate code belongs in `src/ui_primitives/**`
 * native host launch, lifecycle, automation, and shutdown adaptation belongs in `src/native_runtime/**`
 * do not route current product drag/drop fixes to `src/app/controller/ui/drag_drop_controller/**` unless a task explicitly names that deprecated compatibility controller
@@ -2342,6 +2342,32 @@ Normal Wavecrate view-construction modules should prefer `use radiant::prelude a
 `src/app_core/**` owns host-facing projections, action catalog state, UI bridge projection/invalidation rules, and controller integration used by tests and companion runtime surfaces. It should avoid direct filesystem mutation policy outside the persistence layer and new coupling back into the removed legacy UI boundary.
 
 `src/native_app.rs` owns the default Wavecrate desktop GUI entrypoint and composition of Radiant application, runtime, widget, and GPU-surface APIs for the sample-workstation UI. Its support modules under `src/native_app/**` own Wavecrate-specific product UI behavior and should avoid owning reusable Radiant behavior or reintroducing dependencies on the deprecated legacy UI path.
+
+The target `src/native_app/**` module map is:
+
+* `src/native_app/app/**` owns native-app state shape, messages, update routing, startup-loaded state, and orchestration between product domains. It may connect app chrome, sample-library behavior, waveform behavior, metadata, audio, shell lifecycle, and workflows, but it should not become a rendering dumping ground or hide broad domain APIs behind convenience re-exports.
+* `src/native_app/app_chrome/**` owns Wavecrate window composition and product-specific view rendering: top and bottom chrome, toolbar, status bars, center-panel layout, source/folder sidebar placement, sample-list panel placement, waveform panel placement, tag-library panel placement, modals, popovers, context-menu overlays, drag previews, and other visible shell layers. It may adapt product state into Radiant views, but it should keep inputs narrow and should not own source scanning, file mutation, metadata persistence, playback, waveform editing rules, or sample-library command side effects.
+* The target sample-library domain module, expected to be named `src/native_app/sample_library/**` when the refactor reaches that point, owns source, folder, and sample state; source scanning; source watching; file rows; collections; ratings; folder and file commands; drag/drop domain handling; reveal/copy/move/trash workflows; and sample-library context targets. The current `src/native_app/library_browser/**` module is transitional because it still mixes sample-library state/workflows with source/folder/sample view rendering. During the migration, keep behavior in this module unless a change is explicitly splitting view code into `app_chrome`.
+* `src/native_app/waveform/**` owns waveform state, audio-derived waveform data, viewport state, play/edit selection state, waveform interaction rules, waveform widget props, waveform cache helpers, and waveform-domain tests. `app_chrome::waveform_panel` may frame and paint this state, but waveform state and editing/audition rules stay in `waveform`.
+* `src/native_app/metadata/**` owns tag vocabulary, tag categories, tag completion data, metadata assignment rules, display-category projection, metadata persistence, and metadata tests. Chrome may paint tag panels and tag pills, but metadata rules and persistence stay here.
+* `src/native_app/audio/**` owns playback, output-device settings, sample loading, cache warming, normalization actions, and audio progress behavior. Chrome may expose controls and status, but audio state transitions and playback policy stay here.
+* `src/native_app/workflows/**` owns cross-domain commands that have side effects or meaningful product semantics, such as context-menu command dispatch. A workflow may call sample-library, metadata, audio, waveform, or shell helpers, but view rendering should remain in app chrome.
+* `src/native_app/shell/**` owns native-app launch, lifecycle hooks, message dispatch integration, shortcut resolution, logging, and Radiant runtime setup for the Wavecrate app. It should not own product rendering internals or domain mutation policy.
+* `src/native_app/ui/**` owns Wavecrate-local UI constants and identifiers that are not reusable Radiant primitives. It should stay small and should not become a second app-chrome or a generic UI facade.
+* `vendor/radiant/**` owns generic GUI and runtime capability. If a Wavecrate view needs a reusable menu, overlay, list, drag/drop, focus, shortcut, layout, invalidation, or rendering primitive, add or improve the generic Radiant API with neutral names and keep Wavecrate as the product adapter.
+
+Library-browser views are allowed to be part of app chrome because they are visible regions of the Wavecrate window: the source/folder sidebar, sample-list panel, tag-library panel, and context-menu overlay are chrome composition concerns. Library-browser behavior must remain outside app chrome because it owns product facts and side effects: which sources exist, how folders scan, how samples are selected, how collections and ratings mutate, how file paths are copied or trashed, and how metadata is persisted. Moving a view helper into `app_chrome` should reduce rendering ambiguity; moving command policy or mutable library state into `app_chrome` is a boundary regression.
+
+Import direction should make that ownership visible:
+
+* Acceptable: `app_chrome` imports narrow view models, immutable domain references, message constructors, and Radiant builders to paint visible regions.
+* Acceptable: `app` imports both app-chrome and domain modules to route messages and orchestrate state transitions.
+* Acceptable: workflow modules import domain modules to execute commands and report status.
+* Acceptable: domain modules import `crate::native_app::ui::ids` for stable widget IDs when the ID is part of product interaction state.
+* Unacceptable: sample-library, metadata, audio, waveform, or workflow modules import `crate::native_app::app_chrome::*` rendering helpers to perform product behavior.
+* Unacceptable: `app_chrome` directly performs source scans, file writes, metadata persistence, playback state transitions, trash movement, or waveform edit mutations instead of sending or routing product messages.
+* Unacceptable: root-level native-app modules named after generic widgets, such as a broad `context_menu`, `browser`, or `widgets`, unless the module truly owns an app-wide abstraction and not one product region.
+* Unacceptable: Wavecrate-local generic GUI helpers that should be Radiant primitives, especially when names and behavior are domain-neutral.
 
 `src/ui_primitives/**` owns Wavecrate's thin, backend-agnostic UI primitive vocabulary re-export boundary. It should not own widget construction, product state transitions, layout policy, hit testing, input propagation, or rendering orchestration.
 
