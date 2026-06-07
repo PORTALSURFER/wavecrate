@@ -7,10 +7,8 @@ use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
-    TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
-    metadata_tag_category_id_for_display, order_metadata_tags_for_display, tag_field_layout,
-    tag_field_rows, tag_input_width_with_completion,
-    tag_input_width_with_completion_or_placeholder, tag_pill_width,
+    TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryFieldProjection,
+    TagEntryRowItem, metadata_tag_category_id_for_display, tag_pill_width,
 };
 
 #[cfg(test)]
@@ -81,35 +79,20 @@ fn tag_entry_field(
     height: f32,
     content_width: f32,
 ) -> ui::View<GuiMessage> {
-    let mut visible_tags = tags.to_vec();
-    for token in tag_tokens {
-        if !visible_tags.iter().any(|tag| tag == token) {
-            visible_tags.push(token.clone());
-        }
-    }
-    order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
-
-    let pending_category_tag = tag_pending_category_tag.map(str::to_string);
-    let input_width = if pending_category_tag.is_some() {
-        tag_input_width_with_completion(tag_draft, tag_completion_suffix)
-    } else {
-        tag_input_width_with_completion_or_placeholder(
-            tag_draft,
-            tag_completion_suffix,
-            tag_input_placeholder,
-        )
-    };
-    let rows = tag_field_rows(
-        &visible_tags,
+    let projection = TagEntryFieldProjection::new(
+        tag_draft,
+        tag_tokens,
+        tag_pending_category_tag,
+        tag_input_placeholder,
+        tag_completion_suffix,
+        tags,
         tag_display_categories,
-        pending_category_tag.as_deref(),
-        input_width,
         content_width,
     );
-    let row_count = rows.len();
-    let field_layout = tag_field_layout(row_count, content_width);
     let content = ui::column(
-        rows.into_iter()
+        projection
+            .rows
+            .into_iter()
             .enumerate()
             .map(|(row_index, row)| {
                 tag_entry_row(
@@ -125,10 +108,10 @@ fn tag_entry_field(
             .collect::<Vec<_>>(),
     )
     .fill_width()
-    .height(field_layout.content_height)
+    .height(projection.layout.content_height)
     .spacing(TAG_FIELD_LINE_GAP);
 
-    if field_layout.requires_scroll {
+    if projection.layout.requires_scroll {
         ui::scroll(content)
             .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .padding(3.0)
@@ -149,31 +132,18 @@ pub(in crate::native_app) fn tag_field_height(
     tag_display_categories: &[MetadataTagDisplayCategory],
     content_width: f32,
 ) -> f32 {
-    let mut visible_tags = tags.to_vec();
-    for token in tag_tokens {
-        if !visible_tags.iter().any(|tag| tag == token) {
-            visible_tags.push(token.clone());
-        }
-    }
-    order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
-    let input_width = if tag_pending_category_tag.is_some() {
-        tag_input_width_with_completion(tag_draft, tag_completion_suffix)
-    } else {
-        tag_input_width_with_completion_or_placeholder(
-            tag_draft,
-            tag_completion_suffix,
-            tag_input_placeholder,
-        )
-    };
-    let rows = tag_field_rows(
-        &visible_tags,
-        tag_display_categories,
+    TagEntryFieldProjection::new(
+        tag_draft,
+        tag_tokens,
         tag_pending_category_tag,
-        input_width,
+        tag_input_placeholder,
+        tag_completion_suffix,
+        tags,
+        tag_display_categories,
         content_width,
     )
-    .len();
-    tag_field_layout(rows, content_width).field_height
+    .layout
+    .field_height
 }
 
 pub(in crate::native_app) fn metadata_tag_completion_bottom_inset(panel_height: f32) -> f32 {

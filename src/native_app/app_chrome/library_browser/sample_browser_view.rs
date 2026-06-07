@@ -14,6 +14,7 @@ use crate::native_app::ui::ids as widget_ids;
 mod hit_target;
 pub(in crate::native_app) use hit_target::SampleFileHitTarget;
 
+mod row_projection;
 mod row_widgets;
 mod rows;
 use rows::sample_browser_rows;

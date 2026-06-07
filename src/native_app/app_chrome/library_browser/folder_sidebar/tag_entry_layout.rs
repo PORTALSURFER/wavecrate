@@ -24,10 +24,64 @@ pub(super) enum TagEntryRowItem {
     Input(f32),
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TagEntryFieldProjection {
+    pub(super) rows: Vec<Vec<TagEntryRowItem>>,
+    pub(super) layout: ui::FlowFieldLayout,
+}
+
+impl TagEntryFieldProjection {
+    pub(super) fn new(
+        tag_draft: &str,
+        tag_tokens: &[String],
+        pending_category_tag: Option<&str>,
+        input_placeholder: &str,
+        completion_suffix: Option<&str>,
+        tags: &[String],
+        tag_display_categories: &[MetadataTagDisplayCategory],
+        content_width: f32,
+    ) -> Self {
+        let visible_tags = visible_metadata_tags(tags, tag_tokens, tag_display_categories);
+        let input_width = if pending_category_tag.is_some() {
+            tag_input_width_with_completion(tag_draft, completion_suffix)
+        } else {
+            tag_input_width_with_completion_or_placeholder(
+                tag_draft,
+                completion_suffix,
+                input_placeholder,
+            )
+        };
+        let rows = tag_field_rows(
+            &visible_tags,
+            tag_display_categories,
+            pending_category_tag,
+            input_width,
+            content_width,
+        );
+        let layout = tag_field_layout(rows.len(), content_width);
+        Self { rows, layout }
+    }
+}
+
 impl ui::FlowItemWidth for TagEntryRowItem {
     fn flow_width(&self) -> f32 {
         tag_entry_row_item_width(self)
     }
+}
+
+fn visible_metadata_tags(
+    tags: &[String],
+    tag_tokens: &[String],
+    tag_display_categories: &[MetadataTagDisplayCategory],
+) -> Vec<String> {
+    let mut visible_tags = tags.to_vec();
+    for token in tag_tokens {
+        if !visible_tags.iter().any(|tag| tag == token) {
+            visible_tags.push(token.clone());
+        }
+    }
+    order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
+    visible_tags
 }
 
 pub(super) fn tag_field_rows(
@@ -207,6 +261,50 @@ mod tests {
                 TagEntryRowItem::PendingCategory(String::from(pending_label)),
                 TagEntryRowItem::Input(input_width),
             ]
+        );
+    }
+
+    #[test]
+    fn tag_entry_field_projection_merges_tokens_once_and_orders_by_category() {
+        let tags = vec![String::from("kick")];
+        let tokens = vec![String::from("kick"), String::from("loop")];
+        let categories = vec![
+            MetadataTagDisplayCategory {
+                tag: String::from("loop"),
+                category_id: "playback-type",
+            },
+            MetadataTagDisplayCategory {
+                tag: String::from("kick"),
+                category_id: "sound-type",
+            },
+        ];
+
+        let projection = TagEntryFieldProjection::new(
+            "",
+            &tokens,
+            None,
+            "add tag",
+            None,
+            &tags,
+            &categories,
+            420.0,
+        );
+
+        assert!(
+            projection
+                .rows
+                .iter()
+                .flatten()
+                .any(|item| { matches!(item, TagEntryRowItem::Accepted(tag) if tag == "loop") })
+        );
+        assert_eq!(
+            projection
+                .rows
+                .iter()
+                .flatten()
+                .filter(|item| matches!(item, TagEntryRowItem::Accepted(tag) if tag == "kick"))
+                .count(),
+            1
         );
     }
 }

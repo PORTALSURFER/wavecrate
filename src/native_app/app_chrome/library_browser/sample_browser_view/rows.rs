@@ -3,10 +3,13 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use super::SampleFileHitTarget;
+use super::row_projection::{
+    SampleColumnContent, SampleColumnDisplay, SampleRowDisplay, sample_row_display,
+};
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::{
-    self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState,
+    FileColumn, FileRenameView, FolderBrowserMessage, FolderBrowserState,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -35,20 +38,15 @@ pub(super) fn sample_browser_rows(
             else {
                 return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
             };
-            sample_browser_row(
+            sample_browser_row(sample_row_display(
                 file,
-                folder_browser.is_file_selected(&file.id),
-                folder_browser.file_rename_view(&file.id),
-                folder_browser.drag_revision(),
-                folder_browser.file_drag_active(),
-                folder_browser.file_drag_source(&file.id),
                 folder_browser,
                 columns,
                 name_view_mode,
                 metadata_tags_by_file,
                 cached_sample_paths.contains(&file.id),
                 suppress_row_hover,
-            )
+            ))
         },
         SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
     )
@@ -69,53 +67,30 @@ fn empty_sample_browser_rows() -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_browser_row(
-    file: &FileEntry,
-    selected: bool,
-    rename: Option<folder_browser::FileRenameView>,
-    drag_revision: u64,
-    drag_active: bool,
-    drag_source: bool,
-    folder_browser: &FolderBrowserState,
-    columns: &[&FileColumn],
-    name_view_mode: SampleNameViewMode,
-    metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached: bool,
-    suppress_row_hover: bool,
-) -> ui::View<GuiMessage> {
-    let hit_path = file.id.clone();
+fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
+    let file_id = row.file_id.to_string();
     let hit_target = sample_file_hit_target(
-        file,
-        selected,
-        drag_revision,
-        drag_active,
-        drag_source,
-        cached,
-        hit_path,
-        suppress_row_hover,
+        row.file_id,
+        row.selected,
+        row.drag_revision,
+        row.drag_active,
+        row.drag_source,
+        row.cached,
+        file_id,
+        row.suppress_row_hover,
     );
     let row = ui::input_underlay(
-        ui::compact_details_row(columns.iter().map(|column| {
-            sample_column_cell(
-                file,
-                rename.clone(),
-                column,
-                folder_browser,
-                name_view_mode,
-                metadata_tags_by_file,
-                cached,
-            )
-        })),
+        ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)),
         hit_target,
     )
-    .key(format!("sample-row-{}", file.id))
+    .key(format!("sample-row-{}", row.file_id))
     .fill_width()
     .height(22.0);
     row.style(ui::WidgetStyle::default())
 }
 
 fn sample_file_hit_target(
-    file: &FileEntry,
+    file_id: &str,
     selected: bool,
     drag_revision: u64,
     drag_active: bool,
@@ -132,62 +107,29 @@ fn sample_file_hit_target(
         cached,
         suppress_hover,
     ))
-    .key(format!("sample-row-hit-{}-{drag_revision}", file.id))
+    .key(format!("sample-row-hit-{file_id}-{drag_revision}"))
     .fill_width()
     .height(22.0)
 }
 
-fn sample_column_cell(
-    file: &FileEntry,
-    rename: Option<folder_browser::FileRenameView>,
-    column: &FileColumn,
-    folder_browser: &FolderBrowserState,
-    name_view_mode: SampleNameViewMode,
-    metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached: bool,
-) -> ui::View<GuiMessage> {
-    if column.id == "name" {
-        return sample_name_cell(
-            file,
-            rename,
-            column.width,
-            name_view_mode,
-            metadata_tags_by_file,
-            cached,
-        );
+fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
+    match column.content {
+        SampleColumnContent::Text { value, cached } => {
+            sample_file_cell(value, column.width, column.file_id, column.id, cached)
+        }
+        SampleColumnContent::Rename(rename) => {
+            sample_rename_cell(rename, column.width, column.file_id)
+        }
+        SampleColumnContent::Rating(indicator) => {
+            sample_rating_cell(indicator, column.width, column.file_id)
+        }
+        SampleColumnContent::Collection(colors) => {
+            sample_collection_cell(colors, column.width, column.file_id)
+        }
     }
-    if column.id == "rating" {
-        return sample_rating_cell(file, column.width);
-    }
-    if column.id == "collection" {
-        return sample_collection_cell(file, column.width, folder_browser);
-    }
-    sample_file_cell(
-        file,
-        sample_file_column_value(file, column.id.as_str()),
-        column.width,
-        column.id.as_str(),
-        cached,
-    )
 }
 
-fn sample_name_cell(
-    file: &FileEntry,
-    rename: Option<folder_browser::FileRenameView>,
-    width: f32,
-    name_view_mode: SampleNameViewMode,
-    metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached: bool,
-) -> ui::View<GuiMessage> {
-    let Some(rename) = rename else {
-        return sample_file_cell(
-            file,
-            sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
-            width,
-            "name",
-            cached,
-        );
-    };
+fn sample_rename_cell(rename: FileRenameView, width: f32, file_id: &str) -> ui::View<GuiMessage> {
     ui::compact_details_cell(
         ui::text_input(rename.draft)
             .selection(rename.selection_start, rename.selection_end)
@@ -195,80 +137,32 @@ fn sample_name_cell(
                 GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
             })
             .id(rename.input_id)
-            .key(format!("sample-rename-input-{}", file.id)),
+            .key(format!("sample-rename-input-{file_id}")),
         Some(width),
     )
 }
 
-pub(super) fn sample_name_cell_value(
-    file: &FileEntry,
-    mode: SampleNameViewMode,
-    metadata_tags_by_file: &HashMap<String, Vec<String>>,
-) -> String {
-    match mode {
-        SampleNameViewMode::DiskFilename => file.stem.clone(),
-        SampleNameViewMode::MetadataLabel => {
-            metadata_display_stem(file, metadata_tags_by_file.get(&file.id).map(Vec::as_slice))
-        }
-    }
-}
-
-fn metadata_display_stem(file: &FileEntry, metadata_tags: Option<&[String]>) -> String {
-    let display = metadata_tags
-        .unwrap_or(&[])
-        .iter()
-        .filter(|tag| !tag.is_empty())
-        .map(String::as_str)
-        .collect::<Vec<_>>()
-        .join("_");
-    if display.is_empty() {
-        file.stem.clone()
-    } else {
-        display
-    }
-}
-
-fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
-    match column_id {
-        "extension" => file.extension.clone(),
-        "size" => file.size.clone(),
-        "modified" => file.modified.clone(),
-        "kind" => file.kind.clone(),
-        "collection" => file
-            .collection_memberships()
-            .into_iter()
-            .map(folder_browser::collection_hotkey)
-            .map(|hotkey| hotkey.to_string())
-            .collect::<Vec<_>>()
-            .join(","),
-        "path" => file.id.clone(),
-        _ => file.stem.clone(),
-    }
-}
-
 fn sample_collection_cell(
-    file: &FileEntry,
+    colors: Vec<ui::Rgba8>,
     width: f32,
-    folder_browser: &FolderBrowserState,
+    file_id: &str,
 ) -> ui::View<GuiMessage> {
-    let colors = file
-        .collection_memberships()
-        .into_iter()
-        .filter_map(|collection| folder_browser.collection_color(collection));
-
     ui::compact_details_cell(
-        ui::marker_run_colors(colors)
+        ui::marker_run_colors(colors.into_iter())
             .side(6)
             .gap(4)
             .inset(4)
             .view()
-            .key(format!("sample-collection-{}", file.id)),
+            .key(format!("sample-collection-{file_id}")),
         Some(width),
     )
 }
 
-fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
-    let indicator = RatingIndicator::new(file.rating, file.rating_locked);
+fn sample_rating_cell(
+    indicator: RatingIndicator,
+    width: f32,
+    file_id: &str,
+) -> ui::View<GuiMessage> {
     if indicator.shows_keep_badge() {
         return ui::compact_details_anchored_cell_from_parts(
             ui::CompactDetailsAnchoredCellParts::new(
@@ -280,7 +174,7 @@ fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
             .vertical(ui::LayerVerticalAnchor::Start)
             .inset(2.0, 3.0),
         )
-        .key(format!("sample-rating-{}", file.id));
+        .key(format!("sample-rating-{file_id}"));
     }
 
     ui::compact_details_cell(
@@ -289,22 +183,22 @@ fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
             .gap(4)
             .inset(4)
             .view()
-            .key(format!("sample-rating-{}", file.id)),
+            .key(format!("sample-rating-{file_id}")),
         Some(width),
     )
 }
 
 fn sample_file_cell(
-    file: &FileEntry,
     value: String,
     width: f32,
+    file_id: &str,
     column_id: &str,
     cached: bool,
 ) -> ui::View<GuiMessage> {
     let text = ui::text(value);
     let text = if cached { text } else { text.muted_text() };
     ui::compact_details_cell(
-        text.key(format!("sample-{}-{column_id}", file.id)),
+        text.key(format!("sample-{file_id}-{column_id}")),
         Some(width),
     )
 }
