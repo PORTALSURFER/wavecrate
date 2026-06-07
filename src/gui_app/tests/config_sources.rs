@@ -29,8 +29,9 @@ fn default_gui_loads_persisted_sources_and_audio_output() {
     assert_eq!(state.folder_browser.root_path(), source_root.path());
     assert!(
         state.startup_source_scan_pending,
-        "configured sources should always refresh on startup"
+        "uncached configured sources should scan once to build the initial tree"
     );
+    assert!(!state.startup_folder_verify_pending);
     assert_eq!(state.audio_output_config.host.as_deref(), Some("test-host"));
     assert_eq!(
         state.audio_output_config.device.as_deref(),
@@ -68,12 +69,57 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
 
     assert!(state.folder_browser.selected_source_loaded());
     assert!(
-        state.startup_source_scan_pending,
-        "cached source trees should still be refreshed and pruned after startup"
+        !state.startup_source_scan_pending,
+        "cached source trees must not queue a full startup scan"
+    );
+    assert!(
+        state.startup_folder_verify_pending,
+        "cached source trees should queue only a bounded visible-folder verification"
     );
     assert!(
         !state.cached_sample_paths.contains(&sample_id),
         "startup must not probe waveform cache metadata on the UI thread"
+    );
+}
+
+#[test]
+fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    fs::write(source_root.path().join("kick.wav"), [0_u8; 8]).expect("write sample");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("source_id::gui-cache-no-startup-scan"),
+        source_root.path().to_path_buf(),
+    );
+    wavecrate::sample_sources::config::save(&super::super::AppConfig {
+        sources: vec![source.clone()],
+        core: super::super::AppSettingsCore::default(),
+    })
+    .expect("seed config");
+    super::super::FolderBrowserState::from_sample_sources(&[source])
+        .save_source_scan_cache()
+        .expect("persist source scan cache");
+    let mut state = GuiAppState::load_default().expect("default state loads persisted cache");
+    let mut context = ui::UpdateContext::default();
+
+    state.maybe_startup_source_scan(&mut context);
+
+    assert!(
+        state.folder_progress.is_none(),
+        "cached startup must not queue a foreground source scan"
+    );
+    assert!(
+        !state.startup_source_scan_pending,
+        "cached startup should not leave a full scan pending"
+    );
+    assert!(
+        !state.startup_folder_verify_pending,
+        "visible-folder verification should be consumed as a one-shot startup task"
+    );
+    assert!(
+        state.startup_folder_verify_task.active().is_some(),
+        "cached startup should verify only the visible folder in the background"
     );
 }
 

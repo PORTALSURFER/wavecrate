@@ -78,6 +78,27 @@ impl RenameCommitResult {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct FolderVerifyRequest {
+    pub(in crate::gui_app) source_id: String,
+    pub(in crate::gui_app) folder_path: PathBuf,
+    pub(in crate::gui_app) cached_child_ids: Vec<String>,
+    pub(in crate::gui_app) cached_file_signatures: Vec<(String, u64)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct FolderVerifySnapshot {
+    pub(in crate::gui_app) child_paths: Vec<PathBuf>,
+    pub(in crate::gui_app) files: Vec<FileEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct FolderVerifyResult {
+    pub(in crate::gui_app) source_id: String,
+    pub(in crate::gui_app) folder_path: PathBuf,
+    pub(in crate::gui_app) snapshot: Option<FolderVerifySnapshot>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui_app) struct FolderDragPreview {
     pub(in crate::gui_app) label: String,

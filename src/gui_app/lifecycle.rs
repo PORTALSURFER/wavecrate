@@ -21,7 +21,10 @@ impl GuiAppState {
             .map_err(|err| format!("load app configuration: {err}"))?;
         let has_configured_sources = !config.sources.is_empty();
         let folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
-        let startup_source_scan_pending = has_configured_sources;
+        let startup_source_scan_pending =
+            has_configured_sources && !folder_browser.selected_source_loaded();
+        let startup_folder_verify_pending =
+            has_configured_sources && folder_browser.selected_source_loaded();
         let (worker_sender, worker_receiver) = mpsc::channel();
         let source_watcher = has_configured_sources.then(|| {
             super::source_watcher::GuiSourceWatcherHandle::spawn(
@@ -45,6 +48,8 @@ impl GuiAppState {
             folder_progress: None,
             pending_source_refreshes: Default::default(),
             source_watcher,
+            startup_folder_verify_task: ui::LatestTask::new(),
+            startup_folder_verify_results: Default::default(),
             normalization_progress: None,
             progress_tick: 0.0,
             frame_cadence: ui::FrameCadenceMonitor::new(),
@@ -89,6 +94,7 @@ impl GuiAppState {
             metadata_tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
             startup_source_scan_pending,
+            startup_folder_verify_pending,
             startup_auto_load_pending: has_configured_sources,
             waveform_cache: HashMap::new(),
             waveform_cache_order: Default::default(),

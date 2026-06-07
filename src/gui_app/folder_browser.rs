@@ -38,8 +38,8 @@ pub(in crate::gui_app) use file_model::FileEntry;
 use file_model::plural;
 
 mod scanning;
-pub(super) use scanning::scan_source_with_progress;
 use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
+pub(super) use scanning::{scan_source_with_progress, verify_direct_folder};
 
 mod source_scan_cache;
 
@@ -69,8 +69,8 @@ pub(super) use types::{
     FileColumnDragFeedback, FileDeleteTargetView, FileMoveConflictResolution, FileMoveConflictView,
     FileRenameView, FolderBrowserMessage, FolderDeleteTargetView, FolderDragPreview,
     FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress,
-    FolderScanRequest, FolderScanResult, RemovedSource, RenameCommitResult, RenamePathRemap,
-    RenameTargetView,
+    FolderScanRequest, FolderScanResult, FolderVerifyRequest, FolderVerifyResult, RemovedSource,
+    RenameCommitResult, RenamePathRemap, RenameTargetView,
 };
 use types::{FileMoveConflict, FileMoveConflictBatch};
 

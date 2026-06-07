@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui_app::folder_browser::verify_direct_folder;
 
 #[test]
 fn source_scan_installs_finished_tree_after_placeholder_selection() {
@@ -194,6 +195,39 @@ fn targeted_filesystem_refresh_prunes_deleted_cached_file() {
     assert!(
         browser.selected_audio_files().is_empty(),
         "targeted refresh should remove deleted samples from the cached folder listing"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn direct_folder_verify_patches_visible_folder_without_dropping_nested_cache() {
+    let root = temp_source_root("wavecrate-gui-direct-folder-verify");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    fs::create_dir_all(&kicks).expect("create nested folder");
+    fs::write(kicks.join("deep.wav"), [0_u8; 8]).expect("write nested sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.find_folder(&path_id(&kicks)).is_some());
+    fs::write(root.join("new-root.wav"), [1_u8; 16]).expect("write new root sample");
+
+    let request = browser
+        .selected_folder_verify_request()
+        .expect("selected root should be verifiable");
+    let result = verify_direct_folder(request);
+
+    assert!(browser.apply_direct_folder_verify_result(result));
+    assert!(
+        browser.find_folder(&path_id(&kicks)).is_some(),
+        "direct verification should preserve cached nested child folders"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["new-root.wav"]
     );
     let _ = fs::remove_dir_all(root);
 }

@@ -36,6 +36,48 @@ impl FolderEntry {
         !self.children.is_empty()
     }
 
+    pub(super) fn replace_direct_entries(
+        &mut self,
+        child_paths: Vec<PathBuf>,
+        files: Vec<FileEntry>,
+    ) -> bool {
+        let previous_children = std::mem::take(&mut self.children);
+        let next_children = child_paths
+            .into_iter()
+            .map(|path| {
+                let id = path_id(&path);
+                previous_children
+                    .iter()
+                    .find(|child| child.id == id)
+                    .cloned()
+                    .unwrap_or_else(|| FolderEntry {
+                        id,
+                        name: folder_label(&path),
+                        children: Vec::new(),
+                        files: Vec::new(),
+                    })
+            })
+            .collect::<Vec<_>>();
+
+        let next_files = files
+            .into_iter()
+            .map(|mut file| {
+                if let Some(previous) = self.files.iter().find(|previous| previous.id == file.id) {
+                    file.rating = previous.rating;
+                    file.rating_locked = previous.rating_locked;
+                    file.collection = previous.collection;
+                    file.collections = previous.collections.clone();
+                }
+                file
+            })
+            .collect::<Vec<_>>();
+
+        let changed = self.children != next_children || self.files != next_files;
+        self.children = next_children;
+        self.files = next_files;
+        changed
+    }
+
     pub(super) fn rewrite_path_prefix(&mut self, old_path: &Path, new_path: &Path) {
         self.id = rewrite_path_id(&self.id, old_path, new_path);
         if Path::new(&self.id) == new_path {

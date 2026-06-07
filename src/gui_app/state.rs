@@ -20,7 +20,7 @@ use wavecrate::sample_sources::config::AppSettingsCore;
 use super::context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 use super::folder_browser::{
     FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, FolderScanProgress,
-    FolderScanResult,
+    FolderScanResult, FolderVerifyResult,
 };
 use super::metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
 use super::source_watcher::GuiSourceWatcherHandle;
@@ -98,6 +98,7 @@ pub(in crate::gui_app) enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
+    StartupFolderVerifyFinished(ui::TaskTicket),
     SourceFilesystemChanged {
         source_id: String,
         paths: Vec<PathBuf>,
@@ -291,6 +292,9 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) folder_progress: Option<FolderScanProgress>,
     pub(in crate::gui_app) pending_source_refreshes: HashSet<String>,
     pub(in crate::gui_app) source_watcher: Option<GuiSourceWatcherHandle>,
+    pub(in crate::gui_app) startup_folder_verify_task: ui::LatestTask,
+    pub(in crate::gui_app) startup_folder_verify_results:
+        Arc<Mutex<HashMap<ui::TaskTicket, FolderVerifyResult>>>,
     pub(in crate::gui_app) normalization_progress: Option<NormalizationProgress>,
     pub(in crate::gui_app) progress_tick: f32,
     pub(in crate::gui_app) frame_cadence: ui::FrameCadenceMonitor,
@@ -335,6 +339,7 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) metadata_tags_by_file: HashMap<String, Vec<String>>,
     pub(in crate::gui_app) sample_name_view_mode: SampleNameViewMode,
     pub(in crate::gui_app) startup_source_scan_pending: bool,
+    pub(in crate::gui_app) startup_folder_verify_pending: bool,
     pub(in crate::gui_app) startup_auto_load_pending: bool,
     pub(in crate::gui_app) waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
     pub(in crate::gui_app) waveform_cache_order: VecDeque<PathBuf>,

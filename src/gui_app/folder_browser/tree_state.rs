@@ -1,5 +1,6 @@
 use super::{
-    FolderBrowserDropTarget, FolderBrowserState, FolderEntry, VisibleFolder, path_helpers::path_id,
+    FolderBrowserDropTarget, FolderBrowserState, FolderEntry, FolderVerifyRequest, VisibleFolder,
+    path_helpers::path_id,
 };
 
 impl FolderBrowserState {
@@ -14,6 +15,24 @@ impl FolderBrowserState {
     pub(in crate::gui_app) fn selected_folder_path(&self) -> Option<std::path::PathBuf> {
         self.selected_folder()
             .map(|folder| std::path::PathBuf::from(&folder.id))
+    }
+
+    pub(in crate::gui_app) fn selected_folder_verify_request(&self) -> Option<FolderVerifyRequest> {
+        let folder = self.selected_folder()?;
+        Some(FolderVerifyRequest {
+            source_id: self.selected_source.clone(),
+            folder_path: std::path::PathBuf::from(&folder.id),
+            cached_child_ids: folder
+                .children
+                .iter()
+                .map(|child| child.id.clone())
+                .collect(),
+            cached_file_signatures: folder
+                .files
+                .iter()
+                .map(|file| (file.id.clone(), file.size_bytes))
+                .collect(),
+        })
     }
 
     pub(super) fn find_folder(&self, id: &str) -> Option<&FolderEntry> {

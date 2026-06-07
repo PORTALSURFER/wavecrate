@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use wavecrate::sample_sources::Rating;
 
 use super::{
-    FolderBrowserState,
+    FolderBrowserState, FolderVerifyResult,
     path_helpers::path_id,
     scanning::{file_entry, load_folder_at_path, load_root_folder, upsert_file, upsert_folder},
 };
@@ -453,6 +453,52 @@ impl FolderBrowserState {
             self.after_source_tree_changed(source_id);
         }
         changed
+    }
+
+    pub(in crate::gui_app) fn apply_direct_folder_verify_result(
+        &mut self,
+        result: FolderVerifyResult,
+    ) -> bool {
+        let Some(snapshot) = result.snapshot else {
+            return false;
+        };
+        let Some(source_index) = self
+            .sources
+            .iter()
+            .position(|source| source.id == result.source_id)
+        else {
+            return false;
+        };
+        let folder_id = path_id(&result.folder_path);
+        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        let Some(folder) = root_folder.find_mut(&folder_id) else {
+            return false;
+        };
+        if !folder.replace_direct_entries(snapshot.child_paths, snapshot.files) {
+            return false;
+        }
+        if self.selected_source == result.source_id {
+            self.folders = vec![root_folder.clone()];
+            if self.selected_folder == folder_id {
+                let visible_ids = self
+                    .selected_audio_files()
+                    .into_iter()
+                    .map(|file| file.id.clone())
+                    .collect::<HashSet<_>>();
+                self.selected_file_ids.retain(|id| visible_ids.contains(id));
+                if self
+                    .selected_file
+                    .as_ref()
+                    .is_some_and(|id| !visible_ids.contains(id))
+                {
+                    self.selected_file = None;
+                }
+            }
+        }
+        self.bump_file_content_revision();
+        true
     }
 
     fn refresh_one_source_relative_path(

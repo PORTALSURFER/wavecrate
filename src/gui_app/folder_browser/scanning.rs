@@ -9,7 +9,7 @@ use super::{
     path_helpers::{file_label, folder_label, path_id},
     types::{
         FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-        FolderScanResult,
+        FolderScanResult, FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
     },
 };
 use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
@@ -43,6 +43,16 @@ pub(super) fn placeholder_folder(root: &Path) -> FolderEntry {
         name: folder_label(root),
         children: Vec::new(),
         files: Vec::new(),
+    }
+}
+
+pub(in crate::gui_app) fn verify_direct_folder(request: FolderVerifyRequest) -> FolderVerifyResult {
+    let snapshot = read_direct_folder_snapshot(&request.folder_path);
+    let snapshot = snapshot.filter(|snapshot| direct_folder_changed(&request, snapshot));
+    FolderVerifyResult {
+        source_id: request.source_id,
+        folder_path: request.folder_path,
+        snapshot,
     }
 }
 
@@ -132,6 +142,41 @@ fn load_folder(
         children,
         files,
     })
+}
+
+fn read_direct_folder_snapshot(path: &Path) -> Option<FolderVerifySnapshot> {
+    let entries = read_sorted_entries(path);
+    if entries.is_empty() && !path.is_dir() {
+        return None;
+    }
+    let child_paths = entries
+        .iter()
+        .filter(|entry| entry.is_dir())
+        .cloned()
+        .collect::<Vec<_>>();
+    let files = entries
+        .iter()
+        .filter(|entry| entry.is_file())
+        .map(file_entry)
+        .collect::<Vec<_>>();
+    Some(FolderVerifySnapshot { child_paths, files })
+}
+
+fn direct_folder_changed(request: &FolderVerifyRequest, snapshot: &FolderVerifySnapshot) -> bool {
+    let child_ids = snapshot
+        .child_paths
+        .iter()
+        .map(|path| path_id(path))
+        .collect::<Vec<_>>();
+    if child_ids != request.cached_child_ids {
+        return true;
+    }
+    let file_signatures = snapshot
+        .files
+        .iter()
+        .map(|file| (file.id.clone(), file.size_bytes))
+        .collect::<Vec<_>>();
+    file_signatures != request.cached_file_signatures
 }
 
 pub(super) fn load_folder_at_path(path: &Path, source_root: &Path) -> Option<FolderEntry> {
