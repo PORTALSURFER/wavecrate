@@ -3,8 +3,10 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::native_app::app::{NativeAppState, emit_gui_action};
-use crate::native_app::browser::file_actions::sample_path_label;
-use crate::native_app::context_menu::{self, BrowserContextMenu, BrowserContextTargetKind};
+use crate::native_app::library_browser::context_menu::{
+    self, BrowserContextMenu, BrowserContextTargetKind,
+};
+use crate::native_app::library_browser::file_actions::sample_path_label;
 
 impl NativeAppState {
     pub(in crate::native_app) fn open_source_context_menu(

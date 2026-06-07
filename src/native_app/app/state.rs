@@ -18,11 +18,11 @@ use super::{
     PendingPlaybackStart, PendingSamplePlayback, SampleNameViewMode, WaveformCacheEntry,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
-use crate::native_app::browser::folder_browser::{
+use crate::native_app::library_browser::context_menu::BrowserContextMenu;
+use crate::native_app::library_browser::folder_browser::{
     FolderBrowserState, FolderScanProgress, FolderVerifyResult,
 };
-use crate::native_app::browser::source_watcher::GuiSourceWatcherHandle;
-use crate::native_app::context_menu::BrowserContextMenu;
+use crate::native_app::library_browser::source_watcher::GuiSourceWatcherHandle;
 use crate::native_app::metadata::MetadataTagInputMode;
 use crate::native_app::transaction_history::TransactionHistory;
 use crate::native_app::waveform::WaveformState;

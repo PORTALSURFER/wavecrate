@@ -23,15 +23,15 @@ pub(in crate::native_app) use settings::{
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::NativeAppState;
 
+pub(super) use crate::native_app::app_chrome::layout::view;
 pub(super) use crate::native_app::audio::audio_settings::format_sample_rate_label;
 pub(super) use crate::native_app::audio::sample_load_actions::{
     NormalizedWaveformReload, WaveformPlaybackResume,
 };
-pub(super) use crate::native_app::browser::file_actions::sample_path_label;
-pub(super) use crate::native_app::browser::folder_browser::{
+pub(super) use crate::native_app::library_browser::file_actions::sample_path_label;
+pub(super) use crate::native_app::library_browser::folder_browser::{
     FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderScanProgress,
 };
-pub(super) use crate::native_app::chrome::layout::view;
 pub(super) use crate::native_app::shell::emit_gui_action;
 pub(super) use crate::native_app::shell::shortcuts::default_gui_shortcut_resolution;
 pub(super) use crate::native_app::waveform::{

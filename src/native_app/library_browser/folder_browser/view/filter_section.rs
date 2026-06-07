@@ -9,10 +9,11 @@ const FILTER_PANEL_PADDING: f32 = 6.0;
 const FILTER_PANEL_HEADER_HEIGHT: f32 = 20.0;
 const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
 const MAX_FILTER_PANEL_HEIGHT: f32 = 180.0;
-pub(in crate::native_app::browser::folder_browser) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
-    FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
+pub(in crate::native_app::library_browser::folder_browser) const COLLAPSED_FILTER_PANEL_HEIGHT:
+    f32 = FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app::browser::folder_browser) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 76.0;
+pub(in crate::native_app::library_browser::folder_browser) const DEFAULT_FILTER_PANEL_HEIGHT: f32 =
+    76.0;
 const NAME_FILTER_INPUT_ID: u64 = widget_ids::NAME_FILTER_INPUT_ID;
 const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 
@@ -24,7 +25,7 @@ impl FolderBrowserState {
         self.filter_panel.size()
     }
 
-    pub(in crate::native_app::browser::folder_browser) fn resize_filter_panel(
+    pub(in crate::native_app::library_browser::folder_browser) fn resize_filter_panel(
         &mut self,
         message: ui::DragHandleMessage,
     ) {

@@ -141,7 +141,7 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
-    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+    let result = crate::native_app::library_browser::folder_browser::scan_source_with_progress(
         request,
         |_| {},
         |_| {},
@@ -170,7 +170,7 @@ fn default_gui_removes_context_source_from_app_config() {
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
-    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+    let result = crate::native_app::library_browser::folder_browser::scan_source_with_progress(
         request,
         |_| {},
         |_| {},
@@ -207,7 +207,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
-    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+    let result = crate::native_app::library_browser::folder_browser::scan_source_with_progress(
         request,
         |_| {},
         |_| {},
@@ -258,7 +258,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
-    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+    let result = crate::native_app::library_browser::folder_browser::scan_source_with_progress(
         request,
         |_| {},
         |_| {},
@@ -301,7 +301,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
-    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+    let result = crate::native_app::library_browser::folder_browser::scan_source_with_progress(
         request,
         |_| {},
         |_| {},
@@ -329,8 +329,8 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         state.folder_browser.scan_is_active(&source_id, active_task),
         "first scan should still own the active task"
     );
-    let finished = crate::native_app::browser::folder_browser::scan_source_with_progress(
-        crate::native_app::browser::folder_browser::FolderScanRequest {
+    let finished = crate::native_app::library_browser::folder_browser::scan_source_with_progress(
+        crate::native_app::library_browser::folder_browser::FolderScanRequest {
             task_id: active_task,
             source_id: source_id.clone(),
             label: String::from("source"),

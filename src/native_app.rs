@@ -1,10 +1,9 @@
 //! Default Wavecrate native application built on Radiant's current public API.
 
 mod app;
+mod app_chrome;
 mod audio;
-mod browser;
-mod chrome;
-mod context_menu;
+mod library_browser;
 mod metadata;
 mod shell;
 #[cfg(test)]

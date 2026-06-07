@@ -1,8 +1,9 @@
-//! Source, folder, sample-list, and file-management workflow modules.
+//! Wavecrate library browser modules for sources, folders, sample rows, and file workflows.
 
 pub(in crate::native_app) const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
 pub(in crate::native_app) const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
 
+pub(in crate::native_app) mod context_menu;
 pub(in crate::native_app) mod drag_drop_actions;
 pub(in crate::native_app) mod file_actions;
 pub(in crate::native_app) mod folder_browser;

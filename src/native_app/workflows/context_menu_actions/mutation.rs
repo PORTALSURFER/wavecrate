@@ -2,7 +2,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, WaveformState, emit_gui_action};
-use crate::native_app::context_menu::{self, BrowserContextTargetKind};
+use crate::native_app::library_browser::context_menu::{self, BrowserContextTargetKind};
 
 impl NativeAppState {
     pub(in crate::native_app) fn remove_context_source(&mut self) {

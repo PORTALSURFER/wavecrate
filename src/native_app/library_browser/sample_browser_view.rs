@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, SampleNameViewMode};
-use crate::native_app::browser::folder_browser::{
+use crate::native_app::library_browser::folder_browser::{
     FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
 };
 use crate::native_app::ui::ids as widget_ids;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::native_app::chrome::waveform_panel::waveform_loading_visual;
+use crate::native_app::app_chrome::waveform_panel::waveform_loading_visual;
 
 #[test]
 fn default_window_title_marks_alpha_build() {

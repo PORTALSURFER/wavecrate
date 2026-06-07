@@ -12,8 +12,8 @@ use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
 
 mod audio_settings_controls;
 mod audio_settings_dropdowns;
+mod browser_context_menu;
 mod config_sources;
-mod context_menu;
 mod metadata_tag_tests;
 mod native_file_drop;
 mod sample_browser;
@@ -673,6 +673,6 @@ fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {
 
 fn metadata_tag_text_input(frame: &ui::SurfaceFrame) -> Option<&PaintTextInput> {
     frame.paint_plan.text_inputs().find(|input| {
-        input.widget_id == crate::native_app::browser::folder_browser::METADATA_TAG_INPUT_ID
+        input.widget_id == crate::native_app::library_browser::folder_browser::METADATA_TAG_INPUT_ID
     })
 }

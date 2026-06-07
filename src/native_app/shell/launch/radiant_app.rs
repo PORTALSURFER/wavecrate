@@ -4,8 +4,8 @@ use radiant::runtime::NativeRunOptions;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcut_resolution, view};
 use crate::native_app::audio::audio_settings;
-use crate::native_app::browser::folder_browser::{FOLDER_TREE_LIST_ID, TREE_ROW_HEIGHT};
-use crate::native_app::browser::sample_browser_view::{
+use crate::native_app::library_browser::folder_browser::{FOLDER_TREE_LIST_ID, TREE_ROW_HEIGHT};
+use crate::native_app::library_browser::sample_browser_view::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 

@@ -96,8 +96,8 @@ mod tag_entry_layout;
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 mod view;
 #[cfg(test)]
-pub(in crate::native_app::browser::folder_browser) use view::COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app::browser::folder_browser) use view::DEFAULT_FILTER_PANEL_HEIGHT;
+pub(in crate::native_app::library_browser::folder_browser) use view::COLLAPSED_FILTER_PANEL_HEIGHT;
+pub(in crate::native_app::library_browser::folder_browser) use view::DEFAULT_FILTER_PANEL_HEIGHT;
 #[cfg(test)]
 pub(in crate::native_app) use view::folder_browser_view;
 pub(in crate::native_app) use view::folder_browser_view_mut;

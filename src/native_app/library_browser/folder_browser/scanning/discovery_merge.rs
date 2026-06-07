@@ -1,6 +1,6 @@
 use super::{FileEntry, FolderEntry, FolderScanDiscovery, FolderScanItem};
 
-pub(in crate::native_app::browser::folder_browser) fn merge_scan_discovery(
+pub(in crate::native_app::library_browser::folder_browser) fn merge_scan_discovery(
     root: &mut FolderEntry,
     event: &FolderScanDiscovery,
 ) -> bool {
@@ -45,7 +45,7 @@ fn insert_discovered_folder(folders: &mut Vec<FolderEntry>, folder: FolderEntry)
     }
 }
 
-pub(in crate::native_app::browser::folder_browser) fn upsert_folder(
+pub(in crate::native_app::library_browser::folder_browser) fn upsert_folder(
     folders: &mut Vec<FolderEntry>,
     folder: FolderEntry,
 ) -> bool {
@@ -67,7 +67,7 @@ pub(in crate::native_app::browser::folder_browser) fn upsert_folder(
     }
 }
 
-pub(in crate::native_app::browser::folder_browser) fn upsert_file(
+pub(in crate::native_app::library_browser::folder_browser) fn upsert_file(
     files: &mut Vec<FileEntry>,
     file: FileEntry,
 ) -> bool {

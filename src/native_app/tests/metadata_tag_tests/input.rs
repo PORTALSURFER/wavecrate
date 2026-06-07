@@ -5,7 +5,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         false,
@@ -38,7 +38,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         String::from("one-shot"),
         String::from("distorted"),
     ];
-    let small = crate::native_app::browser::folder_browser::folder_browser_view(
+    let small = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -53,7 +53,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         None,
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
-    let larger = crate::native_app::browser::folder_browser::folder_browser_view(
+    let larger = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -89,7 +89,7 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
     let tags = (0..24)
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -632,7 +632,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
         },
     ];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,

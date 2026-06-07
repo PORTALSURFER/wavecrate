@@ -43,7 +43,9 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
         .paint_plan
-        .first_widget_rect(crate::native_app::browser::folder_browser::METADATA_SIDEBAR_PANEL_ID)
+        .first_widget_rect(
+            crate::native_app::library_browser::folder_browser::METADATA_SIDEBAR_PANEL_ID,
+        )
         .expect("metadata panel should paint");
     let status_text_rect = frame
         .paint_plan
@@ -60,7 +62,7 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
 #[test]
 fn metadata_section_keeps_configured_height_without_selected_file() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         false,
@@ -77,7 +79,9 @@ fn metadata_section_keeps_configured_height_without_selected_file() {
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
     let metadata_rect = frame
         .paint_plan
-        .first_widget_rect(crate::native_app::browser::folder_browser::METADATA_SIDEBAR_PANEL_ID)
+        .first_widget_rect(
+            crate::native_app::library_browser::folder_browser::METADATA_SIDEBAR_PANEL_ID,
+        )
         .expect("metadata panel should stay in the sidebar without a selected file");
 
     assert_eq!(metadata_rect.height(), browser.metadata_panel_height());
@@ -97,12 +101,14 @@ fn metadata_section_collapses_to_header_only_height() {
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
         .paint_plan
-        .first_widget_rect(crate::native_app::browser::folder_browser::METADATA_SIDEBAR_PANEL_ID)
+        .first_widget_rect(
+            crate::native_app::library_browser::folder_browser::METADATA_SIDEBAR_PANEL_ID,
+        )
         .expect("metadata panel should paint");
 
     assert_eq!(
         metadata_rect.height(),
-        crate::native_app::browser::folder_browser::COLLAPSED_METADATA_PANEL_HEIGHT
+        crate::native_app::library_browser::folder_browser::COLLAPSED_METADATA_PANEL_HEIGHT
     );
 }
 
@@ -114,7 +120,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
         category: "Group",
         selected: true,
     }];
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -154,7 +160,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         String::from("another"),
         String::from("cool-tag"),
     ];
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -191,7 +197,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         String::from("another"),
         String::from("cool-tag"),
     ];
-    let short_frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let short_frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -206,7 +212,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         None,
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
-    let crowded_frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let crowded_frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -237,7 +243,7 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         String::from("thing"),
         String::from("potato"),
     ];
-    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
+    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
         &browser,
         450.0,
         true,
