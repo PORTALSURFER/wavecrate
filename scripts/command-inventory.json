@@ -226,6 +226,10 @@
           "target": "check_migration_boundary.ps1"
         },
         {
+          "name": "native-app-boundary",
+          "target": "check_native_app_boundary.ps1"
+        },
+        {
           "name": "main-branch",
           "target": "check_next_branch.ps1"
         },

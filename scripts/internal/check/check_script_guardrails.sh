@@ -569,6 +569,14 @@ run_expect_exit_code \
   scripts/internal/check/check_rust_private_docs.sh
 
 run_expect_exit_code \
+  "bash -n scripts/internal/check/check_native_app_boundary.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/internal/check/check_native_app_boundary.sh
+
+run_expect_exit_code \
   "bash -n scripts/internal/check/check_rust_dead_deps_advisory.sh" \
   0 \
   "$ROOT_DIR" \

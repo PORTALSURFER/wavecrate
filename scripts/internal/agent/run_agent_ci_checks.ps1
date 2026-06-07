@@ -76,6 +76,7 @@ try {
   Invoke-Check -Label "workflow toolchain pinning" -ScriptPath (Join-Path $checkDir "check_workflow_toolchain_pinning.ps1")
   Invoke-Check -Label "manual docs scope guard" -ScriptPath (Join-Path $checkDir "check_manual_docs_scope.ps1")
   Invoke-Check -Label "legacy app coupling guardrail" -ScriptPath (Join-Path $checkDir "check_legacy_app_coupling.ps1")
+  Invoke-Check -Label "native app boundary guardrail" -ScriptPath (Join-Path $checkDir "check_native_app_boundary.ps1")
   Invoke-Check -Label "rust todo/todo guardrail (non-test only)" -ScriptPath (Join-Path $checkDir "check_rust_no_todos.ps1")
 
   # Dead dependency sweep is advisory and has no first-class PowerShell parity yet.
