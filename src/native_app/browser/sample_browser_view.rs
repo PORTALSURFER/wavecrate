@@ -4,7 +4,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, SampleNameViewMode};
 use crate::native_app::browser::folder_browser::{
     FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
 };
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = widget_ids::SAMPLE_BROWSER_LIST_ID;
 pub(in crate::native_app) const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;

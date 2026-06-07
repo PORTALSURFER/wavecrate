@@ -205,7 +205,7 @@ mod tests {
         collect_raw_widget_id_constants(&native_app_dir, &mut violations);
         assert!(
             violations.is_empty(),
-            "native app widget id constants must be declared in widget_ids.rs:\n{}",
+            "native app widget id constants must be declared in ui/ids.rs:\n{}",
             violations.join("\n")
         );
     }
@@ -224,7 +224,7 @@ mod tests {
             if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
                 continue;
             }
-            if path.file_name().and_then(|file_name| file_name.to_str()) == Some("widget_ids.rs") {
+            if path == PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/native_app/ui/ids.rs") {
                 continue;
             }
             collect_file_violations(&path, violations);

@@ -5,7 +5,7 @@ use crate::native_app::metadata_tags::MetadataTagDisplayCategory;
 use crate::native_app::metadata_tags::{
     metadata_tag_category_is_pinned, metadata_tag_category_style,
 };
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,

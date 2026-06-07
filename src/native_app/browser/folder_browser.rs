@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 pub(in crate::native_app) const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 pub(in crate::native_app) const MIN_FOLDER_WIDTH: f32 = 180.0;

@@ -3,7 +3,7 @@
 use radiant::prelude as ui;
 use std::{path::PathBuf, sync::Arc};
 
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;

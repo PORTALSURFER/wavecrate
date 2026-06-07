@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 use super::super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SampleCollectionView,

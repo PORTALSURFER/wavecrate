@@ -1,7 +1,7 @@
 use radiant::{prelude as ui, widgets::TextInputMessageKind};
 use std::collections::{HashMap, HashSet};
 
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 

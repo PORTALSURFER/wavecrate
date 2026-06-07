@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::native_app::app::NativeAppState;
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 =
     widget_ids::TRANSACTION_LIST_MODAL_ID;

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
-use crate::native_app::widget_ids;
+use crate::native_app::ui::ids as widget_ids;
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
 pub(in crate::native_app) const VOLUME_SLIDER_WIDTH: f32 = 92.0;
