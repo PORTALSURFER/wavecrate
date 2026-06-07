@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use std::collections::HashMap;
 
-use super::{FileEntry, FolderBrowserState};
+use super::FolderBrowserState;
 
 impl FolderBrowserState {
     #[cfg(test)]
@@ -63,9 +63,10 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> ui::VirtualListWindow {
         let selected_file = self.selected_file.clone();
+        let total_items = self.selected_audio_file_count_matching_tags(tags_by_file);
         if self.file_view_follow_selection.focus_key() == selected_file.as_ref() {
             let projection = ui::VirtualListProjection::new(
-                self.selected_audio_file_count_matching_tags(tags_by_file),
+                total_items,
                 viewport_rows,
                 overscan_rows,
                 guard_rows,
@@ -76,32 +77,18 @@ impl FolderBrowserState {
             return self.file_view_controller.resolve();
         }
 
-        let audio_files = self.selected_audio_files_matching_tags(tags_by_file);
-        let focus = ui::VirtualListSliceFocus::from_slice_by(
-            &audio_files,
-            viewport_rows,
-            overscan_rows,
-            guard_rows,
-            self.selected_file.clone(),
-            |file, key| file.id.as_str() == key.as_str(),
-        )
-        .with_context_row();
+        let projection =
+            ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
+                .with_context_row();
+        let focus = ui::VirtualListFocusTarget::new(
+            selected_file,
+            self.selected_audio_file_index_matching_tags(tags_by_file),
+        );
         self.file_view_controller
-            .configure_slice_focus_changed_optional(&mut self.file_view_follow_selection, focus)
+            .configure_projection_and_focus_changed_optional(
+                &mut self.file_view_follow_selection,
+                projection,
+                focus,
+            )
     }
-
-    pub(in crate::gui_app) fn selected_audio_file_index_matching_tags(
-        &self,
-        tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Option<usize> {
-        selected_audio_file_index_in(
-            &self.selected_audio_files_matching_tags(tags_by_file),
-            self.selected_file.as_deref(),
-        )
-    }
-}
-
-fn selected_audio_file_index_in(files: &[&FileEntry], selected: Option<&str>) -> Option<usize> {
-    let selected = selected?;
-    files.iter().position(|file| file.id == selected)
 }

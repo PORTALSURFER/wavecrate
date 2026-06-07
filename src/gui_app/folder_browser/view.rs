@@ -244,22 +244,20 @@ fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+    let Some(folder) = state.selected_folder() else {
+        return ui::text_line("No folder selected", 20.0);
+    };
     let file_count = state.selected_files().len();
-    let audio_count = state.selected_audio_files().len();
-    let label = state
-        .selected_folder()
-        .map(|folder| {
-            let folder_name = if state.selected_folder_is_source_root() {
-                "."
-            } else {
-                folder.name.as_str()
-            };
-            format!(
-                "{} | {audio_count} audio | {file_count} item{}",
-                folder_name,
-                plural(file_count)
-            )
-        })
-        .unwrap_or_else(|| String::from("No folder selected"));
+    let audio_count = state.selected_folder_audio_file_count();
+    let folder_name = if state.selected_folder_is_source_root() {
+        "."
+    } else {
+        folder.name.as_str()
+    };
+    let label = format!(
+        "{} | {audio_count} audio | {file_count} item{}",
+        folder_name,
+        plural(file_count)
+    );
     ui::text_line(label, 20.0)
 }

@@ -34,6 +34,7 @@ impl FolderBrowserState {
         self.selected_file_ids.insert(file_id);
         self.reset_file_view();
         self.folders = vec![root_folder];
+        self.prewarm_selected_source_audio_projection_cache();
         if source_changed {
             self.expanded_folders.clear();
         }

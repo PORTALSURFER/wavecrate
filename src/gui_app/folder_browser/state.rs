@@ -2,6 +2,7 @@ use radiant::{gui::types::Point, prelude as ui};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    hash::{Hash, Hasher},
     path::PathBuf,
 };
 use wavecrate::sample_sources::SampleCollection;
@@ -48,7 +49,7 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) tree_view_follow_selection: ui::VirtualListFollowState<String>,
     pub(super) file_view_follow_selection: ui::VirtualListFollowState<String>,
     file_content_revision: u64,
-    selected_audio_projection_cache: RefCell<Option<SelectedAudioProjectionCache>>,
+    selected_audio_projection_cache: RefCell<HashMap<SelectedAudioProjectionKey, Vec<usize>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,18 +59,22 @@ pub(in crate::gui_app) enum FolderBrowserDropTarget {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct SelectedAudioProjectionCache {
-    key: SelectedAudioProjectionKey,
-    indices: Vec<usize>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 struct SelectedAudioProjectionKey {
     folder_id: String,
     name_filter: String,
     sort_column_id: String,
     sort_descending: bool,
     content_revision: u64,
+}
+
+impl Hash for SelectedAudioProjectionKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.folder_id.hash(state);
+        self.name_filter.hash(state);
+        self.sort_column_id.hash(state);
+        self.sort_descending.hash(state);
+        self.content_revision.hash(state);
+    }
 }
 
 impl FolderBrowserState {
@@ -104,7 +109,7 @@ impl FolderBrowserState {
 
     fn new(sources: Vec<SourceEntry>, source_index: usize, root_folder: FolderEntry) -> Self {
         let root_id = root_folder.id.clone();
-        Self {
+        let state = Self {
             selected_source: sources[source_index].id.clone(),
             sources,
             selected_folder: root_id.clone(),
@@ -136,8 +141,10 @@ impl FolderBrowserState {
             tree_view_follow_selection: ui::VirtualListFollowState::default(),
             file_view_follow_selection: ui::VirtualListFollowState::default(),
             file_content_revision: 0,
-            selected_audio_projection_cache: RefCell::new(None),
-        }
+            selected_audio_projection_cache: RefCell::new(HashMap::new()),
+        };
+        state.prewarm_selected_source_audio_projection_cache();
+        state
     }
 
     #[cfg(test)]
@@ -194,6 +201,9 @@ impl FolderBrowserState {
     ) -> usize {
         let name_query = normalized_name_filter(&self.name_filter);
         let required_tags = parsed_tag_filter(&self.tag_filter);
+        if required_tags.is_empty() && self.selected_collection.is_none() {
+            return self.selected_folder_audio_file_count();
+        }
         if let Some(collection) = self.selected_collection {
             return self
                 .selected_source_root_folder()
@@ -217,6 +227,62 @@ impl FolderBrowserState {
                     && audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
             })
             .count()
+    }
+
+    pub(in crate::gui_app) fn selected_folder_audio_file_count(&self) -> usize {
+        if self.selected_collection.is_some() {
+            return self.selected_audio_files().len();
+        }
+        let Some(folder) = self.selected_folder() else {
+            return 0;
+        };
+        self.selected_folder_audio_file_indices(folder).len()
+    }
+
+    pub(in crate::gui_app) fn selected_audio_file_at_matching_tags(
+        &self,
+        index: usize,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<&FileEntry> {
+        let required_tags = parsed_tag_filter(&self.tag_filter);
+        if self.selected_collection.is_some() {
+            return self
+                .selected_audio_files_matching_tags(tags_by_file)
+                .get(index)
+                .copied();
+        }
+        let folder = self.selected_folder()?;
+        if required_tags.is_empty() {
+            return self
+                .selected_folder_audio_file_indices(folder)
+                .get(index)
+                .and_then(|file_index| folder.files.get(*file_index));
+        }
+        self.selected_folder_audio_file_indices(folder)
+            .into_iter()
+            .filter_map(|file_index| folder.files.get(file_index))
+            .filter(|file| audio_file_matches_parsed_tags(file, tags_by_file, &required_tags))
+            .nth(index)
+    }
+
+    pub(in crate::gui_app) fn selected_audio_file_index_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<usize> {
+        let selected = self.selected_file.as_deref()?;
+        let required_tags = parsed_tag_filter(&self.tag_filter);
+        if self.selected_collection.is_some() {
+            return self
+                .selected_audio_files_matching_tags(tags_by_file)
+                .iter()
+                .position(|file| file.id == selected);
+        }
+        let folder = self.selected_folder()?;
+        self.selected_folder_audio_file_indices(folder)
+            .into_iter()
+            .filter_map(|file_index| folder.files.get(file_index))
+            .filter(|file| audio_file_matches_parsed_tags(file, tags_by_file, &required_tags))
+            .position(|file| file.id == selected)
     }
 
     pub(in crate::gui_app) fn selected_source_audio_files(&self) -> Vec<&FileEntry> {
@@ -353,7 +419,7 @@ impl FolderBrowserState {
 
     pub(super) fn bump_file_content_revision(&mut self) {
         self.file_content_revision = self.file_content_revision.saturating_add(1);
-        self.selected_audio_projection_cache.get_mut().take();
+        self.selected_audio_projection_cache.get_mut().clear();
     }
 
     fn selected_folder_audio_file_indices(&self, folder: &FolderEntry) -> Vec<usize> {
@@ -364,10 +430,8 @@ impl FolderBrowserState {
             sort_descending: self.file_sort.direction == ui::SortDirection::Descending,
             content_revision: self.file_content_revision,
         };
-        if let Some(cache) = self.selected_audio_projection_cache.borrow().as_ref()
-            && cache.key == key
-        {
-            return cache.indices.clone();
+        if let Some(indices) = self.selected_audio_projection_cache.borrow().get(&key) {
+            return indices.clone();
         }
 
         let mut indices = folder
@@ -380,10 +444,9 @@ impl FolderBrowserState {
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
         self.sort_file_indices(folder, &mut indices);
-        *self.selected_audio_projection_cache.borrow_mut() = Some(SelectedAudioProjectionCache {
-            key,
-            indices: indices.clone(),
-        });
+        self.selected_audio_projection_cache
+            .borrow_mut()
+            .insert(key, indices.clone());
         indices
     }
 
@@ -422,6 +485,24 @@ impl FolderBrowserState {
         if self.file_sort.direction == ui::SortDirection::Descending {
             indices.reverse();
         }
+    }
+
+    pub(super) fn prewarm_selected_source_audio_projection_cache(&self) {
+        if let Some(root) = self.folders.first() {
+            self.prewarm_folder_audio_projection_cache(root);
+        }
+    }
+
+    fn prewarm_folder_audio_projection_cache(&self, folder: &FolderEntry) {
+        let _ = self.selected_folder_audio_file_indices(folder);
+        for child in &folder.children {
+            self.prewarm_folder_audio_projection_cache(child);
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_app) fn selected_audio_projection_cache_len_for_tests(&self) -> usize {
+        self.selected_audio_projection_cache.borrow().len()
     }
 }
 

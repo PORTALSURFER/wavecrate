@@ -12,7 +12,7 @@ use crate::gui_app::{
 
 pub(super) fn sample_browser_rows(
     folder_browser: &FolderBrowserState,
-    files: &[&FileEntry],
+    file_count: usize,
     columns: &[&FileColumn],
     window: ui::VirtualListWindow,
     name_view_mode: SampleNameViewMode,
@@ -20,7 +20,7 @@ pub(super) fn sample_browser_rows(
     cached_sample_paths: &HashSet<String>,
     suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
-    if files.is_empty() {
+    if file_count == 0 {
         return empty_sample_browser_rows();
     }
 
@@ -28,7 +28,11 @@ pub(super) fn sample_browser_rows(
         window,
         SAMPLE_BROWSER_ROW_HEIGHT,
         |index| {
-            let file = files[index];
+            let Some(file) =
+                folder_browser.selected_audio_file_at_matching_tags(index, metadata_tags_by_file)
+            else {
+                return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
+            };
             sample_browser_row(
                 file,
                 folder_browser.is_file_selected(&file.id),

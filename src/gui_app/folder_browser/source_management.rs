@@ -314,6 +314,7 @@ impl FolderBrowserState {
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
         self.bump_file_content_revision();
+        self.prewarm_selected_source_audio_projection_cache();
     }
 
     fn install_default_assets_source(&mut self) {

@@ -57,6 +57,25 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
 }
 
 #[test]
+fn folder_audio_projection_cache_is_prewarmed_for_loaded_source_tree() {
+    let root = temp_source_root("wavecrate-gui-folder-audio-projection-cache");
+    let kicks = root.join("kicks");
+    let snares = root.join("snares");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&snares).expect("create snares folder");
+    fs::write(kicks.join("kick.wav"), []).expect("write kick");
+    fs::write(snares.join("snare.wav"), []).expect("write snare");
+
+    let browser = FolderBrowserState::from_root(root.clone());
+
+    assert!(
+        browser.selected_audio_projection_cache_len_for_tests() >= 3,
+        "source load should prewarm root and child folder audio projections"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn source_root_folder_is_static_dot_selector() {
     let root = temp_source_root("wavecrate-gui-root-dot-selector");
     let drums = root.join("drums");
