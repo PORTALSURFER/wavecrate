@@ -235,31 +235,31 @@ fn context_menu_availability_requires_existing_target_kind() {
     std::fs::write(&sample, [0_u8; 8]).expect("write sample");
 
     assert!(
-        crate::native_app::library_browser::context_menu::target_available(
+        crate::native_app::library_browser::context_menu_target::target_available(
             &crate::native_app::test_support::BrowserContextTargetKind::Source,
             &root
         )
     );
     assert!(
-        crate::native_app::library_browser::context_menu::target_available(
+        crate::native_app::library_browser::context_menu_target::target_available(
             &crate::native_app::test_support::BrowserContextTargetKind::Folder,
             &root
         )
     );
     assert!(
-        crate::native_app::library_browser::context_menu::target_available(
+        crate::native_app::library_browser::context_menu_target::target_available(
             &crate::native_app::test_support::BrowserContextTargetKind::Sample,
             &sample
         )
     );
     assert!(
-        !crate::native_app::library_browser::context_menu::target_available(
+        !crate::native_app::library_browser::context_menu_target::target_available(
             &crate::native_app::test_support::BrowserContextTargetKind::Sample,
             &root
         )
     );
     assert!(
-        !crate::native_app::library_browser::context_menu::target_available(
+        !crate::native_app::library_browser::context_menu_target::target_available(
             &crate::native_app::test_support::BrowserContextTargetKind::Folder,
             &sample
         )
@@ -267,7 +267,7 @@ fn context_menu_availability_requires_existing_target_kind() {
 
     std::fs::remove_file(&sample).expect("remove sample");
     assert!(
-        !crate::native_app::library_browser::context_menu::target_available(
+        !crate::native_app::library_browser::context_menu_target::target_available(
             &crate::native_app::test_support::BrowserContextTargetKind::Sample,
             &sample
         )

@@ -9,7 +9,7 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmResult, AppSettingsTab, NormalizationProgress, NormalizationResult,
     SampleLoadResult, SamplePlaybackReady,
 };
-use crate::native_app::library_browser::context_menu::BrowserContextTargetKind;
+use crate::native_app::library_browser::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::library_browser::folder_browser::{
     FileMoveConflictResolution, FolderBrowserMessage, FolderScanDiscoveryBatch, FolderScanProgress,
     FolderScanResult,

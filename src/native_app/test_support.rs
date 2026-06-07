@@ -1,6 +1,6 @@
 //! Test-only native-app accessors.
 
-pub(in crate::native_app) use super::library_browser::context_menu::{
+pub(in crate::native_app) use super::library_browser::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
 pub(in crate::native_app) use super::metadata::MetadataTagInputMode;

@@ -1,4 +1,5 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app_chrome::context_menu_overlay;
 use crate::native_app::app_chrome::library_browser::folder_sidebar::{
     self, FolderSidebarViewModel,
 };
@@ -9,7 +10,6 @@ use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use crate::native_app::audio::audio_settings::top_status_bar;
-use crate::native_app::library_browser::context_menu as browser_context_menu;
 use crate::native_app::library_browser::folder_browser::FileColumnDragFeedback;
 use crate::native_app::transaction_history::TRANSACTION_LIST_MODAL_ID;
 use crate::native_app::{
@@ -57,7 +57,7 @@ pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMes
         layers.push(overlay);
     }
     if let Some(menu) = state.context_menu.as_ref() {
-        layers.push(browser_context_menu::overlay(menu));
+        layers.push(context_menu_overlay::overlay(menu));
     }
     if let Some(feedback) = state.folder_browser.file_column_drag_feedback() {
         layers.push(sample_column_drag_preview(&feedback));

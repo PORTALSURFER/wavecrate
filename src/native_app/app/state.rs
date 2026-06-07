@@ -18,7 +18,7 @@ use super::{
     PendingPlaybackStart, PendingSamplePlayback, SampleNameViewMode, WaveformCacheEntry,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
-use crate::native_app::library_browser::context_menu::BrowserContextMenu;
+use crate::native_app::library_browser::context_menu_target::BrowserContextMenu;
 use crate::native_app::library_browser::folder_browser::{
     FolderBrowserState, FolderScanProgress, FolderVerifyResult,
 };
