@@ -1,6 +1,14 @@
 use super::*;
 use crate::native_app::app_chrome::waveform_panel::waveform_loading_visual;
 
+fn waveform_rect(runtime: &NativeRuntimeForTests) -> Rect {
+    *runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        .expect("full app shell should lay out waveform widget")
+}
+
 #[test]
 fn default_window_title_marks_alpha_build() {
     assert_eq!(
@@ -91,6 +99,76 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
     assert_eq!(
         state.waveform.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.45, 0.65))
+    );
+}
+
+#[test]
+fn full_app_scene_routes_waveform_hit_target() {
+    let state = gui_state_for_span_tests();
+    let runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let point = waveform_rect(&runtime).center();
+
+    assert_eq!(
+        runtime.widget_at(point),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+}
+
+#[test]
+fn full_app_scene_routes_primary_waveform_selection_drag() {
+    let state = gui_state_for_span_tests();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let rect = waveform_rect(&runtime);
+    let press = Point::new(rect.min.x + rect.width() * 0.25, rect.center().y);
+    let drag = Point::new(rect.min.x + rect.width() * 0.75, rect.center().y);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(press)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(drag)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(drag)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_eq!(
+        runtime.bridge().state().waveform.play_mark_ratio(),
+        Some(0.25)
+    );
+    assert_eq!(
+        runtime.bridge().state().waveform.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.25, 0.75))
+    );
+}
+
+#[test]
+fn full_app_scene_routes_secondary_waveform_edit_selection_drag() {
+    let state = gui_state_for_span_tests();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let rect = waveform_rect(&runtime);
+    let press = Point::new(rect.min.x + rect.width() * 0.2, rect.center().y);
+    let drag = Point::new(rect.min.x + rect.width() * 0.7, rect.center().y);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_press(press)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(drag)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::secondary_release(drag)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_eq!(
+        runtime.bridge().state().waveform.edit_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.7))
     );
 }
 
