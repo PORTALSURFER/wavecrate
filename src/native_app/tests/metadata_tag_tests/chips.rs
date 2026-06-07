@@ -4,7 +4,7 @@ use super::super::*;
 fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
-    let frame = super::super::super::folder_browser::folder_browser_view(
+    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -44,7 +44,7 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("hat")];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = super::super::super::folder_browser::folder_browser_view(
+    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
         &browser,
         260.0,
         true,
@@ -194,7 +194,7 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
         },
     ];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = super::super::super::folder_browser::folder_browser_view(
+    let frame = crate::native_app::browser::folder_browser::folder_browser_view(
         &browser,
         600.0,
         true,

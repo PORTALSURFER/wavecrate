@@ -18,14 +18,14 @@ use wavecrate::sample_sources::SampleCollection;
 use wavecrate::sample_sources::config::AppSettingsCore;
 
 use super::context_menu::{BrowserContextMenu, BrowserContextTargetKind};
-use super::folder_browser::{
+use super::metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
+use super::transaction_history::TransactionHistory;
+use super::waveform::{WaveformFile, WaveformInteraction, WaveformPlaybackReady, WaveformState};
+use crate::native_app::browser::folder_browser::{
     FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, FolderScanProgress,
     FolderScanResult, FolderVerifyResult,
 };
-use super::metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
-use super::source_watcher::GuiSourceWatcherHandle;
-use super::transaction_history::TransactionHistory;
-use super::waveform::{WaveformFile, WaveformInteraction, WaveformPlaybackReady, WaveformState};
+use crate::native_app::browser::source_watcher::GuiSourceWatcherHandle;
 
 pub(in crate::native_app) const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 pub(in crate::native_app) const MIN_FOLDER_WIDTH: f32 = 180.0;
@@ -185,7 +185,7 @@ pub(in crate::native_app) enum GuiMessage {
     RemoveContextSampleFromCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
-    ResolveFileMoveConflict(super::folder_browser::FileMoveConflictResolution),
+    ResolveFileMoveConflict(crate::native_app::browser::folder_browser::FileMoveConflictResolution),
     CancelFileMoveConflicts,
     CopyContextPath,
     OpenContextTarget,

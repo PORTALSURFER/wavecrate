@@ -66,7 +66,7 @@ fn top_status_bar_does_not_paint_flexible_spacer_rectangle() {
 #[test]
 fn volume_slider_drag_emits_normalized_volume() {
     assert_eq!(
-        crate::native_app::audio_settings::volume_slider(0.25).view_dispatch_widget_output(
+        crate::native_app::audio::audio_settings::volume_slider(0.25).view_dispatch_widget_output(
             crate::native_app::test_support::VOLUME_SLIDER_ID,
             radiant::widgets::WidgetOutput::typed(radiant::widgets::SliderMessage::ValueChanged {
                 value: 0.75
@@ -198,7 +198,7 @@ fn settings_auxiliary_window_is_cached_after_native_close() {
     let mut state = gui_state_for_span_tests();
     state.audio_settings_open = true;
 
-    let windows = crate::native_app::audio_settings::auxiliary_windows(&mut state);
+    let windows = crate::native_app::audio::audio_settings::auxiliary_windows(&mut state);
 
     assert_eq!(windows.len(), 1);
     assert_eq!(windows[0].key, "audio-settings");
@@ -218,7 +218,8 @@ fn audio_settings_snapshot_uses_cached_device_options() {
         is_default: true,
     }];
 
-    let snapshot = crate::native_app::audio_settings::AudioSettingsSnapshot::from_app_state(&state);
+    let snapshot =
+        crate::native_app::audio::audio_settings::AudioSettingsSnapshot::from_app_state(&state);
 
     assert_eq!(snapshot.audio_hosts.len(), 1);
     assert_eq!(snapshot.audio_hosts[0].id, "cached-host");

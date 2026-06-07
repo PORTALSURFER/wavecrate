@@ -2,9 +2,9 @@ use radiant::gui::types::Point;
 use std::path::Path;
 use std::time::Instant;
 
-use super::super::context_menu::{self, BrowserContextMenu, BrowserContextTargetKind};
-use super::super::file_actions::sample_path_label;
 use crate::native_app::app_scope::{NativeAppState, emit_gui_action};
+use crate::native_app::browser::file_actions::sample_path_label;
+use crate::native_app::context_menu::{self, BrowserContextMenu, BrowserContextTargetKind};
 
 impl NativeAppState {
     pub(in crate::native_app) fn open_source_context_menu(

@@ -1,4 +1,4 @@
-use super::app_scope::GuiMessage;
+use crate::native_app::app_scope::GuiMessage;
 
 use radiant::gui::types::Point;
 use radiant::prelude as ui;

@@ -142,7 +142,11 @@ fn folder_context_menu_open_does_not_toggle_folder_expansion() {
         .folder_browser
         .begin_add_source_path(root.clone(), 100)
         .expect("new source should request scan");
-    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     let (folder_id, expanded_before) = state
         .folder_browser

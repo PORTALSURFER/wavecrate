@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use super::app_scope::GuiMessage;
+use crate::native_app::app_scope::GuiMessage;
 
 pub(in crate::native_app) const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 10.0;

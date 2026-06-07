@@ -3,9 +3,9 @@ use std::time::Instant;
 
 use radiant::prelude::PlatformResultExt as _;
 
-use super::super::context_menu::{self, BrowserContextTargetKind};
-use super::super::file_actions::format_copy_path;
 use crate::native_app::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::browser::file_actions::format_copy_path;
+use crate::native_app::context_menu::{self, BrowserContextTargetKind};
 
 impl NativeAppState {
     pub(in crate::native_app) fn copy_context_path(

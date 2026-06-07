@@ -1,5 +1,5 @@
 use super::*;
-use crate::native_app::folder_browser::{
+use crate::native_app::browser::folder_browser::{
     COLLAPSED_FILTER_PANEL_HEIGHT,
     collections::{COLLAPSED_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT},
     tag_editor::COLLAPSED_METADATA_PANEL_HEIGHT,

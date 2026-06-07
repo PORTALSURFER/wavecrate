@@ -4,15 +4,6 @@
 //! modules. As feature areas move into focused submodules, prefer importing
 //! from the owning module directly and shrinking this scope.
 
-pub(super) use super::audio_settings::format_sample_rate_label;
-pub(super) use super::emit_gui_action;
-pub(super) use super::file_actions::sample_path_label;
-pub(super) use super::folder_browser::{
-    FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderScanProgress,
-};
-pub(super) use super::layout::view;
-pub(super) use super::sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
-pub(super) use super::shortcuts::default_gui_shortcut_resolution;
 pub(super) use super::state::{
     AUDIO_ENGINE_PILL_HEIGHT, AUDIO_ENGINE_PILL_ID, AUDIO_ENGINE_PILL_WIDTH,
     AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, ActiveFolderCacheWarmResult,
@@ -34,4 +25,15 @@ pub(super) use super::state::{
 pub(super) use super::waveform::{
     WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState,
 };
+pub(super) use crate::native_app::audio::audio_settings::format_sample_rate_label;
+pub(super) use crate::native_app::audio::sample_load_actions::{
+    NormalizedWaveformReload, WaveformPlaybackResume,
+};
+pub(super) use crate::native_app::browser::file_actions::sample_path_label;
+pub(super) use crate::native_app::browser::folder_browser::{
+    FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderScanProgress,
+};
+pub(super) use crate::native_app::chrome::layout::view;
+pub(super) use crate::native_app::shell::emit_gui_action;
+pub(super) use crate::native_app::shell::shortcuts::default_gui_shortcut_resolution;
 pub(super) use wavecrate::logging;

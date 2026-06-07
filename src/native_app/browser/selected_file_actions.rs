@@ -1,4 +1,4 @@
-use super::app_scope::{GuiMessage, NativeAppState};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState};
 use crate::native_app::app_scope::{emit_gui_action, sample_path_label};
 use std::time::Instant;
 

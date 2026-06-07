@@ -7,7 +7,7 @@ use std::{
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleCollection, SourceDatabase};
 
-use super::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CollectionUpdate {
@@ -192,7 +192,7 @@ impl NativeAppState {
         command: CollectionCommand,
         updates: Vec<CollectionUpdate>,
     ) {
-        let hotkey = crate::native_app::folder_browser::collection_hotkey(collection);
+        let hotkey = crate::native_app::browser::folder_browser::collection_hotkey(collection);
         let label = match command {
             CollectionCommand::Add => format!("Add to Collection {hotkey}"),
             CollectionCommand::Remove => format!("Remove from Collection {hotkey}"),
@@ -272,7 +272,7 @@ impl CollectionCommand {
 
 fn collection_update_for_candidate(
     state: &NativeAppState,
-    candidate: crate::native_app::folder_browser::SelectedFileCollectionCandidate,
+    candidate: crate::native_app::browser::folder_browser::SelectedFileCollectionCandidate,
     collection: SampleCollection,
     command: CollectionCommand,
 ) -> Option<CollectionUpdate> {
@@ -348,7 +348,7 @@ fn collection_status(
     removed: usize,
     command: CollectionCommand,
 ) -> String {
-    let hotkey = crate::native_app::folder_browser::collection_hotkey(collection);
+    let hotkey = crate::native_app::browser::folder_browser::collection_hotkey(collection);
     match command {
         CollectionCommand::Add => format!(
             "Added {added} sample{} to Collection {hotkey}",

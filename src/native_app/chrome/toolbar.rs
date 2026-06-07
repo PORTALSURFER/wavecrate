@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::app_scope::{GuiMessage, NativeAppState};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState};
 
 const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const TOOLBAR_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);

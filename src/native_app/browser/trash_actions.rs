@@ -6,7 +6,7 @@ use std::{
     time::Instant,
 };
 
-use super::app_scope::{
+use crate::native_app::app_scope::{
     GuiMessage, NativeAppState, WaveformState, emit_gui_action, sample_path_label,
 };
 use crate::native_app::context_menu::BrowserContextTargetKind;

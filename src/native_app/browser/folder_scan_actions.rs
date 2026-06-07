@@ -3,8 +3,10 @@ use radiant::prelude::PlatformResultExt as _;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use super::app_scope::{GuiMessage, NativeAppState, emit_gui_action, logging};
-use super::folder_browser::{self, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState, emit_gui_action, logging};
+use crate::native_app::browser::folder_browser::{
+    self, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
+};
 
 const DISCOVERY_BATCH_SIZE: usize = 64;
 

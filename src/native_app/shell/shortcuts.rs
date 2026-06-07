@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::app_scope::{FolderBrowserMessage, GuiMessage, NativeAppState};
+use crate::native_app::app_scope::{FolderBrowserMessage, GuiMessage, NativeAppState};
 
 pub(in crate::native_app) fn default_gui_shortcut_resolution(
     state: &NativeAppState,

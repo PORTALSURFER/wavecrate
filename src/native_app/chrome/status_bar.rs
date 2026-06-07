@@ -1,4 +1,6 @@
-use super::app_scope::{FolderScanProgress, GuiMessage, NativeAppState, NormalizationProgress};
+use crate::native_app::app_scope::{
+    FolderScanProgress, GuiMessage, NativeAppState, NormalizationProgress,
+};
 use radiant::prelude as ui;
 
 pub(in crate::native_app) fn bottom_status_bar(state: &NativeAppState) -> ui::View<GuiMessage> {

@@ -7,7 +7,7 @@ use std::{
 use radiant::prelude as ui;
 use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 
-use super::app_scope::{
+use crate::native_app::app_scope::{
     GuiMessage, NativeAppState, NativeFileDropHover, WAVEFORM_WIDGET_ID, emit_gui_action,
 };
 

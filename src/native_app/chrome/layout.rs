@@ -1,15 +1,15 @@
-use super::app_scope::{GuiMessage, NativeAppState};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState};
+use crate::native_app::audio::audio_settings::top_status_bar;
+use crate::native_app::browser::folder_browser::{self, FileColumnDragFeedback};
+use crate::native_app::browser::sample_browser_view::sample_browser;
+use crate::native_app::chrome::status_bar;
+use crate::native_app::chrome::toolbar::main_toolbar;
+use crate::native_app::chrome::waveform_panel::waveform_panel;
 use crate::native_app::{
     app_scope::{FileMoveConflictResolution, TRANSACTION_LIST_MODAL_ID},
-    audio_settings::top_status_bar,
     context_menu,
-    folder_browser::{self, FileColumnDragFeedback},
     metadata_tag_metrics::metadata_tag_pill_width,
     metadata_tags::{MetadataTagCategoryGroup, metadata_tag_category_tone},
-    sample_browser_view::sample_browser,
-    status_bar,
-    toolbar::main_toolbar,
-    waveform_panel::waveform_panel,
 };
 use radiant::prelude as ui;
 

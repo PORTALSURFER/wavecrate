@@ -141,7 +141,11 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
-    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
 
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
@@ -166,7 +170,11 @@ fn default_gui_removes_context_source_from_app_config() {
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
-    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
         kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
@@ -199,7 +207,11 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
-    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
         kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
@@ -246,7 +258,11 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
-    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     let visible_before = state.folder_browser.selected_audio_files().len();
     let mut context = ui::UpdateContext::default();
@@ -285,7 +301,11 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
-    let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    let result = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     let mut context = ui::UpdateContext::default();
     state.refresh_source_after_filesystem_change(source_id.clone(), Vec::new(), true, &mut context);
@@ -309,8 +329,8 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         state.folder_browser.scan_is_active(&source_id, active_task),
         "first scan should still own the active task"
     );
-    let finished = super::super::folder_browser::scan_source_with_progress(
-        super::super::folder_browser::FolderScanRequest {
+    let finished = crate::native_app::browser::folder_browser::scan_source_with_progress(
+        crate::native_app::browser::folder_browser::FolderScanRequest {
             task_id: active_task,
             source_id: source_id.clone(),
             label: String::from("source"),

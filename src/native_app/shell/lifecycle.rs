@@ -1,4 +1,4 @@
-use super::app_scope::{
+use crate::native_app::app_scope::{
     DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode,
     WaveformState, sample_path_label,
 };
@@ -27,7 +27,7 @@ impl NativeAppState {
             has_configured_sources && folder_browser.selected_source_loaded();
         let (worker_sender, worker_receiver) = mpsc::channel();
         let source_watcher = has_configured_sources.then(|| {
-            super::source_watcher::GuiSourceWatcherHandle::spawn(
+            crate::native_app::browser::source_watcher::GuiSourceWatcherHandle::spawn(
                 config.sources.clone(),
                 worker_sender.clone(),
             )
@@ -132,10 +132,12 @@ impl NativeAppState {
         match &self.source_watcher {
             Some(watcher) => watcher.replace_sources(sources),
             None => {
-                self.source_watcher = Some(super::source_watcher::GuiSourceWatcherHandle::spawn(
-                    sources,
-                    self.worker_sender.clone(),
-                ));
+                self.source_watcher = Some(
+                    crate::native_app::browser::source_watcher::GuiSourceWatcherHandle::spawn(
+                        sources,
+                        self.worker_sender.clone(),
+                    ),
+                );
             }
         }
     }

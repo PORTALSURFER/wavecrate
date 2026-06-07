@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
-use super::app_scope::{
+use crate::native_app::app_scope::{
     AUDIO_ENGINE_PILL_HEIGHT, AUDIO_ENGINE_PILL_ID, AUDIO_ENGINE_PILL_WIDTH,
     AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AppSettingsTab, AudioSettingsDropdown,
     GENERAL_SETTINGS_BUTTON_HEIGHT, GENERAL_SETTINGS_BUTTON_ID, GENERAL_SETTINGS_BUTTON_WIDTH,

@@ -7,7 +7,7 @@ use std::{
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{Rating, SourceDatabase};
 
-use super::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RatingUpdate {

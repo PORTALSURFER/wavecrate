@@ -16,7 +16,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let empty_frame = crate::native_app::status_bar::bottom_status_bar(&state)
+    let empty_frame = crate::native_app::chrome::status_bar::bottom_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
     assert!(empty_frame.paint_plan.contains_text("0 samples"));
     assert!(!empty_frame.paint_plan.contains_text("1 sample"));
@@ -24,7 +24,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
     state
         .folder_browser
         .select_file(sample_path.display().to_string());
-    let selected_frame = crate::native_app::status_bar::bottom_status_bar(&state)
+    let selected_frame = crate::native_app::chrome::status_bar::bottom_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
     assert!(selected_frame.paint_plan.contains_text("1 sample"));
@@ -42,7 +42,7 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
         total: 5,
         detail: String::from("kick.wav"),
     });
-    let frame = crate::native_app::status_bar::worker_progress_bar(&state)
+    let frame = crate::native_app::chrome::status_bar::worker_progress_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
     let fills = frame.paint_plan.fill_rects().count();
@@ -60,7 +60,7 @@ fn bottom_status_bar_reports_normalization_progress() {
         total: 2,
         detail: String::from("snare.wav"),
     });
-    let frame = crate::native_app::status_bar::bottom_status_bar(&state)
+    let frame = crate::native_app::chrome::status_bar::bottom_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
     assert!(
@@ -98,7 +98,7 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
         total: 0,
         detail: String::from("kick.wav"),
     });
-    let frame = crate::native_app::status_bar::worker_progress_bar(&state)
+    let frame = crate::native_app::chrome::status_bar::worker_progress_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
     let fills = frame.paint_plan.fill_rects().count();
@@ -117,7 +117,7 @@ fn job_details_popover_reports_active_scan_progress() {
         total: 5,
         detail: String::from("kick.wav"),
     };
-    let frame = crate::native_app::status_bar::job_details_popover(&progress)
+    let frame = crate::native_app::chrome::status_bar::job_details_popover(&progress)
         .view_frame_at_size_with_default_theme(Vector2::new(360.0, 180.0));
 
     assert!(frame.paint_plan.contains_text("Job Details"));

@@ -46,7 +46,7 @@ fn looped_waveform_click_resolves_to_playmark_span_when_selected() {
 
 #[test]
 fn random_audition_span_uses_fixed_window_inside_long_sample() {
-    let (start, end) = super::super::playback::random_audition_span_for_unit(20.0, 0.5);
+    let (start, end) = crate::native_app::audio::playback::random_audition_span_for_unit(20.0, 0.5);
 
     assert!((start - 0.4).abs() < 0.001, "start was {start}");
     assert!((end - 0.6).abs() < 0.001, "end was {end}");
@@ -55,7 +55,7 @@ fn random_audition_span_uses_fixed_window_inside_long_sample() {
 #[test]
 fn random_audition_span_plays_whole_short_sample() {
     assert_eq!(
-        super::super::playback::random_audition_span_for_unit(2.0, 0.75),
+        crate::native_app::audio::playback::random_audition_span_for_unit(2.0, 0.75),
         (0.0, 1.0)
     );
 }
@@ -83,7 +83,7 @@ fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
 
     assert_eq!(
         span.source,
-        super::super::playback::RandomAuditionSource::MarkedRange
+        crate::native_app::audio::playback::RandomAuditionSource::MarkedRange
     );
     assert!(
         (span.start - 0.55).abs() < 0.001,
@@ -480,7 +480,7 @@ fn keyboard_and_mouse_uncached_selection_use_same_fast_debounce() {
 #[test]
 fn uncached_selected_sample_load_uses_foreground_priority() {
     assert_eq!(
-        super::super::sample_load_actions::foreground_sample_load_priority(),
+        crate::native_app::audio::sample_load_actions::foreground_sample_load_priority(),
         ui::TaskPriority::Interactive,
         "selected uncached audition loads must outrank background cache warming"
     );
@@ -489,12 +489,12 @@ fn uncached_selected_sample_load_uses_foreground_priority() {
 #[test]
 fn active_folder_cache_warm_uses_lower_priority_than_selected_sample_load() {
     assert_eq!(
-        super::super::sample_load_actions::active_folder_cache_warm_priority(),
+        crate::native_app::audio::sample_load_actions::active_folder_cache_warm_priority(),
         ui::TaskPriority::Idle
     );
     assert_ne!(
-        super::super::sample_load_actions::foreground_sample_load_priority(),
-        super::super::sample_load_actions::active_folder_cache_warm_priority(),
+        crate::native_app::audio::sample_load_actions::foreground_sample_load_priority(),
+        crate::native_app::audio::sample_load_actions::active_folder_cache_warm_priority(),
         "background folder warming must not share the foreground audition lane"
     );
 }
@@ -1295,7 +1295,7 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
     assert!(!super::super::waveform::cached_waveform_file_playback_ready_exists(&sample_path));
 
     let token = ui::CancellationToken::new();
-    let loaded = super::super::sample_load_actions::warm_active_folder_waveform_cache(
+    let loaded = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
         vec![sample_path.clone()],
         &token,
     );
@@ -1405,7 +1405,9 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
     super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
     let result =
-        super::super::sample_load_actions::warm_persisted_waveform_cache(vec![sample_path.clone()]);
+        crate::native_app::audio::sample_load_actions::warm_persisted_waveform_cache(vec![
+            sample_path.clone(),
+        ]);
     assert_eq!(result.loaded.len(), 1);
 
     let mut restarted_state = gui_state_for_span_tests();

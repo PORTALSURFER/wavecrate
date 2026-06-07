@@ -1,5 +1,5 @@
 use super::*;
-use crate::native_app::toolbar::main_toolbar;
+use crate::native_app::chrome::toolbar::main_toolbar;
 
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
