@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use crate::native_app::app_scope::{GuiMessage, NativeAppState, WaveformState, emit_gui_action};
+use crate::native_app::app::{GuiMessage, NativeAppState, WaveformState, emit_gui_action};
 use crate::native_app::context_menu::{self, BrowserContextTargetKind};
 
 impl NativeAppState {

@@ -1,5 +1,5 @@
-use crate::native_app::app_scope::GuiMessage;
-use crate::native_app::app_scope::NativeAppState;
+use crate::native_app::app::GuiMessage;
+use crate::native_app::app::NativeAppState;
 use radiant::prelude as ui;
 use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::time::Instant;

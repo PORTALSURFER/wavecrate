@@ -8,7 +8,7 @@ use std::{
 };
 use wavecrate::sample_sources::SampleSource;
 
-use crate::native_app::app_scope::GuiMessage;
+use crate::native_app::app::GuiMessage;
 
 const WATCHER_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const SOURCE_CHANGE_DEBOUNCE: Duration = Duration::from_millis(400);

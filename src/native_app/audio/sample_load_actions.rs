@@ -9,7 +9,7 @@ pub(in crate::native_app) const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Durati
 pub(in crate::native_app) const KEYBOARD_SAMPLE_LOAD_DEBOUNCE: Duration =
     UNCACHED_SAMPLE_LOAD_DEBOUNCE;
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady,
     WaveformState, emit_gui_action, sample_path_label,
 };

@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use std::time::Instant;
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     AudioSettingsDropdown, GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformInteraction,
     WaveformSelectionKind, emit_gui_action,
 };

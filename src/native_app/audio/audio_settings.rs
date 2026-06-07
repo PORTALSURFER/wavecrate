@@ -19,9 +19,7 @@ pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
 pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 520.0;
 pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 380.0;
 
-use crate::native_app::app_scope::{
-    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState,
-};
+use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState};
 
 mod popover;
 #[cfg(test)]

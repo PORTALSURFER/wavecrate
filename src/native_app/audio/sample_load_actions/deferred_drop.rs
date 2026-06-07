@@ -1,6 +1,6 @@
 use std::sync::{OnceLock, mpsc};
 
-use crate::native_app::app_scope::{NativeAppState, WaveformState};
+use crate::native_app::app::{NativeAppState, WaveformState};
 
 type DeferredDropJob = Box<dyn FnOnce() + Send + 'static>;
 static DEFERRED_DROP_SENDER: OnceLock<Option<mpsc::Sender<DeferredDropJob>>> = OnceLock::new();

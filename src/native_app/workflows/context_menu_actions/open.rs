@@ -2,7 +2,7 @@ use radiant::gui::types::Point;
 use std::path::Path;
 use std::time::Instant;
 
-use crate::native_app::app_scope::{NativeAppState, emit_gui_action};
+use crate::native_app::app::{NativeAppState, emit_gui_action};
 use crate::native_app::browser::file_actions::sample_path_label;
 use crate::native_app::context_menu::{self, BrowserContextMenu, BrowserContextTargetKind};
 

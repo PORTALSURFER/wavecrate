@@ -7,7 +7,7 @@ use std::{
 };
 use wavecrate::external_clipboard;
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     FileMoveConflictResolution, FolderBrowserMessage, GuiMessage, NativeAppState, emit_gui_action,
     sample_path_label,
 };

@@ -9,7 +9,7 @@ use wavecrate::audio::{AudioPlayer, edit_fade_range_from_selection};
 pub(in crate::native_app) const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration =
     Duration::from_millis(120);
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingPlaybackStart, PendingSamplePlayback, emit_gui_action,
     sample_path_label,
 };

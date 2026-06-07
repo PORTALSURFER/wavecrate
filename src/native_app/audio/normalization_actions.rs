@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
 use radiant::prelude as ui;
 use wavecrate::audio::AudioPlayer;
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     GuiMessage, NativeAppState, NormalizationProgress, NormalizationResult,
     NormalizedWaveformReload, WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };

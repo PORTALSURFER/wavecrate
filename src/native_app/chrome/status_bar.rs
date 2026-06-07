@@ -1,4 +1,4 @@
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     FolderScanProgress, GuiMessage, NativeAppState, NormalizationProgress,
 };
 use radiant::prelude as ui;

@@ -2,8 +2,7 @@
 
 pub(in crate::native_app) use super::context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 pub(in crate::native_app) use super::metadata_tags::MetadataTagInputMode;
-pub(in crate::native_app) use super::state::DEFAULT_VOLUME;
-pub(in crate::native_app) use crate::native_app::app_scope::*;
+pub(in crate::native_app) use crate::native_app::app::*;
 pub(in crate::native_app) use crate::native_app::audio::audio_settings::{
     AUDIO_ENGINE_PILL_ID, AUDIO_SETTINGS_POPUP_HEIGHT, GENERAL_SETTINGS_BUTTON_ID, VOLUME_SLIDER_ID,
 };

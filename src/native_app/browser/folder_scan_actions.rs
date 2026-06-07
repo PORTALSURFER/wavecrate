@@ -3,7 +3,7 @@ use radiant::prelude::PlatformResultExt as _;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::native_app::app_scope::{GuiMessage, NativeAppState, emit_gui_action, logging};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
 use crate::native_app::browser::folder_browser::{
     self, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
 };

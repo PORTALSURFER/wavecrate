@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use super::SampleFileHitTarget;
 use super::row_widgets::RatingIndicator;
-use crate::native_app::app_scope::{GuiMessage, SampleNameViewMode};
+use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::browser::folder_browser::{
     self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState,
 };

@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     ActiveFolderCacheWarmResult, GuiMessage, NativeAppState, WaveformCacheEntry,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
 };

@@ -4,7 +4,7 @@ use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supporte
 
 pub(in crate::native_app) const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
 
-use crate::native_app::app_scope::{
+use crate::native_app::app::{
     AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, emit_gui_action,
     format_sample_rate_label,
 };

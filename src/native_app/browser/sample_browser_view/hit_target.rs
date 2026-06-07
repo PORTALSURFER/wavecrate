@@ -5,7 +5,7 @@ use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 use radiant::widgets::InteractiveRowWidget;
 
-use crate::native_app::app_scope::GuiMessage;
+use crate::native_app::app::GuiMessage;
 
 const HOVER_FILL: Rgba8 = Rgba8 {
     r: 255,

@@ -3,7 +3,7 @@ use radiant::widgets::DragHandleMessage;
 use std::time::{Duration, Instant};
 use wavecrate::sample_sources::SampleCollection;
 
-use crate::native_app::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::browser::file_actions::sample_path_label;
 use crate::native_app::browser::folder_browser::{
     FolderBrowserMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,

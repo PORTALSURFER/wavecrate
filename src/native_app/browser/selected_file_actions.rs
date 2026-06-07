@@ -1,5 +1,5 @@
-use crate::native_app::app_scope::{GuiMessage, NativeAppState};
-use crate::native_app::app_scope::{emit_gui_action, sample_path_label};
+use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{emit_gui_action, sample_path_label};
 use crate::native_app::browser::sample_browser_view::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
 };
