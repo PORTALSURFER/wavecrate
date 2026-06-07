@@ -8,11 +8,10 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 
 pub(in crate::native_app) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
-    ui::dismissible_context_menu_auto_width(
+    ui::message_context_menu_overlay_auto_width(
         menu.anchor,
         menu.title.clone(),
         context_menu_commands(menu),
-        GuiMessage::CloseContextMenu,
     )
 }
 

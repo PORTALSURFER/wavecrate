@@ -22,7 +22,8 @@ pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMes
 }
 
 fn metadata_tag_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
-    overlays::metadata_tag_completion(state, layout::CENTER_PANEL_PADDING).map(ui::Layer::floating)
+    overlays::metadata_tag_completion(state, layout::CENTER_PANEL_PADDING)
+        .map(|view| ui::Layer::floating(view).pass_through())
 }
 
 fn job_details_popover(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
@@ -40,7 +41,7 @@ fn job_details_popover(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> 
 fn transaction_list_modal(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     state
         .transaction_list_open
-        .then(|| ui::Layer::modal(modals::transaction_list(state)))
+        .then(|| ui::Layer::modal(modals::transaction_list(state)).block_input())
 }
 
 fn file_move_conflict_modal(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
@@ -48,7 +49,7 @@ fn file_move_conflict_modal(state: &NativeAppState) -> Option<ui::Layer<GuiMessa
         .folder_browser
         .pending_file_move_conflict_view()
         .is_some()
-        .then(|| ui::Layer::modal(modals::file_move_conflict(state)))
+        .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input())
 }
 
 fn browser_context_menu_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
@@ -56,7 +57,9 @@ fn browser_context_menu_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMes
         .context_menu
         .as_ref()
         .map(browser_context_menu::overlay)
-        .map(ui::Layer::context_menu)
+        .map(|view| {
+            ui::Layer::context_menu(view).dismiss_on_outside_click(GuiMessage::CloseContextMenu)
+        })
 }
 
 fn sample_column_drag_preview(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
@@ -64,5 +67,5 @@ fn sample_column_drag_preview(state: &NativeAppState) -> Option<ui::Layer<GuiMes
         .folder_browser
         .file_column_drag_feedback()
         .map(|feedback| overlays::sample_column_drag_preview(&feedback))
-        .map(ui::Layer::drag_preview)
+        .map(|view| ui::Layer::drag_preview(view).pass_through())
 }

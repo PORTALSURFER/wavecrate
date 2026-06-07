@@ -127,15 +127,17 @@ pub(in crate::native_app) fn sample_browser(
             ui::pointer_shield(true)
                 .pointer_move(false)
                 .pointer_press(false)
-                .mapped(|message| match message {
+                .wheel(false)
+                .filter_map(|message| match message {
                     ui::PointerShieldMessage::PointerRelease { .. }
                     | ui::PointerShieldMessage::PointerDrop { .. } => {
-                        GuiMessage::CancelBrowserDragOnSampleList
+                        Some(GuiMessage::CancelBrowserDragOnSampleList)
                     }
                     ui::PointerShieldMessage::PointerMove { .. }
                     | ui::PointerShieldMessage::PointerPress { .. } => {
-                        GuiMessage::CancelBrowserDragOnSampleList
+                        Some(GuiMessage::CancelBrowserDragOnSampleList)
                     }
+                    ui::PointerShieldMessage::Wheel { .. } => None,
                 })
                 .key("sample-list-browser-drag-cancel-target")
                 .input_only()

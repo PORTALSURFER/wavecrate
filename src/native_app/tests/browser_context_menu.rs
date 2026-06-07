@@ -45,7 +45,17 @@ fn folder_context_menu_outside_click_closes_menu() {
         Vector2::new(960.0, 540.0),
         move |open| {
             if *open {
-                super::super::app_chrome::browser_context_menu::overlay(&menu).into_surface()
+                ui::scene(ui::empty())
+                    .layer(
+                        ui::Layer::context_menu(
+                            super::super::app_chrome::browser_context_menu::overlay(&menu),
+                        )
+                        .dismiss_on_outside_click(
+                            crate::native_app::test_support::GuiMessage::CloseContextMenu,
+                        ),
+                    )
+                    .into_view()
+                    .into_surface()
             } else {
                 ui::empty().into_surface()
             }
