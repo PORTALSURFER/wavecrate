@@ -1,4 +1,4 @@
-//! Native-app lifecycle, startup, dispatch, and shortcut modules.
+//! Product-specific native app shell, lifecycle, dispatch, and shortcut modules.
 
 #[allow(unused_imports)]
 use super::{app_scope, audio_settings, folder_browser, source_watcher, waveform};

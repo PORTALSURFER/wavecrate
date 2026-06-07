@@ -7,7 +7,7 @@ mod chrome;
 mod context_menu;
 mod metadata_tag_metrics;
 mod metadata_tags;
-mod runtime;
+mod shell;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -29,14 +29,14 @@ pub(in crate::native_app) use browser::{
 #[allow(unused_imports)]
 pub(in crate::native_app) use chrome::{layout, status_bar, toolbar, waveform_panel};
 #[allow(unused_imports)]
-pub(in crate::native_app) use runtime::{
+pub(in crate::native_app) use shell::{
     DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_WINDOW_TITLE, debug_layout_requested,
     emit_gui_action, lifecycle, message_dispatch, shortcuts,
 };
 #[allow(unused_imports)]
 pub(in crate::native_app) use workflows::context_menu_actions;
 
-pub(crate) use runtime::run;
+pub(crate) use shell::run;
 
 #[cfg(test)]
 mod tests;
