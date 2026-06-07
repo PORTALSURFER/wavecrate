@@ -1,4 +1,4 @@
-//! App-chrome rendering for library-browser context-menu overlays.
+//! App-chrome rendering for browser context-menu overlays.
 
 use radiant::prelude as ui;
 

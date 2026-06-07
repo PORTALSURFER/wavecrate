@@ -5,52 +5,25 @@ use crate::native_app::app_chrome::library_browser::folder_sidebar::{
 use crate::native_app::app_chrome::library_browser::sample_browser_view::{
     SampleBrowserViewModel, sample_browser,
 };
+use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::{MainToolbarViewModel, main_toolbar};
 use crate::native_app::app_chrome::waveform_panel::{WaveformPanelViewModel, waveform_panel};
-use crate::native_app::app_chrome::{context_menu_overlay, metadata_tag_library, modals, overlays};
 use crate::native_app::audio::audio_settings::top_status_bar;
 use radiant::prelude as ui;
 
-const CENTER_PANEL_PADDING: f32 = 6.0;
+pub(super) const CENTER_PANEL_PADDING: f32 = 6.0;
 const FOLDER_SPLITTER_HIT_WIDTH: f32 = 5.0;
 const FOLDER_SPLITTER_INSET: f32 = 1.0;
 
-pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    let tag_completion_overlay = overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING);
-    let content = ui::column([
+pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+    ui::column([
         top_status_bar(state),
         center_panel(state),
         status_bar::bottom_status_bar(status_bar::StatusBarViewModel::from_app_state(state)),
     ])
     .spacing(0.0)
-    .fill();
-    let mut layers = vec![content];
-    if state.job_details_open
-        && let Some(progress) = state.folder_progress.as_ref()
-    {
-        layers.push(status_bar::job_details_popover(progress));
-    }
-    if state.transaction_list_open {
-        layers.push(modals::transaction_list(state));
-    }
-    if state
-        .folder_browser
-        .pending_file_move_conflict_view()
-        .is_some()
-    {
-        layers.push(modals::file_move_conflict(state));
-    }
-    if let Some(overlay) = tag_completion_overlay {
-        layers.push(overlay);
-    }
-    if let Some(menu) = state.context_menu.as_ref() {
-        layers.push(context_menu_overlay::overlay(menu));
-    }
-    if let Some(feedback) = state.folder_browser.file_column_drag_feedback() {
-        layers.push(overlays::sample_column_drag_preview(&feedback));
-    }
-    ui::stack_layers(layers).fill()
+    .fill()
 }
 
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {

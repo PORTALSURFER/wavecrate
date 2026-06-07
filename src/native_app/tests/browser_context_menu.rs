@@ -12,7 +12,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
-    let frame = super::super::app_chrome::context_menu_overlay::overlay(&menu)
+    let frame = super::super::app_chrome::browser_context_menu::overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     let action_text_rect = frame
@@ -45,7 +45,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         Vector2::new(960.0, 540.0),
         move |open| {
             if *open {
-                super::super::app_chrome::context_menu_overlay::overlay(&menu).into_surface()
+                super::super::app_chrome::browser_context_menu::overlay(&menu).into_surface()
             } else {
                 ui::empty().into_surface()
             }
@@ -81,7 +81,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         anchor: Point::new(72.0, 142.0),
         title: String::from("Samples"),
     };
-    let frame = super::super::app_chrome::context_menu_overlay::overlay(&menu)
+    let frame = super::super::app_chrome::browser_context_menu::overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
@@ -100,7 +100,7 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
         anchor: Point::new(72.0, 142.0),
         title: String::from("Assets"),
     };
-    let frame = super::super::app_chrome::context_menu_overlay::overlay(&menu)
+    let frame = super::super::app_chrome::browser_context_menu::overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
@@ -119,7 +119,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
         anchor: Point::new(72.0, 142.0),
         title: String::from("kick.wav"),
     };
-    let frame = super::super::app_chrome::context_menu_overlay::overlay(&menu)
+    let frame = super::super::app_chrome::browser_context_menu::overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Remove from collection"));
