@@ -1,5 +1,5 @@
 use super::*;
-use crate::native_app::app_chrome::toolbar::main_toolbar;
+use crate::native_app::app_chrome::toolbar::{MainToolbarViewModel, main_toolbar};
 
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
@@ -73,8 +73,8 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
 #[test]
 fn main_toolbar_does_not_paint_empty_spacer_border() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let frame =
-        main_toolbar(&state).view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
+    let frame = main_toolbar(MainToolbarViewModel::from_app_state(&state))
+        .view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
 
     assert!(
         !frame
@@ -82,6 +82,25 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
             .contains_paint_rect_matching(|rect| rect.width() > 100.0 && rect.height() >= 20.0),
         "empty toolbar spacer should not paint or reserve a large visible rectangle"
     );
+}
+
+#[test]
+fn main_toolbar_view_model_projects_playback_state() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+
+    let empty = MainToolbarViewModel::from_app_state(&state);
+    assert_eq!(empty.random_available, state.random_playback_available());
+    assert!(!empty.loop_playback);
+    assert!(!empty.playing);
+
+    state.loop_playback = true;
+    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.start_playback(0.25);
+
+    let loaded = MainToolbarViewModel::from_app_state(&state);
+    assert_eq!(loaded.random_available, state.random_playback_available());
+    assert!(loaded.loop_playback);
+    assert!(loaded.playing);
 }
 
 #[test]

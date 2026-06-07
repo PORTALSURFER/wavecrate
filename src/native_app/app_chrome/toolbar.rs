@@ -13,8 +13,24 @@ const TOOLBAR_PLAY_ID: u64 = widget_ids::TOOLBAR_PLAY_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = widget_ids::TOOLBAR_STOP_ID;
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RANDOM_ID;
 
-pub(in crate::native_app) fn main_toolbar(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let random_available = state.random_playback_available();
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct MainToolbarViewModel {
+    pub(in crate::native_app) random_available: bool,
+    pub(in crate::native_app) loop_playback: bool,
+    pub(in crate::native_app) playing: bool,
+}
+
+impl MainToolbarViewModel {
+    pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
+        Self {
+            random_available: state.random_playback_available(),
+            loop_playback: state.loop_playback,
+            playing: state.waveform.is_playing(),
+        }
+    }
+}
+
+pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
     ui::toolbar_from_parts(
         ui::ToolbarParts::new([
             toolbar_icon_button(
@@ -27,20 +43,15 @@ pub(in crate::native_app) fn main_toolbar(state: &NativeAppState) -> ui::View<Gu
                 TOOLBAR_LOOP_ID,
                 ToolbarIcon::Loop,
                 true,
-                state.loop_playback,
+                model.loop_playback,
             ),
             toolbar_icon_button(
                 TOOLBAR_RANDOM_ID,
                 ToolbarIcon::Random,
-                random_available,
+                model.random_available,
                 false,
             ),
-            toolbar_icon_button(
-                TOOLBAR_PLAY_ID,
-                ToolbarIcon::Play,
-                true,
-                state.waveform.is_playing(),
-            ),
+            toolbar_icon_button(TOOLBAR_PLAY_ID, ToolbarIcon::Play, true, model.playing),
             toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, true, false),
         ])
         .align_end(),

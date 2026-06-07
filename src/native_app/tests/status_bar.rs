@@ -1,4 +1,5 @@
 use super::gui_state_for_span_tests;
+use crate::native_app::app_chrome::status_bar::StatusBarViewModel;
 use crate::native_app::test_support::NativeAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -16,16 +17,20 @@ fn bottom_status_bar_reports_selected_sample_count() {
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let empty_frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
+    let empty_frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(
+        StatusBarViewModel::from_app_state(&state),
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
     assert!(empty_frame.paint_plan.contains_text("0 samples"));
     assert!(!empty_frame.paint_plan.contains_text("1 sample"));
 
     state
         .folder_browser
         .select_file(sample_path.display().to_string());
-    let selected_frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
+    let selected_frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(
+        StatusBarViewModel::from_app_state(&state),
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
     assert!(selected_frame.paint_plan.contains_text("1 sample"));
 }
@@ -42,8 +47,12 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
         total: 5,
         detail: String::from("kick.wav"),
     });
-    let frame = crate::native_app::app_chrome::status_bar::worker_progress_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
+    let model = StatusBarViewModel::from_app_state(&state);
+    let frame = crate::native_app::app_chrome::status_bar::worker_progress_bar(
+        model.worker_progress,
+        model.progress_tick,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
     let fills = frame.paint_plan.fill_rects().count();
     assert_eq!(fills, 2);
@@ -60,8 +69,10 @@ fn bottom_status_bar_reports_normalization_progress() {
         total: 2,
         detail: String::from("snare.wav"),
     });
-    let frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
+    let frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(
+        StatusBarViewModel::from_app_state(&state),
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
     assert!(
         frame
@@ -98,8 +109,12 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
         total: 0,
         detail: String::from("kick.wav"),
     });
-    let frame = crate::native_app::app_chrome::status_bar::worker_progress_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
+    let model = StatusBarViewModel::from_app_state(&state);
+    let frame = crate::native_app::app_chrome::status_bar::worker_progress_bar(
+        model.worker_progress,
+        model.progress_tick,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
     let fills = frame.paint_plan.fill_rects().count();
     assert_eq!(fills, 2);
@@ -124,4 +139,38 @@ fn job_details_popover_reports_active_scan_progress() {
     assert!(frame.paint_plan.contains_text("Type: Scanning"));
     assert!(frame.paint_plan.contains_text("Progress: 2/5"));
     assert!(frame.paint_plan.contains_text("Current: kick.wav"));
+}
+
+#[test]
+fn status_bar_view_model_prioritizes_active_worker_progress() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.sample_status = String::from("Ready");
+    state.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
+        task_id: 7,
+        source_id: String::from("assets"),
+        label: String::from("Assets"),
+        phase: String::from("Scanning"),
+        completed: 2,
+        total: 5,
+        detail: String::from("kick.wav"),
+    });
+    state.normalization_progress = Some(crate::native_app::test_support::NormalizationProgress {
+        task_id: 9,
+        label: String::from("2 samples"),
+        completed: 1,
+        total: 2,
+        detail: String::from("snare.wav"),
+    });
+
+    let model = StatusBarViewModel::from_app_state(&state);
+
+    assert_eq!(model.selected_sample_count, 0);
+    assert_eq!(model.status_text, "Scanning Assets | 2/5 | kick.wav");
+    assert_eq!(
+        model.worker_progress.expect("worker progress"),
+        crate::native_app::app_chrome::status_bar::WorkerProgressViewModel {
+            completed: 2,
+            total: 5,
+        }
+    );
 }

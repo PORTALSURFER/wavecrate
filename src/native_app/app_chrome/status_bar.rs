@@ -3,20 +3,53 @@ use crate::native_app::app::{
 };
 use radiant::prelude as ui;
 
-pub(in crate::native_app) fn bottom_status_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct StatusBarViewModel {
+    pub(in crate::native_app) selected_sample_count: usize,
+    pub(in crate::native_app) status_text: String,
+    pub(in crate::native_app) worker_progress: Option<WorkerProgressViewModel>,
+    pub(in crate::native_app) progress_tick: f32,
+}
+
+impl StatusBarViewModel {
+    pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
+        Self {
+            selected_sample_count: state.folder_browser.selected_audio_file_count(),
+            status_text: bottom_status_text(state),
+            worker_progress: active_worker_progress(state),
+            progress_tick: state.progress_tick,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct WorkerProgressViewModel {
+    pub(in crate::native_app) completed: usize,
+    pub(in crate::native_app) total: usize,
+}
+
+impl WorkerProgressViewModel {
+    fn snapshot(self) -> ui::ProgressSnapshot {
+        ui::ProgressSnapshot::new(self.completed, self.total)
+    }
+}
+
+pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui::View<GuiMessage> {
     ui::status_bar_from_parts(
         ui::StatusBarParts::new(ui::StatusSegments::new(
-            selected_sample_count_label(state),
-            bottom_status_text(state),
+            selected_sample_count_label(model.selected_sample_count),
+            model.status_text,
             "",
         ))
         .left_width(120.0)
-        .trailing(worker_progress_bar(state)),
+        .trailing(worker_progress_bar(
+            model.worker_progress,
+            model.progress_tick,
+        )),
     )
 }
 
-fn selected_sample_count_label(state: &NativeAppState) -> String {
-    let count = state.folder_browser.selected_audio_file_count();
+fn selected_sample_count_label(count: usize) -> String {
     format!("{count} sample{}", if count == 1 { "" } else { "s" })
 }
 
@@ -59,13 +92,15 @@ fn bottom_status_text(state: &NativeAppState) -> String {
         .unwrap_or_else(|| state.sample_status.clone())
 }
 
-pub(in crate::native_app) fn worker_progress_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let Some(progress) = active_worker_progress(state) else {
+pub(in crate::native_app) fn worker_progress_bar(
+    progress: Option<WorkerProgressViewModel>,
+    progress_tick: f32,
+) -> ui::View<GuiMessage> {
+    let Some(progress) = progress else {
         return ui::empty().width(0.0).height(10.0);
     };
     let track_width = 180.0;
-    let snapshot = progress.snapshot();
-    let progress_bar = ui::progress_bar_for_snapshot(snapshot, state.progress_tick)
+    let progress_bar = ui::progress_bar_for_snapshot(progress.snapshot(), progress_tick)
         .colors(
             ui::Rgba8::new(48, 50, 51, 210),
             ui::Rgba8::new(255, 112, 86, 210),
@@ -79,31 +114,31 @@ pub(in crate::native_app) fn worker_progress_bar(state: &NativeAppState) -> ui::
         .height(10.0)
 }
 
-fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressView<'_>> {
+fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewModel> {
     state
         .folder_progress
         .as_ref()
-        .map(WorkerProgressView::Folder)
+        .map(WorkerProgressViewModel::from_folder_progress)
         .or_else(|| {
             state
                 .normalization_progress
                 .as_ref()
-                .map(WorkerProgressView::Normalization)
+                .map(WorkerProgressViewModel::from_normalization_progress)
         })
 }
 
-enum WorkerProgressView<'a> {
-    Folder(&'a FolderScanProgress),
-    Normalization(&'a NormalizationProgress),
-}
+impl WorkerProgressViewModel {
+    fn from_folder_progress(progress: &FolderScanProgress) -> Self {
+        Self {
+            completed: progress.completed,
+            total: progress.total,
+        }
+    }
 
-impl WorkerProgressView<'_> {
-    fn snapshot(&self) -> ui::ProgressSnapshot {
-        match self {
-            Self::Folder(progress) => ui::ProgressSnapshot::new(progress.completed, progress.total),
-            Self::Normalization(progress) => {
-                ui::ProgressSnapshot::new(progress.completed, progress.total)
-            }
+    fn from_normalization_progress(progress: &NormalizationProgress) -> Self {
+        Self {
+            completed: progress.completed,
+            total: progress.total,
         }
     }
 }
