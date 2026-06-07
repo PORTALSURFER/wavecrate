@@ -114,6 +114,7 @@ impl GuiAppState {
                     self.waveform_loading_target_progress = progress.clamp(0.0, 0.995);
                 }
             }
+            GuiMessage::SamplePlaybackReady(result) => self.finish_sample_playback_ready(result),
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
             GuiMessage::WaveformCacheIndicatorRefreshFinished(ticket) => {
                 self.finish_waveform_cache_indicator_refresh(ticket)

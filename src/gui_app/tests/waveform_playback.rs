@@ -272,6 +272,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         current_playback_span: None,
         pending_playback_start: None,
         pending_sample_playback: None,
+        early_sample_playback_path: None,
         native_file_drop_hover: None,
         pending_internal_file_drag_paths: Default::default(),
         metadata_tag_draft: String::new(),
@@ -503,6 +504,171 @@ fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     assert!(
         state.audio_open_task.active().is_some(),
         "frame processing should begin audio output warm-up before the first explicit playback"
+    );
+}
+
+#[test]
+fn wav_load_reports_playback_ready_before_waveform_summary_completion() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("early-ready.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let playback_ready = std::cell::Cell::new(false);
+
+    let waveform = super::super::WaveformState::load_path_with_progress_cancel_and_playback_ready(
+        sample_path.clone(),
+        |progress| {
+            if progress >= 0.62 {
+                assert!(
+                    playback_ready.get(),
+                    "WAV playback samples should be available before waveform summary work"
+                );
+            }
+        },
+        || false,
+        |ready| {
+            assert_eq!(ready.path, sample_path);
+            assert_eq!(ready.sample_rate, 48_000);
+            assert_eq!(ready.channels, 1);
+            assert!(!ready.playback_samples.is_empty());
+            playback_ready.set(true);
+        },
+    )
+    .expect("wav should load");
+
+    assert!(playback_ready.get());
+    assert!(waveform.playback_samples().is_some());
+}
+
+#[test]
+fn playback_ready_message_starts_audio_before_full_waveform_finish() {
+    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+        return;
+    };
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("early-message.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.audio_player = Some(player);
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.folder_browser.select_file(sample_path_string.clone());
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+    start_deferred_sample_load_for_tests(
+        &mut state,
+        sample_path_string.clone(),
+        true,
+        &mut context,
+    );
+    let ticket = state.sample_load_task.active().expect("sample load queued");
+    let samples = std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]);
+
+    state.apply_message(
+        super::super::GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
+            ticket,
+            output: super::super::SamplePlaybackReady {
+                path: sample_path_string.clone(),
+                audio: super::super::waveform::WaveformPlaybackReady {
+                    path: sample_path.clone(),
+                    audio_bytes: std::sync::Arc::from(fs::read(&sample_path).expect("read wav")),
+                    playback_samples: samples,
+                    sample_rate: 48_000,
+                    channels: 1,
+                    frames: 4,
+                },
+                autoplay: true,
+            },
+        }),
+        &mut context,
+    );
+
+    assert_eq!(
+        state.early_sample_playback_path.as_deref(),
+        Some(sample_path_string.as_str())
+    );
+    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        !state.waveform.is_playing(),
+        "waveform visuals should wait for full waveform completion"
+    );
+
+    state.apply_message(
+        super::super::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
+            ticket,
+            output: super::super::SampleLoadResult {
+                path: sample_path_string.clone(),
+                result: super::super::WaveformState::load_path(sample_path.clone()),
+                autoplay: true,
+            },
+        }),
+        &mut context,
+    );
+
+    assert_eq!(state.early_sample_playback_path, None);
+    assert!(state.waveform.is_playing());
+    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+}
+
+#[test]
+fn stale_playback_ready_message_is_ignored_after_selection_changes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("first.wav");
+    let second_path = source_root.path().join("second.wav");
+    write_test_wav_i16(&first_path, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second_path, &[0, 512, -512, 1024]);
+    let first_path_string = first_path.display().to_string();
+    let second_path_string = second_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    state.folder_browser.select_file(first_path_string.clone());
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::SelectSampleWithModifiers {
+            path: first_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+    start_deferred_sample_load_for_tests(&mut state, first_path_string.clone(), true, &mut context);
+    let ticket = state.sample_load_task.active().expect("sample load queued");
+    state.folder_browser.select_file(second_path_string);
+
+    state.apply_message(
+        super::super::GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
+            ticket,
+            output: super::super::SamplePlaybackReady {
+                path: first_path_string.clone(),
+                audio: super::super::waveform::WaveformPlaybackReady {
+                    path: first_path,
+                    audio_bytes: std::sync::Arc::from(Vec::<u8>::new()),
+                    playback_samples: std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]),
+                    sample_rate: 48_000,
+                    channels: 1,
+                    frames: 4,
+                },
+                autoplay: true,
+            },
+        }),
+        &mut context,
+    );
+
+    assert_eq!(state.early_sample_playback_path, None);
+    assert_eq!(state.current_playback_span, None);
+    assert!(
+        !state.sample_status.contains("Playing"),
+        "stale playback-ready messages must not start old selection audio"
     );
 }
 

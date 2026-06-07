@@ -83,6 +83,16 @@ pub(in crate::gui_app) struct PersistedPlaybackCacheFile {
     pub(in crate::gui_app) sample_count: u64,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::gui_app) struct WaveformPlaybackReady {
+    pub(in crate::gui_app) path: PathBuf,
+    pub(in crate::gui_app) audio_bytes: Arc<[u8]>,
+    pub(in crate::gui_app) playback_samples: Arc<[f32]>,
+    pub(in crate::gui_app) sample_rate: u32,
+    pub(in crate::gui_app) channels: usize,
+    pub(in crate::gui_app) frames: usize,
+}
+
 impl PersistedPlaybackCacheFile {
     pub(in crate::gui_app) fn new(path: PathBuf, sample_count: u64) -> Option<Self> {
         (sample_count > 0).then_some(Self { path, sample_count })
@@ -119,6 +129,15 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     path: PathBuf,
     progress: impl Fn(f32),
     cancelled: impl Fn() -> bool,
+) -> Result<WaveformFile, String> {
+    load_waveform_file_with_progress_cancel_and_playback_ready(path, progress, cancelled, |_| {})
+}
+
+pub(super) fn load_waveform_file_with_progress_cancel_and_playback_ready(
+    path: PathBuf,
+    progress: impl Fn(f32),
+    cancelled: impl Fn() -> bool,
+    playback_ready: impl Fn(WaveformPlaybackReady),
 ) -> Result<WaveformFile, String> {
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -158,7 +177,16 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
             && is_wav_path(&path)
             && let Ok(samples) = wav_decode::read_wav_playback_samples(&bytes)
         {
-            file.playback_samples = Some(Arc::from(samples));
+            let playback_samples = Arc::from(samples);
+            playback_ready(WaveformPlaybackReady {
+                path: path.clone(),
+                audio_bytes: Arc::clone(&bytes),
+                playback_samples: Arc::clone(&playback_samples),
+                sample_rate: file.sample_rate,
+                channels: file.channels,
+                frames: file.frames,
+            });
+            file.playback_samples = Some(playback_samples);
             store_cached_waveform_file_in_background(&file);
         }
         progress(0.99);
@@ -174,6 +202,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
             Arc::clone(&bytes),
             &progress,
             &cancelled,
+            &playback_ready,
         )
     {
         if cancelled() {

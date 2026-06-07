@@ -7,8 +7,8 @@ use std::{
 
 use super::{
     GuiAppState, GuiMessage, KEYBOARD_SAMPLE_LOAD_DEBOUNCE, PendingSamplePlayback,
-    SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState, emit_gui_action,
-    sample_path_label,
+    SampleLoadResult, SamplePlaybackReady, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState,
+    emit_gui_action, sample_path_label,
 };
 use crate::gui_app::waveform::cached_waveform_file_playback_ready_exists;
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
@@ -261,7 +261,7 @@ impl GuiAppState {
     }
 
     fn stop_current_sample_playback_for_load(&mut self) {
-        if !self.waveform.is_playing() {
+        if !self.waveform.is_playing() && self.early_sample_playback_path.is_none() {
             return;
         }
         if let Some(player) = self.audio_player.as_mut() {
@@ -269,6 +269,7 @@ impl GuiAppState {
         }
         self.waveform.stop_playback();
         self.current_playback_span = None;
+        self.early_sample_playback_path = None;
     }
 
     fn start_loaded_navigation_sample(
@@ -464,9 +465,11 @@ impl GuiAppState {
                     SAMPLE_LOAD_PROGRESS_MIN_DELTA,
                 )
                 .with_max_fraction(0.995);
+                let progress_sender = sender.clone();
                 let progress_reporter = std::cell::RefCell::new(
                     ui::ThrottledProgressReporter::new(progress_gate, move |progress| {
-                        let _ = sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
+                        let _ =
+                            progress_sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
                     }),
                 );
                 let result = if persisted_cache_only {
@@ -482,12 +485,28 @@ impl GuiAppState {
                     result
                 } else {
                     let phase_started_at = Instant::now();
-                    let result = WaveformState::load_path_with_progress_and_cancel(
+                    let ready_sender = sender.clone();
+                    let ready_path = path.clone();
+                    let result = WaveformState::load_path_with_progress_cancel_and_playback_ready(
                         PathBuf::from(&path),
                         |progress| {
                             progress_reporter.borrow_mut().report(progress);
                         },
                         || token.is_cancelled(),
+                        |audio| {
+                            if autoplay && !token.is_cancelled() {
+                                let _ = ready_sender.send(GuiMessage::SamplePlaybackReady(
+                                    ui::TaskCompletion {
+                                        ticket,
+                                        output: SamplePlaybackReady {
+                                            path: ready_path.clone(),
+                                            audio,
+                                            autoplay,
+                                        },
+                                    },
+                                ));
+                            }
+                        },
                     );
                     log_sample_load_timing(
                         "browser.sample_load.worker.decode_waveform",
@@ -543,6 +562,9 @@ impl GuiAppState {
                     &file_name,
                     replace_started_at,
                 );
+                if self.continue_early_sample_playback(&load.path, &file_name, started_at) {
+                    return;
+                }
                 if self.start_pending_sample_playback(&file_name, started_at) {
                     return;
                 }
@@ -610,6 +632,128 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn finish_sample_playback_ready(
+        &mut self,
+        ready: ui::TaskCompletion<SamplePlaybackReady>,
+    ) {
+        let started_at = Instant::now();
+        let ticket = ready.ticket;
+        let ready = ready.output;
+        let label = sample_path_label(ready.path.as_str());
+        if !self.sample_load_task.is_active(ticket)
+            || self.folder_browser.selected_file_id() != Some(ready.path.as_str())
+        {
+            emit_gui_action(
+                "browser.sample_load.playback_ready",
+                Some("browser"),
+                Some(&label),
+                "stale",
+                started_at,
+                None,
+            );
+            return;
+        }
+        if !ready.autoplay {
+            return;
+        }
+        let Some(player) = self.audio_player.as_mut() else {
+            emit_gui_action(
+                "browser.sample_load.playback_ready",
+                Some("browser"),
+                Some(&label),
+                "audio_output_pending",
+                started_at,
+                None,
+            );
+            return;
+        };
+        let duration = ready.audio.frames as f32 / ready.audio.sample_rate.max(1) as f32;
+        let output_setup_started_at = Instant::now();
+        player.set_volume(self.volume);
+        self.audio_output_resolved = Some(player.output_details().clone());
+        log_slow_sample_load_phase(
+            "browser.sample_load.playback_ready.output_setup",
+            &label,
+            output_setup_started_at,
+        );
+        let set_audio_started_at = Instant::now();
+        player.set_audio_samples_with_metadata(
+            ready.audio.audio_bytes,
+            ready.audio.playback_samples,
+            duration,
+            ready.audio.sample_rate,
+            ready.audio.channels,
+        );
+        log_slow_sample_load_phase(
+            "browser.sample_load.playback_ready.set_audio",
+            &label,
+            set_audio_started_at,
+        );
+        let play_started_at = Instant::now();
+        match player.play_range(0.0, 1.0, false) {
+            Ok(()) => {
+                self.early_sample_playback_path = Some(ready.path);
+                self.current_playback_span = Some((0.0, 1.0));
+                self.sample_status = format!("Playing {label}");
+                log_slow_sample_load_phase(
+                    "browser.sample_load.playback_ready.player_play",
+                    &label,
+                    play_started_at,
+                );
+                emit_gui_action(
+                    "browser.sample_load.playback_ready",
+                    Some("browser"),
+                    Some(&label),
+                    "playing",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                self.early_sample_playback_path = None;
+                self.current_playback_span = None;
+                self.sample_status = format!("Loaded {label} | playback unavailable: {err}");
+                emit_gui_action(
+                    "browser.sample_load.playback_ready",
+                    Some("browser"),
+                    Some(&label),
+                    "playback_error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
+    }
+
+    fn continue_early_sample_playback(
+        &mut self,
+        path: &str,
+        file_name: &str,
+        started_at: Instant,
+    ) -> bool {
+        if self.early_sample_playback_path.as_deref() != Some(path) {
+            return false;
+        }
+        let progress = self
+            .audio_player
+            .as_ref()
+            .and_then(|player| player.progress())
+            .unwrap_or(0.0);
+        self.waveform.start_playback(progress);
+        self.current_playback_span = Some((0.0, 1.0));
+        self.early_sample_playback_path = None;
+        self.sample_status = format!("Playing {file_name}");
+        emit_gui_action(
+            "browser.sample_load.finish",
+            Some("browser"),
+            Some(file_name),
+            "waveform_ready_playback_continued",
+            started_at,
+            None,
+        );
+        true
+    }
+
     fn start_pending_sample_playback(&mut self, file_name: &str, started_at: Instant) -> bool {
         let Some(playback) = self.pending_sample_playback.take() else {
             return false;
@@ -657,6 +801,13 @@ impl GuiAppState {
             token.cancel();
         }
         self.sample_load_task.cancel();
+        if self.early_sample_playback_path.is_some() {
+            if let Some(player) = self.audio_player.as_mut() {
+                player.stop();
+            }
+            self.current_playback_span = None;
+        }
+        self.early_sample_playback_path = None;
     }
 }
 

@@ -1,7 +1,8 @@
 use std::{io::Cursor, path::PathBuf, sync::Arc, time::Instant};
 
 use super::{
-    WaveformFile, downmix_to_mono_with_progress_and_cancel, report_phase_progress_throttled,
+    WaveformFile, WaveformPlaybackReady, downmix_to_mono_with_progress_and_cancel,
+    report_phase_progress_throttled,
 };
 
 pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
@@ -9,6 +10,7 @@ pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
     bytes: Arc<[u8]>,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
+    playback_ready: &impl Fn(WaveformPlaybackReady),
 ) -> Result<WaveformFile, String> {
     let cursor = Cursor::new(bytes.as_ref());
     let mut reader =
@@ -27,9 +29,24 @@ pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
     }
 
     let frames = samples.len() / channels;
+    let playback_samples = Arc::from(samples);
+    playback_ready(WaveformPlaybackReady {
+        path: path.clone(),
+        audio_bytes: Arc::clone(&bytes),
+        playback_samples: Arc::clone(&playback_samples),
+        sample_rate: spec.sample_rate,
+        channels,
+        frames,
+    });
     let downmix_started_at = Instant::now();
     let mono_samples = downmix_to_mono_with_progress_and_cancel(
-        &samples, channels, frames, 0.46, 0.62, progress, cancelled,
+        &playback_samples,
+        channels,
+        frames,
+        0.46,
+        0.62,
+        progress,
+        cancelled,
     )?;
     super::log_audio_load_timing(
         "browser.audio_file.wav.downmix",
@@ -53,7 +70,7 @@ pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
         &file.path,
         waveform_started_at.elapsed(),
     );
-    file.playback_samples = Some(Arc::from(samples));
+    file.playback_samples = Some(playback_samples);
     Ok(file)
 }
 

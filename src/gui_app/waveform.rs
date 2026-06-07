@@ -67,6 +67,21 @@ impl WaveformState {
         Ok(Self::from_file(file))
     }
 
+    pub(super) fn load_path_with_progress_cancel_and_playback_ready(
+        path: PathBuf,
+        progress: impl Fn(f32),
+        cancelled: impl Fn() -> bool,
+        playback_ready: impl Fn(WaveformPlaybackReady),
+    ) -> Result<Self, String> {
+        let file = Arc::new(load_waveform_file_with_progress_cancel_and_playback_ready(
+            path,
+            progress,
+            cancelled,
+            playback_ready,
+        )?);
+        Ok(Self::from_file(file))
+    }
+
     pub(super) fn from_cached_file(file: Arc<WaveformFile>) -> Self {
         Self::from_file(file)
     }
@@ -386,7 +401,7 @@ pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::test_waveform_file_from_mono_samples;
 pub(in crate::gui_app) use audio_file::{
-    cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    WaveformPlaybackReady, cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
     flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
 };
 #[cfg(test)]
@@ -397,6 +412,7 @@ use audio_file::{
 use audio_file::{
     empty_waveform_file, extract_wav_range_to_folder, extract_wav_range_to_sibling, is_wav_path,
     load_waveform_file, load_waveform_file_with_progress_and_cancel,
+    load_waveform_file_with_progress_cancel_and_playback_ready,
 };
 
 mod widget;
