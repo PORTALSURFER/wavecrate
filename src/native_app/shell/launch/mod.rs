@@ -18,14 +18,13 @@ pub(in crate::native_app) use options::DEFAULT_WINDOW_TITLE;
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
     logging::install_panic_hook();
-    let args = args::collect_launch_args();
+    let args = args::LaunchArgs::collect();
     let startup_started_at = Instant::now();
 
-    logging::init_logging(&args);
-    logging::log_default_gui_startup(&args);
+    logging::init_logging(args.raw());
+    logging::log_default_gui_startup(args.raw());
     let state = NativeAppState::load_default()?;
-    let debug_layout = args::debug_layout_requested(args.iter().cloned());
-    let options = options::native_run_options(debug_layout);
+    let options = options::native_run_options(args.debug_layout());
     logging::log_radiant_prepare(options.frame.debug_layout, startup_started_at);
     let run_result = radiant_app::run_radiant_app(state, options);
     logging::finish_radiant_run(run_result, startup_started_at)

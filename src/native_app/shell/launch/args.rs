@@ -6,7 +6,29 @@ use wavecrate::logging;
 pub(in crate::native_app) const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
 pub(in crate::native_app) const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
 
-pub(super) fn collect_launch_args() -> Vec<OsString> {
+pub(super) struct LaunchArgs {
+    raw: Vec<OsString>,
+    debug_layout: bool,
+}
+
+impl LaunchArgs {
+    pub(super) fn collect() -> Self {
+        let raw = collect_launch_args();
+        let debug_layout = debug_layout_requested(raw.iter().cloned());
+
+        Self { raw, debug_layout }
+    }
+
+    pub(super) fn raw(&self) -> &[OsString] {
+        &self.raw
+    }
+
+    pub(super) fn debug_layout(&self) -> bool {
+        self.debug_layout
+    }
+}
+
+fn collect_launch_args() -> Vec<OsString> {
     let args: Vec<OsString> = std::env::args_os().collect();
 
     #[cfg(all(target_os = "windows", not(debug_assertions)))]
