@@ -113,6 +113,12 @@ impl GuiAppState {
             GuiMessage::WaveformCacheWarmFinished(ticket) => {
                 self.finish_waveform_cache_warm(ticket)
             }
+            GuiMessage::ActiveFolderCacheWarmReady(ticket) => {
+                self.start_active_folder_cache_warm_after_delay(ticket, context);
+            }
+            GuiMessage::ActiveFolderCacheWarmFinished(result) => {
+                self.finish_active_folder_cache_warm(result, context);
+            }
             GuiMessage::AudioPlayerOpenFinished(ticket) => self.finish_audio_player_open(ticket),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::PlayRandomSampleRange => self.play_random_sample_range(context),
@@ -265,6 +271,7 @@ impl GuiAppState {
                 self.maybe_run_pending_source_refresh(context);
                 self.maybe_auto_load_startup_sample(context);
                 self.maybe_start_waveform_cache_warm(context);
+                self.maybe_start_active_folder_cache_warm(context);
                 self.advance_frame();
             }
         }

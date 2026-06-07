@@ -104,6 +104,11 @@ impl GuiAppState {
             waveform_cache_warm_pending: Default::default(),
             waveform_cache_warm_task: ui::LatestTask::new(),
             waveform_cache_warm_results: Default::default(),
+            active_folder_cache_warm_delay_task: ui::LatestTask::new(),
+            active_folder_cache_warm_task: ui::LatestTask::new(),
+            active_folder_cache_warm_cancel: None,
+            active_folder_cache_warm_folder_id: None,
+            active_folder_cache_warm_pending: Default::default(),
             cached_sample_paths: Default::default(),
         };
         emit_gui_action(

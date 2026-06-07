@@ -3,7 +3,7 @@ use std::{
     collections::{HashSet, hash_map::Entry},
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::gui_app::waveform::{
@@ -11,13 +11,15 @@ use crate::gui_app::waveform::{
     load_cached_waveform_file_for_playback,
 };
 use crate::gui_app::{
-    GuiAppState, GuiMessage, WaveformCacheEntry, WaveformCacheIndicatorRefreshResult,
-    WaveformCacheWarmResult, WaveformState,
+    ActiveFolderCacheWarmResult, GuiAppState, GuiMessage, WaveformCacheEntry,
+    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
 };
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
+const ACTIVE_FOLDER_CACHE_WARM_DELAY: Duration = Duration::from_millis(750);
+const ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES: usize = 4;
 
 impl GuiAppState {
     pub(in crate::gui_app) fn remember_waveform(&mut self, waveform: &WaveformState) {
@@ -133,6 +135,48 @@ impl GuiAppState {
         );
     }
 
+    pub(in crate::gui_app) fn schedule_active_folder_cache_warm(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.cancel_active_folder_cache_warm();
+        let Some((folder_id, paths)) = self.folder_browser.selected_folder_cache_warm_request()
+        else {
+            return;
+        };
+        if paths.is_empty() {
+            return;
+        }
+        self.active_folder_cache_warm_folder_id = Some(folder_id);
+        self.active_folder_cache_warm_pending = paths.into();
+        context.after_latest(
+            &mut self.active_folder_cache_warm_delay_task,
+            ACTIVE_FOLDER_CACHE_WARM_DELAY,
+            GuiMessage::ActiveFolderCacheWarmReady,
+        );
+    }
+
+    pub(in crate::gui_app) fn cancel_active_folder_cache_warm(&mut self) {
+        self.active_folder_cache_warm_delay_task.cancel();
+        self.active_folder_cache_warm_task.cancel();
+        if let Some(token) = self.active_folder_cache_warm_cancel.take() {
+            token.cancel();
+        }
+        self.active_folder_cache_warm_folder_id = None;
+        self.active_folder_cache_warm_pending.clear();
+    }
+
+    pub(in crate::gui_app) fn start_active_folder_cache_warm_after_delay(
+        &mut self,
+        ticket: ui::TaskTicket,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if !self.active_folder_cache_warm_delay_task.finish(ticket) {
+            return;
+        }
+        self.maybe_start_active_folder_cache_warm(context);
+    }
+
     pub(in crate::gui_app) fn finish_waveform_cache_indicator_refresh(
         &mut self,
         ticket: ui::TaskTicket,
@@ -195,6 +239,69 @@ impl GuiAppState {
         );
     }
 
+    pub(in crate::gui_app) fn maybe_start_active_folder_cache_warm(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if self.active_folder_cache_warm_delay_task.active().is_some()
+            || self.active_folder_cache_warm_task.active().is_some()
+        {
+            return;
+        }
+        let Some(folder_id) = self.active_folder_cache_warm_folder_id.clone() else {
+            return;
+        };
+        let paths = self.next_active_folder_cache_warm_batch();
+        if paths.is_empty() {
+            self.active_folder_cache_warm_folder_id = None;
+            return;
+        }
+        self.active_folder_cache_warm_cancel =
+            Some(context.spawn_cancellable_latest_with_priority(
+                &mut self.active_folder_cache_warm_task,
+                "gui-active-folder-cache-warm",
+                ui::TaskPriority::Idle,
+                move |_ticket, token| {
+                    let loaded = warm_active_folder_waveform_cache(paths, &token);
+                    ActiveFolderCacheWarmResult {
+                        folder_id,
+                        loaded,
+                        cancelled: token.is_cancelled(),
+                    }
+                },
+                GuiMessage::ActiveFolderCacheWarmFinished,
+            ));
+    }
+
+    pub(in crate::gui_app) fn finish_active_folder_cache_warm(
+        &mut self,
+        completion: ui::TaskCompletion<ActiveFolderCacheWarmResult>,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if !self.active_folder_cache_warm_task.finish(completion.ticket) {
+            return;
+        }
+        self.active_folder_cache_warm_cancel = None;
+        let result = completion.output;
+        if self.active_folder_cache_warm_folder_id.as_deref() != Some(result.folder_id.as_str()) {
+            return;
+        }
+        for (_path, file) in result.loaded {
+            let waveform = WaveformState::from_cached_file(file);
+            self.remember_waveform(&waveform);
+        }
+        if result.cancelled {
+            return;
+        }
+        log_slow_cache_phase(
+            "browser.sample_cache.active_folder_finish",
+            Path::new(&result.folder_id),
+            started_at,
+        );
+        self.maybe_start_active_folder_cache_warm(context);
+    }
+
     pub(in crate::gui_app) fn finish_waveform_cache_warm(&mut self, ticket: ui::TaskTicket) {
         let started_at = Instant::now();
         let result = self
@@ -241,6 +348,21 @@ impl GuiAppState {
         let mut batch = Vec::new();
         while batch.len() < WAVEFORM_CACHE_WARM_BATCH_MAX_FILES {
             let Some(path) = self.waveform_cache_warm_pending.pop_front() else {
+                break;
+            };
+            if self.waveform_cache.contains_key(&path) || batch.iter().any(|queued| queued == &path)
+            {
+                continue;
+            }
+            batch.push(path);
+        }
+        batch
+    }
+
+    fn next_active_folder_cache_warm_batch(&mut self) -> Vec<PathBuf> {
+        let mut batch = Vec::new();
+        while batch.len() < ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES {
+            let Some(path) = self.active_folder_cache_warm_pending.pop_front() else {
                 break;
             };
             if self.waveform_cache.contains_key(&path) || batch.iter().any(|queued| queued == &path)
@@ -327,6 +449,30 @@ pub(in crate::gui_app) fn warm_persisted_waveform_cache(
         })
         .collect();
     WaveformCacheWarmResult { loaded }
+}
+
+pub(in crate::gui_app) fn warm_active_folder_waveform_cache(
+    paths: Vec<PathBuf>,
+    token: &ui::CancellationToken,
+) -> Vec<(PathBuf, Arc<crate::gui_app::waveform::WaveformFile>)> {
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            if token.is_cancelled() {
+                return None;
+            }
+            if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
+                return Some((path, Arc::new(file)));
+            }
+            let waveform = WaveformState::load_path_with_progress_and_cancel(
+                path.clone(),
+                |_| {},
+                || token.is_cancelled(),
+            )
+            .ok()?;
+            Some((path, waveform.file()))
+        })
+        .collect()
 }
 
 fn probe_persisted_waveform_cache_indicators(

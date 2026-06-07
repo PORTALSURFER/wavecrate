@@ -44,6 +44,7 @@ impl GuiAppState {
                 let source = id.clone();
                 self.context_menu = None;
                 self.select_source(id, context);
+                self.schedule_active_folder_cache_warm(context);
                 emit_gui_action(
                     "folder_browser.select_source",
                     Some("folder_browser"),
@@ -89,6 +90,7 @@ impl GuiAppState {
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
                 self.schedule_persisted_waveform_cache_indicator_refresh(context);
+                self.schedule_active_folder_cache_warm(context);
                 emit_gui_action(
                     "folder_browser.activate_folder",
                     Some("folder_browser"),
@@ -106,6 +108,7 @@ impl GuiAppState {
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::ActivateCollection(collection));
                 self.schedule_persisted_waveform_cache_indicator_refresh(context);
+                self.cancel_active_folder_cache_warm();
             }
             FolderBrowserMessage::RenameCollection(collection) => {
                 self.begin_collection_rename(collection, context);

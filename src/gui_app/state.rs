@@ -129,6 +129,8 @@ pub(in crate::gui_app) enum GuiMessage {
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
     WaveformCacheIndicatorRefreshFinished(ui::TaskTicket),
     WaveformCacheWarmFinished(ui::TaskTicket),
+    ActiveFolderCacheWarmReady(ui::TaskTicket),
+    ActiveFolderCacheWarmFinished(ui::TaskCompletion<ActiveFolderCacheWarmResult>),
     AudioPlayerOpenFinished(ui::TaskTicket),
     PlaySelectedSample,
     PlayRandomSampleRange,
@@ -228,6 +230,13 @@ pub(in crate::gui_app) struct WaveformCacheEntry {
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformCacheWarmResult {
     pub(in crate::gui_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::gui_app) struct ActiveFolderCacheWarmResult {
+    pub(in crate::gui_app) folder_id: String,
+    pub(in crate::gui_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
+    pub(in crate::gui_app) cancelled: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -352,7 +361,24 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) waveform_cache_warm_task: ui::LatestTask,
     pub(in crate::gui_app) waveform_cache_warm_results:
         Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheWarmResult>>>,
+    pub(in crate::gui_app) active_folder_cache_warm_delay_task: ui::LatestTask,
+    pub(in crate::gui_app) active_folder_cache_warm_task: ui::LatestTask,
+    pub(in crate::gui_app) active_folder_cache_warm_cancel: Option<ui::CancellationToken>,
+    pub(in crate::gui_app) active_folder_cache_warm_folder_id: Option<String>,
+    pub(in crate::gui_app) active_folder_cache_warm_pending: VecDeque<PathBuf>,
     pub(in crate::gui_app) cached_sample_paths: HashSet<String>,
+}
+
+impl PartialEq for ActiveFolderCacheWarmResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.folder_id == other.folder_id
+            && self.cancelled == other.cancelled
+            && self
+                .loaded
+                .iter()
+                .map(|(path, _)| path)
+                .eq(other.loaded.iter().map(|(path, _)| path))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

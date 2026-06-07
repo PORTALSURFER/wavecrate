@@ -298,6 +298,11 @@ fn sample_selection_loads_selected_file_into_waveform() {
         waveform_cache_warm_pending: Default::default(),
         waveform_cache_warm_task: ui::LatestTask::new(),
         waveform_cache_warm_results: Default::default(),
+        active_folder_cache_warm_delay_task: ui::LatestTask::new(),
+        active_folder_cache_warm_task: ui::LatestTask::new(),
+        active_folder_cache_warm_cancel: None,
+        active_folder_cache_warm_folder_id: None,
+        active_folder_cache_warm_pending: Default::default(),
         cached_sample_paths: Default::default(),
     };
     let sample_path = first_visible_asset_file_path(&state.folder_browser);
@@ -355,12 +360,12 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_some(),
-        "repeat selection should still defer loading work instead of touching cache on the UI thread"
+        state.deferred_sample_load_task.active().is_none(),
+        "repeat selection should use the memory waveform cache without a deferred worker"
     );
     assert!(
         state.sample_load_task.active().is_none(),
-        "repeat selection must not synchronously start decode work"
+        "repeat selection must not start decode work"
     );
     assert_eq!(state.waveform.file_name(), sample_name);
 }
@@ -934,6 +939,119 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
     assert!(
         state.waveform_cache_warm_pending.is_empty(),
         "summary cache warming should wait for the background indicator probe"
+    );
+}
+
+#[test]
+fn folder_activation_delays_active_folder_cache_warm() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    let first = folder.join("first.wav");
+    let second = folder.join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096, -1024, 512]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024, -1024, 0]);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let mut context = ui::UpdateContext::default();
+
+    state.apply_message(
+        super::super::GuiMessage::FolderBrowser(
+            super::super::FolderBrowserMessage::ActivateFolder(folder.display().to_string()),
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state.active_folder_cache_warm_delay_task.active().is_some(),
+        "folder activation should wait briefly before assuming browse intent"
+    );
+    assert!(
+        state.active_folder_cache_warm_task.active().is_none(),
+        "active folder cache warm must not start during folder activation"
+    );
+    assert_eq!(state.active_folder_cache_warm_pending.len(), 2);
+}
+
+#[test]
+fn changing_folder_cancels_previous_active_folder_cache_warm() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_folder = source_root.path().join("first-folder");
+    let second_folder = source_root.path().join("second-folder");
+    fs::create_dir_all(&first_folder).expect("create first folder");
+    fs::create_dir_all(&second_folder).expect("create second folder");
+    write_test_wav_i16(&first_folder.join("first.wav"), &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second_folder.join("second.wav"), &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::FolderBrowser(
+            super::super::FolderBrowserMessage::ActivateFolder(first_folder.display().to_string()),
+        ),
+        &mut context,
+    );
+    let first_ticket = state
+        .active_folder_cache_warm_delay_task
+        .active()
+        .expect("first folder warm delay");
+    state.apply_message(
+        super::super::GuiMessage::ActiveFolderCacheWarmReady(first_ticket),
+        &mut context,
+    );
+    assert!(state.active_folder_cache_warm_task.active().is_some());
+
+    state.apply_message(
+        super::super::GuiMessage::FolderBrowser(
+            super::super::FolderBrowserMessage::ActivateFolder(second_folder.display().to_string()),
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state.active_folder_cache_warm_task.active().is_none(),
+        "changing folders should cancel the active warm worker"
+    );
+    let second_folder_id = second_folder.display().to_string();
+    assert_eq!(
+        state.active_folder_cache_warm_folder_id.as_deref(),
+        Some(second_folder_id.as_str())
+    );
+    assert_eq!(state.active_folder_cache_warm_pending.len(), 1);
+}
+
+#[test]
+fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("uncached-warm.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path = PathBuf::from(sample_path.display().to_string());
+
+    assert!(!super::super::waveform::cached_waveform_file_playback_ready_exists(&sample_path));
+
+    let token = ui::CancellationToken::new();
+    let loaded = super::super::sample_load_actions::warm_active_folder_waveform_cache(
+        vec![sample_path.clone()],
+        &token,
+    );
+    super::super::waveform::flush_background_waveform_cache_stores_for_shutdown();
+
+    assert_eq!(loaded.len(), 1);
+    assert!(
+        super::super::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "active folder warm should persist playback readiness for future selection"
     );
 }
 

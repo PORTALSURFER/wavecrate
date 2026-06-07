@@ -18,7 +18,9 @@ mod deferred_drop;
 mod types;
 
 #[cfg(test)]
-pub(in crate::gui_app) use cache::warm_persisted_waveform_cache;
+pub(in crate::gui_app) use cache::{
+    warm_active_folder_waveform_cache, warm_persisted_waveform_cache,
+};
 
 const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
 const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;

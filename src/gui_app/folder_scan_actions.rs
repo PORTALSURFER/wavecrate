@@ -230,6 +230,7 @@ impl GuiAppState {
                 self.sample_status = format!("Synced {} filesystem change(s)", paths.len());
                 self.refresh_persisted_metadata_tags_for_source(&source_id);
                 self.schedule_persisted_waveform_cache_indicator_refresh(context);
+                self.schedule_active_folder_cache_warm(context);
                 self.persist_user_configuration(
                     "folder_browser.source.filesystem_patch",
                     started_at,
@@ -493,6 +494,7 @@ impl GuiAppState {
             );
             self.refresh_persisted_metadata_tags_for_source(&source_id);
             self.schedule_persisted_waveform_cache_indicator_refresh(context);
+            self.schedule_active_folder_cache_warm(context);
             self.persist_user_configuration("folder_browser.sources.persist", started_at);
             self.sync_source_watcher();
         } else {

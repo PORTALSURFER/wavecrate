@@ -185,6 +185,19 @@ impl FolderBrowserState {
         self.selected_folder_audio_files(folder)
     }
 
+    pub(in crate::gui_app) fn selected_folder_cache_warm_request(
+        &self,
+    ) -> Option<(String, Vec<PathBuf>)> {
+        let folder = self.selected_folder()?;
+        let paths = folder
+            .files
+            .iter()
+            .filter(|file| file.is_audio())
+            .map(|file| PathBuf::from(&file.id))
+            .collect::<Vec<_>>();
+        Some((folder.id.clone(), paths))
+    }
+
     pub(in crate::gui_app) fn selected_audio_files_matching_tags(
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
