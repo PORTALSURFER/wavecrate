@@ -23,6 +23,7 @@ pub(in crate::gui_app) struct FolderBrowserState {
     pub(super) selected_folder: String,
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
+    pub(super) selected_file_ids_explicit: bool,
     pub(super) name_filter: String,
     pub(super) tag_filter: String,
     pub(super) expanded_folders: HashSet<String>,
@@ -115,6 +116,7 @@ impl FolderBrowserState {
             selected_folder: root_id.clone(),
             selected_file: None,
             selected_file_ids: HashSet::new(),
+            selected_file_ids_explicit: false,
             name_filter: String::new(),
             tag_filter: String::new(),
             expanded_folders: [root_id].into_iter().collect(),
@@ -324,9 +326,6 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn is_file_selected(&self, file_id: &str) -> bool {
-        if self.selected_file_ids.is_empty() {
-            return self.selected_file.as_deref() == Some(file_id);
-        }
         self.selected_file_ids.contains(file_id)
     }
 

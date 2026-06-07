@@ -92,6 +92,9 @@ impl FolderBrowserState {
         {
             self.selected_file = None;
         }
+        if self.selected_file.is_none() && self.selected_file_ids.is_empty() {
+            self.selected_file_ids_explicit = false;
+        }
     }
 
     fn retain_visible_file_selection_after_filter(&mut self) {
@@ -107,6 +110,9 @@ impl FolderBrowserState {
             .is_some_and(|id| !visible_ids.contains(id))
         {
             self.selected_file = None;
+        }
+        if self.selected_file.is_none() && self.selected_file_ids.is_empty() {
+            self.selected_file_ids_explicit = false;
         }
     }
 }

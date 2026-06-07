@@ -379,6 +379,42 @@ fn loop_shortcut_routes_to_loop_toggle() {
 }
 
 #[test]
+fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    let resolution =
+        crate::gui_app::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::X));
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::gui_app::GuiMessage::ToggleSelectedSampleAndAdvance)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn x_shortcut_is_consumed_while_renaming() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    let sample_path = state
+        .folder_browser
+        .selected_audio_files()
+        .first()
+        .expect("default assets include an audio sample")
+        .id
+        .clone();
+    state.folder_browser.select_file(sample_path);
+    state
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution =
+        crate::gui_app::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::X));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+#[test]
 fn shift_u_shortcut_toggles_transaction_list() {
     let state = GuiAppState::load_default().expect("default state loads");
     let resolution = crate::gui_app::default_gui_shortcut_resolution(

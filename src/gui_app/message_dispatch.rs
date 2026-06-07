@@ -237,6 +237,9 @@ impl GuiAppState {
             GuiMessage::NavigateBrowser { delta, extend } => {
                 self.navigate_browser(delta, extend, context);
             }
+            GuiMessage::ToggleSelectedSampleAndAdvance => {
+                self.toggle_selected_sample_and_advance(context);
+            }
             GuiMessage::SelectAllSamples => {
                 self.select_all_samples();
             }

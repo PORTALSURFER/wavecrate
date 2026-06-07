@@ -82,6 +82,7 @@ impl FolderBrowserState {
         self.selected_folder = id;
         self.selected_file = None;
         self.selected_file_ids.clear();
+        self.selected_file_ids_explicit = false;
         self.reset_file_view();
     }
 

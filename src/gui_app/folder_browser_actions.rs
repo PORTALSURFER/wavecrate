@@ -3,6 +3,7 @@ use radiant::widgets::DragHandleMessage;
 use std::time::{Duration, Instant};
 use wavecrate::sample_sources::SampleCollection;
 
+use super::file_actions::sample_path_label;
 use super::folder_browser::FolderBrowserMessage;
 use super::{
     GuiAppState, GuiMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
@@ -179,6 +180,66 @@ impl GuiAppState {
             "browser.select_all_samples",
             Some("browser"),
             None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    pub(super) fn toggle_selected_sample_and_advance(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let previous_focus = self.folder_browser.selected_file_id().map(str::to_owned);
+        let Some(result) = self
+            .folder_browser
+            .toggle_focused_sample_selection_and_advance(&self.metadata_tags_by_file)
+        else {
+            self.sample_status = String::from("Select a sample to mark");
+            emit_gui_action(
+                "browser.toggle_sample_selection_and_advance",
+                Some("browser"),
+                None,
+                "short_circuit",
+                started_at,
+                None,
+            );
+            return;
+        };
+
+        if self.folder_browser.selected_file_id() != previous_focus.as_deref() {
+            self.cancel_metadata_tag_entry();
+            self.selected_metadata_tag = None;
+        }
+        if let Some(index) = self
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata_tags_by_file)
+        {
+            context.scroll_fixed_row_into_view(
+                SAMPLE_BROWSER_LIST_ID,
+                index,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                1,
+            );
+        }
+
+        let action = if result.toggled_selected {
+            "Marked"
+        } else {
+            "Unmarked"
+        };
+        let count = self.folder_browser.selected_audio_file_count();
+        self.sample_status = format!(
+            "{action} {} ({count} selected)",
+            sample_path_label(&result.toggled_id)
+        );
+        emit_gui_action(
+            "browser.toggle_sample_selection_and_advance",
+            Some("browser"),
+            Some(&sample_path_label(&result.toggled_id)),
             "success",
             started_at,
             None,

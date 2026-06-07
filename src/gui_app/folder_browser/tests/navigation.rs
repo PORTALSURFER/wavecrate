@@ -588,6 +588,133 @@ fn file_keyboard_navigation_can_extend_audio_selection() {
 }
 
 #[test]
+fn toggle_focused_sample_selection_marks_and_advances() {
+    let root = temp_source_root("wavecrate-gui-toggle-mark-advance");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+
+    let result = browser
+        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .expect("toggle focused sample");
+
+    assert_eq!(result.toggled_id, path_id(&hat));
+    assert!(result.toggled_selected);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn toggle_focused_sample_selection_unmarks_and_advances() {
+    let root = temp_source_root("wavecrate-gui-toggle-unmark-advance");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+    browser
+        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .expect("mark first sample");
+    browser.select_file_with_modifiers(
+        path_id(&kick),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+
+    let result = browser
+        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .expect("toggle focused sample");
+
+    assert_eq!(result.toggled_id, path_id(&kick));
+    assert!(!result.toggled_selected);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn toggle_focused_sample_selection_stays_on_last_visible_sample() {
+    let root = temp_source_root("wavecrate-gui-toggle-mark-last");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    for file in [&hat, &kick] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+
+    let result = browser
+        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .expect("toggle focused sample");
+
+    assert_eq!(result.toggled_id, path_id(&kick));
+    assert!(result.toggled_selected);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![kick.clone()]);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn toggle_focused_sample_selection_advances_through_tag_filtered_rows() {
+    let root = temp_source_root("wavecrate-gui-toggle-mark-filtered");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let tags_by_file = std::collections::HashMap::from([
+        (path_id(&hat), vec![String::from("drum")]),
+        (path_id(&kick), vec![String::from("ignore")]),
+        (path_id(&snare), vec![String::from("drum")]),
+    ]);
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_message(FolderBrowserMessage::TagFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("drum"),
+        },
+    ));
+    browser.select_file(path_id(&hat));
+
+    let result = browser
+        .toggle_focused_sample_selection_and_advance(&tags_by_file)
+        .expect("toggle focused sample");
+
+    assert_eq!(result.toggled_id, path_id(&hat));
+    assert_eq!(result.focused_id, path_id(&snare));
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn file_mouse_selection_toggles_and_extends_audio_selection() {
     let root = temp_source_root("wavecrate-gui-file-mouse-multi-select");
     let drums = root.join("drums");

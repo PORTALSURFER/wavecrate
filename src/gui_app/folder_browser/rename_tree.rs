@@ -58,6 +58,7 @@ impl FolderBrowserState {
         self.selected_file = Some(new_id);
         self.selected_file_ids.clear();
         self.selected_file_ids.insert(path_id(new_path));
+        self.selected_file_ids_explicit = false;
         self.bump_file_content_revision();
     }
 

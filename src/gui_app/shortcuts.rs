@@ -116,6 +116,10 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::PlaySelectedSample,
         )
         .bind(
+            ui::KeyPress::new(ui::KeyCode::X),
+            GuiMessage::ToggleSelectedSampleAndAdvance,
+        )
+        .bind(
             ui::KeyPress::with_command(ui::KeyCode::A),
             GuiMessage::SelectAllSamples,
         )

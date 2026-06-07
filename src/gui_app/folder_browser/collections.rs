@@ -239,6 +239,7 @@ impl FolderBrowserState {
             self.reset_folder_focus_to_selected_source_root();
             self.selected_file = None;
             self.selected_file_ids.clear();
+            self.selected_file_ids_explicit = false;
             self.reset_file_view();
         }
         self.selected_collection = Some(collection);

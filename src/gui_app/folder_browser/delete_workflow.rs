@@ -110,6 +110,7 @@ impl FolderBrowserState {
         }
         self.selected_file = None;
         self.selected_file_ids.clear();
+        self.selected_file_ids_explicit = false;
         self.expanded_folders.retain(|id| id != &folder_id);
         self.bump_file_content_revision();
         true

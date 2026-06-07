@@ -201,6 +201,7 @@ pub(in crate::gui_app) enum GuiMessage {
         delta: i32,
         extend: bool,
     },
+    ToggleSelectedSampleAndAdvance,
     SelectAllSamples,
     CollapseSelectedFolder,
     ExpandSelectedFolder,

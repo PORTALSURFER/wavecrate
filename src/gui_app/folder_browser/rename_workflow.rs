@@ -121,6 +121,7 @@ impl FolderBrowserState {
         self.selected_folder = folder_id.clone();
         self.selected_file = None;
         self.selected_file_ids.clear();
+        self.selected_file_ids_explicit = false;
         self.rename_edit = Some(FolderRenameEdit {
             folder_id,
             draft,
@@ -249,6 +250,7 @@ impl FolderBrowserState {
         self.selected_folder = new_id;
         self.selected_file = None;
         self.selected_file_ids.clear();
+        self.selected_file_ids_explicit = false;
         self.reset_file_view();
         RenameCommitResult::status(format!("Created folder {new_name}"))
     }

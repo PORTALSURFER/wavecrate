@@ -9,6 +9,13 @@ use super::{
     scanning::{file_entry, load_folder_at_path, load_root_folder, upsert_file, upsert_folder},
 };
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct ToggleSelectedSampleAdvanceResult {
+    pub(in crate::gui_app) toggled_id: String,
+    pub(in crate::gui_app) toggled_selected: bool,
+    pub(in crate::gui_app) focused_id: String,
+}
+
 impl FolderBrowserState {
     pub(in crate::gui_app) fn focus_file_across_sources(&mut self, path: &Path) -> bool {
         self.ensure_loaded_source_containing_path(path);
@@ -32,6 +39,7 @@ impl FolderBrowserState {
         self.selected_file = Some(file_id.clone());
         self.selected_file_ids.clear();
         self.selected_file_ids.insert(file_id);
+        self.selected_file_ids_explicit = false;
         self.reset_file_view();
         self.folders = vec![root_folder];
         self.prewarm_selected_source_audio_projection_cache();
@@ -147,7 +155,7 @@ impl FolderBrowserState {
     }
 
     fn active_selected_file_ids(&self) -> HashSet<String> {
-        if !self.selected_file_ids.is_empty() {
+        if self.selected_file_ids_explicit || !self.selected_file_ids.is_empty() {
             return self.selected_file_ids.clone();
         }
         self.selected_file
@@ -278,6 +286,7 @@ impl FolderBrowserState {
             selection.navigate(delta as isize, file_ids, false)?
         };
         self.apply_file_selection_model(selection);
+        self.selected_file_ids_explicit = extend;
         Some(target)
     }
 
@@ -339,6 +348,7 @@ impl FolderBrowserState {
             ui::ListSelectionIntent::from_extend_toggle(modifiers.shift, modifiers.command),
         );
         self.apply_file_selection_model(selection);
+        self.selected_file_ids_explicit = modifiers.shift || modifiers.command;
     }
 
     pub(in crate::gui_app) fn focus_file_preserving_selection(&mut self, id: String) {
@@ -371,10 +381,44 @@ impl FolderBrowserState {
         self.select_audio_file_ids(ids)
     }
 
+    pub(in crate::gui_app) fn toggle_focused_sample_selection_and_advance(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<ToggleSelectedSampleAdvanceResult> {
+        if self.rename_active() {
+            return None;
+        }
+        if self.selected_collection.is_some() && self.selected_file.is_none() {
+            self.navigate_into_active_file_list_matching_tags(1, tags_by_file)?;
+        }
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        let focused = self.selected_file.as_ref()?;
+        let current_index = file_ids.iter().position(|id| id == focused)?;
+        let toggled_id = focused.clone();
+        let already_marked =
+            self.selected_file_ids_explicit && self.selected_file_ids.contains(&toggled_id);
+        let toggled_selected = if already_marked {
+            self.selected_file_ids.remove(&toggled_id);
+            false
+        } else {
+            self.selected_file_ids.insert(toggled_id.clone());
+            true
+        };
+        self.selected_file_ids_explicit = true;
+        let focused_id = file_ids[current_index.saturating_add(1).min(file_ids.len() - 1)].clone();
+        self.selected_file = Some(focused_id.clone());
+        Some(ToggleSelectedSampleAdvanceResult {
+            toggled_id,
+            toggled_selected,
+            focused_id,
+        })
+    }
+
     fn select_audio_file_ids(&mut self, ids: Vec<String>) -> usize {
         let mut selection = self.file_selection_model();
         selection.select_all(&ids);
         self.apply_file_selection_model(selection);
+        self.selected_file_ids_explicit = true;
         self.selected_file_ids.len()
     }
 
@@ -399,13 +443,14 @@ impl FolderBrowserState {
         ui::KeyedListSelection::from_parts(
             self.selected_file.clone(),
             self.selected_file.clone(),
-            self.active_selected_file_ids(),
+            self.selected_file_ids.clone(),
         )
     }
 
     fn apply_file_selection_model(&mut self, selection: ui::KeyedListSelection<String>) {
         self.selected_file = selection.focused_key().cloned();
         self.selected_file_ids = selection.selected_keys().iter().cloned().collect();
+        self.selected_file_ids_explicit = false;
     }
 
     pub(in crate::gui_app) fn refresh_file_path(&mut self, path: &Path) -> bool {
@@ -588,6 +633,7 @@ impl FolderBrowserState {
                     self.selected_folder = root_folder.id.clone();
                     self.selected_file = None;
                     self.selected_file_ids.clear();
+                    self.selected_file_ids_explicit = false;
                 }
                 self.folders = vec![root_folder];
             }
