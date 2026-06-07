@@ -9,7 +9,7 @@ use std::{
         Arc, Mutex,
         mpsc::{Receiver, Sender},
     },
-    time::{Duration, Instant},
+    time::Instant,
 };
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
@@ -27,44 +27,8 @@ use crate::native_app::browser::folder_browser::{
 };
 use crate::native_app::browser::source_watcher::GuiSourceWatcherHandle;
 
-pub(in crate::native_app) const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
-pub(in crate::native_app) const MIN_FOLDER_WIDTH: f32 = 180.0;
-pub(in crate::native_app) const MAX_FOLDER_WIDTH: f32 = 420.0;
-pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = 29_000;
-pub(in crate::native_app) const FOLDER_TREE_EDGE_CONTEXT_ROWS: usize = 2;
-pub(in crate::native_app) const FOLDER_TREE_OVERSCAN_ROWS: usize = 4;
-pub(in crate::native_app) const FOLDER_TREE_PROJECTED_VIEWPORT_ROWS: usize = 96;
-pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = 30_000;
-pub(in crate::native_app) const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
-pub(in crate::native_app) const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;
-pub(in crate::native_app) const SAMPLE_BROWSER_OVERSCAN_ROWS: usize = 4;
-pub(in crate::native_app) const SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS: usize = 128;
 #[cfg(test)]
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
-pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = 31_000;
-pub(in crate::native_app) const VOLUME_SLIDER_WIDTH: f32 = 92.0;
-pub(in crate::native_app) const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
-pub(in crate::native_app) const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
-pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
-pub(in crate::native_app) const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
-pub(in crate::native_app) const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
-pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = 31_110;
-pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
-pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
-pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 520.0;
-pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 380.0;
-pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = 31_200;
-pub(in crate::native_app) const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
-pub(in crate::native_app) const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
-pub(in crate::native_app) const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
-pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
-pub(in crate::native_app) const WAVEFORM_SIGNAL_WIDGET_ID: u64 = 11;
-pub(in crate::native_app) const WAVEFORM_WIDGET_ID: u64 = 12;
-pub(in crate::native_app) const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration =
-    Duration::from_millis(120);
-pub(in crate::native_app) const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
-pub(in crate::native_app) const KEYBOARD_SAMPLE_LOAD_DEBOUNCE: Duration =
-    UNCACHED_SAMPLE_LOAD_DEBOUNCE;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum AudioSettingsDropdown {

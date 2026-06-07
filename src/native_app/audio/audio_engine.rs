@@ -2,9 +2,11 @@ use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supported_sample_rates};
 
+pub(in crate::native_app) const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
+
 use crate::native_app::app_scope::{
-    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, VOLUME_PERSIST_DEBOUNCE,
-    emit_gui_action, format_sample_rate_label,
+    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, emit_gui_action,
+    format_sample_rate_label,
 };
 
 mod options;

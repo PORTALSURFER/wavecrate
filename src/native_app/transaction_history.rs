@@ -2,6 +2,8 @@ use std::collections::VecDeque;
 
 use crate::native_app::app_scope::NativeAppState;
 
+pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = 31_200;
+
 const DEFAULT_TRANSACTION_LIMIT: usize = 128;
 
 pub(in crate::native_app) type TransactionResult = Result<(), String>;

@@ -5,10 +5,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(in crate::native_app) const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
+pub(in crate::native_app) const KEYBOARD_SAMPLE_LOAD_DEBOUNCE: Duration =
+    UNCACHED_SAMPLE_LOAD_DEBOUNCE;
+
 use crate::native_app::app_scope::{
-    GuiMessage, KEYBOARD_SAMPLE_LOAD_DEBOUNCE, NativeAppState, PendingSamplePlayback,
-    SampleLoadResult, SamplePlaybackReady, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState,
-    emit_gui_action, sample_path_label,
+    GuiMessage, NativeAppState, PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady,
+    WaveformState, emit_gui_action, sample_path_label,
 };
 use crate::native_app::waveform::cached_waveform_file_playback_ready_exists;
 pub(in crate::native_app) use types::{NormalizedWaveformReload, WaveformPlaybackResume};

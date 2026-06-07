@@ -8,8 +8,9 @@ use radiant::prelude as ui;
 use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 
 use crate::native_app::app_scope::{
-    GuiMessage, NativeAppState, NativeFileDropHover, WAVEFORM_WIDGET_ID, emit_gui_action,
+    GuiMessage, NativeAppState, NativeFileDropHover, emit_gui_action,
 };
+use crate::native_app::waveform::WAVEFORM_WIDGET_ID;
 
 impl NativeAppState {
     pub(in crate::native_app) fn apply_native_file_drop(

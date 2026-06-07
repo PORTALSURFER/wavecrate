@@ -4,11 +4,20 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
+pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = 31_000;
+pub(in crate::native_app) const VOLUME_SLIDER_WIDTH: f32 = 92.0;
+pub(in crate::native_app) const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
+pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
+pub(in crate::native_app) const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
+pub(in crate::native_app) const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
+pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = 31_110;
+pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
+pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
+pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 520.0;
+pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 380.0;
+
 use crate::native_app::app_scope::{
-    AUDIO_ENGINE_PILL_HEIGHT, AUDIO_ENGINE_PILL_ID, AUDIO_ENGINE_PILL_WIDTH,
-    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AppSettingsTab, AudioSettingsDropdown,
-    GENERAL_SETTINGS_BUTTON_HEIGHT, GENERAL_SETTINGS_BUTTON_ID, GENERAL_SETTINGS_BUTTON_WIDTH,
-    GuiMessage, NativeAppState, VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID, VOLUME_SLIDER_WIDTH,
+    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState,
 };
 
 mod popover;

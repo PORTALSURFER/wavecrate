@@ -1,9 +1,10 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app_scope::{
-    GuiMessage, NativeAppState, WAVEFORM_PANEL_HEIGHT, WAVEFORM_VIEW_HEIGHT,
-};
+use crate::native_app::app_scope::{GuiMessage, NativeAppState};
 use crate::native_app::waveform::{self, WaveformInteraction, WaveformState};
+
+pub(in crate::native_app) const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
+pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 
 pub(in crate::native_app) fn waveform_panel(state: &NativeAppState) -> ui::View<GuiMessage> {
     ui::column([

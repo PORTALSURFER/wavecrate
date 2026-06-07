@@ -8,9 +8,10 @@ use std::{
 use wavecrate::external_clipboard;
 
 use crate::native_app::app_scope::{
-    DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH, FileMoveConflictResolution, FolderBrowserMessage,
-    GuiMessage, NativeAppState, emit_gui_action, sample_path_label,
+    FileMoveConflictResolution, FolderBrowserMessage, GuiMessage, NativeAppState, emit_gui_action,
+    sample_path_label,
 };
+use crate::native_app::browser::{DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH};
 
 impl NativeAppState {
     pub(in crate::native_app) fn drag_sample_file(

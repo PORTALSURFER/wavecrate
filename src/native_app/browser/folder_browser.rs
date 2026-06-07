@@ -2,6 +2,14 @@
 
 use crate::native_app::app_scope::GuiMessage;
 
+pub(in crate::native_app) const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
+pub(in crate::native_app) const MIN_FOLDER_WIDTH: f32 = 180.0;
+pub(in crate::native_app) const MAX_FOLDER_WIDTH: f32 = 420.0;
+pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = 29_000;
+pub(in crate::native_app) const FOLDER_TREE_EDGE_CONTEXT_ROWS: usize = 2;
+pub(in crate::native_app) const FOLDER_TREE_OVERSCAN_ROWS: usize = 4;
+pub(in crate::native_app) const FOLDER_TREE_PROJECTED_VIEWPORT_ROWS: usize = 96;
+
 pub(in crate::native_app) const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 10.0;
 

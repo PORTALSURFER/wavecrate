@@ -12,7 +12,8 @@ use radiant::{
 };
 use std::sync::Arc;
 
-use crate::native_app::app_scope::{GuiMessage, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
+use crate::native_app::app_scope::GuiMessage;
+use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformFile, WaveformInteraction,

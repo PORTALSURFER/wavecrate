@@ -5,6 +5,8 @@ use std::{path::PathBuf, sync::Arc};
 
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
+pub(in crate::native_app) const WAVEFORM_SIGNAL_WIDGET_ID: u64 = 11;
+pub(in crate::native_app) const WAVEFORM_WIDGET_ID: u64 = 12;
 const MIN_VISIBLE_FRAMES: usize = 256;
 const BAND_COUNT: usize = 4;
 const SELECTION_DRAG_EPSILON: f32 = 0.001;

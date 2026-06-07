@@ -4,12 +4,12 @@ use std::collections::HashSet;
 
 use super::SampleFileHitTarget;
 use super::row_widgets::RatingIndicator;
-use crate::native_app::app_scope::{
-    GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
-    SampleNameViewMode,
-};
+use crate::native_app::app_scope::{GuiMessage, SampleNameViewMode};
 use crate::native_app::browser::folder_browser::{
     self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState,
+};
+use crate::native_app::browser::sample_browser_view::{
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 
 pub(super) fn sample_browser_rows(

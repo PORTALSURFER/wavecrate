@@ -1,8 +1,9 @@
 use crate::native_app::app_scope::{
-    DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode,
-    WaveformState, sample_path_label,
+    FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode, WaveformState,
+    sample_path_label,
 };
 use crate::native_app::app_scope::{WaveformInteraction, emit_gui_action};
+use crate::native_app::browser::folder_browser::DEFAULT_FOLDER_WIDTH;
 use radiant::prelude as ui;
 use std::{
     collections::HashMap,

@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app_scope::{
+use crate::native_app::browser::folder_browser::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
     FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
 };

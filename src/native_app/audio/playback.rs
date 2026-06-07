@@ -6,9 +6,11 @@ use std::{
 };
 use wavecrate::audio::{AudioPlayer, edit_fade_range_from_selection};
 
+pub(in crate::native_app) const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration =
+    Duration::from_millis(120);
+
 use crate::native_app::app_scope::{
-    GuiMessage, NativeAppState, PLAYBACK_START_ACTIVE_SOURCE_GRACE, PendingPlaybackStart,
-    PendingSamplePlayback, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID, emit_gui_action,
+    GuiMessage, NativeAppState, PendingPlaybackStart, PendingSamplePlayback, emit_gui_action,
     sample_path_label,
 };
 use radiant::prelude as ui;
