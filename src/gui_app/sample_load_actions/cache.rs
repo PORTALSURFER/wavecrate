@@ -21,6 +21,10 @@ const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
 const ACTIVE_FOLDER_CACHE_WARM_DELAY: Duration = Duration::from_millis(750);
 const ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES: usize = 4;
 
+pub(in crate::gui_app) fn active_folder_cache_warm_priority() -> ui::TaskPriority {
+    ui::TaskPriority::Idle
+}
+
 impl GuiAppState {
     pub(in crate::gui_app) fn remember_waveform(&mut self, waveform: &WaveformState) {
         if !waveform.has_loaded_sample() {
@@ -260,7 +264,7 @@ impl GuiAppState {
             Some(context.spawn_cancellable_latest_with_priority(
                 &mut self.active_folder_cache_warm_task,
                 "gui-active-folder-cache-warm",
-                ui::TaskPriority::Idle,
+                active_folder_cache_warm_priority(),
                 move |_ticket, token| {
                     let loaded = warm_active_folder_waveform_cache(paths, &token);
                     ActiveFolderCacheWarmResult {

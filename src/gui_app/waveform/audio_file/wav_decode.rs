@@ -1,4 +1,4 @@
-use std::{io::Cursor, path::PathBuf, sync::Arc};
+use std::{io::Cursor, path::PathBuf, sync::Arc, time::Instant};
 
 use super::{
     WaveformFile, downmix_to_mono_with_progress_and_cancel, report_phase_progress_throttled,
@@ -15,18 +15,31 @@ pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
         hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels).max(1);
+    let sample_started_at = Instant::now();
     let samples = read_wav_samples_with_progress(&mut reader, spec, channels, progress, cancelled)?;
+    super::log_audio_load_timing(
+        "browser.audio_file.wav.read_samples",
+        &path,
+        sample_started_at.elapsed(),
+    );
     if samples.is_empty() {
         return Err(String::from("WAV contains no samples"));
     }
 
     let frames = samples.len() / channels;
+    let downmix_started_at = Instant::now();
     let mono_samples = downmix_to_mono_with_progress_and_cancel(
         &samples, channels, frames, 0.46, 0.62, progress, cancelled,
     )?;
+    super::log_audio_load_timing(
+        "browser.audio_file.wav.downmix",
+        &path,
+        downmix_started_at.elapsed(),
+    );
     if mono_samples.is_empty() {
         return Err(String::from("WAV contains no complete frames"));
     }
+    let waveform_started_at = Instant::now();
     let mut file = super::waveform_file_from_mono_samples_with_progress(
         path,
         bytes,
@@ -34,6 +47,11 @@ pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
         channels,
         mono_samples,
         progress,
+    );
+    super::log_audio_load_timing(
+        "browser.audio_file.wav.waveform_summary",
+        &file.path,
+        waveform_started_at.elapsed(),
     );
     file.playback_samples = Some(Arc::from(samples));
     Ok(file)

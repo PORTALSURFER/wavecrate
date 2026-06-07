@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supported_sample_rates};
 
 use super::{
@@ -33,13 +33,21 @@ impl GuiAppState {
         let volume = self.volume;
         let results = self.audio_open_results.clone();
         self.audio_settings_error = None;
-        context.spawn(
+        context.spawn_with_priority(
             "gui-audio-open",
+            ui::TaskPriority::Interactive,
             move || {
+                log_audio_open_timing("audio.output.open.queue_wait", started_at.elapsed(), true);
+                let open_started_at = Instant::now();
                 let result = AudioPlayer::from_config(&config).map(|mut player| {
                     player.set_volume(volume);
                     player
                 });
+                log_audio_open_timing(
+                    "audio.output.open.worker_open",
+                    open_started_at.elapsed(),
+                    true,
+                );
                 if let Ok(mut results) = results.lock() {
                     results.insert(ticket, result);
                 }
@@ -77,6 +85,7 @@ impl GuiAppState {
         }
         match result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))) {
             Ok(player) => {
+                log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
                 self.audio_output_resolved = Some(player.output_details().clone());
                 self.audio_settings_error = None;
                 self.audio_player = Some(player);
@@ -107,6 +116,7 @@ impl GuiAppState {
                 );
             }
             Err(err) => {
+                log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
                 self.audio_settings_error = Some(err.clone());
                 self.audio_player = None;
                 self.audio_output_resolved = None;
@@ -371,4 +381,25 @@ impl AppSettingsTab {
 
 fn volume_milli(volume: f32) -> u16 {
     (volume.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+fn log_audio_open_timing(event: &'static str, elapsed: Duration, always: bool) {
+    if !always && elapsed < Duration::from_millis(4) {
+        return;
+    }
+    if always {
+        tracing::info!(
+            target: "wavecrate::debug::sample_load",
+            event,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            "Audio output timing"
+        );
+    } else {
+        tracing::warn!(
+            target: "wavecrate::debug::sample_load",
+            event,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            "Slow audio output UI phase"
+        );
+    }
 }

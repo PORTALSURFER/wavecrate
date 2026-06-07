@@ -461,6 +461,52 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
 }
 
 #[test]
+fn keyboard_and_mouse_uncached_selection_use_same_fast_debounce() {
+    assert_eq!(
+        super::super::KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
+        super::super::UNCACHED_SAMPLE_LOAD_DEBOUNCE,
+        "keyboard navigation should not wait longer than mouse selection before audition loading"
+    );
+}
+
+#[test]
+fn uncached_selected_sample_load_uses_foreground_priority() {
+    assert_eq!(
+        super::super::sample_load_actions::foreground_sample_load_priority(),
+        ui::TaskPriority::Interactive,
+        "selected uncached audition loads must outrank background cache warming"
+    );
+}
+
+#[test]
+fn active_folder_cache_warm_uses_lower_priority_than_selected_sample_load() {
+    assert_eq!(
+        super::super::sample_load_actions::active_folder_cache_warm_priority(),
+        ui::TaskPriority::Idle
+    );
+    assert_ne!(
+        super::super::sample_load_actions::foreground_sample_load_priority(),
+        super::super::sample_load_actions::active_folder_cache_warm_priority(),
+        "background folder warming must not share the foreground audition lane"
+    );
+}
+
+#[test]
+fn frame_queues_audio_output_warm_up_before_explicit_playback() {
+    let mut state = gui_state_for_span_tests();
+    assert!(state.audio_player.is_none());
+    assert!(state.audio_open_task.active().is_none());
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(super::super::GuiMessage::Frame, &mut context);
+
+    assert!(
+        state.audio_open_task.active().is_some(),
+        "frame processing should begin audio output warm-up before the first explicit playback"
+    );
+}
+
+#[test]
 fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     let source_root = tempfile::tempdir().expect("source root");
     for name in ["a.wav", "b.wav", "c.wav"] {
@@ -529,6 +575,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
             path: second,
             autoplay: true,
             check_cache: false,
+            scheduled_at: std::time::Instant::now(),
         },
         &mut context,
     );

@@ -19,11 +19,16 @@ mod types;
 
 #[cfg(test)]
 pub(in crate::gui_app) use cache::{
-    warm_active_folder_waveform_cache, warm_persisted_waveform_cache,
+    active_folder_cache_warm_priority, warm_active_folder_waveform_cache,
+    warm_persisted_waveform_cache,
 };
 
 const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
 const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;
+
+pub(in crate::gui_app) fn foreground_sample_load_priority() -> ui::TaskPriority {
+    ui::TaskPriority::Interactive
+}
 
 impl GuiAppState {
     pub(super) fn reload_normalized_waveform(
@@ -112,6 +117,7 @@ impl GuiAppState {
             autoplay,
             false,
             UNCACHED_SAMPLE_LOAD_DEBOUNCE,
+            "mouse_or_direct",
             context,
         );
     }
@@ -150,6 +156,7 @@ impl GuiAppState {
             true,
             false,
             KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
+            "keyboard",
             context,
         );
     }
@@ -320,14 +327,26 @@ impl GuiAppState {
         autoplay: bool,
         check_cache: bool,
         delay: Duration,
+        input_method: &'static str,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
+        tracing::info!(
+            target: "wavecrate::debug::sample_load",
+            event = "browser.sample_load.deferred_scheduled",
+            path = %path,
+            input_method,
+            cache_state = "uncached",
+            autoplay,
+            delay_ms = delay.as_secs_f64() * 1000.0,
+            "Sample load scheduled"
+        );
         context.after_latest(&mut self.deferred_sample_load_task, delay, |ticket| {
             GuiMessage::DeferredSampleLoad {
                 ticket,
                 path,
                 autoplay,
                 check_cache,
+                scheduled_at: Instant::now(),
             }
         });
     }
@@ -338,9 +357,16 @@ impl GuiAppState {
         path: String,
         autoplay: bool,
         _check_cache: bool,
+        scheduled_at: Instant,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        log_sample_load_timing(
+            "browser.sample_load.deferred_wait",
+            path.as_str(),
+            started_at.saturating_duration_since(scheduled_at),
+            true,
+        );
         if !self.deferred_sample_load_task.finish(ticket)
             || self.folder_browser.selected_file_id() != Some(path.as_str())
         {
@@ -399,7 +425,7 @@ impl GuiAppState {
             path,
             autoplay,
             context,
-            ui::TaskPriority::Idle,
+            foreground_sample_load_priority(),
             false,
         );
     }
@@ -413,11 +439,19 @@ impl GuiAppState {
         persisted_cache_only: bool,
     ) {
         let sender = self.worker_sender.clone();
+        let queued_at = Instant::now();
+        let source = path.clone();
         self.sample_load_cancel = Some(context.spawn_cancellable_latest_with_priority(
             &mut self.sample_load_task,
             "gui-sample-load",
             priority,
             move |ticket, token| {
+                log_sample_load_timing(
+                    "browser.sample_load.worker.queue_wait",
+                    source.as_str(),
+                    queued_at.elapsed(),
+                    true,
+                );
                 if token.is_cancelled() {
                     return SampleLoadResult {
                         path,
@@ -436,15 +470,33 @@ impl GuiAppState {
                     }),
                 );
                 let result = if persisted_cache_only {
-                    WaveformState::load_persisted_playback_cache(PathBuf::from(&path))
+                    let phase_started_at = Instant::now();
+                    let result = WaveformState::load_persisted_playback_cache(PathBuf::from(&path));
+                    log_sample_load_timing(
+                        "browser.sample_load.worker.persisted_cache",
+                        path.as_str(),
+                        phase_started_at.elapsed(),
+                        true,
+                    );
+                    log_loaded_sample_metadata(path.as_str(), &result, "persisted_playback_cache");
+                    result
                 } else {
-                    WaveformState::load_path_with_progress_and_cancel(
+                    let phase_started_at = Instant::now();
+                    let result = WaveformState::load_path_with_progress_and_cancel(
                         PathBuf::from(&path),
                         |progress| {
                             progress_reporter.borrow_mut().report(progress);
                         },
                         || token.is_cancelled(),
-                    )
+                    );
+                    log_sample_load_timing(
+                        "browser.sample_load.worker.decode_waveform",
+                        path.as_str(),
+                        phase_started_at.elapsed(),
+                        true,
+                    );
+                    log_loaded_sample_metadata(path.as_str(), &result, "uncached_decode");
+                    result
                 };
                 SampleLoadResult {
                     path,
@@ -610,14 +662,50 @@ impl GuiAppState {
 
 fn log_slow_sample_load_phase(event: &'static str, source: &str, started_at: Instant) {
     let elapsed = started_at.elapsed();
-    if elapsed < Duration::from_millis(4) {
+    log_sample_load_timing(event, source, elapsed, false);
+}
+
+fn log_sample_load_timing(event: &'static str, source: &str, elapsed: Duration, always: bool) {
+    if !always && elapsed < Duration::from_millis(4) {
         return;
     }
-    tracing::warn!(
+    if always {
+        tracing::info!(
+            target: "wavecrate::debug::sample_load",
+            event,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            source,
+            "Sample load timing"
+        );
+    } else {
+        tracing::warn!(
+            target: "wavecrate::debug::sample_load",
+            event,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            source,
+            "Slow sample load UI phase"
+        );
+    }
+}
+
+fn log_loaded_sample_metadata(
+    source: &str,
+    result: &Result<WaveformState, String>,
+    cache_state: &'static str,
+) {
+    let Ok(waveform) = result else {
+        return;
+    };
+    tracing::info!(
         target: "wavecrate::debug::sample_load",
-        event,
-        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        event = "browser.sample_load.worker.loaded_metadata",
         source,
-        "Slow sample load UI phase"
+        cache_state,
+        sample_rate = waveform.sample_rate(),
+        channels = waveform.channels(),
+        frames = waveform.frames(),
+        file_size_bytes = waveform.audio_bytes().len(),
+        playback_ready = waveform.playback_samples().is_some() || waveform.playback_cache_file().is_some(),
+        "Loaded sample metadata"
     );
 }

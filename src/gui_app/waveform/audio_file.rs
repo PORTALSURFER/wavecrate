@@ -4,6 +4,7 @@ use std::{
     hash::{Hash, Hasher},
     path::PathBuf,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 #[cfg(test)]
@@ -123,18 +124,36 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         return Err(String::from("cancelled"));
     }
     progress(0.0);
+    let cache_started_at = Instant::now();
     if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
+        log_audio_load_timing(
+            "browser.audio_file.load.playback_cache",
+            &path,
+            cache_started_at.elapsed(),
+        );
         progress(0.99);
         return Ok(file);
     }
     if cancelled() {
         return Err(String::from("cancelled"));
     }
+    let read_started_at = Instant::now();
     let bytes = read_audio_file_with_progress(&path, 0.0, 0.08, &progress, &cancelled)?;
+    log_audio_load_timing(
+        "browser.audio_file.load.read_bytes",
+        &path,
+        read_started_at.elapsed(),
+    );
     if cancelled() {
         return Err(String::from("cancelled"));
     }
+    let summary_cache_started_at = Instant::now();
     if let Some(mut file) = load_cached_waveform_file(path.clone(), Arc::clone(&bytes)) {
+        log_audio_load_timing(
+            "browser.audio_file.load.summary_cache",
+            &path,
+            summary_cache_started_at.elapsed(),
+        );
         if file.playback_samples.is_none()
             && is_wav_path(&path)
             && let Ok(samples) = wav_decode::read_wav_playback_samples(&bytes)
@@ -148,6 +167,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
+    let wav_decode_started_at = Instant::now();
     if is_wav_path(&path)
         && let Ok(file) = load_wav_waveform_file_with_progress(
             path.clone(),
@@ -159,22 +179,34 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         if cancelled() {
             return Err(String::from("cancelled"));
         }
+        log_audio_load_timing(
+            "browser.audio_file.load.wav_decode",
+            &path,
+            wav_decode_started_at.elapsed(),
+        );
         store_cached_waveform_file_in_background(&file);
         return Ok(file);
     }
     if cancelled() {
         return Err(String::from("cancelled"));
     }
+    let decode_started_at = Instant::now();
     let decoded =
         wavecrate::waveform::WaveformRenderer::new(WAVEFORM_WIDTH as u32, WAVEFORM_HEIGHT as u32)
             .decode_from_bytes(&bytes)
             .map_err(|err| format!("failed to decode audio file: {err}"))?;
+    log_audio_load_timing(
+        "browser.audio_file.load.decode_bytes",
+        &path,
+        decode_started_at.elapsed(),
+    );
     progress(0.48);
     if cancelled() {
         return Err(String::from("cancelled"));
     }
     let channels = decoded.channel_count();
     let frames = decoded.frame_count();
+    let downmix_started_at = Instant::now();
     let mono_samples = if decoded.samples.is_empty() {
         decoded.analysis_samples.iter().copied().collect::<Vec<_>>()
     } else {
@@ -188,12 +220,18 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
             &cancelled,
         )?
     };
+    log_audio_load_timing(
+        "browser.audio_file.load.downmix",
+        &path,
+        downmix_started_at.elapsed(),
+    );
     if cancelled() {
         return Err(String::from("cancelled"));
     }
     if mono_samples.is_empty() {
         return Err(String::from("audio file contains no complete frames"));
     }
+    let waveform_started_at = Instant::now();
     let file = waveform_file_from_mono_samples_with_progress_and_cancel(
         path,
         bytes,
@@ -203,6 +241,11 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         &progress,
         &cancelled,
     )?;
+    log_audio_load_timing(
+        "browser.audio_file.load.waveform_summary",
+        &file.path,
+        waveform_started_at.elapsed(),
+    );
     if cancelled() {
         return Err(String::from("cancelled"));
     }
@@ -340,4 +383,18 @@ pub(super) fn content_revision_for_audio_bytes(bytes: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     bytes.hash(&mut hasher);
     hasher.finish().max(1)
+}
+
+pub(super) fn log_audio_load_timing(
+    event: &'static str,
+    path: &std::path::Path,
+    elapsed: Duration,
+) {
+    tracing::info!(
+        target: "wavecrate::debug::sample_load",
+        event,
+        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        path = %path.display(),
+        "Audio file load timing"
+    );
 }

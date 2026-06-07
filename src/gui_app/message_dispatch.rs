@@ -98,8 +98,16 @@ impl GuiAppState {
                 path,
                 autoplay,
                 check_cache,
+                scheduled_at,
             } => {
-                self.start_deferred_sample_load(ticket, path, autoplay, check_cache, context);
+                self.start_deferred_sample_load(
+                    ticket,
+                    path,
+                    autoplay,
+                    check_cache,
+                    scheduled_at,
+                    context,
+                );
             }
             GuiMessage::SampleLoadProgress(ticket, progress) => {
                 if self.sample_load_task.is_active(ticket) {

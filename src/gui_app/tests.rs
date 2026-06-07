@@ -448,6 +448,7 @@ fn start_deferred_sample_load_for_tests(
             path,
             autoplay,
             check_cache: false,
+            scheduled_at: std::time::Instant::now(),
         },
         context,
     );
