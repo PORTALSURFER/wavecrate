@@ -96,7 +96,7 @@ impl FolderBrowserState {
         Self::new(sources, source_index, root_folder)
     }
 
-    pub(super) fn from_sources_deferred(
+    pub(in crate::native_app) fn from_sources_deferred(
         sources: Vec<SourceEntry>,
         selected_source: String,
     ) -> Self {

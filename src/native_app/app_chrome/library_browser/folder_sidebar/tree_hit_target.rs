@@ -7,7 +7,8 @@ use radiant::{
     widgets::InteractiveRowWidget,
 };
 
-use crate::native_app::app::{FolderBrowserMessage, GuiMessage};
+use crate::native_app::app::GuiMessage;
+use crate::native_app::library_browser::folder_browser::FolderBrowserMessage;
 
 mod paint;
 

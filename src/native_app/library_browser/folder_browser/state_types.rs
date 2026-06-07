@@ -3,16 +3,20 @@ use std::path::PathBuf;
 use super::FolderEntry;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct SourceEntry {
-    pub(super) id: String,
-    pub(super) label: String,
+pub(in crate::native_app) struct SourceEntry {
+    pub(in crate::native_app) id: String,
+    pub(in crate::native_app) label: String,
     pub(super) root: PathBuf,
     pub(super) root_folder: Option<FolderEntry>,
-    pub(super) loading_task: Option<u64>,
+    pub(in crate::native_app) loading_task: Option<u64>,
 }
 
 impl SourceEntry {
-    pub(super) fn new(id: impl Into<String>, label: impl Into<String>, root: PathBuf) -> Self {
+    pub(in crate::native_app) fn new(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        root: PathBuf,
+    ) -> Self {
         Self {
             id: id.into(),
             label: label.into(),
@@ -65,21 +69,21 @@ pub(super) enum FolderBrowserDrag {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct VisibleFolder {
-    pub(super) id: String,
-    pub(super) name: String,
-    pub(super) depth: usize,
-    pub(super) is_source_root: bool,
-    pub(super) has_children: bool,
-    pub(super) expanded: bool,
-    pub(super) selected: bool,
-    pub(super) drag_active: bool,
-    pub(super) drag_source: bool,
-    pub(super) drop_candidate: bool,
-    pub(super) drop_target: bool,
-    pub(super) drop_target_active: bool,
-    pub(super) rename_draft: Option<String>,
-    pub(super) rename_input_id: Option<u64>,
+pub(in crate::native_app) struct VisibleFolder {
+    pub(in crate::native_app) id: String,
+    pub(in crate::native_app) name: String,
+    pub(in crate::native_app) depth: usize,
+    pub(in crate::native_app) is_source_root: bool,
+    pub(in crate::native_app) has_children: bool,
+    pub(in crate::native_app) expanded: bool,
+    pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) drag_active: bool,
+    pub(in crate::native_app) drag_source: bool,
+    pub(in crate::native_app) drop_candidate: bool,
+    pub(in crate::native_app) drop_target: bool,
+    pub(in crate::native_app) drop_target_active: bool,
+    pub(in crate::native_app) rename_draft: Option<String>,
+    pub(in crate::native_app) rename_input_id: Option<u64>,
 }
 
 pub(super) fn default_file_columns() -> Vec<FileColumn> {

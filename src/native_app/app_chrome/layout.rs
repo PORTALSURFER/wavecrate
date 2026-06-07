@@ -1,11 +1,12 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app_chrome::library_browser::folder_sidebar;
+use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use crate::native_app::audio::audio_settings::top_status_bar;
 use crate::native_app::library_browser::context_menu as browser_context_menu;
-use crate::native_app::library_browser::folder_browser::{self, FileColumnDragFeedback};
-use crate::native_app::library_browser::sample_browser_view::sample_browser;
+use crate::native_app::library_browser::folder_browser::FileColumnDragFeedback;
 use crate::native_app::transaction_history::TRANSACTION_LIST_MODAL_ID;
 use crate::native_app::{
     app::FileMoveConflictResolution,
@@ -88,16 +89,16 @@ fn metadata_tag_completion_overlay(state: &NativeAppState) -> Option<ui::View<Gu
         return None;
     }
     let tag_field_content_width =
-        folder_browser::tag_field_content_width(state.folder_panel.size());
+        folder_sidebar::tag_field_content_width(state.folder_panel.size());
     let inset_x = CENTER_PANEL_PADDING + FOLDER_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
     let inset_y = BOTTOM_STATUS_BAR_HEIGHT
         + CENTER_PANEL_PADDING
         + FOLDER_SIDEBAR_PADDING
-        + folder_browser::metadata_tag_completion_bottom_inset(
+        + folder_sidebar::metadata_tag_completion_bottom_inset(
             state.folder_browser.metadata_panel_height(),
         )
-        + folder_browser::TAG_COMPLETION_POPUP_GAP;
-    Some(folder_browser::tag_completion_overlay(
+        + folder_sidebar::TAG_COMPLETION_POPUP_GAP;
+    Some(folder_sidebar::tag_completion_overlay(
         completion_options.as_slice(),
         tag_field_content_width,
         inset_x,
@@ -117,7 +118,7 @@ fn folder_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let display_categories = state.selected_metadata_tag_display_categories();
     let selected_metadata_tag = state.selected_metadata_tag.clone();
     let input_placeholder = state.metadata_tag_input_placeholder();
-    folder_browser::folder_browser_view_mut(
+    folder_sidebar::folder_browser_view_mut(
         &mut state.folder_browser,
         folder_width,
         has_selected_file,

@@ -100,7 +100,25 @@ impl FolderBrowserState {
             .any(|source| source.id == self.selected_source && path_id(&source.root) == folder_id)
     }
 
-    pub(super) fn visible_folders(&self) -> Vec<VisibleFolder> {
+    pub(in crate::native_app) fn selected_folder_status_label(&self) -> String {
+        let Some(folder) = self.selected_folder() else {
+            return String::from("No folder selected");
+        };
+        let file_count = self.selected_files().len();
+        let audio_count = self.selected_folder_audio_file_count();
+        let folder_name = if self.selected_folder_is_source_root() {
+            "."
+        } else {
+            folder.name.as_str()
+        };
+        format!(
+            "{} | {audio_count} audio | {file_count} item{}",
+            folder_name,
+            super::plural(file_count)
+        )
+    }
+
+    pub(in crate::native_app) fn visible_folders(&self) -> Vec<VisibleFolder> {
         let mut folders = Vec::new();
         for folder in &self.folders {
             self.push_visible_folder(folder, 0, &mut folders);

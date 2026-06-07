@@ -78,6 +78,6 @@ impl FileEntry {
     }
 }
 
-pub(super) fn plural(count: usize) -> &'static str {
+pub(in crate::native_app) fn plural(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }

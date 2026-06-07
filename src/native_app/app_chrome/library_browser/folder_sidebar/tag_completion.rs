@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::metadata::MetadataTagCompletionOption;
 
-use super::GuiMessage;
+use crate::native_app::app::GuiMessage;
 
 const MAX_TAG_COMPLETION_ROWS: usize = 6;
 const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;

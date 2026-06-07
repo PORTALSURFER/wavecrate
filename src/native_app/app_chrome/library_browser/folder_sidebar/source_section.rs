@@ -1,6 +1,9 @@
 use radiant::prelude as ui;
 
-use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry};
+use crate::native_app::app::GuiMessage;
+use crate::native_app::library_browser::folder_browser::{
+    FolderBrowserMessage, FolderBrowserState, SourceEntry,
+};
 
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
 
@@ -19,7 +22,7 @@ pub(super) fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage
         .height(24.0),
         ui::column(
             state
-                .sources
+                .sources()
                 .iter()
                 .map(|source| source_row(state, source))
                 .collect::<Vec<_>>(),
@@ -33,7 +36,7 @@ pub(super) fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage
 
 fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiMessage> {
     let row_key = source.id.clone();
-    let selected = state.selected_source == source.id;
+    let selected = state.selected_source_id() == source.id;
     let label = if source.loading_task.is_some() {
         format!("{} (scanning)", source.label)
     } else {

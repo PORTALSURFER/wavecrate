@@ -8,7 +8,7 @@ use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::library_browser::folder_browser::{
     self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState,
 };
-use crate::native_app::library_browser::sample_browser_view::{
+use crate::native_app::library_browser::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 

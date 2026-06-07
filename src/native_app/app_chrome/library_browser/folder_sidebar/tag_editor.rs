@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
-use radiant::widgets::DragHandleMessage;
 
+use crate::native_app::app::GuiMessage;
+use crate::native_app::library_browser::folder_browser::FolderBrowserMessage;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
 use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_category_style};
 use crate::native_app::ui::ids as widget_ids;
@@ -11,7 +12,6 @@ use super::tag_entry_layout::{
     tag_field_rows, tag_input_width_with_completion,
     tag_input_width_with_completion_or_placeholder, tag_pill_width,
 };
-use super::{FolderBrowserMessage, FolderBrowserState, GuiMessage};
 
 #[cfg(test)]
 pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = widget_ids::METADATA_TAG_INPUT_ID;
@@ -23,33 +23,12 @@ pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 =
 #[cfg(test)]
 pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 =
     widget_ids::METADATA_TAG_LIBRARY_TOGGLE_ID;
-const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
 const METADATA_HEADER_TRAILING_HEIGHT: f32 = 20.0;
 const METADATA_HEADER_RESIZE_HANDLE_WIDTH: f32 = 26.0;
 const METADATA_HEADER_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
-pub(in crate::native_app) const COLLAPSED_METADATA_PANEL_HEIGHT: f32 =
-    METADATA_PANEL_PADDING * 2.0 + METADATA_PANEL_TITLE_HEIGHT;
-const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
-
-impl FolderBrowserState {
-    pub(in crate::native_app) fn metadata_panel_height(&self) -> f32 {
-        self.metadata_panel.size()
-    }
-
-    pub(super) fn resize_metadata_panel(&mut self, message: DragHandleMessage) {
-        self.metadata_panel.resize_collapsible(
-            message,
-            ui::CollapsiblePanelResizeConstraints::top(
-                MIN_METADATA_PANEL_HEIGHT,
-                MAX_METADATA_PANEL_HEIGHT,
-                COLLAPSED_METADATA_PANEL_HEIGHT,
-            ),
-        );
-    }
-}
 
 pub(super) fn metadata_section(
     tag_draft: &str,

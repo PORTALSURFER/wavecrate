@@ -2,27 +2,34 @@ use radiant::prelude as ui;
 
 use crate::native_app::library_browser::folder_browser::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
-    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, FolderBrowserMessage, FolderBrowserState,
+    TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder,
 };
 use crate::native_app::metadata::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
 
-use super::tag_editor::{metadata_section, tag_field_height};
-use super::tag_entry_layout::tag_field_content_width;
-use super::{
-    FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_ROW_HEIGHT, VisibleFolder, plural,
-    tree_hit_target::FolderTreeHitTarget,
-};
+use crate::native_app::app::GuiMessage;
+use tag_editor::{metadata_section, tag_field_height};
+use tree_hit_target::FolderTreeHitTarget;
 
 mod collections_section;
 mod filter_section;
 mod source_section;
+mod tag_completion;
+mod tag_editor;
+mod tag_entry_layout;
+mod tree_hit_target;
 
 use collections_section::collections_section;
-#[cfg(test)]
-pub(super) use filter_section::COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(super) use filter_section::DEFAULT_FILTER_PANEL_HEIGHT;
 use filter_section::filter_section;
 use source_section::source_selector;
+
+pub(in crate::native_app) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
+pub(in crate::native_app) use tag_editor::metadata_tag_completion_bottom_inset;
+#[cfg(test)]
+pub(in crate::native_app) use tag_editor::{
+    METADATA_SIDEBAR_PANEL_ID, METADATA_TAG_INPUT_ID, METADATA_TAG_LIBRARY_TOGGLE_ID,
+};
+pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
 const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
@@ -224,11 +231,7 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
 }
 
 fn folder_tree_guide_style() -> ui::TreeGuideStyle {
-    ui::TreeGuideStyle::new(
-        super::TREE_DEPTH_INDENT,
-        TREE_ROW_HEIGHT,
-        FOLDER_TREE_GUIDE_COLOR,
-    )
+    ui::TreeGuideStyle::new(TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, FOLDER_TREE_GUIDE_COLOR)
 }
 
 fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
@@ -244,20 +247,5 @@ fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
-    let Some(folder) = state.selected_folder() else {
-        return ui::text_line("No folder selected", 20.0);
-    };
-    let file_count = state.selected_files().len();
-    let audio_count = state.selected_folder_audio_file_count();
-    let folder_name = if state.selected_folder_is_source_root() {
-        "."
-    } else {
-        folder.name.as_str()
-    };
-    let label = format!(
-        "{} | {audio_count} audio | {file_count} item{}",
-        folder_name,
-        plural(file_count)
-    );
-    ui::text_line(label, 20.0)
+    ui::text_line(state.selected_folder_status_label(), 20.0)
 }

@@ -10,6 +10,14 @@ use super::{
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn sources(&self) -> &[SourceEntry] {
+        self.sources.as_slice()
+    }
+
+    pub(in crate::native_app) fn selected_source_id(&self) -> &str {
+        self.selected_source.as_str()
+    }
+
     #[cfg(test)]
     pub(in crate::native_app) fn from_sample_sources(sources: &[SampleSource]) -> Self {
         if sources.is_empty() {

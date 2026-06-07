@@ -23,7 +23,7 @@ impl FolderBrowserState {
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
-    pub(in crate::native_app::library_browser::folder_browser) fn follow_selected_tree_view(
+    pub(in crate::native_app) fn follow_selected_tree_view(
         &mut self,
         visible_folders: &[VisibleFolder],
         viewport_rows: usize,

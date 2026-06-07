@@ -5,21 +5,22 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
-        &browser,
-        260.0,
-        false,
-        "",
-        &[],
-        None,
-        "add tag",
-        None,
-        &[],
-        &tags,
-        &[],
-        None,
-    )
-    .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
+    let frame =
+        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+            &browser,
+            260.0,
+            false,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &tags,
+            &[],
+            None,
+        )
+        .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(frame.paint_plan.contains_text("Tags"));
     assert!(!frame.paint_plan.contains_text("Metadata"));
@@ -38,36 +39,38 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         String::from("one-shot"),
         String::from("distorted"),
     ];
-    let small = crate::native_app::library_browser::folder_browser::folder_browser_view(
-        &browser,
-        260.0,
-        true,
-        "",
-        &[],
-        None,
-        "add tag",
-        None,
-        &[],
-        &small_tags,
-        &[],
-        None,
-    )
-    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
-    let larger = crate::native_app::library_browser::folder_browser::folder_browser_view(
-        &browser,
-        260.0,
-        true,
-        "",
-        &[],
-        None,
-        "add tag",
-        None,
-        &[],
-        &larger_tags,
-        &[],
-        None,
-    )
-    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let small =
+        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &small_tags,
+            &[],
+            None,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let larger =
+        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &larger_tags,
+            &[],
+            None,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(larger.paint_plan.contains_text("distorted"));
     assert!(!larger.paint_plan.contains_text("More"));
@@ -89,21 +92,22 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
     let tags = (0..24)
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
-    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
-        &browser,
-        260.0,
-        true,
-        "",
-        &[],
-        None,
-        "add tag",
-        None,
-        &[],
-        &tags,
-        &[],
-        None,
-    )
-    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let frame =
+        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &tags,
+            &[],
+            None,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let tag_clip = frame
         .paint_plan
@@ -632,21 +636,22 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
         },
     ];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = crate::native_app::library_browser::folder_browser::folder_browser_view(
-        &browser,
-        260.0,
-        true,
-        "ki",
-        &[String::from("kick")],
-        None,
-        "add tag",
-        Some("ck"),
-        completion_options.as_slice(),
-        &[String::from("warm")],
-        &[],
-        None,
-    )
-    .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
+    let frame =
+        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "ki",
+            &[String::from("kick")],
+            None,
+            "add tag",
+            Some("ck"),
+            completion_options.as_slice(),
+            &[String::from("warm")],
+            &[],
+            None,
+        )
+        .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(frame.paint_plan.contains_text("kick"));
     let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");

@@ -5,6 +5,8 @@ pub(in crate::native_app) use super::library_browser::context_menu::{
 };
 pub(in crate::native_app) use super::metadata::MetadataTagInputMode;
 pub(in crate::native_app) use crate::native_app::app::*;
+pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::SampleFileHitTarget;
+pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
 pub(in crate::native_app) use crate::native_app::app_chrome::toolbar::{
     TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_RANDOM_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button,
     toolbar_icon_color, toolbar_icon_glyph,
@@ -24,9 +26,7 @@ pub(in crate::native_app) use crate::native_app::library_browser::file_actions::
 pub(in crate::native_app) use crate::native_app::library_browser::folder_browser::{
     DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
 };
-pub(in crate::native_app) use crate::native_app::library_browser::sample_browser_view::SampleFileHitTarget;
-pub(in crate::native_app) use crate::native_app::library_browser::sample_browser_view::sample_browser;
-pub(in crate::native_app) use crate::native_app::library_browser::sample_browser_view::{
+pub(in crate::native_app) use crate::native_app::library_browser::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 pub(in crate::native_app) use crate::native_app::shell::{

@@ -223,7 +223,7 @@ impl FolderBrowserState {
             .map(|_| collection)
     }
 
-    pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
+    pub(in crate::native_app) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
         self.collections_panel.resize_collapsible(
             message,
             ui::CollapsiblePanelResizeConstraints::top(

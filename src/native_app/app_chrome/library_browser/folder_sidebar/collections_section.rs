@@ -1,14 +1,12 @@
 use radiant::prelude as ui;
 
-use crate::native_app::ui::ids as widget_ids;
-
-use super::super::{
-    FolderBrowserMessage, FolderBrowserState, GuiMessage, SampleCollectionView,
-    collections::{
-        COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
-        COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING,
-    },
+use crate::native_app::app::GuiMessage;
+use crate::native_app::library_browser::folder_browser::{
+    COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
+    COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, FolderBrowserMessage,
+    FolderBrowserState, SampleCollectionView,
 };
+use crate::native_app::ui::ids as widget_ids;
 
 const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
 /// Stable layout node id for collection-panel resize regression coverage.
