@@ -1,6 +1,6 @@
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::mpsc::{Receiver, Sender},
     thread,
@@ -12,6 +12,7 @@ use super::GuiMessage;
 
 const WATCHER_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const SOURCE_CHANGE_DEBOUNCE: Duration = Duration::from_millis(400);
+const MAX_PENDING_PATHS_PER_SOURCE: usize = 512;
 
 #[derive(Debug)]
 pub(in crate::gui_app) struct GuiSourceWatcherHandle {
@@ -58,7 +59,7 @@ enum GuiSourceWatchCommand {
 struct GuiSourceWatchState {
     watched_roots: HashSet<PathBuf>,
     sources: Vec<SampleSource>,
-    pending: HashMap<String, Instant>,
+    pending: HashMap<String, PendingGuiSourceWatch>,
 }
 
 fn run_source_watcher(
@@ -102,8 +103,12 @@ fn run_source_watcher(
             }
         }
 
-        for source_id in state.drain_ready_sources(Instant::now(), SOURCE_CHANGE_DEBOUNCE) {
-            let _ = message_tx.send(GuiMessage::SourceFilesystemChanged { source_id });
+        for event in state.drain_ready_sources(Instant::now(), SOURCE_CHANGE_DEBOUNCE) {
+            let _ = message_tx.send(GuiMessage::SourceFilesystemChanged {
+                source_id: event.source_id,
+                paths: event.paths,
+                overflowed: event.overflowed,
+            });
         }
     }
 }
@@ -126,26 +131,82 @@ impl GuiSourceWatchState {
             if !path_is_source_refresh_candidate(path, event.kind) {
                 continue;
             }
-            if let Some(source_id) = source_id_for_path(&self.sources, path) {
-                self.pending.insert(source_id, now);
+            if let Some(source) = source_for_path(&self.sources, path) {
+                self.pending
+                    .entry(source.id.as_str().to_string())
+                    .and_modify(|pending| {
+                        pending.last_event = now;
+                        pending.add_path(source_relative_path(source, path));
+                    })
+                    .or_insert_with(|| {
+                        PendingGuiSourceWatch::new(now, source_relative_path(source, path))
+                    });
             }
         }
     }
 
-    fn drain_ready_sources(&mut self, now: Instant, debounce: Duration) -> Vec<String> {
+    fn drain_ready_sources(
+        &mut self,
+        now: Instant,
+        debounce: Duration,
+    ) -> Vec<GuiSourceWatchEvent> {
         let ready = self
             .pending
             .iter()
-            .filter(|&(_source_id, last_event)| {
-                now.saturating_duration_since(*last_event) >= debounce
+            .filter(|&(_source_id, pending)| {
+                now.saturating_duration_since(pending.last_event) >= debounce
             })
-            .map(|(source_id, _)| source_id.clone())
+            .map(|(source_id, pending)| GuiSourceWatchEvent {
+                source_id: source_id.clone(),
+                paths: pending.paths.iter().cloned().collect(),
+                overflowed: pending.overflowed,
+            })
             .collect::<Vec<_>>();
-        for source_id in &ready {
-            self.pending.remove(source_id);
+        for event in &ready {
+            self.pending.remove(&event.source_id);
         }
         ready
     }
+}
+
+#[derive(Debug)]
+struct PendingGuiSourceWatch {
+    last_event: Instant,
+    paths: BTreeSet<PathBuf>,
+    overflowed: bool,
+}
+
+impl PendingGuiSourceWatch {
+    fn new(last_event: Instant, path: Option<PathBuf>) -> Self {
+        let mut pending = Self {
+            last_event,
+            paths: BTreeSet::new(),
+            overflowed: false,
+        };
+        pending.add_path(path);
+        pending
+    }
+
+    fn add_path(&mut self, path: Option<PathBuf>) {
+        let Some(path) = path else {
+            self.overflowed = true;
+            self.paths.clear();
+            return;
+        };
+        if self.paths.len() >= MAX_PENDING_PATHS_PER_SOURCE {
+            self.overflowed = true;
+            self.paths.clear();
+            return;
+        }
+        self.paths.insert(path);
+    }
+}
+
+#[derive(Debug)]
+struct GuiSourceWatchEvent {
+    source_id: String,
+    paths: Vec<PathBuf>,
+    overflowed: bool,
 }
 
 fn update_watched_roots(
@@ -225,12 +286,16 @@ fn is_wavecrate_metadata_file(path: &Path) -> bool {
         || name.starts_with(wavecrate::sample_sources::db::LEGACY_DB_FILE_NAME)
 }
 
-fn source_id_for_path(sources: &[SampleSource], path: &Path) -> Option<String> {
+fn source_for_path<'a>(sources: &'a [SampleSource], path: &Path) -> Option<&'a SampleSource> {
     sources
         .iter()
         .filter(|source| path.starts_with(&source.root))
         .max_by_key(|source| source.root.components().count())
-        .map(|source| source.id.as_str().to_string())
+}
+
+fn source_relative_path(source: &SampleSource, path: &Path) -> Option<PathBuf> {
+    let relative = path.strip_prefix(&source.root).ok()?;
+    (!relative.as_os_str().is_empty()).then(|| relative.to_path_buf())
 }
 
 #[cfg(test)]
@@ -256,7 +321,9 @@ mod tests {
 
         state.collect_event(&event, Instant::now());
 
-        assert!(state.pending.contains_key("source_id::samples"));
+        let pending = state.pending.get("source_id::samples").unwrap();
+        assert!(pending.paths.contains(&PathBuf::from("Drum.Loops")));
+        assert!(!pending.overflowed);
     }
 
     #[test]
@@ -268,5 +335,27 @@ mod tests {
                 notify::event::DataChange::Any
             )),
         ));
+    }
+
+    #[test]
+    fn source_root_event_overflows_to_full_refresh() {
+        let root = PathBuf::from(r"C:\samples");
+        let source =
+            SampleSource::new_with_id(SourceId::from_string("source_id::samples"), root.clone());
+        let mut state = GuiSourceWatchState {
+            sources: vec![source],
+            ..Default::default()
+        };
+        let event = Event {
+            kind: EventKind::Any,
+            paths: vec![root],
+            attrs: Default::default(),
+        };
+
+        state.collect_event(&event, Instant::now());
+
+        let pending = state.pending.get("source_id::samples").unwrap();
+        assert!(pending.paths.is_empty());
+        assert!(pending.overflowed);
     }
 }

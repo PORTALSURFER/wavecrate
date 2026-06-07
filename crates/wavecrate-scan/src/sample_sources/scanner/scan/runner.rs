@@ -14,6 +14,8 @@ use super::{ScanContext, ScanError, ScanStats};
 /// Scan strategy used when walking a source root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScanMode {
+    /// Reconcile a bounded set of watcher-reported paths.
+    Targeted,
     /// Update the database with new/modified files and mark missing entries.
     /// Full hashing is staged for large files to keep quick scans responsive.
     Quick,
@@ -50,6 +52,7 @@ fn scan(
     cancel: Option<&AtomicBool>,
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
 ) -> Result<ScanStats, ScanError> {
+    debug_assert_ne!(mode, ScanMode::Targeted);
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
     let mut batch = db.write_batch()?;

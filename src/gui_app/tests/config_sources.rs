@@ -208,6 +208,8 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
     state.apply_message(
         super::super::GuiMessage::SourceFilesystemChanged {
             source_id: source_id.clone(),
+            paths: Vec::new(),
+            overflowed: true,
         },
         &mut context,
     );
@@ -240,11 +242,13 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
     let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
     state.finish_folder_scan(result);
     let mut context = ui::UpdateContext::default();
-    state.refresh_source_after_filesystem_change(source_id.clone(), &mut context);
+    state.refresh_source_after_filesystem_change(source_id.clone(), Vec::new(), true, &mut context);
 
     state.apply_message(
         super::super::GuiMessage::SourceFilesystemChanged {
             source_id: source_id.clone(),
+            paths: Vec::new(),
+            overflowed: true,
         },
         &mut context,
     );

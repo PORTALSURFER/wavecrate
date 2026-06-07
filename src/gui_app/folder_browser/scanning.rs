@@ -134,6 +134,11 @@ fn load_folder(
     })
 }
 
+pub(super) fn load_folder_at_path(path: &Path, source_root: &Path) -> Option<FolderEntry> {
+    let ratings = source_rating_map(source_root);
+    load_folder(path, 0, source_root, &ratings)
+}
+
 struct ScanProgressCounter {
     completed: usize,
     files: usize,

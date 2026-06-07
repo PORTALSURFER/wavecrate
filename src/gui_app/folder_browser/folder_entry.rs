@@ -102,6 +102,16 @@ impl FolderEntry {
         changed
     }
 
+    pub(super) fn remove_file_by_id(&mut self, target_id: &str) -> bool {
+        if let Some(index) = self.files.iter().position(|file| file.id == target_id) {
+            self.files.remove(index);
+            return true;
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.remove_file_by_id(target_id))
+    }
+
     pub(super) fn set_file_rating(
         &mut self,
         file_id: &str,

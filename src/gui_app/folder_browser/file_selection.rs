@@ -6,7 +6,7 @@ use wavecrate::sample_sources::Rating;
 use super::{
     FolderBrowserState,
     path_helpers::path_id,
-    scanning::{file_entry, load_root_folder, upsert_file},
+    scanning::{file_entry, load_folder_at_path, load_root_folder, upsert_file, upsert_folder},
 };
 
 impl FolderBrowserState {
@@ -430,6 +430,123 @@ impl FolderBrowserState {
         self.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
         true
+    }
+
+    pub(in crate::gui_app) fn refresh_filesystem_paths(
+        &mut self,
+        source_id: &str,
+        relative_paths: &[PathBuf],
+    ) -> bool {
+        let Some(source_index) = self
+            .sources
+            .iter()
+            .position(|source| source.id == source_id)
+        else {
+            return false;
+        };
+        let root = self.sources[source_index].root.clone();
+        let mut changed = false;
+        for relative_path in relative_paths {
+            changed |= self.refresh_one_source_relative_path(source_index, &root, relative_path);
+        }
+        if changed {
+            self.after_source_tree_changed(source_id);
+        }
+        changed
+    }
+
+    fn refresh_one_source_relative_path(
+        &mut self,
+        source_index: usize,
+        source_root: &Path,
+        relative_path: &Path,
+    ) -> bool {
+        let absolute_path = source_root.join(relative_path);
+        if absolute_path.is_dir() {
+            return self.refresh_existing_folder_path(source_index, source_root, &absolute_path);
+        }
+        if absolute_path.is_file() {
+            return self.refresh_existing_file_path(source_index, &absolute_path);
+        }
+        self.remove_missing_path_from_source(source_index, &absolute_path)
+    }
+
+    fn refresh_existing_file_path(&mut self, source_index: usize, path: &Path) -> bool {
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let parent_id = path_id(parent);
+        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        if root_folder.find(&parent_id).is_none() {
+            let source_root = self.sources[source_index].root.clone();
+            return self.refresh_existing_folder_path(source_index, &source_root, parent);
+        }
+        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
+            return false;
+        };
+        upsert_file(&mut parent_folder.files, file_entry(&path.to_path_buf()))
+    }
+
+    fn refresh_existing_folder_path(
+        &mut self,
+        source_index: usize,
+        source_root: &Path,
+        path: &Path,
+    ) -> bool {
+        let Some(folder) = load_folder_at_path(path, source_root) else {
+            return false;
+        };
+        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        if root_folder.id == folder.id {
+            if *root_folder == folder {
+                return false;
+            }
+            *root_folder = folder;
+            return true;
+        }
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let Some(parent_folder) = root_folder.find_mut(&path_id(parent)) else {
+            return false;
+        };
+        upsert_folder(&mut parent_folder.children, folder)
+    }
+
+    fn remove_missing_path_from_source(&mut self, source_index: usize, path: &Path) -> bool {
+        let path_id = path_id(path);
+        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        let removed_folder = root_folder.remove_child_by_id(&path_id);
+        let removed_file = root_folder.remove_file_by_id(&path_id);
+        removed_folder || removed_file
+    }
+
+    fn after_source_tree_changed(&mut self, source_id: &str) {
+        if let Some(root_folder) = self
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .and_then(|source| source.root_folder.clone())
+        {
+            if self.selected_source == source_id {
+                if root_folder.find(&self.selected_folder).is_none() {
+                    self.selected_folder = root_folder.id.clone();
+                    self.selected_file = None;
+                    self.selected_file_ids.clear();
+                }
+                self.folders = vec![root_folder];
+            }
+            self.bump_file_content_revision();
+        }
     }
 
     pub(in crate::gui_app) fn set_file_rating_state(

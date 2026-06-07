@@ -172,7 +172,7 @@ pub(super) fn mark_missing(
     mode: ScanMode,
 ) -> Result<(), ScanError> {
     for leftover in existing.values() {
-        if mode == ScanMode::Quick {
+        if matches!(mode, ScanMode::Targeted | ScanMode::Quick) {
             batch.stage_pending_rename(leftover)?;
         }
         batch.remove_file(&leftover.relative_path)?;
@@ -316,7 +316,7 @@ fn unique_existing_path(
 
 fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
     match mode {
-        ScanMode::Quick => size <= QUICK_HASH_MAX_BYTES,
+        ScanMode::Targeted | ScanMode::Quick => size <= QUICK_HASH_MAX_BYTES,
         ScanMode::Hard => true,
     }
 }

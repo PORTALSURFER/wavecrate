@@ -100,6 +100,8 @@ pub(in crate::gui_app) enum GuiMessage {
     FolderScanFinished(FolderScanResult),
     SourceFilesystemChanged {
         source_id: String,
+        paths: Vec<PathBuf>,
+        overflowed: bool,
     },
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),

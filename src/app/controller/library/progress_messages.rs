@@ -16,6 +16,7 @@ const WAV_LOAD_LABEL: &str = "Loading samples";
 impl AppController {
     pub(crate) fn scan_status_label(mode: ScanMode) -> &'static str {
         match mode {
+            ScanMode::Targeted => "Targeted sync",
             ScanMode::Quick => "Quick sync",
             ScanMode::Hard => "Hard sync",
         }

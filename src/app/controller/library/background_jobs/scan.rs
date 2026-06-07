@@ -22,6 +22,7 @@ pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanR
         Some(&result.source_id) == controller.selection_state.ctx.selected_source.as_ref();
     let is_auto = matches!(result.kind, ScanKind::Auto);
     let label = match result.mode {
+        ScanMode::Targeted => "Targeted sync",
         ScanMode::Quick => "Quick sync",
         ScanMode::Hard => "Hard sync",
     };

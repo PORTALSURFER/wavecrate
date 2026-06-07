@@ -31,7 +31,12 @@ impl AppController {
                 self.handle_folder_scan_finished_message(message)
             }
             JobMessage::SourceWatch(message) => {
-                self.handle_source_watch_event(&message.source_id, message.cause);
+                self.handle_source_watch_event(
+                    &message.source_id,
+                    message.cause,
+                    message.paths,
+                    message.overflowed,
+                );
             }
             JobMessage::TrashMove(message) => self.handle_trash_move_message(message),
             JobMessage::FolderDeleteRecoveryFinished(report) => {

@@ -175,6 +175,30 @@ fn selected_folder_audio_projection_refreshes_after_file_update() {
 }
 
 #[test]
+fn targeted_filesystem_refresh_prunes_deleted_cached_file() {
+    let root = temp_source_root("wavecrate-gui-targeted-refresh-prune-file");
+    let drums = root.join("drums");
+    let stale_sample = drums.join("stale.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&stale_sample, [0_u8; 8]).expect("write stale sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    fs::remove_file(&stale_sample).expect("remove stale sample");
+
+    assert!(browser.refresh_filesystem_paths(
+        "assets",
+        &[std::path::PathBuf::from("drums").join("stale.wav")]
+    ));
+
+    assert!(
+        browser.selected_audio_files().is_empty(),
+        "targeted refresh should remove deleted samples from the cached folder listing"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn selected_source_refresh_prunes_deleted_cached_folders_on_finish() {
     let root = temp_source_root("wavecrate-gui-source-refresh-prune");
     let stale = root.join("stale");

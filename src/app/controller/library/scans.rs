@@ -1,6 +1,7 @@
 use super::*;
 use crate::app::controller::source_watcher::SourceWatchCause;
 use crate::sample_sources::scanner::ScanMode;
+use std::path::PathBuf;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::{Duration, Instant};
 
@@ -58,10 +59,17 @@ impl AppController {
         &mut self,
         source_id: &SourceId,
         cause: SourceWatchCause,
+        paths: Vec<PathBuf>,
+        overflowed: bool,
     ) {
         match cause {
             SourceWatchCause::ExternalFileChange => {
-                self.request_auto_quick_sync_for_source_if_due(source_id, WATCHER_SYNC_INTERVAL);
+                self.request_auto_watcher_sync_for_source_if_due(
+                    source_id,
+                    paths,
+                    overflowed,
+                    WATCHER_SYNC_INTERVAL,
+                );
             }
             SourceWatchCause::ControllerFileOp => {
                 tracing::debug!(
@@ -70,6 +78,29 @@ impl AppController {
                 );
             }
         }
+    }
+
+    fn request_auto_watcher_sync_for_source_if_due(
+        &mut self,
+        source_id: &SourceId,
+        paths: Vec<PathBuf>,
+        overflowed: bool,
+        min_interval: Duration,
+    ) {
+        if overflowed || paths.is_empty() {
+            self.request_auto_quick_sync_for_source_if_due(source_id, min_interval);
+            return;
+        }
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+            .cloned()
+        else {
+            return;
+        };
+        self.request_auto_targeted_sync_for_source(source, paths, min_interval);
     }
 
     /// Trigger a quick sync for a specific source when the debounce interval elapses.
@@ -91,6 +122,25 @@ impl AppController {
     }
 
     fn request_auto_quick_sync_for_source(&mut self, source: SampleSource, min_interval: Duration) {
+        self.request_auto_scan_for_source(source, ScanMode::Quick, min_interval, None);
+    }
+
+    fn request_auto_targeted_sync_for_source(
+        &mut self,
+        source: SampleSource,
+        paths: Vec<PathBuf>,
+        min_interval: Duration,
+    ) {
+        self.request_auto_scan_for_source(source, ScanMode::Targeted, min_interval, Some(paths));
+    }
+
+    fn request_auto_scan_for_source(
+        &mut self,
+        source: SampleSource,
+        mode: ScanMode,
+        min_interval: Duration,
+        paths: Option<Vec<PathBuf>>,
+    ) {
         if self.runtime.jobs.scan_in_progress() {
             return;
         }
@@ -115,7 +165,7 @@ impl AppController {
         self.runtime
             .auto_sync_last_by_source
             .insert(source.id.clone(), now);
-        self.request_scan_for_source(&source, ScanMode::Quick, ScanKind::Auto);
+        self.request_scan_for_source_with_paths(&source, mode, ScanKind::Auto, paths);
     }
 
     fn request_scan_with_mode(&mut self, mode: ScanMode, kind: ScanKind) {
@@ -123,10 +173,20 @@ impl AppController {
             self.set_status_message(StatusMessage::SelectSourceToScan);
             return;
         };
-        self.request_scan_for_source(&source, mode, kind);
+        self.request_scan_for_source_with_paths(&source, mode, kind, None);
     }
 
     fn request_scan_for_source(&mut self, source: &SampleSource, mode: ScanMode, kind: ScanKind) {
+        self.request_scan_for_source_with_paths(source, mode, kind, None);
+    }
+
+    fn request_scan_for_source_with_paths(
+        &mut self,
+        source: &SampleSource,
+        mode: ScanMode,
+        kind: ScanKind,
+        paths: Option<Vec<PathBuf>>,
+    ) {
         if self.runtime.jobs.scan_in_progress() {
             if matches!(kind, ScanKind::Manual) {
                 self.set_status_message(StatusMessage::ScanAlreadyRunning);
@@ -149,19 +209,30 @@ impl AppController {
                 crate::sample_sources::scanner::ScanError,
             > {
                 let db = SourceDatabase::open_fast(&root)?;
-                let stats = crate::sample_sources::scanner::scan_with_progress(
-                    &db,
-                    mode,
-                    Some(cancel.as_ref()),
-                    &mut |completed, path| {
-                        if completed == 1 || completed % 128 == 0 {
-                            let _ = tx.send(ScanJobMessage::Progress {
-                                completed,
-                                detail: Some(path.display().to_string()),
-                            });
-                        }
-                    },
-                )?;
+                let mut progress = |completed, path: &std::path::Path| {
+                    if completed == 1 || completed % 128 == 0 {
+                        let _ = tx.send(ScanJobMessage::Progress {
+                            completed,
+                            detail: Some(path.display().to_string()),
+                        });
+                    }
+                };
+                let stats = if mode == ScanMode::Targeted {
+                    let paths = paths.unwrap_or_default();
+                    crate::sample_sources::scanner::sync_paths_with_progress(
+                        &db,
+                        &paths,
+                        Some(cancel.as_ref()),
+                        &mut progress,
+                    )?
+                } else {
+                    crate::sample_sources::scanner::scan_with_progress(
+                        &db,
+                        mode,
+                        Some(cancel.as_ref()),
+                        &mut progress,
+                    )?
+                };
                 if stats.hashes_pending > 0 {
                     crate::sample_sources::scanner::schedule_deep_hash_scan(root.clone());
                 }
@@ -195,6 +266,7 @@ fn auto_sync_due(last_sync: Option<Instant>, now: Instant, min_interval: Duratio
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::controller::jobs::JobMessage;
     use crate::app::controller::test_support::dummy_controller;
     use std::path::PathBuf;
 
@@ -245,8 +317,50 @@ mod tests {
         controller.library.sources.push(source.clone());
         controller.selection_state.ctx.selected_source = Some(source.id.clone());
 
-        controller.handle_source_watch_event(&source.id, SourceWatchCause::ControllerFileOp);
+        controller.handle_source_watch_event(
+            &source.id,
+            SourceWatchCause::ControllerFileOp,
+            Vec::new(),
+            false,
+        );
 
         assert!(!controller.runtime.jobs.scan_in_progress());
+    }
+
+    #[test]
+    fn external_source_watch_paths_launch_targeted_sync() {
+        let temp = tempfile::tempdir().expect("temp source");
+        std::fs::write(temp.path().join("kick.wav"), b"kick").expect("write sample");
+        let (mut controller, mut source) = dummy_controller();
+        source.root = temp.path().to_path_buf();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+
+        controller.handle_source_watch_event(
+            &source.id,
+            SourceWatchCause::ExternalFileChange,
+            vec![PathBuf::from("kick.wav")],
+            false,
+        );
+
+        assert!(controller.runtime.jobs.scan_in_progress());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let message = loop {
+            match controller.runtime.jobs.try_recv_message() {
+                Ok(JobMessage::Scan(ScanJobMessage::Finished(result))) => break result,
+                Ok(_) => continue,
+                Err(err) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    if matches!(err, std::sync::mpsc::TryRecvError::Disconnected) {
+                        panic!("expected targeted scan completion: {err}");
+                    }
+                }
+                Err(err) => panic!("expected targeted scan completion: {err}"),
+            }
+        };
+        assert_eq!(message.mode, ScanMode::Targeted);
+        let stats = message.result.expect("targeted sync should finish");
+        assert_eq!(stats.added, 1);
+        assert_eq!(stats.total_files, 1);
     }
 }

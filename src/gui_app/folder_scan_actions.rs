@@ -205,6 +205,8 @@ impl GuiAppState {
     pub(super) fn refresh_source_after_filesystem_change(
         &mut self,
         source_id: String,
+        paths: Vec<PathBuf>,
+        overflowed: bool,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -217,6 +219,29 @@ impl GuiAppState {
                 "ignored",
                 started_at,
                 Some("source_not_found"),
+            );
+            return;
+        }
+        if !overflowed && !paths.is_empty() {
+            let changed = self
+                .folder_browser
+                .refresh_filesystem_paths(&source_id, &paths);
+            if changed {
+                self.sample_status = format!("Synced {} filesystem change(s)", paths.len());
+                self.refresh_persisted_metadata_tags_for_source(&source_id);
+                self.refresh_persisted_waveform_cache_indicators();
+                self.persist_user_configuration(
+                    "folder_browser.source.filesystem_patch",
+                    started_at,
+                );
+            }
+            emit_gui_action(
+                "folder_browser.source.filesystem_change",
+                Some("sources"),
+                Some(&source_id),
+                "patched",
+                started_at,
+                None,
             );
             return;
         }

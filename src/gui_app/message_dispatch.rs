@@ -65,8 +65,12 @@ impl GuiAppState {
                 self.apply_folder_scan_discovery_batch(batch);
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
-            GuiMessage::SourceFilesystemChanged { source_id } => {
-                self.refresh_source_after_filesystem_change(source_id, context);
+            GuiMessage::SourceFilesystemChanged {
+                source_id,
+                paths,
+                overflowed,
+            } => {
+                self.refresh_source_after_filesystem_change(source_id, paths, overflowed, context);
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);

@@ -65,6 +65,29 @@ impl SourceDatabase {
         )
     }
 
+    /// Fetch tracked wav files whose paths are at or below the provided relative path.
+    pub fn list_files_under_path(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<Vec<WavEntry>, SourceDbError> {
+        let path_str = super::super::super::normalize_relative_path(path)?;
+        let prefix = format!("{path_str}/%");
+        let filter = supported_audio_filter();
+        let sql = format!(
+            "SELECT {WAV_FILE_SELECT_COLUMNS}
+             FROM wav_files
+             WHERE {filter}
+               AND (path = ?1 OR path LIKE ?2)
+             ORDER BY path ASC"
+        );
+        collect_wav_entries(
+            self,
+            &sql,
+            rusqlite::params![path_str, prefix],
+            "Skipping wav row with invalid relative path during prefix lookup",
+        )
+    }
+
     /// Fetch one tracked wav entry by relative path.
     pub fn entry_for_path(
         &self,

@@ -71,6 +71,8 @@ pub(crate) enum SourceWatchCause {
 pub(crate) struct SourceWatchEvent {
     pub(crate) source_id: SourceId,
     pub(crate) cause: SourceWatchCause,
+    pub(crate) paths: Vec<PathBuf>,
+    pub(crate) overflowed: bool,
 }
 
 /// Join handle and command sender for the source watcher thread.
@@ -243,9 +245,12 @@ fn combine_source_watch_causes(
     }
 }
 
-fn path_is_candidate(path: &Path) -> bool {
+fn path_is_candidate(path: &Path, kind: EventKind) -> bool {
     if path_is_ignored(path) {
         return false;
+    }
+    if matches!(kind, EventKind::Remove(_) | EventKind::Any) {
+        return true;
     }
     if is_supported_audio(path) {
         return true;

@@ -25,13 +25,20 @@ pub(crate) struct ScanContext {
 impl ScanContext {
     pub(super) fn new(db: &SourceDatabase, mode: ScanMode) -> Result<Self, ScanError> {
         let existing = index_existing(db)?;
-        Ok(Self {
+        Ok(Self::from_existing(existing, mode))
+    }
+
+    pub(in crate::sample_sources::scanner) fn from_existing(
+        existing: HashMap<PathBuf, WavEntry>,
+        mode: ScanMode,
+    ) -> Self {
+        Self {
             existing,
             rename_candidates_by_hash: HashMap::new(),
             rename_candidates_by_facts: HashMap::new(),
             stats: ScanStats::default(),
             mode,
-        })
+        }
     }
 }
 

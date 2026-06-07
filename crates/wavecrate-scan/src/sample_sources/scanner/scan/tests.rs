@@ -9,6 +9,7 @@ mod basics;
 mod filesystem_edges;
 mod hard_rescan;
 mod rename_reconciliation;
+mod targeted_sync;
 
 #[cfg(unix)]
 fn set_file_times(path: &Path, seconds: i64, nanos: i64) {
