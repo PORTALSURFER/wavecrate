@@ -1,6 +1,6 @@
 use radiant::{gui::types::Point, prelude as ui};
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell},
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
     path::PathBuf,
@@ -180,10 +180,7 @@ impl FolderBrowserState {
         let Some(folder) = self.selected_folder() else {
             return Vec::new();
         };
-        self.selected_folder_audio_file_indices(folder)
-            .into_iter()
-            .filter_map(|index| folder.files.get(index))
-            .collect()
+        self.selected_folder_audio_files(folder)
     }
 
     pub(in crate::gui_app) fn selected_audio_files_matching_tags(
@@ -236,7 +233,7 @@ impl FolderBrowserState {
         let Some(folder) = self.selected_folder() else {
             return 0;
         };
-        self.selected_folder_audio_file_indices(folder).len()
+        self.selected_folder_audio_file_indices_ref(folder).len()
     }
 
     pub(in crate::gui_app) fn selected_audio_file_at_matching_tags(
@@ -254,13 +251,13 @@ impl FolderBrowserState {
         let folder = self.selected_folder()?;
         if required_tags.is_empty() {
             return self
-                .selected_folder_audio_file_indices(folder)
+                .selected_folder_audio_file_indices_ref(folder)
                 .get(index)
                 .and_then(|file_index| folder.files.get(*file_index));
         }
-        self.selected_folder_audio_file_indices(folder)
-            .into_iter()
-            .filter_map(|file_index| folder.files.get(file_index))
+        self.selected_folder_audio_file_indices_ref(folder)
+            .iter()
+            .filter_map(|file_index| folder.files.get(*file_index))
             .filter(|file| audio_file_matches_parsed_tags(file, tags_by_file, &required_tags))
             .nth(index)
     }
@@ -278,9 +275,9 @@ impl FolderBrowserState {
                 .position(|file| file.id == selected);
         }
         let folder = self.selected_folder()?;
-        self.selected_folder_audio_file_indices(folder)
-            .into_iter()
-            .filter_map(|file_index| folder.files.get(file_index))
+        self.selected_folder_audio_file_indices_ref(folder)
+            .iter()
+            .filter_map(|file_index| folder.files.get(*file_index))
             .filter(|file| audio_file_matches_parsed_tags(file, tags_by_file, &required_tags))
             .position(|file| file.id == selected)
     }
@@ -422,7 +419,14 @@ impl FolderBrowserState {
         self.selected_audio_projection_cache.get_mut().clear();
     }
 
-    fn selected_folder_audio_file_indices(&self, folder: &FolderEntry) -> Vec<usize> {
+    fn selected_folder_audio_files<'a>(&self, folder: &'a FolderEntry) -> Vec<&'a FileEntry> {
+        self.selected_folder_audio_file_indices_ref(folder)
+            .iter()
+            .filter_map(|index| folder.files.get(*index))
+            .collect()
+    }
+
+    fn selected_folder_audio_file_indices_ref(&self, folder: &FolderEntry) -> Ref<'_, Vec<usize>> {
         let key = SelectedAudioProjectionKey {
             folder_id: folder.id.clone(),
             name_filter: normalized_name_filter(&self.name_filter),
@@ -430,24 +434,30 @@ impl FolderBrowserState {
             sort_descending: self.file_sort.direction == ui::SortDirection::Descending,
             content_revision: self.file_content_revision,
         };
-        if let Some(indices) = self.selected_audio_projection_cache.borrow().get(&key) {
-            return indices.clone();
+        if !self
+            .selected_audio_projection_cache
+            .borrow()
+            .contains_key(&key)
+        {
+            let mut indices = folder
+                .files
+                .iter()
+                .enumerate()
+                .filter(|(_, file)| {
+                    file.is_audio() && audio_file_matches_name_query(file, &key.name_filter)
+                })
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            self.sort_file_indices(folder, &mut indices);
+            self.selected_audio_projection_cache
+                .borrow_mut()
+                .insert(key.clone(), indices);
         }
-
-        let mut indices = folder
-            .files
-            .iter()
-            .enumerate()
-            .filter(|(_, file)| {
-                file.is_audio() && audio_file_matches_name_query(file, &key.name_filter)
-            })
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        self.sort_file_indices(folder, &mut indices);
-        self.selected_audio_projection_cache
-            .borrow_mut()
-            .insert(key, indices.clone());
-        indices
+        Ref::map(self.selected_audio_projection_cache.borrow(), |cache| {
+            cache
+                .get(&key)
+                .expect("selected audio projection cache should contain computed key")
+        })
     }
 
     fn sort_file_indices(&self, folder: &FolderEntry, indices: &mut [usize]) {
@@ -494,7 +504,7 @@ impl FolderBrowserState {
     }
 
     fn prewarm_folder_audio_projection_cache(&self, folder: &FolderEntry) {
-        let _ = self.selected_folder_audio_file_indices(folder);
+        let _ = self.selected_folder_audio_file_indices_ref(folder);
         for child in &folder.children {
             self.prewarm_folder_audio_projection_cache(child);
         }
