@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
-    let menu = super::super::BrowserContextMenu {
-        kind: super::super::BrowserContextTargetKind::Folder,
+    let menu = crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
         source_id: None,
         source_removable: false,
@@ -30,8 +30,8 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
 
 #[test]
 fn folder_context_menu_outside_click_closes_menu() {
-    let menu = super::super::BrowserContextMenu {
-        kind: super::super::BrowserContextTargetKind::Folder,
+    let menu = crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
         source_id: None,
         source_removable: false,
@@ -51,7 +51,10 @@ fn folder_context_menu_outside_click_closes_menu() {
             }
         },
         |open, message| {
-            if matches!(message, super::super::GuiMessage::CloseContextMenu) {
+            if matches!(
+                message,
+                crate::native_app::test_support::GuiMessage::CloseContextMenu
+            ) {
                 *open = false;
             }
         },
@@ -68,8 +71,8 @@ fn folder_context_menu_outside_click_closes_menu() {
 
 #[test]
 fn source_context_menu_paints_remove_source_action_for_user_sources() {
-    let menu = super::super::BrowserContextMenu {
-        kind: super::super::BrowserContextTargetKind::Source,
+    let menu = crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
         path: PathBuf::from("C:\\Samples"),
         source_id: Some(String::from("source_id::samples")),
         source_removable: true,
@@ -87,8 +90,8 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
 
 #[test]
 fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
-    let menu = super::super::BrowserContextMenu {
-        kind: super::super::BrowserContextTargetKind::Source,
+    let menu = crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
         path: PathBuf::from("C:\\Wavecrate\\assets"),
         source_id: Some(String::from("assets")),
         source_removable: false,
@@ -106,8 +109,8 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
 
 #[test]
 fn sample_context_menu_paints_remove_from_collection_action_in_collection_view() {
-    let menu = super::super::BrowserContextMenu {
-        kind: super::super::BrowserContextTargetKind::Sample,
+    let menu = crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
         path: PathBuf::from("C:\\Samples\\kick.wav"),
         source_id: None,
         source_removable: false,

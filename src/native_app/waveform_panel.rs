@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 
+use super::app_scope::{GuiMessage, NativeAppState, WAVEFORM_PANEL_HEIGHT, WAVEFORM_VIEW_HEIGHT};
 use super::waveform::{self, WaveformInteraction, WaveformState};
-use super::{GuiMessage, NativeAppState, WAVEFORM_PANEL_HEIGHT, WAVEFORM_VIEW_HEIGHT};
 
 pub(super) fn waveform_panel(state: &NativeAppState) -> ui::View<GuiMessage> {
     ui::column([

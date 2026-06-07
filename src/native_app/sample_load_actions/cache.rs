@@ -6,13 +6,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::native_app::app_scope::{
+    ActiveFolderCacheWarmResult, GuiMessage, NativeAppState, WaveformCacheEntry,
+    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
+};
 use crate::native_app::waveform::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
     load_cached_waveform_file_for_playback,
-};
-use crate::native_app::{
-    ActiveFolderCacheWarmResult, GuiMessage, NativeAppState, WaveformCacheEntry,
-    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
 };
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;

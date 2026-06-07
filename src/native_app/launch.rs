@@ -1,8 +1,8 @@
-use super::{
+use super::app_scope::{
     FOLDER_TREE_LIST_ID, GuiMessage, NativeAppState, SAMPLE_BROWSER_LIST_ID,
-    SAMPLE_BROWSER_ROW_HEIGHT, folder_browser::TREE_ROW_HEIGHT, view,
+    SAMPLE_BROWSER_ROW_HEIGHT, default_gui_shortcut_resolution, view,
 };
-use crate::native_app::{audio_settings, default_gui_shortcut_resolution};
+use crate::native_app::{audio_settings, folder_browser::TREE_ROW_HEIGHT};
 use radiant::runtime::{
     NativeFrameOptions, NativeRunOptions, NativeTextOptions, NativeWindowBehavior,
     NativeWindowGeometry, NativeWindowOptions,

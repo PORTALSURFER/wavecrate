@@ -134,9 +134,10 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     fs::create_dir_all(expandable_child.join("Nested")).expect("expandable child folder");
     let selected_file = source_root.path().join("tag-target.wav");
     fs::write(&selected_file, []).expect("sample file");
-    state.folder_browser = super::super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
     state
         .folder_browser
         .select_file(selected_file.display().to_string());
@@ -235,10 +236,11 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     fs::write(second_root.join("beta.wav"), []).expect("second sample");
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = super::super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(first_root.clone()),
-        wavecrate::sample_sources::SampleSource::new(second_root.clone()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(first_root.clone()),
+            wavecrate::sample_sources::SampleSource::new(second_root.clone()),
+        ]);
     let first_file = first_root.join("alpha.wav").display().to_string();
     state.folder_browser.select_file(first_file);
     state

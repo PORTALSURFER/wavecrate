@@ -16,8 +16,8 @@ fn sample_hit_target(
     drag_source: bool,
     cached: bool,
     suppress_hover: bool,
-) -> crate::native_app::sample_browser_view::SampleFileHitTarget {
-    crate::native_app::sample_browser_view::SampleFileHitTarget::new(
+) -> crate::native_app::test_support::SampleFileHitTarget {
+    crate::native_app::test_support::SampleFileHitTarget::new(
         String::from("sample.wav"),
         selected,
         drag_active,
@@ -55,29 +55,32 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         .expect("sample row should activate after a frame refresh");
 
     assert_eq!(
-        output.typed_cloned::<crate::native_app::GuiMessage>(),
-        Some(crate::native_app::GuiMessage::SelectSampleWithModifiers {
-            path: String::from("sample.wav"),
-            modifiers: PointerModifiers {
-                command: true,
-                shift: true,
-                ..Default::default()
-            },
-        })
+        output.typed_cloned::<crate::native_app::test_support::GuiMessage>(),
+        Some(
+            crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+                path: String::from("sample.wav"),
+                modifiers: PointerModifiers {
+                    command: true,
+                    shift: true,
+                    ..Default::default()
+                },
+            }
+        )
     );
     assert!(!refreshed_hit_target.common().is_pressed());
 }
 
 #[test]
 fn sample_browser_frame_paints_column_and_file_text() {
-    let mut state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     let expected_stem = state
         .folder_browser
         .selected_audio_files()
         .first()
         .map(|file| file.stem.clone())
         .expect("default assets include an audio sample");
-    let frame = crate::native_app::sample_browser(&mut state, false)
+    let frame = crate::native_app::test_support::sample_browser(&mut state, false)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let texts = frame.paint_plan.text_label_strings();
 
@@ -93,7 +96,8 @@ fn sample_browser_frame_paints_column_and_file_text() {
 
 #[test]
 fn sample_browser_column_drag_paints_drop_marker() {
-    let mut state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     state.folder_browser.apply_message(
         crate::native_app::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
@@ -107,7 +111,7 @@ fn sample_browser_column_drag_paints_drop_marker() {
         ),
     );
 
-    let frame = crate::native_app::sample_browser(&mut state, false)
+    let frame = crate::native_app::test_support::sample_browser(&mut state, false)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
 
     assert!(frame.paint_plan.fill_rects().any(|fill| {
@@ -119,7 +123,8 @@ fn sample_browser_column_drag_paints_drop_marker() {
 
 #[test]
 fn sample_browser_header_paints_hover_affordance() {
-    let state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let name_rect = frame
@@ -156,7 +161,8 @@ fn sample_browser_header_paints_hover_affordance() {
 
 #[test]
 fn full_gui_column_drag_paints_pointer_preview() {
-    let mut state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     state.folder_browser.apply_message(
         crate::native_app::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
@@ -170,7 +176,7 @@ fn full_gui_column_drag_paints_pointer_preview() {
         ),
     );
 
-    let frame = crate::native_app::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.text_runs().any(|text| {
@@ -186,13 +192,13 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     let initial_frame = runtime.frame_with_default_theme();
     let initial_extension_x = first_row_extension_x(&initial_frame);
 
-    runtime.dispatch_message(crate::native_app::GuiMessage::FolderBrowser(
+    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
         crate::native_app::folder_browser::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
             radiant::widgets::DragHandleMessage::started(Point::new(0.0, 0.0)),
         ),
     ));
-    runtime.dispatch_message(crate::native_app::GuiMessage::FolderBrowser(
+    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
         crate::native_app::folder_browser::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
             radiant::widgets::DragHandleMessage::moved(Point::new(120.0, 0.0)),
@@ -234,7 +240,8 @@ fn first_row_extension_x(frame: &SurfaceFrame) -> f32 {
 
 #[test]
 fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
-    let state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let rating_rect = frame
@@ -330,7 +337,8 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
 
 #[test]
 fn full_gui_column_drag_marker_uses_header_local_coordinates() {
-    let state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let rating_rect = frame
@@ -382,14 +390,15 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let sample = drums.join("kick.wav");
     fs::write(&sample, []).expect("write sample");
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::ActivateFolder(
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
-        ));
+        ),
+    );
     state
         .folder_browser
         .select_file(sample.display().to_string());
@@ -462,14 +471,15 @@ fn text_center(frame: &SurfaceFrame, label: &str) -> Point {
 
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
-    let mut state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     let expected_names = state
         .folder_browser
         .selected_audio_files()
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    let frame = crate::native_app::sample_browser(&mut state, false)
+    let frame = crate::native_app::test_support::sample_browser(&mut state, false)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let mut row_tops = frame
         .paint_plan
@@ -487,7 +497,8 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
     assert!(row_tops.len() >= 2, "{row_tops:?}");
     assert!(
         row_tops.windows(2).all(|pair| {
-            ((pair[1] - pair[0]) - crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT).abs() < 0.5
+            ((pair[1] - pair[0]) - crate::native_app::test_support::SAMPLE_BROWSER_ROW_HEIGHT).abs()
+                < 0.5
         }),
         "{row_tops:?}"
     );
@@ -495,8 +506,14 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
 
 #[test]
 fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
-    assert_eq!(crate::native_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, 2);
-    assert_eq!(crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT, 22.0);
+    assert_eq!(
+        crate::native_app::test_support::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+        2
+    );
+    assert_eq!(
+        crate::native_app::test_support::SAMPLE_BROWSER_ROW_HEIGHT,
+        22.0
+    );
 }
 
 #[test]
@@ -554,14 +571,15 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
 
 #[test]
 fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
-    let mut state = crate::native_app::NativeAppState::load_default().expect("default state loads");
+    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
     let expected_names = state
         .folder_browser
         .selected_audio_files()
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    let frame = crate::native_app::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(1517.0, 758.0));
     let sample_texts = frame
         .paint_plan

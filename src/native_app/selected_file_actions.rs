@@ -1,5 +1,5 @@
-use super::{GuiMessage, NativeAppState};
-use crate::native_app::{file_actions::sample_path_label, launch::emit_gui_action};
+use super::app_scope::{GuiMessage, NativeAppState};
+use crate::native_app::app_scope::{emit_gui_action, sample_path_label};
 use std::time::Instant;
 
 impl NativeAppState {
@@ -27,14 +27,14 @@ impl NativeAppState {
                 .selected_audio_file_index_matching_tags(&self.metadata_tags_by_file)
             {
                 context.scroll_into_view_snapped(
-                    crate::native_app::SAMPLE_BROWSER_LIST_ID,
-                    index as f32 * crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT,
-                    crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT,
-                    crate::native_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32
-                        * crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT,
-                    crate::native_app::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32
-                        * crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT,
-                    crate::native_app::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::native_app::app_scope::SAMPLE_BROWSER_LIST_ID,
+                    index as f32 * crate::native_app::app_scope::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::native_app::app_scope::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::native_app::app_scope::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32
+                        * crate::native_app::app_scope::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::native_app::app_scope::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32
+                        * crate::native_app::app_scope::SAMPLE_BROWSER_ROW_HEIGHT,
+                    crate::native_app::app_scope::SAMPLE_BROWSER_ROW_HEIGHT,
                 );
             }
             self.sample_status = format!("Focused {}", sample_path_label(&path));

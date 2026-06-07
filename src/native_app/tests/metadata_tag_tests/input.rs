@@ -2,7 +2,7 @@ use super::super::*;
 
 #[test]
 fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let theme = radiant::theme::ThemeTokens::default();
     let frame = super::super::super::folder_browser::folder_browser_view(
@@ -30,7 +30,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
 
 #[test]
 fn folder_browser_metadata_tags_grow_combined_entry_field() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let small_tags = vec![String::from("kick")];
     let larger_tags = vec![
         String::from("kick"),
@@ -85,7 +85,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
 
 #[test]
 fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = (0..24)
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
@@ -123,7 +123,7 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("Deep Kick"),
             },
@@ -140,7 +140,7 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
     assert_eq!(state.sample_status, "Choose a category for deep-kick");
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("sound"),
             },
@@ -157,7 +157,7 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("sound"),
             },
@@ -189,7 +189,7 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("Deep Kick"),
             },
@@ -213,7 +213,7 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
     assert!(state.metadata_tag_completion_active());
 
     state.apply_message(
-        super::super::super::GuiMessage::MoveMetadataTagCompletion(1),
+        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -226,7 +226,7 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::new(),
             },
@@ -255,7 +255,7 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("Deep Kick"),
             },
@@ -263,7 +263,7 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("sound"),
             },
@@ -275,7 +275,7 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
     assert!(state.metadata_tag_completion_active());
 
     state.apply_message(
-        super::super::super::GuiMessage::CancelMetadataTagEntry,
+        crate::native_app::test_support::GuiMessage::CancelMetadataTagEntry,
         &mut ui::UpdateContext::default(),
     );
 
@@ -300,18 +300,19 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         source_root.path().to_path_buf(),
     );
     let source_id = source.id.as_str().to_string();
-    wavecrate::sample_sources::config::save(&super::super::super::AppConfig {
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::AppConfig {
         sources: vec![source.clone()],
-        core: super::super::super::AppSettingsCore::default(),
+        core: crate::native_app::test_support::AppSettingsCore::default(),
     })
     .expect("seed config");
     let selected_file = sample_path.display().to_string();
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = super::super::super::FolderBrowserState::from_sample_sources(&[source]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[source]);
     state.folder_browser.select_file(selected_file.clone());
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("Deep Kick, Warm Tone"),
             },
@@ -366,7 +367,7 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
     let mut state = gui_state_for_span_tests();
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("kick, warm tone"),
             },
@@ -388,7 +389,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("ki"),
             },
@@ -409,7 +410,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("ki"),
             },
@@ -432,7 +433,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("ki"),
             },
@@ -440,7 +441,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::CompletionRequested {
                 value: String::from("ki"),
             },
@@ -459,7 +460,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("ki"),
             },
@@ -482,7 +483,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("ki"),
             },
@@ -490,7 +491,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::CompletionRequested {
                 value: String::from("ki"),
             },
@@ -498,7 +499,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::CompletionRequested {
                 value: String::from("ki"),
             },
@@ -516,7 +517,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("ki"),
             },
@@ -544,7 +545,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("ki"),
             },
@@ -561,7 +562,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MoveMetadataTagCompletion(1),
+        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -574,7 +575,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MoveMetadataTagCompletion(1),
+        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -587,7 +588,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MoveMetadataTagCompletion(1),
+        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -600,7 +601,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::MetadataTagInput(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
             radiant::widgets::TextInputMessage::Submitted {
                 value: String::from("ki"),
             },
@@ -617,7 +618,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
 
 #[test]
 fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_options() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let completion_options = vec![
         super::super::super::metadata_tags::MetadataTagCompletionOption {
             tag: String::from("kick"),
@@ -677,19 +678,20 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
 fn folder_browser_metadata_category_completion_renders_above_tag_input() {
     let (mut baseline_state, _baseline_source_root, _baseline_selected_file) =
         native_app_state_with_temp_sample("baseline-tag-target.wav");
-    let baseline_frame = super::super::super::view(&mut baseline_state)
+    let baseline_frame = crate::native_app::test_support::view(&mut baseline_state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let baseline_tag_input =
         metadata_tag_text_input(&baseline_frame).expect("baseline tag input should paint");
 
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("category-tag-target.wav");
-    state.metadata_tag_input_mode = super::super::super::MetadataTagInputMode::Category {
-        pending_tag: String::from("new-tag"),
-    };
+    state.metadata_tag_input_mode =
+        crate::native_app::test_support::MetadataTagInputMode::Category {
+            pending_tag: String::from("new-tag"),
+        };
     state.metadata_tag_draft.clear();
 
-    let frame = super::super::super::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");

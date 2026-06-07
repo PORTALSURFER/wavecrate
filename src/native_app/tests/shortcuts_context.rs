@@ -1,5 +1,5 @@
 use super::gui_state_for_span_tests;
-use crate::native_app::{
+use crate::native_app::test_support::{
     DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, NativeAppState, debug_layout_requested,
 };
 use radiant::{gui::types::Point, prelude as ui};
@@ -32,14 +32,14 @@ fn unrelated_args_leave_default_gui_overlay_disabled() {
 #[test]
 fn escape_shortcut_routes_to_stop_playback() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::StopPlayback)
+        Some(crate::native_app::test_support::GuiMessage::StopPlayback)
     );
     assert!(resolution.handled);
 }
@@ -60,15 +60,15 @@ fn escape_shortcut_cancels_rename_while_renaming() {
         .begin_rename_selected()
         .expect("begin rename should not fail");
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::FolderBrowser(
-            crate::native_app::FolderBrowserMessage::CancelRename
+        Some(crate::native_app::test_support::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::FolderBrowserMessage::CancelRename
         ))
     );
     assert!(resolution.handled);
@@ -77,28 +77,28 @@ fn escape_shortcut_cancels_rename_while_renaming() {
 #[test]
 fn escape_shortcut_cancels_file_column_drag() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::DragFileColumn(
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(284.0, 0.0)),
-        ));
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::DragFileColumn(
+        ),
+    );
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(560.0, 0.0)),
-        ));
+        ),
+    );
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::FolderBrowser(
-            crate::native_app::FolderBrowserMessage::CancelFileColumnDrag
+        Some(crate::native_app::test_support::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::FolderBrowserMessage::CancelFileColumnDrag
         ))
     );
     assert!(resolution.handled);
@@ -109,14 +109,14 @@ fn audio_settings_window_does_not_capture_main_escape_shortcut() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::StopPlayback)
+        Some(crate::native_app::test_support::GuiMessage::StopPlayback)
     );
     assert!(resolution.handled);
 }
@@ -126,15 +126,15 @@ fn audio_settings_window_does_not_block_main_shortcuts() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::N),
     );
 
     assert!(matches!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::FolderBrowser(
-            crate::native_app::FolderBrowserMessage::BeginCreateSubfolder
+        Some(crate::native_app::test_support::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::FolderBrowserMessage::BeginCreateSubfolder
         ))
     ));
     assert!(resolution.handled);
@@ -143,8 +143,8 @@ fn audio_settings_window_does_not_block_main_shortcuts() {
 #[test]
 fn context_menu_escape_shortcut_closes_context_menu() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.context_menu = Some(crate::native_app::BrowserContextMenu {
-        kind: crate::native_app::BrowserContextTargetKind::Sample,
+    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
         path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
         source_id: None,
         source_removable: false,
@@ -154,14 +154,14 @@ fn context_menu_escape_shortcut_closes_context_menu() {
         title: String::from("kick.wav"),
     });
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::CloseContextMenu)
+        Some(crate::native_app::test_support::GuiMessage::CloseContextMenu)
     );
     assert!(resolution.handled);
 }
@@ -169,18 +169,19 @@ fn context_menu_escape_shortcut_closes_context_menu() {
 #[test]
 fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.metadata_tag_input_mode = crate::native_app::MetadataTagInputMode::Category {
-        pending_tag: String::from("deep-kick"),
-    };
+    state.metadata_tag_input_mode =
+        crate::native_app::test_support::MetadataTagInputMode::Category {
+            pending_tag: String::from("deep-kick"),
+        };
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::CancelMetadataTagEntry)
+        Some(crate::native_app::test_support::GuiMessage::CancelMetadataTagEntry)
     );
     assert!(resolution.handled);
 }
@@ -190,16 +191,16 @@ fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
     let mut state = gui_state_for_span_tests();
     state
         .audio_settings_dropdown
-        .open(crate::native_app::AudioSettingsDropdown::Backend);
+        .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::CloseAudioSettingsDropdowns)
+        Some(crate::native_app::test_support::GuiMessage::CloseAudioSettingsDropdowns)
     );
     assert!(resolution.handled);
 }
@@ -207,11 +208,15 @@ fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
 #[test]
 fn format_copy_path_uses_forward_slashes_and_quotes_spaces() {
     assert_eq!(
-        crate::native_app::format_copy_path(std::path::Path::new("C:\\sample folder\\kick.wav")),
+        crate::native_app::test_support::format_copy_path(std::path::Path::new(
+            "C:\\sample folder\\kick.wav"
+        )),
         "\"C:/sample folder/kick.wav\""
     );
     assert_eq!(
-        crate::native_app::format_copy_path(std::path::Path::new("C:\\samples\\kick.wav")),
+        crate::native_app::test_support::format_copy_path(std::path::Path::new(
+            "C:\\samples\\kick.wav"
+        )),
         "C:/samples/kick.wav"
     );
 }
@@ -230,29 +235,29 @@ fn context_menu_availability_requires_existing_target_kind() {
     std::fs::write(&sample, [0_u8; 8]).expect("write sample");
 
     assert!(crate::native_app::context_menu::target_available(
-        &crate::native_app::BrowserContextTargetKind::Source,
+        &crate::native_app::test_support::BrowserContextTargetKind::Source,
         &root
     ));
     assert!(crate::native_app::context_menu::target_available(
-        &crate::native_app::BrowserContextTargetKind::Folder,
+        &crate::native_app::test_support::BrowserContextTargetKind::Folder,
         &root
     ));
     assert!(crate::native_app::context_menu::target_available(
-        &crate::native_app::BrowserContextTargetKind::Sample,
+        &crate::native_app::test_support::BrowserContextTargetKind::Sample,
         &sample
     ));
     assert!(!crate::native_app::context_menu::target_available(
-        &crate::native_app::BrowserContextTargetKind::Sample,
+        &crate::native_app::test_support::BrowserContextTargetKind::Sample,
         &root
     ));
     assert!(!crate::native_app::context_menu::target_available(
-        &crate::native_app::BrowserContextTargetKind::Folder,
+        &crate::native_app::test_support::BrowserContextTargetKind::Folder,
         &sample
     ));
 
     std::fs::remove_file(&sample).expect("remove sample");
     assert!(!crate::native_app::context_menu::target_available(
-        &crate::native_app::BrowserContextTargetKind::Sample,
+        &crate::native_app::test_support::BrowserContextTargetKind::Sample,
         &sample
     ));
     let _ = std::fs::remove_dir_all(root);
@@ -261,8 +266,8 @@ fn context_menu_availability_requires_existing_target_kind() {
 #[test]
 fn stale_context_menu_copy_path_refuses_missing_sample_file() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.context_menu = Some(crate::native_app::BrowserContextMenu {
-        kind: crate::native_app::BrowserContextTargetKind::Sample,
+    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
         path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
         source_id: None,
         source_removable: false,
@@ -284,14 +289,14 @@ fn context_path_copy_completion_updates_status() {
     let mut state = NativeAppState::load_default().expect("default state loads");
 
     state.finish_context_path_copy(
-        crate::native_app::BrowserContextTargetKind::Sample,
+        crate::native_app::test_support::BrowserContextTargetKind::Sample,
         std::path::PathBuf::from("C:\\samples\\kick.wav"),
         Ok(ui::PlatformResponse::Completed),
     );
     assert_eq!(state.sample_status, "Copied path");
 
     state.finish_context_path_copy(
-        crate::native_app::BrowserContextTargetKind::Sample,
+        crate::native_app::test_support::BrowserContextTargetKind::Sample,
         std::path::PathBuf::from("C:\\samples\\kick.wav"),
         Err(String::from("clipboard unavailable")),
     );
@@ -306,14 +311,14 @@ fn context_target_open_completion_updates_status() {
     let mut state = NativeAppState::load_default().expect("default state loads");
 
     state.finish_context_target_open(
-        crate::native_app::BrowserContextTargetKind::Sample,
+        crate::native_app::test_support::BrowserContextTargetKind::Sample,
         std::path::PathBuf::from("C:\\samples\\kick.wav"),
         Ok(ui::PlatformResponse::Completed),
     );
     assert_eq!(state.sample_status, "Revealed sample");
 
     state.finish_context_target_open(
-        crate::native_app::BrowserContextTargetKind::Folder,
+        crate::native_app::test_support::BrowserContextTargetKind::Folder,
         std::path::PathBuf::from("C:\\samples"),
         Err(String::from("shell unavailable")),
     );
@@ -323,14 +328,14 @@ fn context_target_open_completion_updates_status() {
 #[test]
 fn copy_shortcut_routes_to_browser_file_handoff() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::with_command(ui::KeyCode::C),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::CopySelectedFiles)
+        Some(crate::native_app::test_support::GuiMessage::CopySelectedFiles)
     );
     assert!(resolution.handled);
 }
@@ -338,14 +343,14 @@ fn copy_shortcut_routes_to_browser_file_handoff() {
 #[test]
 fn backspace_shortcut_routes_to_delete_selected_item() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Backspace),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::DeleteSelectedItem)
+        Some(crate::native_app::test_support::GuiMessage::DeleteSelectedItem)
     );
     assert!(resolution.handled);
 }
@@ -355,14 +360,14 @@ fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.selected_metadata_tag = Some(String::from("bass"));
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::Delete),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::DeleteSelectedMetadataTag)
+        Some(crate::native_app::test_support::GuiMessage::DeleteSelectedMetadataTag)
     );
     assert!(resolution.handled);
 }
@@ -370,14 +375,14 @@ fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
 #[test]
 fn loop_shortcut_routes_to_loop_toggle() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::L),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::ToggleLoopPlayback)
+        Some(crate::native_app::test_support::GuiMessage::ToggleLoopPlayback)
     );
     assert!(resolution.handled);
 }
@@ -385,14 +390,14 @@ fn loop_shortcut_routes_to_loop_toggle() {
 #[test]
 fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::X),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::ToggleSelectedSampleAndAdvance)
+        Some(crate::native_app::test_support::GuiMessage::ToggleSelectedSampleAndAdvance)
     );
     assert!(resolution.handled);
 }
@@ -413,7 +418,7 @@ fn x_shortcut_is_consumed_while_renaming() {
         .begin_rename_selected()
         .expect("begin rename should not fail");
 
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::X),
     );
@@ -425,14 +430,14 @@ fn x_shortcut_is_consumed_while_renaming() {
 #[test]
 fn shift_u_shortcut_toggles_transaction_list() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::default_gui_shortcut_resolution(
+    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::with_shift(ui::KeyCode::U),
     );
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::GuiMessage::ToggleTransactionList)
+        Some(crate::native_app::test_support::GuiMessage::ToggleTransactionList)
     );
     assert!(resolution.handled);
 }
@@ -441,11 +446,11 @@ fn shift_u_shortcut_toggles_transaction_list() {
 fn command_undo_redo_shortcuts_route_to_transactions() {
     let state = NativeAppState::load_default().expect("default state loads");
 
-    let undo = crate::native_app::default_gui_shortcut_resolution(
+    let undo = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::with_command(ui::KeyCode::Z),
     );
-    let redo_shift_z = crate::native_app::default_gui_shortcut_resolution(
+    let redo_shift_z = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress {
             key: ui::KeyCode::Z,
@@ -454,22 +459,22 @@ fn command_undo_redo_shortcuts_route_to_transactions() {
             alt: false,
         },
     );
-    let redo_y = crate::native_app::default_gui_shortcut_resolution(
+    let redo_y = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::with_command(ui::KeyCode::Y),
     );
 
     assert_eq!(
         undo.action,
-        Some(crate::native_app::GuiMessage::UndoTransaction)
+        Some(crate::native_app::test_support::GuiMessage::UndoTransaction)
     );
     assert_eq!(
         redo_shift_z.action,
-        Some(crate::native_app::GuiMessage::RedoTransaction)
+        Some(crate::native_app::test_support::GuiMessage::RedoTransaction)
     );
     assert_eq!(
         redo_y.action,
-        Some(crate::native_app::GuiMessage::RedoTransaction)
+        Some(crate::native_app::test_support::GuiMessage::RedoTransaction)
     );
     assert!(undo.handled);
     assert!(redo_shift_z.handled);
@@ -480,22 +485,22 @@ fn command_undo_redo_shortcuts_route_to_transactions() {
 fn bracket_shortcuts_route_to_rating_adjustments() {
     let state = NativeAppState::load_default().expect("default state loads");
 
-    let down = crate::native_app::default_gui_shortcut_resolution(
+    let down = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::OpenBracket),
     );
-    let up = crate::native_app::default_gui_shortcut_resolution(
+    let up = crate::native_app::test_support::default_gui_shortcut_resolution(
         &state,
         ui::KeyPress::new(ui::KeyCode::CloseBracket),
     );
 
     assert_eq!(
         down.action,
-        Some(crate::native_app::GuiMessage::AdjustSelectedRating(-1))
+        Some(crate::native_app::test_support::GuiMessage::AdjustSelectedRating(-1))
     );
     assert_eq!(
         up.action,
-        Some(crate::native_app::GuiMessage::AdjustSelectedRating(1))
+        Some(crate::native_app::test_support::GuiMessage::AdjustSelectedRating(1))
     );
     assert!(down.handled);
     assert!(up.handled);

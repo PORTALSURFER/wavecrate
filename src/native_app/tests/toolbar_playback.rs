@@ -4,26 +4,26 @@ use crate::native_app::toolbar::main_toolbar;
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
     for icon in [
-        super::super::ToolbarIcon::FocusLoaded,
-        super::super::ToolbarIcon::Loop,
-        super::super::ToolbarIcon::Random,
-        super::super::ToolbarIcon::Play,
-        super::super::ToolbarIcon::Stop,
+        crate::native_app::test_support::ToolbarIcon::FocusLoaded,
+        crate::native_app::test_support::ToolbarIcon::Loop,
+        crate::native_app::test_support::ToolbarIcon::Random,
+        crate::native_app::test_support::ToolbarIcon::Play,
+        crate::native_app::test_support::ToolbarIcon::Stop,
     ] {
         assert_eq!(
-            super::super::toolbar_icon_color(true, false),
+            crate::native_app::test_support::toolbar_icon_color(true, false),
             radiant::prelude::Rgba8::new(238, 238, 238, 255)
         );
         assert_eq!(
-            super::super::toolbar_icon_color(true, true),
+            crate::native_app::test_support::toolbar_icon_color(true, true),
             radiant::prelude::Rgba8::new(255, 160, 82, 255)
         );
         assert_eq!(
-            super::super::toolbar_icon_color(false, false),
+            crate::native_app::test_support::toolbar_icon_color(false, false),
             radiant::prelude::Rgba8::new(145, 145, 145, 255)
         );
         let mut primitives = Vec::new();
-        super::super::toolbar_icon_glyph(icon, true, false).append_paint(
+        crate::native_app::test_support::toolbar_icon_glyph(icon, true, false).append_paint(
             &mut primitives,
             101,
             Rect::from_size(28.0, 24.0),
@@ -32,7 +32,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
             primitives.iter().any(|primitive| primitive.svg().is_some()),
             "toolbar icon cache should produce a retained Radiant SVG"
         );
-        let frame = super::super::toolbar_icon_button(101, icon, true, false)
+        let frame = crate::native_app::test_support::toolbar_icon_button(101, icon, true, false)
             .view_frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
         assert!(
             frame.paint_plan.svgs().next().is_some(),
@@ -45,23 +45,26 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
 fn toolbar_icon_button_routes_messages_through_radiant_builder() {
     for (icon, message) in [
         (
-            super::super::ToolbarIcon::FocusLoaded,
-            super::super::GuiMessage::FocusLoadedFile,
+            crate::native_app::test_support::ToolbarIcon::FocusLoaded,
+            crate::native_app::test_support::GuiMessage::FocusLoadedFile,
         ),
         (
-            super::super::ToolbarIcon::Loop,
-            super::super::GuiMessage::ToggleLoopPlayback,
+            crate::native_app::test_support::ToolbarIcon::Loop,
+            crate::native_app::test_support::GuiMessage::ToggleLoopPlayback,
         ),
         (
-            super::super::ToolbarIcon::Random,
-            super::super::GuiMessage::PlayRandomSampleRange,
+            crate::native_app::test_support::ToolbarIcon::Random,
+            crate::native_app::test_support::GuiMessage::PlayRandomSampleRange,
         ),
     ] {
         assert_eq!(
-            super::super::toolbar_icon_button(101, icon, true, false).view_dispatch_widget_output(
-                101,
-                radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
-            ),
+            crate::native_app::test_support::toolbar_icon_button(101, icon, true, false)
+                .view_dispatch_widget_output(
+                    101,
+                    radiant::widgets::WidgetOutput::typed(
+                        radiant::widgets::ButtonMessage::Activate
+                    ),
+                ),
             Some(message)
         );
     }
@@ -84,24 +87,24 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
 #[test]
 fn random_toolbar_button_is_hit_target_for_loaded_sample() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform = super::super::WaveformState::synthetic_for_tests();
+    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_RANDOM_ID),
+        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID),
         "random button must be the topmost hit target for loaded samples"
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
     );
 }
 
@@ -111,9 +114,10 @@ fn random_toolbar_button_is_hit_target_for_unselected_browser_sample() {
     let sample = root.join("unselected.wav");
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
     assert!(!state.waveform.has_loaded_sample());
     assert_eq!(state.folder_browser.selected_file_id(), None);
     let theme = radiant::theme::ThemeTokens::default();
@@ -121,23 +125,25 @@ fn random_toolbar_button_is_hit_target_for_unselected_browser_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
-            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_RANDOM_ID),
+            .contains_visible_fill_polygon_for_widget(
+                crate::native_app::test_support::TOOLBAR_RANDOM_ID
+            ),
         "hovering random with an available browser sample should paint feedback"
     );
 
@@ -151,9 +157,10 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     let sample_id = sample.display().to_string();
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
     assert!(!state.waveform.has_loaded_sample());
     assert_eq!(state.folder_browser.selected_file_id(), None);
     let theme = radiant::theme::ThemeTokens::default();
@@ -161,7 +168,7 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
 
     runtime.dispatch_primary_click(icon_rect.center());
@@ -173,7 +180,7 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     assert!(
         matches!(
             runtime.bridge().state().pending_sample_playback,
-            Some(super::super::PendingSamplePlayback::RandomAudition { .. })
+            Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { .. })
         ),
         "random toolbar click should preserve random-audition intent while the browser sample loads"
     );
@@ -196,9 +203,10 @@ fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
     let sample = root.join("selected.wav");
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
     state
         .folder_browser
         .select_file(sample.display().to_string());
@@ -208,23 +216,25 @@ fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
-            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_RANDOM_ID),
+            .contains_visible_fill_polygon_for_widget(
+                crate::native_app::test_support::TOOLBAR_RANDOM_ID
+            ),
         "hovering random with a selected sample should paint feedback"
     );
 
@@ -237,9 +247,10 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     let sample = root.join("selected.wav");
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
     state
         .folder_browser
         .select_file(sample.display().to_string());
@@ -248,7 +259,7 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
 
     runtime.dispatch_primary_click(icon_rect.center());
@@ -256,7 +267,7 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     assert!(
         matches!(
             runtime.bridge().state().pending_sample_playback,
-            Some(super::super::PendingSamplePlayback::RandomAudition { .. })
+            Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { .. })
         ),
         "random toolbar click should preserve random-audition intent while the selected sample loads"
     );
@@ -281,24 +292,26 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_FOCUS_LOADED_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID)
         .expect("focus-loaded toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_FOCUS_LOADED_ID),
+        Some(crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID),
         "focus-loaded button must be the topmost hit target at its painted icon"
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_FOCUS_LOADED_ID)
+        Some(crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
-            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_FOCUS_LOADED_ID),
+            .contains_visible_fill_polygon_for_widget(
+                crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID
+            ),
         "hovering the focus-loaded button should paint a visible accent overlay"
     );
 }
@@ -316,10 +329,12 @@ fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
     let loaded_id = loaded.display().to_string();
     write_test_wav_i16(&loaded, &[0, 1024, -1024, 512]);
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state.waveform = super::super::WaveformState::load_path(loaded.clone()).expect("load sample");
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.waveform = crate::native_app::test_support::WaveformState::load_path(loaded.clone())
+        .expect("load sample");
     state
         .folder_browser
         .select_file(files[0].display().to_string());
@@ -344,31 +359,33 @@ fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
 #[test]
 fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform = super::super::WaveformState::synthetic_for_tests();
+    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
     state.waveform.start_playback(0.25);
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_STOP_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_STOP_ID)
         .expect("stop toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_STOP_ID),
+        Some(crate::native_app::test_support::TOOLBAR_STOP_ID),
         "stop button must be the topmost hit target while playback is active"
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_STOP_ID)
+        Some(crate::native_app::test_support::TOOLBAR_STOP_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
-            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_STOP_ID),
+            .contains_visible_fill_polygon_for_widget(
+                crate::native_app::test_support::TOOLBAR_STOP_ID
+            ),
         "hovering the playing stop button should paint a visible accent overlay"
     );
     runtime.dispatch_primary_click(point);
@@ -381,24 +398,24 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
 #[test]
 fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform = super::super::WaveformState::synthetic_for_tests();
+    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
     assert!(!state.waveform.is_playing());
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_STOP_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_STOP_ID)
         .expect("stop toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_STOP_ID)
+        Some(crate::native_app::test_support::TOOLBAR_STOP_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_STOP_ID)
+        Some(crate::native_app::test_support::TOOLBAR_STOP_ID)
     );
 }
 
@@ -411,23 +428,25 @@ fn stop_toolbar_button_remains_hit_target_without_loaded_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(super::super::TOOLBAR_STOP_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_STOP_ID)
         .expect("stop toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(super::super::TOOLBAR_STOP_ID)
+        Some(crate::native_app::test_support::TOOLBAR_STOP_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(super::super::TOOLBAR_STOP_ID)
+        Some(crate::native_app::test_support::TOOLBAR_STOP_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
-            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_STOP_ID),
+            .contains_visible_fill_polygon_for_widget(
+                crate::native_app::test_support::TOOLBAR_STOP_ID
+            ),
         "hovering stop should paint feedback even before a waveform is loaded"
     );
 }
@@ -497,7 +516,7 @@ fn playback_cursor_paints_as_transient_overlay() {
     assert!(
         !frame
             .paint_plan
-            .fill_rects_for_widget(super::super::WAVEFORM_WIDGET_ID)
+            .fill_rects_for_widget(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
             .any(|fill| { fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255 }),
         "live playback cursor should not be baked into the cached surface"
     );
@@ -517,7 +536,7 @@ fn playback_cursor_paints_as_transient_overlay() {
             .iter()
             .filter_map(|primitive| primitive.fill_rect())
             .any(|fill| {
-                fill.widget_id == super::super::WAVEFORM_WIDGET_ID
+                fill.widget_id == crate::native_app::test_support::WAVEFORM_WIDGET_ID
                     && fill.color.r == 71
                     && fill.color.g == 220
                     && fill.color.b == 255

@@ -1,6 +1,6 @@
-use super::{GuiMessage, NativeAppState};
+use super::app_scope::{GuiMessage, NativeAppState};
 use crate::native_app::{
-    FileMoveConflictResolution, TRANSACTION_LIST_MODAL_ID,
+    app_scope::{FileMoveConflictResolution, TRANSACTION_LIST_MODAL_ID},
     audio_settings::top_status_bar,
     context_menu,
     folder_browser::{self, FileColumnDragFeedback},

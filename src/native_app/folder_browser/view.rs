@@ -1,10 +1,10 @@
 use radiant::prelude as ui;
 
-use crate::native_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
-use crate::native_app::{
+use crate::native_app::app_scope::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
     FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
 };
+use crate::native_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
 
 use super::tag_editor::{metadata_section, tag_field_height};
 use super::tag_entry_layout::tag_field_content_width;

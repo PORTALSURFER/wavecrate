@@ -1,9 +1,8 @@
 use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 
-use super::{
-    GuiMessage, NativeAppState, emit_gui_action, folder_browser::RenamePathRemap, logging,
-};
+use super::app_scope::{GuiMessage, NativeAppState, emit_gui_action, logging};
+use crate::native_app::folder_browser::RenamePathRemap;
 
 impl NativeAppState {
     pub(super) fn begin_folder_browser_rename(

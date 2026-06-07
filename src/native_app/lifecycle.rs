@@ -1,8 +1,8 @@
-use super::{
+use super::app_scope::{
     DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode,
     WaveformState, sample_path_label,
 };
-use crate::native_app::{launch::emit_gui_action, waveform::WaveformInteraction};
+use crate::native_app::app_scope::{WaveformInteraction, emit_gui_action};
 use radiant::prelude as ui;
 use std::{
     collections::HashMap,

@@ -1,10 +1,10 @@
 use radiant::prelude as ui;
 
-use super::folder_browser::{FileColumn, FileColumnDragFeedback, FolderBrowserMessage};
-use super::{
+use super::app_scope::{
     GuiMessage, NativeAppState, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SampleNameViewMode,
 };
+use super::folder_browser::{FileColumn, FileColumnDragFeedback, FolderBrowserMessage};
 
 mod hit_target;
 pub(super) use hit_target::SampleFileHitTarget;

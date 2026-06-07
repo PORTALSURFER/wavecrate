@@ -3,14 +3,11 @@ use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
 use radiant::prelude as ui;
 use wavecrate::audio::AudioPlayer;
 
-use super::{
+use super::app_scope::{
     GuiMessage, NativeAppState, NormalizationProgress, NormalizationResult,
-    NormalizedWaveformReload, WaveformPlaybackResume,
+    NormalizedWaveformReload, WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };
-use crate::native_app::{
-    file_actions::{normalize_wav_file_in_place, sample_path_label},
-    launch::emit_gui_action,
-};
+use crate::native_app::file_actions::normalize_wav_file_in_place;
 
 impl NativeAppState {
     pub(in crate::native_app) fn normalize_selected_samples(

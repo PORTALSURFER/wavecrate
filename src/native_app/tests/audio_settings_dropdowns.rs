@@ -4,8 +4,8 @@ use radiant::{
     prelude::{self as ui, IntoView},
 };
 
-fn audio_settings_texts(state: &crate::native_app::NativeAppState) -> Vec<String> {
-    crate::native_app::audio_settings_popover(state)
+fn audio_settings_texts(state: &crate::native_app::test_support::NativeAppState) -> Vec<String> {
+    crate::native_app::test_support::audio_settings_popover(state)
         .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0))
         .paint_plan
         .text_label_strings()
@@ -17,14 +17,14 @@ fn audio_backend_dropdown_renders_expanded_host_options() {
     state.audio_settings_error = None;
     state
         .audio_settings_dropdown
-        .open(crate::native_app::AudioSettingsDropdown::Backend);
+        .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
     state.audio_hosts = vec![
-        crate::native_app::AudioHostSummary {
+        crate::native_app::test_support::AudioHostSummary {
             id: String::from("wasapi"),
             label: String::from("WASAPI"),
             is_default: true,
         },
-        crate::native_app::AudioHostSummary {
+        crate::native_app::test_support::AudioHostSummary {
             id: String::from("asio"),
             label: String::from("ASIO"),
             is_default: false,
@@ -50,8 +50,8 @@ fn audio_output_dropdown_renders_expanded_device_options() {
     state.audio_settings_error = None;
     state
         .audio_settings_dropdown
-        .open(crate::native_app::AudioSettingsDropdown::Output);
-    state.audio_devices = vec![crate::native_app::AudioDeviceSummary {
+        .open(crate::native_app::test_support::AudioSettingsDropdown::Output);
+    state.audio_devices = vec![crate::native_app::test_support::AudioDeviceSummary {
         host_id: String::from("asio"),
         name: String::from("Studio Out"),
         is_default: true,
@@ -72,7 +72,7 @@ fn audio_sample_rate_dropdown_renders_expanded_rate_options() {
     state.audio_settings_error = None;
     state
         .audio_settings_dropdown
-        .open(crate::native_app::AudioSettingsDropdown::SampleRate);
+        .open(crate::native_app::test_support::AudioSettingsDropdown::SampleRate);
     state.audio_sample_rates = vec![44_100, 48_000];
 
     let texts = audio_settings_texts(&state);
@@ -90,12 +90,12 @@ fn audio_backend_dropdown_overlay_does_not_reflow_later_sections() {
     let mut state = gui_state_for_span_tests();
     state.audio_settings_error = None;
     state.audio_hosts = vec![
-        crate::native_app::AudioHostSummary {
+        crate::native_app::test_support::AudioHostSummary {
             id: String::from("wasapi"),
             label: String::from("WASAPI"),
             is_default: true,
         },
-        crate::native_app::AudioHostSummary {
+        crate::native_app::test_support::AudioHostSummary {
             id: String::from("asio"),
             label: String::from("ASIO"),
             is_default: false,
@@ -106,7 +106,7 @@ fn audio_backend_dropdown_overlay_does_not_reflow_later_sections() {
     let closed = audio_settings_frame(&state);
     state
         .audio_settings_dropdown
-        .open(crate::native_app::AudioSettingsDropdown::Backend);
+        .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
     let open = audio_settings_frame(&state);
 
     assert_eq!(text_top(&closed, "Output"), text_top(&open, "Output"));
@@ -123,78 +123,78 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
     let mut state = gui_state_for_span_tests();
 
     state.apply_message(
-        crate::native_app::GuiMessage::ToggleAudioBackendDropdown,
+        crate::native_app::test_support::GuiMessage::ToggleAudioBackendDropdown,
         &mut ui::UpdateContext::default(),
     );
     assert!(
         state
             .audio_settings_dropdown
-            .is_open(&crate::native_app::AudioSettingsDropdown::Backend)
+            .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Backend)
     );
 
     state.apply_message(
-        crate::native_app::GuiMessage::CloseAudioSettingsDropdowns,
+        crate::native_app::test_support::GuiMessage::CloseAudioSettingsDropdowns,
         &mut ui::UpdateContext::default(),
     );
     assert!(!state.audio_settings_dropdown.any_open());
 
     state.apply_message(
-        crate::native_app::GuiMessage::ToggleAudioBackendDropdown,
+        crate::native_app::test_support::GuiMessage::ToggleAudioBackendDropdown,
         &mut ui::UpdateContext::default(),
     );
     assert!(
         state
             .audio_settings_dropdown
-            .is_open(&crate::native_app::AudioSettingsDropdown::Backend)
+            .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Backend)
     );
 
     state.apply_message(
-        crate::native_app::GuiMessage::ToggleAudioOutputDropdown,
-        &mut ui::UpdateContext::default(),
-    );
-    assert!(
-        !state
-            .audio_settings_dropdown
-            .is_open(&crate::native_app::AudioSettingsDropdown::Backend)
-    );
-    assert!(
-        state
-            .audio_settings_dropdown
-            .is_open(&crate::native_app::AudioSettingsDropdown::Output)
-    );
-
-    state.apply_message(
-        crate::native_app::GuiMessage::ToggleAudioSampleRateDropdown,
+        crate::native_app::test_support::GuiMessage::ToggleAudioOutputDropdown,
         &mut ui::UpdateContext::default(),
     );
     assert!(
         !state
             .audio_settings_dropdown
-            .is_open(&crate::native_app::AudioSettingsDropdown::Output)
+            .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Backend)
     );
     assert!(
         state
             .audio_settings_dropdown
-            .is_open(&crate::native_app::AudioSettingsDropdown::SampleRate)
+            .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Output)
     );
 
     state.apply_message(
-        crate::native_app::GuiMessage::CloseAudioSettingsDropdowns,
+        crate::native_app::test_support::GuiMessage::ToggleAudioSampleRateDropdown,
+        &mut ui::UpdateContext::default(),
+    );
+    assert!(
+        !state
+            .audio_settings_dropdown
+            .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Output)
+    );
+    assert!(
+        state
+            .audio_settings_dropdown
+            .is_open(&crate::native_app::test_support::AudioSettingsDropdown::SampleRate)
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::GuiMessage::CloseAudioSettingsDropdowns,
         &mut ui::UpdateContext::default(),
     );
     assert!(!state.audio_settings_dropdown.any_open());
 
     state.apply_message(
-        crate::native_app::GuiMessage::CloseAudioSettings,
+        crate::native_app::test_support::GuiMessage::CloseAudioSettings,
         &mut ui::UpdateContext::default(),
     );
     assert!(!state.audio_settings_dropdown.any_open());
 }
 
 fn audio_settings_frame(
-    state: &crate::native_app::NativeAppState,
+    state: &crate::native_app::test_support::NativeAppState,
 ) -> radiant::runtime::SurfaceFrame {
-    crate::native_app::audio_settings_popover(state)
+    crate::native_app::test_support::audio_settings_popover(state)
         .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0))
 }
 

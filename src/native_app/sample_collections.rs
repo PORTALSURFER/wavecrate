@@ -7,7 +7,7 @@ use std::{
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleCollection, SourceDatabase};
 
-use super::{GuiMessage, NativeAppState, emit_gui_action};
+use super::app_scope::{GuiMessage, NativeAppState, emit_gui_action};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CollectionUpdate {

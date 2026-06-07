@@ -2,7 +2,7 @@ use super::super::*;
 
 #[test]
 fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let frame = super::super::super::folder_browser::folder_browser_view(
         &browser,
@@ -41,7 +41,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
 
 #[test]
 fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![String::from("hat")];
     let theme = radiant::theme::ThemeTokens::default();
     let frame = super::super::super::folder_browser::folder_browser_view(
@@ -83,7 +83,7 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
     let point = tag_rect.center();
 
     runtime.dispatch_event(Event::primary_press(point));
-    runtime.dispatch_message(super::super::super::GuiMessage::Frame);
+    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::Frame);
     runtime.dispatch_event(Event::primary_release(point));
 
     assert_eq!(
@@ -117,7 +117,7 @@ fn right_clicking_metadata_tag_chip_opens_delete_context_menu() {
         .expect("right-click should open metadata tag context menu");
     assert_eq!(
         menu.kind,
-        super::super::super::BrowserContextTargetKind::MetadataTag
+        crate::native_app::test_support::BrowserContextTargetKind::MetadataTag
     );
     assert_eq!(menu.metadata_tag.as_deref(), Some("hat"));
 }
@@ -136,7 +136,7 @@ fn metadata_tag_chips_display_playback_tags_first() {
         ],
     );
 
-    let frame = super::super::super::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let loop_rect = frame
@@ -163,7 +163,7 @@ fn metadata_tag_chips_display_playback_tags_first() {
 
 #[test]
 fn metadata_tag_chips_group_by_target_category_order_and_color() {
-    let browser = super::super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let tags = vec![
         String::from("warm"),
         String::from("artist1"),

@@ -3,13 +3,13 @@ use radiant::widgets::DragHandleMessage;
 use std::time::{Duration, Instant};
 use wavecrate::sample_sources::SampleCollection;
 
-use super::file_actions::sample_path_label;
-use super::folder_browser::FolderBrowserMessage;
-use super::{
+use super::app_scope::{
     GuiMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, NativeAppState,
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
     emit_gui_action,
 };
+use super::file_actions::sample_path_label;
+use super::folder_browser::FolderBrowserMessage;
 
 impl NativeAppState {
     pub(super) fn resize_folder_browser(&mut self, message: DragHandleMessage) {

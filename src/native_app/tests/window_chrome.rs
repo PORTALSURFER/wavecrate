@@ -13,7 +13,7 @@ fn default_window_title_marks_alpha_build() {
 fn audio_settings_popover_opens_as_centered_floating_window() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_error = None;
-    let frame = super::super::audio_settings_popover(&state)
+    let frame = crate::native_app::test_support::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
     assert!(frame.paint_plan.contains_text("Settings"));
     assert!(frame.paint_plan.contains_text("Audio Engine"));
@@ -37,7 +37,7 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
 fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
-    let frame = super::super::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
         .paint_plan
@@ -49,9 +49,8 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
         .collect::<Vec<_>>();
 
     assert!(
-        audio_panel_fills
-            .iter()
-            .all(|rect| rect.height() <= super::super::AUDIO_SETTINGS_POPUP_HEIGHT + 1.0),
+        audio_panel_fills.iter().all(|rect| rect.height()
+            <= crate::native_app::test_support::AUDIO_SETTINGS_POPUP_HEIGHT + 1.0),
         "{audio_panel_fills:?}"
     );
 }
@@ -63,22 +62,28 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
-        super::super::GuiMessage::Waveform(WaveformInteraction::BeginSelection {
-            kind: WaveformSelectionKind::Play,
-            visible_ratio: 0.45,
-        }),
+        crate::native_app::test_support::GuiMessage::Waveform(
+            WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.45,
+            },
+        ),
         &mut context,
     );
     state.apply_message(
-        super::super::GuiMessage::Waveform(WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.65,
-        }),
+        crate::native_app::test_support::GuiMessage::Waveform(
+            WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.65,
+            },
+        ),
         &mut context,
     );
     state.apply_message(
-        super::super::GuiMessage::Waveform(WaveformInteraction::FinishSelection {
-            visible_ratio: 0.65,
-        }),
+        crate::native_app::test_support::GuiMessage::Waveform(
+            WaveformInteraction::FinishSelection {
+                visible_ratio: 0.65,
+            },
+        ),
         &mut context,
     );
 
@@ -91,7 +96,7 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
 
 #[test]
 fn default_folder_browser_loads_assets_root() {
-    let browser = super::super::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     assert!(browser.root_path().ends_with("assets"));
     assert_eq!(browser.source_labels(), vec![String::from("Assets")]);
     assert!(
@@ -116,15 +121,15 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
         tagged_file,
         vec![String::from("kick"), String::from("warm")],
     );
-    let disk_frame = super::super::sample_browser(&mut state, false)
+    let disk_frame = crate::native_app::test_support::sample_browser(&mut state, false)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 240.0));
     assert!(disk_frame.paint_plan.contains_text("Disk"));
 
     state.apply_message(
-        super::super::GuiMessage::ToggleSampleNameViewMode,
+        crate::native_app::test_support::GuiMessage::ToggleSampleNameViewMode,
         &mut ui::UpdateContext::default(),
     );
-    let label_frame = super::super::sample_browser(&mut state, false)
+    let label_frame = crate::native_app::test_support::sample_browser(&mut state, false)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 240.0));
 
     assert!(label_frame.paint_plan.contains_text("Label"));

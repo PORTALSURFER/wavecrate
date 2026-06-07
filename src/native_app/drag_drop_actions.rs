@@ -7,7 +7,7 @@ use std::{
 };
 use wavecrate::external_clipboard;
 
-use super::{
+use super::app_scope::{
     DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH, FileMoveConflictResolution, FolderBrowserMessage,
     GuiMessage, NativeAppState, emit_gui_action, sample_path_label,
 };

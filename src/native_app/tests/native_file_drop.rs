@@ -11,22 +11,23 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
     write_test_wav_i16(&wav, &[0, 100]);
     fs::write(&txt, "not audio").expect("write text");
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
     let mut context = ui::UpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::hover(
             wav.clone(),
             Some(Point::new(8.0, 8.0)),
-            Some(crate::native_app::WAVEFORM_WIDGET_ID),
+            Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID),
         ),
         &mut context,
     );
     assert_eq!(
         state.native_file_drop_hover,
-        Some(crate::native_app::NativeFileDropHover {
+        Some(crate::native_app::test_support::NativeFileDropHover {
             path: wav.clone(),
             supported: true,
         })
@@ -36,13 +37,13 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
         NativeFileDrop::hover(
             txt.clone(),
             Some(Point::new(8.0, 8.0)),
-            Some(crate::native_app::WAVEFORM_WIDGET_ID),
+            Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID),
         ),
         &mut context,
     );
     assert_eq!(
         state.native_file_drop_hover,
-        Some(crate::native_app::NativeFileDropHover {
+        Some(crate::native_app::test_support::NativeFileDropHover {
             path: txt,
             supported: false,
         })
@@ -51,7 +52,7 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
     state.apply_native_file_drop(
         NativeFileDrop::cancel(
             Some(Point::new(8.0, 8.0)),
-            Some(crate::native_app::WAVEFORM_WIDGET_ID),
+            Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID),
         ),
         &mut context,
     );
@@ -74,7 +75,7 @@ fn native_file_hover_without_widget_target_still_shows_waveform_drop_feedback() 
 
     assert_eq!(
         state.native_file_drop_hover,
-        Some(crate::native_app::NativeFileDropHover {
+        Some(crate::native_app::test_support::NativeFileDropHover {
             path: wav,
             supported: true,
         })
@@ -91,21 +92,22 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
     let source = external_root.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::ActivateFolder(
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
-        ));
+        ),
+    );
     let mut context = ui::UpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(
             source,
             Some(Point::new(8.0, 8.0)),
-            Some(crate::native_app::WAVEFORM_WIDGET_ID),
+            Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID),
         ),
         &mut context,
     );
@@ -137,14 +139,15 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
     let source = external_root.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::ActivateFolder(
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
-        ));
+        ),
+    );
     let mut context = ui::UpdateContext::default();
 
     state.apply_native_file_drop(
@@ -171,14 +174,15 @@ fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
     let source = drums.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::ActivateFolder(
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
-        ));
+        ),
+    );
     let mut context = ui::UpdateContext::default();
 
     state.apply_native_file_drop(
@@ -203,14 +207,15 @@ fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
     let source = drums.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::ActivateFolder(
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
-        ));
+        ),
+    );
     state
         .folder_browser
         .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
@@ -240,32 +245,33 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
     write_test_wav_i16(&source, &[0, 100, -100]);
     let source_id = source.display().to_string();
     let mut state = gui_state_for_span_tests();
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::ActivateFolder(
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
-        ));
+        ),
+    );
     state.folder_browser.select_file(source_id.clone());
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
-        crate::native_app::GuiMessage::DragSampleFile {
+        crate::native_app::test_support::GuiMessage::DragSampleFile {
             path: source_id.clone(),
             drag: DragHandleMessage::started(Point::new(4.0, 8.0)),
         },
         &mut context,
     );
-    state
-        .folder_browser
-        .apply_message(crate::native_app::FolderBrowserMessage::HoverDropTarget(
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::HoverDropTarget(
             loops.display().to_string(),
             Point::new(16.0, 18.0),
-        ));
+        ),
+    );
     state.apply_message(
-        crate::native_app::GuiMessage::DragSampleFile {
+        crate::native_app::test_support::GuiMessage::DragSampleFile {
             path: source_id,
             drag: DragHandleMessage::ended(Point::new(80.0, 40.0)),
         },

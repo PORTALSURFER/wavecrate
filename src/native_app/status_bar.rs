@@ -1,4 +1,4 @@
-use super::{FolderScanProgress, GuiMessage, NativeAppState, NormalizationProgress};
+use super::app_scope::{FolderScanProgress, GuiMessage, NativeAppState, NormalizationProgress};
 use radiant::prelude as ui;
 
 pub(super) fn bottom_status_bar(state: &NativeAppState) -> ui::View<GuiMessage> {

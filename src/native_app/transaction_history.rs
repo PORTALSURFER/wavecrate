@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use super::NativeAppState;
+use super::app_scope::NativeAppState;
 
 const DEFAULT_TRANSACTION_LIMIT: usize = 128;
 

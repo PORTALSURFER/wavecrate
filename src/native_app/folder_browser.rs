@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use super::GuiMessage;
+use super::app_scope::GuiMessage;
 
 pub(super) const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 10.0;

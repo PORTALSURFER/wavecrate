@@ -6,7 +6,7 @@ use std::{
 };
 use wavecrate::audio::{AudioPlayer, edit_fade_range_from_selection};
 
-use super::{
+use super::app_scope::{
     GuiMessage, NativeAppState, PLAYBACK_START_ACTIVE_SOURCE_GRACE, PendingPlaybackStart,
     PendingSamplePlayback, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID, emit_gui_action,
     sample_path_label,

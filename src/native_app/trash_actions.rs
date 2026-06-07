@@ -6,10 +6,10 @@ use std::{
     time::Instant,
 };
 
-use super::{
-    GuiMessage, NativeAppState, WaveformState, context_menu::BrowserContextTargetKind,
-    emit_gui_action, file_actions::sample_path_label,
+use super::app_scope::{
+    GuiMessage, NativeAppState, WaveformState, emit_gui_action, sample_path_label,
 };
+use crate::native_app::context_menu::BrowserContextTargetKind;
 
 impl NativeAppState {
     pub(super) fn pick_trash_folder(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {

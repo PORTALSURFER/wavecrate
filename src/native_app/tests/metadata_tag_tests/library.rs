@@ -14,7 +14,7 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     );
     state.metadata_tag_library_open = true;
 
-    let frame = super::super::super::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Tag Editor"));
@@ -36,11 +36,11 @@ fn default_gui_tag_library_can_apply_default_playback_tags() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTagLibrary,
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTagLibrary,
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTag(String::from("one-shot")),
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTag(String::from("one-shot")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -61,11 +61,11 @@ fn default_gui_tag_library_button_adds_existing_tag() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTagLibrary,
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTagLibrary,
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTag(String::from("bass")),
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -89,11 +89,11 @@ fn default_gui_tag_library_button_removes_selected_tag() {
         .insert(String::from("other.wav"), vec![String::from("bass")]);
 
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTagLibrary,
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTagLibrary,
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTag(String::from("bass")),
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -115,13 +115,13 @@ fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
     );
 
     state.apply_message(
-        super::super::super::GuiMessage::SelectMetadataTag(String::from("bass")),
+        crate::native_app::test_support::GuiMessage::SelectMetadataTag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(state.selected_metadata_tag.as_deref(), Some("bass"));
 
     state.apply_message(
-        super::super::super::GuiMessage::DeleteSelectedMetadataTag,
+        crate::native_app::test_support::GuiMessage::DeleteSelectedMetadataTag,
         &mut ui::UpdateContext::default(),
     );
 
@@ -143,11 +143,13 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
     state.metadata_tag_library_open = true;
 
     state.apply_message(
-        super::super::super::GuiMessage::ToggleMetadataTagCategory(String::from("sound-type")),
+        crate::native_app::test_support::GuiMessage::ToggleMetadataTagCategory(String::from(
+            "sound-type",
+        )),
         &mut ui::UpdateContext::default(),
     );
 
-    let frame = super::super::super::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Sound Type (1)"));
@@ -270,7 +272,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
         .expect("right-click should open metadata tag context menu");
     assert_eq!(
         menu.kind,
-        super::super::super::BrowserContextTargetKind::MetadataTag
+        crate::native_app::test_support::BrowserContextTargetKind::MetadataTag
     );
     assert_eq!(menu.metadata_tag.as_deref(), Some("oneshot"));
 }
@@ -290,8 +292,8 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
     state
         .metadata_tag_dictionary
         .insert(String::from("oneshot"), String::from("sound-type"));
-    state.context_menu = Some(super::super::super::BrowserContextMenu {
-        kind: super::super::super::BrowserContextTargetKind::MetadataTag,
+    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
         path: PathBuf::new(),
         source_id: None,
         source_removable: false,
@@ -323,8 +325,8 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
 fn metadata_tag_context_delete_rejects_locked_playback_tags() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.context_menu = Some(super::super::super::BrowserContextMenu {
-        kind: super::super::super::BrowserContextTargetKind::MetadataTag,
+    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
+        kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
         path: PathBuf::new(),
         source_id: None,
         source_removable: false,
@@ -351,7 +353,7 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
         .insert(String::from("deep-kick"), String::from("sound-type"));
     state.metadata_tag_library_open = true;
 
-    let frame = super::super::super::view(&mut state)
+    let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Sound Type (1)"));

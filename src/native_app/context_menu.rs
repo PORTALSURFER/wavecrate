@@ -1,4 +1,4 @@
-use super::GuiMessage;
+use super::app_scope::GuiMessage;
 
 use radiant::gui::types::Point;
 use radiant::prelude as ui;

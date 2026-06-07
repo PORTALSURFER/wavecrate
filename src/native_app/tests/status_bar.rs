@@ -1,5 +1,5 @@
 use super::gui_state_for_span_tests;
-use crate::native_app::NativeAppState;
+use crate::native_app::test_support::NativeAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
@@ -12,9 +12,10 @@ fn bottom_status_bar_reports_selected_sample_count() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("selected-count.wav");
     std::fs::write(&sample_path, []).expect("sample file");
-    state.folder_browser = crate::native_app::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
-    ]);
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
     let empty_frame = crate::native_app::status_bar::bottom_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
     assert!(empty_frame.paint_plan.contains_text("0 samples"));
@@ -32,7 +33,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
 #[test]
 fn bottom_status_progress_bar_paints_without_text_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_progress = Some(crate::native_app::FolderScanProgress {
+    state.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
         task_id: 7,
         source_id: String::from("assets"),
         label: String::from("Assets"),
@@ -52,7 +53,7 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
 #[test]
 fn bottom_status_bar_reports_normalization_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.normalization_progress = Some(crate::native_app::NormalizationProgress {
+    state.normalization_progress = Some(crate::native_app::test_support::NormalizationProgress {
         task_id: 9,
         label: String::from("2 samples"),
         completed: 1,
@@ -88,7 +89,7 @@ fn bottom_status_progress_bar_click_opens_job_details() {
 fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.progress_tick = 0.5;
-    state.folder_progress = Some(crate::native_app::FolderScanProgress {
+    state.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
         task_id: 7,
         source_id: String::from("assets"),
         label: String::from("Assets"),
@@ -107,7 +108,7 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
 
 #[test]
 fn job_details_popover_reports_active_scan_progress() {
-    let progress = crate::native_app::FolderScanProgress {
+    let progress = crate::native_app::test_support::FolderScanProgress {
         task_id: 7,
         source_id: String::from("assets"),
         label: String::from("Assets"),

@@ -5,7 +5,7 @@ use super::vocabulary::{
     static_metadata_tag_category_id,
 };
 use super::{GuiMessage, NativeAppState};
-use crate::native_app::DRAG_PREVIEW_HEIGHT;
+use crate::native_app::app_scope::DRAG_PREVIEW_HEIGHT;
 use radiant::prelude as ui;
 use radiant::widgets::DragHandleMessage;
 use std::{path::PathBuf, time::Instant};

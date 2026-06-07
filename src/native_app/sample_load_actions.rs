@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{
+use super::app_scope::{
     GuiMessage, KEYBOARD_SAMPLE_LOAD_DEBOUNCE, NativeAppState, PendingSamplePlayback,
     SampleLoadResult, SamplePlaybackReady, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState,
     emit_gui_action, sample_path_label,

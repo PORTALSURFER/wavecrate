@@ -1,7 +1,7 @@
-use super::waveform::{WaveformSelectionEdge, WaveformSelectionKind};
-use super::{
+use super::test_support::{
     DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, NativeAppState, WaveformInteraction,
 };
+use super::waveform::{WaveformSelectionEdge, WaveformSelectionKind};
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
@@ -24,7 +24,7 @@ mod transactions;
 mod waveform_playback;
 mod window_chrome;
 
-fn first_visible_asset_file_path(browser: &super::FolderBrowserState) -> String {
+fn first_visible_asset_file_path(browser: &super::test_support::FolderBrowserState) -> String {
     browser
         .selected_audio_files()
         .first()
@@ -36,8 +36,8 @@ fn first_visible_asset_file_path(browser: &super::FolderBrowserState) -> String 
 fn gui_state_for_span_tests() -> NativeAppState {
     NativeAppState {
         folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
-        folder_browser: super::FolderBrowserState::load_default(),
-        waveform: super::WaveformState::synthetic_for_tests(),
+        folder_browser: super::test_support::FolderBrowserState::load_default(),
+        waveform: super::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
         worker_sender: mpsc::channel().0,
         worker_receiver: None,
@@ -59,14 +59,14 @@ fn gui_state_for_span_tests() -> NativeAppState {
         waveform_loading_target_progress: 0.0,
         audio_player: None,
         loop_playback: false,
-        volume: super::DEFAULT_VOLUME,
+        volume: super::test_support::DEFAULT_VOLUME,
         volume_persist_deadline: None,
-        audio_output_config: super::AudioOutputConfig::default(),
+        audio_output_config: super::test_support::AudioOutputConfig::default(),
         audio_output_resolved: None,
         audio_hosts: Vec::new(),
         audio_devices: Vec::new(),
         audio_sample_rates: Vec::new(),
-        persisted_settings: super::AppSettingsCore::default(),
+        persisted_settings: super::test_support::AppSettingsCore::default(),
         audio_settings_open: false,
         app_settings_tab: Default::default(),
         audio_settings_dropdown: ui::ExclusiveOpen::new(),
@@ -95,7 +95,7 @@ fn gui_state_for_span_tests() -> NativeAppState {
         selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
-        sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        sample_name_view_mode: super::test_support::SampleNameViewMode::DiskFilename,
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,
         startup_auto_load_pending: false,
@@ -118,9 +118,9 @@ fn gui_state_for_span_tests() -> NativeAppState {
 
 type NativeRuntimeForTests = ui::DeclarativeOwnedSurfaceRuntime<
     NativeAppState,
-    super::GuiMessage,
-    fn(&mut NativeAppState) -> UiSurface<super::GuiMessage>,
-    fn(&mut NativeAppState, super::GuiMessage),
+    super::test_support::GuiMessage,
+    fn(&mut NativeAppState) -> UiSurface<super::test_support::GuiMessage>,
+    fn(&mut NativeAppState, super::test_support::GuiMessage),
 >;
 
 fn native_runtime_for_tests(state: NativeAppState, viewport: Vector2) -> NativeRuntimeForTests {
@@ -132,11 +132,16 @@ fn native_runtime_for_tests(state: NativeAppState, viewport: Vector2) -> NativeR
     )
 }
 
-fn project_gui_surface_for_tests(state: &mut NativeAppState) -> UiSurface<super::GuiMessage> {
-    super::view(state).into_surface()
+fn project_gui_surface_for_tests(
+    state: &mut NativeAppState,
+) -> UiSurface<super::test_support::GuiMessage> {
+    super::test_support::view(state).into_surface()
 }
 
-fn reduce_gui_message_for_tests(state: &mut NativeAppState, message: super::GuiMessage) {
+fn reduce_gui_message_for_tests(
+    state: &mut NativeAppState,
+    message: super::test_support::GuiMessage,
+) {
     state.apply_message(message, &mut ui::UpdateContext::default());
 }
 
@@ -145,7 +150,7 @@ fn native_app_state_with_temp_sample(name: &str) -> (NativeAppState, tempfile::T
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join(name);
     fs::write(&sample_path, []).expect("sample file");
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
     let selected_file = sample_path.display().to_string();
@@ -165,12 +170,12 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
     let destination = loops.join("kick.wav");
     fs::write(&source, b"source").expect("write source");
     fs::write(&destination, b"destination").expect("write destination");
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
     state
         .folder_browser
-        .apply_message(super::FolderBrowserMessage::ActivateFolder(
+        .apply_message(super::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ));
     state
@@ -184,8 +189,8 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
         .drop_drag_on_folder(&loops.display().to_string())
         .expect("drop should park conflict");
 
-    let frame =
-        super::view(&mut state).view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let frame = super::test_support::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("File Move Conflict"));
     assert!(frame.paint_plan.contains_text("Conflict 1 of 1"));
@@ -205,7 +210,7 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
     fs::write(&keep, []).expect("write keep wav");
     fs::write(&delete, []).expect("write delete wav");
     state.persisted_settings.trash_folder = Some(trash_root.path().to_path_buf());
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
     state
@@ -247,12 +252,12 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
     fs::write(drums.join("kick.wav"), []).expect("write kick wav");
     fs::write(loops.join("loop.wav"), []).expect("write loop wav");
     state.persisted_settings.trash_folder = Some(trash_root.path().to_path_buf());
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
     state
         .folder_browser
-        .apply_message(super::FolderBrowserMessage::ActivateFolder(
+        .apply_message(super::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ));
 
@@ -264,7 +269,7 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
     assert_eq!(state.folder_browser.selected_file_id(), None);
     state
         .folder_browser
-        .apply_message(super::FolderBrowserMessage::ActivateFolder(
+        .apply_message(super::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ));
     assert!(
@@ -304,7 +309,7 @@ fn collection_shortcut_toggles_selected_sample_membership() {
     let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
 
     state.apply_message(
-        super::GuiMessage::AssignSelectedCollection(collection),
+        super::test_support::GuiMessage::AssignSelectedCollection(collection),
         &mut ui::UpdateContext::default(),
     );
 
@@ -324,7 +329,7 @@ fn collection_shortcut_toggles_selected_sample_membership() {
     );
 
     state.apply_message(
-        super::GuiMessage::AssignSelectedCollection(collection),
+        super::test_support::GuiMessage::AssignSelectedCollection(collection),
         &mut ui::UpdateContext::default(),
     );
 
@@ -352,7 +357,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
     let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
 
     state.apply_message(
-        super::GuiMessage::AssignSelectedCollection(collection),
+        super::test_support::GuiMessage::AssignSelectedCollection(collection),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(state.transaction_history.list_items().len(), 1);
@@ -363,7 +368,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
     );
 
     state.apply_message(
-        super::GuiMessage::UndoTransaction,
+        super::test_support::GuiMessage::UndoTransaction,
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -382,7 +387,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
     );
 
     state.apply_message(
-        super::GuiMessage::RedoTransaction,
+        super::test_support::GuiMessage::RedoTransaction,
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -399,13 +404,13 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
     let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
 
     state.apply_message(
-        super::GuiMessage::AssignSelectedCollection(collection),
+        super::test_support::GuiMessage::AssignSelectedCollection(collection),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::GuiMessage::FolderBrowser(super::FolderBrowserMessage::ActivateCollection(
-            collection,
-        )),
+        super::test_support::GuiMessage::FolderBrowser(
+            super::test_support::FolderBrowserMessage::ActivateCollection(collection),
+        ),
         &mut ui::UpdateContext::default(),
     );
     state.open_sample_context_menu(selected_file, Point::new(12.0, 24.0));
@@ -416,7 +421,7 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
     );
 
     state.apply_message(
-        super::GuiMessage::RemoveContextSampleFromCollection,
+        super::test_support::GuiMessage::RemoveContextSampleFromCollection,
         &mut ui::UpdateContext::default(),
     );
 
@@ -438,14 +443,14 @@ fn start_deferred_sample_load_for_tests(
     state: &mut NativeAppState,
     path: String,
     autoplay: bool,
-    context: &mut ui::UpdateContext<super::GuiMessage>,
+    context: &mut ui::UpdateContext<super::test_support::GuiMessage>,
 ) {
     let ticket = state
         .deferred_sample_load_task
         .active()
         .expect("deferred sample load queued");
     state.apply_message(
-        super::GuiMessage::DeferredSampleLoad {
+        super::test_support::GuiMessage::DeferredSampleLoad {
             ticket,
             path,
             autoplay,
@@ -460,8 +465,8 @@ fn start_deferred_sample_load_for_tests(
 fn folder_browser_splitter_resizes_and_clamps_width() {
     let mut state = NativeAppState {
         folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
-        folder_browser: super::FolderBrowserState::load_default(),
-        waveform: super::WaveformState::synthetic_for_tests(),
+        folder_browser: super::test_support::FolderBrowserState::load_default(),
+        waveform: super::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
         worker_sender: mpsc::channel().0,
         worker_receiver: None,
@@ -483,14 +488,14 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         waveform_loading_target_progress: 0.0,
         audio_player: None,
         loop_playback: false,
-        volume: super::DEFAULT_VOLUME,
+        volume: super::test_support::DEFAULT_VOLUME,
         volume_persist_deadline: None,
-        audio_output_config: super::AudioOutputConfig::default(),
+        audio_output_config: super::test_support::AudioOutputConfig::default(),
         audio_output_resolved: None,
         audio_hosts: Vec::new(),
         audio_devices: Vec::new(),
         audio_sample_rates: Vec::new(),
-        persisted_settings: super::AppSettingsCore::default(),
+        persisted_settings: super::test_support::AppSettingsCore::default(),
         audio_settings_open: false,
         app_settings_tab: Default::default(),
         audio_settings_dropdown: ui::ExclusiveOpen::new(),
@@ -519,7 +524,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
-        sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        sample_name_view_mode: super::test_support::SampleNameViewMode::DiskFilename,
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,
         startup_auto_load_pending: false,
@@ -553,7 +558,8 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
 
 #[test]
 fn default_gui_starts_without_loading_a_sample() {
-    let waveform = super::WaveformState::load_default().expect("default sample loads");
+    let waveform =
+        super::test_support::WaveformState::load_default().expect("default sample loads");
     assert!(!waveform.has_loaded_sample());
     assert_eq!(waveform.file_name(), "No sample loaded");
 }
@@ -564,7 +570,9 @@ fn collection_rename_input_selects_name_when_focused() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        super::GuiMessage::FolderBrowser(super::FolderBrowserMessage::RenameCollection(collection)),
+        super::test_support::GuiMessage::FolderBrowser(
+            super::test_support::FolderBrowserMessage::RenameCollection(collection),
+        ),
         &mut context,
     );
     let rename = state
@@ -638,7 +646,7 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
     state.sample_status = String::from("ready");
 
     state.apply_message(
-        super::GuiMessage::ClearRebuildableCaches,
+        super::test_support::GuiMessage::ClearRebuildableCaches,
         &mut ui::UpdateContext::default(),
     );
 

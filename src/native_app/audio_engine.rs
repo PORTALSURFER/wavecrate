@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supported_sample_rates};
 
-use super::{
+use super::app_scope::{
     AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, VOLUME_PERSIST_DEBOUNCE,
     emit_gui_action, format_sample_rate_label,
 };

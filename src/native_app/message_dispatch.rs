@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use std::time::Instant;
 
-use super::{
+use super::app_scope::{
     AudioSettingsDropdown, GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformInteraction,
     WaveformSelectionKind, emit_gui_action,
 };
