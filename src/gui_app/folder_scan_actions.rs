@@ -229,7 +229,7 @@ impl GuiAppState {
             if changed {
                 self.sample_status = format!("Synced {} filesystem change(s)", paths.len());
                 self.refresh_persisted_metadata_tags_for_source(&source_id);
-                self.refresh_persisted_waveform_cache_indicators();
+                self.schedule_persisted_waveform_cache_indicator_refresh(context);
                 self.persist_user_configuration(
                     "folder_browser.source.filesystem_patch",
                     started_at,
@@ -393,7 +393,11 @@ impl GuiAppState {
         );
     }
 
-    pub(super) fn finish_folder_scan(&mut self, result: FolderScanResult) {
+    pub(super) fn finish_folder_scan(
+        &mut self,
+        result: FolderScanResult,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         let source_id = result.source_id.clone();
         let label = result.label.clone();
@@ -420,7 +424,7 @@ impl GuiAppState {
                 None,
             );
             self.refresh_persisted_metadata_tags_for_source(&source_id);
-            self.refresh_persisted_waveform_cache_indicators();
+            self.schedule_persisted_waveform_cache_indicator_refresh(context);
             self.persist_user_configuration("folder_browser.sources.persist", started_at);
             self.sync_source_watcher();
         } else {

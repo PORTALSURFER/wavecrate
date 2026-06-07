@@ -1,12 +1,18 @@
 use radiant::prelude as ui;
-use std::{collections::hash_map::Entry, path::Path, path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    collections::{HashSet, hash_map::Entry},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 
 use crate::gui_app::waveform::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
     load_cached_waveform_file_for_playback,
 };
 use crate::gui_app::{
-    GuiAppState, GuiMessage, WaveformCacheEntry, WaveformCacheWarmResult, WaveformState,
+    GuiAppState, GuiMessage, WaveformCacheEntry, WaveformCacheIndicatorRefreshResult,
+    WaveformCacheWarmResult, WaveformState,
 };
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
@@ -80,6 +86,7 @@ impl GuiAppState {
             .collect();
     }
 
+    #[cfg(test)]
     pub(in crate::gui_app) fn refresh_persisted_waveform_cache_indicators(&mut self) {
         let audio_files = self
             .folder_browser
@@ -87,13 +94,73 @@ impl GuiAppState {
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<Vec<_>>();
-        for file_id in audio_files {
-            let path = PathBuf::from(&file_id);
+        let result = probe_persisted_waveform_cache_indicators(
+            audio_files.into_iter().map(PathBuf::from).collect(),
+        );
+        self.apply_waveform_cache_indicator_refresh_result(result);
+    }
+
+    pub(in crate::gui_app) fn schedule_persisted_waveform_cache_indicator_refresh(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let paths = self
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| PathBuf::from(&file.id))
+            .collect::<Vec<_>>();
+        if paths.is_empty() {
+            return;
+        }
+        for path in &paths {
+            if self.waveform_cache.contains_key(path) {
+                self.cached_sample_paths.insert(path.display().to_string());
+            }
+        }
+        let ticket = self.waveform_cache_indicator_refresh_task.begin();
+        let results = Arc::clone(&self.waveform_cache_indicator_refresh_results);
+        context.spawn(
+            "gui-waveform-cache-indicators",
+            move || {
+                let result = probe_persisted_waveform_cache_indicators(paths);
+                if let Ok(mut results) = results.lock() {
+                    results.insert(ticket, result);
+                }
+                ticket
+            },
+            GuiMessage::WaveformCacheIndicatorRefreshFinished,
+        );
+    }
+
+    pub(in crate::gui_app) fn finish_waveform_cache_indicator_refresh(
+        &mut self,
+        ticket: ui::TaskTicket,
+    ) {
+        let result = self
+            .waveform_cache_indicator_refresh_results
+            .lock()
+            .ok()
+            .and_then(|mut results| results.remove(&ticket));
+        if !self.waveform_cache_indicator_refresh_task.finish(ticket) {
+            return;
+        }
+        if let Some(result) = result {
+            self.apply_waveform_cache_indicator_refresh_result(result);
+        }
+    }
+
+    fn apply_waveform_cache_indicator_refresh_result(
+        &mut self,
+        result: WaveformCacheIndicatorRefreshResult,
+    ) {
+        for path in result.probed_paths {
+            let file_id = path.display().to_string();
             if self.waveform_cache.contains_key(&path)
-                || cached_waveform_file_playback_ready_exists(&path)
+                || result.playback_ready_paths.contains(&path)
             {
                 self.cached_sample_paths.insert(file_id);
-            } else if cached_waveform_file_exists(&path) {
+            } else if result.warm_candidate_paths.contains(&path) {
                 self.cached_sample_paths.remove(&file_id);
                 self.queue_waveform_cache_warm(path);
             } else {
@@ -260,6 +327,25 @@ pub(in crate::gui_app) fn warm_persisted_waveform_cache(
         })
         .collect();
     WaveformCacheWarmResult { loaded }
+}
+
+fn probe_persisted_waveform_cache_indicators(
+    paths: Vec<PathBuf>,
+) -> WaveformCacheIndicatorRefreshResult {
+    let mut playback_ready_paths = HashSet::new();
+    let mut warm_candidate_paths = HashSet::new();
+    for path in &paths {
+        if cached_waveform_file_playback_ready_exists(path) {
+            playback_ready_paths.insert(path.clone());
+        } else if cached_waveform_file_exists(path) {
+            warm_candidate_paths.insert(path.clone());
+        }
+    }
+    WaveformCacheIndicatorRefreshResult {
+        probed_paths: paths,
+        playback_ready_paths,
+        warm_candidate_paths,
+    }
 }
 
 fn log_slow_cache_phase(event: &'static str, path: &Path, started_at: Instant) {

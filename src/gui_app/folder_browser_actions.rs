@@ -87,7 +87,7 @@ impl GuiAppState {
                 let source = folder_id.clone();
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
-                self.refresh_persisted_waveform_cache_indicators();
+                self.schedule_persisted_waveform_cache_indicator_refresh(context);
                 emit_gui_action(
                     "folder_browser.activate_folder",
                     Some("folder_browser"),
@@ -104,7 +104,7 @@ impl GuiAppState {
             FolderBrowserMessage::ActivateCollection(collection) => {
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::ActivateCollection(collection));
-                self.refresh_persisted_waveform_cache_indicators();
+                self.schedule_persisted_waveform_cache_indicator_refresh(context);
             }
             FolderBrowserMessage::RenameCollection(collection) => {
                 self.begin_collection_rename(collection, context);

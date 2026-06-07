@@ -290,6 +290,8 @@ fn sample_selection_loads_selected_file_into_waveform() {
         waveform_cache: HashMap::new(),
         waveform_cache_order: Default::default(),
         waveform_cache_bytes: 0,
+        waveform_cache_indicator_refresh_task: ui::LatestTask::new(),
+        waveform_cache_indicator_refresh_results: Default::default(),
         waveform_cache_warm_pending: Default::default(),
         waveform_cache_warm_task: ui::LatestTask::new(),
         waveform_cache_warm_results: Default::default(),
@@ -882,6 +884,53 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     assert!(
         state.waveform.audio_bytes().is_empty(),
         "playback-ready persisted cache should not reread source WAV bytes"
+    );
+}
+
+#[test]
+fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    let sample_path = folder.join("cached.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let waveform =
+        super::super::WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_cached_waveform_file_for_tests(&file);
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    assert!(!state.cached_sample_paths.contains(&sample_path_string));
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        super::super::GuiMessage::FolderBrowser(
+            super::super::FolderBrowserMessage::ActivateFolder(folder.display().to_string()),
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state
+            .waveform_cache_indicator_refresh_task
+            .active()
+            .is_some(),
+        "folder activation should queue cache indicator probing off the UI thread"
+    );
+    assert!(
+        !state.cached_sample_paths.contains(&sample_path_string),
+        "folder activation must not synchronously read persisted cache metadata"
+    );
+    assert!(
+        state.waveform_cache_warm_pending.is_empty(),
+        "summary cache warming should wait for the background indicator probe"
     );
 }
 

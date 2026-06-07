@@ -72,8 +72,8 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
         "cached source trees should still be refreshed and pruned after startup"
     );
     assert!(
-        state.cached_sample_paths.contains(&sample_id),
-        "startup should mark cached rows bright when source contents are restored from scan cache"
+        !state.cached_sample_paths.contains(&sample_id),
+        "startup must not probe waveform cache metadata on the UI thread"
     );
 }
 
@@ -96,7 +96,7 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
-    state.finish_folder_scan(result);
+    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
 
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
     assert_eq!(loaded.sources.len(), 1);
@@ -121,7 +121,7 @@ fn default_gui_removes_context_source_from_app_config() {
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
     let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
-    state.finish_folder_scan(result);
+    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     state.context_menu = Some(super::super::BrowserContextMenu {
         kind: super::super::BrowserContextTargetKind::Source,
         path: source_root.path().to_path_buf(),
@@ -154,7 +154,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
     let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
-    state.finish_folder_scan(result);
+    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     state.context_menu = Some(super::super::BrowserContextMenu {
         kind: super::super::BrowserContextTargetKind::Source,
         path: source_root.path().to_path_buf(),
@@ -201,7 +201,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
     let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
-    state.finish_folder_scan(result);
+    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     let visible_before = state.folder_browser.selected_audio_files().len();
     let mut context = ui::UpdateContext::default();
 
@@ -240,7 +240,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         .expect("new source requests scan");
     let source_id = request.source_id.clone();
     let result = super::super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
-    state.finish_folder_scan(result);
+    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     let mut context = ui::UpdateContext::default();
     state.refresh_source_after_filesystem_change(source_id.clone(), Vec::new(), true, &mut context);
 
@@ -273,7 +273,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(finished);
+    state.finish_folder_scan(finished, &mut ui::UpdateContext::default());
     state.maybe_run_pending_source_refresh(&mut context);
 
     let next_task = state

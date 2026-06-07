@@ -64,7 +64,7 @@ impl GuiAppState {
             GuiMessage::FolderScanDiscoveryBatch(batch) => {
                 self.apply_folder_scan_discovery_batch(batch);
             }
-            GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
+            GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result, context),
             GuiMessage::SourceFilesystemChanged {
                 source_id,
                 paths,
@@ -104,6 +104,9 @@ impl GuiAppState {
                 }
             }
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
+            GuiMessage::WaveformCacheIndicatorRefreshFinished(ticket) => {
+                self.finish_waveform_cache_indicator_refresh(ticket)
+            }
             GuiMessage::WaveformCacheWarmFinished(ticket) => {
                 self.finish_waveform_cache_warm(ticket)
             }

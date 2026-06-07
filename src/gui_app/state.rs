@@ -126,6 +126,7 @@ pub(in crate::gui_app) enum GuiMessage {
     },
     SampleLoadProgress(ui::TaskTicket, f32),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
+    WaveformCacheIndicatorRefreshFinished(ui::TaskTicket),
     WaveformCacheWarmFinished(ui::TaskTicket),
     AudioPlayerOpenFinished(ui::TaskTicket),
     PlaySelectedSample,
@@ -225,6 +226,13 @@ pub(in crate::gui_app) struct WaveformCacheEntry {
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformCacheWarmResult {
     pub(in crate::gui_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(in crate::gui_app) struct WaveformCacheIndicatorRefreshResult {
+    pub(in crate::gui_app) probed_paths: Vec<PathBuf>,
+    pub(in crate::gui_app) playback_ready_paths: HashSet<PathBuf>,
+    pub(in crate::gui_app) warm_candidate_paths: HashSet<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -331,6 +339,9 @@ pub(in crate::gui_app) struct GuiAppState {
     pub(in crate::gui_app) waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
     pub(in crate::gui_app) waveform_cache_order: VecDeque<PathBuf>,
     pub(in crate::gui_app) waveform_cache_bytes: usize,
+    pub(in crate::gui_app) waveform_cache_indicator_refresh_task: ui::LatestTask,
+    pub(in crate::gui_app) waveform_cache_indicator_refresh_results:
+        Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheIndicatorRefreshResult>>>,
     pub(in crate::gui_app) waveform_cache_warm_pending: VecDeque<PathBuf>,
     pub(in crate::gui_app) waveform_cache_warm_task: ui::LatestTask,
     pub(in crate::gui_app) waveform_cache_warm_results:

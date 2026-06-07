@@ -83,7 +83,8 @@ pub(in crate::gui_app) use state::{
     SAMPLE_BROWSER_ROW_HEIGHT, SampleLoadResult, SampleNameViewMode, TRANSACTION_LIST_MODAL_ID,
     UNCACHED_SAMPLE_LOAD_DEBOUNCE, VOLUME_PERSIST_DEBOUNCE, VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID,
     VOLUME_SLIDER_WIDTH, WAVEFORM_PANEL_HEIGHT, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_VIEW_HEIGHT,
-    WAVEFORM_WIDGET_ID, WaveformCacheEntry, WaveformCacheWarmResult,
+    WAVEFORM_WIDGET_ID, WaveformCacheEntry, WaveformCacheIndicatorRefreshResult,
+    WaveformCacheWarmResult,
 };
 #[cfg(test)]
 use toolbar::{
