@@ -1,0 +1,411 @@
+use radiant::prelude as ui;
+use std::time::{Duration, Instant};
+use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supported_sample_rates};
+
+use super::app_scope::{
+    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, VOLUME_PERSIST_DEBOUNCE,
+    emit_gui_action, format_sample_rate_label,
+};
+
+mod options;
+
+impl NativeAppState {
+    pub(in crate::native_app) fn maybe_open_audio_player(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if self.audio_player.is_some()
+            || self.audio_open_task.active().is_some()
+            || self.audio_settings_error.is_some()
+        {
+            return;
+        }
+        self.queue_configured_audio_player_open(context);
+    }
+
+    pub(in crate::native_app) fn queue_configured_audio_player_open(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if self.audio_open_task.active().is_some() {
+            return;
+        }
+        let started_at = Instant::now();
+        let ticket = self.audio_open_task.begin();
+        let config = self.audio_output_config.clone();
+        let volume = self.volume;
+        let results = self.audio_open_results.clone();
+        self.audio_settings_error = None;
+        context.spawn_with_priority(
+            "gui-audio-open",
+            ui::TaskPriority::Interactive,
+            move || {
+                log_audio_open_timing("audio.output.open.queue_wait", started_at.elapsed(), true);
+                let open_started_at = Instant::now();
+                let result = AudioPlayer::from_config(&config).map(|mut player| {
+                    player.set_volume(volume);
+                    player
+                });
+                log_audio_open_timing(
+                    "audio.output.open.worker_open",
+                    open_started_at.elapsed(),
+                    true,
+                );
+                if let Ok(mut results) = results.lock() {
+                    results.insert(ticket, result);
+                }
+                ticket
+            },
+            GuiMessage::AudioPlayerOpenFinished,
+        );
+        emit_gui_action(
+            "audio.output.open",
+            Some("audio"),
+            None,
+            "queued",
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn finish_audio_player_open(&mut self, ticket: ui::TaskTicket) {
+        let started_at = Instant::now();
+        let result = self
+            .audio_open_results
+            .lock()
+            .ok()
+            .and_then(|mut results| results.remove(&ticket));
+        if !self.audio_open_task.finish(ticket) {
+            emit_gui_action(
+                "audio.output.open",
+                Some("audio"),
+                None,
+                "stale",
+                started_at,
+                None,
+            );
+            return;
+        }
+        match result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))) {
+            Ok(player) => {
+                log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
+                self.audio_output_resolved = Some(player.output_details().clone());
+                self.audio_settings_error = None;
+                self.audio_player = Some(player);
+                let pending = self.pending_playback_start.take();
+                if let Some(pending) = pending {
+                    match self.start_playback_span(
+                        pending.start_ratio,
+                        pending.end_ratio,
+                        pending.loop_offset_ratio,
+                    ) {
+                        Ok(()) => {
+                            let file_name = self.waveform.file_name();
+                            self.sample_status = format!("Playing {file_name}");
+                        }
+                        Err(err) => {
+                            self.sample_status = format!("Playback unavailable: {err}");
+                            self.audio_settings_error = Some(err);
+                        }
+                    }
+                }
+                emit_gui_action(
+                    "audio.output.open",
+                    Some("audio"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
+                self.audio_settings_error = Some(err.clone());
+                self.audio_player = None;
+                self.audio_output_resolved = None;
+                self.pending_playback_start = None;
+                emit_gui_action(
+                    "audio.output.open",
+                    Some("audio"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn set_volume(&mut self, volume: f32) {
+        let started_at = Instant::now();
+        let previous = volume_milli(self.volume);
+        self.volume = volume.clamp(0.0, 1.0);
+        if let Some(player) = self.audio_player.as_mut() {
+            player.set_volume(self.volume);
+        }
+        if volume_milli(self.volume) == previous {
+            return;
+        }
+        self.volume_persist_deadline = Some(started_at + VOLUME_PERSIST_DEBOUNCE);
+    }
+
+    pub(in crate::native_app) fn flush_pending_volume_persist(&mut self) {
+        let Some(deadline) = self.volume_persist_deadline else {
+            return;
+        };
+        if Instant::now() < deadline {
+            return;
+        }
+        let started_at = Instant::now();
+        self.persist_user_configuration("playback.volume.persist", started_at);
+        if self.volume_persist_deadline.is_none() {
+            emit_gui_action(
+                "playback.volume.set",
+                Some("transport"),
+                None,
+                "success",
+                started_at,
+                None,
+            );
+        }
+    }
+
+    pub(in crate::native_app) fn toggle_audio_settings(&mut self) {
+        let started_at = Instant::now();
+        if self.audio_settings_open && self.app_settings_tab == AppSettingsTab::AudioEngine {
+            self.close_audio_settings_window();
+        } else {
+            self.open_settings_window(AppSettingsTab::AudioEngine);
+        }
+        emit_gui_action(
+            "audio.settings.toggle",
+            Some("top_bar"),
+            None,
+            if self.audio_settings_open {
+                "opened"
+            } else {
+                "closed"
+            },
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn open_general_settings(&mut self) {
+        let started_at = Instant::now();
+        self.open_settings_window(AppSettingsTab::General);
+        emit_gui_action(
+            "settings.general.open",
+            Some("top_bar"),
+            None,
+            "opened",
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn select_settings_tab(&mut self, tab: AppSettingsTab) {
+        let started_at = Instant::now();
+        self.app_settings_tab = tab;
+        self.close_audio_settings_dropdowns();
+        emit_gui_action(
+            "settings.tab.select",
+            Some("settings"),
+            Some(tab.analytics_label()),
+            "selected",
+            started_at,
+            None,
+        );
+    }
+
+    fn open_settings_window(&mut self, tab: AppSettingsTab) {
+        self.refresh_audio_options();
+        self.audio_settings_open = true;
+        self.app_settings_tab = tab;
+        self.close_audio_settings_dropdowns();
+        self.audio_settings_error = None;
+    }
+
+    pub(in crate::native_app) fn close_audio_settings_window(&mut self) {
+        self.audio_settings_open = false;
+        self.close_audio_settings_dropdowns();
+    }
+
+    pub(in crate::native_app) fn audio_settings_dropdown_open(&self) -> bool {
+        self.audio_settings_dropdown.any_open()
+    }
+
+    pub(in crate::native_app) fn close_audio_settings_dropdowns(&mut self) {
+        self.audio_settings_dropdown.close();
+    }
+
+    pub(in crate::native_app) fn toggle_audio_settings_dropdown(
+        &mut self,
+        dropdown: AudioSettingsDropdown,
+    ) {
+        self.audio_settings_dropdown.toggle(dropdown);
+    }
+
+    pub(in crate::native_app) fn set_audio_output_host(&mut self, host: Option<String>) {
+        let started_at = Instant::now();
+        self.close_audio_settings_dropdowns();
+        self.audio_output_config.host = host;
+        self.audio_output_config.device = None;
+        self.audio_output_config.sample_rate = None;
+        self.apply_audio_output_config_change(started_at, "audio.output.host.set");
+    }
+
+    pub(in crate::native_app) fn set_audio_output_device(&mut self, device: Option<String>) {
+        let started_at = Instant::now();
+        self.close_audio_settings_dropdowns();
+        self.audio_output_config.device = device;
+        self.audio_output_config.sample_rate = None;
+        self.apply_audio_output_config_change(started_at, "audio.output.device.set");
+    }
+
+    pub(in crate::native_app) fn set_audio_output_sample_rate(&mut self, sample_rate: Option<u32>) {
+        let started_at = Instant::now();
+        self.close_audio_settings_dropdowns();
+        self.audio_output_config.sample_rate = sample_rate;
+        self.apply_audio_output_config_change(started_at, "audio.output.sample_rate.set");
+    }
+
+    pub(in crate::native_app) fn clear_rebuildable_caches(&mut self) {
+        let started_at = Instant::now();
+        match wavecrate::app_dirs::clear_rebuildable_cache_payloads() {
+            Ok(path) => {
+                self.audio_settings_error = None;
+                self.sample_status = format!("Rebuildable caches cleared: {}", path.display());
+                let target = path.display().to_string();
+                emit_gui_action(
+                    "settings.cache.clear_rebuildable",
+                    Some("settings"),
+                    Some(target.as_str()),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                self.audio_settings_error = Some(err.clone());
+                self.sample_status = err.clone();
+                emit_gui_action(
+                    "settings.cache.clear_rebuildable",
+                    Some("settings"),
+                    None,
+                    "failed",
+                    started_at,
+                    Some(err.as_str()),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn apply_audio_output_config_change(
+        &mut self,
+        started_at: Instant,
+        action: &'static str,
+    ) {
+        let restart_span = self
+            .waveform
+            .is_playing()
+            .then_some(self.current_playback_span)
+            .flatten();
+        if let Some(player) = self.audio_player.as_mut() {
+            player.stop();
+        }
+        self.audio_open_task.cancel();
+        self.audio_player = None;
+        self.audio_output_resolved = None;
+        self.refresh_audio_options();
+
+        let mut outcome = "success";
+        let mut error = None;
+        match self.open_configured_audio_player() {
+            Ok(()) => {
+                if let Some((start, end)) = restart_span {
+                    if let Err(err) = self.start_playback_current_span(start, end) {
+                        self.waveform.stop_playback();
+                        self.current_playback_span = None;
+                        self.sample_status =
+                            format!("Audio output changed | playback failed: {err}");
+                        outcome = "playback_error";
+                        error = Some(err);
+                    } else {
+                        self.sample_status = format!(
+                            "Audio output changed | {}",
+                            self.audio_engine_detail_label()
+                        );
+                    }
+                } else {
+                    self.waveform.stop_playback();
+                    self.current_playback_span = None;
+                    self.sample_status = format!(
+                        "Audio output changed | {}",
+                        self.audio_engine_detail_label()
+                    );
+                }
+            }
+            Err(err) => {
+                self.waveform.stop_playback();
+                self.current_playback_span = None;
+                self.audio_settings_error = Some(err.clone());
+                self.sample_status = format!("Audio output unavailable: {err}");
+                outcome = "error";
+                error = Some(err);
+            }
+        }
+        self.persist_user_configuration("audio.output.persist", started_at);
+        emit_gui_action(
+            action,
+            Some("audio_settings"),
+            None,
+            outcome,
+            started_at,
+            error.as_deref(),
+        );
+    }
+
+    pub(in crate::native_app) fn open_configured_audio_player(&mut self) -> Result<(), String> {
+        let mut player = AudioPlayer::from_config(&self.audio_output_config)?;
+        player.set_volume(self.volume);
+        self.audio_output_resolved = Some(player.output_details().clone());
+        self.audio_settings_error = None;
+        self.audio_player = Some(player);
+        Ok(())
+    }
+}
+
+impl AppSettingsTab {
+    fn analytics_label(self) -> &'static str {
+        match self {
+            Self::General => "general",
+            Self::AudioEngine => "audio_engine",
+        }
+    }
+}
+
+fn volume_milli(volume: f32) -> u16 {
+    (volume.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+fn log_audio_open_timing(event: &'static str, elapsed: Duration, always: bool) {
+    if !always && elapsed < Duration::from_millis(4) {
+        return;
+    }
+    if always {
+        tracing::info!(
+            target: "wavecrate::debug::sample_load",
+            event,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            "Audio output timing"
+        );
+    } else {
+        tracing::warn!(
+            target: "wavecrate::debug::sample_load",
+            event,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            "Slow audio output UI phase"
+        );
+    }
+}

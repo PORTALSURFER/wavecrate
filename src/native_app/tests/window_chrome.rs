@@ -4,7 +4,7 @@ use super::*;
 #[test]
 fn default_window_title_marks_alpha_build() {
     assert_eq!(
-        super::super::launch::DEFAULT_WINDOW_TITLE,
+        crate::native_app::test_support::DEFAULT_WINDOW_TITLE,
         "Wavecrate - alpha"
     );
 }

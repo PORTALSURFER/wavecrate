@@ -5,11 +5,11 @@
 //! from the owning module directly and shrinking this scope.
 
 pub(super) use super::audio_settings::format_sample_rate_label;
+pub(super) use super::emit_gui_action;
 pub(super) use super::file_actions::sample_path_label;
 pub(super) use super::folder_browser::{
     FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderScanProgress,
 };
-pub(super) use super::launch::emit_gui_action;
 pub(super) use super::layout::view;
 pub(super) use super::sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 pub(super) use super::shortcuts::default_gui_shortcut_resolution;
