@@ -1,14 +1,14 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState};
-use crate::native_app::library_browser::folder_browser::{
+#[cfg(test)]
+use crate::native_app::metadata::MetadataTagCompletionOption;
+use crate::native_app::metadata::MetadataTagDisplayCategory;
+use crate::native_app::sample_library::folder_browser::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
     FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, FolderBrowserMessage, FolderBrowserState,
     TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder,
 };
-#[cfg(test)]
-use crate::native_app::metadata::MetadataTagCompletionOption;
-use crate::native_app::metadata::MetadataTagDisplayCategory;
 
 use tag_editor::{metadata_section, tag_field_height};
 use tree_hit_target::FolderTreeHitTarget;

@@ -1,9 +1,9 @@
 //! Test-only native-app accessors.
 
-pub(in crate::native_app) use super::library_browser::context_menu_target::{
+pub(in crate::native_app) use super::metadata::MetadataTagInputMode;
+pub(in crate::native_app) use super::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
-pub(in crate::native_app) use super::metadata::MetadataTagInputMode;
 pub(in crate::native_app) use crate::native_app::app::*;
 pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::SampleFileHitTarget;
 pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser_from_state as sample_browser;
@@ -20,13 +20,13 @@ pub(in crate::native_app) use crate::native_app::audio::audio_settings::{
 pub(in crate::native_app) use crate::native_app::audio::sample_load_actions::{
     KEYBOARD_SAMPLE_LOAD_DEBOUNCE, UNCACHED_SAMPLE_LOAD_DEBOUNCE,
 };
-pub(in crate::native_app) use crate::native_app::library_browser::file_actions::{
+pub(in crate::native_app) use crate::native_app::sample_library::file_actions::{
     format_copy_path, normalize_wav_file_in_place,
 };
-pub(in crate::native_app) use crate::native_app::library_browser::folder_browser::{
+pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
     DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
 };
-pub(in crate::native_app) use crate::native_app::library_browser::sample_list::{
+pub(in crate::native_app) use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 pub(in crate::native_app) use crate::native_app::shell::{

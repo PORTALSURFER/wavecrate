@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
-use crate::native_app::library_browser::folder_browser::RenamePathRemap;
+use crate::native_app::sample_library::folder_browser::RenamePathRemap;
 
 impl NativeAppState {
     pub(in crate::native_app) fn begin_folder_browser_rename(

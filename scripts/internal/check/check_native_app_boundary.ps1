@@ -41,7 +41,7 @@ function Convert-ToRepoPath {
 function Test-DomainNativeAppPath {
   param([string]$RepoPath)
 
-  foreach ($root in @("audio", "library_browser", "metadata", "waveform", "workflows")) {
+  foreach ($root in @("audio", "metadata", "sample_library", "waveform", "workflows")) {
     if ($RepoPath -eq "src/native_app/$root.rs") { return $true }
     if ($RepoPath.StartsWith("src/native_app/$root/")) { return $true }
   }
@@ -62,7 +62,7 @@ function Test-TestOrSupportPath {
 Push-Location $rootDir
 try {
   $violations = New-Object System.Collections.Generic.List[string]
-  $ambiguousModules = @("browser", "context_menu", "widgets")
+  $ambiguousModules = @("browser", "context_menu", "library_browser", "widgets")
 
   foreach ($file in Get-ChildItem -LiteralPath (Join-Path $rootDir "src/native_app") -Recurse -File -Filter "*.rs") {
     $repoPath = Convert-ToRepoPath -Path $file.FullName
@@ -82,7 +82,7 @@ try {
   foreach ($moduleName in $ambiguousModules) {
     $moduleFile = Join-Path $rootDir ("src/native_app/{0}.rs" -f $moduleName)
     if (Test-Path -LiteralPath $moduleFile) {
-      $violations.Add(("src/native_app/{0}.rs: ambiguous root native-app module; move feature-specific code under its owner, e.g. app_chrome or library_browser" -f $moduleName))
+      $violations.Add(("src/native_app/{0}.rs: ambiguous root native-app module; move feature-specific code under its owner, e.g. app_chrome or sample_library" -f $moduleName))
     }
 
     $nativeAppRoot = Join-Path $rootDir "src/native_app.rs"

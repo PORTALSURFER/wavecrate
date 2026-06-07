@@ -28,8 +28,8 @@ pub(super) use crate::native_app::audio::audio_settings::format_sample_rate_labe
 pub(super) use crate::native_app::audio::sample_load_actions::{
     NormalizedWaveformReload, WaveformPlaybackResume,
 };
-pub(super) use crate::native_app::library_browser::file_actions::sample_path_label;
-pub(super) use crate::native_app::library_browser::folder_browser::{
+pub(super) use crate::native_app::sample_library::file_actions::sample_path_label;
+pub(super) use crate::native_app::sample_library::folder_browser::{
     FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderScanProgress,
 };
 pub(super) use crate::native_app::shell::emit_gui_action;

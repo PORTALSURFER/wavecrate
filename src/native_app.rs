@@ -3,8 +3,8 @@
 mod app;
 mod app_chrome;
 mod audio;
-mod library_browser;
 mod metadata;
+mod sample_library;
 mod shell;
 #[cfg(test)]
 mod test_support;

@@ -5,10 +5,10 @@ use std::collections::HashSet;
 use super::SampleFileHitTarget;
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
-use crate::native_app::library_browser::folder_browser::{
+use crate::native_app::sample_library::folder_browser::{
     self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState,
 };
-use crate::native_app::library_browser::sample_list::{
+use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 

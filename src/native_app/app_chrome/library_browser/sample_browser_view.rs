@@ -2,10 +2,10 @@ use radiant::prelude as ui;
 use std::collections::{HashMap, HashSet};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, SampleNameViewMode};
-use crate::native_app::library_browser::folder_browser::{
+use crate::native_app::sample_library::folder_browser::{
     FileColumn, FileColumnDragFeedback, FolderBrowserMessage, FolderBrowserState,
 };
-use crate::native_app::library_browser::sample_list::{
+use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
 };

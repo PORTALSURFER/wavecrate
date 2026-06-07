@@ -3,7 +3,7 @@ use crate::native_app::app::{
     sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
-use crate::native_app::library_browser::folder_browser::DEFAULT_FOLDER_WIDTH;
+use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
 use radiant::prelude as ui;
 use std::{
     collections::HashMap,
@@ -28,7 +28,7 @@ impl NativeAppState {
             has_configured_sources && folder_browser.selected_source_loaded();
         let (worker_sender, worker_receiver) = mpsc::channel();
         let source_watcher = has_configured_sources.then(|| {
-            crate::native_app::library_browser::source_watcher::GuiSourceWatcherHandle::spawn(
+            crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle::spawn(
                 config.sources.clone(),
                 worker_sender.clone(),
             )
@@ -134,7 +134,7 @@ impl NativeAppState {
             Some(watcher) => watcher.replace_sources(sources),
             None => {
                 self.source_watcher = Some(
-                    crate::native_app::library_browser::source_watcher::GuiSourceWatcherHandle::spawn(
+                    crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle::spawn(
                         sources,
                         self.worker_sender.clone(),
                     ),

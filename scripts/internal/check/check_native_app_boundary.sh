@@ -32,8 +32,8 @@ while (( $# > 0 )); do
 done
 
 violations=()
-domain_roots=(audio library_browser metadata waveform workflows)
-ambiguous_modules=(browser context_menu widgets)
+domain_roots=(audio metadata sample_library waveform workflows)
+ambiguous_modules=(browser context_menu library_browser widgets)
 
 is_domain_native_app_path() {
   local path="$1"
@@ -68,7 +68,7 @@ done < <(find ./src/native_app -type f -name '*.rs' -print0)
 
 for module_name in "${ambiguous_modules[@]}"; do
   if [[ -f "src/native_app/$module_name.rs" ]]; then
-    violations+=("src/native_app/$module_name.rs: ambiguous root native-app module; move feature-specific code under its owner, e.g. app_chrome or library_browser")
+    violations+=("src/native_app/$module_name.rs: ambiguous root native-app module; move feature-specific code under its owner, e.g. app_chrome or sample_library")
   fi
 
   if [[ -f src/native_app.rs ]]; then

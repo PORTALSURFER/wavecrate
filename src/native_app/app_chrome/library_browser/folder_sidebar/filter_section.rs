@@ -1,9 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::library_browser::folder_browser::{
-    FolderBrowserMessage, FolderBrowserState,
-};
+use crate::native_app::sample_library::folder_browser::{FolderBrowserMessage, FolderBrowserState};
 use crate::native_app::ui::ids as widget_ids;
 
 const FILTER_PANEL_PADDING: f32 = 6.0;

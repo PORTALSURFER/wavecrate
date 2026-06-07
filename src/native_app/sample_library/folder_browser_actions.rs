@@ -4,11 +4,11 @@ use std::time::{Duration, Instant};
 use wavecrate::sample_sources::SampleCollection;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
-use crate::native_app::library_browser::file_actions::sample_path_label;
-use crate::native_app::library_browser::folder_browser::{
+use crate::native_app::sample_library::file_actions::sample_path_label;
+use crate::native_app::sample_library::folder_browser::{
     FolderBrowserMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
 };
-use crate::native_app::library_browser::sample_list::{
+use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 

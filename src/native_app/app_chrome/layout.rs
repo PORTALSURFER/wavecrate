@@ -10,7 +10,7 @@ use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::waveform_panel::{WaveformPanelViewModel, waveform_panel};
 use crate::native_app::audio::audio_settings::top_status_bar;
-use crate::native_app::library_browser::folder_browser::FileColumnDragFeedback;
+use crate::native_app::sample_library::folder_browser::FileColumnDragFeedback;
 use crate::native_app::transaction_history::TRANSACTION_LIST_MODAL_ID;
 use crate::native_app::{
     app::FileMoveConflictResolution,

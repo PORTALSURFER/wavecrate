@@ -3,7 +3,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::library_browser::context_menu_target::{
+use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
 

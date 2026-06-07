@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::library_browser::folder_browser::{
+use crate::native_app::sample_library::folder_browser::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, FolderBrowserMessage,
     FolderBrowserState, SampleCollectionView,

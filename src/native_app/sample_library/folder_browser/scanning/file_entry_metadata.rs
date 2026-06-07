@@ -10,13 +10,13 @@ use super::super::{
 };
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
-pub(in crate::native_app::library_browser::folder_browser) fn file_entry(
+pub(in crate::native_app::sample_library::folder_browser) fn file_entry(
     path: &PathBuf,
 ) -> FileEntry {
     file_entry_with_metadata(path, Rating::NEUTRAL, false, Vec::new())
 }
 
-pub(in crate::native_app::library_browser::folder_browser) fn file_entry_with_metadata(
+pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_metadata(
     path: &PathBuf,
     rating: Rating,
     rating_locked: bool,

@@ -11,7 +11,7 @@ use crate::native_app::app::{
     FileMoveConflictResolution, FolderBrowserMessage, GuiMessage, NativeAppState, emit_gui_action,
     sample_path_label,
 };
-use crate::native_app::library_browser::{DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH};
+use crate::native_app::sample_library::{DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH};
 
 impl NativeAppState {
     pub(in crate::native_app) fn drag_sample_file(

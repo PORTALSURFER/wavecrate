@@ -9,12 +9,12 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmResult, AppSettingsTab, NormalizationProgress, NormalizationResult,
     SampleLoadResult, SamplePlaybackReady,
 };
-use crate::native_app::library_browser::context_menu_target::BrowserContextTargetKind;
-use crate::native_app::library_browser::folder_browser::{
+use crate::native_app::metadata::MetadataTagPersistResult;
+use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
+use crate::native_app::sample_library::folder_browser::{
     FileMoveConflictResolution, FolderBrowserMessage, FolderScanDiscoveryBatch, FolderScanProgress,
     FolderScanResult,
 };
-use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::waveform::WaveformInteraction;
 
 #[derive(Clone, Debug, PartialEq)]

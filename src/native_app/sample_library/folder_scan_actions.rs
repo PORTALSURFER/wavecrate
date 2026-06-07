@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
-use crate::native_app::library_browser::folder_browser::{
+use crate::native_app::sample_library::folder_browser::{
     self, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
 };
 
