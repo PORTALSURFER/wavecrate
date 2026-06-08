@@ -6,7 +6,7 @@ use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
     runtime::{Event, PaintTextInput, TransientOverlayContext, UiSurface},
-    widgets::{DragHandleMessage, PointerModifiers, WidgetInput, WidgetKey},
+    widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
 

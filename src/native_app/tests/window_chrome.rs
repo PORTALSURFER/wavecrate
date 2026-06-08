@@ -2,6 +2,7 @@ use super::*;
 use crate::native_app::app_chrome::waveform_panel::waveform_loading_visual;
 use radiant::runtime::{NativeFileDrop, RuntimeBridge, SurfaceRuntime};
 use std::{cell::RefCell, rc::Rc};
+use winit::{dpi::PhysicalPosition, event::MouseButton};
 
 fn waveform_rect(runtime: &NativeRuntimeForTests) -> Rect {
     *runtime
@@ -17,6 +18,66 @@ fn assert_ratio_near(actual: Option<f32>, expected: f32) {
         (actual - expected).abs() <= f32::EPSILON * 8.0,
         "expected {expected}, got {actual}"
     );
+}
+
+struct NativePointerShellHarness {
+    runtime: NativeRuntimeForTests,
+    last_cursor: Option<Point>,
+    dpi_scale: radiant::theme::DpiScale,
+}
+
+impl NativePointerShellHarness {
+    fn new(state: NativeAppState) -> Self {
+        Self {
+            runtime: native_runtime_for_tests(state, Vector2::new(900.0, 620.0)),
+            last_cursor: None,
+            dpi_scale: radiant::theme::DpiScale::ONE,
+        }
+    }
+
+    fn runtime(&self) -> &NativeRuntimeForTests {
+        &self.runtime
+    }
+
+    fn cursor_moved_logical(&mut self, point: Point) -> Option<u64> {
+        self.last_cursor = Some(point);
+        self.runtime.dispatch_event(Event::pointer_move(point))
+    }
+
+    fn cursor_moved_physical(&mut self, position: PhysicalPosition<f64>) -> Option<u64> {
+        let point = Point::new(
+            self.dpi_scale.physical_to_logical(position.x as f32),
+            self.dpi_scale.physical_to_logical(position.y as f32),
+        );
+        self.cursor_moved_logical(point)
+    }
+
+    fn mouse_pressed(&mut self, button: MouseButton) -> Option<u64> {
+        let position = self.last_cursor?;
+        self.runtime.dispatch_event(Event::pointer_press(
+            position,
+            pointer_button(button)?,
+            Default::default(),
+        ))
+    }
+
+    fn mouse_released(&mut self, button: MouseButton) -> Option<u64> {
+        let position = self.last_cursor?;
+        self.runtime.dispatch_event(Event::pointer_release(
+            position,
+            pointer_button(button)?,
+            Default::default(),
+        ))
+    }
+}
+
+fn pointer_button(button: MouseButton) -> Option<PointerButton> {
+    Some(match button {
+        MouseButton::Left => PointerButton::Primary,
+        MouseButton::Right => PointerButton::Secondary,
+        MouseButton::Middle => PointerButton::Auxiliary,
+        _ => return None,
+    })
 }
 
 #[test]
@@ -186,6 +247,82 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
 }
 
 #[test]
+fn native_pointer_shell_routes_primary_waveform_click_to_play_mark() {
+    let state = gui_state_for_span_tests();
+    let mut harness = NativePointerShellHarness::new(state);
+    let rect = waveform_rect(harness.runtime());
+    let point = Point::new(rect.min.x + rect.width() * 0.42, rect.center().y);
+
+    assert_eq!(
+        harness.cursor_moved_physical(PhysicalPosition::new(point.x as f64, point.y as f64)),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_pressed(MouseButton::Left),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_released(MouseButton::Left),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_ratio_near(
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .play_mark_ratio(),
+        0.42,
+    );
+    assert_eq!(
+        harness.runtime().bridge().state().waveform.play_selection(),
+        None
+    );
+    assert!(harness.runtime().bridge().state().waveform.is_playing());
+}
+
+#[test]
+fn native_pointer_shell_routes_primary_waveform_selection_drag() {
+    let state = gui_state_for_span_tests();
+    let mut harness = NativePointerShellHarness::new(state);
+    let rect = waveform_rect(harness.runtime());
+    let press = Point::new(rect.min.x + rect.width() * 0.25, rect.center().y);
+    let drag = Point::new(rect.min.x + rect.width() * 0.75, rect.center().y);
+
+    assert_eq!(
+        harness.cursor_moved_logical(press),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_pressed(MouseButton::Left),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.cursor_moved_logical(drag),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_released(MouseButton::Left),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_eq!(
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .play_mark_ratio(),
+        Some(0.25)
+    );
+    assert_eq!(
+        harness.runtime().bridge().state().waveform.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.25, 0.75))
+    );
+}
+
+#[test]
 fn transaction_list_modal_blocks_waveform_interaction_behind_it() {
     let mut state = gui_state_for_span_tests();
     state.transaction_list_open = true;
@@ -260,6 +397,106 @@ fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
 
     assert_ratio_near(runtime.bridge().state().waveform.edit_mark_ratio(), 0.38);
     assert_eq!(runtime.bridge().state().waveform.edit_selection(), None);
+}
+
+#[test]
+fn native_pointer_shell_routes_secondary_waveform_click_to_edit_mark() {
+    let state = gui_state_for_span_tests();
+    let mut harness = NativePointerShellHarness::new(state);
+    let rect = waveform_rect(harness.runtime());
+    let point = Point::new(rect.min.x + rect.width() * 0.38, rect.center().y);
+
+    assert_eq!(
+        harness.cursor_moved_logical(point),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_pressed(MouseButton::Right),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_released(MouseButton::Right),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_ratio_near(
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .edit_mark_ratio(),
+        0.38,
+    );
+    assert_eq!(
+        harness.runtime().bridge().state().waveform.edit_selection(),
+        None
+    );
+}
+
+#[test]
+fn native_pointer_shell_routes_secondary_waveform_edit_selection_drag() {
+    let state = gui_state_for_span_tests();
+    let mut harness = NativePointerShellHarness::new(state);
+    let rect = waveform_rect(harness.runtime());
+    let press = Point::new(rect.min.x + rect.width() * 0.2, rect.center().y);
+    let drag = Point::new(rect.min.x + rect.width() * 0.7, rect.center().y);
+
+    assert_eq!(
+        harness.cursor_moved_logical(press),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_pressed(MouseButton::Right),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.cursor_moved_logical(drag),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_released(MouseButton::Right),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_eq!(
+        harness.runtime().bridge().state().waveform.edit_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.7))
+    );
+}
+
+#[test]
+fn native_pointer_shell_preserves_waveform_drag_after_playback_frame_refresh() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.start_playback(0.25);
+    let mut harness = NativePointerShellHarness::new(state);
+    let rect = waveform_rect(harness.runtime());
+    let press = Point::new(rect.min.x + rect.width() * 0.3, rect.center().y);
+    let drag = Point::new(rect.min.x + rect.width() * 0.8, rect.center().y);
+
+    assert_eq!(
+        harness.cursor_moved_logical(press),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_pressed(MouseButton::Left),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    harness.runtime.bridge_mut().queue_animation_frame();
+    harness.runtime.drain_runtime_messages();
+    assert_eq!(
+        harness.cursor_moved_logical(drag),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+    assert_eq!(
+        harness.mouse_released(MouseButton::Left),
+        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+    );
+
+    assert_eq!(
+        harness.runtime().bridge().state().waveform.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.3, 0.8))
+    );
 }
 
 #[test]
