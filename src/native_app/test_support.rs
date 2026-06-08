@@ -7,15 +7,15 @@ pub(in crate::native_app) use super::sample_library::context_menu_target::{
 pub(in crate::native_app) use crate::native_app::app::*;
 pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::SampleFileHitTarget;
 pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser_from_state as sample_browser;
+pub(in crate::native_app) use crate::native_app::app_chrome::settings::{
+    AUDIO_ENGINE_PILL_ID, AUDIO_SETTINGS_POPUP_HEIGHT, GENERAL_SETTINGS_BUTTON_ID, VOLUME_SLIDER_ID,
+};
+pub(in crate::native_app) use crate::native_app::app_chrome::settings::{
+    audio_settings_popover, top_status_bar,
+};
 pub(in crate::native_app) use crate::native_app::app_chrome::toolbar::{
     TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_RANDOM_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button,
     toolbar_icon_color, toolbar_icon_glyph,
-};
-pub(in crate::native_app) use crate::native_app::audio::audio_settings::{
-    AUDIO_ENGINE_PILL_ID, AUDIO_SETTINGS_POPUP_HEIGHT, GENERAL_SETTINGS_BUTTON_ID, VOLUME_SLIDER_ID,
-};
-pub(in crate::native_app) use crate::native_app::audio::audio_settings::{
-    audio_settings_popover, top_status_bar,
 };
 pub(in crate::native_app) use crate::native_app::audio::sample_load_actions::{
     KEYBOARD_SAMPLE_LOAD_DEBOUNCE, UNCACHED_SAMPLE_LOAD_DEBOUNCE,

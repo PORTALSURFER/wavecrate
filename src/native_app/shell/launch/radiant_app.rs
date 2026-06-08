@@ -3,7 +3,7 @@ use std::panic::{self, AssertUnwindSafe};
 use radiant::runtime::NativeRunOptions;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcut_resolution, view};
-use crate::native_app::audio::audio_settings;
+use crate::native_app::app_chrome::settings;
 use crate::native_app::sample_library::folder_browser::{FOLDER_TREE_LIST_ID, TREE_ROW_HEIGHT};
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -27,7 +27,7 @@ pub(super) fn run_radiant_app(
                 },
             )
             .subscriptions(NativeAppState::worker_subscription)
-            .auxiliary_windows(audio_settings::auxiliary_windows)
+            .auxiliary_windows(settings::auxiliary_windows)
             .on_shutdown(NativeAppState::shutdown)
             .on_scroll(|state, update, _context| {
                 if update.node_id == SAMPLE_BROWSER_LIST_ID {

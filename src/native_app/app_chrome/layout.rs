@@ -6,10 +6,10 @@ use crate::native_app::app_chrome::library_browser::sample_browser_view::{
     SampleBrowserViewModel, sample_browser,
 };
 use crate::native_app::app_chrome::metadata_tag_library;
+use crate::native_app::app_chrome::settings::top_status_bar;
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::{MainToolbarViewModel, main_toolbar};
 use crate::native_app::app_chrome::waveform_panel::{WaveformPanelViewModel, waveform_panel};
-use crate::native_app::audio::audio_settings::top_status_bar;
 use radiant::prelude as ui;
 
 pub(super) const CENTER_PANEL_PADDING: f32 = 6.0;

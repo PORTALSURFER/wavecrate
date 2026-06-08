@@ -6,6 +6,7 @@ use super::{
     AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AppSettingsTab, AudioSettingsDropdown,
     AudioSettingsSnapshot, GuiMessage,
 };
+use crate::native_app::ui::display::format_sample_rate_label;
 
 const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;
 const AUDIO_SETTINGS_ROW_SPACING: f32 = 7.0;
@@ -354,15 +355,5 @@ fn default_option_label(label: &str, is_default: bool) -> String {
         format!("{label} (default)")
     } else {
         label.to_string()
-    }
-}
-
-pub(in crate::native_app) fn format_sample_rate_label(sample_rate: u32) -> String {
-    if sample_rate >= 1000 && sample_rate.is_multiple_of(1000) {
-        format!("{} kHz", sample_rate / 1000)
-    } else if sample_rate >= 1000 {
-        format!("{:.1} kHz", sample_rate as f32 / 1000.0)
-    } else {
-        format!("{sample_rate} Hz")
     }
 }
