@@ -53,26 +53,34 @@ fn waveform_viewport_with_loading_state(
     let viewport = waveform::waveform_viewport_view(model.waveform)
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT);
-    let mut layers = vec![viewport];
-    if let Some(hover) = model.drop_hover {
-        layers.push(waveform_drop_hover_visual(hover.supported));
-    }
-    if let Some(label) = model.loading_label {
-        layers.push(waveform_loading_visual(label, model.loading_progress));
-        if model.block_input_while_loading {
-            layers.push(
-                ui::pointer_shield(true)
-                    .view()
-                    .key("waveform-loading-input-blocker")
-                    .input_only()
-                    .fill_width()
-                    .height(WAVEFORM_VIEW_HEIGHT),
-            );
-        }
-    }
-    ui::stack_layers(layers)
+    ui::overlay_stack(viewport)
+        .overlay_opt(
+            model
+                .drop_hover
+                .map(|hover| waveform_drop_hover_visual(hover.supported)),
+        )
+        .overlay_opt(
+            model
+                .loading_label
+                .map(|label| waveform_loading_visual(label, model.loading_progress)),
+        )
+        .input_opt(waveform_loading_input_blocker(model))
+        .into_view()
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT)
+}
+
+fn waveform_loading_input_blocker(
+    model: &WaveformPanelViewModel<'_>,
+) -> Option<ui::View<GuiMessage>> {
+    (model.loading_label.is_some() && model.block_input_while_loading).then(|| {
+        ui::pointer_shield(true)
+            .view()
+            .key("waveform-loading-input-blocker")
+            .input_only()
+            .fill_width()
+            .height(WAVEFORM_VIEW_HEIGHT)
+    })
 }
 
 #[cfg_attr(test, allow(dead_code))]
