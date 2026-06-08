@@ -258,6 +258,12 @@ impl NativeAppState {
             GuiMessage::SelectAllSamples => {
                 self.select_all_samples();
             }
+            GuiMessage::SampleBrowserWindowChanged(change) => {
+                self.folder_browser.apply_file_view_window_change(change);
+            }
+            GuiMessage::FolderTreeWindowChanged(change) => {
+                self.folder_browser.apply_tree_view_window_change(change);
+            }
             GuiMessage::CollapseSelectedFolder => {
                 self.collapse_selected_folder();
             }

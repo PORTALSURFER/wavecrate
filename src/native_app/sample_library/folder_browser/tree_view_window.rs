@@ -13,6 +13,7 @@ impl FolderBrowserState {
         self.tree_view_follow_selection.clear();
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn set_tree_view_start_from_scroll_offset(
         &mut self,
         offset_y: f32,
@@ -21,6 +22,16 @@ impl FolderBrowserState {
         let total_items = self.visible_folders().len();
         self.tree_view_controller
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
+    }
+
+    pub(in crate::native_app) fn apply_tree_view_window_change(
+        &mut self,
+        change: ui::VirtualListWindowChange,
+    ) {
+        self.tree_view_controller
+            .set_total_items(change.window.total_items);
+        self.tree_view_controller
+            .set_viewport_start(change.window.viewport_start);
     }
 
     pub(in crate::native_app) fn follow_selected_tree_view(

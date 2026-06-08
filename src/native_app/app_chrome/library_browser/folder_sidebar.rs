@@ -179,6 +179,17 @@ fn folder_tree_window(
         |index| folder_row(visible_folders[index].clone(), drag_revision),
         TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
+    .on_scroll_update({
+        let window = window;
+        move |update| {
+            GuiMessage::FolderTreeWindowChanged(ui::virtual_list_window_change_for_scroll(
+                update,
+                TREE_ROW_HEIGHT,
+                window,
+                FOLDER_TREE_OVERSCAN_ROWS,
+            ))
+        }
+    })
     .style(ui::WidgetStyle::default())
     .fill_height()
 }

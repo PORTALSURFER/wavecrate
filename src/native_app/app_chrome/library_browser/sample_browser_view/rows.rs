@@ -29,27 +29,27 @@ pub(super) fn sample_browser_rows(
         return empty_sample_browser_rows();
     }
 
-    ui::virtual_list_window(
-        window,
-        SAMPLE_BROWSER_ROW_HEIGHT,
-        |index| {
-            let Some(file) =
-                folder_browser.selected_audio_file_at_matching_tags(index, metadata_tags_by_file)
-            else {
-                return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
-            };
-            sample_browser_row(sample_row_display(
-                file,
-                folder_browser,
-                columns,
-                name_view_mode,
-                metadata_tags_by_file,
-                cached_sample_paths.contains(&file.id),
-                suppress_row_hover,
-            ))
-        },
-        SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
-    )
+    ui::virtual_list_windowed(|index| {
+        let Some(file) =
+            folder_browser.selected_audio_file_at_matching_tags(index, metadata_tags_by_file)
+        else {
+            return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
+        };
+        sample_browser_row(sample_row_display(
+            file,
+            folder_browser,
+            columns,
+            name_view_mode,
+            metadata_tags_by_file,
+            cached_sample_paths.contains(&file.id),
+            suppress_row_hover,
+        ))
+    })
+    .row_height(SAMPLE_BROWSER_ROW_HEIGHT)
+    .window(window)
+    .overscan_px(SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32)
+    .on_window_changed(GuiMessage::SampleBrowserWindowChanged)
+    .view()
     .id(SAMPLE_BROWSER_LIST_ID)
     .fill()
 }

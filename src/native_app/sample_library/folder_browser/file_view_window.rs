@@ -25,13 +25,14 @@ impl FolderBrowserState {
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
-    pub(in crate::native_app) fn track_file_view_scroll_offset(
+    pub(in crate::native_app) fn apply_file_view_window_change(
         &mut self,
-        offset_y: f32,
-        row_height: f32,
+        change: ui::VirtualListWindowChange,
     ) {
         self.file_view_controller
-            .set_scroll_offset(offset_y, row_height);
+            .set_total_items(change.window.total_items);
+        self.file_view_controller
+            .set_viewport_start(change.window.viewport_start);
     }
 
     #[cfg(test)]
