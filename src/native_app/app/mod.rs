@@ -23,7 +23,7 @@ pub(in crate::native_app) use settings::{
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::NativeAppState;
 
-pub(super) use crate::native_app::app_chrome::layers::view;
+pub(super) use crate::native_app::app_chrome::scene::view;
 pub(super) use crate::native_app::audio::sample_load_actions::{
     NormalizedWaveformReload, WaveformPlaybackResume,
 };
