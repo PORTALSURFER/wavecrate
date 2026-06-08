@@ -1,6 +1,3 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
 <#
 .SYNOPSIS
 Runs Wavecrate in an isolated sandbox config directory.
@@ -22,8 +19,13 @@ param(
   [switch]$Temp,
   [switch]$Clean,
   [switch]$WriteDb,
-  [switch]$AllowUserLibraryDbWrite
+  [switch]$AllowUserLibraryDbWrite,
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$AppArgs
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
@@ -67,6 +69,13 @@ if ($AllowUserLibraryDbWrite) {
 } else {
   Remove-Item Env:WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE -ErrorAction SilentlyContinue
 }
+
+$hadInternalBuildEnv = Test-Path Env:WAVECRATE_INTERNAL_BUILD
+$previousInternalBuildEnv = [Environment]::GetEnvironmentVariable(
+  "WAVECRATE_INTERNAL_BUILD",
+  "Process"
+)
+$env:WAVECRATE_INTERNAL_BUILD = "1"
 
 $sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
 $env:WAVECRATE_CONFIG_HOME = $sandboxBase
@@ -114,7 +123,7 @@ Push-Location $rootDir
 try {
   $runStatus = 0
   try {
-    cargo run --release -- $args
+    cargo run --release -- @AppArgs
     $runStatus = $LASTEXITCODE
     if ($runStatus -ne 0) {
       Write-Host "[run_sandbox][warn] cargo run failed with exit code $runStatus."
@@ -129,6 +138,11 @@ try {
   }
 } finally {
   Pop-Location
+  if ($hadInternalBuildEnv) {
+    $env:WAVECRATE_INTERNAL_BUILD = $previousInternalBuildEnv
+  } else {
+    Remove-Item Env:WAVECRATE_INTERNAL_BUILD -ErrorAction SilentlyContinue
+  }
   if ($Temp -or $Clean) {
     Remove-Item -LiteralPath $sandboxBase -Recurse -Force -ErrorAction SilentlyContinue
   }
