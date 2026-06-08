@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
 use crate::native_app::ui::ids as widget_ids;
 
 const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
@@ -12,23 +13,6 @@ const TOOLBAR_LOOP_ID: u64 = widget_ids::TOOLBAR_LOOP_ID;
 const TOOLBAR_PLAY_ID: u64 = widget_ids::TOOLBAR_PLAY_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = widget_ids::TOOLBAR_STOP_ID;
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RANDOM_ID;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::native_app) struct MainToolbarViewModel {
-    pub(in crate::native_app) random_available: bool,
-    pub(in crate::native_app) loop_playback: bool,
-    pub(in crate::native_app) playing: bool,
-}
-
-impl MainToolbarViewModel {
-    pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
-        Self {
-            random_available: state.random_playback_available(),
-            loop_playback: state.loop_playback,
-            playing: state.waveform.is_playing(),
-        }
-    }
-}
 
 pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
     ui::toolbar_from_parts(

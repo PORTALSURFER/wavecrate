@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::view_models::folder_sidebar::FolderSidebarViewModel;
 #[cfg(test)]
 use crate::native_app::metadata::MetadataTagCompletionOption;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
@@ -40,49 +41,6 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
     b: 64,
     a: 152,
 };
-
-pub(in crate::native_app) struct FolderSidebarViewModel<'a> {
-    folder_browser: &'a mut FolderBrowserState,
-    sidebar_width: f32,
-    has_selected_file: bool,
-    metadata_tag_draft: &'a str,
-    metadata_tag_tokens: &'a [String],
-    metadata_tag_pending_category_tag: Option<String>,
-    metadata_tag_input_placeholder: &'static str,
-    metadata_tag_completion_suffix: Option<String>,
-    metadata_tags: Vec<String>,
-    metadata_tag_display_categories: Vec<MetadataTagDisplayCategory>,
-    selected_metadata_tag: Option<String>,
-}
-
-impl<'a> FolderSidebarViewModel<'a> {
-    pub(in crate::native_app) fn from_app_state(state: &'a mut NativeAppState) -> Self {
-        let sidebar_width = state.folder_panel.size();
-        let has_selected_file = state.folder_browser.selected_file_id().is_some();
-        let metadata_tag_pending_category_tag = state
-            .pending_metadata_tag_category_tag()
-            .map(str::to_string);
-        let metadata_tag_completion_suffix = state.metadata_tag_completion_suffix();
-        let metadata_tags = state.selected_metadata_tags().to_vec();
-        let metadata_tag_display_categories = state.selected_metadata_tag_display_categories();
-        let selected_metadata_tag = state.selected_metadata_tag.clone();
-        let metadata_tag_input_placeholder = state.metadata_tag_input_placeholder();
-
-        Self {
-            folder_browser: &mut state.folder_browser,
-            sidebar_width,
-            has_selected_file,
-            metadata_tag_draft: state.metadata_tag_draft.as_str(),
-            metadata_tag_tokens: state.metadata_tag_tokens.as_slice(),
-            metadata_tag_pending_category_tag,
-            metadata_tag_input_placeholder,
-            metadata_tag_completion_suffix,
-            metadata_tags,
-            metadata_tag_display_categories,
-            selected_metadata_tag,
-        }
-    }
-}
 
 pub(in crate::native_app) fn folder_sidebar(
     model: FolderSidebarViewModel<'_>,

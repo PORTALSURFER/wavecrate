@@ -1,11 +1,10 @@
 use radiant::prelude as ui;
 
+use super::{AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH};
 #[cfg(test)]
-use super::NativeAppState;
-use super::{
-    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AppSettingsTab, AudioSettingsDropdown,
-    AudioSettingsSnapshot, GuiMessage,
-};
+use crate::native_app::app::NativeAppState;
+use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, GuiMessage};
+use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 use crate::native_app::ui::display::format_sample_rate_label;
 
 const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;

@@ -1,13 +1,11 @@
 use radiant::prelude as ui;
-use std::collections::{HashMap, HashSet};
 
-use crate::native_app::app::{GuiMessage, NativeAppState, SampleNameViewMode};
+#[cfg(test)]
+use crate::native_app::app::NativeAppState;
+use crate::native_app::app::{GuiMessage, SampleNameViewMode};
+use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 use crate::native_app::sample_library::folder_browser::{
-    FileColumn, FileColumnDragFeedback, FolderBrowserMessage, FolderBrowserState,
-};
-use crate::native_app::sample_library::sample_list::{
-    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
-    SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+    FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
 };
 use crate::native_app::ui::ids as widget_ids;
 
@@ -21,63 +19,6 @@ use rows::sample_browser_rows;
 
 const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = widget_ids::SAMPLE_HEADER_SORT_DRAG_ID;
 const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
-
-pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
-    folder_browser: &'a FolderBrowserState,
-    audio_count: usize,
-    columns: Vec<&'a FileColumn>,
-    window: ui::VirtualListWindow,
-    name_view_mode: SampleNameViewMode,
-    metadata_tags_by_file: &'a HashMap<String, Vec<String>>,
-    cached_sample_paths: &'a HashSet<String>,
-    suppress_row_hover: bool,
-    file_drag_active: bool,
-    extracted_file_drag_active: bool,
-    hovered_folder_drop_target: bool,
-    drag_feedback: Option<FileColumnDragFeedback>,
-}
-
-impl<'a> SampleBrowserViewModel<'a> {
-    pub(in crate::native_app) fn from_app_state(
-        state: &'a mut NativeAppState,
-        suppress_row_hover: bool,
-    ) -> Self {
-        let window = state
-            .folder_browser
-            .follow_selected_file_view_matching_tags(
-                SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
-                SAMPLE_BROWSER_OVERSCAN_ROWS,
-                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                &state.metadata_tags_by_file,
-            );
-        let audio_count = state
-            .folder_browser
-            .selected_audio_file_count_matching_tags(&state.metadata_tags_by_file);
-        let columns = state.folder_browser.visible_file_columns();
-        let file_drag_active = state.folder_browser.file_drag_active();
-        let extracted_file_drag_active = state.folder_browser.extracted_file_drag_active();
-        let hovered_folder_drop_target = state
-            .folder_browser
-            .hovered_drop_target_folder_id()
-            .is_some();
-        let drag_feedback = state.folder_browser.file_column_drag_feedback();
-
-        Self {
-            folder_browser: &state.folder_browser,
-            audio_count,
-            columns,
-            window,
-            name_view_mode: state.sample_name_view_mode,
-            metadata_tags_by_file: &state.metadata_tags_by_file,
-            cached_sample_paths: &state.cached_sample_paths,
-            suppress_row_hover,
-            file_drag_active,
-            extracted_file_drag_active,
-            hovered_folder_drop_target,
-            drag_feedback,
-        }
-    }
-}
 
 #[cfg(test)]
 pub(in crate::native_app) fn sample_browser_from_state(

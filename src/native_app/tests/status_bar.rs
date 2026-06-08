@@ -1,5 +1,5 @@
 use super::gui_state_for_span_tests;
-use crate::native_app::app_chrome::status_bar::StatusBarViewModel;
+use crate::native_app::app_chrome::view_models::status_bar::StatusBarViewModel;
 use crate::native_app::test_support::NativeAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -168,7 +168,7 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
     assert_eq!(model.status_text, "Scanning Assets | 2/5 | kick.wav");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
-        crate::native_app::app_chrome::status_bar::WorkerProgressViewModel {
+        crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel {
             completed: 2,
             total: 5,
         }

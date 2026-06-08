@@ -219,7 +219,9 @@ fn audio_settings_snapshot_uses_cached_device_options() {
     }];
 
     let snapshot =
-        crate::native_app::app_chrome::settings::AudioSettingsSnapshot::from_app_state(&state);
+        crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot::from_app_state(
+            &state,
+        );
 
     assert_eq!(snapshot.audio_hosts.len(), 1);
     assert_eq!(snapshot.audio_hosts[0].id, "cached-host");

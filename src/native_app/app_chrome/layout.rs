@@ -1,15 +1,16 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
-use crate::native_app::app_chrome::library_browser::folder_sidebar::{
-    self, FolderSidebarViewModel,
-};
-use crate::native_app::app_chrome::library_browser::sample_browser_view::{
-    SampleBrowserViewModel, sample_browser,
-};
+use crate::native_app::app_chrome::library_browser::folder_sidebar;
+use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
 use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::settings::top_status_bar;
 use crate::native_app::app_chrome::status_bar;
-use crate::native_app::app_chrome::toolbar::{MainToolbarViewModel, main_toolbar};
-use crate::native_app::app_chrome::waveform_panel::{WaveformPanelViewModel, waveform_panel};
+use crate::native_app::app_chrome::toolbar::main_toolbar;
+use crate::native_app::app_chrome::view_models::{
+    folder_sidebar::FolderSidebarViewModel, sample_browser::SampleBrowserViewModel,
+    status_bar::StatusBarViewModel, toolbar::MainToolbarViewModel,
+    waveform_panel::WaveformPanelViewModel,
+};
+use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use radiant::prelude as ui;
 
 pub(super) const CENTER_PANEL_PADDING: f32 = 6.0;
@@ -20,7 +21,7 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
     ui::column([
         top_status_bar(state),
         center_panel(state),
-        status_bar::bottom_status_bar(status_bar::StatusBarViewModel::from_app_state(state)),
+        status_bar::bottom_status_bar(StatusBarViewModel::from_app_state(state)),
     ])
     .spacing(0.0)
     .fill()

@@ -10,4 +10,5 @@ pub(in crate::native_app) mod overlays;
 pub(in crate::native_app) mod settings;
 pub(in crate::native_app) mod status_bar;
 pub(in crate::native_app) mod toolbar;
+pub(in crate::native_app) mod view_models;
 pub(in crate::native_app) mod waveform_panel;
