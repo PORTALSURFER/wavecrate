@@ -3,9 +3,6 @@ use std::panic::{self, AssertUnwindSafe};
 use radiant::runtime::NativeRunOptions;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcut_resolution, view};
-use crate::native_app::app_chrome::presentation::{
-    apply_message_with_presentation_repaint, native_app_presentation,
-};
 use crate::native_app::app_chrome::settings;
 use crate::native_app::sample_library::folder_browser::{FOLDER_TREE_LIST_ID, TREE_ROW_HEIGHT};
 use crate::native_app::sample_library::sample_list::{
@@ -20,7 +17,6 @@ pub(super) fn run_radiant_app(
         radiant::app(state)
             .options(options)
             .view(view)
-            .presentation(native_app_presentation())
             .subscriptions(NativeAppState::worker_subscription)
             .auxiliary_windows(settings::auxiliary_windows)
             .on_shutdown(NativeAppState::shutdown)
@@ -39,7 +35,13 @@ pub(super) fn run_radiant_app(
                 context.emit(GuiMessage::NativeFileDrop(drop));
             })
             .shortcuts(|state, _, press, _| default_gui_shortcut_resolution(state, press))
-            .update_with(apply_message_with_presentation_repaint)
+            .update_with(|state, message, context| {
+                let frame_message = matches!(message, GuiMessage::Frame);
+                state.apply_message(message, context);
+                if !frame_message {
+                    context.request_repaint();
+                }
+            })
             .run()
     }))
 }

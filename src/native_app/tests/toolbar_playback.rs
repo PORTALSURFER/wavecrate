@@ -1,9 +1,7 @@
 use super::*;
-use crate::native_app::app_chrome::presentation::{
-    apply_message_with_presentation_repaint, native_app_presentation,
-};
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
+use crate::native_app::test_support::{GuiMessage, NativeAppState};
 use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
 
 #[test]
@@ -530,13 +528,12 @@ fn frame_animation_stays_active_for_pending_startup_auto_load() {
 }
 
 #[test]
-fn native_presentation_frame_clock_queues_gui_frame_message() {
+fn scene_frame_clock_queues_gui_frame_message() {
     let mut state = gui_state_for_span_tests();
     state.startup_source_scan_pending = true;
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
-        .presentation(native_app_presentation())
-        .update_with(apply_message_with_presentation_repaint)
+        .update_with(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
 
@@ -551,13 +548,15 @@ fn native_presentation_frame_clock_queues_gui_frame_message() {
 }
 
 #[test]
-fn native_presentation_playback_frame_uses_paint_only_repaint_scope() {
+fn scene_playback_frame_uses_paint_only_repaint_scope() {
     let mut state = gui_state_for_span_tests();
     state.waveform.start_playback(0.25);
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
-        .presentation(native_app_presentation())
-        .update_with(|_state, _message, _context| {})
+        .update_with(|state, message, _context| match message {
+            GuiMessage::Frame => state.advance_frame(),
+            _ => {}
+        })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
 
@@ -576,14 +575,13 @@ fn native_presentation_playback_frame_uses_paint_only_repaint_scope() {
 }
 
 #[test]
-fn native_presentation_installs_playback_cursor_transient_overlay() {
+fn scene_installs_playback_cursor_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.start_playback(0.25);
     let theme = radiant::theme::ThemeTokens::default();
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
-        .presentation(native_app_presentation())
-        .update_with(apply_message_with_presentation_repaint)
+        .update_with(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -609,8 +607,20 @@ fn native_presentation_installs_playback_cursor_transient_overlay() {
                     && fill.color.g == 220
                     && fill.color.b == 255
             }),
-        "native presentation should install the paint-only playback cursor overlay"
+        "root scene should install the paint-only playback cursor overlay"
     );
+}
+
+fn apply_gui_message_for_presentation_test(
+    state: &mut NativeAppState,
+    message: GuiMessage,
+    context: &mut ui::UpdateContext<GuiMessage>,
+) {
+    let frame_message = matches!(message, GuiMessage::Frame);
+    state.apply_message(message, context);
+    if !frame_message {
+        context.request_repaint();
+    }
 }
 
 #[test]
