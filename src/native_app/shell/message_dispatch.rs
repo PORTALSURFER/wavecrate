@@ -287,7 +287,7 @@ impl NativeAppState {
             GuiMessage::Waveform(message) => {
                 self.apply_waveform_message(message, context);
             }
-            GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
+            GuiMessage::WaveformFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
                 self.maybe_open_audio_player(context);
                 self.maybe_startup_source_scan(context);

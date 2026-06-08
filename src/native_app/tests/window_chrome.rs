@@ -1,6 +1,6 @@
 use super::*;
 use crate::native_app::app_chrome::waveform_panel::waveform_loading_visual;
-use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
+use radiant::runtime::{NativeFileDrop, RuntimeBridge, SurfaceRuntime};
 use std::{cell::RefCell, rc::Rc};
 
 fn waveform_rect(runtime: &NativeRuntimeForTests) -> Rect {
@@ -322,6 +322,98 @@ fn app_bridge_scene_routes_primary_waveform_selection_drag() {
         )),
         "{messages:?}"
     );
+}
+
+#[test]
+fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
+    let root = temp_gui_root("wavecrate-app-bridge-native-drop-root");
+    let external_root = temp_gui_root("wavecrate-app-bridge-native-drop-external");
+    let loops = root.join("loops");
+    fs::create_dir_all(&loops).expect("create loops");
+    let source = external_root.join("kick.wav");
+    write_test_wav_i16(&source, &[0, 100, -100]);
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+        ),
+    );
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let captured_messages = Rc::clone(&messages);
+    let waveform_loading_label = Rc::new(RefCell::new(None));
+    let captured_waveform_loading_label = Rc::clone(&waveform_loading_label);
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::view)
+        .reducer(move |state, message, context| {
+            captured_messages.borrow_mut().push(message.clone());
+            state.apply_message(message, context);
+            *captured_waveform_loading_label.borrow_mut() = state.waveform_loading_label.clone();
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let rect = *runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        .expect("app bridge should lay out waveform widget");
+
+    runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, Some(rect.center()), None));
+
+    let copied = loops.join("kick.wav");
+    assert!(copied.is_file());
+    assert_eq!(waveform_loading_label.borrow().as_deref(), Some("kick.wav"));
+    let messages = messages.borrow();
+    assert!(
+        messages.iter().any(|message| matches!(
+            message,
+            crate::native_app::test_support::GuiMessage::WaveformFileDrop(_)
+        )),
+        "{messages:?}"
+    );
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(external_root);
+}
+
+#[test]
+fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target() {
+    let root = temp_gui_root("wavecrate-app-bridge-targetless-native-drop-root");
+    let external_root = temp_gui_root("wavecrate-app-bridge-targetless-native-drop-external");
+    let loops = root.join("loops");
+    fs::create_dir_all(&loops).expect("create loops");
+    let source = external_root.join("kick.wav");
+    write_test_wav_i16(&source, &[0, 100, -100]);
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+        ),
+    );
+    let waveform_loading_label = Rc::new(RefCell::new(None));
+    let captured_waveform_loading_label = Rc::clone(&waveform_loading_label);
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::view)
+        .reducer(move |state, message, context| {
+            state.apply_message(message, context);
+            *captured_waveform_loading_label.borrow_mut() = state.waveform_loading_label.clone();
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+
+    runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, None, None));
+
+    let copied = loops.join("kick.wav");
+    assert!(copied.is_file());
+    assert_eq!(waveform_loading_label.borrow().as_deref(), Some("kick.wav"));
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(external_root);
 }
 
 #[test]

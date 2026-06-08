@@ -45,6 +45,8 @@ fn waveform_viewport_with_loading_state(
         )
         .input_opt(waveform_loading_input_blocker(model))
         .into_view()
+        .accepts_native_file_drop()
+        .on_native_file_drop(GuiMessage::WaveformFileDrop)
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT)
 }

@@ -16,9 +16,6 @@ pub(super) fn run_radiant_app(
             .subscriptions(NativeAppState::worker_subscription)
             .auxiliary_windows(settings::auxiliary_windows)
             .on_shutdown(NativeAppState::shutdown)
-            .on_native_file_drop(|_state, drop, context| {
-                context.emit(GuiMessage::NativeFileDrop(drop));
-            })
             .shortcuts(|state, _, press, _| default_gui_shortcut_resolution(state, press))
             .reducer(NativeAppState::update)
             .repaint_policy(ui::RepaintPolicy::after_messages_except_value(

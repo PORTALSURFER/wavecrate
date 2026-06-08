@@ -8,7 +8,6 @@ use radiant::prelude as ui;
 use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, NativeFileDropHover, emit_gui_action};
-use crate::native_app::waveform::WAVEFORM_WIDGET_ID;
 
 impl NativeAppState {
     pub(in crate::native_app) fn apply_native_file_drop(
@@ -23,9 +22,8 @@ impl NativeAppState {
         if self.cancel_pending_internal_file_drag_drop(&drop, context) {
             return;
         }
-        let over_waveform = native_file_drop_targets_waveform(drop.target_widget);
         match drop.phase {
-            NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path, over_waveform),
+            NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path),
             NativeFileDropPhase::Cancel => {
                 self.native_file_drop_hover = None;
             }
@@ -34,9 +32,7 @@ impl NativeAppState {
                 let Some(path) = drop.path else {
                     return;
                 };
-                if over_waveform {
-                    self.drop_external_file_on_waveform(path, context);
-                }
+                self.drop_external_file_on_waveform(path, context);
             }
         }
     }
@@ -86,12 +82,12 @@ impl NativeAppState {
         true
     }
 
-    fn track_native_file_hover(&mut self, path: Option<PathBuf>, over_waveform: bool) {
+    fn track_native_file_hover(&mut self, path: Option<PathBuf>) {
         let Some(path) = path else {
             self.native_file_drop_hover = None;
             return;
         };
-        self.native_file_drop_hover = over_waveform.then(|| NativeFileDropHover {
+        self.native_file_drop_hover = Some(NativeFileDropHover {
             supported: supported_waveform_drop_file(&path),
             path,
         });
@@ -209,10 +205,6 @@ fn supported_waveform_drop_file(path: &Path) -> bool {
             .extension()
             .and_then(|extension| extension.to_str())
             .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
-}
-
-fn native_file_drop_targets_waveform(target_widget: Option<u64>) -> bool {
-    target_widget.is_none() || target_widget == Some(WAVEFORM_WIDGET_ID)
 }
 
 fn file_name_or_path(path: &Path) -> String {
