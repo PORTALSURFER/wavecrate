@@ -189,6 +189,10 @@ impl Widget for WaveformWidget {
         true
     }
 
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
