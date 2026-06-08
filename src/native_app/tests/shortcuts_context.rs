@@ -32,10 +32,8 @@ fn unrelated_args_leave_default_gui_overlay_disabled() {
 #[test]
 fn escape_shortcut_routes_to_stop_playback() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -60,10 +58,8 @@ fn escape_shortcut_cancels_rename_while_renaming() {
         .begin_rename_selected()
         .expect("begin rename should not fail");
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -90,10 +86,8 @@ fn escape_shortcut_cancels_file_column_drag() {
         ),
     );
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -109,10 +103,8 @@ fn audio_settings_window_does_not_capture_main_escape_shortcut() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -126,10 +118,8 @@ fn audio_settings_window_does_not_block_main_shortcuts() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::N),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::N));
 
     assert!(matches!(
         resolution.action,
@@ -154,10 +144,8 @@ fn context_menu_escape_shortcut_closes_context_menu() {
         title: String::from("kick.wav"),
     });
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -174,10 +162,8 @@ fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
             pending_tag: String::from("deep-kick"),
         };
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -193,10 +179,8 @@ fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Escape),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
     assert_eq!(
         resolution.action,
@@ -340,10 +324,8 @@ fn context_target_open_completion_updates_status() {
 #[test]
 fn copy_shortcut_routes_to_browser_file_handoff() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::with_command(ui::KeyCode::C),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::with_command(ui::KeyCode::C));
 
     assert_eq!(
         resolution.action,
@@ -355,10 +337,8 @@ fn copy_shortcut_routes_to_browser_file_handoff() {
 #[test]
 fn backspace_shortcut_routes_to_delete_selected_item() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Backspace),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Backspace));
 
     assert_eq!(
         resolution.action,
@@ -372,10 +352,8 @@ fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.selected_metadata_tag = Some(String::from("bass"));
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::Delete),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Delete));
 
     assert_eq!(
         resolution.action,
@@ -387,10 +365,8 @@ fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
 #[test]
 fn loop_shortcut_routes_to_loop_toggle() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::L),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::L));
 
     assert_eq!(
         resolution.action,
@@ -402,10 +378,8 @@ fn loop_shortcut_routes_to_loop_toggle() {
 #[test]
 fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::X),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::X));
 
     assert_eq!(
         resolution.action,
@@ -430,10 +404,8 @@ fn x_shortcut_is_consumed_while_renaming() {
         .begin_rename_selected()
         .expect("begin rename should not fail");
 
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::X),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::X));
 
     assert_eq!(resolution.action, None);
     assert!(resolution.handled);
@@ -442,10 +414,8 @@ fn x_shortcut_is_consumed_while_renaming() {
 #[test]
 fn shift_u_shortcut_toggles_transaction_list() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::with_shift(ui::KeyCode::U),
-    );
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::with_shift(ui::KeyCode::U));
 
     assert_eq!(
         resolution.action,
@@ -458,23 +428,17 @@ fn shift_u_shortcut_toggles_transaction_list() {
 fn command_undo_redo_shortcuts_route_to_transactions() {
     let state = NativeAppState::load_default().expect("default state loads");
 
-    let undo = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::with_command(ui::KeyCode::Z),
-    );
-    let redo_shift_z = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress {
+    let undo = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::with_command(ui::KeyCode::Z));
+    let redo_shift_z =
+        crate::native_app::test_support::default_gui_shortcuts(&state).resolve(ui::KeyPress {
             key: ui::KeyCode::Z,
             command: true,
             shift: true,
             alt: false,
-        },
-    );
-    let redo_y = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::with_command(ui::KeyCode::Y),
-    );
+        });
+    let redo_y = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::with_command(ui::KeyCode::Y));
 
     assert_eq!(
         undo.action,
@@ -497,14 +461,10 @@ fn command_undo_redo_shortcuts_route_to_transactions() {
 fn bracket_shortcuts_route_to_rating_adjustments() {
     let state = NativeAppState::load_default().expect("default state loads");
 
-    let down = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::OpenBracket),
-    );
-    let up = crate::native_app::test_support::default_gui_shortcut_resolution(
-        &state,
-        ui::KeyPress::new(ui::KeyCode::CloseBracket),
-    );
+    let down = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::OpenBracket));
+    let up = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::CloseBracket));
 
     assert_eq!(
         down.action,

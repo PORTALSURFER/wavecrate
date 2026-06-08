@@ -2,49 +2,48 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::{FolderBrowserMessage, GuiMessage, NativeAppState};
 
-pub(in crate::native_app) fn default_gui_shortcut_resolution(
+pub(in crate::native_app) fn default_gui_shortcuts(
     state: &NativeAppState,
-    press: ui::KeyPress,
-) -> ui::ShortcutResolution<GuiMessage> {
-    ui::ShortcutStack::new()
-        .push_when(
+) -> ui::ShortcutCatalog<GuiMessage> {
+    ui::ShortcutCatalog::new()
+        .layer_when(
             state.folder_browser.rename_active(),
             ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::CancelRename,
             )),
         )
-        .push_when(
+        .layer_when(
             state.folder_browser.file_column_drag_active(),
             ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::CancelFileColumnDrag,
             )),
         )
-        .push_when(
+        .layer_when(
             state.context_menu.is_some(),
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
         )
-        .push_when(
+        .layer_when(
             state.audio_settings_dropdown_open(),
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseAudioSettingsDropdowns),
         )
-        .push_when(
+        .layer_when(
             state.job_details_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
         )
-        .push_when(
+        .layer_when(
             state.transaction_list_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseTransactionList),
         )
-        .push_when(
+        .layer_when(
             state.metadata_tag_completion_active(),
             metadata_tag_completion_shortcuts(),
         )
-        .push_when(
+        .layer_when(
             state.selected_metadata_tag.is_some(),
             selected_metadata_tag_shortcuts(),
         )
-        .push(default_shortcuts(state))
-        .resolve_or_else(press, || navigation_shortcut(press))
+        .layer(default_shortcuts(state))
+        .fallback(navigation_shortcut)
 }
 
 fn metadata_tag_completion_shortcuts() -> ui::ShortcutLayer<GuiMessage> {

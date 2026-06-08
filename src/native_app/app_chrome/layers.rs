@@ -1,4 +1,4 @@
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcuts};
 use crate::native_app::app_chrome::{browser_context_menu, layout, modals, overlays, status_bar};
 use radiant::prelude as ui;
 
@@ -20,6 +20,7 @@ pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMes
         .layer_opt(file_move_conflict)
         .layer_opt(browser_context_menu)
         .layer_opt(sample_drag_preview)
+        .shortcuts(default_gui_shortcuts(state))
         .frame_clock(frame_clock())
         .overlay(playback_cursor_overlay())
         .into_view()

@@ -2,7 +2,7 @@ use std::panic::{self, AssertUnwindSafe};
 
 use radiant::runtime::NativeRunOptions;
 
-use crate::native_app::app::{NativeAppState, default_gui_shortcut_resolution, view};
+use crate::native_app::app::{NativeAppState, view};
 use crate::native_app::app_chrome::settings;
 
 pub(super) fn run_radiant_app(
@@ -16,7 +16,6 @@ pub(super) fn run_radiant_app(
             .subscriptions(NativeAppState::worker_subscription)
             .auxiliary_windows(settings::auxiliary_windows)
             .on_shutdown(NativeAppState::shutdown)
-            .shortcuts(|state, _, press, _| default_gui_shortcut_resolution(state, press))
             .reducer(NativeAppState::update)
             .run()
     }))
