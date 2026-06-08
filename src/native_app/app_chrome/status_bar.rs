@@ -1,4 +1,5 @@
-use crate::native_app::app::{FolderScanProgress, GuiMessage};
+use crate::native_app::app::{FolderScanProgress, GuiMessage, NativeAppState};
+use crate::native_app::app_chrome::modals;
 use crate::native_app::app_chrome::view_models::status_bar::{
     StatusBarViewModel, WorkerProgressViewModel,
 };
@@ -8,6 +9,12 @@ impl WorkerProgressViewModel {
     fn snapshot(self) -> ui::ProgressSnapshot {
         ui::ProgressSnapshot::new(self.completed, self.total)
     }
+}
+
+pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::View<GuiMessage> {
+    bottom_status_bar(StatusBarViewModel::from_app_state(state))
+        .transient_layer_opt(job_details_layer(state))
+        .transient_layer_opt(transaction_list_layer(state))
 }
 
 pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui::View<GuiMessage> {
@@ -49,6 +56,22 @@ pub(in crate::native_app) fn worker_progress_bar(
         .key("bottom-status-progress-bar")
         .width(track_width)
         .height(10.0)
+}
+
+fn job_details_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+    if state.job_details_open
+        && let Some(progress) = state.folder_progress.as_ref()
+    {
+        return Some(ui::Layer::popover(job_details_popover(progress)));
+    }
+
+    None
+}
+
+fn transaction_list_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+    state
+        .transaction_list_open
+        .then(|| ui::Layer::modal(modals::transaction_list(state)).block_input())
 }
 
 pub(in crate::native_app) fn job_details_popover(

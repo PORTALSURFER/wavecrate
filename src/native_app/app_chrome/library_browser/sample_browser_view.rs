@@ -3,6 +3,7 @@ use radiant::prelude as ui;
 #[cfg(test)]
 use crate::native_app::app::NativeAppState;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
+use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 use crate::native_app::sample_library::folder_browser::{
     FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
@@ -68,6 +69,11 @@ pub(in crate::native_app) fn sample_browser(
         ))
         .into_view()
         .fill()
+        .drag_preview_layer_opt(
+            model
+                .drag_feedback
+                .map(|feedback| overlays::sample_column_drag_preview(&feedback)),
+        )
 }
 
 fn sample_list_browser_drag_cancel_target(active: bool) -> Option<ui::View<GuiMessage>> {

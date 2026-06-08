@@ -1,14 +1,16 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app_chrome::browser_context_menu;
 use crate::native_app::app_chrome::library_browser::folder_sidebar;
 use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
 use crate::native_app::app_chrome::metadata_tag_library;
+use crate::native_app::app_chrome::modals;
+use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::settings::top_status_bar;
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::{
     folder_sidebar::FolderSidebarViewModel, sample_browser::SampleBrowserViewModel,
-    status_bar::StatusBarViewModel, toolbar::MainToolbarViewModel,
-    waveform_panel::WaveformPanelViewModel,
+    toolbar::MainToolbarViewModel, waveform_panel::WaveformPanelViewModel,
 };
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use radiant::prelude as ui;
@@ -21,14 +23,29 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
     ui::column([
         top_status_bar(state),
         center_panel(state),
-        status_bar::bottom_status_bar(StatusBarViewModel::from_app_state(state)),
+        status_bar::bottom_status_area(state),
     ])
     .spacing(0.0)
     .fill()
 }
 
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    let mut children = vec![folder_sidebar_panel(state)];
+    let metadata_completion = overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING)
+        .map(|view| ui::Layer::floating(view).pass_through());
+    let browser_context_menu = state
+        .context_menu
+        .as_ref()
+        .map(browser_context_menu::overlay)
+        .map(|view| {
+            ui::Layer::context_menu(view).dismiss_on_outside_click(GuiMessage::CloseContextMenu)
+        });
+    let file_move_conflict = state
+        .folder_browser
+        .pending_file_move_conflict_view()
+        .is_some()
+        .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input());
+
+    let mut children = vec![folder_sidebar_panel(state).transient_layer_opt(metadata_completion)];
     if state.metadata_tag_library_open && state.folder_browser.selected_file_id().is_some() {
         children.push(metadata_tag_library::panel(state));
     }
@@ -40,6 +57,8 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     ])
     .spacing(0.0)
     .fill()
+    .transient_layer_opt(browser_context_menu)
+    .transient_layer_opt(file_move_conflict)
 }
 
 fn folder_sidebar_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
