@@ -16,7 +16,7 @@ pub(super) fn run_radiant_app(
             .subscriptions(NativeAppState::worker_subscription)
             .auxiliary_windows(settings::auxiliary_windows)
             .on_shutdown(NativeAppState::shutdown)
-            .reducer(NativeAppState::update)
+            .handle_message(NativeAppState::handle_message)
             .run()
     }))
 }
