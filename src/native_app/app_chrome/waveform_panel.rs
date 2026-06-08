@@ -54,9 +54,9 @@ fn waveform_viewport_with_loading_state(
 fn waveform_loading_input_blocker(
     model: &WaveformPanelViewModel<'_>,
 ) -> Option<ui::View<GuiMessage>> {
-    (model.loading_label.is_some() && model.block_input_while_loading).then(|| {
+    model.block_input_while_loading.then(|| {
         ui::pointer_shield(true)
-            .view()
+            .consume()
             .key("waveform-loading-input-blocker")
             .input_only()
             .fill_width()

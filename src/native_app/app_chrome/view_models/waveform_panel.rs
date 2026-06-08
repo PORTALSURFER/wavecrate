@@ -17,8 +17,7 @@ impl<'a> WaveformPanelViewModel<'a> {
             loading_label,
             loading_progress: state.waveform_loading_progress,
             drop_hover: state.native_file_drop_hover.as_ref(),
-            block_input_while_loading: loading_label.is_some()
-                && !state.folder_browser.drag_active(),
+            block_input_while_loading: state.waveform_input_blocked_by_sample_load(),
         }
     }
 }

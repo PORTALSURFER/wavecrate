@@ -263,6 +263,17 @@ impl NativeAppState {
         self.sample_load_cancel = None;
     }
 
+    pub(in crate::native_app) fn waveform_sample_load_active(&self) -> bool {
+        self.deferred_sample_load_task.active().is_some()
+            || self.sample_load_task.active().is_some()
+    }
+
+    pub(in crate::native_app) fn waveform_input_blocked_by_sample_load(&self) -> bool {
+        self.waveform_loading_label.is_some()
+            && self.waveform_sample_load_active()
+            && !self.folder_browser.drag_active()
+    }
+
     fn stop_current_sample_playback_for_load(&mut self) {
         if !self.waveform.is_playing() && self.early_sample_playback_path.is_none() {
             return;

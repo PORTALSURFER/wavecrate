@@ -208,7 +208,7 @@ impl NativeAppState {
         let audio_opening = self.audio_open_task.active().is_some();
         let folder_scanning = self.folder_progress.is_some();
         let normalizing = self.normalization_progress.is_some();
-        let waveform_loading = self.waveform_loading_label.is_some();
+        let waveform_loading = self.waveform_sample_load_active();
         let playing = self.waveform.is_playing();
         let pending_playback = self.pending_playback_start.is_some();
         let selected = self

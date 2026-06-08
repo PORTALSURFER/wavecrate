@@ -52,7 +52,7 @@ impl NativeAppState {
             || self.normalization_progress.is_some()
             || self.startup_source_scan_pending
             || self.startup_auto_load_pending
-            || (self.waveform_loading_label.is_some() && !self.folder_browser.drag_active())
+            || self.waveform_input_blocked_by_sample_load()
     }
 
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
@@ -187,7 +187,7 @@ impl FrameRepaintScopeSnapshot {
             play_selection_flash_active: state.waveform.play_selection_flash_active(),
             folder_progress_active: state.folder_progress.is_some(),
             normalization_progress_active: state.normalization_progress.is_some(),
-            waveform_loading_active: state.waveform_loading_label.is_some(),
+            waveform_loading_active: state.waveform_sample_load_active(),
             sample_loading: state.sample_load_task.active().is_some(),
             audio_opening: state.audio_open_task.active().is_some(),
             startup_source_scan_pending: state.startup_source_scan_pending,
