@@ -7,6 +7,14 @@ use crate::native_app::app::{
 };
 
 impl NativeAppState {
+    pub(in crate::native_app) fn update(
+        &mut self,
+        message: GuiMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.apply_message(message, context);
+    }
+
     fn toggle_audio_backend_dropdown(&mut self) {
         self.toggle_audio_settings_dropdown(AudioSettingsDropdown::Backend);
     }
