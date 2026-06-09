@@ -31,10 +31,30 @@ use crate::native_app::waveform::WaveformState;
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
 
 pub(in crate::native_app) struct NativeAppState {
+    // OPT-496 ownership map:
+    //
+    // Extraction order should keep task plumbing first, then audio and waveform,
+    // then metadata, chrome/settings, tests, and finally transactions. The main
+    // risk points are stale async task results, playback startup ordering,
+    // waveform cache warming, metadata-driven browser filtering, and undo/redo
+    // closures that currently target the concrete root state.
+    //
+    // ChromeUiState owns layout chrome and top-level modal/transient flags:
+    // folder_panel, job_details_open, transaction_list_open.
     pub(in crate::native_app) folder_panel: ui::PanelResizeState,
+
+    // LibraryAppState owns source/folder/sample browsing, source refresh and
+    // watcher state, scan progress, startup source scan flags, context-menu
+    // targets, file-drop hover, internal drag paths, and sample_status.
     pub(in crate::native_app) folder_browser: FolderBrowserState,
+
+    // WaveformAppState owns core waveform interaction state.
     pub(in crate::native_app) waveform: WaveformState,
     pub(in crate::native_app) sample_status: String,
+
+    // BackgroundTaskState owns generic GUI task transport, ticket allocation,
+    // latest-task trackers, cancellation handles, task result maps, progress
+    // tick/cadence state, and startup folder verification task plumbing.
     pub(in crate::native_app) worker_sender: Sender<GuiMessage>,
     pub(in crate::native_app) worker_receiver: Option<Receiver<GuiMessage>>,
     pub(in crate::native_app) next_task_id: u64,
@@ -53,8 +73,17 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: ui::FrameCadenceMonitor,
+
+    // WaveformLoadState owns sample-load visible progress, loading label, and
+    // input-blocking target progress. WaveformCacheState owns waveform cache
+    // entries, LRU accounting, cache indicator refresh, persisted cache warming,
+    // active-folder cache warming, and cached path lookups.
     pub(in crate::native_app) waveform_loading_progress: f32,
     pub(in crate::native_app) waveform_loading_target_progress: f32,
+
+    // AudioAppState owns player/runtime playback state, output configuration,
+    // resolved device state, discovered hosts/devices/rates, volume persistence,
+    // pending playback coordination, and audio-domain settings errors.
     pub(in crate::native_app) audio_player: Option<AudioPlayer>,
     pub(in crate::native_app) loop_playback: bool,
     pub(in crate::native_app) volume: f32,
@@ -65,11 +94,18 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) audio_devices: Vec<AudioDeviceSummary>,
     pub(in crate::native_app) audio_sample_rates: Vec<u32>,
     pub(in crate::native_app) persisted_settings: AppSettingsCore,
+
+    // SettingsUiState owns settings-window presentation state only. Durable
+    // settings values and audio-device errors stay with their domain owners.
     pub(in crate::native_app) audio_settings_open: bool,
     pub(in crate::native_app) app_settings_tab: AppSettingsTab,
     pub(in crate::native_app) audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
     pub(in crate::native_app) job_details_open: bool,
     pub(in crate::native_app) transaction_list_open: bool,
+
+    // TransactionState owns history and restore guards. It should eventually
+    // expose a narrow transaction context instead of TransactionHistory over the
+    // concrete NativeAppState type.
     pub(in crate::native_app) transaction_history: TransactionHistory<NativeAppState>,
     pub(in crate::native_app) transaction_restoring: bool,
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
@@ -81,6 +117,10 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) early_sample_playback_path: Option<String>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
+
+    // MetadataAppState owns tag entry, completion, dictionary, library panel,
+    // drag/drop, selection, collapsed categories, per-file tag assignments, and
+    // sample-name view mode used by metadata display.
     pub(in crate::native_app) metadata_tag_draft: String,
     pub(in crate::native_app) metadata_tag_tokens: Vec<String>,
     pub(in crate::native_app) metadata_tag_input_mode: MetadataTagInputMode,
