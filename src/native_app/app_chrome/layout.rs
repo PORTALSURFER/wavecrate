@@ -31,13 +31,14 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
         .overlays(center_panel_overlays(state))
 }
 
-fn center_panel_panes(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
-    let mut panes = vec![library_pane(state)];
-    if let Some(tag_library) = metadata_tag_library_pane(state) {
-        panes.push(tag_library);
-    }
-    panes.push(sample_workspace(state));
-    panes
+fn center_panel_panes(state: &mut NativeAppState) -> impl Iterator<Item = ui::View<GuiMessage>> {
+    [
+        Some(library_pane(state)),
+        tag_editor_pane(state),
+        Some(sample_workspace(state)),
+    ]
+    .into_iter()
+    .flatten()
 }
 
 fn center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
@@ -71,12 +72,12 @@ fn file_move_conflict_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMes
         .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input())
 }
 
-fn metadata_tag_library_visible(state: &NativeAppState) -> bool {
+fn tag_editor_pane_visible(state: &NativeAppState) -> bool {
     state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
-fn metadata_tag_library_pane(state: &mut NativeAppState) -> Option<ui::View<GuiMessage>> {
-    if metadata_tag_library_visible(state) {
+fn tag_editor_pane(state: &mut NativeAppState) -> Option<ui::View<GuiMessage>> {
+    if tag_editor_pane_visible(state) {
         Some(metadata_tag_library::panel(state))
     } else {
         None
