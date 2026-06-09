@@ -31,6 +31,7 @@ impl<'a> SampleBrowserViewModel<'a> {
         suppress_row_hover: bool,
     ) -> Self {
         let window = state
+            .library
             .folder_browser
             .follow_selected_file_view_matching_tags(
                 SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
@@ -39,25 +40,27 @@ impl<'a> SampleBrowserViewModel<'a> {
                 &state.metadata.tags_by_file,
             );
         let audio_count = state
+            .library
             .folder_browser
             .selected_audio_file_count_matching_tags(&state.metadata.tags_by_file);
-        let columns = state.folder_browser.visible_file_columns();
-        let file_drag_active = state.folder_browser.file_drag_active();
-        let extracted_file_drag_active = state.folder_browser.extracted_file_drag_active();
+        let columns = state.library.folder_browser.visible_file_columns();
+        let file_drag_active = state.library.folder_browser.file_drag_active();
+        let extracted_file_drag_active = state.library.folder_browser.extracted_file_drag_active();
         let hovered_folder_drop_target = state
+            .library
             .folder_browser
             .hovered_drop_target_folder_id()
             .is_some();
-        let drag_feedback = state.folder_browser.file_column_drag_feedback();
+        let drag_feedback = state.library.folder_browser.file_column_drag_feedback();
 
         Self {
-            folder_browser: &state.folder_browser,
+            folder_browser: &state.library.folder_browser,
             audio_count,
             columns,
             window,
             name_view_mode: state.metadata.sample_name_view_mode,
             metadata_tags_by_file: &state.metadata.tags_by_file,
-            cached_sample_paths: &state.waveform_cache.cached_sample_paths,
+            cached_sample_paths: &state.waveform.cache.cached_sample_paths,
             suppress_row_hover,
             file_drag_active,
             extracted_file_drag_active,

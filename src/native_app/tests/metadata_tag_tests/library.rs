@@ -103,7 +103,7 @@ fn default_gui_tag_library_button_removes_selected_tag() {
         state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("hat")])
     );
-    assert_eq!(state.sample_status, "Removed tag bass");
+    assert_eq!(state.ui.status.sample, "Removed tag bass");
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
         Some(&vec![String::from("hat")])
     );
     assert_eq!(state.metadata.selected_tag, None);
-    assert_eq!(state.sample_status, "Removed tag bass");
+    assert_eq!(state.ui.status.sample, "Removed tag bass");
 }
 
 #[test]
@@ -189,7 +189,7 @@ fn default_gui_tag_library_drag_moves_tag_between_categories() {
             .map(String::as_str),
         Some("character")
     );
-    assert_eq!(state.sample_status, "Moved tag bass to Character");
+    assert_eq!(state.ui.status.sample, "Moved tag bass to Character");
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn default_gui_tag_library_rejects_dragging_locked_playback_tags() {
 
     assert_eq!(state.metadata.tag_drag, None);
     assert_eq!(state.metadata.tag_dictionary.get("one-shot"), None);
-    assert_eq!(state.sample_status, "Playback Type tags are locked");
+    assert_eq!(state.ui.status.sample, "Playback Type tags are locked");
 }
 
 #[test]
@@ -275,6 +275,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
     let menu = runtime
         .bridge()
         .state()
+        .ui
         .browser_interaction
         .context_menu
         .as_ref()
@@ -302,7 +303,7 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
         .metadata
         .tag_dictionary
         .insert(String::from("oneshot"), String::from("sound-type"));
-    state.browser_interaction.context_menu =
+    state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
             path: PathBuf::new(),
@@ -325,9 +326,9 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
         state.metadata.tags_by_file.get("other.wav"),
         Some(&vec![String::from("seq")])
     );
-    assert_eq!(state.browser_interaction.context_menu, None);
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
     assert_eq!(
-        state.sample_status,
+        state.ui.status.sample,
         "Deleted tag oneshot from 2 assignment(s)"
     );
 }
@@ -336,7 +337,7 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
 fn metadata_tag_context_delete_rejects_locked_playback_tags() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.browser_interaction.context_menu =
+    state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
             path: PathBuf::new(),
@@ -350,7 +351,7 @@ fn metadata_tag_context_delete_rejects_locked_playback_tags() {
 
     state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
 
-    assert_eq!(state.sample_status, "Playback Type tags are locked");
+    assert_eq!(state.ui.status.sample, "Playback Type tags are locked");
 }
 
 #[test]

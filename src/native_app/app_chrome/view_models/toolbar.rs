@@ -12,7 +12,7 @@ impl MainToolbarViewModel {
         Self {
             random_available: state.random_playback_available(),
             loop_playback: state.audio.loop_playback,
-            playing: state.waveform.is_playing(),
+            playing: state.waveform.current.is_playing(),
         }
     }
 }

@@ -47,7 +47,7 @@ impl NativeAppState {
                 return;
             }
             Err(error) => {
-                self.sample_status = format!("Trash folder selection failed: {error}");
+                self.ui.status.sample = format!("Trash folder selection failed: {error}");
                 emit_gui_action(
                     "settings.trash_folder.pick",
                     Some("settings"),
@@ -59,9 +59,9 @@ impl NativeAppState {
                 return;
             }
         };
-        self.persisted_settings.trash_folder = Some(path.clone());
+        self.ui.settings.persisted.trash_folder = Some(path.clone());
         self.persist_user_configuration("settings.trash_folder.persist", started_at);
-        self.sample_status = format!("Trash folder set to {}", path.display());
+        self.ui.status.sample = format!("Trash folder set to {}", path.display());
         let target = path.display().to_string();
         emit_gui_action(
             "settings.trash_folder.pick",
@@ -75,9 +75,9 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn clear_trash_folder(&mut self) {
         let started_at = Instant::now();
-        self.persisted_settings.trash_folder = None;
+        self.ui.settings.persisted.trash_folder = None;
         self.persist_user_configuration("settings.trash_folder.clear", started_at);
-        self.sample_status = String::from("Trash folder cleared");
+        self.ui.status.sample = String::from("Trash folder cleared");
         emit_gui_action(
             "settings.trash_folder.clear",
             Some("settings"),
@@ -90,7 +90,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn move_context_target_to_trash(&mut self) {
         let started_at = Instant::now();
-        let Some(menu) = self.browser_interaction.context_menu.take() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
         };
         match menu.kind {
@@ -109,7 +109,7 @@ impl NativeAppState {
                 );
             }
             BrowserContextTargetKind::Source | BrowserContextTargetKind::MetadataTag => {
-                self.sample_status = String::from("Context target cannot be moved to trash");
+                self.ui.status.sample = String::from("Context target cannot be moved to trash");
                 emit_gui_action(
                     "browser.context_menu.trash",
                     Some("browser"),
@@ -144,12 +144,17 @@ impl NativeAppState {
         action: &'static str,
         started_at: Instant,
     ) {
-        match move_path_to_configured_trash(&path, self.persisted_settings.trash_folder.as_deref())
-        {
+        match move_path_to_configured_trash(
+            &path,
+            self.ui.settings.persisted.trash_folder.as_deref(),
+        ) {
             Ok(destination) => {
-                self.folder_browser.discard_trashed_folder_path(&path);
+                self.library
+                    .folder_browser
+                    .discard_trashed_folder_path(&path);
                 self.clear_loaded_sample_if_path_within(&path);
-                self.sample_status = format!("Moved {} to trash", sample_path_label(&destination));
+                self.ui.status.sample =
+                    format!("Moved {} to trash", sample_path_label(&destination));
                 emit_gui_action(
                     action,
                     Some("folder_browser"),
@@ -160,7 +165,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     action,
                     Some("folder_browser"),
@@ -181,16 +186,18 @@ impl NativeAppState {
     ) {
         match move_paths_to_configured_trash(
             &paths,
-            self.persisted_settings.trash_folder.as_deref(),
+            self.ui.settings.persisted.trash_folder.as_deref(),
         ) {
             Ok(moved) => {
-                self.folder_browser.discard_trashed_file_paths(&paths);
+                self.library
+                    .folder_browser
+                    .discard_trashed_file_paths(&paths);
                 for path in &paths {
                     self.clear_loaded_sample_if_exact(path);
                 }
                 let count = moved.len();
                 let noun = if count == 1 { "file" } else { "files" };
-                self.sample_status = format!("Moved {count} {noun} to trash");
+                self.ui.status.sample = format!("Moved {count} {noun} to trash");
                 emit_gui_action(
                     action,
                     Some("browser"),
@@ -201,7 +208,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     action,
                     Some("browser"),
@@ -215,22 +222,22 @@ impl NativeAppState {
     }
 
     fn clear_loaded_sample_if_exact(&mut self, path: &Path) {
-        if self.waveform.path() == path {
+        if self.waveform.current.path() == path {
             if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
-            self.waveform = WaveformState::empty();
+            self.waveform.current = WaveformState::empty();
             self.audio.current_playback_span = None;
         }
     }
 
     fn clear_loaded_sample_if_path_within(&mut self, root: &Path) {
-        let loaded_path = self.waveform.path();
+        let loaded_path = self.waveform.current.path();
         if !loaded_path.as_os_str().is_empty() && loaded_path.starts_with(root) {
             if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
-            self.waveform = WaveformState::empty();
+            self.waveform.current = WaveformState::empty();
             self.audio.current_playback_span = None;
         }
     }

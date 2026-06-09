@@ -89,7 +89,7 @@ fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_sugg
     let state = runtime.bridge().state();
     assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
-    assert_eq!(state.sample_status, "Choose a category for ki");
+    assert_eq!(state.ui.status.sample, "Choose a category for ki");
 }
 
 #[test]
@@ -137,11 +137,12 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     fs::create_dir_all(expandable_child.join("Nested")).expect("expandable child folder");
     let selected_file = source_root.path().join("tag-target.wav");
     fs::write(&selected_file, []).expect("sample file");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state
+        .library
         .folder_browser
         .select_file(selected_file.display().to_string());
     state
@@ -150,6 +151,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .insert(String::from("known.wav"), vec![String::from("kick")]);
     state.metadata.tag_draft = String::from("ki");
     let (clicked_folder_id, initially_expanded) = state
+        .library
         .folder_browser
         .first_visible_child_folder_expansion_for_tests()
         .expect("visible child folder with expander");
@@ -182,6 +184,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         runtime
             .bridge()
             .state()
+            .library
             .folder_browser
             .folder_expansion_for_tests(&clicked_folder_id),
         Some(!initially_expanded),
@@ -241,13 +244,13 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     fs::write(second_root.join("beta.wav"), []).expect("second sample");
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(first_root.clone()),
             wavecrate::sample_sources::SampleSource::new(second_root.clone()),
         ]);
     let first_file = first_root.join("alpha.wav").display().to_string();
-    state.folder_browser.select_file(first_file);
+    state.library.folder_browser.select_file(first_file);
     state
         .metadata
         .tags_by_file
@@ -276,6 +279,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
         runtime
             .bridge()
             .state()
+            .library
             .folder_browser
             .selected_folder_path(),
         Some(second_root),

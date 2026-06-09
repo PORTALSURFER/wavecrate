@@ -11,8 +11,8 @@ impl NativeAppState {
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if !self.waveform.has_loaded_sample() {
-            self.sample_status = String::from("Load a sample to focus it");
+        if !self.waveform.current.has_loaded_sample() {
+            self.ui.status.sample = String::from("Load a sample to focus it");
             emit_gui_action(
                 "browser.focus_loaded_file",
                 Some("browser"),
@@ -23,9 +23,10 @@ impl NativeAppState {
             );
             return;
         }
-        let path = self.waveform.path();
-        if self.folder_browser.focus_file_across_sources(&path) {
+        let path = self.waveform.current.path();
+        if self.library.folder_browser.focus_file_across_sources(&path) {
             if let Some(index) = self
+                .library
                 .folder_browser
                 .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
             {
@@ -38,7 +39,7 @@ impl NativeAppState {
                     SAMPLE_BROWSER_ROW_HEIGHT,
                 );
             }
-            self.sample_status = format!("Focused {}", sample_path_label(&path));
+            self.ui.status.sample = format!("Focused {}", sample_path_label(&path));
             emit_gui_action(
                 "browser.focus_loaded_file",
                 Some("browser"),
@@ -52,7 +53,7 @@ impl NativeAppState {
                 "Loaded sample is not visible in sources: {}",
                 path.display()
             );
-            self.sample_status = error.clone();
+            self.ui.status.sample = error.clone();
             emit_gui_action(
                 "browser.focus_loaded_file",
                 Some("browser"),
@@ -65,7 +66,7 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn delete_selected_item(&mut self) {
-        if self.folder_browser.selected_file_id().is_some() {
+        if self.library.folder_browser.selected_file_id().is_some() {
             self.delete_selected_files();
         } else {
             self.delete_selected_folder();
@@ -74,10 +75,10 @@ impl NativeAppState {
 
     fn delete_selected_folder(&mut self) {
         let started_at = Instant::now();
-        let target = match self.folder_browser.selected_delete_target() {
+        let target = match self.library.folder_browser.selected_delete_target() {
             Ok(target) => target,
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "folder_browser.delete_selected",
                     Some("folder_browser"),
@@ -94,10 +95,10 @@ impl NativeAppState {
 
     fn delete_selected_files(&mut self) {
         let started_at = Instant::now();
-        let target = match self.folder_browser.selected_file_delete_target() {
+        let target = match self.library.folder_browser.selected_file_delete_target() {
             Ok(target) => target,
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.delete_selected_files",
                     Some("browser"),
@@ -114,12 +115,12 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn extract_playmarked_range(&mut self) {
         let started_at = Instant::now();
-        match self.waveform.extract_play_selection_to_sibling() {
+        match self.waveform.current.extract_play_selection_to_sibling() {
             Ok(path) => {
                 let label = sample_path_label(&path);
-                self.waveform.flash_play_selection();
-                self.folder_browser.refresh_file_path(&path);
-                self.sample_status = format!("Extracted {label}");
+                self.waveform.current.flash_play_selection();
+                self.library.folder_browser.refresh_file_path(&path);
+                self.ui.status.sample = format!("Extracted {label}");
                 emit_gui_action(
                     "waveform.extract_playmarked_range",
                     Some("waveform"),
@@ -130,7 +131,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "waveform.extract_playmarked_range",
                     Some("waveform"),

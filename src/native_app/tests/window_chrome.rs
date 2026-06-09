@@ -115,7 +115,7 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
 #[test]
 fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.settings_ui.audio_settings_open = true;
+    state.ui.settings.ui.audio_settings_open = true;
     let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
@@ -137,7 +137,7 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
 #[test]
 fn audio_settings_window_does_not_block_waveform_selection_messages() {
     let mut state = gui_state_for_span_tests();
-    state.settings_ui.audio_settings_open = true;
+    state.ui.settings.ui.audio_settings_open = true;
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
@@ -166,9 +166,9 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
         &mut context,
     );
 
-    assert_eq!(state.waveform.play_mark_ratio(), Some(0.45));
+    assert_eq!(state.waveform.current.play_mark_ratio(), Some(0.45));
     assert_eq!(
-        state.waveform.play_selection(),
+        state.waveform.current.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.45, 0.65))
     );
 }
@@ -188,8 +188,8 @@ fn full_app_scene_routes_waveform_hit_target() {
 #[test]
 fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
     let mut state = gui_state_for_span_tests();
-    state.waveform_load.label = Some(String::from("previous.wav"));
-    state.waveform_load.progress = 0.5;
+    state.waveform.load.label = Some(String::from("previous.wav"));
+    state.waveform.load.progress = 0.5;
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
     let point = Point::new(rect.min.x + rect.width() * 0.42, rect.center().y);
@@ -207,13 +207,16 @@ fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
         Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
     );
 
-    assert_ratio_near(runtime.bridge().state().waveform.play_mark_ratio(), 0.42);
+    assert_ratio_near(
+        runtime.bridge().state().waveform.current.play_mark_ratio(),
+        0.42,
+    );
 }
 
 #[test]
 fn stale_waveform_drop_hover_does_not_mask_waveform_hit_target() {
     let mut state = gui_state_for_span_tests();
-    state.browser_interaction.native_file_drop_hover =
+    state.ui.browser_interaction.native_file_drop_hover =
         Some(crate::native_app::test_support::NativeFileDropHover {
             path: PathBuf::from("stale.wav"),
             supported: true,
@@ -235,7 +238,10 @@ fn stale_waveform_drop_hover_does_not_mask_waveform_hit_target() {
         Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
     );
 
-    assert_ratio_near(runtime.bridge().state().waveform.edit_mark_ratio(), 0.38);
+    assert_ratio_near(
+        runtime.bridge().state().waveform.current.edit_mark_ratio(),
+        0.38,
+    );
 }
 
 #[test]
@@ -258,7 +264,10 @@ fn active_waveform_sample_load_masks_waveform_hit_target() {
         runtime.dispatch_event(Event::primary_press(point)),
         Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
     );
-    assert_eq!(runtime.bridge().state().waveform.play_mark_ratio(), None);
+    assert_eq!(
+        runtime.bridge().state().waveform.current.play_mark_ratio(),
+        None
+    );
 }
 
 #[test]
@@ -283,11 +292,11 @@ fn full_app_scene_routes_primary_waveform_selection_drag() {
     );
 
     assert_eq!(
-        runtime.bridge().state().waveform.play_mark_ratio(),
+        runtime.bridge().state().waveform.current.play_mark_ratio(),
         Some(0.25)
     );
     assert_eq!(
-        runtime.bridge().state().waveform.play_selection(),
+        runtime.bridge().state().waveform.current.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.25, 0.75))
     );
 }
@@ -317,9 +326,15 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
         "click-to-play should request a repaint immediately after release"
     );
 
-    assert_ratio_near(runtime.bridge().state().waveform.play_mark_ratio(), 0.42);
-    assert_eq!(runtime.bridge().state().waveform.play_selection(), None);
-    assert!(runtime.bridge().state().waveform.is_playing());
+    assert_ratio_near(
+        runtime.bridge().state().waveform.current.play_mark_ratio(),
+        0.42,
+    );
+    assert_eq!(
+        runtime.bridge().state().waveform.current.play_selection(),
+        None
+    );
+    assert!(runtime.bridge().state().waveform.current.is_playing());
     assert!(
         runtime
             .bridge()
@@ -343,7 +358,9 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
         !runtime
             .bridge()
             .state()
-            .sample_status
+            .ui
+            .status
+            .sample
             .contains("Playback unavailable"),
         "waveform click should not present pending audio output as a playback failure"
     );
@@ -370,8 +387,8 @@ fn full_app_scene_primary_waveform_click_starts_audio_playback() {
     );
 
     let state = runtime.bridge().state();
-    assert_ratio_near(state.waveform.play_mark_ratio(), 0.42);
-    assert!(state.waveform.is_playing());
+    assert_ratio_near(state.waveform.current.play_mark_ratio(), 0.42);
+    assert!(state.waveform.current.is_playing());
     let (start, end) = state
         .audio
         .current_playback_span
@@ -414,14 +431,29 @@ fn native_pointer_shell_routes_primary_waveform_click_to_play_mark() {
             .bridge()
             .state()
             .waveform
+            .current
             .play_mark_ratio(),
         0.42,
     );
     assert_eq!(
-        harness.runtime().bridge().state().waveform.play_selection(),
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .play_selection(),
         None
     );
-    assert!(harness.runtime().bridge().state().waveform.is_playing());
+    assert!(
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .is_playing()
+    );
 }
 
 #[test]
@@ -455,11 +487,18 @@ fn native_pointer_shell_routes_primary_waveform_selection_drag() {
             .bridge()
             .state()
             .waveform
+            .current
             .play_mark_ratio(),
         Some(0.25)
     );
     assert_eq!(
-        harness.runtime().bridge().state().waveform.play_selection(),
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.25, 0.75))
     );
 }
@@ -467,7 +506,7 @@ fn native_pointer_shell_routes_primary_waveform_selection_drag() {
 #[test]
 fn transaction_list_modal_blocks_waveform_interaction_behind_it() {
     let mut state = gui_state_for_span_tests();
-    state.chrome.transaction_list_open = true;
+    state.ui.chrome.transaction_list_open = true;
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
     let point = Point::new(rect.min.x + rect.width() * 0.25, rect.center().y);
@@ -481,8 +520,14 @@ fn transaction_list_modal_blocks_waveform_interaction_behind_it() {
         Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
     );
 
-    assert_eq!(runtime.bridge().state().waveform.play_mark_ratio(), None);
-    assert_eq!(runtime.bridge().state().waveform.play_selection(), None);
+    assert_eq!(
+        runtime.bridge().state().waveform.current.play_mark_ratio(),
+        None
+    );
+    assert_eq!(
+        runtime.bridge().state().waveform.current.play_selection(),
+        None
+    );
 }
 
 #[test]
@@ -507,7 +552,7 @@ fn full_app_scene_routes_secondary_waveform_edit_selection_drag() {
     );
 
     assert_eq!(
-        runtime.bridge().state().waveform.edit_selection(),
+        runtime.bridge().state().waveform.current.edit_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.7))
     );
 }
@@ -537,8 +582,14 @@ fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
         "edit mark release should request a repaint"
     );
 
-    assert_ratio_near(runtime.bridge().state().waveform.edit_mark_ratio(), 0.38);
-    assert_eq!(runtime.bridge().state().waveform.edit_selection(), None);
+    assert_ratio_near(
+        runtime.bridge().state().waveform.current.edit_mark_ratio(),
+        0.38,
+    );
+    assert_eq!(
+        runtime.bridge().state().waveform.current.edit_selection(),
+        None
+    );
 }
 
 #[test]
@@ -567,11 +618,18 @@ fn native_pointer_shell_routes_secondary_waveform_click_to_edit_mark() {
             .bridge()
             .state()
             .waveform
+            .current
             .edit_mark_ratio(),
         0.38,
     );
     assert_eq!(
-        harness.runtime().bridge().state().waveform.edit_selection(),
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .edit_selection(),
         None
     );
 }
@@ -602,7 +660,13 @@ fn native_pointer_shell_routes_secondary_waveform_edit_selection_drag() {
     );
 
     assert_eq!(
-        harness.runtime().bridge().state().waveform.edit_selection(),
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .edit_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.7))
     );
 }
@@ -610,7 +674,7 @@ fn native_pointer_shell_routes_secondary_waveform_edit_selection_drag() {
 #[test]
 fn native_pointer_shell_preserves_waveform_drag_after_playback_frame_refresh() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
     let mut harness = NativePointerShellHarness::new(state);
     let rect = waveform_rect(harness.runtime());
     let press = Point::new(rect.min.x + rect.width() * 0.3, rect.center().y);
@@ -636,7 +700,13 @@ fn native_pointer_shell_preserves_waveform_drag_after_playback_frame_refresh() {
     );
 
     assert_eq!(
-        harness.runtime().bridge().state().waveform.play_selection(),
+        harness
+            .runtime()
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.3, 0.8))
     );
 }
@@ -712,11 +782,11 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
     let source = external_root.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ),
@@ -730,7 +800,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
         .reducer(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
             state.apply_message(message, context);
-            *captured_waveform_loading_label.borrow_mut() = state.waveform_load.label.clone();
+            *captured_waveform_loading_label.borrow_mut() = state.waveform.load.label.clone();
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
@@ -766,11 +836,11 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
     let source = external_root.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ),
@@ -781,7 +851,7 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
         .view(crate::native_app::test_support::view)
         .reducer(move |state, message, context| {
             state.apply_message(message, context);
-            *captured_waveform_loading_label.borrow_mut() = state.waveform_load.label.clone();
+            *captured_waveform_loading_label.borrow_mut() = state.waveform.load.label.clone();
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
@@ -798,7 +868,7 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
 #[test]
 fn app_bridge_scene_preserves_waveform_drag_during_playback_frame_refresh() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
     let messages = Rc::new(RefCell::new(Vec::new()));
     let captured_messages = Rc::clone(&messages);
     let bridge = radiant::app(state)

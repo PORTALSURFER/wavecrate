@@ -93,7 +93,7 @@ fn metadata_section_keeps_configured_height_without_selected_file() {
 fn metadata_section_collapses_to_header_only_height() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ResizeMetadataPanel(
             radiant::widgets::DragHandleMessage::double_activate(Point::new(0.0, 200.0)),
         ),

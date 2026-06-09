@@ -9,7 +9,7 @@ impl NativeAppState {
         self.audio.loop_playback = !self.audio.loop_playback;
         let mut outcome = "success";
         let mut error = None;
-        if self.waveform.is_playing()
+        if self.waveform.current.is_playing()
             && let Some((start, end)) = self.audio.current_playback_span
         {
             let current = self.current_audio_progress_ratio().unwrap_or(start);
@@ -20,13 +20,13 @@ impl NativeAppState {
             };
             if let Err(err) = result {
                 self.audio.loop_playback = false;
-                self.sample_status = format!("Loop toggle failed: {err}");
+                self.ui.status.sample = format!("Loop toggle failed: {err}");
                 outcome = "error";
                 error = Some(err);
             }
         }
         if outcome == "success" {
-            self.sample_status = if self.audio.loop_playback {
+            self.ui.status.sample = if self.audio.loop_playback {
                 String::from("Loop playback enabled")
             } else {
                 String::from("Loop playback disabled")
@@ -47,7 +47,7 @@ impl NativeAppState {
             .player
             .as_ref()
             .and_then(AudioPlayer::progress)
-            .or_else(|| self.waveform.playhead_ratio())
+            .or_else(|| self.waveform.current.playhead_ratio())
     }
 
     pub(super) fn recover_loop_playback(&mut self, reason: &'static str) -> Result<(), String> {
@@ -68,11 +68,12 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn retarget_loop_playback_to_play_selection(&mut self) {
-        if !self.audio.loop_playback || !self.waveform.is_playing() {
+        if !self.audio.loop_playback || !self.waveform.current.is_playing() {
             return;
         }
         let Some(selection) = self
             .waveform
+            .current
             .play_selection()
             .filter(|selection| selection.width() > 0.0)
         else {
@@ -89,8 +90,8 @@ impl NativeAppState {
         let offset = loop_retarget_offset_for_selection(current, selection);
         match self.start_playback_span(selection.start(), selection.end(), Some(offset)) {
             Ok(()) => {
-                let file_name = self.waveform.file_name();
-                self.sample_status = format!("Loop range updated | {file_name}");
+                let file_name = self.waveform.current.file_name();
+                self.ui.status.sample = format!("Loop range updated | {file_name}");
                 emit_gui_action(
                     "playback.loop.retarget",
                     Some("waveform"),
@@ -101,7 +102,7 @@ impl NativeAppState {
                 );
             }
             Err(err) => {
-                self.sample_status = format!("Loop retarget failed: {err}");
+                self.ui.status.sample = format!("Loop retarget failed: {err}");
                 emit_gui_action(
                     "playback.loop.retarget",
                     Some("waveform"),

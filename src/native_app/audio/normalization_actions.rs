@@ -16,7 +16,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         if self.background.normalization_progress.is_some() {
-            self.sample_status = String::from("Normalization already in progress");
+            self.ui.status.sample = String::from("Normalization already in progress");
             emit_gui_action(
                 "browser.normalize_selected_samples",
                 Some("browser"),
@@ -27,9 +27,9 @@ impl NativeAppState {
             );
             return;
         }
-        let paths = self.folder_browser.selected_file_paths();
+        let paths = self.library.folder_browser.selected_file_paths();
         if paths.is_empty() {
-            self.sample_status = String::from("Select a sample to normalize");
+            self.ui.status.sample = String::from("Select a sample to normalize");
             emit_gui_action(
                 "browser.normalize_selected_samples",
                 Some("browser"),
@@ -50,7 +50,7 @@ impl NativeAppState {
             total: request.paths.len(),
             detail: String::from("Queued"),
         });
-        self.sample_status = format!("Normalizing {label}");
+        self.ui.status.sample = format!("Normalizing {label}");
         context.spawn(
             "gui-normalize-selected-samples",
             move || run_normalization_worker(request),
@@ -67,22 +67,22 @@ impl NativeAppState {
     }
 
     fn prepare_normalization_request(&mut self, paths: Vec<PathBuf>) -> NormalizationWorkerRequest {
-        let loaded_path = self.waveform.path();
+        let loaded_path = self.waveform.current.path();
         let normalizing_loaded = paths.iter().any(|path| path == &loaded_path);
-        let was_playing = self.waveform.is_playing() && normalizing_loaded;
+        let was_playing = self.waveform.current.is_playing() && normalizing_loaded;
         let restart_ratio = self
             .audio
             .player
             .as_ref()
             .and_then(AudioPlayer::progress)
-            .or(self.waveform.playhead_ratio())
+            .or(self.waveform.current.playhead_ratio())
             .unwrap_or(0.0);
         let restart_span = self.audio.current_playback_span;
         if was_playing {
             if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
-            self.waveform.stop_playback();
+            self.waveform.current.stop_playback();
             self.audio.current_playback_span = None;
         }
 
@@ -127,7 +127,7 @@ impl NativeAppState {
         self.background.progress_tick = 0.0;
 
         for path in &result.normalized {
-            self.folder_browser.refresh_file_path(path);
+            self.library.folder_browser.refresh_file_path(path);
         }
 
         let mut last_error = result.last_error;
@@ -159,7 +159,7 @@ impl NativeAppState {
         started_at: Instant,
     ) {
         if let Some(error) = last_error {
-            self.sample_status = format!(
+            self.ui.status.sample = format!(
                 "Normalized {} sample{} | {error}",
                 normalized.len(),
                 if normalized.len() == 1 { "" } else { "s" }
@@ -175,7 +175,7 @@ impl NativeAppState {
             return;
         }
 
-        self.sample_status = match normalized.as_slice() {
+        self.ui.status.sample = match normalized.as_slice() {
             [] => String::from("No selected samples were normalized"),
             [path] => format!("Normalized {}", sample_path_label(path)),
             _ => format!("Normalized {} samples", normalized.len()),

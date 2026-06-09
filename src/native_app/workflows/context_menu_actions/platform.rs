@@ -14,12 +14,12 @@ impl NativeAppState {
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let Some(menu) = self.browser_interaction.context_menu.take() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
         };
         if !context_menu::target_available(&menu.kind, &menu.path) {
             let error = context_menu::missing_target_message(&menu.kind);
-            self.sample_status = error.to_string();
+            self.ui.status.sample = error.to_string();
             emit_gui_action(
                 "browser.context_menu.copy_path",
                 Some(context_menu::pane(&menu.kind)),
@@ -61,7 +61,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         match result.into_completed() {
             Ok(()) => {
-                self.sample_status = String::from("Copied path");
+                self.ui.status.sample = String::from("Copied path");
                 emit_gui_action(
                     "browser.context_menu.copy_path",
                     Some(context_menu::pane(&kind)),
@@ -72,7 +72,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = format!("Copy path failed: {error}");
+                self.ui.status.sample = format!("Copy path failed: {error}");
                 emit_gui_action(
                     "browser.context_menu.copy_path",
                     Some(context_menu::pane(&kind)),
@@ -90,12 +90,12 @@ impl NativeAppState {
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let Some(menu) = self.browser_interaction.context_menu.take() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
         };
         if !context_menu::target_available(&menu.kind, &menu.path) {
             let error = context_menu::missing_target_message(&menu.kind);
-            self.sample_status = error.to_string();
+            self.ui.status.sample = error.to_string();
             emit_gui_action(
                 "browser.context_menu.open_explorer",
                 Some(context_menu::pane(&menu.kind)),
@@ -152,7 +152,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         match result.into_completed() {
             Ok(()) => {
-                self.sample_status = match &kind {
+                self.ui.status.sample = match &kind {
                     BrowserContextTargetKind::Sample => String::from("Revealed sample"),
                     BrowserContextTargetKind::Source => String::from("Opened source folder"),
                     BrowserContextTargetKind::Folder => String::from("Opened folder"),
@@ -168,7 +168,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.context_menu.open_explorer",
                     Some(context_menu::pane(&kind)),

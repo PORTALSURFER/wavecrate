@@ -33,17 +33,20 @@ fn looped_waveform_click_resolves_to_playmark_span_when_selected() {
     state.audio.loop_playback = true;
     state
         .waveform
+        .current
         .apply_interaction(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
             visible_ratio: 0.25,
         });
     state
         .waveform
+        .current
         .apply_interaction(WaveformInteraction::UpdateSelection {
             visible_ratio: 0.60,
         });
     state
         .waveform
+        .current
         .apply_interaction(WaveformInteraction::FinishSelection {
             visible_ratio: 0.60,
         });
@@ -82,15 +85,18 @@ fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
     for (start, end) in [(0.10, 0.20), (0.55, 0.70)] {
         state
             .waveform
+            .current
             .apply_interaction(WaveformInteraction::BeginSelection {
                 kind: WaveformSelectionKind::Play,
                 visible_ratio: start,
             });
         state
             .waveform
+            .current
             .apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: end });
         state
             .waveform
+            .current
             .apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: end });
     }
 
@@ -107,7 +113,7 @@ fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
     );
     assert!((span.end - 0.70).abs() < 0.001, "end was {}", span.end);
     assert_eq!(
-        state.waveform.play_selection(),
+        state.waveform.current.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.55, 0.70))
     );
 }
@@ -125,7 +131,7 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
     state.play_random_sample_range_with_unit(0.5, &mut context);
 
     assert!(!state.audio.loop_playback);
-    assert!(state.waveform.is_playing());
+    assert!(state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
     assert!(
         state
@@ -142,9 +148,9 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
         native_app_state_with_temp_sample("random-load.wav");
     let path = PathBuf::from(&selected_file);
     write_test_wav_i16(&path, &[0, 1024, -2048, 4096, -1024, 512]);
-    state.waveform = crate::native_app::test_support::WaveformState::empty();
+    state.waveform.current = crate::native_app::test_support::WaveformState::empty();
     state.audio.loop_playback = true;
-    assert!(!state.waveform.has_loaded_sample());
+    assert!(!state.waveform.current.has_loaded_sample());
 
     let mut context = ui::UpdateContext::default();
     state.play_random_sample_range_with_unit(0.5, &mut context);
@@ -183,10 +189,10 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
         "random audition should remain one-shot after the selected sample loads"
     );
     assert!(
-        state.sample_status.contains("Playback unavailable")
-            || state.sample_status.contains("Random audition"),
+        state.ui.status.sample.contains("Playback unavailable")
+            || state.ui.status.sample.contains("Random audition"),
         "random load completion should route through random playback, got {}",
-        state.sample_status
+        state.ui.status.sample
     );
 }
 
@@ -243,7 +249,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
     assert_eq!(progress.completed, 0);
     assert_eq!(progress.total, 1);
     assert_eq!(progress.detail, "Queued");
-    assert!(state.sample_status.contains("Normalizing 1 sample"));
+    assert!(state.ui.status.sample.contains("Normalizing 1 sample"));
 }
 
 #[test]
@@ -252,7 +258,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         .with_synthetic_waveform()
         .with_sample_status("")
         .build();
-    let sample_path = first_visible_asset_file_path(&state.folder_browser);
+    let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
     let sample_name = PathBuf::from(&sample_path)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
@@ -267,7 +273,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         &mut context,
     );
     assert_eq!(
-        state.waveform_load.label.as_deref(),
+        state.waveform.load.label.as_deref(),
         Some(sample_name.as_str())
     );
     assert!(
@@ -299,16 +305,17 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(sample_path.as_str())
     );
-    assert_eq!(state.waveform.file_name(), sample_name);
-    assert_eq!(state.waveform_load.label, None);
-    assert!(state.waveform.frames() > 0);
-    assert!(state.sample_status.contains(&sample_name));
+    assert_eq!(state.waveform.current.file_name(), sample_name);
+    assert_eq!(state.waveform.load.label, None);
+    assert!(state.waveform.current.frames() > 0);
+    assert!(state.ui.status.sample.contains(&sample_name));
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path)
     );
@@ -333,7 +340,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         state.background.sample_load_task.active().is_none(),
         "repeat selection must not start decode work"
     );
-    assert_eq!(state.waveform.file_name(), sample_name);
+    assert_eq!(state.waveform.current.file_name(), sample_name);
 }
 
 #[test]
@@ -344,17 +351,17 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     let sample_path_string = sample_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let loaded = crate::native_app::test_support::WaveformState::load_path(sample_path.clone())
         .expect("sample loads");
     state.remember_waveform(&loaded);
-    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
-    state.waveform_load.label = Some(String::from("previous.wav"));
-    state.waveform_load.progress = 0.42;
-    state.waveform_load.target_progress = 0.84;
+    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.load.label = Some(String::from("previous.wav"));
+    state.waveform.load.progress = 0.42;
+    state.waveform.load.target_progress = 0.84;
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -365,10 +372,10 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         &mut context,
     );
 
-    assert_eq!(state.waveform.path(), sample_path);
-    assert_eq!(state.waveform_load.label, None);
-    assert_eq!(state.waveform_load.progress, 0.0);
-    assert_eq!(state.waveform_load.target_progress, 0.0);
+    assert_eq!(state.waveform.current.path(), sample_path);
+    assert_eq!(state.waveform.load.label, None);
+    assert_eq!(state.waveform.load.progress, 0.0);
+    assert_eq!(state.waveform.load.target_progress, 0.0);
     assert!(
         state
             .background
@@ -382,13 +389,14 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         "memory-cached repeat selection should not queue decode work"
     );
     assert!(
-        state.sample_status.contains("resident.wav"),
+        state.ui.status.sample.contains("resident.wav"),
         "cached selection should update the visible status, got {}",
-        state.sample_status
+        state.ui.status.sample
     );
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path_string)
     );
@@ -404,7 +412,7 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
     let cached_path_string = cached_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -413,16 +421,17 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
         .expect("sample loads");
     state.remember_waveform(&cached);
 
-    state.waveform = crate::native_app::test_support::WaveformState::load_path(current_path)
-        .expect("current sample loads");
-    state.waveform.start_playback(0.25);
+    state.waveform.current =
+        crate::native_app::test_support::WaveformState::load_path(current_path)
+            .expect("current sample loads");
+    state.waveform.current.start_playback(0.25);
     state.audio.current_playback_span = Some((0.25, 1.0));
 
     let mut context = ui::UpdateContext::default();
     state.load_sample_without_autoplay(cached_path_string, &mut context);
 
-    assert_eq!(state.waveform.path(), cached_path);
-    assert!(!state.waveform.is_playing());
+    assert_eq!(state.waveform.current.path(), cached_path);
+    assert!(!state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, None);
     assert!(
         state
@@ -437,9 +446,9 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
         "memory-cached non-autoplay load should not queue decode work"
     );
     assert!(
-        state.sample_status.contains("Loaded cached.wav"),
+        state.ui.status.sample.contains("Loaded cached.wav"),
         "cached non-autoplay load should update status, got {}",
-        state.sample_status
+        state.ui.status.sample
     );
 }
 
@@ -536,11 +545,14 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
 
     let mut state = gui_state_for_span_tests();
     state.audio.player = Some(player);
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    state.folder_browser.select_file(sample_path_string.clone());
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
     let mut context = ui::UpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
@@ -587,7 +599,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     );
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
     assert!(
-        !state.waveform.is_playing(),
+        !state.waveform.current.is_playing(),
         "waveform visuals should wait for full waveform completion"
     );
 
@@ -606,7 +618,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     );
 
     assert_eq!(state.audio.early_sample_playback_path, None);
-    assert!(state.waveform.is_playing());
+    assert!(state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
 }
 
@@ -621,11 +633,14 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
     let second_path_string = second_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    state.folder_browser.select_file(first_path_string.clone());
+    state
+        .library
+        .folder_browser
+        .select_file(first_path_string.clone());
     let mut context = ui::UpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
@@ -640,7 +655,7 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         .sample_load_task
         .active()
         .expect("sample load queued");
-    state.folder_browser.select_file(second_path_string);
+    state.library.folder_browser.select_file(second_path_string);
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
@@ -664,7 +679,7 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
     assert_eq!(state.audio.early_sample_playback_path, None);
     assert_eq!(state.audio.current_playback_span, None);
     assert!(
-        !state.sample_status.contains("Playing"),
+        !state.ui.status.sample.contains("Playing"),
         "stale playback-ready messages must not start old selection audio"
     );
 }
@@ -677,16 +692,16 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     }
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let files = state.folder_browser.selected_audio_files();
+    let files = state.library.folder_browser.selected_audio_files();
     assert!(files.len() >= 3, "expected three visible samples");
     let first = files[0].id.clone();
     let second = files[1].id.clone();
     let third = files[2].id.clone();
-    state.folder_browser.select_file(first);
+    state.library.folder_browser.select_file(first);
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -698,7 +713,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(second.as_str())
     );
     assert!(
@@ -714,7 +729,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         "keyboard navigation must not synchronously start decode work"
     );
     assert_eq!(
-        state.waveform_load.label, None,
+        state.waveform.load.label, None,
         "keyboard navigation should not enter the loading UI until the deferred load fires"
     );
     let stale_ticket = state
@@ -732,7 +747,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(third.as_str())
     );
     assert!(
@@ -756,7 +771,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(third.as_str())
     );
     assert!(
@@ -783,15 +798,15 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
     let second = second_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    state.folder_browser.select_file(first);
+    state.library.folder_browser.select_file(first);
     let loaded = crate::native_app::test_support::WaveformState::load_path(second_path.clone())
         .expect("sample loads");
     state.remember_waveform(&loaded);
-    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -803,10 +818,10 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(second.as_str())
     );
-    assert_eq!(state.waveform.path(), second_path);
+    assert_eq!(state.waveform.current.path(), second_path);
     assert!(
         state
             .background
@@ -820,9 +835,9 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         "memory-cached keyboard navigation should not queue decode work"
     );
     assert!(
-        state.sample_status.contains("b.wav"),
+        state.ui.status.sample.contains("b.wav"),
         "cached keyboard navigation should update the visible status, got {}",
-        state.sample_status
+        state.ui.status.sample
     );
 }
 
@@ -841,16 +856,16 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
 
     let mut state = gui_state_for_span_tests();
     state.audio.player = Some(player);
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let files = state.folder_browser.selected_audio_files();
+    let files = state.library.folder_browser.selected_audio_files();
     assert!(files.len() >= 2, "expected two visible samples");
     let first = files[0].id.clone();
     let second = files[1].id.clone();
-    state.folder_browser.select_file(first);
-    state.waveform =
+    state.library.folder_browser.select_file(first);
+    state.waveform.current =
         crate::native_app::test_support::WaveformState::load_path(PathBuf::from(&second))
             .expect("sample loads");
 
@@ -864,11 +879,11 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(second.as_str())
     );
     assert!(
-        state.waveform.is_playing(),
+        state.waveform.current.is_playing(),
         "resident waveform should audition immediately during keyboard navigation"
     );
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
@@ -894,26 +909,30 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
     let new_path = source_root.path().join("renamed.wav");
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state
+        .library
         .folder_browser
         .select_file(old_path.display().to_string());
-    state.waveform = crate::native_app::test_support::WaveformState::load_path(old_path.clone())
-        .expect("sample loads");
-    let loaded = state.waveform.clone();
+    state.waveform.current =
+        crate::native_app::test_support::WaveformState::load_path(old_path.clone())
+            .expect("sample loads");
+    let loaded = state.waveform.current.clone();
     state.remember_waveform(&loaded);
-    assert!(state.waveform_cache.entries.contains_key(&old_path));
+    assert!(state.waveform.cache.entries.contains_key(&old_path));
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
 
     state
+        .library
         .folder_browser
         .begin_rename_selected()
         .expect("rename can start")
@@ -922,19 +941,21 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
         value: String::from("renamed"),
     });
 
-    assert_eq!(state.waveform.path(), new_path);
-    assert!(state.waveform.has_loaded_sample());
-    assert!(state.waveform_cache.entries.contains_key(&new_path));
-    assert!(!state.waveform_cache.entries.contains_key(&old_path));
+    assert_eq!(state.waveform.current.path(), new_path);
+    assert!(state.waveform.current.has_loaded_sample());
+    assert!(state.waveform.cache.entries.contains_key(&new_path));
+    assert!(!state.waveform.cache.entries.contains_key(&old_path));
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&new_path.display().to_string())
     );
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
@@ -948,7 +969,7 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
     assert!(state.background.sample_load_task.active().is_none());
     let new_id = new_path.display().to_string();
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(new_id.as_str())
     );
 }
@@ -964,7 +985,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
     let new_path = new_folder.join("loaded.wav");
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -978,11 +999,13 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         &mut context,
     );
     state
+        .library
         .folder_browser
         .select_file(old_path.display().to_string());
-    state.waveform = crate::native_app::test_support::WaveformState::load_path(old_path.clone())
-        .expect("sample loads");
-    let loaded = state.waveform.clone();
+    state.waveform.current =
+        crate::native_app::test_support::WaveformState::load_path(old_path.clone())
+            .expect("sample loads");
+    let loaded = state.waveform.current.clone();
     state.remember_waveform(&loaded);
 
     state.apply_message(
@@ -994,6 +1017,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         &mut context,
     );
     state
+        .library
         .folder_browser
         .begin_rename_selected()
         .expect("rename can start")
@@ -1002,19 +1026,21 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         value: String::from("breaks"),
     });
 
-    assert_eq!(state.waveform.path(), new_path);
-    assert!(state.waveform.has_loaded_sample());
-    assert!(state.waveform_cache.entries.contains_key(&new_path));
-    assert!(!state.waveform_cache.entries.contains_key(&old_path));
+    assert_eq!(state.waveform.current.path(), new_path);
+    assert!(state.waveform.current.has_loaded_sample());
+    assert!(state.waveform.cache.entries.contains_key(&new_path));
+    assert!(!state.waveform.cache.entries.contains_key(&old_path));
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&new_path.display().to_string())
     );
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
@@ -1049,7 +1075,7 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
     super::super::waveform::store_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1057,7 +1083,8 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
 
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path),
         "persisted cache should mark the sample as ready before it enters memory cache"
@@ -1085,12 +1112,13 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
         "playback-ready persisted cache should start worker loading immediately"
     );
     assert!(
-        state.waveform_load.label.as_deref() == Some(sample_name.as_str()),
+        state.waveform.load.label.as_deref() == Some(sample_name.as_str()),
         "selection should show loading state while the persisted cache is promoted"
     );
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .entries
             .contains_key(&PathBuf::from(&sample_path)),
         "persisted cache promotion must stay off the UI thread until background loading completes"
@@ -1114,7 +1142,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     super::super::waveform::store_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1122,16 +1150,17 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
 
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path_string)
     );
     assert!(
-        !state.waveform_cache.entries.contains_key(&sample_path),
+        !state.waveform.cache.entries.contains_key(&sample_path),
         "restart indicator refresh should not synchronously deserialize cached waveforms"
     );
     assert!(
-        state.waveform_cache.warm_pending.is_empty(),
+        state.waveform.cache.warm_pending.is_empty(),
         "playback-ready persisted caches should not be loaded into memory from UI refresh"
     );
 
@@ -1153,7 +1182,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         "selection of a playback-ready cached file should not wait for debounce"
     );
     assert!(state.background.sample_load_task.active().is_some());
-    assert_ne!(state.waveform.path(), sample_path);
+    assert_ne!(state.waveform.current.path(), sample_path);
 
     let ticket = state
         .background
@@ -1175,9 +1204,9 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         &mut context,
     );
 
-    assert_eq!(state.waveform.path(), sample_path);
+    assert_eq!(state.waveform.current.path(), sample_path);
     assert!(
-        state.waveform.audio_bytes().is_empty(),
+        state.waveform.current.audio_bytes().is_empty(),
         "playback-ready persisted cache should not reread source WAV bytes"
     );
 }
@@ -1200,13 +1229,14 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
     super::super::waveform::store_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path_string)
     );
@@ -1223,7 +1253,8 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
 
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .indicator_refresh_task
             .active()
             .is_some(),
@@ -1231,13 +1262,14 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
     );
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path_string),
         "folder activation must not synchronously read persisted cache metadata"
     );
     assert!(
-        state.waveform_cache.warm_pending.is_empty(),
+        state.waveform.cache.warm_pending.is_empty(),
         "summary cache warming should wait for the background indicator probe"
     );
 }
@@ -1256,7 +1288,7 @@ fn folder_activation_delays_active_folder_cache_warm() {
     write_test_wav_i16(&second, &[0, 512, -512, 1024, -1024, 0]);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1273,7 +1305,8 @@ fn folder_activation_delays_active_folder_cache_warm() {
 
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_delay_task
             .active()
             .is_some(),
@@ -1281,13 +1314,14 @@ fn folder_activation_delays_active_folder_cache_warm() {
     );
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_task
             .active()
             .is_none(),
         "active folder cache warm must not start during folder activation"
     );
-    assert_eq!(state.waveform_cache.active_folder_warm_pending.len(), 2);
+    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 2);
 }
 
 #[test]
@@ -1304,7 +1338,7 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
     write_test_wav_i16(&second_folder.join("second.wav"), &[0, 512, -512, 1024]);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1318,7 +1352,8 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         &mut context,
     );
     let first_ticket = state
-        .waveform_cache
+        .waveform
+        .cache
         .active_folder_warm_delay_task
         .active()
         .expect("first folder warm delay");
@@ -1328,7 +1363,8 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
     );
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_task
             .active()
             .is_some()
@@ -1345,7 +1381,8 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
 
     assert!(
         state
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_task
             .active()
             .is_none(),
@@ -1353,10 +1390,10 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
     );
     let second_folder_id = second_folder.display().to_string();
     assert_eq!(
-        state.waveform_cache.active_folder_warm_folder_id.as_deref(),
+        state.waveform.cache.active_folder_warm_folder_id.as_deref(),
         Some(second_folder_id.as_str())
     );
-    assert_eq!(state.waveform_cache.active_folder_warm_pending.len(), 1);
+    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 1);
 }
 
 #[test]
@@ -1404,7 +1441,7 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
     super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1412,13 +1449,14 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
 
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path_string),
         "summary-only persisted cache must not paint the row as playback-ready"
     );
     assert_eq!(
-        state.waveform_cache.warm_pending.iter().collect::<Vec<_>>(),
+        state.waveform.cache.warm_pending.iter().collect::<Vec<_>>(),
         vec![&sample_path],
         "summary-only persisted cache should still be warmed in the background"
     );
@@ -1443,7 +1481,7 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
     super::super::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1467,7 +1505,7 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
         "summary-only cache selection should not synchronously decode long playback samples"
     );
     assert_eq!(
-        state.waveform.path(),
+        state.waveform.current.path(),
         PathBuf::from("synthetic-waveform"),
         "selection should wait for the normal loading pipeline instead of hydrating a partial cache"
     );
@@ -1498,7 +1536,7 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
     assert_eq!(result.loaded.len(), 1);
 
     let mut restarted_state = gui_state_for_span_tests();
-    restarted_state.folder_browser =
+    restarted_state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1506,7 +1544,8 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
 
     assert!(
         restarted_state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path_string),
         "background warm should persist playback readiness for future restarts"
@@ -1530,7 +1569,7 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
     wait_for_playback_ready_cache(&sample_path);
 
     let mut restarted_state = gui_state_for_span_tests();
-    restarted_state.folder_browser =
+    restarted_state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
@@ -1538,7 +1577,8 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
 
     assert!(
         restarted_state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_path),
         "freshly loaded cache indicator should survive immediate restart"
@@ -1565,13 +1605,13 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     fs::write(&second_path, []).expect("second sample");
 
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let first_file = first_path.display().to_string();
     let second_file = second_path.display().to_string();
-    state.folder_browser.select_file(first_file.clone());
+    state.library.folder_browser.select_file(first_file.clone());
     state.metadata.tag_draft = String::from("ki");
     state.metadata.tag_tokens = vec![String::from("warm")];
     state.metadata.tag_input_mode =
@@ -1587,7 +1627,7 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     );
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(second_file.as_str())
     );
     assert!(state.metadata.tag_draft.is_empty());
@@ -1609,22 +1649,26 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
     };
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio.player = Some(player);
-    let sample_path = first_visible_asset_file_path(&state.folder_browser);
-    state.waveform = crate::native_app::test_support::WaveformState::load_path(sample_path.into())
-        .expect("test sample loads");
+    let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
+    state.waveform.current =
+        crate::native_app::test_support::WaveformState::load_path(sample_path.into())
+            .expect("test sample loads");
     state
         .waveform
+        .current
         .apply_interaction(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
             visible_ratio: 0.25,
         });
     state
         .waveform
+        .current
         .apply_interaction(WaveformInteraction::UpdateSelection {
             visible_ratio: 0.60,
         });
     state
         .waveform
+        .current
         .apply_interaction(WaveformInteraction::FinishSelection {
             visible_ratio: 0.60,
         });
@@ -1633,8 +1677,8 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
     let mut context = ui::UpdateContext::default();
     state.play_selected_sample(&mut context);
 
-    assert!(state.waveform.is_playing());
-    assert_eq!(state.waveform.play_mark_ratio(), Some(0.25));
+    assert!(state.waveform.current.is_playing());
+    assert_eq!(state.waveform.current.play_mark_ratio(), Some(0.25));
     assert_eq!(state.audio.current_playback_span, Some((0.25, 0.6)));
     assert!(
         state
@@ -1662,9 +1706,10 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
     };
     let mut state = gui_state_for_span_tests();
     state.audio.player = Some(player);
-    let sample_path = first_visible_asset_file_path(&state.folder_browser);
-    state.waveform = crate::native_app::test_support::WaveformState::load_path(sample_path.into())
-        .expect("test sample loads");
+    let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
+    state.waveform.current =
+        crate::native_app::test_support::WaveformState::load_path(sample_path.into())
+            .expect("test sample loads");
     state.audio.loop_playback = true;
     state
         .start_playback_current_span(0.0, 1.0)

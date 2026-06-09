@@ -46,19 +46,19 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn frame_message_animation_active(&self) -> bool {
-        self.waveform.is_playing()
-            || self.waveform.play_selection_flash_active()
-            || self.folder_progress.is_some()
+        self.waveform.current.is_playing()
+            || self.waveform.current.play_selection_flash_active()
+            || self.library.folder_progress.is_some()
             || self.background.normalization_progress.is_some()
-            || self.startup_source_scan_pending
-            || self.startup_auto_load_pending
+            || self.ui.startup.source_scan_pending
+            || self.ui.startup.auto_load_pending
             || self.waveform_input_blocked_by_sample_load()
     }
 
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
         if let Some(player) = self.audio.player.as_ref() {
             player.set_edit_fade_state(wavecrate::audio::edit_fade_range_from_selection(
-                self.waveform.edit_selection(),
+                self.waveform.current.edit_selection(),
             ));
         }
     }
@@ -76,7 +76,7 @@ impl NativeAppState {
         let elapsed = player.playback_elapsed();
         let player_looping = player.is_looping();
         let progress = player.progress();
-        let should_be_looping = self.audio.loop_playback && self.waveform.is_playing();
+        let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
 
@@ -92,9 +92,9 @@ impl NativeAppState {
 
         if active || within_start_grace || (should_be_looping && player_looping) {
             if let Some(progress) = progress {
-                self.waveform.set_playhead_ratio(progress);
+                self.waveform.current.set_playhead_ratio(progress);
             }
-        } else if self.waveform.is_playing() {
+        } else if self.waveform.current.is_playing() {
             self.finish_playback_progress();
         }
     }
@@ -107,7 +107,7 @@ impl NativeAppState {
         let Some(progress) = self.current_audio_progress_ratio() else {
             return;
         };
-        let Some(visible_ratio) = self.waveform.visible_ratio_for_absolute(progress) else {
+        let Some(visible_ratio) = self.waveform.current.visible_ratio_for_absolute(progress) else {
             return;
         };
         let Some(bounds) = context
@@ -121,8 +121,8 @@ impl NativeAppState {
 
     fn stop_playback_after_progress_error(&mut self, error: String) {
         let started_at = Instant::now();
-        self.waveform.stop_playback();
-        self.sample_status = format!("Playback stopped: {error}");
+        self.waveform.current.stop_playback();
+        self.ui.status.sample = format!("Playback stopped: {error}");
         emit_gui_action(
             "playback.progress",
             Some("transport"),
@@ -151,9 +151,9 @@ impl NativeAppState {
         };
         if let Err(err) = self.recover_loop_playback(reason) {
             self.audio.loop_playback = false;
-            self.waveform.stop_playback();
+            self.waveform.current.stop_playback();
             self.audio.current_playback_span = None;
-            self.sample_status = format!("Loop playback stopped: {err}");
+            self.ui.status.sample = format!("Loop playback stopped: {err}");
             emit_gui_action(
                 "playback.loop.recover",
                 Some("transport"),
@@ -167,7 +167,7 @@ impl NativeAppState {
 
     fn finish_playback_progress(&mut self) {
         let started_at = Instant::now();
-        self.waveform.stop_playback();
+        self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         emit_gui_action(
             "playback.progress",
@@ -183,15 +183,15 @@ impl NativeAppState {
 impl FrameRepaintScopeSnapshot {
     fn from_state(state: &NativeAppState) -> Self {
         Self {
-            playing: state.waveform.is_playing(),
-            play_selection_flash_active: state.waveform.play_selection_flash_active(),
-            folder_progress_active: state.folder_progress.is_some(),
+            playing: state.waveform.current.is_playing(),
+            play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
+            folder_progress_active: state.library.folder_progress.is_some(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
             waveform_loading_active: state.waveform_sample_load_active(),
             sample_loading: state.background.sample_load_task.active().is_some(),
             audio_opening: state.background.audio_open_task.active().is_some(),
-            startup_source_scan_pending: state.startup_source_scan_pending,
-            startup_auto_load_pending: state.startup_auto_load_pending,
+            startup_source_scan_pending: state.ui.startup.source_scan_pending,
+            startup_auto_load_pending: state.ui.startup.auto_load_pending,
             pending_playback_start: state.audio.pending_playback_start.is_some(),
         }
     }

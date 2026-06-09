@@ -42,7 +42,7 @@ impl NativeAppState {
             self.metadata.tag_drag = None;
             self.metadata.tag_drop_hover = None;
             context.end_drag();
-            self.sample_status = String::from("Playback Type tags are locked");
+            self.ui.status.sample = String::from("Playback Type tags are locked");
             return;
         }
         if let Some(position) = drag.started_position() {
@@ -58,7 +58,7 @@ impl NativeAppState {
                 ),
                 position,
             ));
-            self.sample_status = format!("Moving tag {tag}");
+            self.ui.status.sample = format!("Moving tag {tag}");
         } else if drag.is_finished() {
             self.metadata.tag_drag = None;
             self.metadata.tag_drop_hover = None;
@@ -78,11 +78,11 @@ impl NativeAppState {
         self.metadata.tag_drop_hover = None;
         context.end_drag();
         if metadata_tag_category_is_locked(category_id.as_str()) {
-            self.sample_status = String::from("Playback Type is locked");
+            self.ui.status.sample = String::from("Playback Type is locked");
             return;
         }
         if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
-            self.sample_status = String::from("Playback Type tags are locked");
+            self.ui.status.sample = String::from("Playback Type tags are locked");
             return;
         }
         let Some(category_id) = static_metadata_tag_category_id(category_id.as_str()) else {
@@ -90,7 +90,7 @@ impl NativeAppState {
         };
         let previous_category = self.metadata_tag_category_id(&tag);
         if previous_category == category_id {
-            self.sample_status = format!(
+            self.ui.status.sample = format!(
                 "Tag {tag} is already in {}",
                 metadata_tag_category_label_for_id(category_id).unwrap_or("this category")
             );
@@ -100,7 +100,7 @@ impl NativeAppState {
             .tag_dictionary
             .insert(tag.clone(), category_id.to_string());
         self.persist_user_configuration("metadata.tags.dictionary.move", Instant::now());
-        self.sample_status = format!(
+        self.ui.status.sample = format!(
             "Moved tag {tag} to {}",
             metadata_tag_category_label_for_id(category_id).unwrap_or("category")
         );
@@ -112,11 +112,11 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
-            self.sample_status = String::from("Playback Type tags are locked");
+            self.ui.status.sample = String::from("Playback Type tags are locked");
             return;
         }
 
-        self.browser_interaction.context_menu = None;
+        self.ui.browser_interaction.context_menu = None;
         self.metadata.tag_dictionary.remove(&tag);
         self.metadata.tag_drag = None;
         self.metadata.tag_drop_hover = None;
@@ -152,6 +152,7 @@ impl NativeAppState {
             }
             let absolute_path = PathBuf::from(&file_id);
             if let Some((source_root, relative_path)) = self
+                .library
                 .folder_browser
                 .source_relative_file_path(&absolute_path)
             {
@@ -167,7 +168,7 @@ impl NativeAppState {
 
         self.retain_visible_file_selection_after_metadata_tag_change();
         self.persist_user_configuration("metadata.tags.dictionary.delete", Instant::now());
-        self.sample_status = if removed_count == 0 {
+        self.ui.status.sample = if removed_count == 0 {
             format!("Deleted tag {tag}")
         } else {
             format!("Deleted tag {tag} from {removed_count} assignment(s)")

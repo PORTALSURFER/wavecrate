@@ -26,12 +26,12 @@ fn default_gui_loads_persisted_sources_and_audio_output() {
 
     let state = NativeAppState::load_default().expect("default state loads persisted config");
 
-    assert_eq!(state.folder_browser.root_path(), source_root.path());
+    assert_eq!(state.library.folder_browser.root_path(), source_root.path());
     assert!(
-        state.startup_source_scan_pending,
+        state.ui.startup.source_scan_pending,
         "uncached configured sources should scan once to build the initial tree"
     );
-    assert!(!state.startup_folder_verify_pending);
+    assert!(!state.ui.startup.folder_verify_pending);
     assert_eq!(state.audio.output_config.host.as_deref(), Some("test-host"));
     assert_eq!(
         state.audio.output_config.device.as_deref(),
@@ -67,18 +67,19 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
 
     let state = NativeAppState::load_default().expect("default state loads persisted cache");
 
-    assert!(state.folder_browser.selected_source_loaded());
+    assert!(state.library.folder_browser.selected_source_loaded());
     assert!(
-        !state.startup_source_scan_pending,
+        !state.ui.startup.source_scan_pending,
         "cached source trees must not queue a full startup scan"
     );
     assert!(
-        state.startup_folder_verify_pending,
+        state.ui.startup.folder_verify_pending,
         "cached source trees should queue only a bounded visible-folder verification"
     );
     assert!(
         !state
-            .waveform_cache
+            .waveform
+            .cache
             .cached_sample_paths
             .contains(&sample_id),
         "startup must not probe waveform cache metadata on the UI thread"
@@ -109,15 +110,15 @@ fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
     state.maybe_startup_source_scan(&mut context);
 
     assert!(
-        state.folder_progress.is_none(),
+        state.library.folder_progress.is_none(),
         "cached startup must not queue a foreground source scan"
     );
     assert!(
-        !state.startup_source_scan_pending,
+        !state.ui.startup.source_scan_pending,
         "cached startup should not leave a full scan pending"
     );
     assert!(
-        !state.startup_folder_verify_pending,
+        !state.ui.startup.folder_verify_pending,
         "visible-folder verification should be consumed as a one-shot startup task"
     );
     assert!(
@@ -145,6 +146,7 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
     state.audio.volume = 0.5;
 
     let request = state
+        .library
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
@@ -174,6 +176,7 @@ fn default_gui_removes_context_source_from_app_config() {
     let source_root = tempfile::tempdir().expect("source root");
     let mut state = gui_state_for_span_tests();
     let request = state
+        .library
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
@@ -183,7 +186,7 @@ fn default_gui_removes_context_source_from_app_config() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    state.browser_interaction.context_menu =
+    state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
             path: source_root.path().to_path_buf(),
@@ -199,8 +202,8 @@ fn default_gui_removes_context_source_from_app_config() {
 
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
     assert!(loaded.sources.is_empty());
-    assert!(state.sample_status.contains("Removed source"));
-    assert!(state.folder_browser.root_path().ends_with("assets"));
+    assert!(state.ui.status.sample.contains("Removed source"));
+    assert!(state.library.folder_browser.root_path().ends_with("assets"));
 }
 
 #[test]
@@ -211,6 +214,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
     fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write sample");
     let mut state = gui_state_for_span_tests();
     let request = state
+        .library
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
@@ -221,7 +225,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    state.browser_interaction.context_menu =
+    state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
             path: source_root.path().to_path_buf(),
@@ -232,27 +236,31 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
             anchor: Point::new(12.0, 24.0),
             title: String::from("source root"),
         });
-    let visible_before = state.folder_browser.selected_audio_files().len();
+    let visible_before = state.library.folder_browser.selected_audio_files().len();
     let mut context = ui::UpdateContext::default();
 
     state.refresh_context_source(&mut context);
 
-    assert_eq!(state.browser_interaction.context_menu, None);
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
     let task_id = state
+        .library
         .folder_progress
         .as_ref()
         .expect("refresh should show scan progress")
         .task_id;
     assert!(
-        state.folder_browser.scan_is_active(&source_id, task_id),
+        state
+            .library
+            .folder_browser
+            .scan_is_active(&source_id, task_id),
         "refresh should queue the next background scan task"
     );
     assert_eq!(
-        state.folder_browser.selected_audio_files().len(),
+        state.library.folder_browser.selected_audio_files().len(),
         visible_before,
         "refresh should keep the current cached tree visible while the scan runs"
     );
-    assert!(state.sample_status.contains("Scanning source"));
+    assert!(state.ui.status.sample.contains("Scanning source"));
 }
 
 #[test]
@@ -263,6 +271,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
     fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write sample");
     let mut state = gui_state_for_span_tests();
     let request = state
+        .library
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
@@ -273,7 +282,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    let visible_before = state.folder_browser.selected_audio_files().len();
+    let visible_before = state.library.folder_browser.selected_audio_files().len();
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
@@ -286,13 +295,19 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
     );
 
     let task_id = state
+        .library
         .folder_progress
         .as_ref()
         .expect("filesystem change should show scan progress")
         .task_id;
-    assert!(state.folder_browser.scan_is_active(&source_id, task_id));
+    assert!(
+        state
+            .library
+            .folder_browser
+            .scan_is_active(&source_id, task_id)
+    );
     assert_eq!(
-        state.folder_browser.selected_audio_files().len(),
+        state.library.folder_browser.selected_audio_files().len(),
         visible_before,
         "live sync should keep the current cached tree visible while the scan runs"
     );
@@ -306,6 +321,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
     fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write sample");
     let mut state = gui_state_for_span_tests();
     let request = state
+        .library
         .folder_browser
         .begin_add_source_path(source_root.path().to_path_buf(), 100)
         .expect("new source requests scan");
@@ -327,15 +343,19 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         },
         &mut context,
     );
-    assert!(state.pending_source_refreshes.contains(&source_id));
+    assert!(state.library.pending_source_refreshes.contains(&source_id));
 
     let active_task = state
+        .library
         .folder_progress
         .as_ref()
         .expect("first refresh should be active")
         .task_id;
     assert!(
-        state.folder_browser.scan_is_active(&source_id, active_task),
+        state
+            .library
+            .folder_browser
+            .scan_is_active(&source_id, active_task),
         "first scan should still own the active task"
     );
     let finished = crate::native_app::sample_library::folder_browser::scan_source_with_progress(
@@ -352,10 +372,16 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
     state.maybe_run_pending_source_refresh(&mut context);
 
     let next_task = state
+        .library
         .folder_progress
         .as_ref()
         .expect("pending refresh should start after active scan")
         .task_id;
     assert_ne!(next_task, active_task);
-    assert!(state.folder_browser.scan_is_active(&source_id, next_task));
+    assert!(
+        state
+            .library
+            .folder_browser
+            .scan_is_active(&source_id, next_task)
+    );
 }

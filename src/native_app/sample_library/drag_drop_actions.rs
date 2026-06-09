@@ -22,19 +22,23 @@ impl NativeAppState {
     ) {
         match drag.phase() {
             DragHandlePhase::Started => {
-                self.folder_browser.begin_file_drag(path, drag.position());
+                self.library
+                    .folder_browser
+                    .begin_file_drag(path, drag.position());
                 self.arm_browser_drag(context);
             }
             DragHandlePhase::Moved => {
-                self.folder_browser.update_drag_pointer(drag.position());
+                self.library
+                    .folder_browser
+                    .update_drag_pointer(drag.position());
             }
             DragHandlePhase::Ended => {
-                self.folder_browser.clear_drag();
+                self.library.folder_browser.clear_drag();
                 context.end_drag_session();
             }
             DragHandlePhase::Cancelled => {
                 self.clear_pending_internal_file_drag_paths();
-                self.folder_browser.clear_drag();
+                self.library.folder_browser.clear_drag();
                 context.end_drag_session();
             }
             _ => {}
@@ -49,27 +53,31 @@ impl NativeAppState {
     ) {
         match drag.phase() {
             DragHandlePhase::Started => {
-                self.folder_browser
+                self.library
+                    .folder_browser
                     .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
                 self.arm_browser_drag(context);
             }
             DragHandlePhase::Moved => {
-                self.folder_browser
+                self.library
+                    .folder_browser
                     .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
             }
             DragHandlePhase::Ended => {
-                if let Some(target_folder_id) = self.folder_browser.hovered_drop_target_folder_id()
+                if let Some(target_folder_id) =
+                    self.library.folder_browser.hovered_drop_target_folder_id()
                 {
                     self.drop_browser_drag_on_folder(target_folder_id, context);
                 } else {
-                    self.folder_browser
+                    self.library
+                        .folder_browser
                         .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
                     context.end_drag_session();
                 }
             }
             DragHandlePhase::Cancelled => {
                 self.clear_pending_internal_file_drag_paths();
-                self.folder_browser.clear_drag();
+                self.library.folder_browser.clear_drag();
                 context.end_drag_session();
             }
             DragHandlePhase::DoubleActivate => {}
@@ -86,11 +94,12 @@ impl NativeAppState {
                 let started_at = Instant::now();
                 match self.extract_waveform_drag_file() {
                     Ok(path) => {
-                        self.waveform.flash_play_selection();
-                        self.folder_browser
+                        self.waveform.current.flash_play_selection();
+                        self.library
+                            .folder_browser
                             .begin_extracted_file_drag(path.clone(), drag.position());
                         self.arm_browser_drag(context);
-                        self.sample_status = format!("Dragging {}", sample_path_label(&path));
+                        self.ui.status.sample = format!("Dragging {}", sample_path_label(&path));
                         emit_gui_action(
                             "waveform.selection_drag.start",
                             Some("waveform"),
@@ -102,7 +111,7 @@ impl NativeAppState {
                         true
                     }
                     Err(error) => {
-                        self.sample_status = error.clone();
+                        self.ui.status.sample = error.clone();
                         emit_gui_action(
                             "waveform.selection_drag.start",
                             Some("waveform"),
@@ -116,17 +125,19 @@ impl NativeAppState {
                 }
             }
             DragHandlePhase::Moved => {
-                self.folder_browser.update_drag_pointer(drag.position());
+                self.library
+                    .folder_browser
+                    .update_drag_pointer(drag.position());
                 true
             }
             DragHandlePhase::Ended => {
-                self.folder_browser.clear_drag();
+                self.library.folder_browser.clear_drag();
                 context.end_drag_session();
                 true
             }
             DragHandlePhase::Cancelled => {
                 self.clear_pending_internal_file_drag_paths();
-                self.folder_browser.clear_drag();
+                self.library.folder_browser.clear_drag();
                 context.end_drag_session();
                 true
             }
@@ -136,6 +147,7 @@ impl NativeAppState {
 
     fn extract_waveform_drag_file(&mut self) -> Result<PathBuf, String> {
         let target_folder = self
+            .library
             .folder_browser
             .selected_folder_path()
             .ok_or_else(|| String::from("Select a folder before dragging a range"))?;
@@ -147,8 +159,9 @@ impl NativeAppState {
         })?;
         let path = self
             .waveform
+            .current
             .extract_play_selection_to_folder(&target_folder)?;
-        self.folder_browser.refresh_file_path(&path);
+        self.library.folder_browser.refresh_file_path(&path);
         Ok(path)
     }
 
@@ -156,28 +169,28 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(path) = self.folder_browser.extracted_file_drag_path() else {
+        let Some(path) = self.library.folder_browser.extracted_file_drag_path() else {
             return;
         };
         context.end_drag_session();
         self.clear_pending_internal_file_drag_paths();
-        self.folder_browser.clear_drag();
-        self.folder_browser.refresh_file_path(&path);
-        self.sample_status = format!("Extracted {}", sample_path_label(&path));
+        self.library.folder_browser.clear_drag();
+        self.library.folder_browser.refresh_file_path(&path);
+        self.ui.status.sample = format!("Extracted {}", sample_path_label(&path));
     }
 
     pub(in crate::native_app) fn cancel_browser_drag_on_sample_list(
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        self.folder_browser.clear_drag();
+        self.library.folder_browser.clear_drag();
         self.clear_pending_internal_file_drag_paths();
         context.end_drag_session();
-        self.sample_status = String::from("Drag cancelled");
+        self.ui.status.sample = String::from("Drag cancelled");
     }
 
     fn arm_browser_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
-        let drag = self.folder_browser.drag_preview().map(|preview| {
+        let drag = self.library.folder_browser.drag_preview().map(|preview| {
             ui::DragRequest::new(
                 ui::DragPreview::text_sized(
                     preview.label,
@@ -188,7 +201,7 @@ impl NativeAppState {
                 preview.pointer,
             )
         });
-        let external = self.folder_browser.external_drag_request();
+        let external = self.library.folder_browser.external_drag_request();
         self.arm_pending_internal_file_drag_paths(external.as_ref());
 
         context.begin_drag_session(drag, external, GuiMessage::ExternalDragCompleted);
@@ -196,9 +209,9 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn copy_selected_files(&mut self) {
         let started_at = Instant::now();
-        let paths = self.folder_browser.selected_file_paths();
+        let paths = self.library.folder_browser.selected_file_paths();
         if paths.is_empty() {
-            self.sample_status = String::from("Select files before copying");
+            self.ui.status.sample = String::from("Select files before copying");
             emit_gui_action(
                 "browser.copy_selected_files",
                 Some("browser"),
@@ -212,7 +225,7 @@ impl NativeAppState {
 
         match external_clipboard::copy_file_paths(&paths) {
             Ok(()) => {
-                self.sample_status = match paths.len() {
+                self.ui.status.sample = match paths.len() {
                     1 => String::from("Copied selected file"),
                     count => format!("Copied {count} selected files"),
                 };
@@ -226,7 +239,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = format!("Copy failed: {error}");
+                self.ui.status.sample = format!("Copy failed: {error}");
                 emit_gui_action(
                     "browser.copy_selected_files",
                     Some("browser"),
@@ -245,9 +258,9 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         context.end_drag();
-        self.folder_browser.clear_drag();
+        self.library.folder_browser.clear_drag();
         self.clear_pending_internal_file_drag_paths();
-        self.sample_status = match result {
+        self.ui.status.sample = match result {
             Ok(outcome) if outcome.accepted() => match outcome.effect {
                 ui::ExternalDragEffect::Copy => String::from("Dragged item externally"),
                 ui::ExternalDragEffect::Move => String::from("Moved item externally"),
@@ -267,11 +280,11 @@ impl NativeAppState {
         let started_at = Instant::now();
         context.end_drag_session();
         self.clear_pending_internal_file_drag_paths();
-        match self.folder_browser.drop_drag_on_folder(&folder_id) {
+        match self.library.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(result) => {
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
-                    self.sample_status = status;
+                    self.ui.status.sample = status;
                 }
                 emit_gui_action(
                     "browser.drag_drop.move",
@@ -287,8 +300,8 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
-                self.folder_browser.clear_drag();
+                self.ui.status.sample = error.clone();
+                self.library.folder_browser.clear_drag();
                 emit_gui_action(
                     "browser.drag_drop.move",
                     Some("browser"),
@@ -307,13 +320,14 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         match self
+            .library
             .folder_browser
             .resolve_next_file_move_conflict(resolution)
         {
             Ok(result) => {
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
-                    self.sample_status = status;
+                    self.ui.status.sample = status;
                 }
                 emit_gui_action(
                     "browser.drag_drop.file_conflict.resolve",
@@ -329,7 +343,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.drag_drop.file_conflict.resolve",
                     Some("browser"),
@@ -343,14 +357,16 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn cancel_file_move_conflicts(&mut self) {
-        if let Some(status) = self.folder_browser.cancel_file_move_conflicts() {
-            self.sample_status = status;
+        if let Some(status) = self.library.folder_browser.cancel_file_move_conflicts() {
+            self.ui.status.sample = status;
         }
     }
 
     fn apply_moved_sample_paths(&mut self, moved_paths: &[(PathBuf, PathBuf)]) {
         for (old_path, new_path) in moved_paths {
-            self.waveform.rewrite_path_prefix(old_path, new_path);
+            self.waveform
+                .current
+                .rewrite_path_prefix(old_path, new_path);
             self.remap_renamed_waveform_cache_path(old_path, new_path);
         }
     }
@@ -359,26 +375,30 @@ impl NativeAppState {
         &mut self,
         request: Option<&ui::ExternalDragRequest>,
     ) {
-        self.browser_interaction
+        self.ui
+            .browser_interaction
             .pending_internal_file_drag_paths
             .clear();
         let Some(ui::ExternalDragPayload::Files(paths)) = request.map(|request| &request.payload)
         else {
             return;
         };
-        self.browser_interaction
+        self.ui
+            .browser_interaction
             .pending_internal_file_drag_paths
             .extend(paths.iter().map(|path| normalized_drag_path(path)));
     }
 
     pub(in crate::native_app) fn clear_pending_internal_file_drag_paths(&mut self) {
-        self.browser_interaction
+        self.ui
+            .browser_interaction
             .pending_internal_file_drag_paths
             .clear();
     }
 
     pub(in crate::native_app) fn is_pending_internal_file_drag_path(&self, path: &Path) -> bool {
-        self.browser_interaction
+        self.ui
+            .browser_interaction
             .pending_internal_file_drag_paths
             .contains(&normalized_drag_path(path))
     }

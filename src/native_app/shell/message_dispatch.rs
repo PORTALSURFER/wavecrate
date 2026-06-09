@@ -34,13 +34,13 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);
-        let active_drag = self.waveform.active_drag_kind();
+        let active_drag = self.waveform.current.active_drag_kind();
         if let WaveformInteraction::DragPlaySelectionExport(drag) = message
             && !self.drag_waveform_play_selection(drag, context)
         {
             return;
         }
-        self.waveform.apply_interaction(message);
+        self.waveform.current.apply_interaction(message);
         self.sync_edit_fade_audio_state();
         if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
             self.retarget_loop_playback_to_play_selection();
@@ -48,7 +48,7 @@ impl NativeAppState {
         if let Some(action) = action {
             emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
         }
-        if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
+        if let Some(start_ratio) = self.waveform.current.take_pending_playback_start() {
             self.maybe_open_audio_player(context);
             self.play_waveform_from_ratio(start_ratio);
         }
@@ -89,14 +89,14 @@ impl NativeAppState {
             }
             GuiMessage::NormalizationFinished(result) => self.finish_normalization(result),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
                 self.select_sample_with_modifiers(path, modifiers, context);
             }
             GuiMessage::OpenSampleContextMenu { path, position } => {
                 self.open_sample_context_menu(path, position);
             }
             GuiMessage::DragSampleFile { path, drag } => {
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
                 self.drag_sample_file(path, drag, context);
             }
             GuiMessage::ExternalDragCompleted(result) => {
@@ -120,7 +120,7 @@ impl NativeAppState {
             }
             GuiMessage::SampleLoadProgress(ticket, progress) => {
                 if self.background.sample_load_task.is_active(ticket) {
-                    self.waveform_load.target_progress = progress.clamp(0.0, 0.995);
+                    self.waveform.load.target_progress = progress.clamp(0.0, 0.995);
                 }
             }
             GuiMessage::SamplePlaybackReady(result) => self.finish_sample_playback_ready(result),
@@ -239,20 +239,20 @@ impl NativeAppState {
             GuiMessage::RefreshContextSource => self.refresh_context_source(context),
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
             }
             GuiMessage::ToggleJobDetails => {
-                self.chrome.job_details_open =
-                    self.folder_progress.is_some() && !self.chrome.job_details_open;
+                self.ui.chrome.job_details_open =
+                    self.library.folder_progress.is_some() && !self.ui.chrome.job_details_open;
             }
             GuiMessage::CloseJobDetails => {
-                self.chrome.job_details_open = false;
+                self.ui.chrome.job_details_open = false;
             }
             GuiMessage::UndoTransaction => self.undo_transaction(),
             GuiMessage::RedoTransaction => self.redo_transaction(),
             GuiMessage::ToggleTransactionList => self.toggle_transaction_list(),
             GuiMessage::CloseTransactionList => {
-                self.chrome.transaction_list_open = false;
+                self.ui.chrome.transaction_list_open = false;
             }
             GuiMessage::FocusRenameInput(input_id) => {
                 self.focus_rename_input(input_id, context);
@@ -269,10 +269,14 @@ impl NativeAppState {
                 self.select_all_samples();
             }
             GuiMessage::SampleBrowserWindowChanged(change) => {
-                self.folder_browser.apply_file_view_window_change(change);
+                self.library
+                    .folder_browser
+                    .apply_file_view_window_change(change);
             }
             GuiMessage::FolderTreeWindowChanged(change) => {
-                self.folder_browser.apply_tree_view_window_change(change);
+                self.library
+                    .folder_browser
+                    .apply_tree_view_window_change(change);
             }
             GuiMessage::CollapseSelectedFolder => {
                 self.collapse_selected_folder();

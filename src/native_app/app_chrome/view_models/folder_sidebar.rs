@@ -18,8 +18,8 @@ pub(in crate::native_app) struct FolderSidebarViewModel<'a> {
 
 impl<'a> FolderSidebarViewModel<'a> {
     pub(in crate::native_app) fn from_app_state(state: &'a mut NativeAppState) -> Self {
-        let sidebar_width = state.chrome.folder_panel.size();
-        let has_selected_file = state.folder_browser.selected_file_id().is_some();
+        let sidebar_width = state.ui.chrome.folder_panel.size();
+        let has_selected_file = state.library.folder_browser.selected_file_id().is_some();
         let metadata_tag_pending_category_tag = state
             .pending_metadata_tag_category_tag()
             .map(str::to_string);
@@ -30,7 +30,7 @@ impl<'a> FolderSidebarViewModel<'a> {
         let metadata_tag_input_placeholder = state.metadata_tag_input_placeholder();
 
         Self {
-            folder_browser: &mut state.folder_browser,
+            folder_browser: &mut state.library.folder_browser,
             sidebar_width,
             has_selected_file,
             metadata_tag_draft: state.metadata.tag_draft.as_str(),

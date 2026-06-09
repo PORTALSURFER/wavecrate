@@ -18,7 +18,7 @@ impl NativeAppState {
         let phase = message.phase();
         let should_log = !message.is_moved();
         let outcome = phase.as_str();
-        self.chrome.folder_panel.resize(
+        self.ui.chrome.folder_panel.resize(
             message,
             ui::PanelResizeConstraints::right(MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH),
         );
@@ -44,7 +44,7 @@ impl NativeAppState {
             FolderBrowserMessage::SelectSource(id) => {
                 let started_at = Instant::now();
                 let source = id.clone();
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
                 self.select_source(id, context);
                 self.schedule_active_folder_cache_warm(context);
                 emit_gui_action(
@@ -61,7 +61,7 @@ impl NativeAppState {
             }
             FolderBrowserMessage::BeginRenameSelected => self.begin_folder_browser_rename(context),
             FolderBrowserMessage::CancelRename => {
-                self.folder_browser.cancel_rename();
+                self.library.folder_browser.cancel_rename();
             }
             FolderBrowserMessage::BeginCreateSubfolder => {
                 self.begin_folder_browser_subfolder_creation(context);
@@ -70,17 +70,19 @@ impl NativeAppState {
                 self.apply_folder_browser_rename_input(message);
             }
             FolderBrowserMessage::TagFilterInput(message) => {
-                self.folder_browser
+                self.library
+                    .folder_browser
                     .apply_message(FolderBrowserMessage::TagFilterInput(message));
-                self.folder_browser
+                self.library
+                    .folder_browser
                     .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
             }
             FolderBrowserMessage::DropOnFolder(folder_id) => {
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
                 self.drop_browser_drag_on_folder(folder_id, context);
             }
             FolderBrowserMessage::DropOnCollection(collection) => {
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
                 self.drop_drag_on_collection(collection, context);
             }
             FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
@@ -89,7 +91,8 @@ impl NativeAppState {
             FolderBrowserMessage::ActivateFolder(folder_id) => {
                 let started_at = Instant::now();
                 let source = folder_id.clone();
-                self.folder_browser
+                self.library
+                    .folder_browser
                     .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
                 self.schedule_persisted_waveform_cache_indicator_refresh(context);
                 self.schedule_active_folder_cache_warm(context);
@@ -103,11 +106,12 @@ impl NativeAppState {
                 );
             }
             FolderBrowserMessage::DragFolder(folder_id, drag) => {
-                self.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.context_menu = None;
                 self.drag_folder(folder_id, drag, context);
             }
             FolderBrowserMessage::ActivateCollection(collection) => {
-                self.folder_browser
+                self.library
+                    .folder_browser
                     .apply_message(FolderBrowserMessage::ActivateCollection(collection));
                 self.schedule_persisted_waveform_cache_indicator_refresh(context);
                 self.cancel_active_folder_cache_warm();
@@ -115,7 +119,7 @@ impl NativeAppState {
             FolderBrowserMessage::RenameCollection(collection) => {
                 self.begin_collection_rename(collection, context);
             }
-            message => self.folder_browser.apply_message(message),
+            message => self.library.folder_browser.apply_message(message),
         }
     }
 
@@ -125,9 +129,13 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        match self.folder_browser.begin_rename_collection(collection) {
+        match self
+            .library
+            .folder_browser
+            .begin_rename_collection(collection)
+        {
             Some(input_id) => {
-                self.sample_status = String::from("Renaming collection");
+                self.ui.status.sample = String::from("Renaming collection");
                 context.after(
                     Duration::from_millis(1),
                     GuiMessage::FocusRenameInput(input_id),
@@ -142,7 +150,7 @@ impl NativeAppState {
                 );
             }
             None => {
-                self.sample_status = String::from("Select a collection to rename");
+                self.ui.status.sample = String::from("Select a collection to rename");
                 emit_gui_action(
                     "folder_browser.collection.rename.begin",
                     Some("folder_browser"),
@@ -175,9 +183,10 @@ impl NativeAppState {
     pub(in crate::native_app) fn select_all_samples(&mut self) {
         let started_at = Instant::now();
         let count = self
+            .library
             .folder_browser
             .select_all_audio_files_matching_tags(&self.metadata.tags_by_file);
-        self.sample_status = format!(
+        self.ui.status.sample = format!(
             "Selected {count} sample{}",
             if count == 1 { "" } else { "s" }
         );
@@ -196,12 +205,17 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let previous_focus = self.folder_browser.selected_file_id().map(str::to_owned);
+        let previous_focus = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
         let Some(result) = self
+            .library
             .folder_browser
             .toggle_focused_sample_selection_and_advance(&self.metadata.tags_by_file)
         else {
-            self.sample_status = String::from("Select a sample to mark");
+            self.ui.status.sample = String::from("Select a sample to mark");
             emit_gui_action(
                 "browser.toggle_sample_selection_and_advance",
                 Some("browser"),
@@ -213,11 +227,12 @@ impl NativeAppState {
             return;
         };
 
-        if self.folder_browser.selected_file_id() != previous_focus.as_deref() {
+        if self.library.folder_browser.selected_file_id() != previous_focus.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
         if let Some(index) = self
+            .library
             .folder_browser
             .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
         {
@@ -236,8 +251,8 @@ impl NativeAppState {
         } else {
             "Unmarked"
         };
-        let count = self.folder_browser.selected_audio_file_count();
-        self.sample_status = format!(
+        let count = self.library.folder_browser.selected_audio_file_count();
+        self.ui.status.sample = format!(
             "{action} {} ({count} selected)",
             sample_path_label(&result.toggled_id)
         );
@@ -253,7 +268,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn collapse_selected_folder(&mut self) {
         let started_at = Instant::now();
-        self.folder_browser.collapse_selected_folder();
+        self.library.folder_browser.collapse_selected_folder();
         emit_gui_action(
             "folder_browser.collapse_selected",
             Some("folder_browser"),
@@ -266,7 +281,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn expand_selected_folder(&mut self) {
         let started_at = Instant::now();
-        self.folder_browser.expand_selected_folder();
+        self.library.folder_browser.expand_selected_folder();
         emit_gui_action(
             "folder_browser.expand_selected",
             Some("folder_browser"),
@@ -285,8 +300,12 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let direction = if delta < 0 { "previous" } else { "next" };
-        let previous_selection = self.folder_browser.selected_file_id().map(str::to_owned);
-        let Some(path) = self.folder_browser.navigate_vertical_matching_tags(
+        let previous_selection = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
+        let Some(path) = self.library.folder_browser.navigate_vertical_matching_tags(
             delta,
             extend,
             &self.metadata.tags_by_file,
@@ -303,6 +322,7 @@ impl NativeAppState {
         };
 
         if let Some(index) = self
+            .library
             .folder_browser
             .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
         {
@@ -323,7 +343,7 @@ impl NativeAppState {
             started_at,
             None,
         );
-        if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
+        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }

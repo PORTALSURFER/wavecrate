@@ -22,11 +22,12 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         if self
+            .library
             .folder_browser
             .scan_is_active(&progress.source_id, progress.task_id)
         {
             let phase = progress.phase.clone();
-            self.folder_progress = Some(progress);
+            self.library.folder_progress = Some(progress);
             emit_gui_action(
                 "folder_browser.scan.progress",
                 Some("folder_browser"),
@@ -44,7 +45,9 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let count = batch.events.len();
-        self.folder_browser.apply_scan_discovered_batch(batch);
+        self.library
+            .folder_browser
+            .apply_scan_discovered_batch(batch);
         if logging::debug_logging_enabled() {
             tracing::debug!(
                 target: logging::ACTION_EVENT_TARGET,
@@ -104,7 +107,7 @@ impl NativeAppState {
                 return;
             }
             Err(error) => {
-                self.sample_status = format!("Add source failed: {error}");
+                self.ui.status.sample = format!("Add source failed: {error}");
                 emit_gui_action(
                     "folder_browser.add_source_dialog",
                     Some("folder_browser"),
@@ -126,7 +129,11 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.folder_browser.begin_add_source_path(path, task_id) {
+        if let Some(request) = self
+            .library
+            .folder_browser
+            .begin_add_source_path(path, task_id)
+        {
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.add_source_dialog",
@@ -156,7 +163,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.folder_browser.begin_select_source(id, task_id) {
+        if let Some(request) = self.library.folder_browser.begin_select_source(id, task_id) {
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.select_source",
@@ -186,9 +193,9 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.folder_browser.begin_source_scan(id, task_id) {
+        if let Some(request) = self.library.folder_browser.begin_source_scan(id, task_id) {
             let label = request.label.clone();
-            self.browser_interaction.context_menu = None;
+            self.ui.browser_interaction.context_menu = None;
             emit_gui_action(
                 "folder_browser.source.refresh",
                 Some("sources"),
@@ -199,8 +206,8 @@ impl NativeAppState {
             );
             self.launch_folder_scan(request, context);
         } else {
-            self.browser_interaction.context_menu = None;
-            self.sample_status = String::from("Source refresh is already running");
+            self.ui.browser_interaction.context_menu = None;
+            self.ui.status.sample = String::from("Source refresh is already running");
             emit_gui_action(
                 "folder_browser.source.refresh",
                 Some("sources"),
@@ -220,8 +227,13 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.folder_browser.source_root_path(&source_id).is_none() {
-            self.pending_source_refreshes.remove(&source_id);
+        if self
+            .library
+            .folder_browser
+            .source_root_path(&source_id)
+            .is_none()
+        {
+            self.library.pending_source_refreshes.remove(&source_id);
             emit_gui_action(
                 "folder_browser.source.filesystem_change",
                 Some("sources"),
@@ -234,10 +246,11 @@ impl NativeAppState {
         }
         if !overflowed && !paths.is_empty() {
             let changed = self
+                .library
                 .folder_browser
                 .refresh_filesystem_paths(&source_id, &paths);
             if changed {
-                self.sample_status = format!("Synced {} filesystem change(s)", paths.len());
+                self.ui.status.sample = format!("Synced {} filesystem change(s)", paths.len());
                 self.refresh_persisted_metadata_tags_for_source(&source_id);
                 self.schedule_persisted_waveform_cache_indicator_refresh(context);
                 self.schedule_active_folder_cache_warm(context);
@@ -256,8 +269,10 @@ impl NativeAppState {
             );
             return;
         }
-        if self.folder_progress.is_some() {
-            self.pending_source_refreshes.insert(source_id.clone());
+        if self.library.folder_progress.is_some() {
+            self.library
+                .pending_source_refreshes
+                .insert(source_id.clone());
             emit_gui_action(
                 "folder_browser.source.filesystem_change",
                 Some("sources"),
@@ -275,13 +290,13 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.folder_progress.is_some() {
+        if self.library.folder_progress.is_some() {
             return;
         }
-        let Some(source_id) = self.pending_source_refreshes.iter().next().cloned() else {
+        let Some(source_id) = self.library.pending_source_refreshes.iter().next().cloned() else {
             return;
         };
-        self.pending_source_refreshes.remove(&source_id);
+        self.library.pending_source_refreshes.remove(&source_id);
         self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
     }
 
@@ -293,6 +308,7 @@ impl NativeAppState {
     ) {
         let task_id = self.next_folder_task_id();
         if let Some(request) = self
+            .library
             .folder_browser
             .begin_source_scan(source_id.clone(), task_id)
         {
@@ -308,7 +324,9 @@ impl NativeAppState {
             self.launch_folder_scan(request, context);
             return;
         }
-        self.pending_source_refreshes.insert(source_id.clone());
+        self.library
+            .pending_source_refreshes
+            .insert(source_id.clone());
         emit_gui_action(
             "folder_browser.source.filesystem_change",
             Some("sources"),
@@ -323,12 +341,12 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(menu) = self.browser_interaction.context_menu.clone() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.clone() else {
             return;
         };
         let Some(source_id) = menu.source_id else {
-            self.browser_interaction.context_menu = None;
-            self.sample_status = String::from("Source is unavailable");
+            self.ui.browser_interaction.context_menu = None;
+            self.ui.status.sample = String::from("Source is unavailable");
             return;
         };
         self.refresh_source(source_id, context);
@@ -338,14 +356,18 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if !self.startup_source_scan_pending {
+        if !self.ui.startup.source_scan_pending {
             self.maybe_startup_visible_folder_verify(context);
             return;
         }
-        self.startup_source_scan_pending = false;
+        self.ui.startup.source_scan_pending = false;
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.folder_browser.begin_selected_source_scan(task_id) {
+        if let Some(request) = self
+            .library
+            .folder_browser
+            .begin_selected_source_scan(task_id)
+        {
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.startup_scan",
@@ -369,7 +391,7 @@ impl NativeAppState {
     }
 
     fn maybe_startup_visible_folder_verify(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
-        if !self.startup_folder_verify_pending {
+        if !self.ui.startup.folder_verify_pending {
             return;
         }
         if self
@@ -380,11 +402,11 @@ impl NativeAppState {
         {
             return;
         }
-        let Some(request) = self.folder_browser.selected_folder_verify_request() else {
-            self.startup_folder_verify_pending = false;
+        let Some(request) = self.library.folder_browser.selected_folder_verify_request() else {
+            self.ui.startup.folder_verify_pending = false;
             return;
         };
-        self.startup_folder_verify_pending = false;
+        self.ui.startup.folder_verify_pending = false;
         let started_at = Instant::now();
         let ticket = self.background.startup_folder_verify_task.begin();
         let results = self.background.startup_folder_verify_results.clone();
@@ -425,6 +447,7 @@ impl NativeAppState {
         };
         let source_id = result.source_id.clone();
         let changed = self
+            .library
             .folder_browser
             .apply_direct_folder_verify_result(result);
         if changed {
@@ -449,7 +472,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         let label = request.label.clone();
         let root = request.root.display().to_string();
-        self.folder_progress = Some(FolderScanProgress {
+        self.library.folder_progress = Some(FolderScanProgress {
             task_id: request.task_id,
             source_id: request.source_id.clone(),
             label: request.label.clone(),
@@ -458,7 +481,7 @@ impl NativeAppState {
             total: 0,
             detail: request.root.display().to_string(),
         });
-        self.sample_status = format!("Scanning source {}", request.label);
+        self.ui.status.sample = format!("Scanning source {}", request.label);
         tracing::info!(
             source = label,
             root = root,
@@ -491,11 +514,11 @@ impl NativeAppState {
         let label = result.label.clone();
         let file_count = result.file_count;
         let folder_count = result.folder_count;
-        if self.folder_browser.apply_scan_finished(result) {
-            self.folder_progress = None;
-            self.chrome.job_details_open = false;
+        if self.library.folder_browser.apply_scan_finished(result) {
+            self.library.folder_progress = None;
+            self.ui.chrome.job_details_open = false;
             self.background.progress_tick = 0.0;
-            self.sample_status =
+            self.ui.status.sample =
                 format!("Loaded source {label}: {file_count} files in {folder_count} folders");
             tracing::info!(
                 source = label,

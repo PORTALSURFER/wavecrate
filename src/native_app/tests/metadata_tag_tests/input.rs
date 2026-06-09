@@ -141,7 +141,7 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
         state.metadata_tag_input_placeholder(),
         "select group/parent tag"
     );
-    assert_eq!(state.sample_status, "Choose a category for deep-kick");
+    assert_eq!(state.ui.status.sample, "Choose a category for deep-kick");
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::MetadataTagInput(
@@ -183,7 +183,7 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
     );
     assert_eq!(state.pending_metadata_tag_category_tag(), None);
     assert!(state.metadata.tag_draft.is_empty());
-    assert_eq!(state.sample_status, "Added tag deep-kick");
+    assert_eq!(state.ui.status.sample, "Added tag deep-kick");
 }
 
 #[test]
@@ -313,9 +313,12 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
     .expect("seed config");
     let selected_file = sample_path.display().to_string();
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[source]);
-    state.folder_browser.select_file(selected_file.clone());
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::MetadataTagInput(
@@ -426,7 +429,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
 
     assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
-    assert_eq!(state.sample_status, "Choose a category for ki");
+    assert_eq!(state.ui.status.sample, "Choose a category for ki");
 }
 
 #[test]
@@ -476,7 +479,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
 
     assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
-    assert_eq!(state.sample_status, "Choose a category for ki");
+    assert_eq!(state.ui.status.sample, "Choose a category for ki");
 }
 
 #[test]

@@ -19,12 +19,18 @@ pub(in crate::native_app) struct AudioSettingsSnapshot {
 impl AudioSettingsSnapshot {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         Self {
-            tab: state.settings_ui.app_settings_tab,
-            trash_folder: state.persisted_settings.trash_folder.clone(),
+            tab: state.ui.settings.ui.app_settings_tab,
+            trash_folder: state.ui.settings.persisted.trash_folder.clone(),
             detail_label: state.audio_engine_detail_label(),
             error: state.audio.settings_error.clone(),
             audio_output_config: state.audio.output_config.clone(),
-            open_dropdown: state.settings_ui.audio_settings_dropdown.current().copied(),
+            open_dropdown: state
+                .ui
+                .settings
+                .ui
+                .audio_settings_dropdown
+                .current()
+                .copied(),
             audio_hosts: state.audio.hosts.clone(),
             audio_devices: state.audio.devices.clone(),
             audio_sample_rates: state.audio.sample_rates.clone(),

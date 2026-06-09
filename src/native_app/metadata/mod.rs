@@ -39,23 +39,25 @@ pub(super) use persistence::{
 };
 impl NativeAppState {
     pub(super) fn refresh_persisted_metadata_tags_for_source(&mut self, source_id: &str) {
-        let Some(root) = self.folder_browser.source_root_path(source_id) else {
+        let Some(root) = self.library.folder_browser.source_root_path(source_id) else {
             return;
         };
         if let Err(error) =
             load_persisted_metadata_tags_for_source(&root, &mut self.metadata.tags_by_file)
         {
-            self.sample_status = format!("Tags not loaded: {error}");
+            self.ui.status.sample = format!("Tags not loaded: {error}");
         }
     }
 
     pub(super) fn retain_visible_file_selection_after_metadata_tag_change(&mut self) {
-        self.folder_browser
+        self.library
+            .folder_browser
             .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
     }
 
     pub(super) fn selected_metadata_tags(&self) -> &[String] {
-        self.folder_browser
+        self.library
+            .folder_browser
             .selected_file_id()
             .and_then(|file_id| self.metadata.tags_by_file.get(file_id))
             .map(Vec::as_slice)
@@ -142,7 +144,7 @@ impl NativeAppState {
             };
             self.metadata.tag_draft.clear();
             self.reset_metadata_tag_completion_cycle();
-            self.sample_status = format!("Choose a category for {tag}");
+            self.ui.status.sample = format!("Choose a category for {tag}");
             return;
         }
         self.metadata.tag_draft.clear();
@@ -160,7 +162,7 @@ impl NativeAppState {
             return;
         };
         let Some(category_id) = self.selected_metadata_tag_category(value.as_str()) else {
-            self.sample_status = format!("Choose a category for {pending_tag}");
+            self.ui.status.sample = format!("Choose a category for {pending_tag}");
             return;
         };
         self.metadata

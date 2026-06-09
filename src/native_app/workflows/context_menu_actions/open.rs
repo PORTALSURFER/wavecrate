@@ -16,8 +16,8 @@ impl NativeAppState {
         position: Point,
     ) {
         let started_at = Instant::now();
-        let Some(path) = self.folder_browser.source_root_path(&source_id) else {
-            self.sample_status = String::from("Source is unavailable");
+        let Some(path) = self.library.folder_browser.source_root_path(&source_id) else {
+            self.ui.status.sample = String::from("Source is unavailable");
             emit_gui_action(
                 "browser.context_menu.source.open",
                 Some("sources"),
@@ -29,8 +29,8 @@ impl NativeAppState {
             return;
         };
         let title = context_menu_title(&path);
-        let source_removable = self.folder_browser.source_is_removable(&source_id);
-        self.browser_interaction.context_menu = Some(BrowserContextMenu {
+        let source_removable = self.library.folder_browser.source_is_removable(&source_id);
+        self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Source,
             path,
             source_id: Some(source_id),
@@ -48,8 +48,8 @@ impl NativeAppState {
         position: Point,
     ) {
         let started_at = Instant::now();
-        let Some(path) = self.folder_browser.folder_path(&folder_id) else {
-            self.sample_status = String::from("Folder is unavailable");
+        let Some(path) = self.library.folder_browser.folder_path(&folder_id) else {
+            self.ui.status.sample = String::from("Folder is unavailable");
             emit_gui_action(
                 "browser.context_menu.folder.open",
                 Some("folder_browser"),
@@ -61,7 +61,7 @@ impl NativeAppState {
             return;
         };
         if !context_menu::target_available(&BrowserContextTargetKind::Folder, &path) {
-            self.sample_status = String::from("Folder is missing");
+            self.ui.status.sample = String::from("Folder is missing");
             emit_gui_action(
                 "browser.context_menu.folder.open",
                 Some("folder_browser"),
@@ -72,7 +72,7 @@ impl NativeAppState {
             );
             return;
         }
-        self.browser_interaction.context_menu = Some(BrowserContextMenu {
+        self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Folder,
             title: context_menu_title(&path),
             path,
@@ -90,10 +90,11 @@ impl NativeAppState {
         position: Point,
     ) {
         let started_at = Instant::now();
-        self.folder_browser
+        self.library
+            .folder_browser
             .focus_file_preserving_selection(path.clone());
-        let Some(path) = self.folder_browser.context_sample_path(&path) else {
-            self.sample_status = String::from("Sample is unavailable");
+        let Some(path) = self.library.folder_browser.context_sample_path(&path) else {
+            self.ui.status.sample = String::from("Sample is unavailable");
             emit_gui_action(
                 "browser.context_menu.sample.open",
                 Some("browser"),
@@ -105,7 +106,7 @@ impl NativeAppState {
             return;
         };
         if !context_menu::target_available(&BrowserContextTargetKind::Sample, &path) {
-            self.sample_status = String::from("Sample file is missing");
+            self.ui.status.sample = String::from("Sample file is missing");
             emit_gui_action(
                 "browser.context_menu.sample.open",
                 Some("browser"),
@@ -117,9 +118,10 @@ impl NativeAppState {
             return;
         }
         let collection = self
+            .library
             .folder_browser
             .active_collection_for_context_file(&path);
-        self.browser_interaction.context_menu = Some(BrowserContextMenu {
+        self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             title: sample_path_label(&path),
             path,
@@ -136,7 +138,7 @@ impl NativeAppState {
         tag: String,
         position: Point,
     ) {
-        self.browser_interaction.context_menu = Some(BrowserContextMenu {
+        self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::MetadataTag,
             path: Path::new("").to_path_buf(),
             source_id: None,

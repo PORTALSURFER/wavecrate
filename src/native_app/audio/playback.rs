@@ -23,9 +23,9 @@ const RANDOM_AUDITION_SECONDS: f32 = 4.0;
 
 impl NativeAppState {
     pub(in crate::native_app) fn random_playback_available(&self) -> bool {
-        self.waveform.has_loaded_sample()
-            || self.folder_browser.selected_file_id().is_some()
-            || self.folder_browser.random_playback_available()
+        self.waveform.current.has_loaded_sample()
+            || self.library.folder_browser.selected_file_id().is_some()
+            || self.library.folder_browser.random_playback_available()
     }
 
     pub(in crate::native_app) fn play_selected_sample(
@@ -33,8 +33,8 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if let Some(path) = self.folder_browser.selected_file_id()
-            && self.waveform.path() != Path::new(path)
+        if let Some(path) = self.library.folder_browser.selected_file_id()
+            && self.waveform.current.path() != Path::new(path)
         {
             let label = sample_path_label(path);
             emit_gui_action(
@@ -50,14 +50,15 @@ impl NativeAppState {
         }
         let (start, end) = self
             .waveform
+            .current
             .play_selection()
             .filter(|selection| selection.width() > 0.0)
             .map(|selection| (selection.start(), selection.end()))
             .unwrap_or((0.0, 1.0));
         match self.start_playback_current_span(start, end) {
             Ok(()) => {
-                let file_name = self.waveform.file_name();
-                self.sample_status = format!("Playing {file_name}");
+                let file_name = self.waveform.current.file_name();
+                self.ui.status.sample = format!("Playing {file_name}");
                 emit_gui_action(
                     "playback.play_selected_sample",
                     Some("transport"),
@@ -68,7 +69,7 @@ impl NativeAppState {
                 );
             }
             Err(err) => {
-                self.sample_status = format!("Playback unavailable: {err}");
+                self.ui.status.sample = format!("Playback unavailable: {err}");
                 emit_gui_action(
                     "playback.play_selected_sample",
                     Some("transport"),
@@ -85,8 +86,8 @@ impl NativeAppState {
         let started_at = Instant::now();
         match self.start_playback_current_span(start_ratio, 1.0) {
             Ok(()) => {
-                let file_name = self.waveform.file_name();
-                self.sample_status =
+                let file_name = self.waveform.current.file_name();
+                self.ui.status.sample =
                     format!("Playing {} from {:.1}%", file_name, start_ratio * 100.0);
                 emit_gui_action(
                     "playback.play_waveform_from_ratio",
@@ -98,7 +99,7 @@ impl NativeAppState {
                 );
             }
             Err(err) => {
-                self.sample_status = format!("Playback unavailable: {err}");
+                self.ui.status.sample = format!("Playback unavailable: {err}");
                 emit_gui_action(
                     "playback.play_waveform_from_ratio",
                     Some("waveform"),
@@ -126,8 +127,12 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if let Some(path) = self.folder_browser.selected_file_id().map(str::to_owned)
-            && self.waveform.path() != Path::new(&path)
+        if let Some(path) = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+            && self.waveform.current.path() != Path::new(&path)
         {
             let label = sample_path_label(&path);
             emit_gui_action(
@@ -144,8 +149,8 @@ impl NativeAppState {
             return;
         }
 
-        if !self.waveform.has_loaded_sample()
-            && let Some(path) = self.folder_browser.random_playback_candidate(unit)
+        if !self.waveform.current.has_loaded_sample()
+            && let Some(path) = self.library.folder_browser.random_playback_candidate(unit)
         {
             let label = sample_path_label(&path);
             emit_gui_action(
@@ -158,19 +163,20 @@ impl NativeAppState {
             );
             self.audio.pending_sample_playback =
                 Some(PendingSamplePlayback::RandomAudition { unit });
-            self.folder_browser
+            self.library
+                .folder_browser
                 .focus_file_across_sources(Path::new(&path));
             self.load_sample_without_autoplay(path, context);
             return;
         }
-        let file_name = self.waveform.file_name();
+        let file_name = self.waveform.current.file_name();
         let span = self.random_audition_span_for_loaded_waveform(unit);
         let was_looping = self.audio.loop_playback;
         self.audio.loop_playback = false;
 
         match self.start_playback_current_span(span.start, span.end) {
             Ok(()) => {
-                self.sample_status = span.status_message(&file_name);
+                self.ui.status.sample = span.status_message(&file_name);
                 emit_gui_action(
                     "playback.play_random_sample_range",
                     Some("transport"),
@@ -184,7 +190,7 @@ impl NativeAppState {
                 if self.audio.pending_playback_start.is_none() {
                     self.audio.loop_playback = was_looping;
                 }
-                self.sample_status = format!("Playback unavailable: {err}");
+                self.ui.status.sample = format!("Playback unavailable: {err}");
                 emit_gui_action(
                     "playback.play_random_sample_range",
                     Some("transport"),
@@ -203,6 +209,7 @@ impl NativeAppState {
     ) -> RandomAuditionSpan {
         if let Some(range) = self
             .waveform
+            .current
             .select_marked_play_range_for_random_audition(unit)
         {
             return RandomAuditionSpan {
@@ -211,7 +218,8 @@ impl NativeAppState {
                 source: RandomAuditionSource::MarkedRange,
             };
         }
-        let (start, end) = random_audition_span_for_unit(self.waveform.duration_seconds(), unit);
+        let (start, end) =
+            random_audition_span_for_unit(self.waveform.current.duration_seconds(), unit);
         RandomAuditionSpan {
             start,
             end,
@@ -224,10 +232,10 @@ impl NativeAppState {
         if let Some(player) = self.audio.player.as_mut() {
             player.stop();
         }
-        self.waveform.stop_playback();
+        self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
-        let file_name = self.waveform.file_name();
-        self.sample_status = format!("Stopped {file_name}");
+        let file_name = self.waveform.current.file_name();
+        self.ui.status.sample = format!("Stopped {file_name}");
         emit_gui_action(
             "playback.stop",
             Some("transport"),
@@ -253,7 +261,7 @@ impl NativeAppState {
         loop_offset_ratio: Option<f32>,
     ) -> Result<(), String> {
         let playback_started_at = Instant::now();
-        if !self.waveform.has_loaded_sample() {
+        if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
         if self.audio.player.is_none() {
@@ -270,21 +278,22 @@ impl NativeAppState {
         let playback_span = self.resolve_playback_span(start_ratio, end_ratio, loop_offset_ratio);
         let start_ratio = playback_span.start_ratio;
         let end_ratio = playback_span.end_ratio;
-        let duration = self.waveform.frames() as f32 / self.waveform.sample_rate().max(1) as f32;
+        let duration = self.waveform.current.frames() as f32
+            / self.waveform.current.sample_rate().max(1) as f32;
         let player = self
             .audio
             .player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
-        let playback_cache_file = self.waveform.playback_cache_file();
-        let source_kind = if self.waveform.playback_samples().is_some() {
+        let playback_cache_file = self.waveform.current.playback_cache_file();
+        let source_kind = if self.waveform.current.playback_samples().is_some() {
             "decoded_samples"
         } else if playback_cache_file.is_some() {
             "interleaved_f32_file"
         } else {
             "audio_bytes"
         };
-        let file_name = self.waveform.file_name();
+        let file_name = self.waveform.current.file_name();
         let output_setup_started_at = Instant::now();
         player.set_volume(self.audio.volume);
         self.audio.output_resolved = Some(player.output_details().clone());
@@ -295,28 +304,28 @@ impl NativeAppState {
             output_setup_started_at,
         );
         let metadata_started_at = Instant::now();
-        if let Some(samples) = self.waveform.playback_samples() {
+        if let Some(samples) = self.waveform.current.playback_samples() {
             player.set_audio_samples_with_metadata(
-                self.waveform.audio_bytes(),
+                self.waveform.current.audio_bytes(),
                 samples,
                 duration,
-                self.waveform.sample_rate(),
-                self.waveform.channels(),
+                self.waveform.current.sample_rate(),
+                self.waveform.current.channels(),
             );
         } else if let Some(cache_file) = playback_cache_file {
             player.set_interleaved_f32_file_with_metadata(
                 cache_file.path,
                 cache_file.sample_count,
                 duration,
-                self.waveform.sample_rate(),
-                self.waveform.channels(),
+                self.waveform.current.sample_rate(),
+                self.waveform.current.channels(),
             );
         } else {
             player.set_audio_with_metadata(
-                self.waveform.audio_bytes(),
+                self.waveform.current.audio_bytes(),
                 duration,
-                self.waveform.sample_rate(),
-                self.waveform.channels(),
+                self.waveform.current.sample_rate(),
+                self.waveform.current.channels(),
             );
         }
         log_slow_playback_phase(
@@ -327,7 +336,7 @@ impl NativeAppState {
         );
         let fade_started_at = Instant::now();
         player.set_edit_fade_state(edit_fade_range_from_selection(
-            self.waveform.edit_selection(),
+            self.waveform.current.edit_selection(),
         ));
         log_slow_playback_phase(
             "playback.start.set_edit_fade",
@@ -354,7 +363,7 @@ impl NativeAppState {
             play_started_at,
         );
         let waveform_started_at = Instant::now();
-        self.waveform.start_playback(playback_start);
+        self.waveform.current.start_playback(playback_start);
         self.audio.current_playback_span = Some((start_ratio, end_ratio));
         log_slow_playback_phase(
             "playback.start.waveform_state",
@@ -389,6 +398,7 @@ impl NativeAppState {
 
         let (loop_start, loop_end) = self
             .waveform
+            .current
             .play_selection()
             .filter(|selection| selection.width() > 0.0)
             .map(|selection| (selection.start(), selection.end()))

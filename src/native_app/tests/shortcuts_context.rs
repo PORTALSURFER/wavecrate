@@ -46,14 +46,16 @@ fn escape_shortcut_routes_to_stop_playback() {
 fn escape_shortcut_cancels_rename_while_renaming() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let sample_path = state
+        .library
         .folder_browser
         .selected_audio_files()
         .first()
         .expect("default assets include an audio sample")
         .id
         .clone();
-    state.folder_browser.select_file(sample_path);
+    state.library.folder_browser.select_file(sample_path);
     state
+        .library
         .folder_browser
         .begin_rename_selected()
         .expect("begin rename should not fail");
@@ -73,13 +75,13 @@ fn escape_shortcut_cancels_rename_while_renaming() {
 #[test]
 fn escape_shortcut_cancels_file_column_drag() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(284.0, 0.0)),
         ),
     );
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(560.0, 0.0)),
@@ -101,7 +103,7 @@ fn escape_shortcut_cancels_file_column_drag() {
 #[test]
 fn audio_settings_window_does_not_capture_main_escape_shortcut() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.settings_ui.audio_settings_open = true;
+    state.ui.settings.ui.audio_settings_open = true;
 
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
@@ -116,7 +118,7 @@ fn audio_settings_window_does_not_capture_main_escape_shortcut() {
 #[test]
 fn audio_settings_window_does_not_block_main_shortcuts() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.settings_ui.audio_settings_open = true;
+    state.ui.settings.ui.audio_settings_open = true;
 
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::N));
@@ -133,7 +135,7 @@ fn audio_settings_window_does_not_block_main_shortcuts() {
 #[test]
 fn context_menu_escape_shortcut_closes_context_menu() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.browser_interaction.context_menu =
+    state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
             path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
@@ -177,7 +179,9 @@ fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
 fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
     let mut state = gui_state_for_span_tests();
     state
-        .settings_ui
+        .ui
+        .settings
+        .ui
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
 
@@ -264,7 +268,7 @@ fn context_menu_availability_requires_existing_target_kind() {
 #[test]
 fn stale_context_menu_copy_path_refuses_missing_sample_file() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.browser_interaction.context_menu =
+    state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
             path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
@@ -279,8 +283,8 @@ fn stale_context_menu_copy_path_refuses_missing_sample_file() {
     let mut context = ui::UpdateContext::default();
     state.copy_context_path(&mut context);
 
-    assert_eq!(state.sample_status, "Sample file is missing");
-    assert_eq!(state.browser_interaction.context_menu, None);
+    assert_eq!(state.ui.status.sample, "Sample file is missing");
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
 }
 
 #[test]
@@ -292,7 +296,7 @@ fn context_path_copy_completion_updates_status() {
         std::path::PathBuf::from("C:\\samples\\kick.wav"),
         Ok(ui::PlatformResponse::Completed),
     );
-    assert_eq!(state.sample_status, "Copied path");
+    assert_eq!(state.ui.status.sample, "Copied path");
 
     state.finish_context_path_copy(
         crate::native_app::test_support::BrowserContextTargetKind::Sample,
@@ -300,7 +304,7 @@ fn context_path_copy_completion_updates_status() {
         Err(String::from("clipboard unavailable")),
     );
     assert_eq!(
-        state.sample_status,
+        state.ui.status.sample,
         "Copy path failed: clipboard unavailable"
     );
 }
@@ -314,14 +318,14 @@ fn context_target_open_completion_updates_status() {
         std::path::PathBuf::from("C:\\samples\\kick.wav"),
         Ok(ui::PlatformResponse::Completed),
     );
-    assert_eq!(state.sample_status, "Revealed sample");
+    assert_eq!(state.ui.status.sample, "Revealed sample");
 
     state.finish_context_target_open(
         crate::native_app::test_support::BrowserContextTargetKind::Folder,
         std::path::PathBuf::from("C:\\samples"),
         Err(String::from("shell unavailable")),
     );
-    assert_eq!(state.sample_status, "shell unavailable");
+    assert_eq!(state.ui.status.sample, "shell unavailable");
 }
 
 #[test]
@@ -395,14 +399,16 @@ fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
 fn x_shortcut_is_consumed_while_renaming() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let sample_path = state
+        .library
         .folder_browser
         .selected_audio_files()
         .first()
         .expect("default assets include an audio sample")
         .id
         .clone();
-    state.folder_browser.select_file(sample_path);
+    state.library.folder_browser.select_file(sample_path);
     state
+        .library
         .folder_browser
         .begin_rename_selected()
         .expect("begin rename should not fail");

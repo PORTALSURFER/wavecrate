@@ -575,13 +575,13 @@ impl NativeAppState {
         self.transactions.history = history;
         match result {
             Ok(Some(applied)) => {
-                self.sample_status = format!("Undid {}", applied.label);
+                self.ui.status.sample = format!("Undid {}", applied.label);
             }
             Ok(None) => {
-                self.sample_status = String::from("Nothing to undo");
+                self.ui.status.sample = String::from("Nothing to undo");
             }
             Err(error) => {
-                self.sample_status = format!("Undo failed: {error}");
+                self.ui.status.sample = format!("Undo failed: {error}");
             }
         }
     }
@@ -595,19 +595,19 @@ impl NativeAppState {
         self.transactions.history = history;
         match result {
             Ok(Some(applied)) => {
-                self.sample_status = format!("Redid {}", applied.label);
+                self.ui.status.sample = format!("Redid {}", applied.label);
             }
             Ok(None) => {
-                self.sample_status = String::from("Nothing to redo");
+                self.ui.status.sample = String::from("Nothing to redo");
             }
             Err(error) => {
-                self.sample_status = format!("Redo failed: {error}");
+                self.ui.status.sample = format!("Redo failed: {error}");
             }
         }
     }
 
     pub(in crate::native_app) fn toggle_transaction_list(&mut self) {
-        self.chrome.transaction_list_open = !self.chrome.transaction_list_open;
+        self.ui.chrome.transaction_list_open = !self.ui.chrome.transaction_list_open;
     }
 }
 

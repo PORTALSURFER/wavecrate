@@ -149,6 +149,7 @@ fn folder_context_menu_open_does_not_toggle_folder_expansion() {
 
     let mut state = gui_state_for_span_tests();
     let request = state
+        .library
         .folder_browser
         .begin_add_source_path(root.clone(), 100)
         .expect("new source should request scan");
@@ -159,6 +160,7 @@ fn folder_context_menu_open_does_not_toggle_folder_expansion() {
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
     let (folder_id, expanded_before) = state
+        .library
         .folder_browser
         .first_visible_child_folder_expansion_for_tests()
         .expect("test source should contain a child folder");
@@ -166,6 +168,7 @@ fn folder_context_menu_open_does_not_toggle_folder_expansion() {
     state.open_folder_context_menu(folder_id.clone(), Point::new(40.0, 120.0));
 
     let expanded_after = state
+        .library
         .folder_browser
         .folder_expansion_for_tests(&folder_id)
         .expect("context-menu target should remain visible");

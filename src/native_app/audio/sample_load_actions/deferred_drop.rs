@@ -18,7 +18,7 @@ pub(super) fn defer_large_drop<T: Send + 'static>(value: T) {
 
 impl NativeAppState {
     pub(super) fn replace_waveform_deferred(&mut self, waveform: WaveformState) {
-        let previous = std::mem::replace(&mut self.waveform, waveform);
+        let previous = std::mem::replace(&mut self.waveform.current, waveform);
         defer_large_drop(previous);
     }
 }

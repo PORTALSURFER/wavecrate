@@ -8,11 +8,11 @@ use crate::native_app::sample_library::context_menu_target::BrowserContextTarget
 impl NativeAppState {
     pub(in crate::native_app) fn remove_context_source(&mut self) {
         let started_at = Instant::now();
-        let Some(menu) = self.browser_interaction.context_menu.take() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
         };
         if menu.kind != BrowserContextTargetKind::Source {
-            self.sample_status = String::from("Context target is not a source");
+            self.ui.status.sample = String::from("Context target is not a source");
             emit_gui_action(
                 "browser.context_menu.source.remove",
                 Some("sources"),
@@ -24,7 +24,7 @@ impl NativeAppState {
             return;
         }
         if !menu.source_removable {
-            self.sample_status = String::from("Default source cannot be removed");
+            self.ui.status.sample = String::from("Default source cannot be removed");
             emit_gui_action(
                 "browser.context_menu.source.remove",
                 Some("sources"),
@@ -36,7 +36,7 @@ impl NativeAppState {
             return;
         }
         let Some(source_id) = menu.source_id else {
-            self.sample_status = String::from("Source is unavailable");
+            self.ui.status.sample = String::from("Source is unavailable");
             emit_gui_action(
                 "browser.context_menu.source.remove",
                 Some("sources"),
@@ -47,17 +47,17 @@ impl NativeAppState {
             );
             return;
         };
-        let loaded_path = self.waveform.path();
-        match self.folder_browser.remove_source(&source_id) {
+        let loaded_path = self.waveform.current.path();
+        match self.library.folder_browser.remove_source(&source_id) {
             Ok(removed) => {
                 if path_is_within(&loaded_path, &removed.root) {
                     if let Some(player) = self.audio.player.as_mut() {
                         player.stop();
                     }
-                    self.waveform = WaveformState::empty();
+                    self.waveform.current = WaveformState::empty();
                     self.audio.current_playback_span = None;
                 }
-                self.sample_status = format!("Removed source {}", removed.label);
+                self.ui.status.sample = format!("Removed source {}", removed.label);
                 self.persist_user_configuration("folder_browser.source.remove.persist", started_at);
                 self.sync_source_watcher();
                 emit_gui_action(
@@ -70,7 +70,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error.clone();
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.context_menu.source.remove",
                     Some("sources"),
@@ -87,15 +87,15 @@ impl NativeAppState {
         &mut self,
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
-        let Some(menu) = self.browser_interaction.context_menu.take() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
         };
         if menu.kind != BrowserContextTargetKind::MetadataTag {
-            self.sample_status = String::from("Context target is not a tag");
+            self.ui.status.sample = String::from("Context target is not a tag");
             return;
         }
         let Some(tag) = menu.metadata_tag else {
-            self.sample_status = String::from("Tag is unavailable");
+            self.ui.status.sample = String::from("Tag is unavailable");
             return;
         };
         self.delete_metadata_tag_from_library(tag, context);

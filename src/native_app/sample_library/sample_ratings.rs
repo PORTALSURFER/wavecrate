@@ -30,7 +30,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         let updates = self.rating_updates_for_selected_files(delta);
         if updates.is_empty() {
-            self.sample_status = String::from("Select a sample to rate");
+            self.ui.status.sample = String::from("Select a sample to rate");
             emit_gui_action(
                 "browser.rating.adjust",
                 Some("browser"),
@@ -45,20 +45,20 @@ impl NativeAppState {
         let applied = match self.apply_rating_update_states(&updates, RatingUpdateMode::After) {
             Ok(applied) => applied,
             Err(error) => {
-                self.sample_status = format!("Rating failed: {error}");
+                self.ui.status.sample = format!("Rating failed: {error}");
                 emit_gui_action(
                     "browser.rating.adjust",
                     Some("browser"),
                     Some(direction_label(delta)),
                     "error",
                     started_at,
-                    Some(self.sample_status.as_str()),
+                    Some(self.ui.status.sample.as_str()),
                 );
                 return;
             }
         };
 
-        self.sample_status = format!(
+        self.ui.status.sample = format!(
             "Rated {applied} sample{}",
             if applied == 1 { "" } else { "s" }
         );
@@ -75,7 +75,7 @@ impl NativeAppState {
             self.register_rating_transaction(delta, updates);
         }
 
-        if applied > 0 && self.persisted_settings.controls.advance_after_rating {
+        if applied > 0 && self.ui.settings.persisted.controls.advance_after_rating {
             self.navigate_browser(1, false, context);
         }
     }
@@ -84,12 +84,14 @@ impl NativeAppState {
         if delta == 0 {
             return Vec::new();
         }
-        self.folder_browser
+        self.library
+            .folder_browser
             .selected_file_rating_candidates()
             .into_iter()
             .filter(|candidate| !candidate.locked)
             .filter_map(|candidate| {
                 let (root, relative_path) = self
+                    .library
                     .folder_browser
                     .source_relative_file_path(&candidate.path)?;
                 let (rating, locked) = next_rating_state(candidate.rating, delta)?;
@@ -142,7 +144,7 @@ impl NativeAppState {
         ) {
             persist_rating_updates(&root, &source_updates)?;
             for update in source_updates {
-                if self.folder_browser.set_file_rating_state(
+                if self.library.folder_browser.set_file_rating_state(
                     &update.absolute_path,
                     update.rating,
                     update.locked,

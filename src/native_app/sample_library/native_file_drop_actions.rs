@@ -15,7 +15,7 @@ impl NativeAppState {
         drop: NativeFileDrop,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.folder_browser.drag_active() {
+        if self.library.folder_browser.drag_active() {
             self.apply_native_file_drop_during_browser_drag(drop, context);
             return;
         }
@@ -25,10 +25,10 @@ impl NativeAppState {
         match drop.phase {
             NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path),
             NativeFileDropPhase::Cancel => {
-                self.browser_interaction.native_file_drop_hover = None;
+                self.ui.browser_interaction.native_file_drop_hover = None;
             }
             NativeFileDropPhase::Drop => {
-                self.browser_interaction.native_file_drop_hover = None;
+                self.ui.browser_interaction.native_file_drop_hover = None;
                 let Some(path) = drop.path else {
                     return;
                 };
@@ -42,14 +42,14 @@ impl NativeAppState {
         drop: NativeFileDrop,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        self.browser_interaction.native_file_drop_hover = None;
+        self.ui.browser_interaction.native_file_drop_hover = None;
         match drop.phase {
             NativeFileDropPhase::Hover => {}
             NativeFileDropPhase::Cancel | NativeFileDropPhase::Drop => {
-                self.folder_browser.clear_drag();
+                self.library.folder_browser.clear_drag();
                 self.clear_pending_internal_file_drag_paths();
                 context.end_drag_session();
-                self.sample_status = String::from("Drag cancelled");
+                self.ui.status.sample = String::from("Drag cancelled");
             }
         }
     }
@@ -65,6 +65,7 @@ impl NativeAppState {
                 .as_deref()
                 .is_some_and(|path| self.is_pending_internal_file_drag_path(path)),
             NativeFileDropPhase::Cancel => !self
+                .ui
                 .browser_interaction
                 .pending_internal_file_drag_paths
                 .is_empty(),
@@ -76,21 +77,21 @@ impl NativeAppState {
         if !should_cancel {
             return false;
         }
-        self.browser_interaction.native_file_drop_hover = None;
+        self.ui.browser_interaction.native_file_drop_hover = None;
         if !matches!(drop.phase, NativeFileDropPhase::Hover) {
             self.clear_pending_internal_file_drag_paths();
         }
         context.end_drag_session();
-        self.sample_status = String::from("Drag cancelled");
+        self.ui.status.sample = String::from("Drag cancelled");
         true
     }
 
     fn track_native_file_hover(&mut self, path: Option<PathBuf>) {
         let Some(path) = path else {
-            self.browser_interaction.native_file_drop_hover = None;
+            self.ui.browser_interaction.native_file_drop_hover = None;
             return;
         };
-        self.browser_interaction.native_file_drop_hover = Some(NativeFileDropHover {
+        self.ui.browser_interaction.native_file_drop_hover = Some(NativeFileDropHover {
             supported: supported_waveform_drop_file(&path),
             path,
         });
@@ -103,7 +104,8 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         if !supported_waveform_drop_file(&path) {
-            self.sample_status = format!("Unsupported waveform drop: {}", file_name_or_path(&path));
+            self.ui.status.sample =
+                format!("Unsupported waveform drop: {}", file_name_or_path(&path));
             emit_gui_action(
                 "waveform.external_file_drop",
                 Some("waveform"),
@@ -115,7 +117,7 @@ impl NativeAppState {
             return;
         }
         if self.drop_targets_selected_folder_file(&path) {
-            self.sample_status = String::from("Drag cancelled");
+            self.ui.status.sample = String::from("Drag cancelled");
             emit_gui_action(
                 "waveform.external_file_drop",
                 Some("waveform"),
@@ -130,7 +132,7 @@ impl NativeAppState {
         match self.copy_external_file_to_selected_folder(&path) {
             Ok(copied) => self.load_copied_external_file(copied, context, started_at),
             Err(error) => {
-                self.sample_status = format!("External drop failed: {error}");
+                self.ui.status.sample = format!("External drop failed: {error}");
                 emit_gui_action(
                     "waveform.external_file_drop",
                     Some("waveform"),
@@ -144,7 +146,7 @@ impl NativeAppState {
     }
 
     fn drop_targets_selected_folder_file(&self, source: &Path) -> bool {
-        let Some(target_folder) = self.folder_browser.selected_folder_path() else {
+        let Some(target_folder) = self.library.folder_browser.selected_folder_path() else {
             return false;
         };
         let Some(file_name) = source.file_name() else {
@@ -158,6 +160,7 @@ impl NativeAppState {
             return Err(format!("not a file: {}", source.display()));
         }
         let target_folder = self
+            .library
             .folder_browser
             .selected_folder_path()
             .ok_or_else(|| String::from("no selected folder"))?;
@@ -188,8 +191,8 @@ impl NativeAppState {
         started_at: Instant,
     ) {
         let copied_id = copied.display().to_string();
-        self.folder_browser.refresh_file_path(&copied);
-        self.folder_browser.select_file(copied_id.clone());
+        self.library.folder_browser.refresh_file_path(&copied);
+        self.library.folder_browser.select_file(copied_id.clone());
         self.load_sample(copied_id, context);
         emit_gui_action(
             "waveform.external_file_drop",

@@ -1,7 +1,7 @@
 use crate::native_app::app::{
-    AudioAppState, BackgroundTaskState, BrowserInteractionState, ChromeUiState, FolderBrowserState,
-    GuiMessage, MetadataAppState, NativeAppState, SettingsUiState, WaveformCacheState,
-    WaveformLoadState, WaveformState, sample_path_label,
+    AudioAppState, BackgroundTaskState, ChromeUiState, FolderBrowserState, GuiMessage,
+    LibraryAppState, MetadataAppState, NativeAppState, SettingsAppState, StartupState, StatusState,
+    UiAppState, WaveformAppState, WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
@@ -36,25 +36,22 @@ impl NativeAppState {
         let background = BackgroundTaskState::new(worker_sender, Some(worker_receiver));
         let audio = AudioAppState::from_settings(&config.core);
         let state = Self {
-            chrome: ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
-            folder_browser,
-            waveform: WaveformState::load_default()?,
-            sample_status: String::from("Select a sample to load"),
+            ui: UiAppState::new(
+                ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
+                StatusState::new("Select a sample to load"),
+                SettingsAppState::new(config.core.clone()),
+                StartupState::new(
+                    startup_source_scan_pending,
+                    startup_folder_verify_pending,
+                    has_configured_sources,
+                ),
+            ),
+            library: LibraryAppState::new(folder_browser, source_watcher),
+            waveform: WaveformAppState::new(WaveformState::load_default()?),
             background,
-            folder_progress: None,
-            pending_source_refreshes: Default::default(),
-            source_watcher,
-            waveform_load: WaveformLoadState::default(),
-            waveform_cache: WaveformCacheState::default(),
             audio,
-            persisted_settings: config.core.clone(),
-            settings_ui: SettingsUiState::default(),
             transactions: Default::default(),
-            browser_interaction: BrowserInteractionState::default(),
             metadata: MetadataAppState::from_settings(&config.core),
-            startup_source_scan_pending,
-            startup_folder_verify_pending,
-            startup_auto_load_pending: has_configured_sources,
         };
         emit_gui_action(
             "runtime.startup.load_default_state",
@@ -68,15 +65,15 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn sync_source_watcher(&mut self) {
-        let sources = self.folder_browser.configured_sample_sources();
+        let sources = self.library.folder_browser.configured_sample_sources();
         if sources.is_empty() {
-            self.source_watcher = None;
+            self.library.source_watcher = None;
             return;
         }
-        match &self.source_watcher {
+        match &self.library.source_watcher {
             Some(watcher) => watcher.replace_sources(sources),
             None => {
-                self.source_watcher = Some(
+                self.library.source_watcher = Some(
                     crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle::spawn(
                         sources,
                         self.background.worker_sender.clone(),
@@ -93,11 +90,11 @@ impl NativeAppState {
     ) {
         match self.save_user_configuration() {
             Ok(()) => {
-                self.persisted_settings = self.current_settings_core();
+                self.ui.settings.persisted = self.current_settings_core();
                 self.audio.volume_persist_deadline = None;
             }
             Err(error) => {
-                self.sample_status = format!("Settings not saved: {error}");
+                self.ui.status.sample = format!("Settings not saved: {error}");
                 emit_gui_action(
                     action,
                     Some("settings"),
@@ -114,18 +111,22 @@ impl NativeAppState {
         let frame_update_started_at = Instant::now();
         self.record_frame_timing();
         let waveform_started_at = Instant::now();
-        self.waveform.apply_interaction(WaveformInteraction::Frame);
+        self.waveform
+            .current
+            .apply_interaction(WaveformInteraction::Frame);
         log_slow_frame_phase("ui.frame.update.waveform_interaction", waveform_started_at);
         let playback_started_at = Instant::now();
         self.refresh_playback_progress();
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
-        if self.folder_progress.is_some() || self.background.normalization_progress.is_some() {
+        if self.library.folder_progress.is_some()
+            || self.background.normalization_progress.is_some()
+        {
             self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
         }
-        if self.waveform_load.label.is_some() {
-            let remaining = self.waveform_load.target_progress - self.waveform_load.progress;
+        if self.waveform.load.label.is_some() {
+            let remaining = self.waveform.load.target_progress - self.waveform.load.progress;
             if remaining > 0.0 {
-                self.waveform_load.progress += remaining.min(0.03);
+                self.waveform.load.progress += remaining.min(0.03);
             }
         }
         let persist_started_at = Instant::now();
@@ -149,12 +150,13 @@ impl NativeAppState {
         let max_delta_ms = duration_ms(report.max_delta);
         let sample_loading = self.background.sample_load_task.active().is_some();
         let audio_opening = self.background.audio_open_task.active().is_some();
-        let folder_scanning = self.folder_progress.is_some();
+        let folder_scanning = self.library.folder_progress.is_some();
         let normalizing = self.background.normalization_progress.is_some();
         let waveform_loading = self.waveform_sample_load_active();
-        let playing = self.waveform.is_playing();
+        let playing = self.waveform.current.is_playing();
         let pending_playback = self.audio.pending_playback_start.is_some();
         let selected = self
+            .library
             .folder_browser
             .selected_file_id()
             .map(sample_path_label)
@@ -206,21 +208,21 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if !self.startup_auto_load_pending {
+        if !self.ui.startup.auto_load_pending {
             return;
         }
-        if self.folder_browser.selected_file_id().is_some() {
-            self.startup_auto_load_pending = false;
+        if self.library.folder_browser.selected_file_id().is_some() {
+            self.ui.startup.auto_load_pending = false;
             return;
         }
-        let Some(path) = self.folder_browser.first_audio_file_path() else {
-            if self.folder_browser.selected_source_loaded() {
-                self.startup_auto_load_pending = false;
+        let Some(path) = self.library.folder_browser.first_audio_file_path() else {
+            if self.library.folder_browser.selected_source_loaded() {
+                self.ui.startup.auto_load_pending = false;
             }
             return;
         };
-        self.startup_auto_load_pending = false;
-        self.folder_browser.focus_file_across_sources(&path);
+        self.ui.startup.auto_load_pending = false;
+        self.library.folder_browser.focus_file_across_sources(&path);
         self.load_sample_without_autoplay(path.display().to_string(), context);
     }
 
@@ -237,18 +239,18 @@ impl NativeAppState {
             audio_output: self.audio.output_config.clone(),
             volume: self.audio.volume,
             tag_dictionary: self.metadata.tag_dictionary.clone(),
-            ..self.persisted_settings.clone()
+            ..self.ui.settings.persisted.clone()
         }
     }
 
     fn save_user_configuration(&self) -> Result<(), String> {
         let core = self.current_settings_core();
         wavecrate::sample_sources::config::save(&AppConfig {
-            sources: self.folder_browser.configured_sample_sources(),
+            sources: self.library.folder_browser.configured_sample_sources(),
             core,
         })
         .map_err(|err| err.to_string())?;
-        self.folder_browser.save_source_scan_cache()
+        self.library.folder_browser.save_source_scan_cache()
     }
 
     pub(in crate::native_app) fn shutdown(&mut self) -> Option<serde_json::Value> {

@@ -32,17 +32,17 @@ fn transaction_group_undoes_and_redoes_as_one_entry() {
 
     state.audio.volume = 0.8;
     state.undo_transaction();
-    assert_eq!(state.sample_status, "Undid Grouped edit");
+    assert_eq!(state.ui.status.sample, "Undid Grouped edit");
     assert_eq!(state.audio.volume, 0.1);
     state.redo_transaction();
-    assert_eq!(state.sample_status, "Redid Grouped edit");
+    assert_eq!(state.ui.status.sample, "Redid Grouped edit");
     assert_eq!(state.audio.volume, 0.8);
 }
 
 #[test]
 fn transaction_list_modal_renders_registered_transactions() {
     let mut state = gui_state_for_span_tests();
-    state.chrome.transaction_list_open = true;
+    state.ui.chrome.transaction_list_open = true;
     state.register_transaction_action("Rename sample", |_| Ok(()), |_| Ok(()));
     state.begin_transaction("Open batch");
     state.register_transaction_action("First action", |_| Ok(()), |_| Ok(()));

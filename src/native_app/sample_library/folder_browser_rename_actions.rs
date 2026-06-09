@@ -10,7 +10,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let target = self.folder_browser.selected_rename_target();
+        let target = self.library.folder_browser.selected_rename_target();
         if logging::debug_logging_enabled() {
             tracing::debug!(
                 target: logging::ACTION_EVENT_TARGET,
@@ -23,10 +23,10 @@ impl NativeAppState {
                 "Folder browser rename requested"
             );
         }
-        let renaming_file = self.folder_browser.selected_file_id().is_some();
-        match self.folder_browser.begin_rename_selected() {
+        let renaming_file = self.library.folder_browser.selected_file_id().is_some();
+        match self.library.folder_browser.begin_rename_selected() {
             Ok(Some(input_id)) => {
-                self.sample_status = if renaming_file {
+                self.ui.status.sample = if renaming_file {
                     String::from("Renaming selected file")
                 } else {
                     String::from("Renaming selected folder")
@@ -45,7 +45,7 @@ impl NativeAppState {
                 );
             }
             Ok(None) => {
-                self.sample_status = String::from("Select a folder to rename");
+                self.ui.status.sample = String::from("Select a folder to rename");
                 emit_gui_action(
                     "folder_browser.rename.begin",
                     Some("folder_browser"),
@@ -56,7 +56,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error;
+                self.ui.status.sample = error;
                 emit_gui_action(
                     "folder_browser.rename.begin",
                     Some("folder_browser"),
@@ -74,9 +74,9 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        match self.folder_browser.begin_create_subfolder() {
+        match self.library.folder_browser.begin_create_subfolder() {
             Ok(Some(input_id)) => {
-                self.sample_status = String::from("Creating new folder");
+                self.ui.status.sample = String::from("Creating new folder");
                 context.after(
                     Duration::from_millis(1),
                     GuiMessage::FocusRenameInput(input_id),
@@ -91,7 +91,7 @@ impl NativeAppState {
                 );
             }
             Ok(None) => {
-                self.sample_status = String::from("Select a folder to add a subfolder");
+                self.ui.status.sample = String::from("Select a folder to add a subfolder");
                 emit_gui_action(
                     "folder_browser.folder.create_begin",
                     Some("folder_browser"),
@@ -102,7 +102,7 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
-                self.sample_status = error;
+                self.ui.status.sample = error;
                 emit_gui_action(
                     "folder_browser.folder.create_begin",
                     Some("folder_browser"),
@@ -121,11 +121,11 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let input_action = rename_input_action(&message);
-        if let Some(result) = self.folder_browser.apply_rename_input(message) {
+        if let Some(result) = self.library.folder_browser.apply_rename_input(message) {
             if let Some(remap) = result.path_remap {
                 self.apply_browser_rename_path_remap(&remap);
             }
-            self.sample_status = result.status;
+            self.ui.status.sample = result.status;
         }
         if let Some(action) = input_action {
             emit_gui_action(
@@ -141,6 +141,7 @@ impl NativeAppState {
 
     fn apply_browser_rename_path_remap(&mut self, remap: &RenamePathRemap) {
         self.waveform
+            .current
             .rewrite_path_prefix(&remap.old_path, &remap.new_path);
         self.remap_renamed_waveform_cache_path(&remap.old_path, &remap.new_path);
     }

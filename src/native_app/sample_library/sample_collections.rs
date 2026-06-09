@@ -61,14 +61,15 @@ impl NativeAppState {
         &mut self,
         _context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(menu) = self.browser_interaction.context_menu.take() else {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
         };
         let Some(collection) = menu.collection else {
-            self.sample_status = String::from("Sample is not in the active collection");
+            self.ui.status.sample = String::from("Sample is not in the active collection");
             return;
         };
         let updates = self
+            .library
             .folder_browser
             .context_file_collection_candidate(&menu.path, collection)
             .and_then(|candidate| {
@@ -96,7 +97,7 @@ impl NativeAppState {
     ) {
         let updates = self.collection_updates_for_dragged_files(collection);
         context.end_drag_session();
-        self.folder_browser.clear_drag();
+        self.library.folder_browser.clear_drag();
         self.apply_collection_updates(collection, updates, "drop", CollectionCommand::Add);
     }
 
@@ -104,7 +105,8 @@ impl NativeAppState {
         &self,
         collection: SampleCollection,
     ) -> Vec<CollectionUpdate> {
-        self.folder_browser
+        self.library
+            .folder_browser
             .selected_file_collection_candidates(collection)
             .into_iter()
             .filter_map(|candidate| {
@@ -122,7 +124,8 @@ impl NativeAppState {
         &self,
         collection: SampleCollection,
     ) -> Vec<CollectionUpdate> {
-        self.folder_browser
+        self.library
+            .folder_browser
             .drag_file_collection_candidates(collection)
             .into_iter()
             .filter_map(|candidate| {
@@ -140,7 +143,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         if updates.is_empty() {
-            self.sample_status = match command {
+            self.ui.status.sample = match command {
                 CollectionCommand::Add | CollectionCommand::Toggle => {
                     String::from("Select a sample to add to a collection")
                 }
@@ -160,20 +163,21 @@ impl NativeAppState {
         let counts = match self.apply_collection_update_states(&updates) {
             Ok(counts) => counts,
             Err(error) => {
-                self.sample_status = format!("Collection update failed: {error}");
+                self.ui.status.sample = format!("Collection update failed: {error}");
                 emit_gui_action(
                     command.action_name(),
                     Some("browser"),
                     Some(trigger),
                     "error",
                     started_at,
-                    Some(self.sample_status.as_str()),
+                    Some(self.ui.status.sample.as_str()),
                 );
                 return;
             }
         };
 
-        self.sample_status = collection_status(collection, counts.added, counts.removed, command);
+        self.ui.status.sample =
+            collection_status(collection, counts.added, counts.removed, command);
         emit_gui_action(
             command.action_name(),
             Some("browser"),
@@ -234,6 +238,7 @@ impl NativeAppState {
                 match update.operation {
                     CollectionOperation::Add => {
                         if self
+                            .library
                             .folder_browser
                             .set_file_collection_state(&update.absolute_path, update.collection)
                         {
@@ -242,6 +247,7 @@ impl NativeAppState {
                     }
                     CollectionOperation::Remove => {
                         if self
+                            .library
                             .folder_browser
                             .remove_file_collection_state(&update.absolute_path, update.collection)
                         {
@@ -309,6 +315,7 @@ fn collection_update_for_candidate(
         }
     };
     let (root, relative_path) = state
+        .library
         .folder_browser
         .source_relative_file_path(&candidate.path)?;
     Some(CollectionUpdate {

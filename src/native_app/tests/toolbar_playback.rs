@@ -97,8 +97,8 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.playing);
 
     state.audio.loop_playback = true;
-    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current.start_playback(0.25);
 
     let loaded = MainToolbarViewModel::from_app_state(&state);
     assert_eq!(loaded.random_available, state.random_playback_available());
@@ -109,7 +109,7 @@ fn main_toolbar_view_model_projects_playback_state() {
 #[test]
 fn random_toolbar_button_is_hit_target_for_loaded_sample() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -136,12 +136,12 @@ fn random_toolbar_button_is_hit_target_for_unselected_browser_sample() {
     let sample = root.join("unselected.wav");
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    assert!(!state.waveform.has_loaded_sample());
-    assert_eq!(state.folder_browser.selected_file_id(), None);
+    assert!(!state.waveform.current.has_loaded_sample());
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -179,12 +179,12 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     let sample_id = sample.display().to_string();
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    assert!(!state.waveform.has_loaded_sample());
-    assert_eq!(state.folder_browser.selected_file_id(), None);
+    assert!(!state.waveform.current.has_loaded_sample());
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -196,7 +196,12 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     runtime.dispatch_primary_click(icon_rect.center());
 
     assert_eq!(
-        runtime.bridge().state().folder_browser.selected_file_id(),
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
         Some(sample_id.as_str())
     );
     assert!(
@@ -226,14 +231,15 @@ fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
     let sample = root.join("selected.wav");
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state
+        .library
         .folder_browser
         .select_file(sample.display().to_string());
-    assert!(!state.waveform.has_loaded_sample());
+    assert!(!state.waveform.current.has_loaded_sample());
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -270,11 +276,12 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     let sample = root.join("selected.wav");
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state
+        .library
         .folder_browser
         .select_file(sample.display().to_string());
     let theme = radiant::theme::ThemeTokens::default();
@@ -353,27 +360,35 @@ fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
     let loaded_id = loaded.display().to_string();
     write_test_wav_i16(&loaded, &[0, 1024, -1024, 512]);
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.waveform = crate::native_app::test_support::WaveformState::load_path(loaded.clone())
-        .expect("load sample");
+    state.waveform.current =
+        crate::native_app::test_support::WaveformState::load_path(loaded.clone())
+            .expect("load sample");
     state
+        .library
         .folder_browser
         .select_file(files[0].display().to_string());
-    state.folder_browser.follow_selected_file_view(16, 1, 1);
-    assert_eq!(state.folder_browser.file_view_start(), 0);
+    state
+        .library
+        .folder_browser
+        .follow_selected_file_view(16, 1, 1);
+    assert_eq!(state.library.folder_browser.file_view_start(), 0);
 
     state.focus_loaded_file(&mut ui::UpdateContext::default());
-    state.folder_browser.follow_selected_file_view(16, 1, 1);
+    state
+        .library
+        .folder_browser
+        .follow_selected_file_view(16, 1, 1);
 
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(loaded_id.as_str())
     );
     assert!(
-        state.folder_browser.file_view_start() > 0,
+        state.library.folder_browser.file_view_start() > 0,
         "focusing loaded sample should move the retained file viewport to the loaded row"
     );
 
@@ -383,8 +398,8 @@ fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
 #[test]
 fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current.start_playback(0.25);
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -414,7 +429,7 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     );
     runtime.dispatch_primary_click(point);
     assert!(
-        !runtime.bridge().state().waveform.is_playing(),
+        !runtime.bridge().state().waveform.current.is_playing(),
         "clicking the playing stop button should dispatch StopPlayback"
     );
 }
@@ -422,8 +437,8 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
 #[test]
 fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
-    assert!(!state.waveform.is_playing());
+    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    assert!(!state.waveform.current.is_playing());
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -446,7 +461,7 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
 #[test]
 fn stop_toolbar_button_remains_hit_target_without_loaded_sample() {
     let state = NativeAppState::load_default().expect("default state loads");
-    assert!(!state.waveform.has_loaded_sample());
+    assert!(!state.waveform.current.has_loaded_sample());
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
@@ -478,7 +493,7 @@ fn stop_toolbar_button_remains_hit_target_without_loaded_sample() {
 #[test]
 fn playback_frame_uses_paint_only_when_only_playhead_changes() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
 
     let before = state.frame_repaint_scope_before_update();
     state.advance_frame();
@@ -492,10 +507,10 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
 #[test]
 fn playback_frame_repaints_surface_when_playback_state_changes() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
 
     let before = state.frame_repaint_scope_before_update();
-    state.waveform.stop_playback();
+    state.waveform.current.stop_playback();
 
     assert!(
         !state.frame_can_use_paint_only(before),
@@ -508,7 +523,7 @@ fn frame_animation_stays_active_for_pending_startup_source_scan() {
     let mut state = gui_state_for_span_tests();
     assert!(!state.frame_message_animation_active());
 
-    state.startup_source_scan_pending = true;
+    state.ui.startup.source_scan_pending = true;
 
     assert!(
         state.frame_message_animation_active(),
@@ -521,7 +536,7 @@ fn frame_animation_stays_active_for_pending_startup_auto_load() {
     let mut state = gui_state_for_span_tests();
     assert!(!state.frame_message_animation_active());
 
-    state.startup_auto_load_pending = true;
+    state.ui.startup.auto_load_pending = true;
 
     assert!(
         state.frame_message_animation_active(),
@@ -532,7 +547,7 @@ fn frame_animation_stays_active_for_pending_startup_auto_load() {
 #[test]
 fn scene_frame_clock_queues_gui_frame_message() {
     let mut state = gui_state_for_span_tests();
-    state.startup_source_scan_pending = true;
+    state.ui.startup.source_scan_pending = true;
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
         .update_with(apply_gui_message_for_presentation_test)
@@ -552,7 +567,7 @@ fn scene_frame_clock_queues_gui_frame_message() {
 #[test]
 fn scene_playback_frame_uses_paint_only_repaint_scope() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
         .update_with(|state, message, _context| match message {
@@ -579,7 +594,7 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
 #[test]
 fn scene_installs_playback_cursor_transient_overlay() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
     let theme = radiant::theme::ThemeTokens::default();
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
@@ -628,7 +643,7 @@ fn apply_gui_message_for_presentation_test(
 #[test]
 fn playback_cursor_paints_as_transient_overlay() {
     let mut state = gui_state_for_span_tests();
-    state.waveform.start_playback(0.25);
+    state.waveform.current.start_playback(0.25);
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);

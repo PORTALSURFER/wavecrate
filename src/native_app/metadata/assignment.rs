@@ -10,16 +10,23 @@ impl NativeAppState {
         tags: Vec<String>,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(file_id) = self.folder_browser.selected_file_id().map(str::to_owned) else {
-            self.sample_status = String::from("Select a sample before adding tags");
+        let Some(file_id) = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+        else {
+            self.ui.status.sample = String::from("Select a sample before adding tags");
             return;
         };
         let absolute_path = PathBuf::from(&file_id);
         let Some((source_root, relative_path)) = self
+            .library
             .folder_browser
             .source_relative_file_path(&absolute_path)
         else {
-            self.sample_status = String::from("Selected sample is not inside a configured source");
+            self.ui.status.sample =
+                String::from("Selected sample is not inside a configured source");
             return;
         };
         let mut file_tags = self
@@ -42,8 +49,8 @@ impl NativeAppState {
         self.retain_visible_file_selection_after_metadata_tag_change();
         match added.as_slice() {
             [] => {}
-            [tag] => self.sample_status = format!("Added tag {tag}"),
-            tags => self.sample_status = format!("Added {} tags", tags.len()),
+            [tag] => self.ui.status.sample = format!("Added tag {tag}"),
+            tags => self.ui.status.sample = format!("Added {} tags", tags.len()),
         }
         if !added.is_empty() {
             let request = MetadataTagPersistRequest {
@@ -88,16 +95,23 @@ impl NativeAppState {
     }
 
     fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UpdateContext<GuiMessage>) {
-        let Some(file_id) = self.folder_browser.selected_file_id().map(str::to_owned) else {
-            self.sample_status = String::from("Select a sample before removing tags");
+        let Some(file_id) = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+        else {
+            self.ui.status.sample = String::from("Select a sample before removing tags");
             return;
         };
         let absolute_path = PathBuf::from(&file_id);
         let Some((source_root, relative_path)) = self
+            .library
             .folder_browser
             .source_relative_file_path(&absolute_path)
         else {
-            self.sample_status = String::from("Selected sample is not inside a configured source");
+            self.ui.status.sample =
+                String::from("Selected sample is not inside a configured source");
             return;
         };
         let Some(file_tags) = self.metadata.tags_by_file.get_mut(&file_id) else {
@@ -115,7 +129,7 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.retain_visible_file_selection_after_metadata_tag_change();
-        self.sample_status = format!("Removed tag {tag}");
+        self.ui.status.sample = format!("Removed tag {tag}");
         let request = MetadataTagPersistRequest {
             absolute_path,
             source_root,
@@ -135,7 +149,7 @@ impl NativeAppState {
         result: MetadataTagPersistResult,
     ) {
         if let Err(error) = result.result {
-            self.sample_status = match result.tags.as_slice() {
+            self.ui.status.sample = match result.tags.as_slice() {
                 [tag] if result.assigned => format!("Tag {tag} not saved: {error}"),
                 [tag] => format!("Tag {tag} not removed: {error}"),
                 tags if result.assigned => format!("{} tags not saved: {error}", tags.len()),

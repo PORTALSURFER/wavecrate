@@ -12,7 +12,7 @@ pub(in crate::native_app) struct StatusBarViewModel {
 impl StatusBarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         Self {
-            selected_sample_count: state.folder_browser.selected_audio_file_count(),
+            selected_sample_count: state.library.folder_browser.selected_audio_file_count(),
             status_text: bottom_status_text(state),
             worker_progress: active_worker_progress(state),
             progress_tick: state.background.progress_tick,
@@ -27,7 +27,7 @@ pub(in crate::native_app) struct WorkerProgressViewModel {
 }
 
 fn bottom_status_text(state: &NativeAppState) -> String {
-    if let Some(progress) = state.folder_progress.as_ref() {
+    if let Some(progress) = state.library.folder_progress.as_ref() {
         let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
         return if counters.is_indeterminate() {
             format!(
@@ -63,11 +63,12 @@ fn bottom_status_text(state: &NativeAppState) -> String {
                 )
             }
         })
-        .unwrap_or_else(|| state.sample_status.clone())
+        .unwrap_or_else(|| state.ui.status.sample.clone())
 }
 
 fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewModel> {
     state
+        .library
         .folder_progress
         .as_ref()
         .map(WorkerProgressViewModel::from_folder_progress)

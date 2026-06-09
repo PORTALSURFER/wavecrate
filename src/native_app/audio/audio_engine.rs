@@ -103,11 +103,11 @@ impl NativeAppState {
                         pending.loop_offset_ratio,
                     ) {
                         Ok(()) => {
-                            let file_name = self.waveform.file_name();
-                            self.sample_status = format!("Playing {file_name}");
+                            let file_name = self.waveform.current.file_name();
+                            self.ui.status.sample = format!("Playing {file_name}");
                         }
                         Err(err) => {
-                            self.sample_status = format!("Playback unavailable: {err}");
+                            self.ui.status.sample = format!("Playback unavailable: {err}");
                             self.audio.settings_error = Some(err);
                         }
                     }
@@ -175,8 +175,8 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn toggle_audio_settings(&mut self) {
         let started_at = Instant::now();
-        if self.settings_ui.audio_settings_open
-            && self.settings_ui.app_settings_tab == AppSettingsTab::AudioEngine
+        if self.ui.settings.ui.audio_settings_open
+            && self.ui.settings.ui.app_settings_tab == AppSettingsTab::AudioEngine
         {
             self.close_audio_settings_window();
         } else {
@@ -186,7 +186,7 @@ impl NativeAppState {
             "audio.settings.toggle",
             Some("top_bar"),
             None,
-            if self.settings_ui.audio_settings_open {
+            if self.ui.settings.ui.audio_settings_open {
                 "opened"
             } else {
                 "closed"
@@ -211,7 +211,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn select_settings_tab(&mut self, tab: AppSettingsTab) {
         let started_at = Instant::now();
-        self.settings_ui.app_settings_tab = tab;
+        self.ui.settings.ui.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();
         emit_gui_action(
             "settings.tab.select",
@@ -225,30 +225,30 @@ impl NativeAppState {
 
     fn open_settings_window(&mut self, tab: AppSettingsTab) {
         self.refresh_audio_options();
-        self.settings_ui.audio_settings_open = true;
-        self.settings_ui.app_settings_tab = tab;
+        self.ui.settings.ui.audio_settings_open = true;
+        self.ui.settings.ui.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();
         self.audio.settings_error = None;
     }
 
     pub(in crate::native_app) fn close_audio_settings_window(&mut self) {
-        self.settings_ui.audio_settings_open = false;
+        self.ui.settings.ui.audio_settings_open = false;
         self.close_audio_settings_dropdowns();
     }
 
     pub(in crate::native_app) fn audio_settings_dropdown_open(&self) -> bool {
-        self.settings_ui.audio_settings_dropdown.any_open()
+        self.ui.settings.ui.audio_settings_dropdown.any_open()
     }
 
     pub(in crate::native_app) fn close_audio_settings_dropdowns(&mut self) {
-        self.settings_ui.audio_settings_dropdown.close();
+        self.ui.settings.ui.audio_settings_dropdown.close();
     }
 
     pub(in crate::native_app) fn toggle_audio_settings_dropdown(
         &mut self,
         dropdown: AudioSettingsDropdown,
     ) {
-        self.settings_ui.audio_settings_dropdown.toggle(dropdown);
+        self.ui.settings.ui.audio_settings_dropdown.toggle(dropdown);
     }
 
     pub(in crate::native_app) fn set_audio_output_host(&mut self, host: Option<String>) {
@@ -280,7 +280,7 @@ impl NativeAppState {
         match wavecrate::app_dirs::clear_rebuildable_cache_payloads() {
             Ok(path) => {
                 self.audio.settings_error = None;
-                self.sample_status = format!("Rebuildable caches cleared: {}", path.display());
+                self.ui.status.sample = format!("Rebuildable caches cleared: {}", path.display());
                 let target = path.display().to_string();
                 emit_gui_action(
                     "settings.cache.clear_rebuildable",
@@ -293,7 +293,7 @@ impl NativeAppState {
             }
             Err(err) => {
                 self.audio.settings_error = Some(err.clone());
-                self.sample_status = err.clone();
+                self.ui.status.sample = err.clone();
                 emit_gui_action(
                     "settings.cache.clear_rebuildable",
                     Some("settings"),
@@ -313,6 +313,7 @@ impl NativeAppState {
     ) {
         let restart_span = self
             .waveform
+            .current
             .is_playing()
             .then_some(self.audio.current_playback_span)
             .flatten();
@@ -330,32 +331,32 @@ impl NativeAppState {
             Ok(()) => {
                 if let Some((start, end)) = restart_span {
                     if let Err(err) = self.start_playback_current_span(start, end) {
-                        self.waveform.stop_playback();
+                        self.waveform.current.stop_playback();
                         self.audio.current_playback_span = None;
-                        self.sample_status =
+                        self.ui.status.sample =
                             format!("Audio output changed | playback failed: {err}");
                         outcome = "playback_error";
                         error = Some(err);
                     } else {
-                        self.sample_status = format!(
+                        self.ui.status.sample = format!(
                             "Audio output changed | {}",
                             self.audio_engine_detail_label()
                         );
                     }
                 } else {
-                    self.waveform.stop_playback();
+                    self.waveform.current.stop_playback();
                     self.audio.current_playback_span = None;
-                    self.sample_status = format!(
+                    self.ui.status.sample = format!(
                         "Audio output changed | {}",
                         self.audio_engine_detail_label()
                     );
                 }
             }
             Err(err) => {
-                self.waveform.stop_playback();
+                self.waveform.current.stop_playback();
                 self.audio.current_playback_span = None;
                 self.audio.settings_error = Some(err.clone());
-                self.sample_status = format!("Audio output unavailable: {err}");
+                self.ui.status.sample = format!("Audio output unavailable: {err}");
                 outcome = "error";
                 error = Some(err);
             }

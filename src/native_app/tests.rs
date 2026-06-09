@@ -74,11 +74,14 @@ fn native_app_state_with_temp_sample(name: &str) -> (NativeAppState, tempfile::T
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join(name);
     fs::write(&sample_path, []).expect("sample file");
-    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
+    state.library.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
     let selected_file = sample_path.display().to_string();
-    state.folder_browser.select_file(selected_file.clone());
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
     (state, source_root, selected_file)
 }
 
@@ -94,21 +97,22 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
     let destination = loops.join("kick.wav");
     fs::write(&source, b"source").expect("write source");
     fs::write(&destination, b"destination").expect("write destination");
-    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
+    state.library.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
+    state.library.folder_browser.apply_message(
+        super::test_support::FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
+    );
     state
-        .folder_browser
-        .apply_message(super::test_support::FolderBrowserMessage::ActivateFolder(
-            drums.display().to_string(),
-        ));
-    state
+        .library
         .folder_browser
         .select_file(source.display().to_string());
     state
+        .library
         .folder_browser
         .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
     state
+        .library
         .folder_browser
         .drop_drag_on_folder(&loops.display().to_string())
         .expect("drop should park conflict");
@@ -133,11 +137,12 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
     let delete = source_root.path().join("delete.wav");
     fs::write(&keep, []).expect("write keep wav");
     fs::write(&delete, []).expect("write delete wav");
-    state.persisted_settings.trash_folder = Some(trash_root.path().to_path_buf());
-    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
+    state.ui.settings.persisted.trash_folder = Some(trash_root.path().to_path_buf());
+    state.library.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
     state
+        .library
         .folder_browser
         .select_file(delete.display().to_string());
 
@@ -146,9 +151,10 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
     assert!(!delete.exists());
     assert!(trash_root.path().join("delete.wav").exists());
     assert!(keep.exists());
-    assert_eq!(state.folder_browser.selected_file_id(), None);
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
     assert!(
         state
+            .library
             .folder_browser
             .selected_audio_files()
             .iter()
@@ -156,12 +162,13 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
     );
     assert!(
         !state
+            .library
             .folder_browser
             .selected_audio_files()
             .iter()
             .any(|file| file.name == "delete.wav")
     );
-    assert!(state.sample_status.contains("Moved 1 file to trash"));
+    assert!(state.ui.status.sample.contains("Moved 1 file to trash"));
 }
 
 #[test]
@@ -175,35 +182,32 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
     fs::create_dir_all(&loops).expect("create loops folder");
     fs::write(drums.join("kick.wav"), []).expect("write kick wav");
     fs::write(loops.join("loop.wav"), []).expect("write loop wav");
-    state.persisted_settings.trash_folder = Some(trash_root.path().to_path_buf());
-    state.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
+    state.ui.settings.persisted.trash_folder = Some(trash_root.path().to_path_buf());
+    state.library.folder_browser = super::test_support::FolderBrowserState::from_sample_sources(&[
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
     ]);
-    state
-        .folder_browser
-        .apply_message(super::test_support::FolderBrowserMessage::ActivateFolder(
-            drums.display().to_string(),
-        ));
+    state.library.folder_browser.apply_message(
+        super::test_support::FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
+    );
 
     state.delete_selected_item();
 
     assert!(!drums.exists());
     assert!(trash_root.path().join("drums").join("kick.wav").exists());
     assert!(loops.exists());
-    assert_eq!(state.folder_browser.selected_file_id(), None);
-    state
-        .folder_browser
-        .apply_message(super::test_support::FolderBrowserMessage::ActivateFolder(
-            loops.display().to_string(),
-        ));
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
+    state.library.folder_browser.apply_message(
+        super::test_support::FolderBrowserMessage::ActivateFolder(loops.display().to_string()),
+    );
     assert!(
         state
+            .library
             .folder_browser
             .selected_audio_files()
             .iter()
             .any(|file| file.name == "loop.wav")
     );
-    assert!(state.sample_status.contains("Moved drums to trash"));
+    assert!(state.ui.status.sample.contains("Moved drums to trash"));
 }
 
 #[test]
@@ -214,15 +218,17 @@ fn delete_selected_file_requires_configured_trash_folder() {
 
     assert!(std::path::Path::new(&selected_file).exists());
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(selected_file.as_str())
     );
     assert!(
         state
-            .sample_status
+            .ui
+            .status
+            .sample
             .contains("Set a trash folder in Settings > General"),
         "{}",
-        state.sample_status
+        state.ui.status.sample
     );
 }
 
@@ -244,6 +250,7 @@ fn collection_shortcut_toggles_selected_sample_membership() {
     );
     assert!(
         state
+            .library
             .folder_browser
             .selected_source_audio_files()
             .into_iter()
@@ -264,6 +271,7 @@ fn collection_shortcut_toggles_selected_sample_membership() {
     );
     assert!(
         !state
+            .library
             .folder_browser
             .selected_source_audio_files()
             .into_iter()
@@ -302,6 +310,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
     );
     assert!(
         !state
+            .library
             .folder_browser
             .selected_source_audio_files()
             .into_iter()
@@ -341,6 +350,7 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
 
     assert_eq!(
         state
+            .ui
             .browser_interaction
             .context_menu
             .as_ref()
@@ -358,11 +368,19 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
             .expect("collections"),
         Vec::<wavecrate::sample_sources::SampleCollection>::new()
     );
-    assert!(state.folder_browser.selected_audio_files().is_empty());
-    assert_eq!(state.browser_interaction.context_menu, None);
     assert!(
         state
-            .sample_status
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .is_empty()
+    );
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+    assert!(
+        state
+            .ui
+            .status
+            .sample
             .contains("Removed 1 sample from Collection 1")
     );
 }
@@ -400,16 +418,16 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
     state.resize_folder_browser(DragHandleMessage::moved(Point::new(160.0, 0.0)));
 
     assert_eq!(
-        state.chrome.folder_panel.size(),
+        state.ui.chrome.folder_panel.size(),
         DEFAULT_FOLDER_WIDTH + 60.0
     );
 
     state.resize_folder_browser(DragHandleMessage::moved(Point::new(900.0, 0.0)));
-    assert_eq!(state.chrome.folder_panel.size(), MAX_FOLDER_WIDTH);
+    assert_eq!(state.ui.chrome.folder_panel.size(), MAX_FOLDER_WIDTH);
 
     state.resize_folder_browser(DragHandleMessage::ended(Point::new(-900.0, 0.0)));
-    assert_eq!(state.chrome.folder_panel.size(), MIN_FOLDER_WIDTH);
-    assert!(!state.chrome.folder_panel.is_resizing());
+    assert_eq!(state.ui.chrome.folder_panel.size(), MIN_FOLDER_WIDTH);
+    assert!(!state.ui.chrome.folder_panel.is_resizing());
 }
 
 #[test]
@@ -432,6 +450,7 @@ fn collection_rename_input_selects_name_when_focused() {
         &mut context,
     );
     let rename = state
+        .library
         .folder_browser
         .collection_rename_view(collection)
         .expect("collection rename view");
@@ -499,7 +518,7 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
     let handoff_payload = handoff_dir.join("clip.wav");
     std::fs::write(&handoff_payload, b"clip").expect("write handoff payload");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.sample_status = String::from("ready");
+    state.ui.status.sample = String::from("ready");
 
     state.apply_message(
         super::test_support::GuiMessage::ClearRebuildableCaches,
@@ -510,9 +529,13 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
     assert!(handoff_payload.exists());
     assert_eq!(state.audio.settings_error, None);
     assert!(
-        state.sample_status.contains("Rebuildable caches cleared"),
+        state
+            .ui
+            .status
+            .sample
+            .contains("Rebuildable caches cleared"),
         "{}",
-        state.sample_status
+        state.ui.status.sample
     );
 }
 

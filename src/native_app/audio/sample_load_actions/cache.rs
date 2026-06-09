@@ -54,7 +54,8 @@ impl NativeAppState {
         new_path: &Path,
     ) {
         let cache_paths = self
-            .waveform_cache
+            .waveform
+            .cache
             .entries
             .keys()
             .cloned()
@@ -66,29 +67,32 @@ impl NativeAppState {
             if mapped == path {
                 continue;
             }
-            if let Some(entry) = self.waveform_cache.entries.remove(&path) {
-                self.waveform_cache.entries.insert(mapped, entry);
+            if let Some(entry) = self.waveform.cache.entries.remove(&path) {
+                self.waveform.cache.entries.insert(mapped, entry);
             }
         }
 
-        self.waveform_cache.order = self
-            .waveform_cache
+        self.waveform.cache.order = self
+            .waveform
+            .cache
             .order
             .iter()
             .map(|path| {
                 remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
             })
             .collect();
-        self.waveform_cache.warm_pending = self
-            .waveform_cache
+        self.waveform.cache.warm_pending = self
+            .waveform
+            .cache
             .warm_pending
             .iter()
             .map(|path| {
                 remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
             })
             .collect();
-        self.waveform_cache.cached_sample_paths = self
-            .waveform_cache
+        self.waveform.cache.cached_sample_paths = self
+            .waveform
+            .cache
             .cached_sample_paths
             .iter()
             .map(|id| {
@@ -103,6 +107,7 @@ impl NativeAppState {
     #[cfg(test)]
     pub(in crate::native_app) fn refresh_persisted_waveform_cache_indicators(&mut self) {
         let audio_files = self
+            .library
             .folder_browser
             .selected_audio_files()
             .into_iter()
@@ -119,6 +124,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let paths = self
+            .library
             .folder_browser
             .selected_audio_files()
             .into_iter()
@@ -128,14 +134,15 @@ impl NativeAppState {
             return;
         }
         for path in &paths {
-            if self.waveform_cache.entries.contains_key(path) {
-                self.waveform_cache
+            if self.waveform.cache.entries.contains_key(path) {
+                self.waveform
+                    .cache
                     .cached_sample_paths
                     .insert(path.display().to_string());
             }
         }
-        let ticket = self.waveform_cache.indicator_refresh_task.begin();
-        let results = Arc::clone(&self.waveform_cache.indicator_refresh_results);
+        let ticket = self.waveform.cache.indicator_refresh_task.begin();
+        let results = Arc::clone(&self.waveform.cache.indicator_refresh_results);
         context.spawn(
             "gui-waveform-cache-indicators",
             move || {
@@ -154,30 +161,33 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         self.cancel_active_folder_cache_warm();
-        let Some((folder_id, paths)) = self.folder_browser.selected_folder_cache_warm_request()
+        let Some((folder_id, paths)) = self
+            .library
+            .folder_browser
+            .selected_folder_cache_warm_request()
         else {
             return;
         };
         if paths.is_empty() {
             return;
         }
-        self.waveform_cache.active_folder_warm_folder_id = Some(folder_id);
-        self.waveform_cache.active_folder_warm_pending = paths.into();
+        self.waveform.cache.active_folder_warm_folder_id = Some(folder_id);
+        self.waveform.cache.active_folder_warm_pending = paths.into();
         context.after_latest(
-            &mut self.waveform_cache.active_folder_warm_delay_task,
+            &mut self.waveform.cache.active_folder_warm_delay_task,
             ACTIVE_FOLDER_CACHE_WARM_DELAY,
             GuiMessage::ActiveFolderCacheWarmReady,
         );
     }
 
     pub(in crate::native_app) fn cancel_active_folder_cache_warm(&mut self) {
-        self.waveform_cache.active_folder_warm_delay_task.cancel();
-        self.waveform_cache.active_folder_warm_task.cancel();
-        if let Some(token) = self.waveform_cache.active_folder_warm_cancel.take() {
+        self.waveform.cache.active_folder_warm_delay_task.cancel();
+        self.waveform.cache.active_folder_warm_task.cancel();
+        if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
         }
-        self.waveform_cache.active_folder_warm_folder_id = None;
-        self.waveform_cache.active_folder_warm_pending.clear();
+        self.waveform.cache.active_folder_warm_folder_id = None;
+        self.waveform.cache.active_folder_warm_pending.clear();
     }
 
     pub(in crate::native_app) fn start_active_folder_cache_warm_after_delay(
@@ -186,7 +196,8 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if !self
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_delay_task
             .finish(ticket)
         {
@@ -200,12 +211,13 @@ impl NativeAppState {
         ticket: ui::TaskTicket,
     ) {
         let result = self
-            .waveform_cache
+            .waveform
+            .cache
             .indicator_refresh_results
             .lock()
             .ok()
             .and_then(|mut results| results.remove(&ticket));
-        if !self.waveform_cache.indicator_refresh_task.finish(ticket) {
+        if !self.waveform.cache.indicator_refresh_task.finish(ticket) {
             return;
         }
         if let Some(result) = result {
@@ -219,15 +231,15 @@ impl NativeAppState {
     ) {
         for path in result.probed_paths {
             let file_id = path.display().to_string();
-            if self.waveform_cache.entries.contains_key(&path)
+            if self.waveform.cache.entries.contains_key(&path)
                 || result.playback_ready_paths.contains(&path)
             {
-                self.waveform_cache.cached_sample_paths.insert(file_id);
+                self.waveform.cache.cached_sample_paths.insert(file_id);
             } else if result.warm_candidate_paths.contains(&path) {
-                self.waveform_cache.cached_sample_paths.remove(&file_id);
+                self.waveform.cache.cached_sample_paths.remove(&file_id);
                 self.queue_waveform_cache_warm(path);
             } else {
-                self.waveform_cache.cached_sample_paths.remove(&file_id);
+                self.waveform.cache.cached_sample_paths.remove(&file_id);
             }
         }
     }
@@ -236,15 +248,15 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.waveform_cache.warm_task.active().is_some() {
+        if self.waveform.cache.warm_task.active().is_some() {
             return;
         }
         let paths = self.next_waveform_cache_warm_batch();
         if paths.is_empty() {
             return;
         }
-        let ticket = self.waveform_cache.warm_task.begin();
-        let results = Arc::clone(&self.waveform_cache.warm_results);
+        let ticket = self.waveform.cache.warm_task.begin();
+        let results = Arc::clone(&self.waveform.cache.warm_results);
         context.spawn(
             "gui-waveform-cache-warm",
             move || {
@@ -263,29 +275,31 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if self
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_delay_task
             .active()
             .is_some()
             || self
-                .waveform_cache
+                .waveform
+                .cache
                 .active_folder_warm_task
                 .active()
                 .is_some()
         {
             return;
         }
-        let Some(folder_id) = self.waveform_cache.active_folder_warm_folder_id.clone() else {
+        let Some(folder_id) = self.waveform.cache.active_folder_warm_folder_id.clone() else {
             return;
         };
         let paths = self.next_active_folder_cache_warm_batch();
         if paths.is_empty() {
-            self.waveform_cache.active_folder_warm_folder_id = None;
+            self.waveform.cache.active_folder_warm_folder_id = None;
             return;
         }
-        self.waveform_cache.active_folder_warm_cancel =
+        self.waveform.cache.active_folder_warm_cancel =
             Some(context.spawn_cancellable_latest_with_priority(
-                &mut self.waveform_cache.active_folder_warm_task,
+                &mut self.waveform.cache.active_folder_warm_task,
                 "gui-active-folder-cache-warm",
                 active_folder_cache_warm_priority(),
                 move |_ticket, token| {
@@ -307,15 +321,16 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         if !self
-            .waveform_cache
+            .waveform
+            .cache
             .active_folder_warm_task
             .finish(completion.ticket)
         {
             return;
         }
-        self.waveform_cache.active_folder_warm_cancel = None;
+        self.waveform.cache.active_folder_warm_cancel = None;
         let result = completion.output;
-        if self.waveform_cache.active_folder_warm_folder_id.as_deref()
+        if self.waveform.cache.active_folder_warm_folder_id.as_deref()
             != Some(result.folder_id.as_str())
         {
             return;
@@ -338,12 +353,13 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_waveform_cache_warm(&mut self, ticket: ui::TaskTicket) {
         let started_at = Instant::now();
         let result = self
-            .waveform_cache
+            .waveform
+            .cache
             .warm_results
             .lock()
             .ok()
             .and_then(|mut results| results.remove(&ticket));
-        if !self.waveform_cache.warm_task.finish(ticket) {
+        if !self.waveform.cache.warm_task.finish(ticket) {
             return;
         }
         if let Some(result) = result {
@@ -367,25 +383,26 @@ impl NativeAppState {
     }
 
     fn queue_waveform_cache_warm(&mut self, path: PathBuf) {
-        if self.waveform_cache.entries.contains_key(&path)
+        if self.waveform.cache.entries.contains_key(&path)
             || self
-                .waveform_cache
+                .waveform
+                .cache
                 .warm_pending
                 .iter()
                 .any(|queued| queued == &path)
         {
             return;
         }
-        self.waveform_cache.warm_pending.push_back(path);
+        self.waveform.cache.warm_pending.push_back(path);
     }
 
     fn next_waveform_cache_warm_batch(&mut self) -> Vec<PathBuf> {
         let mut batch = Vec::new();
         while batch.len() < WAVEFORM_CACHE_WARM_BATCH_MAX_FILES {
-            let Some(path) = self.waveform_cache.warm_pending.pop_front() else {
+            let Some(path) = self.waveform.cache.warm_pending.pop_front() else {
                 break;
             };
-            if self.waveform_cache.entries.contains_key(&path)
+            if self.waveform.cache.entries.contains_key(&path)
                 || batch.iter().any(|queued| queued == &path)
             {
                 continue;
@@ -398,10 +415,10 @@ impl NativeAppState {
     fn next_active_folder_cache_warm_batch(&mut self) -> Vec<PathBuf> {
         let mut batch = Vec::new();
         while batch.len() < ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES {
-            let Some(path) = self.waveform_cache.active_folder_warm_pending.pop_front() else {
+            let Some(path) = self.waveform.cache.active_folder_warm_pending.pop_front() else {
                 break;
             };
-            if self.waveform_cache.entries.contains_key(&path)
+            if self.waveform.cache.entries.contains_key(&path)
                 || batch.iter().any(|queued| queued == &path)
             {
                 continue;
@@ -412,22 +429,24 @@ impl NativeAppState {
     }
 
     fn insert_waveform_cache_entry(&mut self, path: PathBuf, entry: WaveformCacheEntry) {
-        match self.waveform_cache.entries.entry(path.clone()) {
+        match self.waveform.cache.entries.entry(path.clone()) {
             Entry::Occupied(mut occupied) => {
                 let old_entry = std::mem::replace(occupied.get_mut(), entry);
-                self.waveform_cache.bytes = self
-                    .waveform_cache
+                self.waveform.cache.bytes = self
+                    .waveform
+                    .cache
                     .bytes
                     .saturating_sub(old_entry.byte_len)
                     .saturating_add(occupied.get().byte_len);
             }
             Entry::Vacant(vacant) => {
-                self.waveform_cache.bytes =
-                    self.waveform_cache.bytes.saturating_add(entry.byte_len);
+                self.waveform.cache.bytes =
+                    self.waveform.cache.bytes.saturating_add(entry.byte_len);
                 vacant.insert(entry);
             }
         }
-        self.waveform_cache
+        self.waveform
+            .cache
             .cached_sample_paths
             .insert(path.display().to_string());
         self.touch_cached_waveform_path(path);
@@ -435,16 +454,16 @@ impl NativeAppState {
     }
 
     pub(super) fn touch_cached_waveform_path(&mut self, path: std::path::PathBuf) {
-        self.waveform_cache.order.retain(|cached| cached != &path);
-        self.waveform_cache.order.push_back(path);
+        self.waveform.cache.order.retain(|cached| cached != &path);
+        self.waveform.cache.order.push_back(path);
     }
 
     fn enforce_waveform_cache_limit(&mut self) {
-        while self.waveform_cache.order.len() > WAVEFORM_MEMORY_CACHE_MAX_FILES
-            || (self.waveform_cache.bytes > WAVEFORM_MEMORY_CACHE_MAX_BYTES
-                && self.waveform_cache.order.len() > 1)
+        while self.waveform.cache.order.len() > WAVEFORM_MEMORY_CACHE_MAX_FILES
+            || (self.waveform.cache.bytes > WAVEFORM_MEMORY_CACHE_MAX_BYTES
+                && self.waveform.cache.order.len() > 1)
         {
-            let Some(path) = self.waveform_cache.order.pop_front() else {
+            let Some(path) = self.waveform.cache.order.pop_front() else {
                 break;
             };
             if self.remove_waveform_cache_path(&path) {
@@ -454,16 +473,17 @@ impl NativeAppState {
     }
 
     fn remove_waveform_cache_path(&mut self, path: &Path) -> bool {
-        let Some(entry) = self.waveform_cache.entries.remove(path) else {
+        let Some(entry) = self.waveform.cache.entries.remove(path) else {
             return false;
         };
-        self.waveform_cache.bytes = self.waveform_cache.bytes.saturating_sub(entry.byte_len);
+        self.waveform.cache.bytes = self.waveform.cache.bytes.saturating_sub(entry.byte_len);
         true
     }
 
     fn remove_cached_sample_path_if_not_persisted(&mut self, path: &Path) {
         if !cached_waveform_file_playback_ready_exists(path) {
-            self.waveform_cache
+            self.waveform
+                .cache
                 .cached_sample_paths
                 .remove(&path.display().to_string());
         }

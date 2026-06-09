@@ -33,6 +33,7 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let metadata_completion = overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING)
         .map(|view| ui::Layer::floating(view).pass_through());
     let browser_context_menu = state
+        .ui
         .browser_interaction
         .context_menu
         .as_ref()
@@ -41,13 +42,15 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
             ui::Layer::context_menu(view).dismiss_on_outside_click(GuiMessage::CloseContextMenu)
         });
     let file_move_conflict = state
+        .library
         .folder_browser
         .pending_file_move_conflict_view()
         .is_some()
         .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input());
 
     let mut children = vec![folder_sidebar_panel(state).transient_layer_opt(metadata_completion)];
-    if state.metadata.tag_library_open && state.folder_browser.selected_file_id().is_some() {
+    if state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
+    {
         children.push(metadata_tag_library::panel(state));
     }
     children.push(folder_splitter());
@@ -80,7 +83,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
 fn main_area(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
-    let suppress_sample_hover = state.chrome.folder_panel.is_resizing();
+    let suppress_sample_hover = state.ui.chrome.folder_panel.is_resizing();
     let sample_browser_model = SampleBrowserViewModel::from_app_state(state, suppress_sample_hover);
     ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
         .padding(4.0)

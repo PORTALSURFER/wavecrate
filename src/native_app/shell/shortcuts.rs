@@ -7,19 +7,19 @@ pub(in crate::native_app) fn default_gui_shortcuts(
 ) -> ui::ShortcutCatalog<GuiMessage> {
     ui::ShortcutCatalog::new()
         .layer_when(
-            state.folder_browser.rename_active(),
+            state.library.folder_browser.rename_active(),
             ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::CancelRename,
             )),
         )
         .layer_when(
-            state.folder_browser.file_column_drag_active(),
+            state.library.folder_browser.file_column_drag_active(),
             ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::CancelFileColumnDrag,
             )),
         )
         .layer_when(
-            state.browser_interaction.context_menu.is_some(),
+            state.ui.browser_interaction.context_menu.is_some(),
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
         )
         .layer_when(
@@ -27,11 +27,11 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseAudioSettingsDropdowns),
         )
         .layer_when(
-            state.chrome.job_details_open,
+            state.ui.chrome.job_details_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
         )
         .layer_when(
-            state.chrome.transaction_list_open,
+            state.ui.chrome.transaction_list_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseTransactionList),
         )
         .layer_when(
@@ -180,7 +180,7 @@ fn bind_collection_shortcuts(
 }
 
 fn new_item_action(state: &NativeAppState) -> GuiMessage {
-    if state.folder_browser.selected_file_id().is_some() {
+    if state.library.folder_browser.selected_file_id().is_some() {
         GuiMessage::NormalizeSelectedSamples
     } else {
         GuiMessage::FolderBrowser(FolderBrowserMessage::BeginCreateSubfolder)

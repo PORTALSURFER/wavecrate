@@ -22,12 +22,12 @@ pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View
             audio_engine_pill(
                 state.audio_engine_pill_label(),
                 state.audio_engine_pill_style(),
-                state.settings_ui.audio_settings_open
-                    && state.settings_ui.app_settings_tab == AppSettingsTab::AudioEngine,
+                state.ui.settings.ui.audio_settings_open
+                    && state.ui.settings.ui.app_settings_tab == AppSettingsTab::AudioEngine,
             ),
             general_settings_button(
-                state.settings_ui.audio_settings_open
-                    && state.settings_ui.app_settings_tab == AppSettingsTab::General,
+                state.ui.settings.ui.audio_settings_open
+                    && state.ui.settings.ui.app_settings_tab == AppSettingsTab::General,
             ),
         ])
         .spacing(4.0)

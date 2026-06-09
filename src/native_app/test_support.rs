@@ -74,27 +74,22 @@ impl NativeAppStateFixture {
 
     pub(in crate::native_app) fn build(self) -> NativeAppState {
         NativeAppState {
-            chrome: ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
-            folder_browser: self.folder_browser,
-            waveform: self
-                .waveform
-                .unwrap_or_else(|| WaveformState::load_default().expect("default waveform state")),
-            sample_status: self.sample_status,
+            ui: UiAppState::new(
+                ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
+                StatusState::new(self.sample_status),
+                SettingsAppState::new(self.persisted_settings.clone()),
+                StartupState::new(false, false, false),
+            ),
+            library: LibraryAppState::new(self.folder_browser, None),
+            waveform: WaveformAppState::new(
+                self.waveform.unwrap_or_else(|| {
+                    WaveformState::load_default().expect("default waveform state")
+                }),
+            ),
             background: BackgroundTaskState::for_tests(),
-            folder_progress: None,
-            pending_source_refreshes: Default::default(),
-            source_watcher: None,
-            waveform_load: WaveformLoadState::default(),
             audio: AudioAppState::for_tests(),
-            persisted_settings: self.persisted_settings.clone(),
-            settings_ui: SettingsUiState::default(),
             transactions: Default::default(),
-            browser_interaction: BrowserInteractionState::default(),
             metadata: MetadataAppState::from_settings(&self.persisted_settings),
-            startup_source_scan_pending: false,
-            startup_folder_verify_pending: false,
-            startup_auto_load_pending: false,
-            waveform_cache: WaveformCacheState::default(),
         }
     }
 }

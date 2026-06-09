@@ -31,25 +31,38 @@ use crate::native_app::waveform::WaveformState;
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
 
 pub(in crate::native_app) struct NativeAppState {
-    pub(in crate::native_app) chrome: ChromeUiState,
-    pub(in crate::native_app) folder_browser: FolderBrowserState,
-    pub(in crate::native_app) waveform: WaveformState,
-    pub(in crate::native_app) sample_status: String,
+    pub(in crate::native_app) ui: UiAppState,
+    pub(in crate::native_app) library: LibraryAppState,
+    pub(in crate::native_app) waveform: WaveformAppState,
     pub(in crate::native_app) background: BackgroundTaskState,
-    pub(in crate::native_app) folder_progress: Option<FolderScanProgress>,
-    pub(in crate::native_app) pending_source_refreshes: HashSet<String>,
-    pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
-    pub(in crate::native_app) waveform_load: WaveformLoadState,
-    pub(in crate::native_app) waveform_cache: WaveformCacheState,
     pub(in crate::native_app) audio: AudioAppState,
-    pub(in crate::native_app) persisted_settings: AppSettingsCore,
-    pub(in crate::native_app) settings_ui: SettingsUiState,
     pub(in crate::native_app) transactions: TransactionState,
-    pub(in crate::native_app) browser_interaction: BrowserInteractionState,
     pub(in crate::native_app) metadata: MetadataAppState,
-    pub(in crate::native_app) startup_source_scan_pending: bool,
-    pub(in crate::native_app) startup_folder_verify_pending: bool,
-    pub(in crate::native_app) startup_auto_load_pending: bool,
+}
+
+pub(in crate::native_app) struct UiAppState {
+    pub(in crate::native_app) chrome: ChromeUiState,
+    pub(in crate::native_app) status: StatusState,
+    pub(in crate::native_app) settings: SettingsAppState,
+    pub(in crate::native_app) browser_interaction: BrowserInteractionState,
+    pub(in crate::native_app) startup: StartupState,
+}
+
+impl UiAppState {
+    pub(in crate::native_app) fn new(
+        chrome: ChromeUiState,
+        status: StatusState,
+        settings: SettingsAppState,
+        startup: StartupState,
+    ) -> Self {
+        Self {
+            chrome,
+            status,
+            settings,
+            browser_interaction: BrowserInteractionState::default(),
+            startup,
+        }
+    }
 }
 
 pub(in crate::native_app) struct ChromeUiState {
@@ -84,6 +97,53 @@ impl Default for SettingsUiState {
     }
 }
 
+pub(in crate::native_app) struct SettingsAppState {
+    pub(in crate::native_app) persisted: AppSettingsCore,
+    pub(in crate::native_app) ui: SettingsUiState,
+}
+
+impl SettingsAppState {
+    pub(in crate::native_app) fn new(persisted: AppSettingsCore) -> Self {
+        Self {
+            persisted,
+            ui: SettingsUiState::default(),
+        }
+    }
+}
+
+pub(in crate::native_app) struct StatusState {
+    pub(in crate::native_app) sample: String,
+}
+
+impl StatusState {
+    pub(in crate::native_app) fn new(sample: impl Into<String>) -> Self {
+        Self {
+            sample: sample.into(),
+        }
+    }
+}
+
+pub(in crate::native_app) struct LibraryAppState {
+    pub(in crate::native_app) folder_browser: FolderBrowserState,
+    pub(in crate::native_app) folder_progress: Option<FolderScanProgress>,
+    pub(in crate::native_app) pending_source_refreshes: HashSet<String>,
+    pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
+}
+
+impl LibraryAppState {
+    pub(in crate::native_app) fn new(
+        folder_browser: FolderBrowserState,
+        source_watcher: Option<GuiSourceWatcherHandle>,
+    ) -> Self {
+        Self {
+            folder_browser,
+            folder_progress: None,
+            pending_source_refreshes: HashSet::new(),
+            source_watcher,
+        }
+    }
+}
+
 pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
@@ -104,6 +164,26 @@ impl Default for BrowserInteractionState {
 pub(in crate::native_app) struct TransactionState {
     pub(in crate::native_app) history: NativeTransactionHistory,
     pub(in crate::native_app) restoring: bool,
+}
+
+pub(in crate::native_app) struct StartupState {
+    pub(in crate::native_app) source_scan_pending: bool,
+    pub(in crate::native_app) folder_verify_pending: bool,
+    pub(in crate::native_app) auto_load_pending: bool,
+}
+
+impl StartupState {
+    pub(in crate::native_app) fn new(
+        source_scan_pending: bool,
+        folder_verify_pending: bool,
+        auto_load_pending: bool,
+    ) -> Self {
+        Self {
+            source_scan_pending,
+            folder_verify_pending,
+            auto_load_pending,
+        }
+    }
 }
 
 pub(in crate::native_app) struct MetadataAppState {
@@ -138,6 +218,22 @@ impl MetadataAppState {
             collapsed_tag_categories: Default::default(),
             tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
+        }
+    }
+}
+
+pub(in crate::native_app) struct WaveformAppState {
+    pub(in crate::native_app) current: WaveformState,
+    pub(in crate::native_app) load: WaveformLoadState,
+    pub(in crate::native_app) cache: WaveformCacheState,
+}
+
+impl WaveformAppState {
+    pub(in crate::native_app) fn new(current: WaveformState) -> Self {
+        Self {
+            current,
+            load: WaveformLoadState::default(),
+            cache: WaveformCacheState::default(),
         }
     }
 }

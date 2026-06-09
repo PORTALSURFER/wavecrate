@@ -113,7 +113,7 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
 #[test]
 fn audio_engine_pill_activates_settings_toggle() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.settings_ui.audio_settings_open = true;
+    state.ui.settings.ui.audio_settings_open = true;
     let surface = crate::native_app::test_support::top_control_bar(&state).into_surface();
     let pill = surface
         .find_widget(crate::native_app::test_support::AUDIO_ENGINE_PILL_ID)
@@ -138,8 +138,9 @@ fn audio_engine_pill_activates_settings_toggle() {
 #[test]
 fn general_settings_button_opens_general_tab() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.settings_ui.audio_settings_open = true;
-    state.settings_ui.app_settings_tab = crate::native_app::test_support::AppSettingsTab::General;
+    state.ui.settings.ui.audio_settings_open = true;
+    state.ui.settings.ui.app_settings_tab =
+        crate::native_app::test_support::AppSettingsTab::General;
     let surface = crate::native_app::test_support::top_control_bar(&state).into_surface();
     let button = surface
         .find_widget(crate::native_app::test_support::GENERAL_SETTINGS_BUTTON_ID)
@@ -170,9 +171,9 @@ fn settings_top_bar_actions_open_expected_tabs() {
         crate::native_app::test_support::GuiMessage::OpenGeneralSettings,
         &mut context,
     );
-    assert!(state.settings_ui.audio_settings_open);
+    assert!(state.ui.settings.ui.audio_settings_open);
     assert_eq!(
-        state.settings_ui.app_settings_tab,
+        state.ui.settings.ui.app_settings_tab,
         crate::native_app::test_support::AppSettingsTab::General
     );
 
@@ -180,9 +181,9 @@ fn settings_top_bar_actions_open_expected_tabs() {
         crate::native_app::test_support::GuiMessage::ToggleAudioSettings,
         &mut context,
     );
-    assert!(state.settings_ui.audio_settings_open);
+    assert!(state.ui.settings.ui.audio_settings_open);
     assert_eq!(
-        state.settings_ui.app_settings_tab,
+        state.ui.settings.ui.app_settings_tab,
         crate::native_app::test_support::AppSettingsTab::AudioEngine
     );
 
@@ -190,13 +191,13 @@ fn settings_top_bar_actions_open_expected_tabs() {
         crate::native_app::test_support::GuiMessage::ToggleAudioSettings,
         &mut context,
     );
-    assert!(!state.settings_ui.audio_settings_open);
+    assert!(!state.ui.settings.ui.audio_settings_open);
 }
 
 #[test]
 fn settings_auxiliary_window_is_cached_after_native_close() {
     let mut state = gui_state_for_span_tests();
-    state.settings_ui.audio_settings_open = true;
+    state.ui.settings.ui.audio_settings_open = true;
 
     let windows = crate::native_app::app_chrome::settings::auxiliary_windows(&mut state);
 
@@ -331,7 +332,7 @@ fn audio_sample_rate_label_matches_status_chip_format() {
 fn settings_window_shows_audio_engine_tab_controls() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio.settings_error = None;
-    state.settings_ui.app_settings_tab =
+    state.ui.settings.ui.app_settings_tab =
         crate::native_app::test_support::AppSettingsTab::AudioEngine;
     state.audio.hosts = vec![crate::native_app::test_support::AudioHostSummary {
         id: String::from("asio"),
@@ -368,8 +369,10 @@ fn settings_window_shows_audio_engine_tab_controls() {
 fn settings_window_general_tab_shows_general_controls() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio.settings_error = None;
-    state.settings_ui.app_settings_tab = crate::native_app::test_support::AppSettingsTab::General;
-    state.persisted_settings.trash_folder = Some(std::path::PathBuf::from("C:\\Wavecrate Trash"));
+    state.ui.settings.ui.app_settings_tab =
+        crate::native_app::test_support::AppSettingsTab::General;
+    state.ui.settings.persisted.trash_folder =
+        Some(std::path::PathBuf::from("C:\\Wavecrate Trash"));
 
     let frame = crate::native_app::test_support::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));

@@ -75,6 +75,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
     let expected_stem = state
+        .library
         .folder_browser
         .selected_audio_files()
         .first()
@@ -98,13 +99,13 @@ fn sample_browser_frame_paints_column_and_file_text() {
 fn sample_browser_column_drag_paints_drop_marker() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(292.0, 8.0)),
         ),
     );
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(420.0, 8.0)),
@@ -163,13 +164,13 @@ fn sample_browser_header_paints_hover_affordance() {
 fn full_gui_column_drag_paints_pointer_preview() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(600.0, 320.0)),
         ),
     );
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(620.0, 320.0)),
@@ -207,6 +208,7 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     let resized_name_width = runtime
         .bridge()
         .state()
+        .library
         .folder_browser
         .visible_file_columns()
         .into_iter()
@@ -265,6 +267,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
         runtime
             .bridge()
             .state()
+            .library
             .folder_browser
             .visible_file_columns()
             .into_iter()
@@ -299,6 +302,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
         runtime
             .bridge()
             .state()
+            .library
             .folder_browser
             .file_column_drag_feedback(),
         None
@@ -307,6 +311,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
         runtime
             .bridge()
             .state()
+            .library
             .folder_browser
             .visible_file_columns()
             .into_iter()
@@ -390,16 +395,17 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let sample = drums.join("kick.wav");
     fs::write(&sample, []).expect("write sample");
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ),
     );
     state
+        .library
         .folder_browser
         .select_file(sample.display().to_string());
 
@@ -443,11 +449,16 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
     runtime.dispatch_event(Event::primary_release(sample_press));
     let released_frame = runtime.frame_with_default_theme();
     assert!(
-        !runtime.bridge().state().folder_browser.drag_active(),
+        !runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .drag_active(),
         "dropping back on the sample list must cancel the browser drag"
     );
     assert_eq!(
-        runtime.bridge().state().sample_status,
+        runtime.bridge().state().ui.status.sample,
         "Drag cancelled",
         "dropping back on the sample list should be reported as cancellation"
     );
@@ -474,6 +485,7 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
     let expected_names = state
+        .library
         .folder_browser
         .selected_audio_files()
         .into_iter()
@@ -574,6 +586,7 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
     let expected_names = state
+        .library
         .folder_browser
         .selected_audio_files()
         .into_iter()

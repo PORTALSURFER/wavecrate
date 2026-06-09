@@ -11,7 +11,7 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
     write_test_wav_i16(&wav, &[0, 100]);
     fs::write(&txt, "not audio").expect("write text");
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
@@ -26,7 +26,7 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
         &mut context,
     );
     assert_eq!(
-        state.browser_interaction.native_file_drop_hover,
+        state.ui.browser_interaction.native_file_drop_hover,
         Some(crate::native_app::test_support::NativeFileDropHover {
             path: wav.clone(),
             supported: true,
@@ -42,7 +42,7 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
         &mut context,
     );
     assert_eq!(
-        state.browser_interaction.native_file_drop_hover,
+        state.ui.browser_interaction.native_file_drop_hover,
         Some(crate::native_app::test_support::NativeFileDropHover {
             path: txt,
             supported: false,
@@ -56,7 +56,7 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
         ),
         &mut context,
     );
-    assert_eq!(state.browser_interaction.native_file_drop_hover, None);
+    assert_eq!(state.ui.browser_interaction.native_file_drop_hover, None);
     let _ = fs::remove_dir_all(root);
 }
 
@@ -74,7 +74,7 @@ fn native_file_hover_without_widget_target_still_shows_waveform_drop_feedback() 
     );
 
     assert_eq!(
-        state.browser_interaction.native_file_drop_hover,
+        state.ui.browser_interaction.native_file_drop_hover,
         Some(crate::native_app::test_support::NativeFileDropHover {
             path: wav,
             supported: true,
@@ -92,11 +92,11 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
     let source = external_root.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ),
@@ -116,10 +116,10 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
     let copied_id = copied.display().to_string();
     assert!(copied.is_file());
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(copied_id.as_str())
     );
-    assert_eq!(state.waveform_load.label.as_deref(), Some("kick.wav"));
+    assert_eq!(state.waveform.load.label.as_deref(), Some("kick.wav"));
     assert!(
         state
             .background
@@ -143,11 +143,11 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
     let source = external_root.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ),
@@ -163,7 +163,7 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
     let copied_id = copied.display().to_string();
     assert!(copied.is_file());
     assert_eq!(
-        state.folder_browser.selected_file_id(),
+        state.library.folder_browser.selected_file_id(),
         Some(copied_id.as_str())
     );
     let _ = fs::remove_dir_all(root);
@@ -178,11 +178,11 @@ fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
     let source = drums.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ),
@@ -196,7 +196,7 @@ fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
 
     assert!(source.is_file());
     assert!(!drums.join("kick_copy001.wav").exists());
-    assert_eq!(state.sample_status, "Drag cancelled");
+    assert_eq!(state.ui.status.sample, "Drag cancelled");
     assert!(
         state
             .background
@@ -217,16 +217,17 @@ fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
     let source = drums.join("kick.wav");
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ),
     );
     state
+        .library
         .folder_browser
         .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
     let mut context = ui::UpdateContext::default();
@@ -239,8 +240,8 @@ fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
     assert!(source.is_file());
     assert!(!drums.join("kick_copy001.wav").exists());
     assert!(!loops.join("kick.wav").exists());
-    assert!(!state.folder_browser.drag_active());
-    assert_eq!(state.sample_status, "Drag cancelled");
+    assert!(!state.library.folder_browser.drag_active());
+    assert_eq!(state.ui.status.sample, "Drag cancelled");
     let _ = fs::remove_dir_all(root);
 }
 
@@ -255,16 +256,16 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
     write_test_wav_i16(&source, &[0, 100, -100]);
     let source_id = source.display().to_string();
     let mut state = gui_state_for_span_tests();
-    state.folder_browser =
+    state.library.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ),
     );
-    state.folder_browser.select_file(source_id.clone());
+    state.library.folder_browser.select_file(source_id.clone());
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
@@ -274,7 +275,7 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
         },
         &mut context,
     );
-    state.folder_browser.apply_message(
+    state.library.folder_browser.apply_message(
         crate::native_app::test_support::FolderBrowserMessage::HoverDropTarget(
             loops.display().to_string(),
             Point::new(16.0, 18.0),
@@ -292,8 +293,8 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
         NativeFileDrop::hover(source.clone(), Some(Point::new(80.0, 40.0)), None),
         &mut context,
     );
-    assert_eq!(state.browser_interaction.native_file_drop_hover, None);
-    assert_eq!(state.sample_status, "Drag cancelled");
+    assert_eq!(state.ui.browser_interaction.native_file_drop_hover, None);
+    assert_eq!(state.ui.status.sample, "Drag cancelled");
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(source.clone(), Some(Point::new(80.0, 40.0)), None),
@@ -303,7 +304,7 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
     assert!(source.is_file());
     assert!(!drums.join("kick_copy001.wav").exists());
     assert!(!loops.join("kick.wav").exists());
-    assert!(!state.folder_browser.drag_active());
-    assert_eq!(state.sample_status, "Drag cancelled");
+    assert!(!state.library.folder_browser.drag_active());
+    assert_eq!(state.ui.status.sample, "Drag cancelled");
     let _ = fs::remove_dir_all(root);
 }

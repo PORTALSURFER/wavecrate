@@ -52,6 +52,7 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
 
 pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::View<GuiMessage> {
     let conflict = state
+        .library
         .folder_browser
         .pending_file_move_conflict_view()
         .expect("file move conflict modal requires pending conflict state");
