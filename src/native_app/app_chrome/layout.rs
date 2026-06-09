@@ -26,26 +26,31 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
 }
 
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    let browser_context_menu = browser_context_menu_layer(state);
-    let file_move_conflict = file_move_conflict_layer(state);
+    ui::row(center_panel_panes(state))
+        .fill()
+        .overlays(center_panel_overlays(state))
+}
 
+fn center_panel_panes(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
     let mut panes = vec![library_pane(state)];
     if let Some(tag_library) = metadata_tag_library_pane(state) {
         panes.push(tag_library);
     }
     panes.push(sample_workspace(state));
+    panes
+}
 
-    ui::row(panes)
-        .fill()
-        .transient_layer_opt(browser_context_menu)
-        .transient_layer_opt(file_move_conflict)
+fn center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
+    ui::overlays()
+        .layer_opt(browser_context_menu_overlay(state))
+        .layer_opt(file_move_conflict_overlay(state))
 }
 
 fn metadata_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     overlays::metadata_tag_completion(state).map(|view| ui::Layer::floating(view).pass_through())
 }
 
-fn browser_context_menu_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn browser_context_menu_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     state
         .ui
         .browser_interaction
@@ -57,7 +62,7 @@ fn browser_context_menu_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMes
         })
 }
 
-fn file_move_conflict_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn file_move_conflict_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     state
         .library
         .folder_browser
