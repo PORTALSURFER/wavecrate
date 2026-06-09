@@ -77,7 +77,10 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
         "cached source trees should queue only a bounded visible-folder verification"
     );
     assert!(
-        !state.cached_sample_paths.contains(&sample_id),
+        !state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_id),
         "startup must not probe waveform cache metadata on the UI thread"
     );
 }

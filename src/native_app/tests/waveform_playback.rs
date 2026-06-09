@@ -257,8 +257,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         folder_progress: None,
         pending_source_refreshes: Default::default(),
         source_watcher: None,
-        waveform_loading_progress: 0.0,
-        waveform_loading_target_progress: 0.0,
+        waveform_load: crate::native_app::test_support::WaveformLoadState::default(),
         audio: crate::native_app::test_support::AudioAppState::for_tests(),
         persisted_settings: crate::native_app::test_support::AppSettingsCore::default(),
         audio_settings_open: false,
@@ -269,7 +268,6 @@ fn sample_selection_loads_selected_file_into_waveform() {
         transaction_history: Default::default(),
         transaction_restoring: false,
         context_menu: None,
-        waveform_loading_label: None,
         native_file_drop_hover: None,
         pending_internal_file_drag_paths: Default::default(),
         metadata_tag_draft: String::new(),
@@ -288,20 +286,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,
         startup_auto_load_pending: false,
-        waveform_cache: HashMap::new(),
-        waveform_cache_order: Default::default(),
-        waveform_cache_bytes: 0,
-        waveform_cache_indicator_refresh_task: ui::LatestTask::new(),
-        waveform_cache_indicator_refresh_results: Default::default(),
-        waveform_cache_warm_pending: Default::default(),
-        waveform_cache_warm_task: ui::LatestTask::new(),
-        waveform_cache_warm_results: Default::default(),
-        active_folder_cache_warm_delay_task: ui::LatestTask::new(),
-        active_folder_cache_warm_task: ui::LatestTask::new(),
-        active_folder_cache_warm_cancel: None,
-        active_folder_cache_warm_folder_id: None,
-        active_folder_cache_warm_pending: Default::default(),
-        cached_sample_paths: Default::default(),
+        waveform_cache: crate::native_app::test_support::WaveformCacheState::default(),
     };
     let sample_path = first_visible_asset_file_path(&state.folder_browser);
     let sample_name = PathBuf::from(&sample_path)
@@ -318,7 +303,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         &mut context,
     );
     assert_eq!(
-        state.waveform_loading_label.as_deref(),
+        state.waveform_load.label.as_deref(),
         Some(sample_name.as_str())
     );
     assert!(
@@ -354,10 +339,15 @@ fn sample_selection_loads_selected_file_into_waveform() {
         Some(sample_path.as_str())
     );
     assert_eq!(state.waveform.file_name(), sample_name);
-    assert_eq!(state.waveform_loading_label, None);
+    assert_eq!(state.waveform_load.label, None);
     assert!(state.waveform.frames() > 0);
     assert!(state.sample_status.contains(&sample_name));
-    assert!(state.cached_sample_paths.contains(&sample_path));
+    assert!(
+        state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path)
+    );
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
@@ -398,9 +388,9 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         .expect("sample loads");
     state.remember_waveform(&loaded);
     state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
-    state.waveform_loading_label = Some(String::from("previous.wav"));
-    state.waveform_loading_progress = 0.42;
-    state.waveform_loading_target_progress = 0.84;
+    state.waveform_load.label = Some(String::from("previous.wav"));
+    state.waveform_load.progress = 0.42;
+    state.waveform_load.target_progress = 0.84;
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -412,9 +402,9 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     );
 
     assert_eq!(state.waveform.path(), sample_path);
-    assert_eq!(state.waveform_loading_label, None);
-    assert_eq!(state.waveform_loading_progress, 0.0);
-    assert_eq!(state.waveform_loading_target_progress, 0.0);
+    assert_eq!(state.waveform_load.label, None);
+    assert_eq!(state.waveform_load.progress, 0.0);
+    assert_eq!(state.waveform_load.target_progress, 0.0);
     assert!(
         state
             .background
@@ -432,7 +422,12 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         "cached selection should update the visible status, got {}",
         state.sample_status
     );
-    assert!(state.cached_sample_paths.contains(&sample_path_string));
+    assert!(
+        state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path_string)
+    );
 }
 
 #[test]
@@ -755,7 +750,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         "keyboard navigation must not synchronously start decode work"
     );
     assert_eq!(
-        state.waveform_loading_label, None,
+        state.waveform_load.label, None,
         "keyboard navigation should not enter the loading UI until the deferred load fires"
     );
     let stale_ticket = state
@@ -946,9 +941,10 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
         .expect("sample loads");
     let loaded = state.waveform.clone();
     state.remember_waveform(&loaded);
-    assert!(state.waveform_cache.contains_key(&old_path));
+    assert!(state.waveform_cache.entries.contains_key(&old_path));
     assert!(
         state
+            .waveform_cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
@@ -964,15 +960,17 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
 
     assert_eq!(state.waveform.path(), new_path);
     assert!(state.waveform.has_loaded_sample());
-    assert!(state.waveform_cache.contains_key(&new_path));
-    assert!(!state.waveform_cache.contains_key(&old_path));
+    assert!(state.waveform_cache.entries.contains_key(&new_path));
+    assert!(!state.waveform_cache.entries.contains_key(&old_path));
     assert!(
         state
+            .waveform_cache
             .cached_sample_paths
             .contains(&new_path.display().to_string())
     );
     assert!(
         !state
+            .waveform_cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
@@ -1042,15 +1040,17 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
 
     assert_eq!(state.waveform.path(), new_path);
     assert!(state.waveform.has_loaded_sample());
-    assert!(state.waveform_cache.contains_key(&new_path));
-    assert!(!state.waveform_cache.contains_key(&old_path));
+    assert!(state.waveform_cache.entries.contains_key(&new_path));
+    assert!(!state.waveform_cache.entries.contains_key(&old_path));
     assert!(
         state
+            .waveform_cache
             .cached_sample_paths
             .contains(&new_path.display().to_string())
     );
     assert!(
         !state
+            .waveform_cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
@@ -1092,7 +1092,10 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
     state.refresh_persisted_waveform_cache_indicators();
 
     assert!(
-        state.cached_sample_paths.contains(&sample_path),
+        state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path),
         "persisted cache should mark the sample as ready before it enters memory cache"
     );
 
@@ -1118,12 +1121,13 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
         "playback-ready persisted cache should start worker loading immediately"
     );
     assert!(
-        state.waveform_loading_label.as_deref() == Some(sample_name.as_str()),
+        state.waveform_load.label.as_deref() == Some(sample_name.as_str()),
         "selection should show loading state while the persisted cache is promoted"
     );
     assert!(
         !state
             .waveform_cache
+            .entries
             .contains_key(&PathBuf::from(&sample_path)),
         "persisted cache promotion must stay off the UI thread until background loading completes"
     );
@@ -1152,13 +1156,18 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         ]);
     state.refresh_persisted_waveform_cache_indicators();
 
-    assert!(state.cached_sample_paths.contains(&sample_path_string));
     assert!(
-        !state.waveform_cache.contains_key(&sample_path),
+        state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path_string)
+    );
+    assert!(
+        !state.waveform_cache.entries.contains_key(&sample_path),
         "restart indicator refresh should not synchronously deserialize cached waveforms"
     );
     assert!(
-        state.waveform_cache_warm_pending.is_empty(),
+        state.waveform_cache.warm_pending.is_empty(),
         "playback-ready persisted caches should not be loaded into memory from UI refresh"
     );
 
@@ -1231,7 +1240,12 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    assert!(!state.cached_sample_paths.contains(&sample_path_string));
+    assert!(
+        !state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path_string)
+    );
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -1245,17 +1259,21 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
 
     assert!(
         state
-            .waveform_cache_indicator_refresh_task
+            .waveform_cache
+            .indicator_refresh_task
             .active()
             .is_some(),
         "folder activation should queue cache indicator probing off the UI thread"
     );
     assert!(
-        !state.cached_sample_paths.contains(&sample_path_string),
+        !state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path_string),
         "folder activation must not synchronously read persisted cache metadata"
     );
     assert!(
-        state.waveform_cache_warm_pending.is_empty(),
+        state.waveform_cache.warm_pending.is_empty(),
         "summary cache warming should wait for the background indicator probe"
     );
 }
@@ -1290,14 +1308,22 @@ fn folder_activation_delays_active_folder_cache_warm() {
     );
 
     assert!(
-        state.active_folder_cache_warm_delay_task.active().is_some(),
+        state
+            .waveform_cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_some(),
         "folder activation should wait briefly before assuming browse intent"
     );
     assert!(
-        state.active_folder_cache_warm_task.active().is_none(),
+        state
+            .waveform_cache
+            .active_folder_warm_task
+            .active()
+            .is_none(),
         "active folder cache warm must not start during folder activation"
     );
-    assert_eq!(state.active_folder_cache_warm_pending.len(), 2);
+    assert_eq!(state.waveform_cache.active_folder_warm_pending.len(), 2);
 }
 
 #[test]
@@ -1328,14 +1354,21 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         &mut context,
     );
     let first_ticket = state
-        .active_folder_cache_warm_delay_task
+        .waveform_cache
+        .active_folder_warm_delay_task
         .active()
         .expect("first folder warm delay");
     state.apply_message(
         crate::native_app::test_support::GuiMessage::ActiveFolderCacheWarmReady(first_ticket),
         &mut context,
     );
-    assert!(state.active_folder_cache_warm_task.active().is_some());
+    assert!(
+        state
+            .waveform_cache
+            .active_folder_warm_task
+            .active()
+            .is_some()
+    );
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::FolderBrowser(
@@ -1347,15 +1380,19 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
     );
 
     assert!(
-        state.active_folder_cache_warm_task.active().is_none(),
+        state
+            .waveform_cache
+            .active_folder_warm_task
+            .active()
+            .is_none(),
         "changing folders should cancel the active warm worker"
     );
     let second_folder_id = second_folder.display().to_string();
     assert_eq!(
-        state.active_folder_cache_warm_folder_id.as_deref(),
+        state.waveform_cache.active_folder_warm_folder_id.as_deref(),
         Some(second_folder_id.as_str())
     );
-    assert_eq!(state.active_folder_cache_warm_pending.len(), 1);
+    assert_eq!(state.waveform_cache.active_folder_warm_pending.len(), 1);
 }
 
 #[test]
@@ -1410,11 +1447,14 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
     state.refresh_persisted_waveform_cache_indicators();
 
     assert!(
-        !state.cached_sample_paths.contains(&sample_path_string),
+        !state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path_string),
         "summary-only persisted cache must not paint the row as playback-ready"
     );
     assert_eq!(
-        state.waveform_cache_warm_pending.iter().collect::<Vec<_>>(),
+        state.waveform_cache.warm_pending.iter().collect::<Vec<_>>(),
         vec![&sample_path],
         "summary-only persisted cache should still be warmed in the background"
     );
@@ -1502,6 +1542,7 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
 
     assert!(
         restarted_state
+            .waveform_cache
             .cached_sample_paths
             .contains(&sample_path_string),
         "background warm should persist playback readiness for future restarts"
@@ -1532,7 +1573,10 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
     restarted_state.refresh_persisted_waveform_cache_indicators();
 
     assert!(
-        restarted_state.cached_sample_paths.contains(&sample_path),
+        restarted_state
+            .waveform_cache
+            .cached_sample_paths
+            .contains(&sample_path),
         "freshly loaded cache indicator should survive immediate restart"
     );
 }

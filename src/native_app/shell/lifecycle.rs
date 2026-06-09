@@ -1,6 +1,6 @@
 use crate::native_app::app::{
     AudioAppState, BackgroundTaskState, FolderBrowserState, GuiMessage, NativeAppState,
-    SampleNameViewMode, WaveformState, sample_path_label,
+    SampleNameViewMode, WaveformCacheState, WaveformLoadState, WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
@@ -44,8 +44,8 @@ impl NativeAppState {
             folder_progress: None,
             pending_source_refreshes: Default::default(),
             source_watcher,
-            waveform_loading_progress: 0.0,
-            waveform_loading_target_progress: 0.0,
+            waveform_load: WaveformLoadState::default(),
+            waveform_cache: WaveformCacheState::default(),
             audio,
             persisted_settings: config.core.clone(),
             audio_settings_open: false,
@@ -56,7 +56,6 @@ impl NativeAppState {
             transaction_history: Default::default(),
             transaction_restoring: false,
             context_menu: None,
-            waveform_loading_label: None,
             native_file_drop_hover: None,
             pending_internal_file_drag_paths: Default::default(),
             metadata_tag_draft: String::new(),
@@ -75,20 +74,6 @@ impl NativeAppState {
             startup_source_scan_pending,
             startup_folder_verify_pending,
             startup_auto_load_pending: has_configured_sources,
-            waveform_cache: HashMap::new(),
-            waveform_cache_order: Default::default(),
-            waveform_cache_bytes: 0,
-            waveform_cache_indicator_refresh_task: ui::LatestTask::new(),
-            waveform_cache_indicator_refresh_results: Default::default(),
-            waveform_cache_warm_pending: Default::default(),
-            waveform_cache_warm_task: ui::LatestTask::new(),
-            waveform_cache_warm_results: Default::default(),
-            active_folder_cache_warm_delay_task: ui::LatestTask::new(),
-            active_folder_cache_warm_task: ui::LatestTask::new(),
-            active_folder_cache_warm_cancel: None,
-            active_folder_cache_warm_folder_id: None,
-            active_folder_cache_warm_pending: Default::default(),
-            cached_sample_paths: Default::default(),
         };
         emit_gui_action(
             "runtime.startup.load_default_state",
@@ -156,10 +141,10 @@ impl NativeAppState {
         if self.folder_progress.is_some() || self.background.normalization_progress.is_some() {
             self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
         }
-        if self.waveform_loading_label.is_some() {
-            let remaining = self.waveform_loading_target_progress - self.waveform_loading_progress;
+        if self.waveform_load.label.is_some() {
+            let remaining = self.waveform_load.target_progress - self.waveform_load.progress;
             if remaining > 0.0 {
-                self.waveform_loading_progress += remaining.min(0.03);
+                self.waveform_load.progress += remaining.min(0.03);
             }
         }
         let persist_started_at = Instant::now();

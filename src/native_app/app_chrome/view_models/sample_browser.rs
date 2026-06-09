@@ -57,7 +57,7 @@ impl<'a> SampleBrowserViewModel<'a> {
             window,
             name_view_mode: state.sample_name_view_mode,
             metadata_tags_by_file: &state.metadata_tags_by_file,
-            cached_sample_paths: &state.cached_sample_paths,
+            cached_sample_paths: &state.waveform_cache.cached_sample_paths,
             suppress_row_hover,
             file_drag_active,
             extracted_file_drag_active,

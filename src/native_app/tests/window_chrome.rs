@@ -188,8 +188,8 @@ fn full_app_scene_routes_waveform_hit_target() {
 #[test]
 fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
     let mut state = gui_state_for_span_tests();
-    state.waveform_loading_label = Some(String::from("previous.wav"));
-    state.waveform_loading_progress = 0.5;
+    state.waveform_load.label = Some(String::from("previous.wav"));
+    state.waveform_load.progress = 0.5;
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
     let point = Point::new(rect.min.x + rect.width() * 0.42, rect.center().y);
@@ -663,7 +663,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
         .reducer(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
             state.apply_message(message, context);
-            *captured_waveform_loading_label.borrow_mut() = state.waveform_loading_label.clone();
+            *captured_waveform_loading_label.borrow_mut() = state.waveform_load.label.clone();
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
@@ -714,7 +714,7 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
         .view(crate::native_app::test_support::view)
         .reducer(move |state, message, context| {
             state.apply_message(message, context);
-            *captured_waveform_loading_label.borrow_mut() = state.waveform_loading_label.clone();
+            *captured_waveform_loading_label.borrow_mut() = state.waveform_load.label.clone();
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));

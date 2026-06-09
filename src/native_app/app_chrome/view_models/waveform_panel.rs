@@ -11,11 +11,11 @@ pub(in crate::native_app) struct WaveformPanelViewModel<'a> {
 
 impl<'a> WaveformPanelViewModel<'a> {
     pub(in crate::native_app) fn from_app_state(state: &'a NativeAppState) -> Self {
-        let loading_label = state.waveform_loading_label.as_deref();
+        let loading_label = state.waveform_load.label.as_deref();
         Self {
             waveform: &state.waveform,
             loading_label,
-            loading_progress: state.waveform_loading_progress,
+            loading_progress: state.waveform_load.progress,
             drop_hover: state.native_file_drop_hover.as_ref(),
             block_input_while_loading: state.waveform_input_blocked_by_sample_load(),
         }

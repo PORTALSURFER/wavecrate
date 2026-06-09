@@ -119,7 +119,7 @@ impl NativeAppState {
             }
             GuiMessage::SampleLoadProgress(ticket, progress) => {
                 if self.background.sample_load_task.is_active(ticket) {
-                    self.waveform_loading_target_progress = progress.clamp(0.0, 0.995);
+                    self.waveform_load.target_progress = progress.clamp(0.0, 0.995);
                 }
             }
             GuiMessage::SamplePlaybackReady(result) => self.finish_sample_playback_ready(result),

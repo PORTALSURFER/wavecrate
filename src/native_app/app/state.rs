@@ -64,8 +64,8 @@ pub(in crate::native_app) struct NativeAppState {
     // input-blocking target progress. WaveformCacheState owns waveform cache
     // entries, LRU accounting, cache indicator refresh, persisted cache warming,
     // active-folder cache warming, and cached path lookups.
-    pub(in crate::native_app) waveform_loading_progress: f32,
-    pub(in crate::native_app) waveform_loading_target_progress: f32,
+    pub(in crate::native_app) waveform_load: WaveformLoadState,
+    pub(in crate::native_app) waveform_cache: WaveformCacheState,
 
     // AudioAppState owns player/runtime playback state, output configuration,
     // resolved device state, discovered hosts/devices/rates, volume persistence,
@@ -87,7 +87,6 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) transaction_history: TransactionHistory<NativeAppState>,
     pub(in crate::native_app) transaction_restoring: bool,
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
-    pub(in crate::native_app) waveform_loading_label: Option<String>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
 
@@ -110,22 +109,62 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) startup_source_scan_pending: bool,
     pub(in crate::native_app) startup_folder_verify_pending: bool,
     pub(in crate::native_app) startup_auto_load_pending: bool,
-    pub(in crate::native_app) waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
-    pub(in crate::native_app) waveform_cache_order: VecDeque<PathBuf>,
-    pub(in crate::native_app) waveform_cache_bytes: usize,
-    pub(in crate::native_app) waveform_cache_indicator_refresh_task: ui::LatestTask,
-    pub(in crate::native_app) waveform_cache_indicator_refresh_results:
+}
+
+pub(in crate::native_app) struct WaveformLoadState {
+    pub(in crate::native_app) progress: f32,
+    pub(in crate::native_app) target_progress: f32,
+    pub(in crate::native_app) label: Option<String>,
+}
+
+impl Default for WaveformLoadState {
+    fn default() -> Self {
+        Self {
+            progress: 0.0,
+            target_progress: 0.0,
+            label: None,
+        }
+    }
+}
+
+pub(in crate::native_app) struct WaveformCacheState {
+    pub(in crate::native_app) entries: HashMap<PathBuf, WaveformCacheEntry>,
+    pub(in crate::native_app) order: VecDeque<PathBuf>,
+    pub(in crate::native_app) bytes: usize,
+    pub(in crate::native_app) indicator_refresh_task: ui::LatestTask,
+    pub(in crate::native_app) indicator_refresh_results:
         Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheIndicatorRefreshResult>>>,
-    pub(in crate::native_app) waveform_cache_warm_pending: VecDeque<PathBuf>,
-    pub(in crate::native_app) waveform_cache_warm_task: ui::LatestTask,
-    pub(in crate::native_app) waveform_cache_warm_results:
+    pub(in crate::native_app) warm_pending: VecDeque<PathBuf>,
+    pub(in crate::native_app) warm_task: ui::LatestTask,
+    pub(in crate::native_app) warm_results:
         Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheWarmResult>>>,
-    pub(in crate::native_app) active_folder_cache_warm_delay_task: ui::LatestTask,
-    pub(in crate::native_app) active_folder_cache_warm_task: ui::LatestTask,
-    pub(in crate::native_app) active_folder_cache_warm_cancel: Option<ui::CancellationToken>,
-    pub(in crate::native_app) active_folder_cache_warm_folder_id: Option<String>,
-    pub(in crate::native_app) active_folder_cache_warm_pending: VecDeque<PathBuf>,
+    pub(in crate::native_app) active_folder_warm_delay_task: ui::LatestTask,
+    pub(in crate::native_app) active_folder_warm_task: ui::LatestTask,
+    pub(in crate::native_app) active_folder_warm_cancel: Option<ui::CancellationToken>,
+    pub(in crate::native_app) active_folder_warm_folder_id: Option<String>,
+    pub(in crate::native_app) active_folder_warm_pending: VecDeque<PathBuf>,
     pub(in crate::native_app) cached_sample_paths: HashSet<String>,
+}
+
+impl Default for WaveformCacheState {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            order: Default::default(),
+            bytes: 0,
+            indicator_refresh_task: ui::LatestTask::new(),
+            indicator_refresh_results: Default::default(),
+            warm_pending: Default::default(),
+            warm_task: ui::LatestTask::new(),
+            warm_results: Default::default(),
+            active_folder_warm_delay_task: ui::LatestTask::new(),
+            active_folder_warm_task: ui::LatestTask::new(),
+            active_folder_warm_cancel: None,
+            active_folder_warm_folder_id: None,
+            active_folder_warm_pending: Default::default(),
+            cached_sample_paths: Default::default(),
+        }
+    }
 }
 
 pub(in crate::native_app) struct BackgroundTaskState {

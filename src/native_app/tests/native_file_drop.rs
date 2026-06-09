@@ -119,7 +119,7 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
         state.folder_browser.selected_file_id(),
         Some(copied_id.as_str())
     );
-    assert_eq!(state.waveform_loading_label.as_deref(), Some("kick.wav"));
+    assert_eq!(state.waveform_load.label.as_deref(), Some("kick.wav"));
     assert!(
         state
             .background

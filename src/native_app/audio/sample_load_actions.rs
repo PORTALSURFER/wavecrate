@@ -133,9 +133,9 @@ impl NativeAppState {
         let started_at = Instant::now();
         self.cancel_inflight_sample_load();
         self.audio.pending_sample_playback = None;
-        self.waveform_loading_label = None;
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
+        self.waveform_load.label = None;
+        self.waveform_load.progress = 0.0;
+        self.waveform_load.target_progress = 0.0;
         if self.start_loaded_navigation_sample(path.as_str(), context, started_at) {
             return;
         }
@@ -173,6 +173,7 @@ impl NativeAppState {
     ) -> bool {
         let Some(file) = self
             .waveform_cache
+            .entries
             .get(Path::new(path))
             .map(|entry| std::sync::Arc::clone(&entry.file))
         else {
@@ -257,9 +258,9 @@ impl NativeAppState {
     }
 
     fn clear_sample_loading_state(&mut self) {
-        self.waveform_loading_label = None;
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
+        self.waveform_load.label = None;
+        self.waveform_load.progress = 0.0;
+        self.waveform_load.target_progress = 0.0;
         self.background.sample_load_cancel = None;
     }
 
@@ -269,7 +270,7 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn waveform_input_blocked_by_sample_load(&self) -> bool {
-        self.waveform_loading_label.is_some()
+        self.waveform_load.label.is_some()
             && self.waveform_sample_load_active()
             && !self.folder_browser.drag_active()
     }
@@ -410,9 +411,9 @@ impl NativeAppState {
         self.stop_current_sample_playback_for_load();
         self.sample_status = format!("Loading {}", sample_path_label(path));
         let label = sample_path_label(path);
-        self.waveform_loading_label = Some(label.clone());
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
+        self.waveform_load.label = Some(label.clone());
+        self.waveform_load.progress = 0.0;
+        self.waveform_load.target_progress = 0.0;
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),
