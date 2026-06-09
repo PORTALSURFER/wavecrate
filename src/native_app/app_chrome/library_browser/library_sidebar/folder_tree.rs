@@ -17,7 +17,7 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
     a: 152,
 };
 
-pub(super) fn folders_section(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
+pub(super) fn folder_tree_section(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
     ui::column([
         ui::text_line("Folders", 22.0),
         folder_tree_view(state),

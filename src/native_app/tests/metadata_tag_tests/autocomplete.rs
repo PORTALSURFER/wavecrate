@@ -125,7 +125,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
 
 fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, _tag_input_rect: Rect) -> Option<Rect> {
     frame.paint_plan.first_svg_rect_for_widget(
-        crate::native_app::app_chrome::library_browser::folder_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
+        crate::native_app::app_chrome::library_browser::library_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
     )
 }
 

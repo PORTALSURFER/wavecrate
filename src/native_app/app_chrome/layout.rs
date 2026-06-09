@@ -1,6 +1,6 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::browser_context_menu;
-use crate::native_app::app_chrome::library_browser::folder_sidebar;
+use crate::native_app::app_chrome::library_browser::library_sidebar;
 use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
 use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::modals;
@@ -9,7 +9,7 @@ use crate::native_app::app_chrome::settings::top_control_bar;
 use crate::native_app::app_chrome::status_bar::bottom_status_area;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::{
-    folder_sidebar::FolderSidebarViewModel, sample_browser::SampleBrowserViewModel,
+    library_sidebar::LibrarySidebarViewModel, sample_browser::SampleBrowserViewModel,
     toolbar::MainToolbarViewModel, waveform_panel::WaveformPanelViewModel,
 };
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
@@ -76,7 +76,7 @@ fn tag_editor_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
 }
 
 fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
+    library_sidebar::library_sidebar(LibrarySidebarViewModel::from_app_state(state))
 }
 
 fn library_pane_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {

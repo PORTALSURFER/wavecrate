@@ -45,7 +45,7 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
     let metadata_rect = frame
         .paint_plan
         .first_widget_rect(
-            crate::native_app::app_chrome::library_browser::folder_sidebar::METADATA_SIDEBAR_PANEL_ID,
+            crate::native_app::app_chrome::library_browser::library_sidebar::METADATA_SIDEBAR_PANEL_ID,
         )
         .expect("metadata panel should paint");
     let status_text_rect = frame
@@ -64,7 +64,7 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
 fn metadata_section_keeps_configured_height_without_selected_file() {
     let browser = crate::native_app::test_support::FolderBrowserState::load_default();
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             false,
@@ -82,7 +82,7 @@ fn metadata_section_keeps_configured_height_without_selected_file() {
     let metadata_rect = frame
         .paint_plan
         .first_widget_rect(
-            crate::native_app::app_chrome::library_browser::folder_sidebar::METADATA_SIDEBAR_PANEL_ID,
+            crate::native_app::app_chrome::library_browser::library_sidebar::METADATA_SIDEBAR_PANEL_ID,
         )
         .expect("metadata panel should stay in the sidebar without a selected file");
 
@@ -104,7 +104,7 @@ fn metadata_section_collapses_to_header_only_height() {
     let metadata_rect = frame
         .paint_plan
         .first_widget_rect(
-            crate::native_app::app_chrome::library_browser::folder_sidebar::METADATA_SIDEBAR_PANEL_ID,
+            crate::native_app::app_chrome::library_browser::library_sidebar::METADATA_SIDEBAR_PANEL_ID,
         )
         .expect("metadata panel should paint");
 
@@ -123,7 +123,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
         selected: true,
     }];
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -164,7 +164,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         String::from("cool-tag"),
     ];
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -202,7 +202,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         String::from("cool-tag"),
     ];
     let short_frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -218,7 +218,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         )
         .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
     let crowded_frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -250,7 +250,7 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         String::from("potato"),
     ];
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             450.0,
             true,

@@ -552,6 +552,6 @@ fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {
 
 fn metadata_tag_text_input(frame: &ui::SurfaceFrame) -> Option<&PaintTextInput> {
     frame.paint_plan.text_inputs().find(|input| {
-        input.widget_id == crate::native_app::app_chrome::library_browser::folder_sidebar::METADATA_TAG_INPUT_ID
+        input.widget_id == crate::native_app::app_chrome::library_browser::library_sidebar::METADATA_TAG_INPUT_ID
     })
 }

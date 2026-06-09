@@ -1,7 +1,7 @@
 use super::super::*;
 
 #[test]
-fn default_gui_tag_library_opens_beside_folder_sidebar() {
+fn default_gui_tag_library_opens_beside_library_sidebar() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state.metadata.tags_by_file.insert(

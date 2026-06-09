@@ -6,7 +6,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let tags = vec![String::from("kick")];
     let theme = radiant::theme::ThemeTokens::default();
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             false,
@@ -40,7 +40,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         String::from("distorted"),
     ];
     let small =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -56,7 +56,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         )
         .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
     let larger =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -93,7 +93,7 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
@@ -642,7 +642,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
     ];
     let theme = radiant::theme::ThemeTokens::default();
     let frame =
-        crate::native_app::app_chrome::library_browser::folder_sidebar::folder_browser_view(
+        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
             260.0,
             true,
