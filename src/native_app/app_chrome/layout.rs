@@ -15,7 +15,6 @@ use crate::native_app::app_chrome::view_models::{
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use radiant::prelude as ui;
 
-pub(super) const CENTER_PANEL_PADDING: f32 = 6.0;
 const FOLDER_SPLITTER_HIT_WIDTH: f32 = 5.0;
 const FOLDER_SPLITTER_INSET: f32 = 1.0;
 
@@ -39,9 +38,7 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
 }
 
 fn center_panel_row(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    ui::row(center_panel_sections(state))
-        .padding_x(CENTER_PANEL_PADDING)
-        .fill()
+    ui::row(center_panel_sections(state)).fill()
 }
 
 fn center_panel_sections(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
@@ -57,8 +54,7 @@ fn center_panel_sections(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>
 }
 
 fn metadata_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
-    overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING)
-        .map(|view| ui::Layer::floating(view).pass_through())
+    overlays::metadata_tag_completion(state).map(|view| ui::Layer::floating(view).pass_through())
 }
 
 fn browser_context_menu_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
