@@ -15,8 +15,8 @@ use crate::native_app::app_chrome::view_models::{
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use radiant::prelude as ui;
 
-const FOLDER_SPLITTER_HIT_WIDTH: f32 = 5.0;
-const FOLDER_SPLITTER_INSET: f32 = 1.0;
+const LIBRARY_SIDEBAR_RESIZE_HANDLE_HIT_WIDTH: f32 = 5.0;
+const LIBRARY_SIDEBAR_RESIZE_HANDLE_INSET: f32 = 1.0;
 
 pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     ui::column([
@@ -37,7 +37,7 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     if metadata_tag_library_visible(state) {
         sections.push(metadata_tag_library::panel(state));
     }
-    sections.push(folder_splitter());
+    sections.push(library_sidebar_resize_handle());
     sections.push(sample_workspace(state));
 
     ui::row(sections)
@@ -79,15 +79,15 @@ fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
-fn folder_splitter() -> ui::View<GuiMessage> {
+fn library_sidebar_resize_handle() -> ui::View<GuiMessage> {
     ui::drag_handle()
         .hover_chrome_only()
         .mapped(GuiMessage::ResizeFolder)
-        .key("folder-browser-splitter-handle")
+        .key("library-sidebar-resize-handle")
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .width(FOLDER_SPLITTER_HIT_WIDTH)
+        .width(LIBRARY_SIDEBAR_RESIZE_HANDLE_HIT_WIDTH)
         .fill_height()
-        .padding(FOLDER_SPLITTER_INSET)
+        .padding(LIBRARY_SIDEBAR_RESIZE_HANDLE_INSET)
 }
 
 fn sample_workspace(state: &mut NativeAppState) -> ui::View<GuiMessage> {
