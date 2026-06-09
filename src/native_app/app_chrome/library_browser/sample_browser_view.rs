@@ -3,7 +3,6 @@ use radiant::prelude as ui;
 #[cfg(test)]
 use crate::native_app::app::NativeAppState;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
-use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 use crate::native_app::sample_library::folder_browser::{
     FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
@@ -31,7 +30,7 @@ pub(in crate::native_app) fn sample_browser_from_state(
 pub(in crate::native_app) fn sample_browser(
     model: SampleBrowserViewModel<'_>,
 ) -> ui::View<GuiMessage> {
-    let browser = ui::column([
+    ui::column([
         sample_browser_header_bar(
             &model.columns,
             model.folder_browser.file_sort(),
@@ -51,29 +50,21 @@ pub(in crate::native_app) fn sample_browser(
     ])
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
-    .fill();
-    ui::overlay_stack(browser)
-        .input_opt(sample_list_browser_drag_cancel_target(
-            model.file_drag_active,
-        ))
-        .input_opt(sample_list_waveform_drop_target(
-            model.extracted_file_drag_active,
-        ))
-        .input_opt(sample_list_clear_folder_drop_target(
-            model.hovered_folder_drop_target,
-        ))
-        .into_view()
-        .fill()
-        .drag_preview_layer_opt(
-            model
-                .drag_feedback
-                .map(|feedback| overlays::sample_column_drag_preview(&feedback)),
-        )
+    .fill()
+    .pointer_target_opt(sample_list_browser_drag_cancel_target(
+        model.file_drag_active,
+    ))
+    .pointer_target_opt(sample_list_waveform_drop_target(
+        model.extracted_file_drag_active,
+    ))
+    .pointer_target_opt(sample_list_clear_folder_drop_target(
+        model.hovered_folder_drop_target,
+    ))
 }
 
-fn sample_list_browser_drag_cancel_target(active: bool) -> Option<ui::View<GuiMessage>> {
+fn sample_list_browser_drag_cancel_target(active: bool) -> Option<ui::PointerTarget<GuiMessage>> {
     active.then(|| {
-        ui::pointer_shield(true)
+        ui::pointer_target(true)
             .pointer_move(false)
             .pointer_press(false)
             .wheel(false)
@@ -89,30 +80,24 @@ fn sample_list_browser_drag_cancel_target(active: bool) -> Option<ui::View<GuiMe
                 ui::PointerShieldMessage::Wheel { .. } => None,
             })
             .key("sample-list-browser-drag-cancel-target")
-            .input_only()
-            .fill()
     })
 }
 
-fn sample_list_waveform_drop_target(active: bool) -> Option<ui::View<GuiMessage>> {
+fn sample_list_waveform_drop_target(active: bool) -> Option<ui::PointerTarget<GuiMessage>> {
     active.then(|| {
-        ui::pointer_drop_shield(true)
+        ui::pointer_drop_target(true)
             .on_drop(GuiMessage::DropWaveformSelectionOnSampleList)
             .key("sample-list-waveform-drop-target")
-            .input_only()
-            .fill()
     })
 }
 
-fn sample_list_clear_folder_drop_target(active: bool) -> Option<ui::View<GuiMessage>> {
+fn sample_list_clear_folder_drop_target(active: bool) -> Option<ui::PointerTarget<GuiMessage>> {
     active.then(|| {
-        ui::pointer_move_shield(true)
+        ui::pointer_move_target(true)
             .on_pointer_move(|position| {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
             })
             .key("sample-list-clear-folder-drop-target")
-            .input_only()
-            .fill()
     })
 }
 

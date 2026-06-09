@@ -5,7 +5,10 @@ use super::waveform::{WaveformSelectionEdge, WaveformSelectionKind};
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{Event, PaintTextInput, TransientOverlayContext, UiSurface},
+    runtime::{
+        Command, DeclarativeOwnedCommandRuntimeBridge, Event, PaintTextInput, SurfaceRuntime,
+        TransientOverlayContext, UiSurface,
+    },
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{fs, path::PathBuf, time::Duration};
@@ -40,19 +43,27 @@ fn gui_state_for_span_tests() -> NativeAppState {
         .build()
 }
 
-type NativeRuntimeForTests = ui::DeclarativeOwnedSurfaceRuntime<
-    NativeAppState,
+type NativeRuntimeForTests = SurfaceRuntime<
+    DeclarativeOwnedCommandRuntimeBridge<
+        NativeAppState,
+        super::test_support::GuiMessage,
+        fn(&mut NativeAppState) -> UiSurface<super::test_support::GuiMessage>,
+        fn(
+            &mut NativeAppState,
+            super::test_support::GuiMessage,
+        ) -> Command<super::test_support::GuiMessage>,
+    >,
     super::test_support::GuiMessage,
-    fn(&mut NativeAppState) -> UiSurface<super::test_support::GuiMessage>,
-    fn(&mut NativeAppState, super::test_support::GuiMessage),
 >;
 
 fn native_runtime_for_tests(state: NativeAppState, viewport: Vector2) -> NativeRuntimeForTests {
-    NativeRuntimeForTests::new_declarative_owned(
-        state,
+    radiant::runtime::SurfaceRuntime::new(
+        radiant::runtime::declarative_owned_command_runtime_bridge(
+            state,
+            project_gui_surface_for_tests,
+            reduce_gui_message_for_tests,
+        ),
         viewport,
-        project_gui_surface_for_tests,
-        reduce_gui_message_for_tests,
     )
 }
 
@@ -65,8 +76,10 @@ fn project_gui_surface_for_tests(
 fn reduce_gui_message_for_tests(
     state: &mut NativeAppState,
     message: super::test_support::GuiMessage,
-) {
-    state.apply_message(message, &mut ui::UpdateContext::default());
+) -> Command<super::test_support::GuiMessage> {
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(message, &mut context);
+    context.into_command()
 }
 
 fn native_app_state_with_temp_sample(name: &str) -> (NativeAppState, tempfile::TempDir, String) {

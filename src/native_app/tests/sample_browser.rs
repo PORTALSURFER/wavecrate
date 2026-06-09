@@ -160,23 +160,24 @@ fn sample_browser_header_paints_hover_affordance() {
 
 #[test]
 fn full_gui_column_drag_paints_pointer_preview() {
-    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+    let state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
-    state.library.folder_browser.apply_message(
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+
+    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(600.0, 320.0)),
         ),
-    );
-    state.library.folder_browser.apply_message(
+    ));
+    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(620.0, 320.0)),
         ),
-    );
+    ));
 
-    let frame = crate::native_app::test_support::view(&mut state)
-        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
 
     assert!(frame.paint_plan.text_runs().any(|text| {
         text.text == "Rating" && text.rect.min.x >= 620.0 && text.rect.min.y >= 330.0

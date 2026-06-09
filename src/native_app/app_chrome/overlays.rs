@@ -1,7 +1,6 @@
 use crate::native_app::{
     app::{GuiMessage, NativeAppState},
     app_chrome::library_browser::library_sidebar,
-    sample_library::folder_browser::FileColumnDragFeedback,
 };
 use radiant::prelude as ui;
 
@@ -32,12 +31,4 @@ pub(in crate::native_app) fn metadata_tag_completion(
         inset_x,
         inset_y,
     ))
-}
-
-pub(in crate::native_app) fn sample_column_drag_preview(
-    feedback: &FileColumnDragFeedback,
-) -> ui::View<GuiMessage> {
-    let size = ui::Vector2::new(feedback.width.clamp(64.0, 180.0), 22.0);
-    ui::drag_preview_sized(feedback.label.clone(), feedback.pointer, size)
-        .key("sample-column-drag-preview")
 }

@@ -13,6 +13,10 @@ use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 
+const FILE_COLUMN_DRAG_PREVIEW_MIN_WIDTH: f32 = 64.0;
+const FILE_COLUMN_DRAG_PREVIEW_MAX_WIDTH: f32 = 180.0;
+const FILE_COLUMN_DRAG_PREVIEW_HEIGHT: f32 = 22.0;
+
 impl NativeAppState {
     pub(in crate::native_app) fn resize_folder_browser(&mut self, message: DragHandleMessage) {
         let started_at = Instant::now();
@@ -120,8 +124,47 @@ impl NativeAppState {
             FolderBrowserMessage::RenameCollection(collection) => {
                 self.begin_collection_rename(collection, context);
             }
+            FolderBrowserMessage::DragFileColumn(column_id, message) => {
+                self.drag_file_column(column_id, message, context);
+            }
+            FolderBrowserMessage::CancelFileColumnDrag => {
+                self.library
+                    .folder_browser
+                    .apply_message(FolderBrowserMessage::CancelFileColumnDrag);
+                context.end_drag();
+            }
             message => self.library.folder_browser.apply_message(message),
         }
+    }
+
+    fn drag_file_column(
+        &mut self,
+        column_id: String,
+        message: DragHandleMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.library
+            .folder_browser
+            .apply_message(FolderBrowserMessage::DragFileColumn(column_id, message));
+        self.sync_file_column_drag_preview(context);
+    }
+
+    fn sync_file_column_drag_preview(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let Some(feedback) = self.library.folder_browser.file_column_drag_feedback() else {
+            context.end_drag();
+            return;
+        };
+        let size = ui::Vector2::new(
+            feedback.width.clamp(
+                FILE_COLUMN_DRAG_PREVIEW_MIN_WIDTH,
+                FILE_COLUMN_DRAG_PREVIEW_MAX_WIDTH,
+            ),
+            FILE_COLUMN_DRAG_PREVIEW_HEIGHT,
+        );
+        context.begin_drag(ui::DragRequest::new(
+            ui::DragPreview::sized(feedback.label, size),
+            feedback.pointer,
+        ));
     }
 
     fn begin_collection_rename(
