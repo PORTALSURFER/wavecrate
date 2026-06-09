@@ -30,31 +30,10 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
 }
 
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    let metadata_completion = overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING)
-        .map(|view| ui::Layer::floating(view).pass_through());
-    let browser_context_menu = state
-        .ui
-        .browser_interaction
-        .context_menu
-        .as_ref()
-        .map(browser_context_menu::overlay)
-        .map(|view| {
-            ui::Layer::context_menu(view).dismiss_on_outside_click(GuiMessage::CloseContextMenu)
-        });
-    let file_move_conflict = state
-        .library
-        .folder_browser
-        .pending_file_move_conflict_view()
-        .is_some()
-        .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input());
+    let browser_context_menu = browser_context_menu_layer(state);
+    let file_move_conflict = file_move_conflict_layer(state);
+    let children = center_panel_children(state);
 
-    let mut children = vec![folder_sidebar_panel(state).transient_layer_opt(metadata_completion)];
-    if state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
-    {
-        children.push(metadata_tag_library::panel(state));
-    }
-    children.push(folder_splitter());
-    children.push(main_area(state));
     ui::column([
         ui::spacer().height(CENTER_PANEL_PADDING).fill_width(),
         ui::row(children).padding_x(CENTER_PANEL_PADDING).fill(),
@@ -63,6 +42,47 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     .fill()
     .transient_layer_opt(browser_context_menu)
     .transient_layer_opt(file_move_conflict)
+}
+
+fn center_panel_children(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
+    let metadata_completion = metadata_completion_layer(state);
+    let mut children = vec![folder_sidebar_panel(state).transient_layer_opt(metadata_completion)];
+    if metadata_tag_library_visible(state) {
+        children.push(metadata_tag_library::panel(state));
+    }
+    children.push(folder_splitter());
+    children.push(main_area(state));
+    children
+}
+
+fn metadata_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+    overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING)
+        .map(|view| ui::Layer::floating(view).pass_through())
+}
+
+fn browser_context_menu_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+    state
+        .ui
+        .browser_interaction
+        .context_menu
+        .as_ref()
+        .map(browser_context_menu::overlay)
+        .map(|view| {
+            ui::Layer::context_menu(view).dismiss_on_outside_click(GuiMessage::CloseContextMenu)
+        })
+}
+
+fn file_move_conflict_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+    state
+        .library
+        .folder_browser
+        .pending_file_move_conflict_view()
+        .is_some()
+        .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input())
+}
+
+fn metadata_tag_library_visible(state: &NativeAppState) -> bool {
+    state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
 fn folder_sidebar_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
