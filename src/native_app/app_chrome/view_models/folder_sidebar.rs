@@ -26,15 +26,15 @@ impl<'a> FolderSidebarViewModel<'a> {
         let metadata_tag_completion_suffix = state.metadata_tag_completion_suffix();
         let metadata_tags = state.selected_metadata_tags().to_vec();
         let metadata_tag_display_categories = state.selected_metadata_tag_display_categories();
-        let selected_metadata_tag = state.selected_metadata_tag.clone();
+        let selected_metadata_tag = state.metadata.selected_tag.clone();
         let metadata_tag_input_placeholder = state.metadata_tag_input_placeholder();
 
         Self {
             folder_browser: &mut state.folder_browser,
             sidebar_width,
             has_selected_file,
-            metadata_tag_draft: state.metadata_tag_draft.as_str(),
-            metadata_tag_tokens: state.metadata_tag_tokens.as_slice(),
+            metadata_tag_draft: state.metadata.tag_draft.as_str(),
+            metadata_tag_tokens: state.metadata.tag_tokens.as_slice(),
             metadata_tag_pending_category_tag,
             metadata_tag_input_placeholder,
             metadata_tag_completion_suffix,

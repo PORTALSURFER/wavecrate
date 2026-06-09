@@ -43,7 +43,7 @@ impl NativeAppState {
             return;
         };
         if let Err(error) =
-            load_persisted_metadata_tags_for_source(&root, &mut self.metadata_tags_by_file)
+            load_persisted_metadata_tags_for_source(&root, &mut self.metadata.tags_by_file)
         {
             self.sample_status = format!("Tags not loaded: {error}");
         }
@@ -51,13 +51,13 @@ impl NativeAppState {
 
     pub(super) fn retain_visible_file_selection_after_metadata_tag_change(&mut self) {
         self.folder_browser
-            .retain_visible_file_selection_after_tag_filter(&self.metadata_tags_by_file);
+            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
     }
 
     pub(super) fn selected_metadata_tags(&self) -> &[String] {
         self.folder_browser
             .selected_file_id()
-            .and_then(|file_id| self.metadata_tags_by_file.get(file_id))
+            .and_then(|file_id| self.metadata.tags_by_file.get(file_id))
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
@@ -80,7 +80,7 @@ impl NativeAppState {
             .iter()
             .any(|existing| existing == &tag)
         {
-            self.selected_metadata_tag = Some(tag);
+            self.metadata.selected_tag = Some(tag);
         }
     }
 
@@ -95,11 +95,11 @@ impl NativeAppState {
                 self.submit_metadata_tag_input(parts.value.to_owned(), context);
             }
             TextInputMessageKind::Changed => {
-                self.metadata_tag_draft = parts.value.to_owned();
+                self.metadata.tag_draft = parts.value.to_owned();
                 self.reset_metadata_tag_completion_cycle();
             }
             TextInputMessageKind::CompletionRequested => {
-                self.metadata_tag_draft = parts.value.to_owned();
+                self.metadata.tag_draft = parts.value.to_owned();
                 self.activate_metadata_tag_completion();
             }
         }
@@ -111,7 +111,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if matches!(
-            self.metadata_tag_input_mode,
+            self.metadata.tag_input_mode,
             MetadataTagInputMode::Category { .. }
         ) {
             self.submit_metadata_tag_category(value, context);
@@ -126,7 +126,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let mut commit = commit_metadata_tag_text(&value);
-        let mut tags = std::mem::take(&mut self.metadata_tag_tokens);
+        let mut tags = std::mem::take(&mut self.metadata.tag_tokens);
         if tags.is_empty()
             && commit.tags.len() <= 1
             && let Some(tag) = self.explicit_metadata_tag_completion()
@@ -137,15 +137,15 @@ impl NativeAppState {
         tags.append(&mut commit.tags);
         if tags.len() == 1 && self.is_new_metadata_tag(tags[0].as_str()) {
             let tag = tags.remove(0);
-            self.metadata_tag_input_mode = MetadataTagInputMode::Category {
+            self.metadata.tag_input_mode = MetadataTagInputMode::Category {
                 pending_tag: tag.clone(),
             };
-            self.metadata_tag_draft.clear();
+            self.metadata.tag_draft.clear();
             self.reset_metadata_tag_completion_cycle();
             self.sample_status = format!("Choose a category for {tag}");
             return;
         }
-        self.metadata_tag_draft.clear();
+        self.metadata.tag_draft.clear();
         self.reset_metadata_tag_completion_cycle();
         self.add_metadata_tags(tags, context);
     }
@@ -155,7 +155,7 @@ impl NativeAppState {
         value: String,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let MetadataTagInputMode::Category { pending_tag } = self.metadata_tag_input_mode.clone()
+        let MetadataTagInputMode::Category { pending_tag } = self.metadata.tag_input_mode.clone()
         else {
             return;
         };
@@ -163,33 +163,34 @@ impl NativeAppState {
             self.sample_status = format!("Choose a category for {pending_tag}");
             return;
         };
-        self.metadata_tag_dictionary
+        self.metadata
+            .tag_dictionary
             .insert(pending_tag.clone(), category_id.to_string());
-        self.metadata_tag_input_mode = MetadataTagInputMode::Tag;
-        self.metadata_tag_draft.clear();
+        self.metadata.tag_input_mode = MetadataTagInputMode::Tag;
+        self.metadata.tag_draft.clear();
         self.reset_metadata_tag_completion_cycle();
         self.persist_user_configuration("metadata.tags.dictionary.persist", Instant::now());
         self.add_metadata_tags(vec![pending_tag], context);
     }
 
     pub(super) fn metadata_tag_input_placeholder(&self) -> &'static str {
-        match self.metadata_tag_input_mode {
+        match self.metadata.tag_input_mode {
             MetadataTagInputMode::Tag => "add tag",
             MetadataTagInputMode::Category { .. } => "select group/parent tag",
         }
     }
 
     pub(super) fn pending_metadata_tag_category_tag(&self) -> Option<&str> {
-        match &self.metadata_tag_input_mode {
+        match &self.metadata.tag_input_mode {
             MetadataTagInputMode::Tag => None,
             MetadataTagInputMode::Category { pending_tag } => Some(pending_tag.as_str()),
         }
     }
 
     pub(super) fn cancel_metadata_tag_entry(&mut self) {
-        self.metadata_tag_draft.clear();
-        self.metadata_tag_tokens.clear();
-        self.metadata_tag_input_mode = MetadataTagInputMode::Tag;
+        self.metadata.tag_draft.clear();
+        self.metadata.tag_tokens.clear();
+        self.metadata.tag_input_mode = MetadataTagInputMode::Tag;
         self.reset_metadata_tag_completion_cycle();
     }
 }

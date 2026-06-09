@@ -204,7 +204,7 @@ impl NativeAppState {
             }
             GuiMessage::MetadataTagsPersisted(result) => self.finish_metadata_tag_persist(result),
             GuiMessage::ToggleSampleNameViewMode => {
-                self.sample_name_view_mode = self.sample_name_view_mode.toggled();
+                self.metadata.sample_name_view_mode = self.metadata.sample_name_view_mode.toggled();
             }
             GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
             GuiMessage::PickTrashFolder => self.pick_trash_folder(context),
@@ -302,8 +302,8 @@ impl NativeAppState {
 
     fn toggle_metadata_tag_library(&mut self) {
         let started_at = Instant::now();
-        self.metadata_tag_library_open = !self.metadata_tag_library_open;
-        let outcome = if self.metadata_tag_library_open {
+        self.metadata.tag_library_open = !self.metadata.tag_library_open;
+        let outcome = if self.metadata.tag_library_open {
             "opened"
         } else {
             "closed"
@@ -321,8 +321,8 @@ impl NativeAppState {
     fn toggle_metadata_tag_category(&mut self, category_id: String) {
         let started_at = Instant::now();
         let source = category_id.clone();
-        if !self.collapsed_metadata_tag_categories.remove(&category_id) {
-            self.collapsed_metadata_tag_categories.insert(category_id);
+        if !self.metadata.collapsed_tag_categories.remove(&category_id) {
+            self.metadata.collapsed_tag_categories.insert(category_id);
         }
         emit_gui_action(
             "metadata_tags.toggle_category",

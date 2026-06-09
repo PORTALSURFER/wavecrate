@@ -135,7 +135,7 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("deep-kick"));
     assert_eq!(
         state.metadata_tag_input_placeholder(),
@@ -170,18 +170,19 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
     );
 
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("deep-kick")])
     );
     assert_eq!(
         state
-            .metadata_tag_dictionary
+            .metadata
+            .tag_dictionary
             .get("deep-kick")
             .map(String::as_str),
         Some("sound-type")
     );
     assert_eq!(state.pending_metadata_tag_category_tag(), None);
-    assert!(state.metadata_tag_draft.is_empty());
+    assert!(state.metadata.tag_draft.is_empty());
     assert_eq!(state.sample_status, "Added tag deep-kick");
 }
 
@@ -239,12 +240,13 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
     );
 
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("deep-kick")])
     );
     assert_eq!(
         state
-            .metadata_tag_dictionary
+            .metadata
+            .tag_dictionary
             .get("deep-kick")
             .map(String::as_str),
         Some("character")
@@ -286,10 +288,10 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
     assert_eq!(state.pending_metadata_tag_category_tag(), None);
     assert!(!state.metadata_tag_completion_active());
     assert_eq!(state.metadata_tag_input_placeholder(), "add tag");
-    assert!(state.metadata_tag_draft.is_empty());
-    assert!(state.metadata_tag_tokens.is_empty());
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
-    assert_eq!(state.metadata_tag_dictionary.get("deep-kick"), None);
+    assert!(state.metadata.tag_draft.is_empty());
+    assert!(state.metadata.tag_tokens.is_empty());
+    assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata.tag_dictionary.get("deep-kick"), None);
 }
 
 #[test]
@@ -324,7 +326,7 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("deep-kick"), String::from("warm-tone")])
     );
 
@@ -361,7 +363,7 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
     let mut reloaded = NativeAppState::load_default().expect("default state reloads");
     reloaded.refresh_persisted_metadata_tags_for_source(&source_id);
     assert_eq!(
-        reloaded.metadata_tags_by_file.get(&selected_file),
+        reloaded.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("warm-tone")])
     );
 }
@@ -379,15 +381,15 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert!(state.metadata_tags_by_file.is_empty());
-    assert_eq!(state.metadata_tag_draft, "kick, warm tone");
+    assert!(state.metadata.tags_by_file.is_empty());
+    assert_eq!(state.metadata.tag_draft, "kick, warm tone");
 }
 
 #[test]
 fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("known-file"),
         vec![String::from("kick"), String::from("warm")],
     );
@@ -422,7 +424,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
     assert_eq!(state.sample_status, "Choose a category for ki");
 }
@@ -431,7 +433,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
 fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("known-file"),
         vec![String::from("kick"), String::from("warm")],
     );
@@ -453,7 +455,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(
         state
             .metadata_tag_completion_options()
@@ -472,7 +474,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
     assert_eq!(state.sample_status, "Choose a category for ki");
 }
@@ -481,7 +483,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
 fn metadata_tag_second_completion_request_activates_first_suggestion() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("known-file"),
         vec![String::from("kick"), String::from("warm")],
     );
@@ -530,7 +532,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
     );
 
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("kick")])
     );
 }
@@ -539,7 +541,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
 fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("known-file"),
         vec![
             String::from("kick"),
@@ -614,10 +616,10 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("kind")])
     );
-    assert!(state.metadata_tag_draft.is_empty());
+    assert!(state.metadata.tag_draft.is_empty());
 }
 
 #[test]
@@ -690,11 +692,11 @@ fn folder_browser_metadata_category_completion_renders_above_tag_input() {
 
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("category-tag-target.wav");
-    state.metadata_tag_input_mode =
+    state.metadata.tag_input_mode =
         crate::native_app::test_support::MetadataTagInputMode::Category {
             pending_tag: String::from("new-tag"),
         };
-    state.metadata_tag_draft.clear();
+    state.metadata.tag_draft.clear();
 
     let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));

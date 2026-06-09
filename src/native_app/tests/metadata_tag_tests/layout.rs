@@ -36,7 +36,8 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(selected_file, vec![String::from("kick")]);
 
     let frame = crate::native_app::test_support::view(&mut state)

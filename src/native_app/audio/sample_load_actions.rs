@@ -60,7 +60,7 @@ impl NativeAppState {
             .focus_file_preserving_selection(path.clone());
         if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
-            self.selected_metadata_tag = None;
+            self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
         self.load_sample(path, context);
@@ -77,7 +77,7 @@ impl NativeAppState {
             .select_file_with_modifiers(path.clone(), modifiers);
         if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
-            self.selected_metadata_tag = None;
+            self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
         self.load_sample(path, context);

@@ -4,15 +4,15 @@ use super::super::*;
 fn default_gui_tag_library_opens_beside_folder_sidebar() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         selected_file.clone(),
         vec![String::from("hat"), String::from("seq")],
     );
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("other.wav"),
         vec![String::from("bass"), String::from("hat")],
     );
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_library_open = true;
 
     let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
@@ -44,9 +44,9 @@ fn default_gui_tag_library_can_apply_default_playback_tags() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert!(state.metadata_tag_library_open);
+    assert!(state.metadata.tag_library_open);
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("one-shot")])
     );
 }
@@ -55,7 +55,7 @@ fn default_gui_tag_library_can_apply_default_playback_tags() {
 fn default_gui_tag_library_button_adds_existing_tag() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("other.wav"),
         vec![String::from("bass"), String::from("hat")],
     );
@@ -69,9 +69,9 @@ fn default_gui_tag_library_button_adds_existing_tag() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert!(state.metadata_tag_library_open);
+    assert!(state.metadata.tag_library_open);
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("bass")])
     );
 }
@@ -80,12 +80,13 @@ fn default_gui_tag_library_button_adds_existing_tag() {
 fn default_gui_tag_library_button_removes_selected_tag() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         selected_file.clone(),
         vec![String::from("bass"), String::from("hat")],
     );
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("other.wav"), vec![String::from("bass")]);
 
     state.apply_message(
@@ -97,9 +98,9 @@ fn default_gui_tag_library_button_removes_selected_tag() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert!(state.metadata_tag_library_open);
+    assert!(state.metadata.tag_library_open);
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("hat")])
     );
     assert_eq!(state.sample_status, "Removed tag bass");
@@ -109,7 +110,7 @@ fn default_gui_tag_library_button_removes_selected_tag() {
 fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         selected_file.clone(),
         vec![String::from("bass"), String::from("hat")],
     );
@@ -118,7 +119,7 @@ fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
         crate::native_app::test_support::GuiMessage::SelectMetadataTag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
-    assert_eq!(state.selected_metadata_tag.as_deref(), Some("bass"));
+    assert_eq!(state.metadata.selected_tag.as_deref(), Some("bass"));
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::DeleteSelectedMetadataTag,
@@ -126,10 +127,10 @@ fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
     );
 
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("hat")])
     );
-    assert_eq!(state.selected_metadata_tag, None);
+    assert_eq!(state.metadata.selected_tag, None);
     assert_eq!(state.sample_status, "Removed tag bass");
 }
 
@@ -138,9 +139,10 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(selected_file, vec![String::from("hat")]);
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_library_open = true;
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::ToggleMetadataTagCategory(String::from(
@@ -165,7 +167,8 @@ fn default_gui_tag_library_drag_moves_tag_between_categories() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("other.wav"), vec![String::from("bass")]);
 
     state.drag_metadata_tag(
@@ -180,7 +183,8 @@ fn default_gui_tag_library_drag_moves_tag_between_categories() {
 
     assert_eq!(
         state
-            .metadata_tag_dictionary
+            .metadata
+            .tag_dictionary
             .get("bass")
             .map(String::as_str),
         Some("character")
@@ -199,8 +203,8 @@ fn default_gui_tag_library_rejects_dragging_locked_playback_tags() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tag_drag, None);
-    assert_eq!(state.metadata_tag_dictionary.get("one-shot"), None);
+    assert_eq!(state.metadata.tag_drag, None);
+    assert_eq!(state.metadata.tag_dictionary.get("one-shot"), None);
     assert_eq!(state.sample_status, "Playback Type tags are locked");
 }
 
@@ -209,9 +213,10 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("other.wav"), vec![String::from("bass")]);
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_library_open = true;
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let bass_rect = frame
@@ -236,7 +241,8 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
         runtime
             .bridge()
             .state()
-            .metadata_tag_dictionary
+            .metadata
+            .tag_dictionary
             .get("bass")
             .map(String::as_str),
         Some("character")
@@ -248,12 +254,14 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("other.wav"), vec![String::from("oneshot")]);
     state
-        .metadata_tag_dictionary
+        .metadata
+        .tag_dictionary
         .insert(String::from("oneshot"), String::from("sound-type"));
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_library_open = true;
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let tag_rect = frame
@@ -281,16 +289,17 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
 fn metadata_tag_context_delete_removes_unlocked_global_tag() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         selected_file.clone(),
         vec![String::from("oneshot"), String::from("hat")],
     );
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("other.wav"),
         vec![String::from("oneshot"), String::from("seq")],
     );
     state
-        .metadata_tag_dictionary
+        .metadata
+        .tag_dictionary
         .insert(String::from("oneshot"), String::from("sound-type"));
     state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
         kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
@@ -305,13 +314,13 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
 
     state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
 
-    assert!(!state.metadata_tag_dictionary.contains_key("oneshot"));
+    assert!(!state.metadata.tag_dictionary.contains_key("oneshot"));
     assert_eq!(
-        state.metadata_tags_by_file.get(&selected_file),
+        state.metadata.tags_by_file.get(&selected_file),
         Some(&vec![String::from("hat")])
     );
     assert_eq!(
-        state.metadata_tags_by_file.get("other.wav"),
+        state.metadata.tags_by_file.get("other.wav"),
         Some(&vec![String::from("seq")])
     );
     assert_eq!(state.context_menu, None);
@@ -346,12 +355,14 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(selected_file, vec![String::from("deep-kick")]);
     state
-        .metadata_tag_dictionary
+        .metadata
+        .tag_dictionary
         .insert(String::from("deep-kick"), String::from("sound-type"));
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_library_open = true;
 
     let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));

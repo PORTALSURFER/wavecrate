@@ -806,7 +806,7 @@ fn default_folder_browser_loads_assets_root() {
 fn sample_browser_toggles_between_disk_and_metadata_label_names() {
     let (mut state, _source_root, tagged_file) =
         native_app_state_with_temp_sample("tag-toggle.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         tagged_file,
         vec![String::from("kick"), String::from("warm")],
     );

@@ -36,11 +36,11 @@ impl<'a> SampleBrowserViewModel<'a> {
                 SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
                 SAMPLE_BROWSER_OVERSCAN_ROWS,
                 SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                &state.metadata_tags_by_file,
+                &state.metadata.tags_by_file,
             );
         let audio_count = state
             .folder_browser
-            .selected_audio_file_count_matching_tags(&state.metadata_tags_by_file);
+            .selected_audio_file_count_matching_tags(&state.metadata.tags_by_file);
         let columns = state.folder_browser.visible_file_columns();
         let file_drag_active = state.folder_browser.file_drag_active();
         let extracted_file_drag_active = state.folder_browser.extracted_file_drag_active();
@@ -55,8 +55,8 @@ impl<'a> SampleBrowserViewModel<'a> {
             audio_count,
             columns,
             window,
-            name_view_mode: state.sample_name_view_mode,
-            metadata_tags_by_file: &state.metadata_tags_by_file,
+            name_view_mode: state.metadata.sample_name_view_mode,
+            metadata_tags_by_file: &state.metadata.tags_by_file,
             cached_sample_paths: &state.waveform_cache.cached_sample_paths,
             suppress_row_hover,
             file_drag_active,

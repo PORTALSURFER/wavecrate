@@ -270,19 +270,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         context_menu: None,
         native_file_drop_hover: None,
         pending_internal_file_drag_paths: Default::default(),
-        metadata_tag_draft: String::new(),
-        metadata_tag_tokens: Vec::new(),
-        metadata_tag_input_mode: Default::default(),
-        pending_metadata_tag_completion_query: None,
-        metadata_tag_completion_cycle: ui::CyclicListSelectionCycle::new(),
-        metadata_tag_dictionary: Default::default(),
-        metadata_tag_library_open: false,
-        metadata_tag_drag: None,
-        metadata_tag_drop_hover: None,
-        selected_metadata_tag: None,
-        collapsed_metadata_tag_categories: Default::default(),
-        metadata_tags_by_file: HashMap::new(),
-        sample_name_view_mode: crate::native_app::test_support::SampleNameViewMode::DiskFilename,
+        metadata: crate::native_app::test_support::MetadataAppState::for_tests(),
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,
         startup_auto_load_pending: false,
@@ -1608,13 +1596,13 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     let first_file = first_path.display().to_string();
     let second_file = second_path.display().to_string();
     state.folder_browser.select_file(first_file.clone());
-    state.metadata_tag_draft = String::from("ki");
-    state.metadata_tag_tokens = vec![String::from("warm")];
-    state.metadata_tag_input_mode =
+    state.metadata.tag_draft = String::from("ki");
+    state.metadata.tag_tokens = vec![String::from("warm")];
+    state.metadata.tag_input_mode =
         crate::native_app::test_support::MetadataTagInputMode::Category {
             pending_tag: String::from("new-tag"),
         };
-    state.metadata_tag_completion_cycle.select("ki", 2, 4);
+    state.metadata.tag_completion_cycle.select("ki", 2, 4);
 
     state.select_sample_with_modifiers(
         second_file.clone(),
@@ -1626,14 +1614,14 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
         state.folder_browser.selected_file_id(),
         Some(second_file.as_str())
     );
-    assert!(state.metadata_tag_draft.is_empty());
-    assert!(state.metadata_tag_tokens.is_empty());
+    assert!(state.metadata.tag_draft.is_empty());
+    assert!(state.metadata.tag_tokens.is_empty());
     assert_eq!(
-        state.metadata_tag_input_mode,
+        state.metadata.tag_input_mode,
         crate::native_app::test_support::MetadataTagInputMode::Tag
     );
-    assert_eq!(state.metadata_tag_completion_cycle.query_key(), None);
-    assert_eq!(state.metadata_tag_completion_cycle.stored_index(), 0);
+    assert_eq!(state.metadata.tag_completion_cycle.query_key(), None);
+    assert_eq!(state.metadata.tag_completion_cycle.stored_index(), 0);
     assert_eq!(state.pending_metadata_tag_category_tag(), None);
     assert!(!state.metadata_tag_completion_active());
 }

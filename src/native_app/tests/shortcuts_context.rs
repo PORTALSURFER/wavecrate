@@ -157,7 +157,7 @@ fn context_menu_escape_shortcut_closes_context_menu() {
 #[test]
 fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.metadata_tag_input_mode =
+    state.metadata.tag_input_mode =
         crate::native_app::test_support::MetadataTagInputMode::Category {
             pending_tag: String::from("deep-kick"),
         };
@@ -350,7 +350,7 @@ fn backspace_shortcut_routes_to_delete_selected_item() {
 #[test]
 fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.selected_metadata_tag = Some(String::from("bass"));
+    state.metadata.selected_tag = Some(String::from("bass"));
 
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Delete));

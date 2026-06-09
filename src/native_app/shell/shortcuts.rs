@@ -39,7 +39,7 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             metadata_tag_completion_shortcuts(),
         )
         .layer_when(
-            state.selected_metadata_tag.is_some(),
+            state.metadata.selected_tag.is_some(),
             selected_metadata_tag_shortcuts(),
         )
         .layer(default_shortcuts(state))

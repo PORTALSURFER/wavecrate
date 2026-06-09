@@ -73,7 +73,7 @@ impl NativeAppState {
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::TagFilterInput(message));
                 self.folder_browser
-                    .retain_visible_file_selection_after_tag_filter(&self.metadata_tags_by_file);
+                    .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
             }
             FolderBrowserMessage::DropOnFolder(folder_id) => {
                 self.context_menu = None;
@@ -176,7 +176,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         let count = self
             .folder_browser
-            .select_all_audio_files_matching_tags(&self.metadata_tags_by_file);
+            .select_all_audio_files_matching_tags(&self.metadata.tags_by_file);
         self.sample_status = format!(
             "Selected {count} sample{}",
             if count == 1 { "" } else { "s" }
@@ -199,7 +199,7 @@ impl NativeAppState {
         let previous_focus = self.folder_browser.selected_file_id().map(str::to_owned);
         let Some(result) = self
             .folder_browser
-            .toggle_focused_sample_selection_and_advance(&self.metadata_tags_by_file)
+            .toggle_focused_sample_selection_and_advance(&self.metadata.tags_by_file)
         else {
             self.sample_status = String::from("Select a sample to mark");
             emit_gui_action(
@@ -215,11 +215,11 @@ impl NativeAppState {
 
         if self.folder_browser.selected_file_id() != previous_focus.as_deref() {
             self.cancel_metadata_tag_entry();
-            self.selected_metadata_tag = None;
+            self.metadata.selected_tag = None;
         }
         if let Some(index) = self
             .folder_browser
-            .selected_audio_file_index_matching_tags(&self.metadata_tags_by_file)
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
         {
             context.scroll_fixed_row_into_view(
                 SAMPLE_BROWSER_LIST_ID,
@@ -289,7 +289,7 @@ impl NativeAppState {
         let Some(path) = self.folder_browser.navigate_vertical_matching_tags(
             delta,
             extend,
-            &self.metadata_tags_by_file,
+            &self.metadata.tags_by_file,
         ) else {
             emit_gui_action(
                 "folder_browser.navigate",
@@ -304,7 +304,7 @@ impl NativeAppState {
 
         if let Some(index) = self
             .folder_browser
-            .selected_audio_file_index_matching_tags(&self.metadata_tags_by_file)
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
         {
             context.scroll_fixed_row_into_view(
                 SAMPLE_BROWSER_LIST_ID,
@@ -325,7 +325,7 @@ impl NativeAppState {
         );
         if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
-            self.selected_metadata_tag = None;
+            self.metadata.selected_tag = None;
         }
         self.defer_navigation_sample_load(path, context);
     }

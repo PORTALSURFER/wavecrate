@@ -1,12 +1,11 @@
 use crate::native_app::app::{
-    AudioAppState, BackgroundTaskState, FolderBrowserState, GuiMessage, NativeAppState,
-    SampleNameViewMode, WaveformCacheState, WaveformLoadState, WaveformState, sample_path_label,
+    AudioAppState, BackgroundTaskState, FolderBrowserState, GuiMessage, MetadataAppState,
+    NativeAppState, WaveformCacheState, WaveformLoadState, WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
 use radiant::prelude as ui;
 use std::{
-    collections::HashMap,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -58,19 +57,7 @@ impl NativeAppState {
             context_menu: None,
             native_file_drop_hover: None,
             pending_internal_file_drag_paths: Default::default(),
-            metadata_tag_draft: String::new(),
-            metadata_tag_tokens: Vec::new(),
-            metadata_tag_input_mode: Default::default(),
-            pending_metadata_tag_completion_query: None,
-            metadata_tag_completion_cycle: ui::CyclicListSelectionCycle::new(),
-            metadata_tag_dictionary: config.core.tag_dictionary.clone(),
-            metadata_tag_library_open: false,
-            metadata_tag_drag: None,
-            metadata_tag_drop_hover: None,
-            selected_metadata_tag: None,
-            collapsed_metadata_tag_categories: Default::default(),
-            metadata_tags_by_file: HashMap::new(),
-            sample_name_view_mode: SampleNameViewMode::DiskFilename,
+            metadata: MetadataAppState::from_settings(&config.core),
             startup_source_scan_pending,
             startup_folder_verify_pending,
             startup_auto_load_pending: has_configured_sources,
@@ -255,7 +242,7 @@ impl NativeAppState {
         AppSettingsCore {
             audio_output: self.audio.output_config.clone(),
             volume: self.audio.volume,
-            tag_dictionary: self.metadata_tag_dictionary.clone(),
+            tag_dictionary: self.metadata.tag_dictionary.clone(),
             ..self.persisted_settings.clone()
         }
     }

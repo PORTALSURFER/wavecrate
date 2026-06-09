@@ -74,7 +74,8 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(selected_file, vec![String::from("hat")]);
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let tag_rect = runtime
@@ -89,7 +90,7 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
     runtime.dispatch_event(Event::primary_release(point));
 
     assert_eq!(
-        runtime.bridge().state().selected_metadata_tag.as_deref(),
+        runtime.bridge().state().metadata.selected_tag.as_deref(),
         Some("hat")
     );
 }
@@ -99,7 +100,8 @@ fn right_clicking_metadata_tag_chip_opens_delete_context_menu() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(selected_file, vec![String::from("hat")]);
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let tag_rect = runtime
@@ -128,7 +130,7 @@ fn right_clicking_metadata_tag_chip_opens_delete_context_menu() {
 fn metadata_tag_chips_display_playback_tags_first() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         selected_file,
         vec![
             String::from("hat"),

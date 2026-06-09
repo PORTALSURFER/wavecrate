@@ -11,25 +11,25 @@ use radiant::widgets::DragHandleMessage;
 use std::{path::PathBuf, time::Instant};
 impl NativeAppState {
     pub(in crate::native_app) fn metadata_tag_drag_active(&self) -> bool {
-        self.metadata_tag_drag.is_some()
+        self.metadata.tag_drag.is_some()
     }
 
     pub(in crate::native_app) fn metadata_tag_drop_hover(&self) -> Option<&str> {
-        self.metadata_tag_drop_hover.as_deref()
+        self.metadata.tag_drop_hover.as_deref()
     }
 
     /// Returns the tag currently being dragged from the metadata-tag library.
     pub(in crate::native_app) fn dragged_metadata_tag(&self) -> Option<&str> {
-        self.metadata_tag_drag.as_deref()
+        self.metadata.tag_drag.as_deref()
     }
 
     pub(in crate::native_app) fn hover_metadata_tag_drop_category(&mut self, category_id: String) {
-        if self.metadata_tag_drag.is_none() || metadata_tag_category_is_locked(category_id.as_str())
+        if self.metadata.tag_drag.is_none() || metadata_tag_category_is_locked(category_id.as_str())
         {
-            self.metadata_tag_drop_hover = None;
+            self.metadata.tag_drop_hover = None;
             return;
         }
-        self.metadata_tag_drop_hover = Some(category_id);
+        self.metadata.tag_drop_hover = Some(category_id);
     }
 
     pub(in crate::native_app) fn drag_metadata_tag(
@@ -39,15 +39,15 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
-            self.metadata_tag_drag = None;
-            self.metadata_tag_drop_hover = None;
+            self.metadata.tag_drag = None;
+            self.metadata.tag_drop_hover = None;
             context.end_drag();
             self.sample_status = String::from("Playback Type tags are locked");
             return;
         }
         if let Some(position) = drag.started_position() {
-            self.metadata_tag_drag = Some(tag.clone());
-            self.metadata_tag_drop_hover = None;
+            self.metadata.tag_drag = Some(tag.clone());
+            self.metadata.tag_drop_hover = None;
             context.begin_drag(ui::DragRequest::new(
                 ui::DragPreview::text_sized(
                     format!("Move {tag}"),
@@ -60,8 +60,8 @@ impl NativeAppState {
             ));
             self.sample_status = format!("Moving tag {tag}");
         } else if drag.is_finished() {
-            self.metadata_tag_drag = None;
-            self.metadata_tag_drop_hover = None;
+            self.metadata.tag_drag = None;
+            self.metadata.tag_drop_hover = None;
             context.end_drag();
         }
     }
@@ -71,11 +71,11 @@ impl NativeAppState {
         category_id: String,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(tag) = self.metadata_tag_drag.clone() else {
+        let Some(tag) = self.metadata.tag_drag.clone() else {
             return;
         };
-        self.metadata_tag_drag = None;
-        self.metadata_tag_drop_hover = None;
+        self.metadata.tag_drag = None;
+        self.metadata.tag_drop_hover = None;
         context.end_drag();
         if metadata_tag_category_is_locked(category_id.as_str()) {
             self.sample_status = String::from("Playback Type is locked");
@@ -96,7 +96,8 @@ impl NativeAppState {
             );
             return;
         }
-        self.metadata_tag_dictionary
+        self.metadata
+            .tag_dictionary
             .insert(tag.clone(), category_id.to_string());
         self.persist_user_configuration("metadata.tags.dictionary.move", Instant::now());
         self.sample_status = format!(
@@ -116,17 +117,18 @@ impl NativeAppState {
         }
 
         self.context_menu = None;
-        self.metadata_tag_dictionary.remove(&tag);
-        self.metadata_tag_drag = None;
-        self.metadata_tag_drop_hover = None;
-        if self.selected_metadata_tag.as_deref() == Some(tag.as_str()) {
-            self.selected_metadata_tag = None;
+        self.metadata.tag_dictionary.remove(&tag);
+        self.metadata.tag_drag = None;
+        self.metadata.tag_drop_hover = None;
+        if self.metadata.selected_tag.as_deref() == Some(tag.as_str()) {
+            self.metadata.selected_tag = None;
         }
 
         let mut removed_count = 0usize;
         let mut requests = Vec::new();
         let affected_files = self
-            .metadata_tags_by_file
+            .metadata
+            .tags_by_file
             .iter()
             .filter_map(|(file_id, tags)| {
                 tags.iter()
@@ -135,7 +137,7 @@ impl NativeAppState {
             })
             .collect::<Vec<_>>();
         for file_id in affected_files {
-            let Some(file_tags) = self.metadata_tags_by_file.get_mut(&file_id) else {
+            let Some(file_tags) = self.metadata.tags_by_file.get_mut(&file_id) else {
                 continue;
             };
             let before_len = file_tags.len();
@@ -146,7 +148,7 @@ impl NativeAppState {
             }
             removed_count += removed_here;
             if file_tags.is_empty() {
-                self.metadata_tags_by_file.remove(&file_id);
+                self.metadata.tags_by_file.remove(&file_id);
             }
             let absolute_path = PathBuf::from(&file_id);
             if let Some((source_root, relative_path)) = self

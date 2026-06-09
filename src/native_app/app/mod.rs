@@ -21,7 +21,9 @@ pub(in crate::native_app) use settings::{
 };
 #[cfg(test)]
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
-pub(in crate::native_app) use state::{AudioAppState, BackgroundTaskState, NativeAppState};
+pub(in crate::native_app) use state::{
+    AudioAppState, BackgroundTaskState, MetadataAppState, NativeAppState,
+};
 pub(in crate::native_app) use state::{WaveformCacheState, WaveformLoadState};
 
 pub(super) use crate::native_app::app_chrome::scene::view;

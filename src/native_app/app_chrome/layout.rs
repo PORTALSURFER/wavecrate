@@ -46,7 +46,7 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
         .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input());
 
     let mut children = vec![folder_sidebar_panel(state).transient_layer_opt(metadata_completion)];
-    if state.metadata_tag_library_open && state.folder_browser.selected_file_id().is_some() {
+    if state.metadata.tag_library_open && state.folder_browser.selected_file_id().is_some() {
         children.push(metadata_tag_library::panel(state));
     }
     children.push(folder_splitter());

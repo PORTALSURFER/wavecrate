@@ -12,9 +12,9 @@ use super::{
 
 impl NativeAppState {
     pub(in crate::native_app) fn metadata_tag_completion_suffix(&self) -> Option<String> {
-        match &self.metadata_tag_input_mode {
+        match &self.metadata.tag_input_mode {
             MetadataTagInputMode::Tag => {
-                let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
+                let prefix = normalize_metadata_tag(&self.metadata.tag_draft)?;
                 let suggestion = self.first_metadata_tag_completion()?;
                 if suggestion == prefix {
                     return None;
@@ -32,7 +32,7 @@ impl NativeAppState {
         &self,
     ) -> Vec<MetadataTagCompletionOption> {
         if matches!(
-            self.metadata_tag_input_mode,
+            self.metadata.tag_input_mode,
             MetadataTagInputMode::Category { .. }
         ) {
             return self.metadata_tag_category_completion_options();
@@ -52,14 +52,14 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn move_metadata_tag_completion_selection(&mut self, delta: i32) {
         if matches!(
-            self.metadata_tag_input_mode,
+            self.metadata.tag_input_mode,
             MetadataTagInputMode::Category { .. }
         ) {
             self.move_metadata_tag_category_completion_selection(delta);
             return;
         }
-        self.pending_metadata_tag_completion_query = None;
-        let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
+        self.metadata.pending_tag_completion_query = None;
+        let Some(prefix) = normalize_metadata_tag(&self.metadata.tag_draft) else {
             self.reset_metadata_tag_completion_cycle();
             return;
         };
@@ -71,7 +71,7 @@ impl NativeAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        self.metadata_tag_completion_cycle.move_selection_from_edge(
+        self.metadata.tag_completion_cycle.move_selection_from_edge(
             prefix,
             delta as isize,
             suggestions.len(),
@@ -80,13 +80,13 @@ impl NativeAppState {
 
     pub(super) fn activate_metadata_tag_completion(&mut self) {
         if matches!(
-            self.metadata_tag_input_mode,
+            self.metadata.tag_input_mode,
             MetadataTagInputMode::Category { .. }
         ) {
             self.move_metadata_tag_category_completion_selection(0);
             return;
         }
-        let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
+        let Some(prefix) = normalize_metadata_tag(&self.metadata.tag_draft) else {
             self.reset_metadata_tag_completion_cycle();
             return;
         };
@@ -95,17 +95,18 @@ impl NativeAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        if self.metadata_tag_completion_cycle.query_key() == Some(prefix.as_str()) {
-            self.pending_metadata_tag_completion_query = None;
+        if self.metadata.tag_completion_cycle.query_key() == Some(prefix.as_str()) {
+            self.metadata.pending_tag_completion_query = None;
             return;
         }
-        if self.pending_metadata_tag_completion_query.as_deref() != Some(prefix.as_str()) {
-            self.metadata_tag_completion_cycle.reset();
-            self.pending_metadata_tag_completion_query = Some(prefix);
+        if self.metadata.pending_tag_completion_query.as_deref() != Some(prefix.as_str()) {
+            self.metadata.tag_completion_cycle.reset();
+            self.metadata.pending_tag_completion_query = Some(prefix);
             return;
         }
-        self.pending_metadata_tag_completion_query = None;
-        self.metadata_tag_completion_cycle
+        self.metadata.pending_tag_completion_query = None;
+        self.metadata
+            .tag_completion_cycle
             .select(prefix, 0, suggestion_count);
     }
 
@@ -120,7 +121,7 @@ impl NativeAppState {
     }
 
     fn metadata_tag_suggestions(&self) -> Vec<String> {
-        let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
+        let Some(prefix) = normalize_metadata_tag(&self.metadata.tag_draft) else {
             return Vec::new();
         };
         metadata_tag_completions_for_prefix(
@@ -131,7 +132,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn metadata_tag_completion_active(&self) -> bool {
         if matches!(
-            self.metadata_tag_input_mode,
+            self.metadata.tag_input_mode,
             MetadataTagInputMode::Category { .. }
         ) {
             return !self.metadata_tag_category_suggestions().is_empty();
@@ -143,8 +144,9 @@ impl NativeAppState {
         if suggestion_count == 0 {
             return None;
         }
-        let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
-        self.metadata_tag_completion_cycle
+        let prefix = normalize_metadata_tag(&self.metadata.tag_draft)?;
+        self.metadata
+            .tag_completion_cycle
             .active_selected_index(prefix.as_str(), suggestion_count)
     }
 
@@ -153,11 +155,12 @@ impl NativeAppState {
             .iter()
             .map(|tag| (*tag).to_string())
             .chain(
-                self.metadata_tags_by_file
+                self.metadata
+                    .tags_by_file
                     .values()
                     .flat_map(|tags| tags.iter().cloned()),
             )
-            .chain(self.metadata_tag_dictionary.keys().cloned())
+            .chain(self.metadata.tag_dictionary.keys().cloned())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
@@ -170,7 +173,7 @@ impl NativeAppState {
                 id,
                 label,
                 tags: Vec::new(),
-                collapsed: self.collapsed_metadata_tag_categories.contains(*id),
+                collapsed: self.metadata.collapsed_tag_categories.contains(*id),
                 locked: metadata_tag_category_is_locked(id),
             })
             .collect::<Vec<_>>();
@@ -188,7 +191,8 @@ impl NativeAppState {
     }
 
     pub(super) fn metadata_tag_category_id(&self, tag: &str) -> &'static str {
-        self.metadata_tag_dictionary
+        self.metadata
+            .tag_dictionary
             .get(tag)
             .and_then(|category_id| {
                 metadata_tag_category_label_for_id(category_id).map(|_| category_id.as_str())
@@ -253,7 +257,7 @@ impl NativeAppState {
     }
 
     fn metadata_tag_category_completion_suffix(&self) -> Option<String> {
-        let prefix = normalize_metadata_category_query(&self.metadata_tag_draft)?;
+        let prefix = normalize_metadata_category_query(&self.metadata.tag_draft)?;
         let suggestions = self.metadata_tag_category_suggestions();
         let index = self.selected_metadata_tag_category_completion_index(suggestions.len());
         let (_id, label) = suggestions.get(index)?;
@@ -277,7 +281,7 @@ impl NativeAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        self.metadata_tag_completion_cycle.move_selection(
+        self.metadata.tag_completion_cycle.move_selection(
             prefix,
             delta as isize,
             suggestions.len(),
@@ -291,20 +295,21 @@ impl NativeAppState {
         let Some(prefix) = self.metadata_tag_category_query_key() else {
             return 0;
         };
-        self.metadata_tag_completion_cycle
+        self.metadata
+            .tag_completion_cycle
             .selected_index(prefix.as_str(), suggestion_count)
             .unwrap_or(0)
     }
 
     fn metadata_tag_category_query_key(&self) -> Option<String> {
-        if self.metadata_tag_draft.trim().is_empty() {
+        if self.metadata.tag_draft.trim().is_empty() {
             return Some(String::new());
         }
-        normalize_metadata_category_query(&self.metadata_tag_draft)
+        normalize_metadata_category_query(&self.metadata.tag_draft)
     }
 
     pub(super) fn reset_metadata_tag_completion_cycle(&mut self) {
-        self.pending_metadata_tag_completion_query = None;
-        self.metadata_tag_completion_cycle.reset();
+        self.metadata.pending_tag_completion_query = None;
+        self.metadata.tag_completion_cycle.reset();
     }
 }

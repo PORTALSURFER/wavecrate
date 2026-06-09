@@ -5,9 +5,10 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
-    state.metadata_tag_draft = String::from("ki");
+    state.metadata.tag_draft = String::from("ki");
 
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
@@ -20,12 +21,12 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
         runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Backspace)),
         Some(input_id)
     );
-    assert_eq!(runtime.bridge().state().metadata_tag_draft, "k");
+    assert_eq!(runtime.bridge().state().metadata.tag_draft, "k");
     assert_eq!(
         runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Backspace)),
         Some(input_id)
     );
-    assert!(runtime.bridge().state().metadata_tag_draft.is_empty());
+    assert!(runtime.bridge().state().metadata.tag_draft.is_empty());
     assert!(!runtime.bridge().state().metadata_tag_completion_active());
 
     let frame = runtime.frame_with_default_theme();
@@ -45,7 +46,8 @@ fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_sugg
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
 
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
@@ -65,7 +67,7 @@ fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_sugg
     );
 
     let state = runtime.bridge().state();
-    assert_eq!(state.metadata_tag_draft, "ki");
+    assert_eq!(state.metadata.tag_draft, "ki");
     assert_eq!(
         state.metadata_tag_completion_suffix().as_deref(),
         Some("ck")
@@ -85,7 +87,7 @@ fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_sugg
     );
 
     let state = runtime.bridge().state();
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
     assert_eq!(state.pending_metadata_tag_category_tag(), Some("ki"));
     assert_eq!(state.sample_status, "Choose a category for ki");
 }
@@ -95,9 +97,10 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
-    state.metadata_tag_draft = String::from("ki");
+    state.metadata.tag_draft = String::from("ki");
 
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
@@ -115,7 +118,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     runtime.dispatch_primary_click(point);
 
     assert!(
-        runtime.bridge().state().metadata_tag_library_open,
+        runtime.bridge().state().metadata.tag_library_open,
         "autocomplete popup must not prevent clicking the sidebar tag editor button"
     );
 }
@@ -142,9 +145,10 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .folder_browser
         .select_file(selected_file.display().to_string());
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
-    state.metadata_tag_draft = String::from("ki");
+    state.metadata.tag_draft = String::from("ki");
     let (clicked_folder_id, initially_expanded) = state
         .folder_browser
         .first_visible_child_folder_expansion_for_tests()
@@ -189,12 +193,12 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
 fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.metadata_tags_by_file.insert(
+    state.metadata.tags_by_file.insert(
         String::from("known.wav"),
         vec![String::from("kick"), String::from("bass")],
     );
-    state.metadata_tag_draft = String::from("ki");
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_draft = String::from("ki");
+    state.metadata.tag_library_open = true;
 
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
@@ -218,7 +222,8 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
         runtime
             .bridge()
             .state()
-            .metadata_tags_by_file
+            .metadata
+            .tags_by_file
             .get(&selected_file),
         Some(&vec![String::from("bass")]),
         "autocomplete popup must not prevent clicking tags in the tag library"
@@ -244,10 +249,11 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     let first_file = first_root.join("alpha.wav").display().to_string();
     state.folder_browser.select_file(first_file);
     state
-        .metadata_tags_by_file
+        .metadata
+        .tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
-    state.metadata_tag_draft = String::from("ki");
-    state.metadata_tag_library_open = true;
+    state.metadata.tag_draft = String::from("ki");
+    state.metadata.tag_library_open = true;
 
     let mut runtime = native_runtime_for_tests(state, Vector2::new(589.0, 571.0));
     let frame = runtime.frame_with_default_theme();

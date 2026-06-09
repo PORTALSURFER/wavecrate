@@ -23,7 +23,8 @@ impl NativeAppState {
             return;
         };
         let mut file_tags = self
-            .metadata_tags_by_file
+            .metadata
+            .tags_by_file
             .get(&file_id)
             .cloned()
             .unwrap_or_default();
@@ -35,7 +36,8 @@ impl NativeAppState {
             file_tags.push(tag.clone());
             added.push(tag);
         }
-        self.metadata_tags_by_file
+        self.metadata
+            .tags_by_file
             .insert(file_id.clone(), file_tags);
         self.retain_visible_file_selection_after_metadata_tag_change();
         match added.as_slice() {
@@ -79,7 +81,7 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(tag) = self.selected_metadata_tag.clone() else {
+        let Some(tag) = self.metadata.selected_tag.clone() else {
             return;
         };
         self.remove_metadata_tag(tag, context);
@@ -98,7 +100,7 @@ impl NativeAppState {
             self.sample_status = String::from("Selected sample is not inside a configured source");
             return;
         };
-        let Some(file_tags) = self.metadata_tags_by_file.get_mut(&file_id) else {
+        let Some(file_tags) = self.metadata.tags_by_file.get_mut(&file_id) else {
             return;
         };
         let before_len = file_tags.len();
@@ -107,10 +109,10 @@ impl NativeAppState {
             return;
         }
         if file_tags.is_empty() {
-            self.metadata_tags_by_file.remove(&file_id);
+            self.metadata.tags_by_file.remove(&file_id);
         }
-        if self.selected_metadata_tag.as_deref() == Some(tag.as_str()) {
-            self.selected_metadata_tag = None;
+        if self.metadata.selected_tag.as_deref() == Some(tag.as_str()) {
+            self.metadata.selected_tag = None;
         }
         self.retain_visible_file_selection_after_metadata_tag_change();
         self.sample_status = format!("Removed tag {tag}");
