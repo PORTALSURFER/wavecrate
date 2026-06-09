@@ -33,19 +33,9 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let browser_context_menu = browser_context_menu_layer(state);
     let file_move_conflict = file_move_conflict_layer(state);
 
-    padded_center_panel(center_panel_row(state))
+    center_panel_row(state)
         .transient_layer_opt(browser_context_menu)
         .transient_layer_opt(file_move_conflict)
-}
-
-fn padded_center_panel(panel_row: ui::View<GuiMessage>) -> ui::View<GuiMessage> {
-    ui::column([top_center_panel_padding(), panel_row])
-        .spacing(0.0)
-        .fill()
-}
-
-fn top_center_panel_padding() -> ui::View<GuiMessage> {
-    ui::spacer().height(CENTER_PANEL_PADDING).fill_width()
 }
 
 fn center_panel_row(state: &mut NativeAppState) -> ui::View<GuiMessage> {
