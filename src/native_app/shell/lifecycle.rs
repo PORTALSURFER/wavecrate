@@ -1,6 +1,6 @@
 use crate::native_app::app::{
-    FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode, WaveformState,
-    sample_path_label,
+    BackgroundTaskState, FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode,
+    WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
@@ -33,27 +33,16 @@ impl NativeAppState {
                 worker_sender.clone(),
             )
         });
+        let background = BackgroundTaskState::new(worker_sender, Some(worker_receiver));
         let state = Self {
             folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
             folder_browser,
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Select a sample to load"),
-            worker_sender,
-            worker_receiver: Some(worker_receiver),
-            next_task_id: 1,
-            deferred_sample_load_task: ui::LatestTask::new(),
-            sample_load_task: ui::LatestTask::new(),
-            sample_load_cancel: None,
-            audio_open_task: ui::LatestTask::new(),
-            audio_open_results: Default::default(),
+            background,
             folder_progress: None,
             pending_source_refreshes: Default::default(),
             source_watcher,
-            startup_folder_verify_task: ui::LatestTask::new(),
-            startup_folder_verify_results: Default::default(),
-            normalization_progress: None,
-            progress_tick: 0.0,
-            frame_cadence: ui::FrameCadenceMonitor::new(),
             waveform_loading_progress: 0.0,
             waveform_loading_target_progress: 0.0,
             audio_player: None,
@@ -136,7 +125,7 @@ impl NativeAppState {
                 self.source_watcher = Some(
                     crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle::spawn(
                         sources,
-                        self.worker_sender.clone(),
+                        self.background.worker_sender.clone(),
                     ),
                 );
             }
@@ -176,8 +165,8 @@ impl NativeAppState {
         let playback_started_at = Instant::now();
         self.refresh_playback_progress();
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
-        if self.folder_progress.is_some() || self.normalization_progress.is_some() {
-            self.progress_tick = (self.progress_tick + 0.035) % 1.0;
+        if self.folder_progress.is_some() || self.background.normalization_progress.is_some() {
+            self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
         }
         if self.waveform_loading_label.is_some() {
             let remaining = self.waveform_loading_target_progress - self.waveform_loading_progress;
@@ -192,7 +181,7 @@ impl NativeAppState {
     }
 
     fn record_frame_timing(&mut self) {
-        let report = self.frame_cadence.record_now(UI_FRAME_CADENCE);
+        let report = self.background.frame_cadence.record_now(UI_FRAME_CADENCE);
         let Some(delta) = report.delta else {
             tracing::debug!(
                 target: "wavecrate::debug::ui_frame",
@@ -204,10 +193,10 @@ impl NativeAppState {
         };
         let delta_ms = duration_ms(delta);
         let max_delta_ms = duration_ms(report.max_delta);
-        let sample_loading = self.sample_load_task.active().is_some();
-        let audio_opening = self.audio_open_task.active().is_some();
+        let sample_loading = self.background.sample_load_task.active().is_some();
+        let audio_opening = self.background.audio_open_task.active().is_some();
         let folder_scanning = self.folder_progress.is_some();
-        let normalizing = self.normalization_progress.is_some();
+        let normalizing = self.background.normalization_progress.is_some();
         let waveform_loading = self.waveform_sample_load_active();
         let playing = self.waveform.is_playing();
         let pending_playback = self.pending_playback_start.is_some();
@@ -282,7 +271,8 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn worker_subscription(&mut self) -> ui::Subscription<GuiMessage> {
-        self.worker_receiver
+        self.background
+            .worker_receiver
             .take()
             .map(|receiver| ui::Subscription::worker("gui-workers", receiver))
             .unwrap_or_else(ui::Subscription::none)

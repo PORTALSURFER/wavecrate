@@ -15,7 +15,7 @@ impl StatusBarViewModel {
             selected_sample_count: state.folder_browser.selected_audio_file_count(),
             status_text: bottom_status_text(state),
             worker_progress: active_worker_progress(state),
-            progress_tick: state.progress_tick,
+            progress_tick: state.background.progress_tick,
         }
     }
 }
@@ -47,6 +47,7 @@ fn bottom_status_text(state: &NativeAppState) -> String {
         };
     }
     state
+        .background
         .normalization_progress
         .as_ref()
         .map(|progress| {
@@ -72,6 +73,7 @@ fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewMo
         .map(WorkerProgressViewModel::from_folder_progress)
         .or_else(|| {
             state
+                .background
                 .normalization_progress
                 .as_ref()
                 .map(WorkerProgressViewModel::from_normalization_progress)

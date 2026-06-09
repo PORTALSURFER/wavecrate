@@ -118,7 +118,11 @@ fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
         "visible-folder verification should be consumed as a one-shot startup task"
     );
     assert!(
-        state.startup_folder_verify_task.active().is_some(),
+        state
+            .background
+            .startup_folder_verify_task
+            .active()
+            .is_some(),
         "cached startup should verify only the visible folder in the background"
     );
 }

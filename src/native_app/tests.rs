@@ -8,7 +8,7 @@ use radiant::{
     runtime::{Event, PaintTextInput, TransientOverlayContext, UiSurface},
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
-use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
+use std::{collections::HashMap, fs, path::PathBuf, time::Duration};
 
 mod audio_settings_controls;
 mod audio_settings_dropdowns;
@@ -39,22 +39,10 @@ fn gui_state_for_span_tests() -> NativeAppState {
         folder_browser: super::test_support::FolderBrowserState::load_default(),
         waveform: super::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
-        worker_sender: mpsc::channel().0,
-        worker_receiver: None,
-        next_task_id: 1,
-        deferred_sample_load_task: ui::LatestTask::new(),
-        sample_load_task: ui::LatestTask::new(),
-        sample_load_cancel: None,
-        audio_open_task: ui::LatestTask::new(),
-        audio_open_results: Default::default(),
+        background: super::test_support::BackgroundTaskState::for_tests(),
         folder_progress: None,
         pending_source_refreshes: Default::default(),
         source_watcher: None,
-        startup_folder_verify_task: ui::LatestTask::new(),
-        startup_folder_verify_results: Default::default(),
-        normalization_progress: None,
-        progress_tick: 0.0,
-        frame_cadence: ui::FrameCadenceMonitor::new(),
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
         audio_player: None,
@@ -446,6 +434,7 @@ fn start_deferred_sample_load_for_tests(
     context: &mut ui::UpdateContext<super::test_support::GuiMessage>,
 ) {
     let ticket = state
+        .background
         .deferred_sample_load_task
         .active()
         .expect("deferred sample load queued");
@@ -468,22 +457,10 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         folder_browser: super::test_support::FolderBrowserState::load_default(),
         waveform: super::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
-        worker_sender: mpsc::channel().0,
-        worker_receiver: None,
-        next_task_id: 1,
-        deferred_sample_load_task: ui::LatestTask::new(),
-        sample_load_task: ui::LatestTask::new(),
-        sample_load_cancel: None,
-        audio_open_task: ui::LatestTask::new(),
-        audio_open_results: Default::default(),
+        background: super::test_support::BackgroundTaskState::for_tests(),
         folder_progress: None,
         pending_source_refreshes: Default::default(),
         source_watcher: None,
-        startup_folder_verify_task: ui::LatestTask::new(),
-        startup_folder_verify_results: Default::default(),
-        normalization_progress: None,
-        progress_tick: 0.0,
-        frame_cadence: ui::FrameCadenceMonitor::new(),
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
         audio_player: None,

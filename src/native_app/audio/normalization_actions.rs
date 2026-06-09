@@ -15,7 +15,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.normalization_progress.is_some() {
+        if self.background.normalization_progress.is_some() {
             self.sample_status = String::from("Normalization already in progress");
             emit_gui_action(
                 "browser.normalize_selected_samples",
@@ -43,7 +43,7 @@ impl NativeAppState {
 
         let request = self.prepare_normalization_request(paths);
         let label = normalize_progress_label(request.paths.len());
-        self.normalization_progress = Some(NormalizationProgress {
+        self.background.normalization_progress = Some(NormalizationProgress {
             task_id: request.task_id,
             label: label.clone(),
             completed: 0,
@@ -85,8 +85,7 @@ impl NativeAppState {
             self.current_playback_span = None;
         }
 
-        let task_id = self.next_task_id;
-        self.next_task_id = self.next_task_id.saturating_add(1);
+        let task_id = self.background.next_task_id();
         NormalizationWorkerRequest {
             task_id,
             paths,
@@ -95,7 +94,7 @@ impl NativeAppState {
             was_playing,
             restart_ratio,
             restart_span,
-            sender: self.worker_sender.clone(),
+            sender: self.background.worker_sender.clone(),
         }
     }
 
@@ -104,25 +103,27 @@ impl NativeAppState {
         progress: NormalizationProgress,
     ) {
         if self
+            .background
             .normalization_progress
             .as_ref()
             .is_some_and(|active| active.task_id == progress.task_id)
         {
-            self.normalization_progress = Some(progress);
+            self.background.normalization_progress = Some(progress);
         }
     }
 
     pub(in crate::native_app) fn finish_normalization(&mut self, result: NormalizationResult) {
         let started_at = Instant::now();
         if self
+            .background
             .normalization_progress
             .as_ref()
             .is_none_or(|active| active.task_id != result.task_id)
         {
             return;
         }
-        self.normalization_progress = None;
-        self.progress_tick = 0.0;
+        self.background.normalization_progress = None;
+        self.background.progress_tick = 0.0;
 
         for path in &result.normalized {
             self.folder_browser.refresh_file_path(path);

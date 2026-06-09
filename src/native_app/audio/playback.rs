@@ -260,7 +260,7 @@ impl NativeAppState {
                 end_ratio,
                 loop_offset_ratio,
             });
-            if self.audio_open_task.active().is_none() {
+            if self.background.audio_open_task.active().is_none() {
                 return Err(String::from("Audio output is starting"));
             }
             return Ok(());

@@ -17,7 +17,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if self.audio_player.is_some()
-            || self.audio_open_task.active().is_some()
+            || self.background.audio_open_task.active().is_some()
             || self.audio_settings_error.is_some()
         {
             return;
@@ -29,14 +29,14 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.audio_open_task.active().is_some() {
+        if self.background.audio_open_task.active().is_some() {
             return;
         }
         let started_at = Instant::now();
-        let ticket = self.audio_open_task.begin();
+        let ticket = self.background.audio_open_task.begin();
         let config = self.audio_output_config.clone();
         let volume = self.volume;
-        let results = self.audio_open_results.clone();
+        let results = self.background.audio_open_results.clone();
         self.audio_settings_error = None;
         context.spawn_with_priority(
             "gui-audio-open",
@@ -73,11 +73,12 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_audio_player_open(&mut self, ticket: ui::TaskTicket) {
         let started_at = Instant::now();
         let result = self
+            .background
             .audio_open_results
             .lock()
             .ok()
             .and_then(|mut results| results.remove(&ticket));
-        if !self.audio_open_task.finish(ticket) {
+        if !self.background.audio_open_task.finish(ticket) {
             emit_gui_action(
                 "audio.output.open",
                 Some("audio"),
@@ -316,7 +317,7 @@ impl NativeAppState {
         if let Some(player) = self.audio_player.as_mut() {
             player.stop();
         }
-        self.audio_open_task.cancel();
+        self.background.audio_open_task.cancel();
         self.audio_player = None;
         self.audio_output_resolved = None;
         self.refresh_audio_options();

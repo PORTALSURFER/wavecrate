@@ -12,8 +12,7 @@ const DISCOVERY_BATCH_SIZE: usize = 64;
 
 impl NativeAppState {
     pub(in crate::native_app) fn next_folder_task_id(&mut self) -> u64 {
-        let task_id = self.next_task_id;
-        self.next_task_id = self.next_task_id.saturating_add(1);
+        let task_id = self.background.next_task_id();
         task_id
     }
 
@@ -373,7 +372,12 @@ impl NativeAppState {
         if !self.startup_folder_verify_pending {
             return;
         }
-        if self.startup_folder_verify_task.active().is_some() {
+        if self
+            .background
+            .startup_folder_verify_task
+            .active()
+            .is_some()
+        {
             return;
         }
         let Some(request) = self.folder_browser.selected_folder_verify_request() else {
@@ -382,8 +386,8 @@ impl NativeAppState {
         };
         self.startup_folder_verify_pending = false;
         let started_at = Instant::now();
-        let ticket = self.startup_folder_verify_task.begin();
-        let results = self.startup_folder_verify_results.clone();
+        let ticket = self.background.startup_folder_verify_task.begin();
+        let results = self.background.startup_folder_verify_results.clone();
         context.spawn(
             "gui-startup-folder-verify",
             move || {
@@ -408,11 +412,12 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_startup_folder_verify(&mut self, ticket: ui::TaskTicket) {
         let started_at = Instant::now();
         let result = self
+            .background
             .startup_folder_verify_results
             .lock()
             .ok()
             .and_then(|mut results| results.remove(&ticket));
-        if !self.startup_folder_verify_task.finish(ticket) {
+        if !self.background.startup_folder_verify_task.finish(ticket) {
             return;
         }
         let Some(result) = result else {
@@ -468,7 +473,7 @@ impl NativeAppState {
             started_at,
             None,
         );
-        let sender = self.worker_sender.clone();
+        let sender = self.background.worker_sender.clone();
         context.spawn(
             "gui-folder-scan",
             move || run_folder_scan_worker(request, sender),
@@ -489,7 +494,7 @@ impl NativeAppState {
         if self.folder_browser.apply_scan_finished(result) {
             self.folder_progress = None;
             self.job_details_open = false;
-            self.progress_tick = 0.0;
+            self.background.progress_tick = 0.0;
             self.sample_status =
                 format!("Loaded source {label}: {file_count} files in {folder_count} folders");
             tracing::info!(

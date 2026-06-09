@@ -55,24 +55,10 @@ pub(in crate::native_app) struct NativeAppState {
     // BackgroundTaskState owns generic GUI task transport, ticket allocation,
     // latest-task trackers, cancellation handles, task result maps, progress
     // tick/cadence state, and startup folder verification task plumbing.
-    pub(in crate::native_app) worker_sender: Sender<GuiMessage>,
-    pub(in crate::native_app) worker_receiver: Option<Receiver<GuiMessage>>,
-    pub(in crate::native_app) next_task_id: u64,
-    pub(in crate::native_app) deferred_sample_load_task: ui::LatestTask,
-    pub(in crate::native_app) sample_load_task: ui::LatestTask,
-    pub(in crate::native_app) sample_load_cancel: Option<ui::CancellationToken>,
-    pub(in crate::native_app) audio_open_task: ui::LatestTask,
-    pub(in crate::native_app) audio_open_results:
-        Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
+    pub(in crate::native_app) background: BackgroundTaskState,
     pub(in crate::native_app) folder_progress: Option<FolderScanProgress>,
     pub(in crate::native_app) pending_source_refreshes: HashSet<String>,
     pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
-    pub(in crate::native_app) startup_folder_verify_task: ui::LatestTask,
-    pub(in crate::native_app) startup_folder_verify_results:
-        Arc<Mutex<HashMap<ui::TaskTicket, FolderVerifyResult>>>,
-    pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
-    pub(in crate::native_app) progress_tick: f32,
-    pub(in crate::native_app) frame_cadence: ui::FrameCadenceMonitor,
 
     // WaveformLoadState owns sample-load visible progress, loading label, and
     // input-blocking target progress. WaveformCacheState owns waveform cache
@@ -153,4 +139,56 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) active_folder_cache_warm_folder_id: Option<String>,
     pub(in crate::native_app) active_folder_cache_warm_pending: VecDeque<PathBuf>,
     pub(in crate::native_app) cached_sample_paths: HashSet<String>,
+}
+
+pub(in crate::native_app) struct BackgroundTaskState {
+    pub(in crate::native_app) worker_sender: Sender<GuiMessage>,
+    pub(in crate::native_app) worker_receiver: Option<Receiver<GuiMessage>>,
+    pub(in crate::native_app) next_task_id: u64,
+    pub(in crate::native_app) deferred_sample_load_task: ui::LatestTask,
+    pub(in crate::native_app) sample_load_task: ui::LatestTask,
+    pub(in crate::native_app) sample_load_cancel: Option<ui::CancellationToken>,
+    pub(in crate::native_app) audio_open_task: ui::LatestTask,
+    pub(in crate::native_app) audio_open_results:
+        Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
+    pub(in crate::native_app) startup_folder_verify_task: ui::LatestTask,
+    pub(in crate::native_app) startup_folder_verify_results:
+        Arc<Mutex<HashMap<ui::TaskTicket, FolderVerifyResult>>>,
+    pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
+    pub(in crate::native_app) progress_tick: f32,
+    pub(in crate::native_app) frame_cadence: ui::FrameCadenceMonitor,
+}
+
+impl BackgroundTaskState {
+    pub(in crate::native_app) fn new(
+        worker_sender: Sender<GuiMessage>,
+        worker_receiver: Option<Receiver<GuiMessage>>,
+    ) -> Self {
+        Self {
+            worker_sender,
+            worker_receiver,
+            next_task_id: 1,
+            deferred_sample_load_task: ui::LatestTask::new(),
+            sample_load_task: ui::LatestTask::new(),
+            sample_load_cancel: None,
+            audio_open_task: ui::LatestTask::new(),
+            audio_open_results: Default::default(),
+            startup_folder_verify_task: ui::LatestTask::new(),
+            startup_folder_verify_results: Default::default(),
+            normalization_progress: None,
+            progress_tick: 0.0,
+            frame_cadence: ui::FrameCadenceMonitor::new(),
+        }
+    }
+
+    pub(in crate::native_app) fn next_task_id(&mut self) -> u64 {
+        let task_id = self.next_task_id;
+        self.next_task_id = self.next_task_id.saturating_add(1);
+        task_id
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn for_tests() -> Self {
+        Self::new(std::sync::mpsc::channel().0, None)
+    }
 }

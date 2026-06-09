@@ -49,7 +49,7 @@ impl NativeAppState {
         self.waveform.is_playing()
             || self.waveform.play_selection_flash_active()
             || self.folder_progress.is_some()
-            || self.normalization_progress.is_some()
+            || self.background.normalization_progress.is_some()
             || self.startup_source_scan_pending
             || self.startup_auto_load_pending
             || self.waveform_input_blocked_by_sample_load()
@@ -186,10 +186,10 @@ impl FrameRepaintScopeSnapshot {
             playing: state.waveform.is_playing(),
             play_selection_flash_active: state.waveform.play_selection_flash_active(),
             folder_progress_active: state.folder_progress.is_some(),
-            normalization_progress_active: state.normalization_progress.is_some(),
+            normalization_progress_active: state.background.normalization_progress.is_some(),
             waveform_loading_active: state.waveform_sample_load_active(),
-            sample_loading: state.sample_load_task.active().is_some(),
-            audio_opening: state.audio_open_task.active().is_some(),
+            sample_loading: state.background.sample_load_task.active().is_some(),
+            audio_opening: state.background.audio_open_task.active().is_some(),
             startup_source_scan_pending: state.startup_source_scan_pending,
             startup_auto_load_pending: state.startup_auto_load_pending,
             pending_playback_start: state.pending_playback_start.is_some(),

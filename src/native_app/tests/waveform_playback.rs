@@ -140,7 +140,11 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
     ));
 
     start_deferred_sample_load_for_tests(&mut state, selected_file.clone(), false, &mut context);
-    let ticket = state.sample_load_task.active().expect("sample load queued");
+    let ticket = state
+        .background
+        .sample_load_task
+        .active()
+        .expect("sample load queued");
     state.apply_message(
         crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
             ticket,
@@ -216,6 +220,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
         "normalization must not rewrite the selected sample on the UI thread"
     );
     let progress = state
+        .background
         .normalization_progress
         .as_ref()
         .expect("normalization progress should be visible after queueing");
@@ -232,22 +237,10 @@ fn sample_selection_loads_selected_file_into_waveform() {
         folder_browser: crate::native_app::test_support::FolderBrowserState::load_default(),
         waveform: crate::native_app::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
-        worker_sender: mpsc::channel().0,
-        worker_receiver: None,
-        next_task_id: 1,
-        deferred_sample_load_task: ui::LatestTask::new(),
-        sample_load_task: ui::LatestTask::new(),
-        sample_load_cancel: None,
-        audio_open_task: ui::LatestTask::new(),
-        audio_open_results: Default::default(),
+        background: crate::native_app::test_support::BackgroundTaskState::for_tests(),
         folder_progress: None,
         pending_source_refreshes: Default::default(),
         source_watcher: None,
-        startup_folder_verify_task: ui::LatestTask::new(),
-        startup_folder_verify_results: Default::default(),
-        normalization_progress: None,
-        progress_tick: 0.0,
-        frame_cadence: ui::FrameCadenceMonitor::new(),
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
         audio_player: None,
@@ -326,11 +319,19 @@ fn sample_selection_loads_selected_file_into_waveform() {
         Some(sample_name.as_str())
     );
     assert!(
-        state.deferred_sample_load_task.active().is_some(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_some(),
         "selection should debounce uncached sample loading before queueing decode work"
     );
     start_deferred_sample_load_for_tests(&mut state, sample_path.clone(), true, &mut context);
-    let ticket = state.sample_load_task.active().expect("sample load queued");
+    let ticket = state
+        .background
+        .sample_load_task
+        .active()
+        .expect("sample load queued");
     state.apply_message(
         crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
             ticket,
@@ -364,11 +365,15 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "repeat selection should use the memory waveform cache without a deferred worker"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "repeat selection must not start decode work"
     );
     assert_eq!(state.waveform.file_name(), sample_name);
@@ -408,11 +413,15 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     assert_eq!(state.waveform_loading_progress, 0.0);
     assert_eq!(state.waveform_loading_target_progress, 0.0);
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "memory-cached repeat selection should not debounce a reload"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "memory-cached repeat selection should not queue decode work"
     );
     assert!(
@@ -454,11 +463,15 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
     assert!(!state.waveform.is_playing());
     assert_eq!(state.current_playback_span, None);
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "memory-cached non-autoplay load should not debounce a reload"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "memory-cached non-autoplay load should not queue decode work"
     );
     assert!(
@@ -503,7 +516,7 @@ fn active_folder_cache_warm_uses_lower_priority_than_selected_sample_load() {
 fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     let mut state = gui_state_for_span_tests();
     assert!(state.audio_player.is_none());
-    assert!(state.audio_open_task.active().is_none());
+    assert!(state.background.audio_open_task.active().is_none());
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -512,7 +525,7 @@ fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     );
 
     assert!(
-        state.audio_open_task.active().is_some(),
+        state.background.audio_open_task.active().is_some(),
         "frame processing should begin audio output warm-up before the first explicit playback"
     );
 }
@@ -580,7 +593,11 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         true,
         &mut context,
     );
-    let ticket = state.sample_load_task.active().expect("sample load queued");
+    let ticket = state
+        .background
+        .sample_load_task
+        .active()
+        .expect("sample load queued");
     let samples = std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]);
 
     state.apply_message(
@@ -656,7 +673,11 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         &mut context,
     );
     start_deferred_sample_load_for_tests(&mut state, first_path_string.clone(), true, &mut context);
-    let ticket = state.sample_load_task.active().expect("sample load queued");
+    let ticket = state
+        .background
+        .sample_load_task
+        .active()
+        .expect("sample load queued");
     state.folder_browser.select_file(second_path_string);
 
     state.apply_message(
@@ -719,11 +740,15 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         Some(second.as_str())
     );
     assert!(
-        state.deferred_sample_load_task.active().is_some(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_some(),
         "keyboard navigation should queue only a deferred latest load"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "keyboard navigation must not synchronously start decode work"
     );
     assert_eq!(
@@ -731,6 +756,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         "keyboard navigation should not enter the loading UI until the deferred load fires"
     );
     let stale_ticket = state
+        .background
         .deferred_sample_load_task
         .active()
         .expect("deferred navigation load ticket");
@@ -747,8 +773,14 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         state.folder_browser.selected_file_id(),
         Some(third.as_str())
     );
-    assert!(state.deferred_sample_load_task.active().is_some());
-    assert!(state.sample_load_task.active().is_none());
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_some()
+    );
+    assert!(state.background.sample_load_task.active().is_none());
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::DeferredSampleLoad {
@@ -766,10 +798,16 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         Some(third.as_str())
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "stale deferred navigation loads must not start decode work"
     );
-    assert!(state.deferred_sample_load_task.active().is_some());
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_some()
+    );
 }
 
 #[test]
@@ -808,11 +846,15 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
     );
     assert_eq!(state.waveform.path(), second_path);
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "memory-cached keyboard navigation should not debounce a reload"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "memory-cached keyboard navigation should not queue decode work"
     );
     assert!(
@@ -869,11 +911,15 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     );
     assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "already loaded navigation target should not queue a deferred reload"
     );
     assert!(
-        state.sample_load_task.active().is_none(),
+        state.background.sample_load_task.active().is_none(),
         "already loaded navigation target must not start decode work"
     );
 }
@@ -927,8 +973,14 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
-    assert!(state.deferred_sample_load_task.active().is_none());
-    assert!(state.sample_load_task.active().is_none());
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none()
+    );
+    assert!(state.background.sample_load_task.active().is_none());
     let new_id = new_path.display().to_string();
     assert_eq!(
         state.folder_browser.selected_file_id(),
@@ -999,8 +1051,14 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
             .cached_sample_paths
             .contains(&old_path.display().to_string())
     );
-    assert!(state.deferred_sample_load_task.active().is_none());
-    assert!(state.sample_load_task.active().is_none());
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none()
+    );
+    assert!(state.background.sample_load_task.active().is_none());
 }
 
 #[test]
@@ -1044,11 +1102,15 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "playback-ready persisted cache should not wait for a debounce after restart"
     );
     assert!(
-        state.sample_load_task.active().is_some(),
+        state.background.sample_load_task.active().is_some(),
         "playback-ready persisted cache should start worker loading immediately"
     );
     assert!(
@@ -1105,13 +1167,18 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_none(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
         "selection of a playback-ready cached file should not wait for debounce"
     );
-    assert!(state.sample_load_task.active().is_some());
+    assert!(state.background.sample_load_task.active().is_some());
     assert_ne!(state.waveform.path(), sample_path);
 
     let ticket = state
+        .background
         .sample_load_task
         .active()
         .expect("persisted cache load queued");
@@ -1377,7 +1444,11 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
     );
 
     assert!(
-        state.deferred_sample_load_task.active().is_some(),
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_some(),
         "summary-only cache selection should not synchronously decode long playback samples"
     );
     assert_eq!(

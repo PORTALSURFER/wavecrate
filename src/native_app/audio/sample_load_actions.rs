@@ -260,12 +260,12 @@ impl NativeAppState {
         self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
-        self.sample_load_cancel = None;
+        self.background.sample_load_cancel = None;
     }
 
     pub(in crate::native_app) fn waveform_sample_load_active(&self) -> bool {
-        self.deferred_sample_load_task.active().is_some()
-            || self.sample_load_task.active().is_some()
+        self.background.deferred_sample_load_task.active().is_some()
+            || self.background.sample_load_task.active().is_some()
     }
 
     pub(in crate::native_app) fn waveform_input_blocked_by_sample_load(&self) -> bool {
@@ -355,15 +355,17 @@ impl NativeAppState {
             delay_ms = delay.as_secs_f64() * 1000.0,
             "Sample load scheduled"
         );
-        context.after_latest(&mut self.deferred_sample_load_task, delay, |ticket| {
-            GuiMessage::DeferredSampleLoad {
+        context.after_latest(
+            &mut self.background.deferred_sample_load_task,
+            delay,
+            |ticket| GuiMessage::DeferredSampleLoad {
                 ticket,
                 path,
                 autoplay,
                 check_cache,
                 scheduled_at: Instant::now(),
-            }
-        });
+            },
+        );
     }
 
     pub(in crate::native_app) fn start_deferred_sample_load(
@@ -382,7 +384,7 @@ impl NativeAppState {
             started_at.saturating_duration_since(scheduled_at),
             true,
         );
-        if !self.deferred_sample_load_task.finish(ticket)
+        if !self.background.deferred_sample_load_task.finish(ticket)
             || self.folder_browser.selected_file_id() != Some(path.as_str())
         {
             self.pending_sample_playback = None;
@@ -453,11 +455,11 @@ impl NativeAppState {
         priority: ui::TaskPriority,
         persisted_cache_only: bool,
     ) {
-        let sender = self.worker_sender.clone();
+        let sender = self.background.worker_sender.clone();
         let queued_at = Instant::now();
         let source = path.clone();
-        self.sample_load_cancel = Some(context.spawn_cancellable_latest_with_priority(
-            &mut self.sample_load_task,
+        self.background.sample_load_cancel = Some(context.spawn_cancellable_latest_with_priority(
+            &mut self.background.sample_load_task,
             "gui-sample-load",
             priority,
             move |ticket, token| {
@@ -549,7 +551,7 @@ impl NativeAppState {
         let ticket = load.ticket;
         let load = load.output;
         let label = sample_path_label(load.path.as_str());
-        if !self.sample_load_task.finish(ticket) {
+        if !self.background.sample_load_task.finish(ticket) {
             self.pending_sample_playback = None;
             emit_gui_action(
                 "browser.sample_load.finish",
@@ -657,7 +659,7 @@ impl NativeAppState {
         let ticket = ready.ticket;
         let ready = ready.output;
         let label = sample_path_label(ready.path.as_str());
-        if !self.sample_load_task.is_active(ticket)
+        if !self.background.sample_load_task.is_active(ticket)
             || self.folder_browser.selected_file_id() != Some(ready.path.as_str())
         {
             emit_gui_action(
@@ -813,11 +815,11 @@ impl NativeAppState {
     }
 
     fn cancel_inflight_sample_load(&mut self) {
-        self.deferred_sample_load_task.cancel();
-        if let Some(token) = self.sample_load_cancel.take() {
+        self.background.deferred_sample_load_task.cancel();
+        if let Some(token) = self.background.sample_load_cancel.take() {
             token.cancel();
         }
-        self.sample_load_task.cancel();
+        self.background.sample_load_task.cancel();
         if self.early_sample_playback_path.is_some() {
             if let Some(player) = self.audio_player.as_mut() {
                 player.stop();

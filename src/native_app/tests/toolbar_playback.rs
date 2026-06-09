@@ -210,6 +210,7 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
         runtime
             .bridge()
             .state()
+            .background
             .deferred_sample_load_task
             .active()
             .is_some(),
@@ -297,6 +298,7 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
         runtime
             .bridge()
             .state()
+            .background
             .deferred_sample_load_task
             .active()
             .is_some(),

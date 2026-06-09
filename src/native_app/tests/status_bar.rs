@@ -62,13 +62,14 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
 #[test]
 fn bottom_status_bar_reports_normalization_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.normalization_progress = Some(crate::native_app::test_support::NormalizationProgress {
-        task_id: 9,
-        label: String::from("2 samples"),
-        completed: 1,
-        total: 2,
-        detail: String::from("snare.wav"),
-    });
+    state.background.normalization_progress =
+        Some(crate::native_app::test_support::NormalizationProgress {
+            task_id: 9,
+            label: String::from("2 samples"),
+            completed: 1,
+            total: 2,
+            detail: String::from("snare.wav"),
+        });
     let frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(
         StatusBarViewModel::from_app_state(&state),
     )
@@ -99,7 +100,7 @@ fn bottom_status_progress_bar_click_opens_job_details() {
 #[test]
 fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.progress_tick = 0.5;
+    state.background.progress_tick = 0.5;
     state.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
         task_id: 7,
         source_id: String::from("assets"),
@@ -154,13 +155,14 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
         total: 5,
         detail: String::from("kick.wav"),
     });
-    state.normalization_progress = Some(crate::native_app::test_support::NormalizationProgress {
-        task_id: 9,
-        label: String::from("2 samples"),
-        completed: 1,
-        total: 2,
-        detail: String::from("snare.wav"),
-    });
+    state.background.normalization_progress =
+        Some(crate::native_app::test_support::NormalizationProgress {
+            task_id: 9,
+            label: String::from("2 samples"),
+            completed: 1,
+            total: 2,
+            detail: String::from("snare.wav"),
+        });
 
     let model = StatusBarViewModel::from_app_state(&state);
 

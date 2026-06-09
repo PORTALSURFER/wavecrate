@@ -118,7 +118,7 @@ impl NativeAppState {
                 );
             }
             GuiMessage::SampleLoadProgress(ticket, progress) => {
-                if self.sample_load_task.is_active(ticket) {
+                if self.background.sample_load_task.is_active(ticket) {
                     self.waveform_loading_target_progress = progress.clamp(0.0, 0.995);
                 }
             }
