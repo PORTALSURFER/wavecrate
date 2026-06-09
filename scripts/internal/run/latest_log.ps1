@@ -13,9 +13,10 @@ Prints the resolved log directory, the newest log file, and a tail snippet.
 .DESCRIPTION
 Resolution order for the `.wavecrate` root:
 1) `WAVECRATE_CONFIG_HOME` (config base override, if set)
-2) OS default config base (`%APPDATA%` on Windows, app-support on macOS, XDG on Linux)
-3) `WAVECRATE_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
-4) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.wavecrate` root)
+2) `-Sandbox` (uses the repo-local sandbox config base)
+3) OS default config base (`%APPDATA%` on Windows, app-support on macOS, XDG on Linux)
+4) `WAVECRATE_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
+5) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.wavecrate` root)
 
 This is best-effort and intended for quick diagnostics (humans + agents).
 #>
@@ -45,9 +46,8 @@ function Get-DefaultConfigBase {
   if (-not [string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_HOME)) {
     return $env:WAVECRATE_CONFIG_HOME
   }
-  $sandboxBase = Get-SandboxConfigBase
-  if ($script:Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
-    return $sandboxBase
+  if ($script:Sandbox) {
+    return (Get-SandboxConfigBase)
   }
   if (Test-IsWindowsPlatform) {
     if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
@@ -71,20 +71,39 @@ function Get-PersistenceProfile {
   if ($script:Sandbox) {
     return "sandbox"
   }
-  $sandboxBase = Get-SandboxConfigBase
-  if ([string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_HOME) -and (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
-    return "sandbox"
-  }
   return "live"
+}
+
+function Resolve-ExistingPathOrNull {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  $resolved = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue
+  if ($null -eq $resolved) {
+    return $null
+  }
+  return $resolved.Path
+}
+
+function Test-SameResolvedPath {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Left,
+    [Parameter(Mandatory = $true)]
+    [string]$Right
+  )
+
+  $resolvedLeft = Resolve-ExistingPathOrNull -Path $Left
+  $resolvedRight = Resolve-ExistingPathOrNull -Path $Right
+  return (-not [string]::IsNullOrWhiteSpace($resolvedLeft)) -and ($resolvedLeft -eq $resolvedRight)
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 $sandboxBase = Get-SandboxConfigBase
 $configBase = Get-DefaultConfigBase
-$usedSandbox = $false
-if ([string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_HOME) -and ($configBase -eq $sandboxBase)) {
-  $usedSandbox = $true
-}
+$usedSandbox = $script:Sandbox -or (Test-SameResolvedPath -Left $configBase -Right $sandboxBase)
 
 function Get-AppDataDirOverrideFromConfig {
   param(
