@@ -18,6 +18,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $psExe = (Get-Process -Id $PID).Path
 
+if ($null -eq $Arguments) {
+  $Arguments = @()
+} else {
+  $Arguments = @($Arguments)
+}
+
 $commands = @{
   "sandbox" = "run_sandbox.ps1"
   "clean" = "clean_sandbox.ps1"
@@ -27,11 +33,18 @@ $commands = @{
 
 if ([string]::IsNullOrWhiteSpace($Command)) {
   Write-Host "Usage: scripts/run.ps1 <sandbox|clean|logs|bug-bundle> [args...]"
+  Write-Host "       scripts/run.ps1 logs debug-overlays [app args...]"
   exit 0
 }
 
 if ($Help) {
   $Arguments = @("-Help") + $Arguments
+}
+
+if ($Command -eq "logs" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "debug-overlays") {
+  $appArgs = @("--debug-layout") + @($Arguments | Select-Object -Skip 1)
+  & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "internal-run.ps1") @appArgs
+  exit $LASTEXITCODE
 }
 
 $scriptName = $commands[$Command]

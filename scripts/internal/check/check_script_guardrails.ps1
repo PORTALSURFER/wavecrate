@@ -603,6 +603,15 @@ try {
 
     Copy-Item (Join-Path $scriptsDir "run.ps1") (Join-Path $repoDir "scripts/run.ps1")
     Copy-Item (Join-Path $scriptsDir "internal/run/latest_log.ps1") (Join-Path $repoDir "scripts/internal/run/latest_log.ps1")
+    Set-Content -Path (Join-Path $repoDir "scripts/internal-run.ps1") -Value @(
+      'param(',
+      '  [Parameter(ValueFromRemainingArguments = $true)]',
+      '  [string[]]$AppArgs',
+      ')',
+      'Set-StrictMode -Version Latest',
+      '$ErrorActionPreference = "Stop"',
+      'Write-Host ("[internal-run-fixture] args={0}" -f ($AppArgs -join " "))'
+    )
 
     $configBase = Join-Path $repoDir "fixture-config"
     $liveLogsDir = Join-Path $configBase ".wavecrate/logs"
@@ -636,6 +645,10 @@ try {
         "newer live log"
       )
     }
+
+    Invoke-ExpectOutput -Label "run helper launches internal debug overlays alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "debug-overlays") -ExpectedSubstrings @(
+      "[internal-run-fixture] args=--debug-layout"
+    )
 
     $sandboxBase = Join-Path $repoDir ".sandbox/wavecrate"
     $sandboxDefaultRoot = Join-Path $sandboxBase ".wavecrate/profiles/sandbox"

@@ -21,6 +21,8 @@ dispatcher maps. These are the public entrypoints people should run directly:
   registration disabled and logging enabled. It runs from the repo root and does
   not need the website checkout. Example:
   `powershell -ExecutionPolicy Bypass -File scripts/internal-run.ps1`.
+- `run.ps1 logs debug-overlays`: convenience alias for the internal non-sandbox
+  run path with logging enabled and debug layout overlays shown.
 - `doctor.{sh,ps1}`: diagnose environment issues.
 - `agent.{sh,ps1}`: agent request, preflight, checks, and hook install helpers.
 - `ci.{sh,ps1}`: validation lanes (`smoke`, `agent`, `quick`, `local`).
