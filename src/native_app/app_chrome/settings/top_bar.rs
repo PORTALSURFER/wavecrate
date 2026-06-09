@@ -15,10 +15,10 @@ const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
 const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let settings_ui = &state.ui.settings.ui;
-    let active_settings_tab = settings_ui
+    let settings_window = &state.ui.settings.ui;
+    let active_settings_window_tab = settings_window
         .audio_settings_open
-        .then_some(settings_ui.app_settings_tab);
+        .then_some(settings_window.app_settings_tab);
 
     ui::row([
         volume_slider(state.audio.volume),
@@ -27,9 +27,9 @@ pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View
             audio_engine_pill(
                 state.audio_engine_pill_label(),
                 state.audio_engine_pill_style(),
-                active_settings_tab == Some(AppSettingsTab::AudioEngine),
+                active_settings_window_tab == Some(AppSettingsTab::AudioEngine),
             ),
-            general_settings_button(active_settings_tab == Some(AppSettingsTab::General)),
+            general_settings_button(active_settings_window_tab == Some(AppSettingsTab::General)),
         ])
         .spacing(4.0)
         .height(24.0),
