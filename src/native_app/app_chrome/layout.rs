@@ -6,7 +6,7 @@ use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::modals;
 use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::settings::top_control_bar;
-use crate::native_app::app_chrome::status_bar;
+use crate::native_app::app_chrome::status_bar::bottom_status_area;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::{
     folder_sidebar::FolderSidebarViewModel, sample_browser::SampleBrowserViewModel,
@@ -23,7 +23,7 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
     ui::column([
         top_control_bar(state),
         center_panel(state),
-        status_bar::bottom_status_area(state),
+        bottom_status_area(state),
     ])
     .spacing(0.0)
     .fill()
