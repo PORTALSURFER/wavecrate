@@ -8,23 +8,23 @@ fn transaction_group_undoes_and_redoes_as_one_entry() {
     state.begin_transaction("Grouped edit");
     state.register_transaction_action(
         "first",
-        |state| {
-            state.audio.volume = 0.1;
+        |transaction| {
+            transaction.set_audio_volume(0.1);
             Ok(())
         },
-        |state| {
-            state.audio.volume = 0.4;
+        |transaction| {
+            transaction.set_audio_volume(0.4);
             Ok(())
         },
     );
     state.register_transaction_action(
         "second",
-        |state| {
-            state.audio.volume = 0.4;
+        |transaction| {
+            transaction.set_audio_volume(0.4);
             Ok(())
         },
-        |state| {
-            state.audio.volume = 0.8;
+        |transaction| {
+            transaction.set_audio_volume(0.8);
             Ok(())
         },
     );

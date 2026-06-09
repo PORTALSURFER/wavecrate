@@ -8,6 +8,7 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleCollection, SourceDatabase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::transaction_history::TransactionContext;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct CollectionUpdate {
@@ -208,13 +209,13 @@ impl NativeAppState {
         self.begin_transaction(label);
         self.register_transaction_action(
             "Apply collection changes",
-            move |state| {
-                state
+            move |transaction| {
+                transaction
                     .apply_collection_update_states(&undo_updates)
                     .map(|_| ())
             },
-            move |state| {
-                state
+            move |transaction| {
+                transaction
                     .apply_collection_update_states(&redo_updates)
                     .map(|_| ())
             },
@@ -251,6 +252,15 @@ impl NativeAppState {
             }
         }
         Ok(counts)
+    }
+}
+
+impl TransactionContext<'_> {
+    fn apply_collection_update_states(
+        &mut self,
+        updates: &[CollectionUpdate],
+    ) -> Result<CollectionUpdateCounts, String> {
+        self.state.apply_collection_update_states(updates)
     }
 }
 

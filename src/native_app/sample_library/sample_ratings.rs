@@ -8,6 +8,7 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::{Rating, SourceDatabase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::transaction_history::TransactionContext;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RatingUpdate {
@@ -112,13 +113,13 @@ impl NativeAppState {
         self.begin_transaction(label);
         self.register_transaction_action(
             "Apply rating changes",
-            move |state| {
-                state
+            move |transaction| {
+                transaction
                     .apply_rating_update_states(&undo_updates, RatingUpdateMode::Before)
                     .map(|_| ())
             },
-            move |state| {
-                state
+            move |transaction| {
+                transaction
                     .apply_rating_update_states(&redo_updates, RatingUpdateMode::After)
                     .map(|_| ())
             },
@@ -151,6 +152,16 @@ impl NativeAppState {
             }
         }
         Ok(applied)
+    }
+}
+
+impl TransactionContext<'_> {
+    fn apply_rating_update_states(
+        &mut self,
+        updates: &[RatingUpdate],
+        mode: RatingUpdateMode,
+    ) -> Result<usize, String> {
+        self.state.apply_rating_update_states(updates, mode)
     }
 }
 

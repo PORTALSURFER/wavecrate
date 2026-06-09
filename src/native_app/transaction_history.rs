@@ -10,12 +10,15 @@ const DEFAULT_TRANSACTION_LIMIT: usize = 128;
 
 pub(in crate::native_app) type TransactionResult = Result<(), String>;
 
+#[cfg(test)]
+#[allow(dead_code)]
 pub(in crate::native_app) struct TransactionAction<T> {
     label: String,
     undo: Box<dyn Fn(&mut T) -> TransactionResult>,
     redo: Box<dyn Fn(&mut T) -> TransactionResult>,
 }
 
+#[cfg(test)]
 impl<T> TransactionAction<T> {
     pub(in crate::native_app) fn new(
         label: impl Into<String>,
@@ -30,12 +33,15 @@ impl<T> TransactionAction<T> {
     }
 }
 
+#[cfg(test)]
+#[allow(dead_code)]
 pub(in crate::native_app) struct Transaction<T> {
     id: u64,
     label: String,
     actions: Vec<TransactionAction<T>>,
 }
 
+#[cfg(test)]
 impl<T> Transaction<T> {
     fn new(id: u64, label: String, actions: Vec<TransactionAction<T>>) -> Self {
         Self { id, label, actions }
@@ -70,12 +76,14 @@ impl<T> Transaction<T> {
     }
 }
 
+#[cfg(test)]
 struct TransactionDraft<T> {
     label: String,
     actions: Vec<TransactionAction<T>>,
     depth: usize,
 }
 
+#[cfg(test)]
 impl<T> TransactionDraft<T> {
     fn new(label: String) -> Self {
         Self {
@@ -118,6 +126,8 @@ pub(in crate::native_app) struct TransactionApplied {
     pub(in crate::native_app) action_count: usize,
 }
 
+#[cfg(test)]
+#[allow(dead_code)]
 pub(in crate::native_app) struct TransactionHistory<T> {
     undo: VecDeque<Transaction<T>>,
     redo: VecDeque<Transaction<T>>,
@@ -126,12 +136,15 @@ pub(in crate::native_app) struct TransactionHistory<T> {
     limit: usize,
 }
 
+#[cfg(test)]
 impl<T> Default for TransactionHistory<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(test)]
+#[allow(dead_code)]
 impl<T> TransactionHistory<T> {
     pub(in crate::native_app) fn new() -> Self {
         Self {
@@ -277,6 +290,256 @@ impl<T> TransactionHistory<T> {
     }
 }
 
+pub(in crate::native_app) struct TransactionContext<'a> {
+    pub(in crate::native_app) state: &'a mut NativeAppState,
+}
+
+impl TransactionContext<'_> {
+    #[cfg(test)]
+    pub(in crate::native_app) fn set_audio_volume(&mut self, volume: f32) {
+        self.state.audio.volume = volume;
+    }
+}
+
+type NativeTransactionClosure = dyn for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult;
+
+struct NativeTransactionAction {
+    label: String,
+    undo: Box<NativeTransactionClosure>,
+    redo: Box<NativeTransactionClosure>,
+}
+
+impl NativeTransactionAction {
+    fn new(
+        label: impl Into<String>,
+        undo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
+        redo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            undo: Box::new(undo),
+            redo: Box::new(redo),
+        }
+    }
+}
+
+struct NativeTransaction {
+    id: u64,
+    label: String,
+    actions: Vec<NativeTransactionAction>,
+}
+
+impl NativeTransaction {
+    fn new(id: u64, label: String, actions: Vec<NativeTransactionAction>) -> Self {
+        Self { id, label, actions }
+    }
+
+    fn undo(&self, state: &mut NativeAppState) -> TransactionResult {
+        let mut context = TransactionContext { state };
+        for action in self.actions.iter().rev() {
+            (action.undo)(&mut context)?;
+        }
+        Ok(())
+    }
+
+    fn redo(&self, state: &mut NativeAppState) -> TransactionResult {
+        let mut context = TransactionContext { state };
+        for action in &self.actions {
+            (action.redo)(&mut context)?;
+        }
+        Ok(())
+    }
+
+    fn snapshot(&self, state: TransactionListState) -> TransactionListItem {
+        TransactionListItem {
+            id: self.id,
+            label: self.label.clone(),
+            action_count: self.actions.len(),
+            action_labels: self
+                .actions
+                .iter()
+                .map(|action| action.label.clone())
+                .collect(),
+            state,
+        }
+    }
+}
+
+struct NativeTransactionDraft {
+    label: String,
+    actions: Vec<NativeTransactionAction>,
+    depth: usize,
+}
+
+impl NativeTransactionDraft {
+    fn new(label: String) -> Self {
+        Self {
+            label,
+            actions: Vec::new(),
+            depth: 1,
+        }
+    }
+}
+
+pub(in crate::native_app) struct NativeTransactionHistory {
+    undo: VecDeque<NativeTransaction>,
+    redo: VecDeque<NativeTransaction>,
+    active: Option<NativeTransactionDraft>,
+    next_id: u64,
+    limit: usize,
+}
+
+impl Default for NativeTransactionHistory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NativeTransactionHistory {
+    pub(in crate::native_app) fn new() -> Self {
+        Self {
+            undo: VecDeque::new(),
+            redo: VecDeque::new(),
+            active: None,
+            next_id: 1,
+            limit: DEFAULT_TRANSACTION_LIMIT,
+        }
+    }
+
+    pub(in crate::native_app) fn begin_transaction(&mut self, label: impl Into<String>) {
+        if let Some(active) = self.active.as_mut() {
+            active.depth += 1;
+            return;
+        }
+        self.active = Some(NativeTransactionDraft::new(label.into()));
+    }
+
+    pub(in crate::native_app) fn commit_transaction(&mut self) -> bool {
+        let Some(active) = self.active.as_mut() else {
+            return false;
+        };
+        active.depth = active.depth.saturating_sub(1);
+        if active.depth > 0 {
+            return false;
+        }
+        let Some(active) = self.active.take() else {
+            return false;
+        };
+        if active.actions.is_empty() {
+            return false;
+        }
+        self.push_transaction(active.label, active.actions);
+        true
+    }
+
+    pub(in crate::native_app) fn register_action(
+        &mut self,
+        label: impl Into<String>,
+        undo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
+        redo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
+    ) {
+        let label = label.into();
+        let action = NativeTransactionAction::new(label.clone(), undo, redo);
+        if let Some(active) = self.active.as_mut() {
+            active.actions.push(action);
+        } else {
+            self.push_transaction(label, vec![action]);
+        }
+    }
+
+    fn push_transaction(
+        &mut self,
+        label: impl Into<String>,
+        actions: Vec<NativeTransactionAction>,
+    ) {
+        if actions.is_empty() {
+            return;
+        }
+        let transaction = NativeTransaction::new(self.next_id, label.into(), actions);
+        self.next_id += 1;
+        self.redo.clear();
+        self.undo.push_back(transaction);
+        while self.undo.len() > self.limit {
+            self.undo.pop_front();
+        }
+    }
+
+    pub(in crate::native_app) fn undo(
+        &mut self,
+        state: &mut NativeAppState,
+    ) -> Result<Option<TransactionApplied>, String> {
+        let Some(transaction) = self.undo.pop_back() else {
+            return Ok(None);
+        };
+        if let Err(error) = transaction.undo(state) {
+            self.undo.push_back(transaction);
+            return Err(error);
+        }
+        let applied = TransactionApplied {
+            label: transaction.label.clone(),
+            action_count: transaction.actions.len(),
+        };
+        self.redo.push_back(transaction);
+        Ok(Some(applied))
+    }
+
+    pub(in crate::native_app) fn redo(
+        &mut self,
+        state: &mut NativeAppState,
+    ) -> Result<Option<TransactionApplied>, String> {
+        let Some(transaction) = self.redo.pop_back() else {
+            return Ok(None);
+        };
+        if let Err(error) = transaction.redo(state) {
+            self.redo.push_back(transaction);
+            return Err(error);
+        }
+        let applied = TransactionApplied {
+            label: transaction.label.clone(),
+            action_count: transaction.actions.len(),
+        };
+        self.undo.push_back(transaction);
+        Ok(Some(applied))
+    }
+
+    pub(in crate::native_app) fn can_undo(&self) -> bool {
+        !self.undo.is_empty()
+    }
+
+    pub(in crate::native_app) fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
+    }
+
+    pub(in crate::native_app) fn is_transaction_open(&self) -> bool {
+        self.active.is_some()
+    }
+
+    pub(in crate::native_app) fn list_items(&self) -> Vec<TransactionListItem> {
+        let active = self.active.iter().map(|draft| TransactionListItem {
+            id: 0,
+            label: draft.label.clone(),
+            action_count: draft.actions.len(),
+            action_labels: draft
+                .actions
+                .iter()
+                .map(|action| action.label.clone())
+                .collect(),
+            state: TransactionListState::Active,
+        });
+        let undo = self
+            .undo
+            .iter()
+            .rev()
+            .map(|transaction| transaction.snapshot(TransactionListState::Undoable));
+        let redo = self
+            .redo
+            .iter()
+            .rev()
+            .map(|transaction| transaction.snapshot(TransactionListState::Redoable));
+        active.chain(undo).chain(redo).collect()
+    }
+}
+
 impl NativeAppState {
     pub(in crate::native_app) fn begin_transaction(&mut self, label: impl Into<String>) {
         if !self.transaction_restoring {
@@ -294,8 +557,8 @@ impl NativeAppState {
     pub(in crate::native_app) fn register_transaction_action(
         &mut self,
         label: impl Into<String>,
-        undo: impl Fn(&mut NativeAppState) -> TransactionResult + 'static,
-        redo: impl Fn(&mut NativeAppState) -> TransactionResult + 'static,
+        undo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
+        redo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
     ) {
         if self.transaction_restoring {
             return;

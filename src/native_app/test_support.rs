@@ -42,7 +42,7 @@ pub(in crate::native_app) use wavecrate::sample_sources::config::{AppConfig, App
 
 pub(in crate::native_app) struct NativeAppStateFixture {
     folder_browser: FolderBrowserState,
-    waveform: WaveformState,
+    waveform: Option<WaveformState>,
     sample_status: String,
     persisted_settings: AppSettingsCore,
 }
@@ -51,7 +51,7 @@ impl Default for NativeAppStateFixture {
     fn default() -> Self {
         Self {
             folder_browser: FolderBrowserState::load_default(),
-            waveform: WaveformState::load_default().expect("default waveform state"),
+            waveform: None,
             sample_status: String::from("Select a sample to load"),
             persisted_settings: AppSettingsCore::default(),
         }
@@ -60,7 +60,7 @@ impl Default for NativeAppStateFixture {
 
 impl NativeAppStateFixture {
     pub(in crate::native_app) fn with_synthetic_waveform(mut self) -> Self {
-        self.waveform = WaveformState::synthetic_for_tests();
+        self.waveform = Some(WaveformState::synthetic_for_tests());
         self
     }
 
@@ -76,7 +76,9 @@ impl NativeAppStateFixture {
         NativeAppState {
             chrome: ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
             folder_browser: self.folder_browser,
-            waveform: self.waveform,
+            waveform: self
+                .waveform
+                .unwrap_or_else(|| WaveformState::load_default().expect("default waveform state")),
             sample_status: self.sample_status,
             background: BackgroundTaskState::for_tests(),
             folder_progress: None,

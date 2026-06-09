@@ -24,7 +24,7 @@ use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState, FolderScanProgress, FolderVerifyResult,
 };
 use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
-use crate::native_app::transaction_history::TransactionHistory;
+use crate::native_app::transaction_history::NativeTransactionHistory;
 use crate::native_app::waveform::WaveformState;
 
 #[cfg(test)]
@@ -76,10 +76,9 @@ pub(in crate::native_app) struct NativeAppState {
     // settings values and audio-device errors stay with their domain owners.
     pub(in crate::native_app) settings_ui: SettingsUiState,
 
-    // TransactionState owns history and restore guards. It should eventually
-    // expose a narrow transaction context instead of TransactionHistory over the
-    // concrete NativeAppState type.
-    pub(in crate::native_app) transaction_history: TransactionHistory<NativeAppState>,
+    // TransactionState owns history and restore guards. Actions execute through
+    // TransactionContext rather than arbitrary closures over the root state.
+    pub(in crate::native_app) transaction_history: NativeTransactionHistory,
     pub(in crate::native_app) transaction_restoring: bool,
     pub(in crate::native_app) browser_interaction: BrowserInteractionState,
 
