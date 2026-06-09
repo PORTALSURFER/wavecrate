@@ -4,15 +4,26 @@ use crate::native_app::app::{AppSettingsTab, GuiMessage, NativeAppState};
 use crate::native_app::ui::ids as widget_ids;
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
-const VOLUME_SLIDER_WIDTH: f32 = 92.0;
-const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
+const VOLUME_SLIDER_SIZE: ControlSize = ControlSize {
+    width: 92.0,
+    height: 14.0,
+};
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = widget_ids::AUDIO_ENGINE_PILL_ID;
-const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
-const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
+const AUDIO_ENGINE_PILL_SIZE: ControlSize = ControlSize {
+    width: 54.0,
+    height: 18.0,
+};
 pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 =
     widget_ids::GENERAL_SETTINGS_BUTTON_ID;
-const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
-const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
+const GENERAL_SETTINGS_BUTTON_SIZE: ControlSize = ControlSize {
+    width: 28.0,
+    height: 24.0,
+};
+
+struct ControlSize {
+    width: f32,
+    height: f32,
+}
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let model = TopControlBarModel::from_app_state(state);
@@ -80,7 +91,7 @@ fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
         .message(GuiMessage::ToggleAudioSettings)
         .id(AUDIO_ENGINE_PILL_ID)
         .key("top-audio-engine-pill")
-        .size(AUDIO_ENGINE_PILL_WIDTH, AUDIO_ENGINE_PILL_HEIGHT)
+        .size(AUDIO_ENGINE_PILL_SIZE.width, AUDIO_ENGINE_PILL_SIZE.height)
 }
 
 fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
@@ -90,8 +101,8 @@ fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
         .id(GENERAL_SETTINGS_BUTTON_ID)
         .key("top-general-settings-button")
         .size(
-            GENERAL_SETTINGS_BUTTON_WIDTH,
-            GENERAL_SETTINGS_BUTTON_HEIGHT,
+            GENERAL_SETTINGS_BUTTON_SIZE.width,
+            GENERAL_SETTINGS_BUTTON_SIZE.height,
         )
 }
 
@@ -101,7 +112,7 @@ pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> 
         .message(GuiMessage::SetVolume)
         .id(VOLUME_SLIDER_ID)
         .key("top-volume-slider")
-        .size(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)
+        .size(VOLUME_SLIDER_SIZE.width, VOLUME_SLIDER_SIZE.height)
 }
 
 fn settings_gear_icon(active: bool) -> ui::SvgIcon {
