@@ -18,7 +18,6 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) name_view_mode: SampleNameViewMode,
     pub(in crate::native_app) metadata_tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) cached_sample_paths: &'a HashSet<String>,
-    pub(in crate::native_app) suppress_row_hover: bool,
     pub(in crate::native_app) file_drag_active: bool,
     pub(in crate::native_app) extracted_file_drag_active: bool,
     pub(in crate::native_app) hovered_folder_drop_target: bool,
@@ -26,10 +25,7 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
 }
 
 impl<'a> SampleBrowserViewModel<'a> {
-    pub(in crate::native_app) fn from_app_state(
-        state: &'a mut NativeAppState,
-        suppress_row_hover: bool,
-    ) -> Self {
+    pub(in crate::native_app) fn from_app_state(state: &'a mut NativeAppState) -> Self {
         let window = state
             .library
             .folder_browser
@@ -61,7 +57,6 @@ impl<'a> SampleBrowserViewModel<'a> {
             name_view_mode: state.metadata.sample_name_view_mode,
             metadata_tags_by_file: &state.metadata.tags_by_file,
             cached_sample_paths: &state.waveform.cache.cached_sample_paths,
-            suppress_row_hover,
             file_drag_active,
             extracted_file_drag_active,
             hovered_folder_drop_target,

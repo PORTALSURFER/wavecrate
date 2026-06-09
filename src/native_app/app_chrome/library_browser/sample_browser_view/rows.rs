@@ -23,7 +23,6 @@ pub(super) fn sample_browser_rows(
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
     cached_sample_paths: &HashSet<String>,
-    suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
     if file_count == 0 {
         return empty_sample_browser_rows();
@@ -42,7 +41,6 @@ pub(super) fn sample_browser_rows(
             name_view_mode,
             metadata_tags_by_file,
             cached_sample_paths.contains(&file.id),
-            suppress_row_hover,
         ))
     })
     .row_height(SAMPLE_BROWSER_ROW_HEIGHT)
@@ -77,7 +75,6 @@ fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
         row.drag_source,
         row.cached,
         file_id,
-        row.suppress_row_hover,
     );
     let row = ui::input_underlay(
         ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)),
@@ -97,7 +94,6 @@ fn sample_file_hit_target(
     drag_source: bool,
     cached: bool,
     hit_path: String,
-    suppress_hover: bool,
 ) -> ui::View<GuiMessage> {
     ui::custom_widget_direct(SampleFileHitTarget::new(
         hit_path,
@@ -105,7 +101,6 @@ fn sample_file_hit_target(
         drag_active,
         drag_source,
         cached,
-        suppress_hover,
     ))
     .key(format!("sample-row-hit-{file_id}-{drag_revision}"))
     .fill_width()

@@ -14,7 +14,6 @@ pub(super) struct SampleRowDisplay<'a> {
     pub(super) drag_active: bool,
     pub(super) drag_source: bool,
     pub(super) cached: bool,
-    pub(super) suppress_row_hover: bool,
     pub(super) columns: Vec<SampleColumnDisplay<'a>>,
 }
 
@@ -39,7 +38,6 @@ pub(super) fn sample_row_display<'a>(
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
     cached: bool,
-    suppress_row_hover: bool,
 ) -> SampleRowDisplay<'a> {
     let rename = folder_browser.file_rename_view(&file.id);
     SampleRowDisplay {
@@ -49,7 +47,6 @@ pub(super) fn sample_row_display<'a>(
         drag_active: folder_browser.file_drag_active(),
         drag_source: folder_browser.file_drag_source(&file.id),
         cached,
-        suppress_row_hover,
         columns: columns
             .iter()
             .map(|column| {

@@ -18,7 +18,6 @@ fn sample_hit_target(
     drag_active: bool,
     drag_source: bool,
     cached: bool,
-    suppress_hover: bool,
 ) -> SampleFileHitTarget {
     SampleFileHitTarget::new(
         String::from("sample.wav"),
@@ -26,7 +25,6 @@ fn sample_hit_target(
         drag_active,
         drag_source,
         cached,
-        suppress_hover,
     )
 }
 
@@ -47,7 +45,7 @@ fn is_pressed(target: &SampleFileHitTarget) -> bool {
 /// Verifies retained refreshes do not duplicate runtime drag-preview motion.
 fn active_drag_uses_runtime_preview_after_widget_refresh() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut first = sample_hit_target(false, false, false, false, false);
+    let mut first = sample_hit_target(false, false, false, false);
     first.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
     assert_eq!(
         message_from(first.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 7.0)),)),
@@ -57,7 +55,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
         }
     );
 
-    let mut refreshed = sample_hit_target(false, true, true, false, false);
+    let mut refreshed = sample_hit_target(false, true, true, false);
     refreshed.synchronize_from_previous(&first);
     assert!(
         refreshed
@@ -71,7 +69,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
 /// Verifies refreshed drag-source rows can still end the drag sequence.
 fn active_drag_source_does_not_depend_on_retained_pressed_state() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut refreshed = sample_hit_target(false, true, true, false, false);
+    let mut refreshed = sample_hit_target(false, true, true, false);
 
     assert!(
         refreshed
@@ -95,7 +93,7 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
 /// Verifies non-source rows clear hover while another sample row is dragged.
 fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut target = sample_hit_target(false, true, false, false, false);
+    let mut target = sample_hit_target(false, true, false, false);
     target.common_mut().state.hovered = true;
 
     assert!(
@@ -118,7 +116,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
 #[test]
 /// Verifies ordinary sample rows do not request stable pointer-motion routing.
 fn idle_rows_do_not_request_stable_pointer_moves() {
-    let target = sample_hit_target(false, false, false, false, false);
+    let target = sample_hit_target(false, false, false, false);
 
     assert!(
         !target.accepts_pointer_move(),
@@ -129,7 +127,7 @@ fn idle_rows_do_not_request_stable_pointer_moves() {
 #[test]
 /// Verifies pressed sample rows keep motion so drags can start reliably.
 fn pressed_rows_request_pointer_moves_for_drag_start() {
-    let mut target = sample_hit_target(false, false, false, false, false);
+    let mut target = sample_hit_target(false, false, false, false);
     target.handle_input(
         Rect::from_size(120.0, 22.0),
         WidgetInput::primary_press(Point::new(34.0, 8.0)),
@@ -144,8 +142,8 @@ fn pressed_rows_request_pointer_moves_for_drag_start() {
 #[test]
 /// Verifies active sample drags keep motion routing for source and non-source rows.
 fn active_drag_rows_request_pointer_moves() {
-    let source = sample_hit_target(false, true, true, false, false);
-    let non_source = sample_hit_target(false, true, false, false, false);
+    let source = sample_hit_target(false, true, true, false);
+    let non_source = sample_hit_target(false, true, false, false);
 
     assert!(
         source.accepts_pointer_move(),
@@ -161,11 +159,11 @@ fn active_drag_rows_request_pointer_moves() {
 /// Verifies stale hover state is not retained across widget refreshes.
 fn hover_state_clears_on_retained_widget_refresh() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut previous = sample_hit_target(false, false, false, false, false);
+    let mut previous = sample_hit_target(false, false, false, false);
     previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(is_hovered(&previous));
 
-    let mut refreshed = sample_hit_target(false, false, false, false, false);
+    let mut refreshed = sample_hit_target(false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
     assert!(
@@ -183,7 +181,7 @@ fn hover_state_clears_on_retained_widget_refresh() {
 /// Verifies unselected hover paint remains visually neutral.
 fn hover_fill_is_neutral_not_selection_red() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut target = sample_hit_target(false, false, false, false, false);
+    let mut target = sample_hit_target(false, false, false, false);
     target.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
 
     let plan = target.paint_plan_with_defaults(bounds);
@@ -202,7 +200,7 @@ fn hover_fill_is_neutral_not_selection_red() {
 /// Verifies row activation preserves primary-release modifier state.
 fn primary_activation_preserves_release_modifiers() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut target = sample_hit_target(false, false, false, false, false);
+    let mut target = sample_hit_target(false, false, false, false);
     let modifiers = PointerModifiers {
         shift: true,
         ..PointerModifiers::default()
@@ -226,7 +224,7 @@ fn primary_activation_preserves_release_modifiers() {
 /// Verifies sample-row double activation uses the normal activation action.
 fn double_activation_uses_normal_sample_activation() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut target = sample_hit_target(false, false, false, false, false);
+    let mut target = sample_hit_target(false, false, false, false);
 
     assert_eq!(
         message_from(target.handle_input(
@@ -244,12 +242,12 @@ fn double_activation_uses_normal_sample_activation() {
 /// Verifies retained pressed state survives without carrying stale hover.
 fn pressed_state_survives_retained_widget_refresh_without_hover() {
     let bounds = Rect::from_size(120.0, 22.0);
-    let mut previous = sample_hit_target(false, false, false, false, false);
+    let mut previous = sample_hit_target(false, false, false, false);
     previous.handle_input(bounds, WidgetInput::primary_press(Point::new(34.0, 8.0)));
     assert!(is_hovered(&previous));
     assert!(is_pressed(&previous));
 
-    let mut refreshed = sample_hit_target(false, false, false, false, false);
+    let mut refreshed = sample_hit_target(false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
     assert!(!is_hovered(&refreshed));
@@ -257,31 +255,10 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
 }
 
 #[test]
-/// Verifies suppressed rows clear hover and omit stale hover paint.
-fn suppressed_hover_clears_and_omits_stale_hover_paint() {
-    let bounds = Rect::from_size(120.0, 22.0);
-    let mut previous = sample_hit_target(false, false, false, false, false);
-    previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
-    assert!(is_hovered(&previous));
-
-    let mut suppressed = sample_hit_target(false, false, false, false, true);
-    suppressed.synchronize_from_previous(&previous);
-    assert!(!is_hovered(&suppressed));
-    suppressed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
-    assert!(!is_hovered(&suppressed));
-
-    let plan = suppressed.paint_plan_with_defaults(bounds);
-    assert!(
-        !paints_hover_fill(&plan),
-        "suppressed rows should not paint hover highlights during sidebar resize"
-    );
-}
-
-#[test]
 /// Verifies cached sample rows paint the loaded marker.
 fn loaded_rows_paint_right_edge_marker() {
     let bounds = Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
-    let target = sample_hit_target(false, false, false, true, false);
+    let target = sample_hit_target(false, false, false, true);
     let plan = target.paint_plan_with_defaults(bounds);
 
     assert!(
@@ -303,7 +280,7 @@ fn loaded_rows_paint_right_edge_marker() {
 /// Verifies uncached sample rows do not paint the loaded marker.
 fn unloaded_rows_do_not_paint_loaded_marker() {
     let bounds = Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
-    let target = sample_hit_target(false, false, false, false, false);
+    let target = sample_hit_target(false, false, false, false);
     let plan = target.paint_plan_with_defaults(bounds);
 
     assert!(

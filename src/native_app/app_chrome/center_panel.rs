@@ -58,8 +58,7 @@ fn metadata_tag_library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
 fn sample_workspace_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
-    let suppress_sample_hover = state.ui.chrome.folder_panel.is_resizing();
-    let sample_browser_model = SampleBrowserViewModel::from_app_state(state, suppress_sample_hover);
+    let sample_browser_model = SampleBrowserViewModel::from_app_state(state);
     ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
         .padding(4.0)
         .fill()

@@ -24,12 +24,8 @@ const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
 #[cfg(test)]
 pub(in crate::native_app) fn sample_browser_from_state(
     state: &mut NativeAppState,
-    suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
-    sample_browser(SampleBrowserViewModel::from_app_state(
-        state,
-        suppress_row_hover,
-    ))
+    sample_browser(SampleBrowserViewModel::from_app_state(state))
 }
 
 pub(in crate::native_app) fn sample_browser(
@@ -50,7 +46,6 @@ pub(in crate::native_app) fn sample_browser(
             model.name_view_mode,
             model.metadata_tags_by_file,
             model.cached_sample_paths,
-            model.suppress_row_hover,
         ),
         sample_browser_status(model.audio_count),
     ])

@@ -35,11 +35,9 @@ impl SampleFileHitTarget {
         drag_active: bool,
         drag_source: bool,
         cached: bool,
-        suppress_hover: bool,
     ) -> Self {
         let row = ui::interactive_row()
             .tracked_drag_source(drag_active, drag_source)
-            .suppress_hover(suppress_hover)
             .clear_hover_on_sync()
             .activation_modifiers()
             .custom_paint_hit_target()
