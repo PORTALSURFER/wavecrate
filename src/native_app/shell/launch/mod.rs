@@ -1,7 +1,7 @@
 mod args;
 mod logging;
 mod options;
-mod radiant_app;
+mod radiant_runtime;
 
 use std::time::Instant;
 
@@ -20,41 +20,27 @@ pub(in crate::native_app) use options::DEFAULT_WINDOW_TITLE;
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
     logging::install_panic_hook();
-    LaunchSession::collect().run()
+    let args = args::LaunchArgs::collect();
+    let startup_started_at = Instant::now();
+
+    init_logging(&args);
+    let state = NativeAppState::load_default()?;
+    let options = options::native_run_options(args.debug_layout());
+
+    run_radiant_runtime(state, options, startup_started_at)
 }
 
-struct LaunchSession {
-    args: args::LaunchArgs,
+fn init_logging(args: &args::LaunchArgs) {
+    logging::init_logging(args.raw());
+    logging::log_default_gui_startup(args.raw());
+}
+
+fn run_radiant_runtime(
+    state: NativeAppState,
+    options: NativeRunOptions,
     startup_started_at: Instant,
-}
-
-impl LaunchSession {
-    fn collect() -> Self {
-        Self {
-            args: args::LaunchArgs::collect(),
-            startup_started_at: Instant::now(),
-        }
-    }
-
-    fn run(self) -> Result<(), String> {
-        self.init_logging();
-        let state = Self::load_default_state()?;
-        let options = self.native_run_options();
-        logging::log_radiant_runtime_starting(options.frame.debug_layout, self.startup_started_at);
-        let runtime_result = radiant_app::run_catching_unwind(state, options);
-        logging::finish_radiant_runtime(runtime_result, self.startup_started_at)
-    }
-
-    fn init_logging(&self) {
-        logging::init_logging(self.args.raw());
-        logging::log_default_gui_startup(self.args.raw());
-    }
-
-    fn load_default_state() -> Result<NativeAppState, String> {
-        NativeAppState::load_default()
-    }
-
-    fn native_run_options(&self) -> NativeRunOptions {
-        options::native_run_options(self.args.debug_layout())
-    }
+) -> Result<(), String> {
+    logging::log_radiant_runtime_starting(options.frame.debug_layout, startup_started_at);
+    let runtime_result = radiant_runtime::run_catching_unwind(state, options);
+    logging::finish_radiant_runtime(runtime_result, startup_started_at)
 }
