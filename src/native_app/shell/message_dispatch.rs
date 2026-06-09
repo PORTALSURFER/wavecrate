@@ -49,6 +49,7 @@ impl NativeAppState {
             emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
         }
         if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
+            self.maybe_open_audio_player(context);
             self.play_waveform_from_ratio(start_ratio);
         }
     }
