@@ -14,11 +14,11 @@ fn audio_settings_texts(state: &crate::native_app::test_support::NativeAppState)
 #[test]
 fn audio_backend_dropdown_renders_expanded_host_options() {
     let mut state = gui_state_for_span_tests();
-    state.audio_settings_error = None;
+    state.audio.settings_error = None;
     state
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
-    state.audio_hosts = vec![
+    state.audio.hosts = vec![
         crate::native_app::test_support::AudioHostSummary {
             id: String::from("wasapi"),
             label: String::from("WASAPI"),
@@ -47,11 +47,11 @@ fn audio_backend_dropdown_renders_expanded_host_options() {
 #[test]
 fn audio_output_dropdown_renders_expanded_device_options() {
     let mut state = gui_state_for_span_tests();
-    state.audio_settings_error = None;
+    state.audio.settings_error = None;
     state
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Output);
-    state.audio_devices = vec![crate::native_app::test_support::AudioDeviceSummary {
+    state.audio.devices = vec![crate::native_app::test_support::AudioDeviceSummary {
         host_id: String::from("asio"),
         name: String::from("Studio Out"),
         is_default: true,
@@ -69,11 +69,11 @@ fn audio_output_dropdown_renders_expanded_device_options() {
 #[test]
 fn audio_sample_rate_dropdown_renders_expanded_rate_options() {
     let mut state = gui_state_for_span_tests();
-    state.audio_settings_error = None;
+    state.audio.settings_error = None;
     state
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::SampleRate);
-    state.audio_sample_rates = vec![44_100, 48_000];
+    state.audio.sample_rates = vec![44_100, 48_000];
 
     let texts = audio_settings_texts(&state);
 
@@ -88,8 +88,8 @@ fn audio_sample_rate_dropdown_renders_expanded_rate_options() {
 #[test]
 fn audio_backend_dropdown_overlay_does_not_reflow_later_sections() {
     let mut state = gui_state_for_span_tests();
-    state.audio_settings_error = None;
-    state.audio_hosts = vec![
+    state.audio.settings_error = None;
+    state.audio.hosts = vec![
         crate::native_app::test_support::AudioHostSummary {
             id: String::from("wasapi"),
             label: String::from("WASAPI"),

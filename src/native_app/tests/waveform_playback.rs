@@ -1,9 +1,24 @@
 use super::*;
 
+static WAVEFORM_CONFIG_BASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn set_waveform_test_config_base(
+    path: PathBuf,
+) -> (
+    std::sync::MutexGuard<'static, ()>,
+    wavecrate::app_dirs::ConfigBaseGuard,
+) {
+    let lock = WAVEFORM_CONFIG_BASE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let guard = wavecrate::app_dirs::ConfigBaseGuard::set(path);
+    (lock, guard)
+}
+
 #[test]
 fn looped_waveform_click_resolves_to_full_sample_without_playmark() {
     let mut state = gui_state_for_span_tests();
-    state.loop_playback = true;
+    state.audio.loop_playback = true;
 
     let span = state.resolve_playback_span(0.45, 1.0, None);
 
@@ -15,7 +30,7 @@ fn looped_waveform_click_resolves_to_full_sample_without_playmark() {
 #[test]
 fn looped_waveform_click_resolves_to_playmark_span_when_selected() {
     let mut state = gui_state_for_span_tests();
-    state.loop_playback = true;
+    state.audio.loop_playback = true;
     state
         .waveform
         .apply_interaction(WaveformInteraction::BeginSelection {
@@ -103,18 +118,19 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
         return;
     };
     let mut state = gui_state_for_span_tests();
-    state.audio_player = Some(player);
-    state.loop_playback = true;
+    state.audio.player = Some(player);
+    state.audio.loop_playback = true;
 
     let mut context = ui::UpdateContext::default();
     state.play_random_sample_range_with_unit(0.5, &mut context);
 
-    assert!(!state.loop_playback);
+    assert!(!state.audio.loop_playback);
     assert!(state.waveform.is_playing());
-    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
     assert!(
         state
-            .audio_player
+            .audio
+            .player
             .as_ref()
             .is_some_and(|player| !player.is_looping())
     );
@@ -127,14 +143,14 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
     let path = PathBuf::from(&selected_file);
     write_test_wav_i16(&path, &[0, 1024, -2048, 4096, -1024, 512]);
     state.waveform = crate::native_app::test_support::WaveformState::empty();
-    state.loop_playback = true;
+    state.audio.loop_playback = true;
     assert!(!state.waveform.has_loaded_sample());
 
     let mut context = ui::UpdateContext::default();
     state.play_random_sample_range_with_unit(0.5, &mut context);
 
     assert!(matches!(
-        state.pending_sample_playback,
+        state.audio.pending_sample_playback,
         Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { unit })
             if (unit - 0.5).abs() < f32::EPSILON
     ));
@@ -157,13 +173,13 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
         &mut context,
     );
 
-    assert_eq!(state.pending_sample_playback, None);
+    assert_eq!(state.audio.pending_sample_playback, None);
     assert!(
-        state.pending_playback_start.is_some(),
+        state.audio.pending_playback_start.is_some(),
         "random audition should request playback even when the audio device is still opening"
     );
     assert!(
-        !state.loop_playback,
+        !state.audio.loop_playback,
         "random audition should remain one-shot after the selected sample loads"
     );
     assert!(
@@ -243,15 +259,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         source_watcher: None,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
-        audio_player: None,
-        loop_playback: false,
-        volume: crate::native_app::test_support::DEFAULT_VOLUME,
-        volume_persist_deadline: None,
-        audio_output_config: crate::native_app::test_support::AudioOutputConfig::default(),
-        audio_output_resolved: None,
-        audio_hosts: Vec::new(),
-        audio_devices: Vec::new(),
-        audio_sample_rates: Vec::new(),
+        audio: crate::native_app::test_support::AudioAppState::for_tests(),
         persisted_settings: crate::native_app::test_support::AppSettingsCore::default(),
         audio_settings_open: false,
         app_settings_tab: Default::default(),
@@ -262,11 +270,6 @@ fn sample_selection_loads_selected_file_into_waveform() {
         transaction_restoring: false,
         context_menu: None,
         waveform_loading_label: None,
-        audio_settings_error: None,
-        current_playback_span: None,
-        pending_playback_start: None,
-        pending_sample_playback: None,
-        early_sample_playback_path: None,
         native_file_drop_hover: None,
         pending_internal_file_drag_paths: Default::default(),
         metadata_tag_draft: String::new(),
@@ -454,14 +457,14 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
     state.waveform = crate::native_app::test_support::WaveformState::load_path(current_path)
         .expect("current sample loads");
     state.waveform.start_playback(0.25);
-    state.current_playback_span = Some((0.25, 1.0));
+    state.audio.current_playback_span = Some((0.25, 1.0));
 
     let mut context = ui::UpdateContext::default();
     state.load_sample_without_autoplay(cached_path_string, &mut context);
 
     assert_eq!(state.waveform.path(), cached_path);
     assert!(!state.waveform.is_playing());
-    assert_eq!(state.current_playback_span, None);
+    assert_eq!(state.audio.current_playback_span, None);
     assert!(
         state
             .background
@@ -515,7 +518,7 @@ fn active_folder_cache_warm_uses_lower_priority_than_selected_sample_load() {
 #[test]
 fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     let mut state = gui_state_for_span_tests();
-    assert!(state.audio_player.is_none());
+    assert!(state.audio.player.is_none());
     assert!(state.background.audio_open_task.active().is_none());
 
     let mut context = ui::UpdateContext::default();
@@ -573,7 +576,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     let sample_path_string = sample_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
-    state.audio_player = Some(player);
+    state.audio.player = Some(player);
     state.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
@@ -620,10 +623,10 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     );
 
     assert_eq!(
-        state.early_sample_playback_path.as_deref(),
+        state.audio.early_sample_playback_path.as_deref(),
         Some(sample_path_string.as_str())
     );
-    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
     assert!(
         !state.waveform.is_playing(),
         "waveform visuals should wait for full waveform completion"
@@ -643,9 +646,9 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         &mut context,
     );
 
-    assert_eq!(state.early_sample_playback_path, None);
+    assert_eq!(state.audio.early_sample_playback_path, None);
     assert!(state.waveform.is_playing());
-    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
 }
 
 #[test]
@@ -699,8 +702,8 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         &mut context,
     );
 
-    assert_eq!(state.early_sample_playback_path, None);
-    assert_eq!(state.current_playback_span, None);
+    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.current_playback_span, None);
     assert!(
         !state.sample_status.contains("Playing"),
         "stale playback-ready messages must not start old selection audio"
@@ -878,7 +881,7 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     }
 
     let mut state = gui_state_for_span_tests();
-    state.audio_player = Some(player);
+    state.audio.player = Some(player);
     state.folder_browser =
         crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
@@ -909,7 +912,7 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
         state.waveform.is_playing(),
         "resident waveform should audition immediately during keyboard navigation"
     );
-    assert_eq!(state.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
     assert!(
         state
             .background
@@ -1064,7 +1067,8 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
 #[test]
 fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("cached.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1128,7 +1132,8 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
 #[test]
 fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("warm-before-click.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1207,7 +1212,8 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
 #[test]
 fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");
     fs::create_dir_all(&folder).expect("create folder");
@@ -1257,7 +1263,8 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
 #[test]
 fn folder_activation_delays_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");
     fs::create_dir_all(&folder).expect("create folder");
@@ -1296,7 +1303,8 @@ fn folder_activation_delays_active_folder_cache_warm() {
 #[test]
 fn changing_folder_cancels_previous_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let first_folder = source_root.path().join("first-folder");
     let second_folder = source_root.path().join("second-folder");
@@ -1353,7 +1361,8 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
 #[test]
 fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("uncached-warm.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1378,7 +1387,8 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
 #[test]
 fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("summary-only.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1413,7 +1423,8 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
 #[test]
 fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("summary-only-click.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1461,7 +1472,8 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
 #[test]
 fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("summary-only-warm.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1499,7 +1511,8 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
 #[test]
 fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
     let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("fresh-cache.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
@@ -1587,7 +1600,7 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
         return;
     };
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_player = Some(player);
+    state.audio.player = Some(player);
     let sample_path = first_visible_asset_file_path(&state.folder_browser);
     state.waveform = crate::native_app::test_support::WaveformState::load_path(sample_path.into())
         .expect("test sample loads");
@@ -1607,22 +1620,24 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
         .apply_interaction(WaveformInteraction::FinishSelection {
             visible_ratio: 0.60,
         });
-    state.loop_playback = true;
+    state.audio.loop_playback = true;
 
     let mut context = ui::UpdateContext::default();
     state.play_selected_sample(&mut context);
 
     assert!(state.waveform.is_playing());
     assert_eq!(state.waveform.play_mark_ratio(), Some(0.25));
-    assert_eq!(state.current_playback_span, Some((0.25, 0.6)));
+    assert_eq!(state.audio.current_playback_span, Some((0.25, 0.6)));
     assert!(
         state
-            .audio_player
+            .audio
+            .player
             .as_ref()
             .is_some_and(|player| player.is_looping())
     );
     let progress = state
-        .audio_player
+        .audio
+        .player
         .as_ref()
         .and_then(|player| player.progress())
         .expect("playback progress");
@@ -1638,11 +1653,11 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
         return;
     };
     let mut state = gui_state_for_span_tests();
-    state.audio_player = Some(player);
+    state.audio.player = Some(player);
     let sample_path = first_visible_asset_file_path(&state.folder_browser);
     state.waveform = crate::native_app::test_support::WaveformState::load_path(sample_path.into())
         .expect("test sample loads");
-    state.loop_playback = true;
+    state.audio.loop_playback = true;
     state
         .start_playback_current_span(0.0, 1.0)
         .expect("full sample loop starts");
@@ -1679,7 +1694,8 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
     assert_player_progress_inside_span(&state, 0.25, 0.60);
     assert!(
         state
-            .audio_player
+            .audio
+            .player
             .as_ref()
             .is_some_and(|player| player.is_looping())
     );
@@ -1717,6 +1733,7 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
 
 fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expected_end: f32) {
     let (start, end) = state
+        .audio
         .current_playback_span
         .expect("current playback span should be set");
     assert!(
@@ -1731,7 +1748,8 @@ fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expec
 
 fn assert_player_progress_inside_span(state: &NativeAppState, start: f32, end: f32) {
     let progress = state
-        .audio_player
+        .audio
+        .player
         .as_ref()
         .and_then(|player| player.progress())
         .expect("audio player progress should be available");

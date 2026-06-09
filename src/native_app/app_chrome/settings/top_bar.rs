@@ -16,7 +16,7 @@ const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     ui::row([
-        volume_slider(state.volume),
+        volume_slider(state.audio.volume),
         ui::spacer().fill_width().height(20.0),
         ui::row([
             audio_engine_pill(

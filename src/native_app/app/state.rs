@@ -70,15 +70,7 @@ pub(in crate::native_app) struct NativeAppState {
     // AudioAppState owns player/runtime playback state, output configuration,
     // resolved device state, discovered hosts/devices/rates, volume persistence,
     // pending playback coordination, and audio-domain settings errors.
-    pub(in crate::native_app) audio_player: Option<AudioPlayer>,
-    pub(in crate::native_app) loop_playback: bool,
-    pub(in crate::native_app) volume: f32,
-    pub(in crate::native_app) volume_persist_deadline: Option<Instant>,
-    pub(in crate::native_app) audio_output_config: AudioOutputConfig,
-    pub(in crate::native_app) audio_output_resolved: Option<ResolvedOutput>,
-    pub(in crate::native_app) audio_hosts: Vec<AudioHostSummary>,
-    pub(in crate::native_app) audio_devices: Vec<AudioDeviceSummary>,
-    pub(in crate::native_app) audio_sample_rates: Vec<u32>,
+    pub(in crate::native_app) audio: AudioAppState,
     pub(in crate::native_app) persisted_settings: AppSettingsCore,
 
     // SettingsUiState owns settings-window presentation state only. Durable
@@ -96,11 +88,6 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) transaction_restoring: bool,
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::native_app) waveform_loading_label: Option<String>,
-    pub(in crate::native_app) audio_settings_error: Option<String>,
-    pub(in crate::native_app) current_playback_span: Option<(f32, f32)>,
-    pub(in crate::native_app) pending_playback_start: Option<PendingPlaybackStart>,
-    pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
-    pub(in crate::native_app) early_sample_playback_path: Option<String>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
 
@@ -190,5 +177,48 @@ impl BackgroundTaskState {
     #[cfg(test)]
     pub(in crate::native_app) fn for_tests() -> Self {
         Self::new(std::sync::mpsc::channel().0, None)
+    }
+}
+
+pub(in crate::native_app) struct AudioAppState {
+    pub(in crate::native_app) player: Option<AudioPlayer>,
+    pub(in crate::native_app) loop_playback: bool,
+    pub(in crate::native_app) volume: f32,
+    pub(in crate::native_app) volume_persist_deadline: Option<Instant>,
+    pub(in crate::native_app) output_config: AudioOutputConfig,
+    pub(in crate::native_app) output_resolved: Option<ResolvedOutput>,
+    pub(in crate::native_app) hosts: Vec<AudioHostSummary>,
+    pub(in crate::native_app) devices: Vec<AudioDeviceSummary>,
+    pub(in crate::native_app) sample_rates: Vec<u32>,
+    pub(in crate::native_app) settings_error: Option<String>,
+    pub(in crate::native_app) current_playback_span: Option<(f32, f32)>,
+    pub(in crate::native_app) pending_playback_start: Option<PendingPlaybackStart>,
+    pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
+    pub(in crate::native_app) early_sample_playback_path: Option<String>,
+}
+
+impl AudioAppState {
+    pub(in crate::native_app) fn from_settings(settings: &AppSettingsCore) -> Self {
+        Self {
+            player: None,
+            loop_playback: false,
+            volume: settings.volume.clamp(0.0, 1.0),
+            volume_persist_deadline: None,
+            output_config: settings.audio_output.clone(),
+            output_resolved: None,
+            hosts: Vec::new(),
+            devices: Vec::new(),
+            sample_rates: Vec::new(),
+            settings_error: None,
+            current_playback_span: None,
+            pending_playback_start: None,
+            pending_sample_playback: None,
+            early_sample_playback_path: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn for_tests() -> Self {
+        Self::from_settings(&AppSettingsCore::default())
     }
 }

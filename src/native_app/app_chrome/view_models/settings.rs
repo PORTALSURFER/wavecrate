@@ -22,12 +22,12 @@ impl AudioSettingsSnapshot {
             tab: state.app_settings_tab,
             trash_folder: state.persisted_settings.trash_folder.clone(),
             detail_label: state.audio_engine_detail_label(),
-            error: state.audio_settings_error.clone(),
-            audio_output_config: state.audio_output_config.clone(),
+            error: state.audio.settings_error.clone(),
+            audio_output_config: state.audio.output_config.clone(),
             open_dropdown: state.audio_settings_dropdown.current().copied(),
-            audio_hosts: state.audio_hosts.clone(),
-            audio_devices: state.audio_devices.clone(),
-            audio_sample_rates: state.audio_sample_rates.clone(),
+            audio_hosts: state.audio.hosts.clone(),
+            audio_devices: state.audio.devices.clone(),
+            audio_sample_rates: state.audio.sample_rates.clone(),
         }
     }
 

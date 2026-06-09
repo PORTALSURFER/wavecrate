@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 #[test]
 fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
+    state.audio.output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
         host_id: String::from("wasapi"),
         device_name: String::from("Studio"),
         sample_rate: 48_000,
@@ -39,8 +39,8 @@ fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 #[test]
 fn top_control_bar_shows_no_audio_when_output_is_unavailable() {
     let mut state = gui_state_for_span_tests();
-    state.audio_output_config.sample_rate = Some(48_000);
-    state.audio_output_resolved = None;
+    state.audio.output_config.sample_rate = Some(48_000);
+    state.audio.output_resolved = None;
 
     let frame = crate::native_app::test_support::top_control_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
@@ -81,10 +81,10 @@ fn default_gui_volume_state_clamps() {
     let mut state = NativeAppState::load_default().expect("default state loads");
 
     state.set_volume(1.5);
-    assert_eq!(state.volume, 1.0);
+    assert_eq!(state.audio.volume, 1.0);
 
     state.set_volume(-0.5);
-    assert_eq!(state.volume, 0.0);
+    assert_eq!(state.audio.volume, 0.0);
 }
 
 #[test]
@@ -100,14 +100,14 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
     assert!(
         (loaded.core.volume - crate::native_app::test_support::DEFAULT_VOLUME).abs() < f32::EPSILON
     );
-    assert!(state.volume_persist_deadline.is_some());
+    assert!(state.audio.volume_persist_deadline.is_some());
 
-    state.volume_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
+    state.audio.volume_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
     state.advance_frame();
 
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
     assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
-    assert!(state.volume_persist_deadline.is_none());
+    assert!(state.audio.volume_persist_deadline.is_none());
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn settings_auxiliary_window_is_cached_after_native_close() {
 #[test]
 fn audio_settings_snapshot_uses_cached_device_options() {
     let mut state = gui_state_for_span_tests();
-    state.audio_hosts = vec![crate::native_app::test_support::AudioHostSummary {
+    state.audio.hosts = vec![crate::native_app::test_support::AudioHostSummary {
         id: String::from("cached-host"),
         label: String::from("Cached Host"),
         is_default: true,
@@ -230,8 +230,8 @@ fn audio_settings_snapshot_uses_cached_device_options() {
 #[test]
 fn audio_engine_detail_distinguishes_selected_host_from_runtime_fallback() {
     let mut state = gui_state_for_span_tests();
-    state.audio_output_config.host = Some(String::from("asio"));
-    state.audio_hosts = vec![
+    state.audio.output_config.host = Some(String::from("asio"));
+    state.audio.hosts = vec![
         crate::native_app::test_support::AudioHostSummary {
             id: String::from("wasapi"),
             label: String::from("WASAPI"),
@@ -243,7 +243,7 @@ fn audio_engine_detail_distinguishes_selected_host_from_runtime_fallback() {
             is_default: false,
         },
     ];
-    state.audio_output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
+    state.audio.output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
         host_id: String::from("wasapi"),
         device_name: String::from("Studio"),
         sample_rate: 48_000,
@@ -261,8 +261,8 @@ fn audio_engine_detail_distinguishes_selected_host_from_runtime_fallback() {
 #[test]
 fn audio_engine_pill_prefers_runtime_sample_rate() {
     let mut state = gui_state_for_span_tests();
-    state.audio_output_config.sample_rate = Some(44_100);
-    state.audio_output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
+    state.audio.output_config.sample_rate = Some(44_100);
+    state.audio.output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
         host_id: String::from("wasapi"),
         device_name: String::from("Studio"),
         sample_rate: 48_000,
@@ -277,7 +277,7 @@ fn audio_engine_pill_prefers_runtime_sample_rate() {
 #[test]
 fn audio_engine_pill_shows_no_audio_before_runtime_resolves() {
     let mut state = gui_state_for_span_tests();
-    state.audio_output_config.sample_rate = Some(44_100);
+    state.audio.output_config.sample_rate = Some(44_100);
 
     assert_eq!(state.audio_engine_pill_label(), "no audio");
 }
@@ -285,7 +285,7 @@ fn audio_engine_pill_shows_no_audio_before_runtime_resolves() {
 #[test]
 fn audio_engine_pill_uses_warning_style_without_runtime_output() {
     let mut state = gui_state_for_span_tests();
-    state.audio_output_config.sample_rate = Some(44_100);
+    state.audio.output_config.sample_rate = Some(44_100);
 
     assert_eq!(
         state.audio_engine_pill_style(),
@@ -296,7 +296,7 @@ fn audio_engine_pill_uses_warning_style_without_runtime_output() {
 #[test]
 fn audio_engine_pill_uses_neutral_style_with_runtime_output() {
     let mut state = gui_state_for_span_tests();
-    state.audio_output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
+    state.audio.output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
         host_id: String::from("wasapi"),
         device_name: String::from("Studio"),
         sample_rate: 48_000,
@@ -330,19 +330,19 @@ fn audio_sample_rate_label_matches_status_chip_format() {
 #[test]
 fn settings_window_shows_audio_engine_tab_controls() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_settings_error = None;
+    state.audio.settings_error = None;
     state.app_settings_tab = crate::native_app::test_support::AppSettingsTab::AudioEngine;
-    state.audio_hosts = vec![crate::native_app::test_support::AudioHostSummary {
+    state.audio.hosts = vec![crate::native_app::test_support::AudioHostSummary {
         id: String::from("asio"),
         label: String::from("ASIO"),
         is_default: false,
     }];
-    state.audio_devices = vec![crate::native_app::test_support::AudioDeviceSummary {
+    state.audio.devices = vec![crate::native_app::test_support::AudioDeviceSummary {
         host_id: String::from("asio"),
         name: String::from("Studio Out"),
         is_default: true,
     }];
-    state.audio_sample_rates = vec![44_100, 48_000];
+    state.audio.sample_rates = vec![44_100, 48_000];
     let frame = crate::native_app::test_support::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
     let texts = frame.paint_plan.text_label_strings();
@@ -366,7 +366,7 @@ fn settings_window_shows_audio_engine_tab_controls() {
 #[test]
 fn settings_window_general_tab_shows_general_controls() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_settings_error = None;
+    state.audio.settings_error = None;
     state.app_settings_tab = crate::native_app::test_support::AppSettingsTab::General;
     state.persisted_settings.trash_folder = Some(std::path::PathBuf::from("C:\\Wavecrate Trash"));
 

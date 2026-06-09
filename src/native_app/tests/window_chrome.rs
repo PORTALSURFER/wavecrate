@@ -91,7 +91,7 @@ fn default_window_title_marks_alpha_build() {
 #[test]
 fn audio_settings_popover_opens_as_centered_floating_window() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_settings_error = None;
+    state.audio.settings_error = None;
     let frame = crate::native_app::test_support::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
     assert!(frame.paint_plan.contains_text("Settings"));

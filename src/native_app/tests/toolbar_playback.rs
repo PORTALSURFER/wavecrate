@@ -96,7 +96,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
 
-    state.loop_playback = true;
+    state.audio.loop_playback = true;
     state.waveform = crate::native_app::test_support::WaveformState::synthetic_for_tests();
     state.waveform.start_playback(0.25);
 
@@ -201,7 +201,7 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     );
     assert!(
         matches!(
-            runtime.bridge().state().pending_sample_playback,
+            runtime.bridge().state().audio.pending_sample_playback,
             Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { .. })
         ),
         "random toolbar click should preserve random-audition intent while the browser sample loads"
@@ -289,7 +289,7 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
 
     assert!(
         matches!(
-            runtime.bridge().state().pending_sample_playback,
+            runtime.bridge().state().audio.pending_sample_playback,
             Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { .. })
         ),
         "random toolbar click should preserve random-audition intent while the selected sample loads"

@@ -71,18 +71,19 @@ impl NativeAppState {
         let normalizing_loaded = paths.iter().any(|path| path == &loaded_path);
         let was_playing = self.waveform.is_playing() && normalizing_loaded;
         let restart_ratio = self
-            .audio_player
+            .audio
+            .player
             .as_ref()
             .and_then(AudioPlayer::progress)
             .or(self.waveform.playhead_ratio())
             .unwrap_or(0.0);
-        let restart_span = self.current_playback_span;
+        let restart_span = self.audio.current_playback_span;
         if was_playing {
-            if let Some(player) = self.audio_player.as_mut() {
+            if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
             self.waveform.stop_playback();
-            self.current_playback_span = None;
+            self.audio.current_playback_span = None;
         }
 
         let task_id = self.background.next_task_id();

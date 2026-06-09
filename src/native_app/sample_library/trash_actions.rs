@@ -216,22 +216,22 @@ impl NativeAppState {
 
     fn clear_loaded_sample_if_exact(&mut self, path: &Path) {
         if self.waveform.path() == path {
-            if let Some(player) = self.audio_player.as_mut() {
+            if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
             self.waveform = WaveformState::empty();
-            self.current_playback_span = None;
+            self.audio.current_playback_span = None;
         }
     }
 
     fn clear_loaded_sample_if_path_within(&mut self, root: &Path) {
         let loaded_path = self.waveform.path();
         if !loaded_path.as_os_str().is_empty() && loaded_path.starts_with(root) {
-            if let Some(player) = self.audio_player.as_mut() {
+            if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
             self.waveform = WaveformState::empty();
-            self.current_playback_span = None;
+            self.audio.current_playback_span = None;
         }
     }
 }

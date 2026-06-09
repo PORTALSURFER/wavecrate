@@ -32,13 +32,13 @@ fn default_gui_loads_persisted_sources_and_audio_output() {
         "uncached configured sources should scan once to build the initial tree"
     );
     assert!(!state.startup_folder_verify_pending);
-    assert_eq!(state.audio_output_config.host.as_deref(), Some("test-host"));
+    assert_eq!(state.audio.output_config.host.as_deref(), Some("test-host"));
     assert_eq!(
-        state.audio_output_config.device.as_deref(),
+        state.audio.output_config.device.as_deref(),
         Some("Test Device")
     );
-    assert_eq!(state.audio_output_config.sample_rate, Some(48_000));
-    assert!((state.volume - 0.42).abs() < f32::EPSILON);
+    assert_eq!(state.audio.output_config.sample_rate, Some(48_000));
+    assert!((state.audio.volume - 0.42).abs() < f32::EPSILON);
 }
 
 #[test]
@@ -133,13 +133,13 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let mut state = gui_state_for_span_tests();
-    state.audio_output_config = crate::native_app::test_support::AudioOutputConfig {
+    state.audio.output_config = crate::native_app::test_support::AudioOutputConfig {
         host: Some(String::from("wasapi")),
         device: Some(String::from("Interface")),
         sample_rate: Some(96_000),
         buffer_size: None,
     };
-    state.volume = 0.5;
+    state.audio.volume = 0.5;
 
     let request = state
         .folder_browser

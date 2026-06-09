@@ -11,7 +11,7 @@ impl MainToolbarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         Self {
             random_available: state.random_playback_available(),
-            loop_playback: state.loop_playback,
+            loop_playback: state.audio.loop_playback,
             playing: state.waveform.is_playing(),
         }
     }

@@ -56,7 +56,7 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
-        if let Some(player) = self.audio_player.as_ref() {
+        if let Some(player) = self.audio.player.as_ref() {
             player.set_edit_fade_state(wavecrate::audio::edit_fade_range_from_selection(
                 self.waveform.edit_selection(),
             ));
@@ -64,7 +64,7 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn refresh_playback_progress(&mut self) {
-        let Some(player) = self.audio_player.as_mut() else {
+        let Some(player) = self.audio.player.as_mut() else {
             return;
         };
         if let Some(error) = player.take_error() {
@@ -76,7 +76,7 @@ impl NativeAppState {
         let elapsed = player.playback_elapsed();
         let player_looping = player.is_looping();
         let progress = player.progress();
-        let should_be_looping = self.loop_playback && self.waveform.is_playing();
+        let should_be_looping = self.audio.loop_playback && self.waveform.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
 
@@ -150,9 +150,9 @@ impl NativeAppState {
             "loop_source_inactive"
         };
         if let Err(err) = self.recover_loop_playback(reason) {
-            self.loop_playback = false;
+            self.audio.loop_playback = false;
             self.waveform.stop_playback();
-            self.current_playback_span = None;
+            self.audio.current_playback_span = None;
             self.sample_status = format!("Loop playback stopped: {err}");
             emit_gui_action(
                 "playback.loop.recover",
@@ -168,7 +168,7 @@ impl NativeAppState {
     fn finish_playback_progress(&mut self) {
         let started_at = Instant::now();
         self.waveform.stop_playback();
-        self.current_playback_span = None;
+        self.audio.current_playback_span = None;
         emit_gui_action(
             "playback.progress",
             Some("transport"),
@@ -192,7 +192,7 @@ impl FrameRepaintScopeSnapshot {
             audio_opening: state.background.audio_open_task.active().is_some(),
             startup_source_scan_pending: state.startup_source_scan_pending,
             startup_auto_load_pending: state.startup_auto_load_pending,
-            pending_playback_start: state.pending_playback_start.is_some(),
+            pending_playback_start: state.audio.pending_playback_start.is_some(),
         }
     }
 

@@ -62,7 +62,7 @@ impl NativeAppState {
             self.cancel_metadata_tag_entry();
             self.selected_metadata_tag = None;
         }
-        self.pending_sample_playback = None;
+        self.audio.pending_sample_playback = None;
         self.load_sample(path, context);
     }
 
@@ -79,7 +79,7 @@ impl NativeAppState {
             self.cancel_metadata_tag_entry();
             self.selected_metadata_tag = None;
         }
-        self.pending_sample_playback = None;
+        self.audio.pending_sample_playback = None;
         self.load_sample(path, context);
     }
 
@@ -88,7 +88,7 @@ impl NativeAppState {
         path: String,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        self.pending_sample_playback = None;
+        self.audio.pending_sample_playback = None;
         self.load_sample_with_autoplay(path, context, true);
     }
 
@@ -132,7 +132,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         self.cancel_inflight_sample_load();
-        self.pending_sample_playback = None;
+        self.audio.pending_sample_playback = None;
         self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
@@ -209,7 +209,7 @@ impl NativeAppState {
                     None,
                 );
             }
-            Err(err) if self.pending_playback_start.is_some() => {
+            Err(err) if self.audio.pending_playback_start.is_some() => {
                 self.sample_status = format!("Playing {file_name} when audio output is ready");
                 emit_gui_action(
                     "browser.select_sample",
@@ -275,15 +275,15 @@ impl NativeAppState {
     }
 
     fn stop_current_sample_playback_for_load(&mut self) {
-        if !self.waveform.is_playing() && self.early_sample_playback_path.is_none() {
+        if !self.waveform.is_playing() && self.audio.early_sample_playback_path.is_none() {
             return;
         }
-        if let Some(player) = self.audio_player.as_mut() {
+        if let Some(player) = self.audio.player.as_mut() {
             player.stop();
         }
         self.waveform.stop_playback();
-        self.current_playback_span = None;
-        self.early_sample_playback_path = None;
+        self.audio.current_playback_span = None;
+        self.audio.early_sample_playback_path = None;
     }
 
     fn start_loaded_navigation_sample(
@@ -310,7 +310,7 @@ impl NativeAppState {
                     None,
                 );
             }
-            Err(err) if self.pending_playback_start.is_some() => {
+            Err(err) if self.audio.pending_playback_start.is_some() => {
                 self.sample_status = format!("Playing {file_name} when audio output is ready");
                 emit_gui_action(
                     "browser.select_sample",
@@ -387,7 +387,7 @@ impl NativeAppState {
         if !self.background.deferred_sample_load_task.finish(ticket)
             || self.folder_browser.selected_file_id() != Some(path.as_str())
         {
-            self.pending_sample_playback = None;
+            self.audio.pending_sample_playback = None;
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -552,7 +552,7 @@ impl NativeAppState {
         let load = load.output;
         let label = sample_path_label(load.path.as_str());
         if !self.background.sample_load_task.finish(ticket) {
-            self.pending_sample_playback = None;
+            self.audio.pending_sample_playback = None;
             emit_gui_action(
                 "browser.sample_load.finish",
                 Some("browser"),
@@ -637,7 +637,7 @@ impl NativeAppState {
                 }
             }
             Err(err) => {
-                self.pending_sample_playback = None;
+                self.audio.pending_sample_playback = None;
                 self.sample_status = format!("Could not load sample: {err}");
                 emit_gui_action(
                     "browser.sample_load.finish",
@@ -675,7 +675,7 @@ impl NativeAppState {
         if !ready.autoplay {
             return;
         }
-        let Some(player) = self.audio_player.as_mut() else {
+        let Some(player) = self.audio.player.as_mut() else {
             emit_gui_action(
                 "browser.sample_load.playback_ready",
                 Some("browser"),
@@ -688,8 +688,8 @@ impl NativeAppState {
         };
         let duration = ready.audio.frames as f32 / ready.audio.sample_rate.max(1) as f32;
         let output_setup_started_at = Instant::now();
-        player.set_volume(self.volume);
-        self.audio_output_resolved = Some(player.output_details().clone());
+        player.set_volume(self.audio.volume);
+        self.audio.output_resolved = Some(player.output_details().clone());
         log_slow_sample_load_phase(
             "browser.sample_load.playback_ready.output_setup",
             &label,
@@ -711,8 +711,8 @@ impl NativeAppState {
         let play_started_at = Instant::now();
         match player.play_range(0.0, 1.0, false) {
             Ok(()) => {
-                self.early_sample_playback_path = Some(ready.path);
-                self.current_playback_span = Some((0.0, 1.0));
+                self.audio.early_sample_playback_path = Some(ready.path);
+                self.audio.current_playback_span = Some((0.0, 1.0));
                 self.sample_status = format!("Playing {label}");
                 log_slow_sample_load_phase(
                     "browser.sample_load.playback_ready.player_play",
@@ -729,8 +729,8 @@ impl NativeAppState {
                 );
             }
             Err(err) => {
-                self.early_sample_playback_path = None;
-                self.current_playback_span = None;
+                self.audio.early_sample_playback_path = None;
+                self.audio.current_playback_span = None;
                 self.sample_status = format!("Loaded {label} | playback unavailable: {err}");
                 emit_gui_action(
                     "browser.sample_load.playback_ready",
@@ -750,17 +750,18 @@ impl NativeAppState {
         file_name: &str,
         started_at: Instant,
     ) -> bool {
-        if self.early_sample_playback_path.as_deref() != Some(path) {
+        if self.audio.early_sample_playback_path.as_deref() != Some(path) {
             return false;
         }
         let progress = self
-            .audio_player
+            .audio
+            .player
             .as_ref()
             .and_then(|player| player.progress())
             .unwrap_or(0.0);
         self.waveform.start_playback(progress);
-        self.current_playback_span = Some((0.0, 1.0));
-        self.early_sample_playback_path = None;
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.early_sample_playback_path = None;
         self.sample_status = format!("Playing {file_name}");
         emit_gui_action(
             "browser.sample_load.finish",
@@ -774,14 +775,14 @@ impl NativeAppState {
     }
 
     fn start_pending_sample_playback(&mut self, file_name: &str, started_at: Instant) -> bool {
-        let Some(playback) = self.pending_sample_playback.take() else {
+        let Some(playback) = self.audio.pending_sample_playback.take() else {
             return false;
         };
         match playback {
             PendingSamplePlayback::RandomAudition { unit } => {
                 let span = self.random_audition_span_for_loaded_waveform(unit);
-                let was_looping = self.loop_playback;
-                self.loop_playback = false;
+                let was_looping = self.audio.loop_playback;
+                self.audio.loop_playback = false;
                 match self.start_playback_current_span(span.start, span.end) {
                     Ok(()) => {
                         self.sample_status = span.status_message(file_name);
@@ -795,8 +796,8 @@ impl NativeAppState {
                         );
                     }
                     Err(err) => {
-                        if self.pending_playback_start.is_none() {
-                            self.loop_playback = was_looping;
+                        if self.audio.pending_playback_start.is_none() {
+                            self.audio.loop_playback = was_looping;
                         }
                         self.sample_status = format!("Playback unavailable: {err}");
                         emit_gui_action(
@@ -820,13 +821,13 @@ impl NativeAppState {
             token.cancel();
         }
         self.background.sample_load_task.cancel();
-        if self.early_sample_playback_path.is_some() {
-            if let Some(player) = self.audio_player.as_mut() {
+        if self.audio.early_sample_playback_path.is_some() {
+            if let Some(player) = self.audio.player.as_mut() {
                 player.stop();
             }
-            self.current_playback_span = None;
+            self.audio.current_playback_span = None;
         }
-        self.early_sample_playback_path = None;
+        self.audio.early_sample_playback_path = None;
     }
 }
 

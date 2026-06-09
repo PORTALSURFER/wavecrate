@@ -1,6 +1,6 @@
 use crate::native_app::app::{
-    BackgroundTaskState, FolderBrowserState, GuiMessage, NativeAppState, SampleNameViewMode,
-    WaveformState, sample_path_label,
+    AudioAppState, BackgroundTaskState, FolderBrowserState, GuiMessage, NativeAppState,
+    SampleNameViewMode, WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
@@ -34,6 +34,7 @@ impl NativeAppState {
             )
         });
         let background = BackgroundTaskState::new(worker_sender, Some(worker_receiver));
+        let audio = AudioAppState::from_settings(&config.core);
         let state = Self {
             folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
             folder_browser,
@@ -45,15 +46,7 @@ impl NativeAppState {
             source_watcher,
             waveform_loading_progress: 0.0,
             waveform_loading_target_progress: 0.0,
-            audio_player: None,
-            loop_playback: false,
-            volume: config.core.volume.clamp(0.0, 1.0),
-            volume_persist_deadline: None,
-            audio_output_config: config.core.audio_output.clone(),
-            audio_output_resolved: None,
-            audio_hosts: Vec::new(),
-            audio_devices: Vec::new(),
-            audio_sample_rates: Vec::new(),
+            audio,
             persisted_settings: config.core.clone(),
             audio_settings_open: false,
             app_settings_tab: Default::default(),
@@ -64,11 +57,6 @@ impl NativeAppState {
             transaction_restoring: false,
             context_menu: None,
             waveform_loading_label: None,
-            audio_settings_error: None,
-            current_playback_span: None,
-            pending_playback_start: None,
-            pending_sample_playback: None,
-            early_sample_playback_path: None,
             native_file_drop_hover: None,
             pending_internal_file_drag_paths: Default::default(),
             metadata_tag_draft: String::new(),
@@ -140,7 +128,7 @@ impl NativeAppState {
         match self.save_user_configuration() {
             Ok(()) => {
                 self.persisted_settings = self.current_settings_core();
-                self.volume_persist_deadline = None;
+                self.audio.volume_persist_deadline = None;
             }
             Err(error) => {
                 self.sample_status = format!("Settings not saved: {error}");
@@ -199,7 +187,7 @@ impl NativeAppState {
         let normalizing = self.background.normalization_progress.is_some();
         let waveform_loading = self.waveform_sample_load_active();
         let playing = self.waveform.is_playing();
-        let pending_playback = self.pending_playback_start.is_some();
+        let pending_playback = self.audio.pending_playback_start.is_some();
         let selected = self
             .folder_browser
             .selected_file_id()
@@ -280,8 +268,8 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn current_settings_core(&self) -> AppSettingsCore {
         AppSettingsCore {
-            audio_output: self.audio_output_config.clone(),
-            volume: self.volume,
+            audio_output: self.audio.output_config.clone(),
+            volume: self.audio.volume,
             tag_dictionary: self.metadata_tag_dictionary.clone(),
             ..self.persisted_settings.clone()
         }

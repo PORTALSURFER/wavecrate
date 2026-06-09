@@ -4,39 +4,39 @@ use radiant::prelude::{self as ui, IntoView};
 #[test]
 fn transaction_group_undoes_and_redoes_as_one_entry() {
     let mut state = gui_state_for_span_tests();
-    state.volume = 0.1;
+    state.audio.volume = 0.1;
     state.begin_transaction("Grouped edit");
     state.register_transaction_action(
         "first",
         |state| {
-            state.volume = 0.1;
+            state.audio.volume = 0.1;
             Ok(())
         },
         |state| {
-            state.volume = 0.4;
+            state.audio.volume = 0.4;
             Ok(())
         },
     );
     state.register_transaction_action(
         "second",
         |state| {
-            state.volume = 0.4;
+            state.audio.volume = 0.4;
             Ok(())
         },
         |state| {
-            state.volume = 0.8;
+            state.audio.volume = 0.8;
             Ok(())
         },
     );
     assert!(state.commit_transaction());
 
-    state.volume = 0.8;
+    state.audio.volume = 0.8;
     state.undo_transaction();
     assert_eq!(state.sample_status, "Undid Grouped edit");
-    assert_eq!(state.volume, 0.1);
+    assert_eq!(state.audio.volume, 0.1);
     state.redo_transaction();
     assert_eq!(state.sample_status, "Redid Grouped edit");
-    assert_eq!(state.volume, 0.8);
+    assert_eq!(state.audio.volume, 0.8);
 }
 
 #[test]

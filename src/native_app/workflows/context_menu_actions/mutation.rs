@@ -51,11 +51,11 @@ impl NativeAppState {
         match self.folder_browser.remove_source(&source_id) {
             Ok(removed) => {
                 if path_is_within(&loaded_path, &removed.root) {
-                    if let Some(player) = self.audio_player.as_mut() {
+                    if let Some(player) = self.audio.player.as_mut() {
                         player.stop();
                     }
                     self.waveform = WaveformState::empty();
-                    self.current_playback_span = None;
+                    self.audio.current_playback_span = None;
                 }
                 self.sample_status = format!("Removed source {}", removed.label);
                 self.persist_user_configuration("folder_browser.source.remove.persist", started_at);

@@ -6,27 +6,27 @@ use super::{
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {
         let started_at = Instant::now();
-        self.loop_playback = !self.loop_playback;
+        self.audio.loop_playback = !self.audio.loop_playback;
         let mut outcome = "success";
         let mut error = None;
         if self.waveform.is_playing()
-            && let Some((start, end)) = self.current_playback_span
+            && let Some((start, end)) = self.audio.current_playback_span
         {
             let current = self.current_audio_progress_ratio().unwrap_or(start);
-            let result = if self.loop_playback {
+            let result = if self.audio.loop_playback {
                 self.start_playback_span(start, end, Some(current))
             } else {
                 self.start_playback_current_span(current.clamp(start, end), end)
             };
             if let Err(err) = result {
-                self.loop_playback = false;
+                self.audio.loop_playback = false;
                 self.sample_status = format!("Loop toggle failed: {err}");
                 outcome = "error";
                 error = Some(err);
             }
         }
         if outcome == "success" {
-            self.sample_status = if self.loop_playback {
+            self.sample_status = if self.audio.loop_playback {
                 String::from("Loop playback enabled")
             } else {
                 String::from("Loop playback disabled")
@@ -43,14 +43,15 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn current_audio_progress_ratio(&self) -> Option<f32> {
-        self.audio_player
+        self.audio
+            .player
             .as_ref()
             .and_then(AudioPlayer::progress)
             .or_else(|| self.waveform.playhead_ratio())
     }
 
     pub(super) fn recover_loop_playback(&mut self, reason: &'static str) -> Result<(), String> {
-        let Some((start, end)) = self.current_playback_span else {
+        let Some((start, end)) = self.audio.current_playback_span else {
             return Err(String::from("No active playback span to loop"));
         };
         let offset = self.current_audio_progress_ratio().unwrap_or(start);
@@ -67,7 +68,7 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn retarget_loop_playback_to_play_selection(&mut self) {
-        if !self.loop_playback || !self.waveform.is_playing() {
+        if !self.audio.loop_playback || !self.waveform.is_playing() {
             return;
         }
         let Some(selection) = self
@@ -77,7 +78,7 @@ impl NativeAppState {
         else {
             return;
         };
-        if playback_span_matches_selection(self.current_playback_span, selection) {
+        if playback_span_matches_selection(self.audio.current_playback_span, selection) {
             return;
         }
 

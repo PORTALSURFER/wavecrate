@@ -16,9 +16,9 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.audio_player.is_some()
+        if self.audio.player.is_some()
             || self.background.audio_open_task.active().is_some()
-            || self.audio_settings_error.is_some()
+            || self.audio.settings_error.is_some()
         {
             return;
         }
@@ -34,10 +34,10 @@ impl NativeAppState {
         }
         let started_at = Instant::now();
         let ticket = self.background.audio_open_task.begin();
-        let config = self.audio_output_config.clone();
-        let volume = self.volume;
+        let config = self.audio.output_config.clone();
+        let volume = self.audio.volume;
         let results = self.background.audio_open_results.clone();
-        self.audio_settings_error = None;
+        self.audio.settings_error = None;
         context.spawn_with_priority(
             "gui-audio-open",
             ui::TaskPriority::Interactive,
@@ -92,10 +92,10 @@ impl NativeAppState {
         match result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))) {
             Ok(player) => {
                 log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
-                self.audio_output_resolved = Some(player.output_details().clone());
-                self.audio_settings_error = None;
-                self.audio_player = Some(player);
-                let pending = self.pending_playback_start.take();
+                self.audio.output_resolved = Some(player.output_details().clone());
+                self.audio.settings_error = None;
+                self.audio.player = Some(player);
+                let pending = self.audio.pending_playback_start.take();
                 if let Some(pending) = pending {
                     match self.start_playback_span(
                         pending.start_ratio,
@@ -108,7 +108,7 @@ impl NativeAppState {
                         }
                         Err(err) => {
                             self.sample_status = format!("Playback unavailable: {err}");
-                            self.audio_settings_error = Some(err);
+                            self.audio.settings_error = Some(err);
                         }
                     }
                 }
@@ -123,10 +123,10 @@ impl NativeAppState {
             }
             Err(err) => {
                 log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
-                self.audio_settings_error = Some(err.clone());
-                self.audio_player = None;
-                self.audio_output_resolved = None;
-                self.pending_playback_start = None;
+                self.audio.settings_error = Some(err.clone());
+                self.audio.player = None;
+                self.audio.output_resolved = None;
+                self.audio.pending_playback_start = None;
                 emit_gui_action(
                     "audio.output.open",
                     Some("audio"),
@@ -141,19 +141,19 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn set_volume(&mut self, volume: f32) {
         let started_at = Instant::now();
-        let previous = volume_milli(self.volume);
-        self.volume = volume.clamp(0.0, 1.0);
-        if let Some(player) = self.audio_player.as_mut() {
-            player.set_volume(self.volume);
+        let previous = volume_milli(self.audio.volume);
+        self.audio.volume = volume.clamp(0.0, 1.0);
+        if let Some(player) = self.audio.player.as_mut() {
+            player.set_volume(self.audio.volume);
         }
-        if volume_milli(self.volume) == previous {
+        if volume_milli(self.audio.volume) == previous {
             return;
         }
-        self.volume_persist_deadline = Some(started_at + VOLUME_PERSIST_DEBOUNCE);
+        self.audio.volume_persist_deadline = Some(started_at + VOLUME_PERSIST_DEBOUNCE);
     }
 
     pub(in crate::native_app) fn flush_pending_volume_persist(&mut self) {
-        let Some(deadline) = self.volume_persist_deadline else {
+        let Some(deadline) = self.audio.volume_persist_deadline else {
             return;
         };
         if Instant::now() < deadline {
@@ -161,7 +161,7 @@ impl NativeAppState {
         }
         let started_at = Instant::now();
         self.persist_user_configuration("playback.volume.persist", started_at);
-        if self.volume_persist_deadline.is_none() {
+        if self.audio.volume_persist_deadline.is_none() {
             emit_gui_action(
                 "playback.volume.set",
                 Some("transport"),
@@ -226,7 +226,7 @@ impl NativeAppState {
         self.audio_settings_open = true;
         self.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();
-        self.audio_settings_error = None;
+        self.audio.settings_error = None;
     }
 
     pub(in crate::native_app) fn close_audio_settings_window(&mut self) {
@@ -252,24 +252,24 @@ impl NativeAppState {
     pub(in crate::native_app) fn set_audio_output_host(&mut self, host: Option<String>) {
         let started_at = Instant::now();
         self.close_audio_settings_dropdowns();
-        self.audio_output_config.host = host;
-        self.audio_output_config.device = None;
-        self.audio_output_config.sample_rate = None;
+        self.audio.output_config.host = host;
+        self.audio.output_config.device = None;
+        self.audio.output_config.sample_rate = None;
         self.apply_audio_output_config_change(started_at, "audio.output.host.set");
     }
 
     pub(in crate::native_app) fn set_audio_output_device(&mut self, device: Option<String>) {
         let started_at = Instant::now();
         self.close_audio_settings_dropdowns();
-        self.audio_output_config.device = device;
-        self.audio_output_config.sample_rate = None;
+        self.audio.output_config.device = device;
+        self.audio.output_config.sample_rate = None;
         self.apply_audio_output_config_change(started_at, "audio.output.device.set");
     }
 
     pub(in crate::native_app) fn set_audio_output_sample_rate(&mut self, sample_rate: Option<u32>) {
         let started_at = Instant::now();
         self.close_audio_settings_dropdowns();
-        self.audio_output_config.sample_rate = sample_rate;
+        self.audio.output_config.sample_rate = sample_rate;
         self.apply_audio_output_config_change(started_at, "audio.output.sample_rate.set");
     }
 
@@ -277,7 +277,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         match wavecrate::app_dirs::clear_rebuildable_cache_payloads() {
             Ok(path) => {
-                self.audio_settings_error = None;
+                self.audio.settings_error = None;
                 self.sample_status = format!("Rebuildable caches cleared: {}", path.display());
                 let target = path.display().to_string();
                 emit_gui_action(
@@ -290,7 +290,7 @@ impl NativeAppState {
                 );
             }
             Err(err) => {
-                self.audio_settings_error = Some(err.clone());
+                self.audio.settings_error = Some(err.clone());
                 self.sample_status = err.clone();
                 emit_gui_action(
                     "settings.cache.clear_rebuildable",
@@ -312,14 +312,14 @@ impl NativeAppState {
         let restart_span = self
             .waveform
             .is_playing()
-            .then_some(self.current_playback_span)
+            .then_some(self.audio.current_playback_span)
             .flatten();
-        if let Some(player) = self.audio_player.as_mut() {
+        if let Some(player) = self.audio.player.as_mut() {
             player.stop();
         }
         self.background.audio_open_task.cancel();
-        self.audio_player = None;
-        self.audio_output_resolved = None;
+        self.audio.player = None;
+        self.audio.output_resolved = None;
         self.refresh_audio_options();
 
         let mut outcome = "success";
@@ -329,7 +329,7 @@ impl NativeAppState {
                 if let Some((start, end)) = restart_span {
                     if let Err(err) = self.start_playback_current_span(start, end) {
                         self.waveform.stop_playback();
-                        self.current_playback_span = None;
+                        self.audio.current_playback_span = None;
                         self.sample_status =
                             format!("Audio output changed | playback failed: {err}");
                         outcome = "playback_error";
@@ -342,7 +342,7 @@ impl NativeAppState {
                     }
                 } else {
                     self.waveform.stop_playback();
-                    self.current_playback_span = None;
+                    self.audio.current_playback_span = None;
                     self.sample_status = format!(
                         "Audio output changed | {}",
                         self.audio_engine_detail_label()
@@ -351,8 +351,8 @@ impl NativeAppState {
             }
             Err(err) => {
                 self.waveform.stop_playback();
-                self.current_playback_span = None;
-                self.audio_settings_error = Some(err.clone());
+                self.audio.current_playback_span = None;
+                self.audio.settings_error = Some(err.clone());
                 self.sample_status = format!("Audio output unavailable: {err}");
                 outcome = "error";
                 error = Some(err);
@@ -370,11 +370,11 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn open_configured_audio_player(&mut self) -> Result<(), String> {
-        let mut player = AudioPlayer::from_config(&self.audio_output_config)?;
-        player.set_volume(self.volume);
-        self.audio_output_resolved = Some(player.output_details().clone());
-        self.audio_settings_error = None;
-        self.audio_player = Some(player);
+        let mut player = AudioPlayer::from_config(&self.audio.output_config)?;
+        player.set_volume(self.audio.volume);
+        self.audio.output_resolved = Some(player.output_details().clone());
+        self.audio.settings_error = None;
+        self.audio.player = Some(player);
         Ok(())
     }
 }
