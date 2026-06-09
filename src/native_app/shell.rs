@@ -9,5 +9,6 @@ pub(in crate::native_app) use launch::emit_gui_action;
 pub(crate) use launch::run;
 #[cfg(test)]
 pub(in crate::native_app) use launch::{
-    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_WINDOW_TITLE, debug_layout_requested,
+    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEBUG_OVERLAYS_ARG, DEFAULT_WINDOW_TITLE,
+    debug_layout_requested,
 };

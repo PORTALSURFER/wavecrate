@@ -5,6 +5,7 @@ use wavecrate::logging;
 
 pub(in crate::native_app) const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
 pub(in crate::native_app) const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
+pub(in crate::native_app) const DEBUG_OVERLAYS_ARG: &str = "--debug-overlays";
 
 pub(super) struct LaunchArgs {
     raw: Vec<OsString>,
@@ -43,8 +44,9 @@ pub(in crate::native_app) fn debug_layout_requested<I>(args: I) -> bool
 where
     I: IntoIterator<Item = OsString>,
 {
-    args.into_iter()
-        .any(|arg| arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG)
+    args.into_iter().any(|arg| {
+        arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG || arg == DEBUG_OVERLAYS_ARG
+    })
 }
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]

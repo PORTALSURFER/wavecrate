@@ -1,6 +1,7 @@
 use super::gui_state_for_span_tests;
 use crate::native_app::test_support::{
-    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, NativeAppState, debug_layout_requested,
+    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEBUG_OVERLAYS_ARG, NativeAppState,
+    debug_layout_requested,
 };
 use radiant::{gui::types::Point, prelude as ui};
 use std::ffi::OsString;
@@ -18,6 +19,14 @@ fn short_debug_layout_arg_enables_default_gui_overlay() {
     assert!(debug_layout_requested([
         OsString::from("wavecrate"),
         OsString::from(DEBUG_LAYOUT_SHORT_ARG),
+    ]));
+}
+
+#[test]
+fn debug_overlays_arg_enables_default_gui_overlay() {
+    assert!(debug_layout_requested([
+        OsString::from("wavecrate"),
+        OsString::from(DEBUG_OVERLAYS_ARG),
     ]));
 }
 

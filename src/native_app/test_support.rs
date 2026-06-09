@@ -30,7 +30,8 @@ pub(in crate::native_app) use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 pub(in crate::native_app) use crate::native_app::shell::{
-    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_WINDOW_TITLE, debug_layout_requested,
+    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEBUG_OVERLAYS_ARG, DEFAULT_WINDOW_TITLE,
+    debug_layout_requested,
 };
 pub(in crate::native_app) use crate::native_app::waveform::{
     WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID,

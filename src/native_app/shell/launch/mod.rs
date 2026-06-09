@@ -11,7 +11,7 @@ use crate::native_app::app::NativeAppState;
 
 #[cfg(test)]
 pub(in crate::native_app) use args::{
-    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, debug_layout_requested,
+    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEBUG_OVERLAYS_ARG, debug_layout_requested,
 };
 pub(in crate::native_app) use logging::emit_gui_action;
 #[cfg(test)]

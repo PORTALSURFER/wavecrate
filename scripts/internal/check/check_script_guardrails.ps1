@@ -647,7 +647,8 @@ try {
     }
 
     Invoke-ExpectOutput -Label "run helper launches internal debug overlays alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "debug-overlays") -ExpectedSubstrings @(
-      "[internal-run-fixture] args=--debug-layout"
+      "[run] launching internal live run with logs and debug overlays: internal-run.ps1 --debug-overlays",
+      "[internal-run-fixture] args=--debug-overlays"
     )
 
     $sandboxBase = Join-Path $repoDir ".sandbox/wavecrate"

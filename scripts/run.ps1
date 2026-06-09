@@ -42,7 +42,8 @@ if ($Help) {
 }
 
 if ($Command -eq "logs" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "debug-overlays") {
-  $appArgs = @("--debug-layout") + @($Arguments | Select-Object -Skip 1)
+  $appArgs = @("--debug-overlays") + @($Arguments | Select-Object -Skip 1)
+  Write-Host ("[run] launching internal live run with logs and debug overlays: internal-run.ps1 {0}" -f ($appArgs -join " "))
   & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "internal-run.ps1") @appArgs
   exit $LASTEXITCODE
 }
