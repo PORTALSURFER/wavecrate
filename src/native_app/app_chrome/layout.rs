@@ -46,7 +46,7 @@ fn center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
         .layer_opt(file_move_conflict_overlay(state))
 }
 
-fn metadata_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     overlays::metadata_tag_completion(state).map(|view| ui::Layer::floating(view).pass_through())
 }
 
@@ -87,8 +87,13 @@ fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
+fn library_pane_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
+    ui::overlays().layer_opt(metadata_completion_overlay(state))
+}
+
 fn library_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    ui::resizable(library_sidebar(state).transient_layer_opt(metadata_completion_layer(state)))
+    let sidebar = library_sidebar(state).overlays(library_pane_overlays(state));
+    ui::resizable(sidebar)
         .hover_chrome_only()
         .handle_key("library-sidebar-resize-handle")
         .handle_style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
