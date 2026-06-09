@@ -8,7 +8,6 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
 use crate::native_app::metadata::MetadataTagCompletionOption;
 #[cfg(test)]
 use crate::native_app::metadata::MetadataTagDisplayCategory;
-#[cfg(test)]
 use crate::native_app::sample_library::folder_browser::FolderBrowserState;
 
 use tag_editor::{metadata_section, tag_field_height};
@@ -36,24 +35,28 @@ pub(in crate::native_app) use tag_editor::{
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 
 pub(in crate::native_app) fn library_sidebar(
-    model: LibrarySidebarViewModel<'_>,
+    folder_browser: &mut FolderBrowserState,
+    model: LibrarySidebarViewModel,
 ) -> ui::View<GuiMessage> {
     let sidebar_width = model.sidebar_width;
-    library_sidebar_content(model)
+    library_sidebar_content(folder_browser, model)
         .width(sidebar_width)
         .fill_height()
 }
 
-fn library_sidebar_content(model: LibrarySidebarViewModel<'_>) -> ui::View<GuiMessage> {
+fn library_sidebar_content(
+    folder_browser: &mut FolderBrowserState,
+    model: LibrarySidebarViewModel,
+) -> ui::View<GuiMessage> {
     ui::column([
-        source_selector(&*model.folder_browser),
-        folder_tree_section(&mut *model.folder_browser),
-        collections_section(&*model.folder_browser),
-        filter_section(&*model.folder_browser),
+        source_selector(folder_browser),
+        folder_tree_section(folder_browser),
+        collections_section(folder_browser),
+        filter_section(folder_browser),
         tag_editor_section(
             &model.tag_editor,
             model.sidebar_width,
-            model.folder_browser.metadata_panel_height(),
+            folder_browser.metadata_panel_height(),
         ),
     ])
     .spacing(3.0)
@@ -64,26 +67,26 @@ fn library_sidebar_content(model: LibrarySidebarViewModel<'_>) -> ui::View<GuiMe
 }
 
 fn tag_editor_section(
-    model: &TagEditorViewModel<'_>,
+    model: &TagEditorViewModel,
     sidebar_width: f32,
     panel_height: f32,
 ) -> ui::View<GuiMessage> {
     let content_width = tag_field_content_width(sidebar_width);
     let field_height = tag_field_height(
-        model.draft,
-        model.tokens,
+        model.draft.as_str(),
+        model.tokens.as_slice(),
         model.pending_category_tag.as_deref(),
-        model.input_placeholder,
+        model.input_placeholder.as_str(),
         model.completion_suffix.as_deref(),
         model.tags.as_slice(),
         model.display_categories.as_slice(),
         content_width,
     );
     metadata_section(
-        model.draft,
-        model.tokens,
+        model.draft.as_str(),
+        model.tokens.as_slice(),
         model.pending_category_tag.as_deref(),
-        model.input_placeholder,
+        model.input_placeholder.as_str(),
         model.completion_suffix.as_deref(),
         model.tags.as_slice(),
         model.display_categories.as_slice(),
@@ -112,19 +115,21 @@ pub(in crate::native_app) fn library_sidebar_view(
     selected_metadata_tag: Option<&str>,
 ) -> ui::View<GuiMessage> {
     let mut state = state.clone();
-    library_sidebar_content(LibrarySidebarViewModel {
-        folder_browser: &mut state,
-        sidebar_width,
-        tag_editor: TagEditorViewModel {
-            has_selected_file,
-            draft: metadata_tag_draft,
-            tokens: metadata_tag_tokens,
-            pending_category_tag: metadata_tag_pending_category_tag.map(str::to_string),
-            input_placeholder: metadata_tag_input_placeholder,
-            completion_suffix: metadata_tag_completion_suffix.map(str::to_string),
-            tags: metadata_tags.to_vec(),
-            display_categories: metadata_tag_display_categories.to_vec(),
-            selected_tag: selected_metadata_tag.map(str::to_string),
+    library_sidebar_content(
+        &mut state,
+        LibrarySidebarViewModel {
+            sidebar_width,
+            tag_editor: TagEditorViewModel {
+                has_selected_file,
+                draft: metadata_tag_draft.to_string(),
+                tokens: metadata_tag_tokens.to_vec(),
+                pending_category_tag: metadata_tag_pending_category_tag.map(str::to_string),
+                input_placeholder: metadata_tag_input_placeholder.to_string(),
+                completion_suffix: metadata_tag_completion_suffix.map(str::to_string),
+                tags: metadata_tags.to_vec(),
+                display_categories: metadata_tag_display_categories.to_vec(),
+                selected_tag: selected_metadata_tag.map(str::to_string),
+            },
         },
-    })
+    )
 }

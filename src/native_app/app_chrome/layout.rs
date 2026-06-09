@@ -76,7 +76,8 @@ fn tag_editor_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
 }
 
 fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    library_sidebar::library_sidebar(LibrarySidebarViewModel::from_app_state(state))
+    let model = LibrarySidebarViewModel::from_app_state(state);
+    library_sidebar::library_sidebar(&mut state.library.folder_browser, model)
 }
 
 fn library_pane_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
