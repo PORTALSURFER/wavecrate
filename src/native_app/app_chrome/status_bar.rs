@@ -59,26 +59,26 @@ pub(in crate::native_app) fn worker_progress_bar(
 
 fn status_bar_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
     ui::overlays()
-        .layer_opt(job_details_overlay(state))
-        .layer_opt(transaction_list_overlay(state))
+        .popover_opt(job_details_overlay(state))
+        .blocking_modal_opt(transaction_list_overlay(state))
 }
 
-fn job_details_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn job_details_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     if state.ui.chrome.job_details_open
         && let Some(progress) = state.library.folder_progress.as_ref()
     {
-        return Some(ui::Layer::popover(job_details_popover(progress)));
+        return Some(job_details_popover(progress));
     }
 
     None
 }
 
-fn transaction_list_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn transaction_list_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     state
         .ui
         .chrome
         .transaction_list_open
-        .then(|| ui::Layer::modal(modals::transaction_list(state)).block_input())
+        .then(|| modals::transaction_list(state))
 }
 
 pub(in crate::native_app) fn job_details_popover(

@@ -38,33 +38,33 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
 
 fn center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
     ui::overlays()
-        .layer_opt(browser_context_menu_overlay(state))
-        .layer_opt(file_move_conflict_overlay(state))
+        .dismissible_context_menu_opt(
+            browser_context_menu_overlay(state),
+            GuiMessage::CloseContextMenu,
+        )
+        .blocking_modal_opt(file_move_conflict_overlay(state))
 }
 
-fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
-    overlays::metadata_tag_completion(state).map(|view| ui::Layer::floating(view).pass_through())
+fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    overlays::metadata_tag_completion(state)
 }
 
-fn browser_context_menu_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn browser_context_menu_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     state
         .ui
         .browser_interaction
         .context_menu
         .as_ref()
         .map(browser_context_menu::overlay)
-        .map(|view| {
-            ui::Layer::context_menu(view).dismiss_on_outside_click(GuiMessage::CloseContextMenu)
-        })
 }
 
-fn file_move_conflict_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn file_move_conflict_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     state
         .library
         .folder_browser
         .pending_file_move_conflict_view()
         .is_some()
-        .then(|| ui::Layer::modal(modals::file_move_conflict(state)).block_input())
+        .then(|| modals::file_move_conflict(state))
 }
 
 fn tag_editor_pane_visible(state: &NativeAppState) -> bool {
@@ -80,7 +80,7 @@ fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
 }
 
 fn library_pane_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
-    ui::overlays().layer_opt(metadata_completion_overlay(state))
+    ui::overlays().floating_opt(metadata_completion_overlay(state))
 }
 
 fn library_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
