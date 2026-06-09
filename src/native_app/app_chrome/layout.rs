@@ -26,19 +26,14 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
 }
 
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    ui::row(center_panel_panes(state))
-        .fill()
-        .overlays(center_panel_overlays(state))
-}
-
-fn center_panel_panes(state: &mut NativeAppState) -> impl Iterator<Item = ui::View<GuiMessage>> {
-    [
-        Some(library_pane(state)),
-        tag_editor_pane(state),
-        Some(sample_workspace(state)),
-    ]
-    .into_iter()
-    .flatten()
+    ui::row(
+        ui::children()
+            .push(library_pane(state))
+            .push_if(tag_editor_pane_visible(state), || tag_editor_pane(state))
+            .push(sample_workspace(state)),
+    )
+    .fill()
+    .overlays(center_panel_overlays(state))
 }
 
 fn center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
@@ -76,12 +71,8 @@ fn tag_editor_pane_visible(state: &NativeAppState) -> bool {
     state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
-fn tag_editor_pane(state: &mut NativeAppState) -> Option<ui::View<GuiMessage>> {
-    if tag_editor_pane_visible(state) {
-        Some(metadata_tag_library::panel(state))
-    } else {
-        None
-    }
+fn tag_editor_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+    metadata_tag_library::panel(state)
 }
 
 fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
