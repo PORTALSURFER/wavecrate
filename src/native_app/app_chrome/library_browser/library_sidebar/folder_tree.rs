@@ -1,10 +1,10 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
 use crate::native_app::sample_library::folder_browser::{
-    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
-    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, FolderBrowserMessage, FolderBrowserState,
-    TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder,
+    FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FolderBrowserMessage, TREE_DEPTH_INDENT,
+    TREE_ROW_HEIGHT, VisibleFolder,
 };
 
 use super::tree_hit_target::FolderTreeHitTarget;
@@ -17,26 +17,22 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
     a: 152,
 };
 
-pub(super) fn folder_tree_section(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
+pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
     ui::column([
         ui::text_line("Folders", 22.0),
-        folder_tree_view(state),
-        selected_folder_status(state),
+        folder_tree_view(model.visible_folders, model.window, model.drag_revision),
+        selected_folder_status(model.selected_folder_status_label),
     ])
     .spacing(0.0)
     .fill_width()
     .fill_height()
 }
 
-fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
-    let visible_folders = state.visible_folders();
-    let drag_revision = state.drag_revision();
-    let window = state.follow_selected_tree_view(
-        &visible_folders,
-        FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
-        FOLDER_TREE_OVERSCAN_ROWS,
-        FOLDER_TREE_EDGE_CONTEXT_ROWS,
-    );
+fn folder_tree_view(
+    visible_folders: Vec<VisibleFolder>,
+    window: ui::VirtualListWindow,
+    drag_revision: u64,
+) -> ui::View<GuiMessage> {
     folder_tree_window(visible_folders, window, drag_revision)
         .id(FOLDER_TREE_LIST_ID)
         .fill_width()
@@ -155,6 +151,6 @@ fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
         .collect()
 }
 
-fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
-    ui::text_line(state.selected_folder_status_label(), 20.0)
+fn selected_folder_status(label: String) -> ui::View<GuiMessage> {
+    ui::text_line(label, 20.0)
 }

@@ -6,6 +6,7 @@ use wavecrate::sample_sources::SampleCollection;
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::{
+    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
     FolderBrowserMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
 };
 use crate::native_app::sample_library::sample_list::{
@@ -269,6 +270,11 @@ impl NativeAppState {
     pub(in crate::native_app) fn collapse_selected_folder(&mut self) {
         let started_at = Instant::now();
         self.library.folder_browser.collapse_selected_folder();
+        self.library.folder_browser.sync_tree_view_to_selection(
+            FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+            FOLDER_TREE_OVERSCAN_ROWS,
+            FOLDER_TREE_EDGE_CONTEXT_ROWS,
+        );
         emit_gui_action(
             "folder_browser.collapse_selected",
             Some("folder_browser"),
@@ -282,6 +288,11 @@ impl NativeAppState {
     pub(in crate::native_app) fn expand_selected_folder(&mut self) {
         let started_at = Instant::now();
         self.library.folder_browser.expand_selected_folder();
+        self.library.folder_browser.sync_tree_view_to_selection(
+            FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+            FOLDER_TREE_OVERSCAN_ROWS,
+            FOLDER_TREE_EDGE_CONTEXT_ROWS,
+        );
         emit_gui_action(
             "folder_browser.expand_selected",
             Some("folder_browser"),

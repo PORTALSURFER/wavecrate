@@ -381,10 +381,20 @@ impl FolderBrowserState {
             FolderBrowserMessage::ActivateFolder(id) => {
                 self.cancel_rename();
                 self.activate_folder(id);
+                self.sync_tree_view_to_selection(
+                    super::FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+                    super::FOLDER_TREE_OVERSCAN_ROWS,
+                    super::FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                );
             }
             FolderBrowserMessage::ToggleFolderExpansion(id) => {
                 self.cancel_rename();
                 self.toggle_folder_expansion(id);
+                self.sync_tree_view_to_selection(
+                    super::FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+                    super::FOLDER_TREE_OVERSCAN_ROWS,
+                    super::FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                );
             }
             FolderBrowserMessage::OpenFolderContextMenu(_, _) => {}
             FolderBrowserMessage::CancelRename => {

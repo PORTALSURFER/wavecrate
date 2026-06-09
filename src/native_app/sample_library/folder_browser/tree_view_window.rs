@@ -34,7 +34,35 @@ impl FolderBrowserState {
             .set_viewport_start(change.window.viewport_start);
     }
 
-    pub(in crate::native_app) fn follow_selected_tree_view(
+    pub(in crate::native_app) fn tree_view_window(
+        &self,
+        visible_folders: &[VisibleFolder],
+        viewport_rows: usize,
+        overscan_rows: usize,
+        guard_rows: usize,
+    ) -> ui::VirtualListWindow {
+        ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
+            total_items: visible_folders.len(),
+            viewport_len: viewport_rows,
+            requested_start: self.tree_view_controller.viewport_start(),
+            overscan: overscan_rows,
+            focused_index: None,
+            previous_start: None,
+            guard_band: guard_rows.saturating_add(1),
+        })
+    }
+
+    pub(in crate::native_app) fn sync_tree_view_to_selection(
+        &mut self,
+        viewport_rows: usize,
+        overscan_rows: usize,
+        guard_rows: usize,
+    ) -> ui::VirtualListWindow {
+        let visible_folders = self.visible_folders();
+        self.follow_selected_tree_view(&visible_folders, viewport_rows, overscan_rows, guard_rows)
+    }
+
+    fn follow_selected_tree_view(
         &mut self,
         visible_folders: &[VisibleFolder],
         viewport_rows: usize,
