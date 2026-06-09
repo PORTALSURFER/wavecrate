@@ -5,7 +5,7 @@ use radiant::runtime::NativeRunOptions;
 use crate::native_app::app::{NativeAppState, view};
 use crate::native_app::app_chrome::settings;
 
-pub(super) fn run_radiant_app(
+pub(super) fn run_catching_unwind(
     state: NativeAppState,
     options: NativeRunOptions,
 ) -> Result<Result<(), String>, Box<dyn std::any::Any + Send>> {

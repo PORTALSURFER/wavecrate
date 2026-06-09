@@ -40,7 +40,9 @@ impl LaunchSession {
         self.init_logging();
         let state = Self::load_default_state()?;
         let options = self.native_run_options();
-        self.run_radiant_app(state, options)
+        logging::log_radiant_runtime_starting(options.frame.debug_layout, self.startup_started_at);
+        let runtime_result = radiant_app::run_catching_unwind(state, options);
+        logging::finish_radiant_runtime(runtime_result, self.startup_started_at)
     }
 
     fn init_logging(&self) {
@@ -54,15 +56,5 @@ impl LaunchSession {
 
     fn native_run_options(&self) -> NativeRunOptions {
         options::native_run_options(self.args.debug_layout())
-    }
-
-    fn run_radiant_app(
-        self,
-        state: NativeAppState,
-        options: NativeRunOptions,
-    ) -> Result<(), String> {
-        logging::log_radiant_prepare(options.frame.debug_layout, self.startup_started_at);
-        let run_result = radiant_app::run_radiant_app(state, options);
-        logging::finish_radiant_run(run_result, self.startup_started_at)
     }
 }

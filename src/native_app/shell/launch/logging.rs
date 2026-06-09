@@ -49,7 +49,7 @@ pub(super) fn log_default_gui_startup(args: &[OsString]) {
     }
 }
 
-pub(super) fn log_radiant_prepare(debug_layout: bool, startup_started_at: Instant) {
+pub(super) fn log_radiant_runtime_starting(debug_layout: bool, startup_started_at: Instant) {
     tracing::info!(
         debug_layout = debug_layout,
         "default gui: preparing Radiant application"
@@ -64,7 +64,7 @@ pub(super) fn log_radiant_prepare(debug_layout: bool, startup_started_at: Instan
     );
 }
 
-pub(super) fn finish_radiant_run(
+pub(super) fn finish_radiant_runtime(
     run_result: Result<Result<(), String>, Box<dyn Any + Send>>,
     startup_started_at: Instant,
 ) -> Result<(), String> {
