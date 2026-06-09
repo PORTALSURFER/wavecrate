@@ -31,8 +31,6 @@ pub(in crate::native_app) use tag_editor::{
 };
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 
-const SIDEBAR_TOP_GUTTER_HEIGHT: f32 = 4.0;
-
 pub(in crate::native_app) fn folder_sidebar(
     model: FolderSidebarViewModel<'_>,
 ) -> ui::View<GuiMessage> {
@@ -92,7 +90,7 @@ impl<'a> FolderSidebarContent<'a> {
 }
 
 fn folder_sidebar_content(content: FolderSidebarContent<'_>) -> ui::View<GuiMessage> {
-    let sidebar_body = ui::column([
+    ui::column([
         source_selector(&*content.folder_browser),
         folders_section(&mut *content.folder_browser),
         collections_section(&*content.folder_browser),
@@ -101,12 +99,6 @@ fn folder_sidebar_content(content: FolderSidebarContent<'_>) -> ui::View<GuiMess
     ])
     .spacing(3.0)
     .fill_width()
-    .fill_height();
-    ui::column([
-        ui::spacer().height(SIDEBAR_TOP_GUTTER_HEIGHT).fill_width(),
-        sidebar_body,
-    ])
-    .spacing(0.0)
     .padding_x(4.0)
     .style(ui::WidgetStyle::default())
     .fill_height()
