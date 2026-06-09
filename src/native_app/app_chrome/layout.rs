@@ -32,27 +32,38 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let browser_context_menu = browser_context_menu_layer(state);
     let file_move_conflict = file_move_conflict_layer(state);
-    let children = center_panel_children(state);
 
-    ui::column([
-        ui::spacer().height(CENTER_PANEL_PADDING).fill_width(),
-        ui::row(children).padding_x(CENTER_PANEL_PADDING).fill(),
-    ])
-    .spacing(0.0)
-    .fill()
-    .transient_layer_opt(browser_context_menu)
-    .transient_layer_opt(file_move_conflict)
+    padded_center_panel(center_panel_row(state))
+        .transient_layer_opt(browser_context_menu)
+        .transient_layer_opt(file_move_conflict)
 }
 
-fn center_panel_children(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
+fn padded_center_panel(panel_row: ui::View<GuiMessage>) -> ui::View<GuiMessage> {
+    ui::column([top_center_panel_padding(), panel_row])
+        .spacing(0.0)
+        .fill()
+}
+
+fn top_center_panel_padding() -> ui::View<GuiMessage> {
+    ui::spacer().height(CENTER_PANEL_PADDING).fill_width()
+}
+
+fn center_panel_row(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+    ui::row(center_panel_sections(state))
+        .padding_x(CENTER_PANEL_PADDING)
+        .fill()
+}
+
+fn center_panel_sections(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
     let metadata_completion = metadata_completion_layer(state);
-    let mut children = vec![folder_sidebar_panel(state).transient_layer_opt(metadata_completion)];
+    let mut sections =
+        vec![folder_source_browser_section(state).transient_layer_opt(metadata_completion)];
     if metadata_tag_library_visible(state) {
-        children.push(metadata_tag_library::panel(state));
+        sections.push(metadata_tag_library::panel(state));
     }
-    children.push(folder_splitter());
-    children.push(main_area(state));
-    children
+    sections.push(folder_splitter());
+    sections.push(waveform_file_browser_section(state));
+    sections
 }
 
 fn metadata_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
@@ -85,7 +96,7 @@ fn metadata_tag_library_visible(state: &NativeAppState) -> bool {
     state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
-fn folder_sidebar_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+fn folder_source_browser_section(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
@@ -100,7 +111,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
         .padding(FOLDER_SPLITTER_INSET)
 }
 
-fn main_area(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+fn waveform_file_browser_section(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
     let suppress_sample_hover = state.ui.chrome.folder_panel.is_resizing();
