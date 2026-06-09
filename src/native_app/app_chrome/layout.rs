@@ -28,15 +28,14 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let browser_context_menu = browser_context_menu_layer(state);
     let file_move_conflict = file_move_conflict_layer(state);
-    let metadata_completion = metadata_completion_layer(state);
 
-    let mut sections = vec![resizable_library_sidebar(state, metadata_completion)];
-    if metadata_tag_library_visible(state) {
-        sections.push(metadata_tag_library::panel(state));
+    let mut panes = vec![library_pane(state)];
+    if let Some(tag_library) = metadata_tag_library_pane(state) {
+        panes.push(tag_library);
     }
-    sections.push(sample_workspace(state));
+    panes.push(sample_workspace(state));
 
-    ui::row(sections)
+    ui::row(panes)
         .fill()
         .transient_layer_opt(browser_context_menu)
         .transient_layer_opt(file_move_conflict)
@@ -71,15 +70,20 @@ fn metadata_tag_library_visible(state: &NativeAppState) -> bool {
     state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
+fn metadata_tag_library_pane(state: &mut NativeAppState) -> Option<ui::View<GuiMessage>> {
+    if metadata_tag_library_visible(state) {
+        Some(metadata_tag_library::panel(state))
+    } else {
+        None
+    }
+}
+
 fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
-fn resizable_library_sidebar(
-    state: &mut NativeAppState,
-    metadata_completion: Option<ui::Layer<GuiMessage>>,
-) -> ui::View<GuiMessage> {
-    ui::resizable(library_sidebar(state).transient_layer_opt(metadata_completion))
+fn library_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+    ui::resizable(library_sidebar(state).transient_layer_opt(metadata_completion_layer(state)))
         .hover_chrome_only()
         .handle_key("library-sidebar-resize-handle")
         .handle_style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
