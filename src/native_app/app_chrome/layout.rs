@@ -31,26 +31,19 @@ pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMe
 fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let browser_context_menu = browser_context_menu_layer(state);
     let file_move_conflict = file_move_conflict_layer(state);
-
-    center_panel_row(state)
-        .transient_layer_opt(browser_context_menu)
-        .transient_layer_opt(file_move_conflict)
-}
-
-fn center_panel_row(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    ui::row(center_panel_sections(state)).fill()
-}
-
-fn center_panel_sections(state: &mut NativeAppState) -> Vec<ui::View<GuiMessage>> {
     let metadata_completion = metadata_completion_layer(state);
-    let mut sections =
-        vec![folder_source_browser_section(state).transient_layer_opt(metadata_completion)];
+
+    let mut sections = vec![library_sidebar(state).transient_layer_opt(metadata_completion)];
     if metadata_tag_library_visible(state) {
         sections.push(metadata_tag_library::panel(state));
     }
     sections.push(folder_splitter());
-    sections.push(waveform_file_browser_section(state));
-    sections
+    sections.push(sample_workspace(state));
+
+    ui::row(sections)
+        .fill()
+        .transient_layer_opt(browser_context_menu)
+        .transient_layer_opt(file_move_conflict)
 }
 
 fn metadata_completion_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
@@ -82,7 +75,7 @@ fn metadata_tag_library_visible(state: &NativeAppState) -> bool {
     state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
-fn folder_source_browser_section(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
@@ -97,7 +90,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
         .padding(FOLDER_SPLITTER_INSET)
 }
 
-fn waveform_file_browser_section(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+fn sample_workspace(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
     let suppress_sample_hover = state.ui.chrome.folder_panel.is_resizing();
