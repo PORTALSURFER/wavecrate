@@ -33,7 +33,7 @@ $commands = @{
 
 if ([string]::IsNullOrWhiteSpace($Command)) {
   Write-Host "Usage: scripts/run.ps1 <sandbox|clean|logs|bug-bundle> [args...]"
-  Write-Host "       scripts/run.ps1 logs debug-overlays [app args...]"
+  Write-Host "       scripts/run.ps1 logs <debug-overlays|debug-layout> [app args...]"
   exit 0
 }
 
@@ -41,9 +41,14 @@ if ($Help) {
   $Arguments = @("-Help") + $Arguments
 }
 
-if ($Command -eq "logs" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "debug-overlays") {
-  $appArgs = @("--debug-overlays") + @($Arguments | Select-Object -Skip 1)
-  Write-Host ("[run] launching internal live run with logs and debug overlays: internal-run.ps1 {0}" -f ($appArgs -join " "))
+if (
+  $Command -eq "logs" -and
+  $Arguments.Count -gt 0 -and
+  ($Arguments[0] -eq "debug-overlays" -or $Arguments[0] -eq "debug-layout")
+) {
+  $debugArg = if ($Arguments[0] -eq "debug-layout") { "--debug-layout" } else { "--debug-overlays" }
+  $appArgs = @($debugArg) + @($Arguments | Select-Object -Skip 1)
+  Write-Host ("[run] launching internal live run with logs and debug layout overlays: internal-run.ps1 {0}" -f ($appArgs -join " "))
   & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "internal-run.ps1") @appArgs
   exit $LASTEXITCODE
 }
