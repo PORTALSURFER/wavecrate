@@ -13,8 +13,7 @@ impl WorkerProgressViewModel {
 
 pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::View<GuiMessage> {
     bottom_status_bar(StatusBarViewModel::from_app_state(state))
-        .transient_layer_opt(job_details_layer(state))
-        .transient_layer_opt(transaction_list_layer(state))
+        .overlays(status_bar_overlays(state))
 }
 
 pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui::View<GuiMessage> {
@@ -58,7 +57,13 @@ pub(in crate::native_app) fn worker_progress_bar(
         .height(10.0)
 }
 
-fn job_details_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn status_bar_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
+    ui::overlays()
+        .layer_opt(job_details_overlay(state))
+        .layer_opt(transaction_list_overlay(state))
+}
+
+fn job_details_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     if state.ui.chrome.job_details_open
         && let Some(progress) = state.library.folder_progress.as_ref()
     {
@@ -68,7 +73,7 @@ fn job_details_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     None
 }
 
-fn transaction_list_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
+fn transaction_list_overlay(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     state
         .ui
         .chrome
