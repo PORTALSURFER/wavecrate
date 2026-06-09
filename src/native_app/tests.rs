@@ -284,7 +284,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
         super::test_support::GuiMessage::AssignSelectedCollection(collection),
         &mut ui::UpdateContext::default(),
     );
-    assert_eq!(state.transaction_history.list_items().len(), 1);
+    assert_eq!(state.transactions.history.list_items().len(), 1);
     assert_eq!(
         db.collections_for_path(std::path::Path::new("undo-collection.wav"))
             .expect("collections"),

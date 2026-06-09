@@ -31,60 +31,21 @@ use crate::native_app::waveform::WaveformState;
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
 
 pub(in crate::native_app) struct NativeAppState {
-    // OPT-496 ownership map:
-    //
-    // Extraction order should keep task plumbing first, then audio and waveform,
-    // then metadata, chrome/settings, tests, and finally transactions. The main
-    // risk points are stale async task results, playback startup ordering,
-    // waveform cache warming, metadata-driven browser filtering, and undo/redo
-    // closures that currently target the concrete root state.
-    //
-    // ChromeUiState owns layout chrome and top-level modal/transient flags.
     pub(in crate::native_app) chrome: ChromeUiState,
-
-    // LibraryAppState owns source/folder/sample browsing, source refresh and
-    // watcher state, scan progress, startup source scan flags, context-menu
-    // targets, file-drop hover, internal drag paths, and sample_status.
     pub(in crate::native_app) folder_browser: FolderBrowserState,
-
-    // WaveformAppState owns core waveform interaction state.
     pub(in crate::native_app) waveform: WaveformState,
     pub(in crate::native_app) sample_status: String,
-
-    // BackgroundTaskState owns generic GUI task transport, ticket allocation,
-    // latest-task trackers, cancellation handles, task result maps, progress
-    // tick/cadence state, and startup folder verification task plumbing.
     pub(in crate::native_app) background: BackgroundTaskState,
     pub(in crate::native_app) folder_progress: Option<FolderScanProgress>,
     pub(in crate::native_app) pending_source_refreshes: HashSet<String>,
     pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
-
-    // WaveformLoadState owns sample-load visible progress, loading label, and
-    // input-blocking target progress. WaveformCacheState owns waveform cache
-    // entries, LRU accounting, cache indicator refresh, persisted cache warming,
-    // active-folder cache warming, and cached path lookups.
     pub(in crate::native_app) waveform_load: WaveformLoadState,
     pub(in crate::native_app) waveform_cache: WaveformCacheState,
-
-    // AudioAppState owns player/runtime playback state, output configuration,
-    // resolved device state, discovered hosts/devices/rates, volume persistence,
-    // pending playback coordination, and audio-domain settings errors.
     pub(in crate::native_app) audio: AudioAppState,
     pub(in crate::native_app) persisted_settings: AppSettingsCore,
-
-    // SettingsUiState owns settings-window presentation state only. Durable
-    // settings values and audio-device errors stay with their domain owners.
     pub(in crate::native_app) settings_ui: SettingsUiState,
-
-    // TransactionState owns history and restore guards. Actions execute through
-    // TransactionContext rather than arbitrary closures over the root state.
-    pub(in crate::native_app) transaction_history: NativeTransactionHistory,
-    pub(in crate::native_app) transaction_restoring: bool,
+    pub(in crate::native_app) transactions: TransactionState,
     pub(in crate::native_app) browser_interaction: BrowserInteractionState,
-
-    // MetadataAppState owns tag entry, completion, dictionary, library panel,
-    // drag/drop, selection, collapsed categories, per-file tag assignments, and
-    // sample-name view mode used by metadata display.
     pub(in crate::native_app) metadata: MetadataAppState,
     pub(in crate::native_app) startup_source_scan_pending: bool,
     pub(in crate::native_app) startup_folder_verify_pending: bool,
@@ -137,6 +98,12 @@ impl Default for BrowserInteractionState {
             pending_internal_file_drag_paths: Default::default(),
         }
     }
+}
+
+#[derive(Default)]
+pub(in crate::native_app) struct TransactionState {
+    pub(in crate::native_app) history: NativeTransactionHistory,
+    pub(in crate::native_app) restoring: bool,
 }
 
 pub(in crate::native_app) struct MetadataAppState {

@@ -542,16 +542,16 @@ impl NativeTransactionHistory {
 
 impl NativeAppState {
     pub(in crate::native_app) fn begin_transaction(&mut self, label: impl Into<String>) {
-        if !self.transaction_restoring {
-            self.transaction_history.begin_transaction(label);
+        if !self.transactions.restoring {
+            self.transactions.history.begin_transaction(label);
         }
     }
 
     pub(in crate::native_app) fn commit_transaction(&mut self) -> bool {
-        if self.transaction_restoring {
+        if self.transactions.restoring {
             return false;
         }
-        self.transaction_history.commit_transaction()
+        self.transactions.history.commit_transaction()
     }
 
     pub(in crate::native_app) fn register_transaction_action(
@@ -560,19 +560,19 @@ impl NativeAppState {
         undo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
         redo: impl for<'a> Fn(&mut TransactionContext<'a>) -> TransactionResult + 'static,
     ) {
-        if self.transaction_restoring {
+        if self.transactions.restoring {
             return;
         }
-        self.transaction_history.register_action(label, undo, redo);
+        self.transactions.history.register_action(label, undo, redo);
     }
 
     pub(in crate::native_app) fn undo_transaction(&mut self) {
-        let mut history = std::mem::take(&mut self.transaction_history);
-        let was_restoring = self.transaction_restoring;
-        self.transaction_restoring = true;
+        let mut history = std::mem::take(&mut self.transactions.history);
+        let was_restoring = self.transactions.restoring;
+        self.transactions.restoring = true;
         let result = history.undo(self);
-        self.transaction_restoring = was_restoring;
-        self.transaction_history = history;
+        self.transactions.restoring = was_restoring;
+        self.transactions.history = history;
         match result {
             Ok(Some(applied)) => {
                 self.sample_status = format!("Undid {}", applied.label);
@@ -587,12 +587,12 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn redo_transaction(&mut self) {
-        let mut history = std::mem::take(&mut self.transaction_history);
-        let was_restoring = self.transaction_restoring;
-        self.transaction_restoring = true;
+        let mut history = std::mem::take(&mut self.transactions.history);
+        let was_restoring = self.transactions.restoring;
+        self.transactions.restoring = true;
         let result = history.redo(self);
-        self.transaction_restoring = was_restoring;
-        self.transaction_history = history;
+        self.transactions.restoring = was_restoring;
+        self.transactions.history = history;
         match result {
             Ok(Some(applied)) => {
                 self.sample_status = format!("Redid {}", applied.label);

@@ -5,7 +5,7 @@ use crate::native_app::{
 use radiant::prelude as ui;
 
 pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let items = state.transaction_history.list_items();
+    let items = state.transactions.history.list_items();
     let summary = transaction_list_summary(state);
     let list = if items.is_empty() {
         ui::column([
@@ -114,17 +114,17 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
 }
 
 fn transaction_list_summary(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let undo = if state.transaction_history.can_undo() {
+    let undo = if state.transactions.history.can_undo() {
         "undo ready"
     } else {
         "no undo"
     };
-    let redo = if state.transaction_history.can_redo() {
+    let redo = if state.transactions.history.can_redo() {
         "redo ready"
     } else {
         "no redo"
     };
-    let active = if state.transaction_history.is_transaction_open() {
+    let active = if state.transactions.history.is_transaction_open() {
         "open transaction"
     } else {
         "closed"
