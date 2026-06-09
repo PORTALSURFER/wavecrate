@@ -174,11 +174,6 @@ impl MetadataAppState {
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         }
     }
-
-    #[cfg(test)]
-    pub(in crate::native_app) fn for_tests() -> Self {
-        Self::from_settings(&AppSettingsCore::default())
-    }
 }
 
 pub(in crate::native_app) struct WaveformLoadState {

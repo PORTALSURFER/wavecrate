@@ -39,3 +39,61 @@ pub(in crate::native_app) use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, ResolvedOutput,
 };
 pub(in crate::native_app) use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
+
+pub(in crate::native_app) struct NativeAppStateFixture {
+    folder_browser: FolderBrowserState,
+    waveform: WaveformState,
+    sample_status: String,
+    persisted_settings: AppSettingsCore,
+}
+
+impl Default for NativeAppStateFixture {
+    fn default() -> Self {
+        Self {
+            folder_browser: FolderBrowserState::load_default(),
+            waveform: WaveformState::load_default().expect("default waveform state"),
+            sample_status: String::from("Select a sample to load"),
+            persisted_settings: AppSettingsCore::default(),
+        }
+    }
+}
+
+impl NativeAppStateFixture {
+    pub(in crate::native_app) fn with_synthetic_waveform(mut self) -> Self {
+        self.waveform = WaveformState::synthetic_for_tests();
+        self
+    }
+
+    pub(in crate::native_app) fn with_sample_status(
+        mut self,
+        sample_status: impl Into<String>,
+    ) -> Self {
+        self.sample_status = sample_status.into();
+        self
+    }
+
+    pub(in crate::native_app) fn build(self) -> NativeAppState {
+        NativeAppState {
+            chrome: ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
+            folder_browser: self.folder_browser,
+            waveform: self.waveform,
+            sample_status: self.sample_status,
+            background: BackgroundTaskState::for_tests(),
+            folder_progress: None,
+            pending_source_refreshes: Default::default(),
+            source_watcher: None,
+            waveform_load: WaveformLoadState::default(),
+            audio: AudioAppState::for_tests(),
+            persisted_settings: self.persisted_settings.clone(),
+            settings_ui: SettingsUiState::default(),
+            transaction_history: Default::default(),
+            transaction_restoring: false,
+            browser_interaction: BrowserInteractionState::default(),
+            metadata: MetadataAppState::from_settings(&self.persisted_settings),
+            startup_source_scan_pending: false,
+            startup_folder_verify_pending: false,
+            startup_auto_load_pending: false,
+            waveform_cache: WaveformCacheState::default(),
+        }
+    }
+}

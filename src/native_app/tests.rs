@@ -34,28 +34,10 @@ fn first_visible_asset_file_path(browser: &super::test_support::FolderBrowserSta
 }
 
 fn gui_state_for_span_tests() -> NativeAppState {
-    NativeAppState {
-        chrome: crate::native_app::test_support::ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
-        folder_browser: super::test_support::FolderBrowserState::load_default(),
-        waveform: super::test_support::WaveformState::synthetic_for_tests(),
-        sample_status: String::new(),
-        background: super::test_support::BackgroundTaskState::for_tests(),
-        folder_progress: None,
-        pending_source_refreshes: Default::default(),
-        source_watcher: None,
-        waveform_load: crate::native_app::test_support::WaveformLoadState::default(),
-        audio: crate::native_app::test_support::AudioAppState::for_tests(),
-        persisted_settings: super::test_support::AppSettingsCore::default(),
-        settings_ui: crate::native_app::test_support::SettingsUiState::default(),
-        transaction_history: Default::default(),
-        transaction_restoring: false,
-        browser_interaction: crate::native_app::test_support::BrowserInteractionState::default(),
-        metadata: crate::native_app::test_support::MetadataAppState::for_tests(),
-        startup_source_scan_pending: false,
-        startup_folder_verify_pending: false,
-        startup_auto_load_pending: false,
-        waveform_cache: crate::native_app::test_support::WaveformCacheState::default(),
-    }
+    super::test_support::NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .with_sample_status("")
+        .build()
 }
 
 type NativeRuntimeForTests = ui::DeclarativeOwnedSurfaceRuntime<
@@ -410,28 +392,10 @@ fn start_deferred_sample_load_for_tests(
 
 #[test]
 fn folder_browser_splitter_resizes_and_clamps_width() {
-    let mut state = NativeAppState {
-        chrome: crate::native_app::test_support::ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
-        folder_browser: super::test_support::FolderBrowserState::load_default(),
-        waveform: super::test_support::WaveformState::synthetic_for_tests(),
-        sample_status: String::new(),
-        background: super::test_support::BackgroundTaskState::for_tests(),
-        folder_progress: None,
-        pending_source_refreshes: Default::default(),
-        source_watcher: None,
-        waveform_load: crate::native_app::test_support::WaveformLoadState::default(),
-        audio: crate::native_app::test_support::AudioAppState::for_tests(),
-        persisted_settings: super::test_support::AppSettingsCore::default(),
-        settings_ui: crate::native_app::test_support::SettingsUiState::default(),
-        transaction_history: Default::default(),
-        transaction_restoring: false,
-        browser_interaction: crate::native_app::test_support::BrowserInteractionState::default(),
-        metadata: crate::native_app::test_support::MetadataAppState::for_tests(),
-        startup_source_scan_pending: false,
-        startup_folder_verify_pending: false,
-        startup_auto_load_pending: false,
-        waveform_cache: crate::native_app::test_support::WaveformCacheState::default(),
-    };
+    let mut state = super::test_support::NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .with_sample_status("")
+        .build();
     state.resize_folder_browser(DragHandleMessage::started(Point::new(100.0, 0.0)));
     state.resize_folder_browser(DragHandleMessage::moved(Point::new(160.0, 0.0)));
 
