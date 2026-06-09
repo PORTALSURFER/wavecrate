@@ -16,6 +16,7 @@ fn audio_backend_dropdown_renders_expanded_host_options() {
     let mut state = gui_state_for_span_tests();
     state.audio.settings_error = None;
     state
+        .settings_ui
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
     state.audio.hosts = vec![
@@ -49,6 +50,7 @@ fn audio_output_dropdown_renders_expanded_device_options() {
     let mut state = gui_state_for_span_tests();
     state.audio.settings_error = None;
     state
+        .settings_ui
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Output);
     state.audio.devices = vec![crate::native_app::test_support::AudioDeviceSummary {
@@ -71,6 +73,7 @@ fn audio_sample_rate_dropdown_renders_expanded_rate_options() {
     let mut state = gui_state_for_span_tests();
     state.audio.settings_error = None;
     state
+        .settings_ui
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::SampleRate);
     state.audio.sample_rates = vec![44_100, 48_000];
@@ -102,9 +105,10 @@ fn audio_backend_dropdown_overlay_does_not_reflow_later_sections() {
         },
     ];
 
-    state.audio_settings_dropdown.close();
+    state.settings_ui.audio_settings_dropdown.close();
     let closed = audio_settings_frame(&state);
     state
+        .settings_ui
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
     let open = audio_settings_frame(&state);
@@ -128,6 +132,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
     );
     assert!(
         state
+            .settings_ui
             .audio_settings_dropdown
             .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Backend)
     );
@@ -136,7 +141,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::GuiMessage::CloseAudioSettingsDropdowns,
         &mut ui::UpdateContext::default(),
     );
-    assert!(!state.audio_settings_dropdown.any_open());
+    assert!(!state.settings_ui.audio_settings_dropdown.any_open());
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::ToggleAudioBackendDropdown,
@@ -144,6 +149,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
     );
     assert!(
         state
+            .settings_ui
             .audio_settings_dropdown
             .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Backend)
     );
@@ -154,11 +160,13 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
     );
     assert!(
         !state
+            .settings_ui
             .audio_settings_dropdown
             .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Backend)
     );
     assert!(
         state
+            .settings_ui
             .audio_settings_dropdown
             .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Output)
     );
@@ -169,11 +177,13 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
     );
     assert!(
         !state
+            .settings_ui
             .audio_settings_dropdown
             .is_open(&crate::native_app::test_support::AudioSettingsDropdown::Output)
     );
     assert!(
         state
+            .settings_ui
             .audio_settings_dropdown
             .is_open(&crate::native_app::test_support::AudioSettingsDropdown::SampleRate)
     );
@@ -182,13 +192,13 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::GuiMessage::CloseAudioSettingsDropdowns,
         &mut ui::UpdateContext::default(),
     );
-    assert!(!state.audio_settings_dropdown.any_open());
+    assert!(!state.settings_ui.audio_settings_dropdown.any_open());
 
     state.apply_message(
         crate::native_app::test_support::GuiMessage::CloseAudioSettings,
         &mut ui::UpdateContext::default(),
     );
-    assert!(!state.audio_settings_dropdown.any_open());
+    assert!(!state.settings_ui.audio_settings_dropdown.any_open());
 }
 
 fn audio_settings_frame(

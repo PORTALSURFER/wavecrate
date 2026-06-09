@@ -1,6 +1,7 @@
 use crate::native_app::app::{
-    AudioAppState, BackgroundTaskState, FolderBrowserState, GuiMessage, MetadataAppState,
-    NativeAppState, WaveformCacheState, WaveformLoadState, WaveformState, sample_path_label,
+    AudioAppState, BackgroundTaskState, BrowserInteractionState, ChromeUiState, FolderBrowserState,
+    GuiMessage, MetadataAppState, NativeAppState, SettingsUiState, WaveformCacheState,
+    WaveformLoadState, WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
@@ -35,7 +36,7 @@ impl NativeAppState {
         let background = BackgroundTaskState::new(worker_sender, Some(worker_receiver));
         let audio = AudioAppState::from_settings(&config.core);
         let state = Self {
-            folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
+            chrome: ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
             folder_browser,
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Select a sample to load"),
@@ -47,16 +48,10 @@ impl NativeAppState {
             waveform_cache: WaveformCacheState::default(),
             audio,
             persisted_settings: config.core.clone(),
-            audio_settings_open: false,
-            app_settings_tab: Default::default(),
-            audio_settings_dropdown: ui::ExclusiveOpen::new(),
-            job_details_open: false,
-            transaction_list_open: false,
+            settings_ui: SettingsUiState::default(),
             transaction_history: Default::default(),
             transaction_restoring: false,
-            context_menu: None,
-            native_file_drop_hover: None,
-            pending_internal_file_drag_paths: Default::default(),
+            browser_interaction: BrowserInteractionState::default(),
             metadata: MetadataAppState::from_settings(&config.core),
             startup_source_scan_pending,
             startup_folder_verify_pending,

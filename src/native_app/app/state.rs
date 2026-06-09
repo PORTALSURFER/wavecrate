@@ -39,9 +39,8 @@ pub(in crate::native_app) struct NativeAppState {
     // waveform cache warming, metadata-driven browser filtering, and undo/redo
     // closures that currently target the concrete root state.
     //
-    // ChromeUiState owns layout chrome and top-level modal/transient flags:
-    // folder_panel, job_details_open, transaction_list_open.
-    pub(in crate::native_app) folder_panel: ui::PanelResizeState,
+    // ChromeUiState owns layout chrome and top-level modal/transient flags.
+    pub(in crate::native_app) chrome: ChromeUiState,
 
     // LibraryAppState owns source/folder/sample browsing, source refresh and
     // watcher state, scan progress, startup source scan flags, context-menu
@@ -75,20 +74,14 @@ pub(in crate::native_app) struct NativeAppState {
 
     // SettingsUiState owns settings-window presentation state only. Durable
     // settings values and audio-device errors stay with their domain owners.
-    pub(in crate::native_app) audio_settings_open: bool,
-    pub(in crate::native_app) app_settings_tab: AppSettingsTab,
-    pub(in crate::native_app) audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
-    pub(in crate::native_app) job_details_open: bool,
-    pub(in crate::native_app) transaction_list_open: bool,
+    pub(in crate::native_app) settings_ui: SettingsUiState,
 
     // TransactionState owns history and restore guards. It should eventually
     // expose a narrow transaction context instead of TransactionHistory over the
     // concrete NativeAppState type.
     pub(in crate::native_app) transaction_history: TransactionHistory<NativeAppState>,
     pub(in crate::native_app) transaction_restoring: bool,
-    pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
-    pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
-    pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
+    pub(in crate::native_app) browser_interaction: BrowserInteractionState,
 
     // MetadataAppState owns tag entry, completion, dictionary, library panel,
     // drag/drop, selection, collapsed categories, per-file tag assignments, and
@@ -97,6 +90,54 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) startup_source_scan_pending: bool,
     pub(in crate::native_app) startup_folder_verify_pending: bool,
     pub(in crate::native_app) startup_auto_load_pending: bool,
+}
+
+pub(in crate::native_app) struct ChromeUiState {
+    pub(in crate::native_app) folder_panel: ui::PanelResizeState,
+    pub(in crate::native_app) job_details_open: bool,
+    pub(in crate::native_app) transaction_list_open: bool,
+}
+
+impl ChromeUiState {
+    pub(in crate::native_app) fn new(folder_width: f32) -> Self {
+        Self {
+            folder_panel: ui::PanelResizeState::new(folder_width),
+            job_details_open: false,
+            transaction_list_open: false,
+        }
+    }
+}
+
+pub(in crate::native_app) struct SettingsUiState {
+    pub(in crate::native_app) audio_settings_open: bool,
+    pub(in crate::native_app) app_settings_tab: AppSettingsTab,
+    pub(in crate::native_app) audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
+}
+
+impl Default for SettingsUiState {
+    fn default() -> Self {
+        Self {
+            audio_settings_open: false,
+            app_settings_tab: Default::default(),
+            audio_settings_dropdown: ui::ExclusiveOpen::new(),
+        }
+    }
+}
+
+pub(in crate::native_app) struct BrowserInteractionState {
+    pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
+    pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
+    pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
+}
+
+impl Default for BrowserInteractionState {
+    fn default() -> Self {
+        Self {
+            context_menu: None,
+            native_file_drop_hover: None,
+            pending_internal_file_drag_paths: Default::default(),
+        }
+    }
 }
 
 pub(in crate::native_app) struct MetadataAppState {

@@ -249,7 +249,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
 #[test]
 fn sample_selection_loads_selected_file_into_waveform() {
     let mut state = NativeAppState {
-        folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
+        chrome: crate::native_app::test_support::ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
         folder_browser: crate::native_app::test_support::FolderBrowserState::load_default(),
         waveform: crate::native_app::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
@@ -260,16 +260,10 @@ fn sample_selection_loads_selected_file_into_waveform() {
         waveform_load: crate::native_app::test_support::WaveformLoadState::default(),
         audio: crate::native_app::test_support::AudioAppState::for_tests(),
         persisted_settings: crate::native_app::test_support::AppSettingsCore::default(),
-        audio_settings_open: false,
-        app_settings_tab: Default::default(),
-        audio_settings_dropdown: ui::ExclusiveOpen::new(),
-        job_details_open: false,
-        transaction_list_open: false,
+        settings_ui: crate::native_app::test_support::SettingsUiState::default(),
         transaction_history: Default::default(),
         transaction_restoring: false,
-        context_menu: None,
-        native_file_drop_hover: None,
-        pending_internal_file_drag_paths: Default::default(),
+        browser_interaction: crate::native_app::test_support::BrowserInteractionState::default(),
         metadata: crate::native_app::test_support::MetadataAppState::for_tests(),
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,

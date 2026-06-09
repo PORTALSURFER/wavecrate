@@ -115,7 +115,7 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
 #[test]
 fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_settings_open = true;
+    state.settings_ui.audio_settings_open = true;
     let frame = crate::native_app::test_support::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
@@ -137,7 +137,7 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
 #[test]
 fn audio_settings_window_does_not_block_waveform_selection_messages() {
     let mut state = gui_state_for_span_tests();
-    state.audio_settings_open = true;
+    state.settings_ui.audio_settings_open = true;
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
@@ -213,10 +213,11 @@ fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
 #[test]
 fn stale_waveform_drop_hover_does_not_mask_waveform_hit_target() {
     let mut state = gui_state_for_span_tests();
-    state.native_file_drop_hover = Some(crate::native_app::test_support::NativeFileDropHover {
-        path: PathBuf::from("stale.wav"),
-        supported: true,
-    });
+    state.browser_interaction.native_file_drop_hover =
+        Some(crate::native_app::test_support::NativeFileDropHover {
+            path: PathBuf::from("stale.wav"),
+            supported: true,
+        });
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
     let point = Point::new(rect.min.x + rect.width() * 0.38, rect.center().y);
@@ -400,7 +401,7 @@ fn native_pointer_shell_routes_primary_waveform_selection_drag() {
 #[test]
 fn transaction_list_modal_blocks_waveform_interaction_behind_it() {
     let mut state = gui_state_for_span_tests();
-    state.transaction_list_open = true;
+    state.chrome.transaction_list_open = true;
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
     let point = Point::new(rect.min.x + rect.width() * 0.25, rect.center().y);

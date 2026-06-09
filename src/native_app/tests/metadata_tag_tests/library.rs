@@ -275,6 +275,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
     let menu = runtime
         .bridge()
         .state()
+        .browser_interaction
         .context_menu
         .as_ref()
         .expect("right-click should open metadata tag context menu");
@@ -301,16 +302,17 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
         .metadata
         .tag_dictionary
         .insert(String::from("oneshot"), String::from("sound-type"));
-    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
-        kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
-        path: PathBuf::new(),
-        source_id: None,
-        source_removable: false,
-        metadata_tag: Some(String::from("oneshot")),
-        collection: None,
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("oneshot"),
-    });
+    state.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
+            path: PathBuf::new(),
+            source_id: None,
+            source_removable: false,
+            metadata_tag: Some(String::from("oneshot")),
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("oneshot"),
+        });
 
     state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
 
@@ -323,7 +325,7 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
         state.metadata.tags_by_file.get("other.wav"),
         Some(&vec![String::from("seq")])
     );
-    assert_eq!(state.context_menu, None);
+    assert_eq!(state.browser_interaction.context_menu, None);
     assert_eq!(
         state.sample_status,
         "Deleted tag oneshot from 2 assignment(s)"
@@ -334,16 +336,17 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
 fn metadata_tag_context_delete_rejects_locked_playback_tags() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
-    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
-        kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
-        path: PathBuf::new(),
-        source_id: None,
-        source_removable: false,
-        metadata_tag: Some(String::from("loop")),
-        collection: None,
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("loop"),
-    });
+    state.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::MetadataTag,
+            path: PathBuf::new(),
+            source_id: None,
+            source_removable: false,
+            metadata_tag: Some(String::from("loop")),
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("loop"),
+        });
 
     state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
 

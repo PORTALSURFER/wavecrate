@@ -88,14 +88,14 @@ impl NativeAppState {
             }
             GuiMessage::NormalizationFinished(result) => self.finish_normalization(result),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
                 self.select_sample_with_modifiers(path, modifiers, context);
             }
             GuiMessage::OpenSampleContextMenu { path, position } => {
                 self.open_sample_context_menu(path, position);
             }
             GuiMessage::DragSampleFile { path, drag } => {
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
                 self.drag_sample_file(path, drag, context);
             }
             GuiMessage::ExternalDragCompleted(result) => {
@@ -238,19 +238,20 @@ impl NativeAppState {
             GuiMessage::RefreshContextSource => self.refresh_context_source(context),
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
             }
             GuiMessage::ToggleJobDetails => {
-                self.job_details_open = self.folder_progress.is_some() && !self.job_details_open;
+                self.chrome.job_details_open =
+                    self.folder_progress.is_some() && !self.chrome.job_details_open;
             }
             GuiMessage::CloseJobDetails => {
-                self.job_details_open = false;
+                self.chrome.job_details_open = false;
             }
             GuiMessage::UndoTransaction => self.undo_transaction(),
             GuiMessage::RedoTransaction => self.redo_transaction(),
             GuiMessage::ToggleTransactionList => self.toggle_transaction_list(),
             GuiMessage::CloseTransactionList => {
-                self.transaction_list_open = false;
+                self.chrome.transaction_list_open = false;
             }
             GuiMessage::FocusRenameInput(input_id) => {
                 self.focus_rename_input(input_id, context);

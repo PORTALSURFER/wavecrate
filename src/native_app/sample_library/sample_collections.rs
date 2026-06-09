@@ -60,7 +60,7 @@ impl NativeAppState {
         &mut self,
         _context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(menu) = self.context_menu.take() else {
+        let Some(menu) = self.browser_interaction.context_menu.take() else {
             return;
         };
         let Some(collection) = menu.collection else {

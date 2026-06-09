@@ -359,21 +359,27 @@ impl NativeAppState {
         &mut self,
         request: Option<&ui::ExternalDragRequest>,
     ) {
-        self.pending_internal_file_drag_paths.clear();
+        self.browser_interaction
+            .pending_internal_file_drag_paths
+            .clear();
         let Some(ui::ExternalDragPayload::Files(paths)) = request.map(|request| &request.payload)
         else {
             return;
         };
-        self.pending_internal_file_drag_paths
+        self.browser_interaction
+            .pending_internal_file_drag_paths
             .extend(paths.iter().map(|path| normalized_drag_path(path)));
     }
 
     pub(in crate::native_app) fn clear_pending_internal_file_drag_paths(&mut self) {
-        self.pending_internal_file_drag_paths.clear();
+        self.browser_interaction
+            .pending_internal_file_drag_paths
+            .clear();
     }
 
     pub(in crate::native_app) fn is_pending_internal_file_drag_path(&self, path: &Path) -> bool {
-        self.pending_internal_file_drag_paths
+        self.browser_interaction
+            .pending_internal_file_drag_paths
             .contains(&normalized_drag_path(path))
     }
 }

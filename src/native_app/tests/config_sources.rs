@@ -183,16 +183,17 @@ fn default_gui_removes_context_source_from_app_config() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
-        kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
-        path: source_root.path().to_path_buf(),
-        source_id: Some(source_root.path().to_string_lossy().to_string()),
-        source_removable: true,
-        metadata_tag: None,
-        collection: None,
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("source root"),
-    });
+    state.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
+            path: source_root.path().to_path_buf(),
+            source_id: Some(source_root.path().to_string_lossy().to_string()),
+            source_removable: true,
+            metadata_tag: None,
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("source root"),
+        });
 
     state.remove_context_source();
 
@@ -220,22 +221,23 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
-        kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
-        path: source_root.path().to_path_buf(),
-        source_id: Some(source_id.clone()),
-        source_removable: true,
-        metadata_tag: None,
-        collection: None,
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("source root"),
-    });
+    state.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
+            path: source_root.path().to_path_buf(),
+            source_id: Some(source_id.clone()),
+            source_removable: true,
+            metadata_tag: None,
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("source root"),
+        });
     let visible_before = state.folder_browser.selected_audio_files().len();
     let mut context = ui::UpdateContext::default();
 
     state.refresh_context_source(&mut context);
 
-    assert_eq!(state.context_menu, None);
+    assert_eq!(state.browser_interaction.context_menu, None);
     let task_id = state
         .folder_progress
         .as_ref()

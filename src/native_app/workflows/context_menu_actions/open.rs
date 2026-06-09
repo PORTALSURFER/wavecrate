@@ -30,7 +30,7 @@ impl NativeAppState {
         };
         let title = context_menu_title(&path);
         let source_removable = self.folder_browser.source_is_removable(&source_id);
-        self.context_menu = Some(BrowserContextMenu {
+        self.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Source,
             path,
             source_id: Some(source_id),
@@ -72,7 +72,7 @@ impl NativeAppState {
             );
             return;
         }
-        self.context_menu = Some(BrowserContextMenu {
+        self.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Folder,
             title: context_menu_title(&path),
             path,
@@ -119,7 +119,7 @@ impl NativeAppState {
         let collection = self
             .folder_browser
             .active_collection_for_context_file(&path);
-        self.context_menu = Some(BrowserContextMenu {
+        self.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             title: sample_path_label(&path),
             path,
@@ -136,7 +136,7 @@ impl NativeAppState {
         tag: String,
         position: Point,
     ) {
-        self.context_menu = Some(BrowserContextMenu {
+        self.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::MetadataTag,
             path: Path::new("").to_path_buf(),
             source_id: None,

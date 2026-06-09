@@ -25,10 +25,10 @@ impl NativeAppState {
         match drop.phase {
             NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path),
             NativeFileDropPhase::Cancel => {
-                self.native_file_drop_hover = None;
+                self.browser_interaction.native_file_drop_hover = None;
             }
             NativeFileDropPhase::Drop => {
-                self.native_file_drop_hover = None;
+                self.browser_interaction.native_file_drop_hover = None;
                 let Some(path) = drop.path else {
                     return;
                 };
@@ -42,7 +42,7 @@ impl NativeAppState {
         drop: NativeFileDrop,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        self.native_file_drop_hover = None;
+        self.browser_interaction.native_file_drop_hover = None;
         match drop.phase {
             NativeFileDropPhase::Hover => {}
             NativeFileDropPhase::Cancel | NativeFileDropPhase::Drop => {
@@ -64,7 +64,10 @@ impl NativeAppState {
                 .path
                 .as_deref()
                 .is_some_and(|path| self.is_pending_internal_file_drag_path(path)),
-            NativeFileDropPhase::Cancel => !self.pending_internal_file_drag_paths.is_empty(),
+            NativeFileDropPhase::Cancel => !self
+                .browser_interaction
+                .pending_internal_file_drag_paths
+                .is_empty(),
             NativeFileDropPhase::Drop => drop
                 .path
                 .as_deref()
@@ -73,7 +76,7 @@ impl NativeAppState {
         if !should_cancel {
             return false;
         }
-        self.native_file_drop_hover = None;
+        self.browser_interaction.native_file_drop_hover = None;
         if !matches!(drop.phase, NativeFileDropPhase::Hover) {
             self.clear_pending_internal_file_drag_paths();
         }
@@ -84,10 +87,10 @@ impl NativeAppState {
 
     fn track_native_file_hover(&mut self, path: Option<PathBuf>) {
         let Some(path) = path else {
-            self.native_file_drop_hover = None;
+            self.browser_interaction.native_file_drop_hover = None;
             return;
         };
-        self.native_file_drop_hover = Some(NativeFileDropHover {
+        self.browser_interaction.native_file_drop_hover = Some(NativeFileDropHover {
             supported: supported_waveform_drop_file(&path),
             path,
         });

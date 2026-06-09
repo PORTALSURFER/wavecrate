@@ -90,7 +90,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn move_context_target_to_trash(&mut self) {
         let started_at = Instant::now();
-        let Some(menu) = self.context_menu.take() else {
+        let Some(menu) = self.browser_interaction.context_menu.take() else {
             return;
         };
         match menu.kind {

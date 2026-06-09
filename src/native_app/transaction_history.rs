@@ -344,7 +344,7 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn toggle_transaction_list(&mut self) {
-        self.transaction_list_open = !self.transaction_list_open;
+        self.chrome.transaction_list_open = !self.chrome.transaction_list_open;
     }
 }
 

@@ -42,7 +42,7 @@ fn transaction_group_undoes_and_redoes_as_one_entry() {
 #[test]
 fn transaction_list_modal_renders_registered_transactions() {
     let mut state = gui_state_for_span_tests();
-    state.transaction_list_open = true;
+    state.chrome.transaction_list_open = true;
     state.register_transaction_action("Rename sample", |_| Ok(()), |_| Ok(()));
     state.begin_transaction("Open batch");
     state.register_transaction_action("First action", |_| Ok(()), |_| Ok(()));

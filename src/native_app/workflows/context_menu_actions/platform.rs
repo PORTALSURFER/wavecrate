@@ -14,7 +14,7 @@ impl NativeAppState {
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let Some(menu) = self.context_menu.take() else {
+        let Some(menu) = self.browser_interaction.context_menu.take() else {
             return;
         };
         if !context_menu::target_available(&menu.kind, &menu.path) {
@@ -90,7 +90,7 @@ impl NativeAppState {
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let Some(menu) = self.context_menu.take() else {
+        let Some(menu) = self.browser_interaction.context_menu.take() else {
             return;
         };
         if !context_menu::target_available(&menu.kind, &menu.path) {

@@ -175,7 +175,9 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn toggle_audio_settings(&mut self) {
         let started_at = Instant::now();
-        if self.audio_settings_open && self.app_settings_tab == AppSettingsTab::AudioEngine {
+        if self.settings_ui.audio_settings_open
+            && self.settings_ui.app_settings_tab == AppSettingsTab::AudioEngine
+        {
             self.close_audio_settings_window();
         } else {
             self.open_settings_window(AppSettingsTab::AudioEngine);
@@ -184,7 +186,7 @@ impl NativeAppState {
             "audio.settings.toggle",
             Some("top_bar"),
             None,
-            if self.audio_settings_open {
+            if self.settings_ui.audio_settings_open {
                 "opened"
             } else {
                 "closed"
@@ -209,7 +211,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn select_settings_tab(&mut self, tab: AppSettingsTab) {
         let started_at = Instant::now();
-        self.app_settings_tab = tab;
+        self.settings_ui.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();
         emit_gui_action(
             "settings.tab.select",
@@ -223,30 +225,30 @@ impl NativeAppState {
 
     fn open_settings_window(&mut self, tab: AppSettingsTab) {
         self.refresh_audio_options();
-        self.audio_settings_open = true;
-        self.app_settings_tab = tab;
+        self.settings_ui.audio_settings_open = true;
+        self.settings_ui.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();
         self.audio.settings_error = None;
     }
 
     pub(in crate::native_app) fn close_audio_settings_window(&mut self) {
-        self.audio_settings_open = false;
+        self.settings_ui.audio_settings_open = false;
         self.close_audio_settings_dropdowns();
     }
 
     pub(in crate::native_app) fn audio_settings_dropdown_open(&self) -> bool {
-        self.audio_settings_dropdown.any_open()
+        self.settings_ui.audio_settings_dropdown.any_open()
     }
 
     pub(in crate::native_app) fn close_audio_settings_dropdowns(&mut self) {
-        self.audio_settings_dropdown.close();
+        self.settings_ui.audio_settings_dropdown.close();
     }
 
     pub(in crate::native_app) fn toggle_audio_settings_dropdown(
         &mut self,
         dropdown: AudioSettingsDropdown,
     ) {
-        self.audio_settings_dropdown.toggle(dropdown);
+        self.settings_ui.audio_settings_dropdown.toggle(dropdown);
     }
 
     pub(in crate::native_app) fn set_audio_output_host(&mut self, host: Option<String>) {

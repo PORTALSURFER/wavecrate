@@ -35,7 +35,7 @@ fn first_visible_asset_file_path(browser: &super::test_support::FolderBrowserSta
 
 fn gui_state_for_span_tests() -> NativeAppState {
     NativeAppState {
-        folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
+        chrome: crate::native_app::test_support::ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
         folder_browser: super::test_support::FolderBrowserState::load_default(),
         waveform: super::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
@@ -46,16 +46,10 @@ fn gui_state_for_span_tests() -> NativeAppState {
         waveform_load: crate::native_app::test_support::WaveformLoadState::default(),
         audio: crate::native_app::test_support::AudioAppState::for_tests(),
         persisted_settings: super::test_support::AppSettingsCore::default(),
-        audio_settings_open: false,
-        app_settings_tab: Default::default(),
-        audio_settings_dropdown: ui::ExclusiveOpen::new(),
-        job_details_open: false,
-        transaction_list_open: false,
+        settings_ui: crate::native_app::test_support::SettingsUiState::default(),
         transaction_history: Default::default(),
         transaction_restoring: false,
-        context_menu: None,
-        native_file_drop_hover: None,
-        pending_internal_file_drag_paths: Default::default(),
+        browser_interaction: crate::native_app::test_support::BrowserInteractionState::default(),
         metadata: crate::native_app::test_support::MetadataAppState::for_tests(),
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,
@@ -364,7 +358,11 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
     state.open_sample_context_menu(selected_file, Point::new(12.0, 24.0));
 
     assert_eq!(
-        state.context_menu.as_ref().and_then(|menu| menu.collection),
+        state
+            .browser_interaction
+            .context_menu
+            .as_ref()
+            .and_then(|menu| menu.collection),
         Some(collection)
     );
 
@@ -379,7 +377,7 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
         Vec::<wavecrate::sample_sources::SampleCollection>::new()
     );
     assert!(state.folder_browser.selected_audio_files().is_empty());
-    assert_eq!(state.context_menu, None);
+    assert_eq!(state.browser_interaction.context_menu, None);
     assert!(
         state
             .sample_status
@@ -413,7 +411,7 @@ fn start_deferred_sample_load_for_tests(
 #[test]
 fn folder_browser_splitter_resizes_and_clamps_width() {
     let mut state = NativeAppState {
-        folder_panel: ui::PanelResizeState::new(DEFAULT_FOLDER_WIDTH),
+        chrome: crate::native_app::test_support::ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
         folder_browser: super::test_support::FolderBrowserState::load_default(),
         waveform: super::test_support::WaveformState::synthetic_for_tests(),
         sample_status: String::new(),
@@ -424,16 +422,10 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         waveform_load: crate::native_app::test_support::WaveformLoadState::default(),
         audio: crate::native_app::test_support::AudioAppState::for_tests(),
         persisted_settings: super::test_support::AppSettingsCore::default(),
-        audio_settings_open: false,
-        app_settings_tab: Default::default(),
-        audio_settings_dropdown: ui::ExclusiveOpen::new(),
-        job_details_open: false,
-        transaction_list_open: false,
+        settings_ui: crate::native_app::test_support::SettingsUiState::default(),
         transaction_history: Default::default(),
         transaction_restoring: false,
-        context_menu: None,
-        native_file_drop_hover: None,
-        pending_internal_file_drag_paths: Default::default(),
+        browser_interaction: crate::native_app::test_support::BrowserInteractionState::default(),
         metadata: crate::native_app::test_support::MetadataAppState::for_tests(),
         startup_source_scan_pending: false,
         startup_folder_verify_pending: false,
@@ -443,14 +435,17 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
     state.resize_folder_browser(DragHandleMessage::started(Point::new(100.0, 0.0)));
     state.resize_folder_browser(DragHandleMessage::moved(Point::new(160.0, 0.0)));
 
-    assert_eq!(state.folder_panel.size(), DEFAULT_FOLDER_WIDTH + 60.0);
+    assert_eq!(
+        state.chrome.folder_panel.size(),
+        DEFAULT_FOLDER_WIDTH + 60.0
+    );
 
     state.resize_folder_browser(DragHandleMessage::moved(Point::new(900.0, 0.0)));
-    assert_eq!(state.folder_panel.size(), MAX_FOLDER_WIDTH);
+    assert_eq!(state.chrome.folder_panel.size(), MAX_FOLDER_WIDTH);
 
     state.resize_folder_browser(DragHandleMessage::ended(Point::new(-900.0, 0.0)));
-    assert_eq!(state.folder_panel.size(), MIN_FOLDER_WIDTH);
-    assert!(!state.folder_panel.is_resizing());
+    assert_eq!(state.chrome.folder_panel.size(), MIN_FOLDER_WIDTH);
+    assert!(!state.chrome.folder_panel.is_resizing());
 }
 
 #[test]

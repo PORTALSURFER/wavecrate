@@ -19,7 +19,7 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             )),
         )
         .layer_when(
-            state.context_menu.is_some(),
+            state.browser_interaction.context_menu.is_some(),
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
         )
         .layer_when(
@@ -27,11 +27,11 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseAudioSettingsDropdowns),
         )
         .layer_when(
-            state.job_details_open,
+            state.chrome.job_details_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
         )
         .layer_when(
-            state.transaction_list_open,
+            state.chrome.transaction_list_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseTransactionList),
         )
         .layer_when(

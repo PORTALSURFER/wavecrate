@@ -101,7 +101,7 @@ fn escape_shortcut_cancels_file_column_drag() {
 #[test]
 fn audio_settings_window_does_not_capture_main_escape_shortcut() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_settings_open = true;
+    state.settings_ui.audio_settings_open = true;
 
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
@@ -116,7 +116,7 @@ fn audio_settings_window_does_not_capture_main_escape_shortcut() {
 #[test]
 fn audio_settings_window_does_not_block_main_shortcuts() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio_settings_open = true;
+    state.settings_ui.audio_settings_open = true;
 
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::N));
@@ -133,16 +133,17 @@ fn audio_settings_window_does_not_block_main_shortcuts() {
 #[test]
 fn context_menu_escape_shortcut_closes_context_menu() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
-        kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
-        path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
-        source_id: None,
-        source_removable: false,
-        metadata_tag: None,
-        collection: None,
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("kick.wav"),
-    });
+    state.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
+            path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
+            source_id: None,
+            source_removable: false,
+            metadata_tag: None,
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("kick.wav"),
+        });
 
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
@@ -176,6 +177,7 @@ fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
 fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
     let mut state = gui_state_for_span_tests();
     state
+        .settings_ui
         .audio_settings_dropdown
         .open(crate::native_app::test_support::AudioSettingsDropdown::Backend);
 
@@ -262,22 +264,23 @@ fn context_menu_availability_requires_existing_target_kind() {
 #[test]
 fn stale_context_menu_copy_path_refuses_missing_sample_file() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.context_menu = Some(crate::native_app::test_support::BrowserContextMenu {
-        kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
-        path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
-        source_id: None,
-        source_removable: false,
-        metadata_tag: None,
-        collection: None,
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("missing.wav"),
-    });
+    state.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
+            path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
+            source_id: None,
+            source_removable: false,
+            metadata_tag: None,
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("missing.wav"),
+        });
 
     let mut context = ui::UpdateContext::default();
     state.copy_context_path(&mut context);
 
     assert_eq!(state.sample_status, "Sample file is missing");
-    assert_eq!(state.context_menu, None);
+    assert_eq!(state.browser_interaction.context_menu, None);
 }
 
 #[test]

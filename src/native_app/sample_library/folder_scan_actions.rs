@@ -188,7 +188,7 @@ impl NativeAppState {
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.folder_browser.begin_source_scan(id, task_id) {
             let label = request.label.clone();
-            self.context_menu = None;
+            self.browser_interaction.context_menu = None;
             emit_gui_action(
                 "folder_browser.source.refresh",
                 Some("sources"),
@@ -199,7 +199,7 @@ impl NativeAppState {
             );
             self.launch_folder_scan(request, context);
         } else {
-            self.context_menu = None;
+            self.browser_interaction.context_menu = None;
             self.sample_status = String::from("Source refresh is already running");
             emit_gui_action(
                 "folder_browser.source.refresh",
@@ -323,11 +323,11 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let Some(menu) = self.context_menu.clone() else {
+        let Some(menu) = self.browser_interaction.context_menu.clone() else {
             return;
         };
         let Some(source_id) = menu.source_id else {
-            self.context_menu = None;
+            self.browser_interaction.context_menu = None;
             self.sample_status = String::from("Source is unavailable");
             return;
         };
@@ -493,7 +493,7 @@ impl NativeAppState {
         let folder_count = result.folder_count;
         if self.folder_browser.apply_scan_finished(result) {
             self.folder_progress = None;
-            self.job_details_open = false;
+            self.chrome.job_details_open = false;
             self.background.progress_tick = 0.0;
             self.sample_status =
                 format!("Loaded source {label}: {file_count} files in {folder_count} folders");

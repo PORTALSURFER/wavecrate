@@ -8,7 +8,7 @@ use crate::native_app::sample_library::context_menu_target::BrowserContextTarget
 impl NativeAppState {
     pub(in crate::native_app) fn remove_context_source(&mut self) {
         let started_at = Instant::now();
-        let Some(menu) = self.context_menu.take() else {
+        let Some(menu) = self.browser_interaction.context_menu.take() else {
             return;
         };
         if menu.kind != BrowserContextTargetKind::Source {
@@ -87,7 +87,7 @@ impl NativeAppState {
         &mut self,
         context: &mut radiant::prelude::UpdateContext<GuiMessage>,
     ) {
-        let Some(menu) = self.context_menu.take() else {
+        let Some(menu) = self.browser_interaction.context_menu.take() else {
             return;
         };
         if menu.kind != BrowserContextTargetKind::MetadataTag {

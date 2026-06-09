@@ -23,7 +23,7 @@ pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 380.0;
 pub(in crate::native_app) fn auxiliary_windows(
     state: &mut NativeAppState,
 ) -> Vec<ui::AuxiliaryWindow<GuiMessage>> {
-    if !state.audio_settings_open {
+    if !state.settings_ui.audio_settings_open {
         return Vec::new();
     }
     let snapshot = AudioSettingsSnapshot::from_app_state(state);

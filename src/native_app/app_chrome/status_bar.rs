@@ -59,7 +59,7 @@ pub(in crate::native_app) fn worker_progress_bar(
 }
 
 fn job_details_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
-    if state.job_details_open
+    if state.chrome.job_details_open
         && let Some(progress) = state.folder_progress.as_ref()
     {
         return Some(ui::Layer::popover(job_details_popover(progress)));
@@ -70,6 +70,7 @@ fn job_details_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
 
 fn transaction_list_layer(state: &NativeAppState) -> Option<ui::Layer<GuiMessage>> {
     state
+        .chrome
         .transaction_list_open
         .then(|| ui::Layer::modal(modals::transaction_list(state)).block_input())
 }

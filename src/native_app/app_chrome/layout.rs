@@ -33,6 +33,7 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let metadata_completion = overlays::metadata_tag_completion(state, CENTER_PANEL_PADDING)
         .map(|view| ui::Layer::floating(view).pass_through());
     let browser_context_menu = state
+        .browser_interaction
         .context_menu
         .as_ref()
         .map(browser_context_menu::overlay)
@@ -79,7 +80,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
 fn main_area(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
-    let suppress_sample_hover = state.folder_panel.is_resizing();
+    let suppress_sample_hover = state.chrome.folder_panel.is_resizing();
     let sample_browser_model = SampleBrowserViewModel::from_app_state(state, suppress_sample_hover);
     ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
         .padding(4.0)

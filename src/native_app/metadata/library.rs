@@ -116,7 +116,7 @@ impl NativeAppState {
             return;
         }
 
-        self.context_menu = None;
+        self.browser_interaction.context_menu = None;
         self.metadata.tag_dictionary.remove(&tag);
         self.metadata.tag_drag = None;
         self.metadata.tag_drop_hover = None;

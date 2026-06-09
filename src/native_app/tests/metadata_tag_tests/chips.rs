@@ -116,6 +116,7 @@ fn right_clicking_metadata_tag_chip_opens_delete_context_menu() {
     let menu = runtime
         .bridge()
         .state()
+        .browser_interaction
         .context_menu
         .as_ref()
         .expect("right-click should open metadata tag context menu");

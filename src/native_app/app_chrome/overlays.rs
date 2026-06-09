@@ -19,7 +19,7 @@ pub(in crate::native_app) fn metadata_tag_completion(
         return None;
     }
     let tag_field_content_width =
-        folder_sidebar::tag_field_content_width(state.folder_panel.size());
+        folder_sidebar::tag_field_content_width(state.chrome.folder_panel.size());
     let inset_x = center_panel_padding + FOLDER_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
     let inset_y = BOTTOM_STATUS_BAR_HEIGHT
         + center_panel_padding

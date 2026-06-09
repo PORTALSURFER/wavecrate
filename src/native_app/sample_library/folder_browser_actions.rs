@@ -18,7 +18,7 @@ impl NativeAppState {
         let phase = message.phase();
         let should_log = !message.is_moved();
         let outcome = phase.as_str();
-        self.folder_panel.resize(
+        self.chrome.folder_panel.resize(
             message,
             ui::PanelResizeConstraints::right(MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH),
         );
@@ -44,7 +44,7 @@ impl NativeAppState {
             FolderBrowserMessage::SelectSource(id) => {
                 let started_at = Instant::now();
                 let source = id.clone();
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
                 self.select_source(id, context);
                 self.schedule_active_folder_cache_warm(context);
                 emit_gui_action(
@@ -76,11 +76,11 @@ impl NativeAppState {
                     .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
             }
             FolderBrowserMessage::DropOnFolder(folder_id) => {
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
                 self.drop_browser_drag_on_folder(folder_id, context);
             }
             FolderBrowserMessage::DropOnCollection(collection) => {
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
                 self.drop_drag_on_collection(collection, context);
             }
             FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
@@ -103,7 +103,7 @@ impl NativeAppState {
                 );
             }
             FolderBrowserMessage::DragFolder(folder_id, drag) => {
-                self.context_menu = None;
+                self.browser_interaction.context_menu = None;
                 self.drag_folder(folder_id, drag, context);
             }
             FolderBrowserMessage::ActivateCollection(collection) => {
