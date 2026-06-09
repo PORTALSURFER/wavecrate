@@ -4,11 +4,12 @@ use crate::native_app::app::NativeAppState;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
 use crate::native_app::sample_library::folder_browser::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
-    VisibleFolder,
+    FolderBrowserState, VisibleFolder,
 };
 
 pub(in crate::native_app) struct LibrarySidebarViewModel {
     pub(in crate::native_app) sidebar_width: f32,
+    pub(in crate::native_app) metadata_panel_height: f32,
     pub(in crate::native_app) folder_tree: FolderTreeViewModel,
     pub(in crate::native_app) tag_editor: TagEditorViewModel,
 }
@@ -35,8 +36,17 @@ pub(in crate::native_app) struct TagEditorViewModel {
 impl LibrarySidebarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         let folder_browser = &state.library.folder_browser;
-        let sidebar_width = state.ui.chrome.folder_panel.size();
-        let has_selected_file = folder_browser.selected_file_id().is_some();
+        Self {
+            sidebar_width: state.ui.chrome.folder_panel.size(),
+            metadata_panel_height: folder_browser.metadata_panel_height(),
+            folder_tree: FolderTreeViewModel::from_folder_browser(folder_browser),
+            tag_editor: TagEditorViewModel::from_app_state(state),
+        }
+    }
+}
+
+impl FolderTreeViewModel {
+    fn from_folder_browser(folder_browser: &FolderBrowserState) -> Self {
         let visible_folders = folder_browser.visible_folders();
         let window = folder_browser.tree_view_window(
             &visible_folders,
@@ -44,14 +54,20 @@ impl LibrarySidebarViewModel {
             FOLDER_TREE_OVERSCAN_ROWS,
             FOLDER_TREE_EDGE_CONTEXT_ROWS,
         );
-        let folder_tree = FolderTreeViewModel {
+
+        Self {
             visible_folders,
             window,
             drag_revision: folder_browser.drag_revision(),
             selected_folder_status_label: folder_browser.selected_folder_status_label(),
-        };
-        let tag_editor = TagEditorViewModel {
-            has_selected_file,
+        }
+    }
+}
+
+impl TagEditorViewModel {
+    fn from_app_state(state: &NativeAppState) -> Self {
+        Self {
+            has_selected_file: state.library.folder_browser.selected_file_id().is_some(),
             draft: state.metadata.tag_draft.clone(),
             tokens: state.metadata.tag_tokens.clone(),
             pending_category_tag: state
@@ -62,12 +78,6 @@ impl LibrarySidebarViewModel {
             tags: state.selected_metadata_tags().to_vec(),
             display_categories: state.selected_metadata_tag_display_categories(),
             selected_tag: state.metadata.selected_tag.clone(),
-        };
-
-        Self {
-            sidebar_width,
-            folder_tree,
-            tag_editor,
         }
     }
 }

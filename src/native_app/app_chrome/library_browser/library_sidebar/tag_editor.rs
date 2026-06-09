@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::view_models::library_sidebar::TagEditorViewModel;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
 use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_category_style};
 use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
@@ -8,7 +9,7 @@ use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryFieldProjection,
-    TagEntryRowItem, metadata_tag_category_id_for_display, tag_pill_width,
+    TagEntryRowItem, metadata_tag_category_id_for_display, tag_field_content_width, tag_pill_width,
 };
 
 #[cfg(test)]
@@ -28,7 +29,39 @@ const METADATA_HEADER_TRAILING_HEIGHT: f32 = 20.0;
 const METADATA_HEADER_RESIZE_HANDLE_WIDTH: f32 = 26.0;
 const METADATA_HEADER_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
 
-pub(super) fn metadata_section(
+pub(super) fn tag_editor_section(
+    model: &TagEditorViewModel,
+    sidebar_width: f32,
+    panel_height: f32,
+) -> ui::View<GuiMessage> {
+    let content_width = tag_field_content_width(sidebar_width);
+    let field_height = tag_field_height(
+        model.draft.as_str(),
+        model.tokens.as_slice(),
+        model.pending_category_tag.as_deref(),
+        model.input_placeholder.as_str(),
+        model.completion_suffix.as_deref(),
+        model.tags.as_slice(),
+        model.display_categories.as_slice(),
+        content_width,
+    );
+    metadata_section(
+        model.draft.as_str(),
+        model.tokens.as_slice(),
+        model.pending_category_tag.as_deref(),
+        model.input_placeholder.as_str(),
+        model.completion_suffix.as_deref(),
+        model.tags.as_slice(),
+        model.display_categories.as_slice(),
+        model.selected_tag.as_deref(),
+        content_width,
+        field_height,
+        panel_height,
+        model.has_selected_file,
+    )
+}
+
+fn metadata_section(
     tag_draft: &str,
     tag_tokens: &[String],
     tag_pending_category_tag: Option<&str>,
