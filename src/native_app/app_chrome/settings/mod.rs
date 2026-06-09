@@ -8,7 +8,7 @@ use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 mod top_bar;
 mod window;
 
-pub(in crate::native_app) use top_bar::top_status_bar;
+pub(in crate::native_app) use top_bar::top_control_bar;
 #[cfg(test)]
 pub(in crate::native_app) use top_bar::{
     AUDIO_ENGINE_PILL_ID, GENERAL_SETTINGS_BUTTON_ID, VOLUME_SLIDER_ID, volume_slider,

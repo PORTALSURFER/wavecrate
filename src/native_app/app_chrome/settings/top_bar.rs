@@ -14,30 +14,28 @@ pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 =
 const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
 const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
 
-pub(in crate::native_app) fn top_status_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
-    ui::toolbar_from_parts(
-        ui::ToolbarParts::new([volume_slider(state.volume)])
-            .trailing(
-                ui::row([
-                    audio_engine_pill(
-                        state.audio_engine_pill_label(),
-                        state.audio_engine_pill_style(),
-                        state.audio_settings_open
-                            && state.app_settings_tab == AppSettingsTab::AudioEngine,
-                    ),
-                    general_settings_button(
-                        state.audio_settings_open
-                            && state.app_settings_tab == AppSettingsTab::General,
-                    ),
-                ])
-                .spacing(4.0)
-                .height(24.0),
-            )
-            .spacing(8.0)
-            .padding(12.0, 4.0)
-            .spacer_height(20.0)
-            .height(30.0),
-    )
+pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
+    ui::row([
+        volume_slider(state.volume),
+        ui::spacer().fill_width().height(20.0),
+        ui::row([
+            audio_engine_pill(
+                state.audio_engine_pill_label(),
+                state.audio_engine_pill_style(),
+                state.audio_settings_open && state.app_settings_tab == AppSettingsTab::AudioEngine,
+            ),
+            general_settings_button(
+                state.audio_settings_open && state.app_settings_tab == AppSettingsTab::General,
+            ),
+        ])
+        .spacing(4.0)
+        .height(24.0),
+    ])
+    .spacing(8.0)
+    .padding_x(12.0)
+    .padding_y(4.0)
+    .fill_width()
+    .height(30.0)
 }
 
 fn audio_engine_pill(label: String, style: ui::WidgetStyle, active: bool) -> ui::View<GuiMessage> {

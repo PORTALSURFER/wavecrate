@@ -15,31 +15,33 @@ pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = widget_ids::TOOLBAR_STOP_
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RANDOM_ID;
 
 pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
-    ui::toolbar_from_parts(
-        ui::ToolbarParts::new([
-            toolbar_icon_button(
-                TOOLBAR_FOCUS_LOADED_ID,
-                ToolbarIcon::FocusLoaded,
-                true,
-                false,
-            ),
-            toolbar_icon_button(
-                TOOLBAR_LOOP_ID,
-                ToolbarIcon::Loop,
-                true,
-                model.loop_playback,
-            ),
-            toolbar_icon_button(
-                TOOLBAR_RANDOM_ID,
-                ToolbarIcon::Random,
-                model.random_available,
-                false,
-            ),
-            toolbar_icon_button(TOOLBAR_PLAY_ID, ToolbarIcon::Play, true, model.playing),
-            toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, true, false),
-        ])
-        .align_end(),
-    )
+    ui::row([
+        ui::spacer().fill_width().height(24.0),
+        toolbar_icon_button(
+            TOOLBAR_FOCUS_LOADED_ID,
+            ToolbarIcon::FocusLoaded,
+            true,
+            false,
+        ),
+        toolbar_icon_button(
+            TOOLBAR_LOOP_ID,
+            ToolbarIcon::Loop,
+            true,
+            model.loop_playback,
+        ),
+        toolbar_icon_button(
+            TOOLBAR_RANDOM_ID,
+            ToolbarIcon::Random,
+            model.random_available,
+            false,
+        ),
+        toolbar_icon_button(TOOLBAR_PLAY_ID, ToolbarIcon::Play, true, model.playing),
+        toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, true, false),
+    ])
+    .padding_y(3.0)
+    .spacing(4.0)
+    .fill_width()
+    .height(34.0)
 }
 
 pub(in crate::native_app) fn toolbar_icon_button(

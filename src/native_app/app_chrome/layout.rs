@@ -5,7 +5,7 @@ use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_
 use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::modals;
 use crate::native_app::app_chrome::overlays;
-use crate::native_app::app_chrome::settings::top_status_bar;
+use crate::native_app::app_chrome::settings::top_control_bar;
 use crate::native_app::app_chrome::status_bar;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::{
@@ -21,7 +21,7 @@ const FOLDER_SPLITTER_INSET: f32 = 1.0;
 
 pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     ui::column([
-        top_status_bar(state),
+        top_control_bar(state),
         center_panel(state),
         status_bar::bottom_status_area(state),
     ])

@@ -10,7 +10,7 @@ use radiant::{
 use std::time::{Duration, Instant};
 
 #[test]
-fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
+fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_output_resolved = Some(crate::native_app::test_support::ResolvedOutput {
         host_id: String::from("wasapi"),
@@ -20,7 +20,7 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         channel_count: 2,
         used_fallback: false,
     });
-    let frame = crate::native_app::test_support::top_status_bar(&state)
+    let frame = crate::native_app::test_support::top_control_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
     let texts = frame.paint_plan.text_label_strings();
     let slider_fills = frame
@@ -37,12 +37,12 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 }
 
 #[test]
-fn top_status_bar_shows_no_audio_when_output_is_unavailable() {
+fn top_control_bar_shows_no_audio_when_output_is_unavailable() {
     let mut state = gui_state_for_span_tests();
     state.audio_output_config.sample_rate = Some(48_000);
     state.audio_output_resolved = None;
 
-    let frame = crate::native_app::test_support::top_status_bar(&state)
+    let frame = crate::native_app::test_support::top_control_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
 
     assert!(frame.paint_plan.contains_text("no audio"));
@@ -50,16 +50,16 @@ fn top_status_bar_shows_no_audio_when_output_is_unavailable() {
 }
 
 #[test]
-fn top_status_bar_does_not_paint_flexible_spacer_rectangle() {
+fn top_control_bar_does_not_paint_flexible_spacer_rectangle() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let frame = crate::native_app::test_support::top_status_bar(&state)
+    let frame = crate::native_app::test_support::top_control_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 30.0));
 
     assert!(
         !frame
             .paint_plan
             .contains_paint_rect_matching(|rect| rect.width() > 240.0 && rect.height() >= 20.0),
-        "top status bar spacer should render as empty space"
+        "top control bar spacer should render as empty space"
     );
 }
 
@@ -114,7 +114,7 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
 fn audio_engine_pill_activates_settings_toggle() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
-    let surface = crate::native_app::test_support::top_status_bar(&state).into_surface();
+    let surface = crate::native_app::test_support::top_control_bar(&state).into_surface();
     let pill = surface
         .find_widget(crate::native_app::test_support::AUDIO_ENGINE_PILL_ID)
         .and_then(|widget| {
@@ -140,7 +140,7 @@ fn general_settings_button_opens_general_tab() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
     state.app_settings_tab = crate::native_app::test_support::AppSettingsTab::General;
-    let surface = crate::native_app::test_support::top_status_bar(&state).into_surface();
+    let surface = crate::native_app::test_support::top_control_bar(&state).into_surface();
     let button = surface
         .find_widget(crate::native_app::test_support::GENERAL_SETTINGS_BUTTON_ID)
         .and_then(|widget| {
