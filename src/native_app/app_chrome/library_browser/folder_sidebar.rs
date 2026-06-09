@@ -180,7 +180,6 @@ fn folder_tree_window(
         TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
     .on_scroll_update({
-        let window = window;
         move |update| {
             GuiMessage::FolderTreeWindowChanged(ui::virtual_list_window_change_for_scroll(
                 update,

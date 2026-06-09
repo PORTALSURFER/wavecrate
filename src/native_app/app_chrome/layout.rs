@@ -15,9 +15,6 @@ use crate::native_app::app_chrome::view_models::{
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 use radiant::prelude as ui;
 
-const LIBRARY_SIDEBAR_RESIZE_HANDLE_HIT_WIDTH: f32 = 5.0;
-const LIBRARY_SIDEBAR_RESIZE_HANDLE_INSET: f32 = 1.0;
-
 pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     ui::column([
         top_control_bar(state),
@@ -33,11 +30,10 @@ fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     let file_move_conflict = file_move_conflict_layer(state);
     let metadata_completion = metadata_completion_layer(state);
 
-    let mut sections = vec![library_sidebar(state).transient_layer_opt(metadata_completion)];
+    let mut sections = vec![resizable_library_sidebar(state, metadata_completion)];
     if metadata_tag_library_visible(state) {
         sections.push(metadata_tag_library::panel(state));
     }
-    sections.push(library_sidebar_resize_handle());
     sections.push(sample_workspace(state));
 
     ui::row(sections)
@@ -79,15 +75,15 @@ fn library_sidebar(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     folder_sidebar::folder_sidebar(FolderSidebarViewModel::from_app_state(state))
 }
 
-fn library_sidebar_resize_handle() -> ui::View<GuiMessage> {
-    ui::drag_handle()
+fn resizable_library_sidebar(
+    state: &mut NativeAppState,
+    metadata_completion: Option<ui::Layer<GuiMessage>>,
+) -> ui::View<GuiMessage> {
+    ui::resizable(library_sidebar(state).transient_layer_opt(metadata_completion))
         .hover_chrome_only()
-        .mapped(GuiMessage::ResizeFolder)
-        .key("library-sidebar-resize-handle")
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .width(LIBRARY_SIDEBAR_RESIZE_HANDLE_HIT_WIDTH)
-        .fill_height()
-        .padding(LIBRARY_SIDEBAR_RESIZE_HANDLE_INSET)
+        .handle_key("library-sidebar-resize-handle")
+        .handle_style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .resize_handle(GuiMessage::ResizeFolder)
 }
 
 fn sample_workspace(state: &mut NativeAppState) -> ui::View<GuiMessage> {

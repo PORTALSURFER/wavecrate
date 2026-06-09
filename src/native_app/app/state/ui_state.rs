@@ -89,20 +89,11 @@ impl StatusState {
     }
 }
 
+#[derive(Default)]
 pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
-}
-
-impl Default for BrowserInteractionState {
-    fn default() -> Self {
-        Self {
-            context_menu: None,
-            native_file_drop_hover: None,
-            pending_internal_file_drag_paths: Default::default(),
-        }
-    }
 }
 
 pub(in crate::native_app) struct StartupState {

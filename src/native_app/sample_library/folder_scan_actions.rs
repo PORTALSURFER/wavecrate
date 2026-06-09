@@ -12,8 +12,7 @@ const DISCOVERY_BATCH_SIZE: usize = 64;
 
 impl NativeAppState {
     pub(in crate::native_app) fn next_folder_task_id(&mut self) -> u64 {
-        let task_id = self.background.next_task_id();
-        task_id
+        self.background.next_task_id()
     }
 
     pub(in crate::native_app) fn apply_folder_scan_progress(

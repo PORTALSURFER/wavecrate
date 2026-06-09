@@ -148,7 +148,7 @@ fn sample_collection_cell(
     file_id: &str,
 ) -> ui::View<GuiMessage> {
     ui::compact_details_cell(
-        ui::marker_run_colors(colors.into_iter())
+        ui::marker_run_colors(colors)
             .side(6)
             .gap(4)
             .inset(4)

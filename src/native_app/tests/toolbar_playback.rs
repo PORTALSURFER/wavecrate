@@ -570,9 +570,10 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
     state.waveform.current.start_playback(0.25);
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::view)
-        .update_with(|state, message, _context| match message {
-            GuiMessage::Frame => state.advance_frame(),
-            _ => {}
+        .update_with(|state, message, _context| {
+            if message == GuiMessage::Frame {
+                state.advance_frame();
+            }
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
