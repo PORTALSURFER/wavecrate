@@ -14,22 +14,49 @@ pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 =
 const GENERAL_SETTINGS_BUTTON_WIDTH: f32 = 28.0;
 const GENERAL_SETTINGS_BUTTON_HEIGHT: f32 = 24.0;
 
-pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let settings_window = &state.ui.settings.ui;
-    let active_settings_window_tab = settings_window
-        .audio_settings_open
-        .then_some(settings_window.app_settings_tab);
+struct TopControlBarModel {
+    volume: f32,
+    audio_engine_label: String,
+    audio_engine_style: ui::WidgetStyle,
+    active_settings_tab: Option<AppSettingsTab>,
+}
 
+impl TopControlBarModel {
+    fn from_app_state(state: &NativeAppState) -> Self {
+        let settings_window = &state.ui.settings.ui;
+        Self {
+            volume: state.audio.volume,
+            audio_engine_label: state.audio_engine_pill_label(),
+            audio_engine_style: state.audio_engine_pill_style(),
+            active_settings_tab: settings_window
+                .audio_settings_open
+                .then_some(settings_window.app_settings_tab),
+        }
+    }
+
+    fn audio_engine_settings_active(&self) -> bool {
+        self.active_settings_tab == Some(AppSettingsTab::AudioEngine)
+    }
+
+    fn general_settings_active(&self) -> bool {
+        self.active_settings_tab == Some(AppSettingsTab::General)
+    }
+}
+
+pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
+    let model = TopControlBarModel::from_app_state(state);
+    let audio_engine_settings_active = model.audio_engine_settings_active();
+    let general_settings_active = model.general_settings_active();
     ui::row([
-        volume_slider(state.audio.volume),
+        volume_slider(model.volume),
         ui::spacer().fill_width().height(20.0),
         ui::row([
             audio_engine_pill(
-                state.audio_engine_pill_label(),
-                state.audio_engine_pill_style(),
-                active_settings_window_tab == Some(AppSettingsTab::AudioEngine),
+                model.audio_engine_label,
+                model.audio_engine_style,
+                audio_engine_settings_active,
             ),
-            general_settings_button(active_settings_window_tab == Some(AppSettingsTab::General)),
+            general_settings_button(general_settings_active),
         ])
         .spacing(4.0)
         .height(24.0),
