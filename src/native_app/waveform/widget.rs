@@ -168,7 +168,10 @@ impl WaveformWidget {
     }
 
     pub(super) fn has_loaded_sample(&self) -> bool {
-        !self.file.audio_bytes.is_empty() && !self.file.path.as_os_str().is_empty()
+        !self.file.path.as_os_str().is_empty()
+            && (!self.file.audio_bytes.is_empty()
+                || self.file.playback_samples.is_some()
+                || self.file.playback_cache_file.is_some())
     }
 }
 

@@ -1,5 +1,20 @@
 use super::*;
 
+static WIDGET_INPUT_CONFIG_BASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn set_widget_input_test_config_base(
+    path: std::path::PathBuf,
+) -> (
+    std::sync::MutexGuard<'static, ()>,
+    wavecrate::app_dirs::ConfigBaseGuard,
+) {
+    let lock = WIDGET_INPUT_CONFIG_BASE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let guard = wavecrate::app_dirs::ConfigBaseGuard::set(path);
+    (lock, guard)
+}
+
 #[test]
 fn auxiliary_drag_pans_zoomed_waveform_viewport() {
     let mut state = WaveformState::synthetic_for_tests();
@@ -37,6 +52,44 @@ fn auxiliary_drag_pans_zoomed_waveform_viewport() {
         "dragging left should pan the viewport later in the sample"
     );
     assert_eq!(state.viewport().visible_items(), 24_000);
+}
+
+#[test]
+fn playback_cache_backed_waveform_accepts_primary_click() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_widget_input_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("cached-widget-input.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+
+    let full_waveform = WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let file = full_waveform.file();
+    super::super::store_cached_waveform_file_for_tests(&file);
+    let cached_waveform =
+        WaveformState::load_persisted_playback_cache(sample_path).expect("playback cache loads");
+    assert!(cached_waveform.has_loaded_sample());
+    assert!(
+        cached_waveform.audio_bytes().is_empty(),
+        "persisted playback cache should not need source WAV bytes on the UI path"
+    );
+    let mut widget = waveform_widget_for_state(&cached_waveform);
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+
+    let output = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 40.0)))
+        .expect("playback-cache-backed waveform should accept primary input");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.25
+        }
+    );
 }
 
 #[test]
