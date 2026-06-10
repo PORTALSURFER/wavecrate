@@ -279,6 +279,10 @@ impl FolderBrowserState {
         extend: bool,
         file_ids: &[String],
     ) -> Option<String> {
+        if self.selected_file_ids_explicit && !extend {
+            return self.navigate_focused_file_preserving_selection(delta, file_ids);
+        }
+
         let mut selection = self.file_selection_model();
         let target = if extend {
             selection.navigate_preserving_existing(delta as isize, file_ids)?
@@ -287,6 +291,23 @@ impl FolderBrowserState {
         };
         self.apply_file_selection_model(selection);
         self.selected_file_ids_explicit = extend;
+        Some(target)
+    }
+
+    fn navigate_focused_file_preserving_selection(
+        &mut self,
+        delta: i32,
+        file_ids: &[String],
+    ) -> Option<String> {
+        let current = self.selected_file.as_ref()?;
+        let current_index = file_ids.iter().position(|id| id == current)?;
+        let target_index =
+            ui::list_index_after_delta(current_index, delta as isize, file_ids.len())?;
+        if target_index == current_index {
+            return None;
+        }
+        let target = file_ids[target_index].clone();
+        self.selected_file = Some(target.clone());
         Some(target)
     }
 
