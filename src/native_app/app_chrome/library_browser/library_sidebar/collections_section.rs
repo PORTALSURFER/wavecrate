@@ -1,6 +1,9 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row_style::{
+    active_sidebar_row_style, sidebar_row_style,
+};
 use crate::native_app::sample_library::folder_browser::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, FolderBrowserMessage,
@@ -167,10 +170,12 @@ fn collection_input_style(collection: &SampleCollectionView) -> ui::WidgetStyle 
     } else {
         ui::WidgetTone::Accent
     };
-    if collection.selected || collection.drop_target {
+    if collection.drop_target {
         ui::WidgetStyle::strong(tone)
+    } else if collection.selected {
+        active_sidebar_row_style()
     } else {
-        ui::WidgetStyle::subtle(tone)
+        sidebar_row_style()
     }
 }
 
@@ -241,6 +246,34 @@ mod tests {
 
         assert!(widget.props.droppable);
         assert!(!widget.props.drop_hover);
+    }
+
+    #[test]
+    fn collection_input_uses_sidebar_accent_hover_style() {
+        let collection = collection_view(false, false);
+
+        assert_eq!(collection_input_style(&collection), sidebar_row_style());
+    }
+
+    #[test]
+    fn selected_collection_keeps_distinct_active_style() {
+        let mut collection = collection_view(false, false);
+        collection.selected = true;
+
+        assert_eq!(
+            collection_input_style(&collection),
+            active_sidebar_row_style()
+        );
+    }
+
+    #[test]
+    fn collection_drop_target_keeps_warning_style() {
+        let collection = collection_view(true, true);
+
+        assert_eq!(
+            collection_input_style(&collection),
+            ui::WidgetStyle::strong(ui::WidgetTone::Warning)
+        );
     }
 
     #[test]

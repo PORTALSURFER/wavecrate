@@ -1,6 +1,9 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row_style::{
+    active_sidebar_row_style, sidebar_row_style,
+};
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserMessage, FolderBrowserState, SourceEntry,
 };
@@ -89,9 +92,9 @@ fn source_row_content(label: String, selected: bool) -> ui::View<GuiMessage> {
 
 fn source_row_style(selected: bool) -> ui::WidgetStyle {
     if selected {
-        ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
+        active_sidebar_row_style()
     } else {
-        ui::WidgetStyle::default()
+        sidebar_row_style()
     }
 }
 
@@ -177,5 +180,15 @@ mod tests {
                 .any(|fill| fill.color == ACTIVE_SOURCE_MARKER_COLOR),
             "inactive sources should stay visually quiet"
         );
+    }
+
+    #[test]
+    fn inactive_source_row_uses_sidebar_accent_hover_style() {
+        assert_eq!(source_row_style(false), sidebar_row_style());
+    }
+
+    #[test]
+    fn selected_source_row_keeps_distinct_active_style() {
+        assert_eq!(source_row_style(true), active_sidebar_row_style());
     }
 }
