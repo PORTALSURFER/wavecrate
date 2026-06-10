@@ -6,6 +6,9 @@ mod span_source;
 
 use std::time::Duration;
 
+use super::super::PlaybackSpanPlan;
+use crate::timebase::duration_for_frames;
+
 pub(super) use f32_file::{InterleavedF32FileRepeatingSpanSource, InterleavedF32FileSpanSource};
 pub(super) use repeating_source::LazyRepeatingSpanSource;
 pub(super) use span_source::LazySpanSource;
@@ -17,6 +20,10 @@ struct SourceFormat {
 }
 
 impl SourceFormat {
+    fn from_plan(plan: &PlaybackSpanPlan) -> Self {
+        Self::new(plan.layout().sample_rate(), plan.layout().channels())
+    }
+
     fn new(sample_rate: u32, channels: u16) -> Self {
         Self {
             sample_rate: sample_rate.max(1),
@@ -41,11 +48,11 @@ struct SpanReadRequest {
 }
 
 impl SpanReadRequest {
-    fn new(start_frame: u64, span_samples: u64, total_duration: f32) -> Self {
+    fn from_plan(plan: &PlaybackSpanPlan) -> Self {
         Self {
-            start_frame,
-            span_samples,
-            total_duration: Duration::from_secs_f32(total_duration.max(0.0)),
+            start_frame: plan.start_frame(),
+            span_samples: plan.sample_count(),
+            total_duration: duration_for_frames(plan.track_frames(), plan.layout().sample_rate()),
         }
     }
 }
@@ -58,11 +65,11 @@ struct RepeatReadRequest {
 }
 
 impl RepeatReadRequest {
-    fn new(start_frame: u64, span_samples: u64, offset_frames: u64) -> Self {
+    fn from_plan(plan: &PlaybackSpanPlan) -> Self {
         Self {
-            start_frame,
-            span_samples,
-            offset_frames,
+            start_frame: plan.start_frame(),
+            span_samples: plan.sample_count(),
+            offset_frames: plan.seek_offset_frames(),
         }
     }
 }

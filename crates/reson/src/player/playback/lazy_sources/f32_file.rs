@@ -2,6 +2,7 @@ use std::{path::PathBuf, time::Duration};
 
 use crate::Source;
 
+use super::super::super::PlaybackSpanPlan;
 use super::f32_cursor::{F32FileCursor, F32RepeatCycle};
 use super::{RepeatReadRequest, SourceFormat, SpanReadRequest};
 
@@ -16,15 +17,11 @@ pub(in crate::player::playback) struct InterleavedF32FileSpanSource {
 impl InterleavedF32FileSpanSource {
     pub(in crate::player::playback) fn new(
         path: PathBuf,
-        sample_rate: u32,
-        channels: u16,
-        start_frame: u64,
-        span_samples: u64,
+        plan: &PlaybackSpanPlan,
         total_samples: u64,
-        total_duration: f32,
     ) -> Self {
-        let format = SourceFormat::new(sample_rate, channels);
-        let request = SpanReadRequest::new(start_frame, span_samples, total_duration);
+        let format = SourceFormat::from_plan(plan);
+        let request = SpanReadRequest::from_plan(plan);
         let start_sample = request
             .start_frame
             .saturating_mul(format.channels() as u64)
@@ -92,15 +89,11 @@ pub(in crate::player::playback) struct InterleavedF32FileRepeatingSpanSource {
 impl InterleavedF32FileRepeatingSpanSource {
     pub(in crate::player::playback) fn new(
         path: PathBuf,
-        sample_rate: u32,
-        channels: u16,
-        start_frame: u64,
-        span_samples: u64,
-        offset_frames: u64,
+        plan: &PlaybackSpanPlan,
         total_samples: u64,
     ) -> Self {
-        let format = SourceFormat::new(sample_rate, channels);
-        let request = RepeatReadRequest::new(start_frame, span_samples, offset_frames);
+        let format = SourceFormat::from_plan(plan);
+        let request = RepeatReadRequest::from_plan(plan);
         let cycle = F32RepeatCycle::new(request, format, total_samples);
         Self {
             cursor: F32FileCursor::new(path, cycle.initial_sample()),
@@ -189,6 +182,10 @@ impl Source for InterleavedF32FileRepeatingSpanSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::player::{
+        PlaybackChannelLayout, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
+        PlaybackSpanRequest,
+    };
     use std::{fs, path::Path};
 
     #[test]
@@ -196,8 +193,9 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("samples.pcm");
         write_samples(&path, &[0.0, 0.25, 0.5, 0.75, 1.0, -0.5]);
+        let plan = span_plan(2, 48_000, 1, 3, 0, 0.0000625);
 
-        let source = InterleavedF32FileSpanSource::new(path, 48_000, 2, 1, 4, 6, 0.0000625);
+        let source = InterleavedF32FileSpanSource::new(path, &plan, 6);
         let samples = source.collect::<Vec<_>>();
 
         assert_eq!(samples, vec![0.5, 0.75, 1.0, -0.5]);
@@ -208,8 +206,9 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("loop.pcm");
         write_samples(&path, &[0.0, 0.25, 0.5, 0.75]);
+        let plan = span_plan(1, 48_000, 0, 4, 2, 0.0000834);
 
-        let source = InterleavedF32FileRepeatingSpanSource::new(path, 48_000, 1, 0, 4, 2, 4);
+        let source = InterleavedF32FileRepeatingSpanSource::new(path, &plan, 4);
         let samples = source.take(5).collect::<Vec<_>>();
 
         assert_eq!(samples, vec![0.5, 0.75, 0.0, 0.25, 0.5]);
@@ -220,8 +219,9 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("truncated.pcm");
         fs::write(&path, [0_u8, 0, 0]).expect("write truncated sample");
+        let plan = span_plan(1, 48_000, 0, 1, 0, 1.0);
 
-        let mut source = InterleavedF32FileSpanSource::new(path, 48_000, 1, 0, 1, 1, 1.0);
+        let mut source = InterleavedF32FileSpanSource::new(path, &plan, 1);
 
         assert!(source.next().is_none());
         assert!(source.last_error().is_some());
@@ -233,5 +233,29 @@ mod tests {
             bytes.extend_from_slice(&sample.to_le_bytes());
         }
         fs::write(path, bytes).expect("write samples");
+    }
+
+    fn span_plan(
+        channels: u16,
+        sample_rate: u32,
+        start_frame: u64,
+        end_frame: u64,
+        offset_frame: u64,
+        duration_seconds: f32,
+    ) -> PlaybackSpanPlan {
+        let start_seconds = start_frame as f32 / sample_rate as f32;
+        let end_seconds = end_frame as f32 / sample_rate as f32;
+        PlaybackSpanPlan::new(
+            PlaybackSourceIdentity::new(PlaybackSourceKind::InterleavedF32File, None),
+            PlaybackChannelLayout::new(channels, sample_rate).expect("valid layout"),
+            PlaybackSpanRequest::new(
+                start_seconds,
+                end_seconds,
+                duration_seconds,
+                offset_frame > 0,
+                PlaybackSeekBehavior::FrameOffset(offset_frame),
+            ),
+        )
+        .expect("span plan")
     }
 }

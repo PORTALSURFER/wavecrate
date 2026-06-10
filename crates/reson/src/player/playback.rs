@@ -179,8 +179,7 @@ impl AudioPlayer {
                         plan.end_sample(),
                     ))
                 } else {
-                    let lazy_source =
-                        span_source_for_audio_source(self.audio_source()?, &plan, duration)?;
+                    let lazy_source = span_source_for_audio_source(self.audio_source()?, &plan)?;
                     let mut async_source = AsyncSource::new(lazy_source);
                     async_source.prefill();
                     Box::new(
@@ -315,30 +314,12 @@ impl AudioPlayer {
 fn span_source_for_audio_source(
     source: AudioPlaybackSource,
     plan: &PlaybackSpanPlan,
-    duration: f32,
 ) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
-    let sample_rate = plan.layout().sample_rate();
-    let channels = plan.layout().channels();
     match source {
-        AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
-            Ok(Box::new(InterleavedF32FileSpanSource::new(
-                path,
-                sample_rate,
-                channels,
-                plan.start_frame(),
-                plan.sample_count(),
-                sample_count,
-                duration,
-            )))
-        }
-        source => Ok(Box::new(LazySpanSource::new(
-            source,
-            sample_rate,
-            channels,
-            plan.start_frame(),
-            plan.sample_count(),
-            duration,
-        ))),
+        AudioPlaybackSource::InterleavedF32File { path, sample_count } => Ok(Box::new(
+            InterleavedF32FileSpanSource::new(path, plan, sample_count),
+        )),
+        source => Ok(Box::new(LazySpanSource::new(source, plan))),
     }
 }
 
@@ -346,27 +327,10 @@ fn repeating_source_for_audio_source(
     source: AudioPlaybackSource,
     plan: &PlaybackSpanPlan,
 ) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
-    let sample_rate = plan.layout().sample_rate();
-    let channels = plan.layout().channels();
     match source {
-        AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
-            Ok(Box::new(InterleavedF32FileRepeatingSpanSource::new(
-                path,
-                sample_rate,
-                channels,
-                plan.start_frame(),
-                plan.sample_count(),
-                plan.seek_offset_frames(),
-                sample_count,
-            )))
-        }
-        source => Ok(Box::new(LazyRepeatingSpanSource::new(
-            source,
-            sample_rate,
-            channels,
-            plan.start_frame(),
-            plan.sample_count(),
-            plan.seek_offset_frames(),
-        ))),
+        AudioPlaybackSource::InterleavedF32File { path, sample_count } => Ok(Box::new(
+            InterleavedF32FileRepeatingSpanSource::new(path, plan, sample_count),
+        )),
+        source => Ok(Box::new(LazyRepeatingSpanSource::new(source, plan))),
     }
 }

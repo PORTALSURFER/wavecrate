@@ -6,6 +6,7 @@ use crate::telemetry;
 use crate::timebase::duration_for_frames;
 
 use super::super::super::AudioPlaybackSource;
+use super::super::super::PlaybackSpanPlan;
 use super::decoder_source::DecoderSource;
 use super::{SourceFormat, SpanReadRequest};
 
@@ -22,14 +23,10 @@ pub(in crate::player::playback) struct LazySpanSource {
 impl LazySpanSource {
     pub(in crate::player::playback) fn new(
         source: AudioPlaybackSource,
-        sample_rate: u32,
-        channels: u16,
-        start_frame: u64,
-        span_samples: u64,
-        total_duration: f32,
+        plan: &PlaybackSpanPlan,
     ) -> Self {
-        let format = SourceFormat::new(sample_rate, channels);
-        let request = SpanReadRequest::new(start_frame, span_samples, total_duration);
+        let format = SourceFormat::from_plan(plan);
+        let request = SpanReadRequest::from_plan(plan);
         Self {
             decoder_source: DecoderSource::new(source),
             decoder: None,
