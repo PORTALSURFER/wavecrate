@@ -78,6 +78,27 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn hover_metadata_tag_completion(&mut self, value: String) {
+        if matches!(
+            self.metadata.tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            self.hover_metadata_tag_category_completion(value);
+            return;
+        }
+        let Some(prefix) = normalize_metadata_tag(&self.metadata.tag_draft) else {
+            self.reset_metadata_tag_completion_cycle();
+            return;
+        };
+        let suggestions = self.metadata_tag_suggestions();
+        let Some(index) = suggestions.iter().position(|tag| tag == &value) else {
+            return;
+        };
+        self.metadata
+            .tag_completion_cycle
+            .select(prefix, index, suggestions.len());
+    }
+
     pub(super) fn activate_metadata_tag_completion(&mut self) {
         if matches!(
             self.metadata.tag_input_mode,
@@ -290,6 +311,23 @@ impl NativeAppState {
             delta as isize,
             suggestions.len(),
         );
+    }
+
+    fn hover_metadata_tag_category_completion(&mut self, value: String) {
+        let Some(prefix) = self.metadata_tag_category_query_key() else {
+            self.reset_metadata_tag_completion_cycle();
+            return;
+        };
+        let suggestions = self.metadata_tag_category_suggestions();
+        let Some(index) = suggestions
+            .iter()
+            .position(|(id, label)| id == &value || label == &value)
+        else {
+            return;
+        };
+        self.metadata
+            .tag_completion_cycle
+            .select(prefix, index, suggestions.len());
     }
 
     fn selected_metadata_tag_category_completion_index(&self, suggestion_count: usize) -> usize {

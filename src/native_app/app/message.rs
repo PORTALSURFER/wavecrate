@@ -91,6 +91,7 @@ pub(in crate::native_app) enum GuiMessage {
     MetadataTagInput(radiant::widgets::TextInputMessage),
     CancelMetadataTagEntry,
     MoveMetadataTagCompletion(i32),
+    HoverMetadataTagCompletion(String),
     SelectMetadataTagCompletion(String),
     ToggleMetadataTagLibrary,
     ToggleMetadataTagCategory(String),
