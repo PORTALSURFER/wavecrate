@@ -492,8 +492,6 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
 
     let press_target = runtime.dispatch_event(Event::primary_press(sample_press));
     let drag_start_target = runtime.dispatch_event(Event::pointer_move(sample_drag_start));
-    runtime.dispatch_event(Event::pointer_move(loops_target));
-
     assert!(
         press_target.is_some(),
         "sample row should accept drag press"
@@ -502,7 +500,20 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
         drag_start_target.is_some(),
         "sample row should emit the drag start before folder hover"
     );
+    let dragging_list_frame = runtime.frame_with_default_theme();
+    let dragging_list_texts = dragging_list_frame.paint_plan.text_label_strings();
+    assert!(
+        dragging_list_texts.iter().any(|text| text == "kick"),
+        "starting a sample drag must not remove the active sample list rows: {dragging_list_texts:?}"
+    );
+
+    runtime.dispatch_event(Event::pointer_move(loops_target));
     let dragging_frame = runtime.frame_with_default_theme();
+    let dragging_texts = dragging_frame.paint_plan.text_label_strings();
+    assert!(
+        dragging_texts.iter().any(|text| text == "kick"),
+        "sample list rows must remain painted while hovering a folder drop target: {dragging_texts:?}"
+    );
     assert!(
         dragging_frame
             .paint_plan
