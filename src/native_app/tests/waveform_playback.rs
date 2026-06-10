@@ -842,6 +842,84 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
 }
 
 #[test]
+fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("a.wav");
+    let second_path = source_root.path().join("b.wav");
+    write_test_wav_i16(&first_path, &[0, 256, -256, 512]);
+    write_test_wav_i16(&second_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let first = first_path.display().to_string();
+    let second = second_path.display().to_string();
+
+    let waveform = crate::native_app::test_support::WaveformState::load_path(second_path.clone())
+        .expect("cache sample");
+    let file = waveform.file();
+    super::super::waveform::store_cached_waveform_file_for_tests(&file);
+    wait_for_playback_ready_cache(&second);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.select_file(first);
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second.as_str())
+    );
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_some(),
+        "keyboard navigation should debounce persisted cache promotion"
+    );
+    assert!(
+        state.background.sample_load_task.active().is_none(),
+        "keyboard navigation must not probe persisted playback cache on the UI thread"
+    );
+    assert_eq!(
+        state.waveform.load.label, None,
+        "keyboard navigation should keep focus movement separate from loading UI"
+    );
+
+    let deferred_ticket = state
+        .background
+        .deferred_sample_load_task
+        .active()
+        .expect("deferred persisted cache load");
+    state.apply_message(
+        crate::native_app::test_support::GuiMessage::DeferredSampleLoad {
+            ticket: deferred_ticket,
+            path: second,
+            autoplay: true,
+            check_cache: true,
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.background.sample_load_task.active().is_some(),
+        "deferred keyboard load should start cache promotion only after navigation settles"
+    );
+}
+
+#[test]
 fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;

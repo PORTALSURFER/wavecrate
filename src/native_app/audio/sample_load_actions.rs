@@ -2,6 +2,7 @@ use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
 use std::{
     path::{Path, PathBuf},
+    sync::mpsc::Sender,
     time::{Duration, Instant},
 };
 
@@ -25,6 +26,13 @@ pub(in crate::native_app) use cache::{
     active_folder_cache_warm_priority, warm_active_folder_waveform_cache,
     warm_persisted_waveform_cache,
 };
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SampleLoadStrategy {
+    Decode,
+    PersistedPlaybackCacheOnly,
+    PreferPersistedPlaybackCache,
+}
 
 const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
 const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;
@@ -153,9 +161,6 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        if self.start_persisted_cached_sample_load(path.as_str(), true, context, started_at) {
-            return;
-        }
         self.ui.status.sample = format!("Selected {}", sample_path_label(path.as_str()));
         emit_gui_action(
             "browser.select_sample",
@@ -168,7 +173,7 @@ impl NativeAppState {
         self.schedule_deferred_sample_load(
             path,
             true,
-            false,
+            true,
             KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
             "keyboard",
             context,
@@ -264,7 +269,7 @@ impl NativeAppState {
             autoplay,
             context,
             ui::TaskPriority::Interactive,
-            true,
+            SampleLoadStrategy::PersistedPlaybackCacheOnly,
         );
         true
     }
@@ -388,7 +393,7 @@ impl NativeAppState {
         ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
-        _check_cache: bool,
+        check_cache: bool,
         scheduled_at: Instant,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
@@ -413,7 +418,12 @@ impl NativeAppState {
             );
             return;
         }
-        self.start_uncached_sample_load(path, autoplay, context, started_at);
+        let strategy = if check_cache {
+            SampleLoadStrategy::PreferPersistedPlaybackCache
+        } else {
+            SampleLoadStrategy::Decode
+        };
+        self.start_sample_load(path, autoplay, context, strategy, started_at);
     }
 
     fn prepare_uncached_sample_load(
@@ -438,11 +448,12 @@ impl NativeAppState {
         );
     }
 
-    fn start_uncached_sample_load(
+    fn start_sample_load(
         &mut self,
         path: String,
         autoplay: bool,
         context: &mut ui::UpdateContext<GuiMessage>,
+        strategy: SampleLoadStrategy,
         started_at: Instant,
     ) {
         emit_gui_action(
@@ -458,7 +469,7 @@ impl NativeAppState {
             autoplay,
             context,
             foreground_sample_load_priority(),
-            false,
+            strategy,
         );
     }
 
@@ -468,7 +479,7 @@ impl NativeAppState {
         autoplay: bool,
         context: &mut ui::UpdateContext<GuiMessage>,
         priority: ui::TaskPriority,
-        persisted_cache_only: bool,
+        strategy: SampleLoadStrategy,
     ) {
         let sender = self.background.worker_sender.clone();
         let queued_at = Instant::now();
@@ -503,50 +514,60 @@ impl NativeAppState {
                             progress_sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
                     }),
                 );
-                let result = if persisted_cache_only {
-                    let phase_started_at = Instant::now();
-                    let result = WaveformState::load_persisted_playback_cache(PathBuf::from(&path));
-                    log_sample_load_timing(
-                        "browser.sample_load.worker.persisted_cache",
+                let result = match strategy {
+                    SampleLoadStrategy::PersistedPlaybackCacheOnly => {
+                        let phase_started_at = Instant::now();
+                        let result =
+                            WaveformState::load_persisted_playback_cache(PathBuf::from(&path));
+                        log_sample_load_timing(
+                            "browser.sample_load.worker.persisted_cache",
+                            path.as_str(),
+                            phase_started_at.elapsed(),
+                            true,
+                        );
+                        log_loaded_sample_metadata(
+                            path.as_str(),
+                            &result,
+                            "persisted_playback_cache",
+                        );
+                        result
+                    }
+                    SampleLoadStrategy::PreferPersistedPlaybackCache => {
+                        let phase_started_at = Instant::now();
+                        let result =
+                            WaveformState::load_persisted_playback_cache(PathBuf::from(&path));
+                        log_sample_load_timing(
+                            "browser.sample_load.worker.persisted_cache_probe",
+                            path.as_str(),
+                            phase_started_at.elapsed(),
+                            true,
+                        );
+                        if result.is_ok() {
+                            log_loaded_sample_metadata(
+                                path.as_str(),
+                                &result,
+                                "persisted_playback_cache",
+                            );
+                            result
+                        } else {
+                            load_decoded_sample(
+                                path.as_str(),
+                                ticket,
+                                autoplay,
+                                &token,
+                                &sender,
+                                &progress_reporter,
+                            )
+                        }
+                    }
+                    SampleLoadStrategy::Decode => load_decoded_sample(
                         path.as_str(),
-                        phase_started_at.elapsed(),
-                        true,
-                    );
-                    log_loaded_sample_metadata(path.as_str(), &result, "persisted_playback_cache");
-                    result
-                } else {
-                    let phase_started_at = Instant::now();
-                    let ready_sender = sender.clone();
-                    let ready_path = path.clone();
-                    let result = WaveformState::load_path_with_progress_cancel_and_playback_ready(
-                        PathBuf::from(&path),
-                        |progress| {
-                            progress_reporter.borrow_mut().report(progress);
-                        },
-                        || token.is_cancelled(),
-                        |audio| {
-                            if autoplay && !token.is_cancelled() {
-                                let _ = ready_sender.send(GuiMessage::SamplePlaybackReady(
-                                    ui::TaskCompletion {
-                                        ticket,
-                                        output: SamplePlaybackReady {
-                                            path: ready_path.clone(),
-                                            audio,
-                                            autoplay,
-                                        },
-                                    },
-                                ));
-                            }
-                        },
-                    );
-                    log_sample_load_timing(
-                        "browser.sample_load.worker.decode_waveform",
-                        path.as_str(),
-                        phase_started_at.elapsed(),
-                        true,
-                    );
-                    log_loaded_sample_metadata(path.as_str(), &result, "uncached_decode");
-                    result
+                        ticket,
+                        autoplay,
+                        &token,
+                        &sender,
+                        &progress_reporter,
+                    ),
                 };
                 SampleLoadResult {
                     path,
@@ -844,6 +865,46 @@ impl NativeAppState {
         }
         self.audio.early_sample_playback_path = None;
     }
+}
+
+fn load_decoded_sample(
+    path: &str,
+    ticket: ui::TaskTicket,
+    autoplay: bool,
+    token: &ui::CancellationToken,
+    sender: &Sender<GuiMessage>,
+    progress_reporter: &std::cell::RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
+) -> Result<WaveformState, String> {
+    let phase_started_at = Instant::now();
+    let ready_sender = sender.clone();
+    let ready_path = path.to_owned();
+    let result = WaveformState::load_path_with_progress_cancel_and_playback_ready(
+        PathBuf::from(path),
+        |progress| {
+            progress_reporter.borrow_mut().report(progress);
+        },
+        || token.is_cancelled(),
+        |audio| {
+            if autoplay && !token.is_cancelled() {
+                let _ = ready_sender.send(GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
+                    ticket,
+                    output: SamplePlaybackReady {
+                        path: ready_path.clone(),
+                        audio,
+                        autoplay,
+                    },
+                }));
+            }
+        },
+    );
+    log_sample_load_timing(
+        "browser.sample_load.worker.decode_waveform",
+        path,
+        phase_started_at.elapsed(),
+        true,
+    );
+    log_loaded_sample_metadata(path, &result, "uncached_decode");
+    result
 }
 
 fn log_slow_sample_load_phase(event: &'static str, source: &str, started_at: Instant) {
