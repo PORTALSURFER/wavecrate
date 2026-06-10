@@ -25,9 +25,9 @@ fn folder_delete_blocks_hard_delete_and_keeps_selected_folder() {
         "Trash workflow is not available in the default GUI yet; no folder was deleted"
     );
     assert!(kicks.exists());
-    assert_eq!(browser.selected_folder, path_id(&kicks));
+    assert_eq!(browser.selection.selected_folder, path_id(&kicks));
     assert!(browser.find_folder(&path_id(&kicks)).is_some());
-    assert!(browser.expanded_folders.contains(&path_id(&drums)));
+    assert!(browser.tree.expanded_folders.contains(&path_id(&drums)));
     let _ = fs::remove_dir_all(root);
 }
 

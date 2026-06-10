@@ -31,13 +31,13 @@ fn folder_drag_drop_moves_subtree_into_target_folder() {
     );
     assert!(!kicks.exists());
     assert!(moved_kick.is_file());
-    assert_eq!(browser.selected_folder, path_id(&moved_kicks));
+    assert_eq!(browser.selection.selected_folder, path_id(&moved_kicks));
     assert_eq!(
         browser.selected_file_id(),
         Some(path_id(&moved_kick).as_str())
     );
     assert!(browser.find_folder(&path_id(&moved_kicks)).is_some());
-    assert!(browser.expanded_folders.contains(&path_id(&loops)));
+    assert!(browser.tree.expanded_folders.contains(&path_id(&loops)));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -89,12 +89,12 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
     assert!(hovered.drop_candidate);
     assert!(hovered.drop_target);
 
-    let revision_before_exit = browser.drag_revision();
+    let revision_before_exit = browser.drag_drop.revision();
     browser.apply_message(FolderBrowserMessage::ClearDropTarget(Point::new(
         90.0, 120.0,
     )));
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         revision_before_exit + 1,
         "clearing a folder drop target must refresh retained folder hit targets"
     );
@@ -232,7 +232,7 @@ fn extracted_file_drag_drop_moves_file_into_target_folder() {
     assert!(!extracted.exists());
     assert!(original.is_file());
     assert!(moved.is_file());
-    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
     assert_eq!(browser.selected_file_paths(), vec![original.clone()]);
     let _ = fs::remove_dir_all(root);
 }
@@ -248,24 +248,24 @@ fn clearing_file_drag_advances_drag_revision_for_retained_row_reset() {
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&kick));
 
-    let initial_revision = browser.drag_revision();
+    let initial_revision = browser.drag_drop.revision();
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         initial_revision,
         "starting a drag should keep existing row widget state until the drag is cleared"
     );
 
     browser.clear_drag();
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         initial_revision + 1,
         "clearing a drag must refresh retained sample-row hit targets so stale pressed/drag paint cannot survive cancellation"
     );
 
     browser.clear_drag();
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         initial_revision + 1,
         "clearing already-idle drag state should not churn row identity"
     );
@@ -296,11 +296,11 @@ fn clearing_collection_drop_target_advances_drag_revision() {
         "hovering a collection during file drag should mark the collection drop target"
     );
 
-    let revision_before_clear = browser.drag_revision();
+    let revision_before_clear = browser.drag_drop.revision();
     browser.clear_drag();
 
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         revision_before_clear + 1,
         "clearing a collection drop target must refresh retained drag widgets"
     );
@@ -340,14 +340,14 @@ fn collection_hover_clears_folder_drop_target_during_file_drag() {
         "hovering a folder during file drag should mark the folder drop target"
     );
 
-    let revision_before_collection_hover = browser.drag_revision();
+    let revision_before_collection_hover = browser.drag_drop.revision();
     browser.apply_message(FolderBrowserMessage::HoverCollectionDropTarget(
         SampleCollection::new(0).unwrap(),
         Point::new(24.0, 32.0),
     ));
 
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         revision_before_collection_hover + 1,
         "moving from a folder target to a collection target must refresh retained folder hit targets"
     );
@@ -394,14 +394,14 @@ fn folder_hover_clears_collection_drop_target_during_file_drag() {
         "hovering a collection during file drag should mark the collection drop target"
     );
 
-    let revision_before_folder_hover = browser.drag_revision();
+    let revision_before_folder_hover = browser.drag_drop.revision();
     browser.apply_message(FolderBrowserMessage::HoverDropTarget(
         path_id(&loops),
         Point::new(24.0, 32.0),
     ));
 
     assert_eq!(
-        browser.drag_revision(),
+        browser.drag_drop.revision(),
         revision_before_folder_hover + 1,
         "moving from a collection target to a folder target must refresh retained collection hit targets"
     );
@@ -459,7 +459,7 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
     assert!(hat.is_file());
     assert!(moved_kick.is_file());
     assert!(moved_snare.is_file());
-    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
     assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
     assert_eq!(
         browser
@@ -665,7 +665,7 @@ fn file_drag_hover_remains_valid_when_selected_projection_hides_file() {
     browser.activate_folder(path_id(&drums));
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser.name_filter = String::from("snare");
+    browser.filters.name_filter = String::from("snare");
     browser.apply_message(FolderBrowserMessage::HoverDropTarget(
         path_id(&target),
         Point::new(50.0, 60.0),

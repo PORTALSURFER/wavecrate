@@ -16,15 +16,20 @@ impl FolderBrowserState {
         {
             return;
         }
-        let file_ids = if self.selected_file_ids.contains(&file_id) {
-            let mut ids = self.selected_file_ids.iter().cloned().collect::<Vec<_>>();
+        let file_ids = if self.selection.selected_file_ids.contains(&file_id) {
+            let mut ids = self
+                .selection
+                .selected_file_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>();
             ids.sort();
             ids
         } else {
             vec![file_id]
         };
-        self.drag = Some(FolderBrowserDrag::Files { file_ids });
-        self.drag_pointer = Some(position);
+        self.drag_drop.drag = Some(FolderBrowserDrag::Files { file_ids });
+        self.drag_drop.drag_pointer = Some(position);
         self.clear_drop_targets_for_new_drag();
     }
 
@@ -36,20 +41,20 @@ impl FolderBrowserState {
         if self.rename_active() {
             return;
         }
-        self.drag = Some(FolderBrowserDrag::ExtractedFile { path });
-        self.drag_pointer = Some(position);
+        self.drag_drop.drag = Some(FolderBrowserDrag::ExtractedFile { path });
+        self.drag_drop.drag_pointer = Some(position);
         self.clear_drop_targets_for_new_drag();
     }
 
     pub(in crate::native_app) fn update_drag_pointer(&mut self, position: Point) {
-        if self.drag.is_some() {
-            self.drag_pointer = Some(position);
+        if self.drag_drop.drag.is_some() {
+            self.drag_drop.drag_pointer = Some(position);
         }
     }
 
     pub(in crate::native_app) fn drag_preview(&self) -> Option<FolderDragPreview> {
-        let drag = self.drag.as_ref()?;
-        let pointer = self.drag_pointer?;
+        let drag = self.drag_drop.drag.as_ref()?;
+        let pointer = self.drag_drop.drag_pointer?;
         Some(FolderDragPreview {
             label: self.drag_preview_label(drag)?,
             pointer,
@@ -57,33 +62,36 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn file_drag_active(&self) -> bool {
-        matches!(self.drag, Some(FolderBrowserDrag::Files { .. }))
+        matches!(self.drag_drop.drag, Some(FolderBrowserDrag::Files { .. }))
     }
 
     pub(in crate::native_app) fn extracted_file_drag_active(&self) -> bool {
-        matches!(self.drag, Some(FolderBrowserDrag::ExtractedFile { .. }))
+        matches!(
+            self.drag_drop.drag,
+            Some(FolderBrowserDrag::ExtractedFile { .. })
+        )
     }
 
     pub(in crate::native_app) fn extracted_file_drag_path(&self) -> Option<PathBuf> {
-        match &self.drag {
+        match &self.drag_drop.drag {
             Some(FolderBrowserDrag::ExtractedFile { path }) => Some(path.clone()),
             _ => None,
         }
     }
 
     pub(in crate::native_app) fn drag_active(&self) -> bool {
-        self.drag.is_some()
+        self.drag_drop.drag.is_some()
     }
 
     pub(in crate::native_app) fn file_drag_source(&self, file_id: &str) -> bool {
-        match &self.drag {
+        match &self.drag_drop.drag {
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| id == file_id),
             _ => false,
         }
     }
 
     pub(in crate::native_app) fn external_drag_request(&self) -> Option<ui::ExternalDragRequest> {
-        let drag = self.drag.as_ref()?;
+        let drag = self.drag_drop.drag.as_ref()?;
         let label = self.drag_preview_label(drag)?;
         let FolderBrowserDrag::Files { file_ids } = drag else {
             return match drag {
@@ -98,23 +106,27 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn clear_drag(&mut self) {
-        if self.drag.is_some() || self.drag_pointer.is_some() || self.drop_target.any_open() {
-            self.drag_revision.bump();
+        if self.drag_drop.drag.is_some()
+            || self.drag_drop.drag_pointer.is_some()
+            || self.drag_drop.drop_target.any_open()
+        {
+            self.drag_drop.revision.bump();
         }
-        self.drag = None;
-        self.drag_pointer = None;
-        self.drop_target.close();
+        self.drag_drop.drag = None;
+        self.drag_drop.drag_pointer = None;
+        self.drag_drop.drop_target.close();
     }
 
     pub(in crate::native_app) fn clear_drop_target_folder(&mut self, position: Point) {
         self.update_drag_pointer(position);
         if self
+            .drag_drop
             .drop_target
             .current()
             .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(_)))
-            && self.drop_target.close_changed()
+            && self.drag_drop.drop_target.close_changed()
         {
-            self.drag_revision.bump();
+            self.drag_drop.revision.bump();
         }
     }
 
@@ -124,8 +136,7 @@ impl FolderBrowserState {
         position: Point,
     ) {
         self.update_drag_pointer(position);
-        if self
-            .drop_target
+        if self.drag_drop.drop_target
             .current()
             .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(folder_id) if folder_id == retained_folder_id))
         {
@@ -135,7 +146,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn hovered_drop_target_folder_id(&self) -> Option<String> {
-        match self.drop_target.current() {
+        match self.drag_drop.drop_target.current() {
             Some(FolderBrowserDropTarget::Folder(folder_id)) => Some(folder_id.clone()),
             _ => None,
         }
@@ -145,7 +156,7 @@ impl FolderBrowserState {
         &mut self,
         target_folder_id: &str,
     ) -> Result<FolderDropResult, String> {
-        let Some(drag) = self.drag.clone() else {
+        let Some(drag) = self.drag_drop.drag.clone() else {
             return Ok(FolderDropResult::default());
         };
         if !self.can_drop_drag_on_folder(target_folder_id) {
@@ -155,7 +166,7 @@ impl FolderBrowserState {
                 status: Some(String::from("Drop target unchanged")),
             });
         }
-        self.drop_target.close();
+        self.drag_drop.drop_target.close();
         let result = match drag {
             FolderBrowserDrag::Folder { folder_id } => {
                 self.move_folder_to_folder(&folder_id, target_folder_id)?
@@ -180,8 +191,8 @@ impl FolderBrowserState {
                 return;
             }
             if self.find_folder(&folder_id).is_some() {
-                self.drag = Some(FolderBrowserDrag::Folder { folder_id });
-                self.drag_pointer = Some(position);
+                self.drag_drop.drag = Some(FolderBrowserDrag::Folder { folder_id });
+                self.drag_drop.drag_pointer = Some(position);
                 self.clear_drop_targets_for_new_drag();
             }
         } else if let Some(position) = message.moved_position() {
@@ -193,19 +204,20 @@ impl FolderBrowserState {
 
     pub(super) fn hover_drop_target_folder(&mut self, folder_id: &str) {
         let changed = if self.can_drop_drag_on_folder(folder_id) {
-            self.drop_target
+            self.drag_drop
+                .drop_target
                 .open_changed(FolderBrowserDropTarget::Folder(folder_id.to_owned()))
         } else {
-            self.drop_target.close_changed()
+            self.drag_drop.drop_target.close_changed()
         };
         if changed {
-            self.drag_revision.bump();
+            self.drag_drop.revision.bump();
         }
     }
 
     fn clear_drop_targets_for_new_drag(&mut self) {
-        if self.drop_target.close_changed() {
-            self.drag_revision.bump();
+        if self.drag_drop.drop_target.close_changed() {
+            self.drag_drop.revision.bump();
         }
     }
 
@@ -228,7 +240,7 @@ impl FolderBrowserState {
             return false;
         };
         let target_path = Path::new(&target.id);
-        match &self.drag {
+        match &self.drag_drop.drag {
             Some(FolderBrowserDrag::Folder { folder_id }) => {
                 if self.selected_folder_is_source_root_id(folder_id) {
                     return false;

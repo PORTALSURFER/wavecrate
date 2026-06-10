@@ -11,11 +11,11 @@ use wavecrate::sample_sources::{SampleSource, SourceId};
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn sources(&self) -> &[SourceEntry] {
-        self.sources.as_slice()
+        self.source.sources.as_slice()
     }
 
     pub(in crate::native_app) fn selected_source_id(&self) -> &str {
-        self.selected_source.as_str()
+        self.source.selected_source.as_str()
     }
 
     #[cfg(test)]
@@ -60,7 +60,8 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn configured_sample_sources(&self) -> Vec<SampleSource> {
-        self.sources
+        self.source
+            .sources
             .iter()
             .filter(|source| !source.is_default_assets_source())
             .map(|source| {
@@ -73,19 +74,21 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn save_source_scan_cache(&self) -> Result<(), String> {
-        save_source_scan_cache(&self.sources)
+        save_source_scan_cache(&self.source.sources)
     }
 
     #[cfg(test)]
     pub(super) fn source_labels_for_tests(&self) -> Vec<String> {
-        self.sources
+        self.source
+            .sources
             .iter()
             .map(|source| source.label.clone())
             .collect()
     }
 
     pub(in crate::native_app) fn source_root_path(&self, source_id: &str) -> Option<PathBuf> {
-        self.sources
+        self.source
+            .sources
             .iter()
             .find(|source| source.id == source_id)
             .map(|source| source.root.clone())
@@ -95,7 +98,8 @@ impl FolderBrowserState {
         &self,
         file_path: &std::path::Path,
     ) -> Option<(PathBuf, PathBuf)> {
-        self.sources
+        self.source
+            .sources
             .iter()
             .filter_map(|source| {
                 file_path
@@ -107,7 +111,8 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn source_is_removable(&self, source_id: &str) -> bool {
-        self.sources
+        self.source
+            .sources
             .iter()
             .find(|source| source.id == source_id)
             .is_some_and(|source| !source.is_default_assets_source())
@@ -118,24 +123,25 @@ impl FolderBrowserState {
         source_id: &str,
     ) -> Result<RemovedSource, String> {
         let index = self
+            .source
             .sources
             .iter()
             .position(|source| source.id == source_id)
             .ok_or_else(|| String::from("Source is unavailable"))?;
-        if self.sources[index].is_default_assets_source() {
+        if self.source.sources[index].is_default_assets_source() {
             return Err(String::from("Default source cannot be removed"));
         }
-        let source = self.sources.remove(index);
+        let source = self.source.sources.remove(index);
         let removed = RemovedSource {
             label: source.label.clone(),
             root: source.root.clone(),
         };
         self.cancel_rename();
         self.clear_drag();
-        if self.sources.is_empty() {
+        if self.source.sources.is_empty() {
             self.install_default_assets_source();
         }
-        if self.selected_source == source.id {
+        if self.source.selected_source == source.id {
             self.select_first_available_source();
         }
         Ok(removed)
@@ -146,15 +152,20 @@ impl FolderBrowserState {
         root: PathBuf,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
-        if let Some(index) = self.sources.iter().position(|source| source.root == root) {
-            let id = self.sources[index].id.clone();
+        if let Some(index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.root == root)
+        {
+            let id = self.source.sources[index].id.clone();
             return self.begin_select_source(id, task_id);
         }
         let id = path_id(&root);
         let label = folder_label(&root);
         let mut source = SourceEntry::new(id.clone(), label.clone(), root.clone());
         source.loading_task = Some(task_id);
-        self.sources.push(source);
+        self.source.sources.push(source);
         self.select_pending_source(id.clone(), placeholder_folder(&root));
         Some(FolderScanRequest {
             task_id,
@@ -169,21 +180,25 @@ impl FolderBrowserState {
         id: String,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
-        let index = self.sources.iter().position(|source| source.id == id)?;
-        if self.selected_source == id && self.sources[index].root_folder.is_some() {
+        let index = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == id)?;
+        if self.source.selected_source == id && self.source.sources[index].root_folder.is_some() {
             return None;
         }
-        if let Some(root_folder) = self.sources[index].root_folder.clone() {
+        if let Some(root_folder) = self.source.sources[index].root_folder.clone() {
             self.select_loaded_source(id, root_folder);
             return None;
         }
-        if self.sources[index].loading_task.is_some() {
-            let root = self.sources[index].root.clone();
+        if self.source.sources[index].loading_task.is_some() {
+            let root = self.source.sources[index].root.clone();
             self.select_pending_source(id, placeholder_folder(&root));
             return None;
         }
-        self.sources[index].loading_task = Some(task_id);
-        let source = self.sources[index].clone();
+        self.source.sources[index].loading_task = Some(task_id);
+        let source = self.source.sources[index].clone();
         self.select_pending_source(source.id.clone(), placeholder_folder(&source.root));
         Some(FolderScanRequest {
             task_id,
@@ -197,7 +212,7 @@ impl FolderBrowserState {
         &mut self,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
-        self.begin_source_scan(self.selected_source.clone(), task_id)
+        self.begin_source_scan(self.source.selected_source.clone(), task_id)
     }
 
     pub(in crate::native_app) fn begin_source_scan(
@@ -205,12 +220,16 @@ impl FolderBrowserState {
         id: String,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
-        let index = self.sources.iter().position(|source| source.id == id)?;
-        if self.sources[index].loading_task.is_some() {
+        let index = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == id)?;
+        if self.source.sources[index].loading_task.is_some() {
             return None;
         }
-        self.sources[index].loading_task = Some(task_id);
-        let source = self.sources[index].clone();
+        self.source.sources[index].loading_task = Some(task_id);
+        let source = self.source.sources[index].clone();
         Some(FolderScanRequest {
             task_id,
             source_id: source.id,
@@ -220,14 +239,16 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn selected_source_loaded(&self) -> bool {
-        self.sources
+        self.source
+            .sources
             .iter()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
             .is_some_and(|source| source.root_folder.is_some())
     }
 
     pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
             .find(|source| source.id == result.source_id)
@@ -238,7 +259,7 @@ impl FolderBrowserState {
             return false;
         }
         let source_id = source.id.clone();
-        let should_select = self.selected_source == source_id;
+        let should_select = self.source.selected_source == source_id;
         source.loading_task = None;
         source.root_folder = Some(result.folder.clone());
         if should_select {
@@ -266,6 +287,7 @@ impl FolderBrowserState {
         batch: FolderScanDiscoveryBatch,
     ) -> bool {
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
             .find(|source| source.id == batch.source_id)
@@ -283,8 +305,8 @@ impl FolderBrowserState {
         for event in &batch.events {
             changed |= merge_scan_discovery(root_folder, event);
         }
-        if changed && self.selected_source == batch.source_id {
-            self.folders = vec![root_folder.clone()];
+        if changed && self.source.selected_source == batch.source_id {
+            self.tree.folders = vec![root_folder.clone()];
             self.bump_file_content_revision();
         }
         changed
@@ -292,37 +314,31 @@ impl FolderBrowserState {
 
     fn select_pending_source(&mut self, id: String, folder: FolderEntry) {
         self.cancel_rename();
-        self.selected_collection = None;
-        self.collection_rename_edit = None;
+        self.selection.selected_collection = None;
+        self.collection_panel.rename_edit = None;
         let root_id = folder.id.clone();
-        self.selected_source = id;
-        self.selected_folder = root_id.clone();
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.selected_file_ids_explicit = false;
+        self.source.selected_source = id;
+        self.selection.select_folder(root_id.clone());
         self.reset_tree_view();
         self.reset_file_view();
-        self.expanded_folders.clear();
-        self.expanded_folders.insert(root_id);
-        self.folders = vec![folder];
+        self.tree.expanded_folders.clear();
+        self.tree.expanded_folders.insert(root_id);
+        self.tree.folders = vec![folder];
         self.bump_file_content_revision();
     }
 
     fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
         self.cancel_rename();
-        self.selected_collection = None;
-        self.collection_rename_edit = None;
+        self.selection.selected_collection = None;
+        self.collection_panel.rename_edit = None;
         let root_id = root_folder.id.clone();
-        self.selected_source = id;
-        self.selected_folder = root_id.clone();
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.selected_file_ids_explicit = false;
+        self.source.selected_source = id;
+        self.selection.select_folder(root_id.clone());
         self.reset_tree_view();
         self.reset_file_view();
-        self.expanded_folders.clear();
-        self.expanded_folders.insert(root_id);
-        self.folders = vec![root_folder];
+        self.tree.expanded_folders.clear();
+        self.tree.expanded_folders.insert(root_id);
+        self.tree.folders = vec![root_folder];
         self.bump_file_content_revision();
         self.prewarm_selected_source_audio_projection_cache();
     }
@@ -331,11 +347,11 @@ impl FolderBrowserState {
         let root = default_root_path();
         let mut source = SourceEntry::new("assets", "Assets", root.clone());
         source.root_folder = Some(load_root_folder(root));
-        self.sources.push(source);
+        self.source.sources.push(source);
     }
 
     fn select_first_available_source(&mut self) {
-        let Some(source) = self.sources.first().cloned() else {
+        let Some(source) = self.source.sources.first().cloned() else {
             return;
         };
         if let Some(root_folder) = source.root_folder {

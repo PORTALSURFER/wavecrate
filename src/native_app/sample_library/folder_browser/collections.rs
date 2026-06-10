@@ -57,48 +57,50 @@ pub(in crate::native_app) struct CollectionRenameView {
     pub(in crate::native_app) selection_end: usize,
 }
 
-impl FolderBrowserState {
-    pub(super) fn default_collections() -> Vec<SampleCollectionConfig> {
-        (0..SampleCollection::COUNT)
-            .filter_map(|index| {
-                let collection = SampleCollection::new(index as u8)?;
-                Some(SampleCollectionConfig {
-                    collection,
-                    hotkey: collection_hotkey(collection),
-                    name: format!("Collection {}", collection_hotkey(collection)),
-                    color: collection_color(collection),
-                })
+pub(super) fn default_collections() -> Vec<SampleCollectionConfig> {
+    (0..SampleCollection::COUNT)
+        .filter_map(|index| {
+            let collection = SampleCollection::new(index as u8)?;
+            Some(SampleCollectionConfig {
+                collection,
+                hotkey: collection_hotkey(collection),
+                name: format!("Collection {}", collection_hotkey(collection)),
+                color: collection_color(collection),
             })
-            .collect()
-    }
+        })
+        .collect()
+}
 
+impl FolderBrowserState {
     pub(in crate::native_app) fn collections_panel_height(&self) -> f32 {
-        self.collections_panel.size()
+        self.panel_layout.collections.size()
     }
 
     pub(in crate::native_app) fn collections_list_height(&self) -> f32 {
         ui::fixed_row_stack_height(
-            self.collections.len(),
+            self.collection_panel.collections.len(),
             COLLECTION_ROW_HEIGHT,
             COLLECTION_ROW_SPACING,
         )
     }
 
     pub(in crate::native_app) fn max_collections_panel_height(&self) -> f32 {
-        useful_collections_panel_height(self.collections.len())
+        useful_collections_panel_height(self.collection_panel.collections.len())
     }
 
     pub(in crate::native_app) fn visible_collections(&self) -> Vec<SampleCollectionView> {
         let counts = self.collection_counts();
-        self.collections
+        self.collection_panel
+            .collections
             .iter()
             .map(|collection| SampleCollectionView {
                 collection: collection.collection,
                 hotkey: collection.hotkey,
                 name: collection.name.clone(),
                 color: collection.color,
-                selected: self.selected_collection == Some(collection.collection),
+                selected: self.selection.selected_collection == Some(collection.collection),
                 drop_target: self
+                    .drag_drop
                     .drop_target
                     .is_open(&FolderBrowserDropTarget::Collection(collection.collection)),
                 drag_active: self.file_drag_active(),
@@ -114,7 +116,8 @@ impl FolderBrowserState {
         &self,
         collection: SampleCollection,
     ) -> Option<Rgba8> {
-        self.collections
+        self.collection_panel
+            .collections
             .iter()
             .find(|entry| entry.collection == collection)
             .map(|entry| entry.color)
@@ -127,10 +130,10 @@ impl FolderBrowserState {
     ) -> bool {
         let path_id = path.to_string_lossy();
         let mut updated = false;
-        for folder in &mut self.folders {
+        for folder in &mut self.tree.folders {
             updated |= folder.set_file_collection(path_id.as_ref(), collection);
         }
-        for source in &mut self.sources {
+        for source in &mut self.source.sources {
             if let Some(root_folder) = &mut source.root_folder {
                 updated |= root_folder.set_file_collection(path_id.as_ref(), collection);
             }
@@ -148,10 +151,10 @@ impl FolderBrowserState {
     ) -> bool {
         let path_id = path.to_string_lossy();
         let mut updated = false;
-        for folder in &mut self.folders {
+        for folder in &mut self.tree.folders {
             updated |= folder.remove_file_collection(path_id.as_ref(), collection);
         }
-        for source in &mut self.sources {
+        for source in &mut self.source.sources {
             if let Some(root_folder) = &mut source.root_folder {
                 updated |= root_folder.remove_file_collection(path_id.as_ref(), collection);
             }
@@ -181,7 +184,7 @@ impl FolderBrowserState {
         &self,
         collection: SampleCollection,
     ) -> Vec<SelectedFileCollectionCandidate> {
-        match &self.drag {
+        match &self.drag_drop.drag {
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids
                 .iter()
                 .filter_map(|file_id| {
@@ -217,14 +220,14 @@ impl FolderBrowserState {
         &self,
         path: &std::path::Path,
     ) -> Option<SampleCollection> {
-        let collection = self.selected_collection?;
+        let collection = self.selection.selected_collection?;
         self.context_file_collection_candidate(path, collection)
             .filter(|candidate| candidate.assigned)
             .map(|_| collection)
     }
 
     pub(in crate::native_app) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
-        self.collections_panel.resize_collapsible(
+        self.panel_layout.collections.resize_collapsible(
             message,
             ui::CollapsiblePanelResizeConstraints::top(
                 MIN_COLLECTIONS_PANEL_HEIGHT,
@@ -235,22 +238,20 @@ impl FolderBrowserState {
     }
 
     pub(super) fn activate_collection(&mut self, collection: SampleCollection) {
-        if self.selected_collection != Some(collection) {
-            self.collection_rename_edit = None;
+        if self.selection.selected_collection != Some(collection) {
+            self.collection_panel.rename_edit = None;
             self.reset_folder_focus_to_selected_source_root();
-            self.selected_file = None;
-            self.selected_file_ids.clear();
-            self.selected_file_ids_explicit = false;
+            self.selection.clear_file_selection();
             self.reset_file_view();
         }
-        self.selected_collection = Some(collection);
+        self.selection.selected_collection = Some(collection);
     }
 
     pub(in crate::native_app) fn collection_rename_view(
         &self,
         collection: SampleCollection,
     ) -> Option<CollectionRenameView> {
-        let edit = self.collection_rename_edit.as_ref()?;
+        let edit = self.collection_panel.rename_edit.as_ref()?;
         (edit.collection == collection).then(|| CollectionRenameView {
             selection_start: 0,
             selection_end: edit.draft.chars().count(),
@@ -264,15 +265,16 @@ impl FolderBrowserState {
         collection: SampleCollection,
     ) -> Option<u64> {
         let entry = self
+            .collection_panel
             .collections
             .iter()
             .find(|entry| entry.collection == collection)?;
         let name = entry.name.clone();
         let input_id = collection_rename_input_id(collection);
         self.activate_collection(collection);
-        self.rename_edit = None;
-        self.file_rename_edit = None;
-        self.collection_rename_edit = Some(CollectionRenameEdit {
+        self.rename.folder = None;
+        self.rename.file = None;
+        self.collection_panel.rename_edit = Some(CollectionRenameEdit {
             collection,
             draft: name,
             input_id,
@@ -284,7 +286,7 @@ impl FolderBrowserState {
         &mut self,
         message: &TextInputMessage,
     ) -> Option<String> {
-        let edit = self.collection_rename_edit.as_mut()?;
+        let edit = self.collection_panel.rename_edit.as_mut()?;
         let parts = message.parts();
         match parts.kind {
             TextInputMessageKind::CompletionRequested => return None,
@@ -297,17 +299,18 @@ impl FolderBrowserState {
 
         let label = parts.value.trim();
         if label.is_empty() {
-            self.collection_rename_edit = None;
+            self.collection_panel.rename_edit = None;
             return Some(String::from("Collection rename cancelled"));
         }
         if let Some(entry) = self
+            .collection_panel
             .collections
             .iter_mut()
             .find(|entry| entry.collection == edit.collection)
         {
             entry.name = label.to_string();
         }
-        self.collection_rename_edit = None;
+        self.collection_panel.rename_edit = None;
         Some(String::from("Collection renamed"))
     }
 
@@ -318,13 +321,14 @@ impl FolderBrowserState {
     ) {
         self.update_drag_pointer(position);
         let changed = if self.file_drag_active() {
-            self.drop_target
+            self.drag_drop
+                .drop_target
                 .open_changed(FolderBrowserDropTarget::Collection(collection))
         } else {
-            self.drop_target.close_changed()
+            self.drag_drop.drop_target.close_changed()
         };
         if changed {
-            self.drag_revision.bump();
+            self.drag_drop.revision.bump();
         }
     }
 
@@ -339,7 +343,7 @@ impl FolderBrowserState {
     }
 
     fn reconcile_active_collection_selection(&mut self, collection: SampleCollection) {
-        if self.selected_collection != Some(collection) {
+        if self.selection.selected_collection != Some(collection) {
             return;
         }
         let visible_ids = self
@@ -351,20 +355,22 @@ impl FolderBrowserState {
             .iter()
             .cloned()
             .collect::<std::collections::HashSet<_>>();
-        self.selected_file_ids
+        self.selection
+            .selected_file_ids
             .retain(|file_id| visible_id_set.contains(file_id));
         if self
+            .selection
             .selected_file
             .as_ref()
             .is_some_and(|file_id| !visible_id_set.contains(file_id))
         {
-            self.selected_file = visible_ids.first().cloned();
+            self.selection.selected_file = visible_ids.first().cloned();
         }
     }
 
     fn reset_folder_focus_to_selected_source_root(&mut self) {
-        if let Some(root) = self.folders.first() {
-            self.selected_folder = root.id.clone();
+        if let Some(root) = self.tree.folders.first() {
+            self.selection.selected_folder = root.id.clone();
         }
     }
 }

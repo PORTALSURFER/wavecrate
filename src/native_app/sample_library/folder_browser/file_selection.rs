@@ -30,23 +30,24 @@ impl FolderBrowserState {
             return false;
         };
 
-        let source_changed = self.selected_source != source_id;
+        let source_changed = self.source.selected_source != source_id;
         self.cancel_rename();
-        self.selected_collection = None;
-        self.collection_rename_edit = None;
-        self.selected_source = source_id;
-        self.selected_folder = parent_id;
-        self.selected_file = Some(file_id.clone());
-        self.selected_file_ids.clear();
-        self.selected_file_ids.insert(file_id);
-        self.selected_file_ids_explicit = false;
+        self.selection.selected_collection = None;
+        self.collection_panel.rename_edit = None;
+        self.source.selected_source = source_id;
+        self.selection.selected_folder = parent_id;
+        self.selection.selected_file = Some(file_id.clone());
+        self.selection.selected_file_ids.clear();
+        self.selection.selected_file_ids.insert(file_id);
+        self.selection.selected_file_ids_explicit = false;
         self.reset_file_view();
-        self.folders = vec![root_folder];
+        self.tree.folders = vec![root_folder];
         self.prewarm_selected_source_audio_projection_cache();
         if source_changed {
-            self.expanded_folders.clear();
+            self.tree.expanded_folders.clear();
         }
-        self.expanded_folders
+        self.tree
+            .expanded_folders
             .extend(folder_ancestor_ids(&source_root, parent));
         true
     }
@@ -57,7 +58,7 @@ impl FolderBrowserState {
         parent: &Path,
         file_id: &str,
     ) -> Option<(String, PathBuf, super::FolderEntry)> {
-        self.sources.iter().find_map(|source| {
+        self.source.sources.iter().find_map(|source| {
             if !path.starts_with(&source.root) {
                 return None;
             }
@@ -73,6 +74,7 @@ impl FolderBrowserState {
 
     fn ensure_loaded_source_containing_path(&mut self, path: &Path) {
         let Some(index) = self
+            .source
             .sources
             .iter()
             .enumerate()
@@ -82,10 +84,10 @@ impl FolderBrowserState {
         else {
             return;
         };
-        if self.sources[index].root_folder.is_none() {
-            let root = self.sources[index].root.clone();
-            self.sources[index].root_folder = Some(load_root_folder(root));
-            self.sources[index].loading_task = None;
+        if self.source.sources[index].root_folder.is_none() {
+            let root = self.source.sources[index].root.clone();
+            self.source.sources[index].root_folder = Some(load_root_folder(root));
+            self.source.sources[index].loading_task = None;
             self.bump_file_content_revision();
         }
     }
@@ -100,9 +102,10 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn first_audio_file_path(&self) -> Option<PathBuf> {
-        self.sources
+        self.source
+            .sources
             .iter()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
             .and_then(|source| source.root_folder.as_ref())
             .and_then(first_audio_file_in_folder)
             .map(PathBuf::from)
@@ -155,10 +158,12 @@ impl FolderBrowserState {
     }
 
     fn active_selected_file_ids(&self) -> HashSet<String> {
-        if self.selected_file_ids_explicit || !self.selected_file_ids.is_empty() {
-            return self.selected_file_ids.clone();
+        if self.selection.selected_file_ids_explicit || !self.selection.selected_file_ids.is_empty()
+        {
+            return self.selection.selected_file_ids.clone();
         }
-        self.selected_file
+        self.selection
+            .selected_file
             .as_deref()
             .map(|id| [id.to_string()].into_iter().collect())
             .unwrap_or_default()
@@ -173,10 +178,10 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
-        if self.selected_collection.is_some() && self.selected_file.is_none() {
+        if self.selection.selected_collection.is_some() && self.selection.selected_file.is_none() {
             return self.navigate_into_active_file_list(delta);
         }
-        if self.selected_file.is_some() {
+        if self.selection.selected_file.is_some() {
             return self.navigate_selected_file(delta, extend);
         }
         self.navigate_selected_folder(delta);
@@ -192,10 +197,10 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
-        if self.selected_collection.is_some() && self.selected_file.is_none() {
+        if self.selection.selected_collection.is_some() && self.selection.selected_file.is_none() {
             return self.navigate_into_active_file_list_matching_tags(delta, tags_by_file);
         }
-        if self.selected_file.is_some() {
+        if self.selection.selected_file.is_some() {
             return self.navigate_selected_file_matching_tags(delta, extend, tags_by_file);
         }
         self.navigate_selected_folder(delta);
@@ -203,28 +208,32 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn collapse_selected_folder(&mut self) -> bool {
-        if self.rename_active() || self.selected_collection.is_some() {
+        if self.rename_active() || self.selection.selected_collection.is_some() {
             return false;
         }
         if self.selected_folder_is_source_root() {
             return false;
         }
-        if self.folder_has_children(&self.selected_folder) {
-            self.expanded_folders.remove(&self.selected_folder)
+        if self.folder_has_children(&self.selection.selected_folder) {
+            self.tree
+                .expanded_folders
+                .remove(&self.selection.selected_folder)
         } else {
             false
         }
     }
 
     pub(in crate::native_app) fn expand_selected_folder(&mut self) -> bool {
-        if self.rename_active() || self.selected_collection.is_some() {
+        if self.rename_active() || self.selection.selected_collection.is_some() {
             return false;
         }
         if self.selected_folder_is_source_root() {
             return false;
         }
-        if self.folder_has_children(&self.selected_folder) {
-            self.expanded_folders.insert(self.selected_folder.clone())
+        if self.folder_has_children(&self.selection.selected_folder) {
+            self.tree
+                .expanded_folders
+                .insert(self.selection.selected_folder.clone())
         } else {
             false
         }
@@ -244,7 +253,7 @@ impl FolderBrowserState {
         let folders = self.visible_folders();
         let Some(current_index) = folders
             .iter()
-            .position(|folder| folder.id == self.selected_folder)
+            .position(|folder| folder.id == self.selection.selected_folder)
         else {
             return false;
         };
@@ -279,7 +288,7 @@ impl FolderBrowserState {
         extend: bool,
         file_ids: &[String],
     ) -> Option<String> {
-        if self.selected_file_ids_explicit && !extend {
+        if self.selection.selected_file_ids_explicit && !extend {
             return self.navigate_focused_file_preserving_selection(delta, file_ids);
         }
 
@@ -290,7 +299,7 @@ impl FolderBrowserState {
             selection.navigate(delta as isize, file_ids, false)?
         };
         self.apply_file_selection_model(selection);
-        self.selected_file_ids_explicit = extend;
+        self.selection.selected_file_ids_explicit = extend;
         Some(target)
     }
 
@@ -299,7 +308,7 @@ impl FolderBrowserState {
         delta: i32,
         file_ids: &[String],
     ) -> Option<String> {
-        let current = self.selected_file.as_ref()?;
+        let current = self.selection.selected_file.as_ref()?;
         let current_index = file_ids.iter().position(|id| id == current)?;
         let target_index =
             ui::list_index_after_delta(current_index, delta as isize, file_ids.len())?;
@@ -307,7 +316,7 @@ impl FolderBrowserState {
             return None;
         }
         let target = file_ids[target_index].clone();
-        self.selected_file = Some(target.clone());
+        self.selection.selected_file = Some(target.clone());
         Some(target)
     }
 
@@ -369,14 +378,14 @@ impl FolderBrowserState {
             ui::ListSelectionIntent::from_extend_toggle(modifiers.shift, modifiers.command),
         );
         self.apply_file_selection_model(selection);
-        self.selected_file_ids_explicit = modifiers.shift || modifiers.command;
+        self.selection.selected_file_ids_explicit = modifiers.shift || modifiers.command;
     }
 
     pub(in crate::native_app) fn focus_file_preserving_selection(&mut self, id: String) {
-        if self.selected_file_ids.contains(&id)
+        if self.selection.selected_file_ids.contains(&id)
             && self.selected_audio_files().iter().any(|file| file.id == id)
         {
-            self.selected_file = Some(id);
+            self.selection.selected_file = Some(id);
         } else {
             self.select_file(id);
         }
@@ -385,7 +394,7 @@ impl FolderBrowserState {
     #[cfg(test)]
     pub(in crate::native_app) fn select_all_audio_files(&mut self) -> usize {
         if self.rename_active() {
-            return self.selected_file_ids.len();
+            return self.selection.selected_file_ids.len();
         }
         let ids = self.selected_audio_file_ids();
         self.select_audio_file_ids(ids)
@@ -396,7 +405,7 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> usize {
         if self.rename_active() {
-            return self.selected_file_ids.len();
+            return self.selection.selected_file_ids.len();
         }
         let ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         self.select_audio_file_ids(ids)
@@ -409,25 +418,25 @@ impl FolderBrowserState {
         if self.rename_active() {
             return None;
         }
-        if self.selected_collection.is_some() && self.selected_file.is_none() {
+        if self.selection.selected_collection.is_some() && self.selection.selected_file.is_none() {
             self.navigate_into_active_file_list_matching_tags(1, tags_by_file)?;
         }
         let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
-        let focused = self.selected_file.as_ref()?;
+        let focused = self.selection.selected_file.as_ref()?;
         let current_index = file_ids.iter().position(|id| id == focused)?;
         let toggled_id = focused.clone();
-        let already_marked =
-            self.selected_file_ids_explicit && self.selected_file_ids.contains(&toggled_id);
+        let already_marked = self.selection.selected_file_ids_explicit
+            && self.selection.selected_file_ids.contains(&toggled_id);
         let toggled_selected = if already_marked {
-            self.selected_file_ids.remove(&toggled_id);
+            self.selection.selected_file_ids.remove(&toggled_id);
             false
         } else {
-            self.selected_file_ids.insert(toggled_id.clone());
+            self.selection.selected_file_ids.insert(toggled_id.clone());
             true
         };
-        self.selected_file_ids_explicit = true;
+        self.selection.selected_file_ids_explicit = true;
         let focused_id = file_ids[current_index.saturating_add(1).min(file_ids.len() - 1)].clone();
-        self.selected_file = Some(focused_id.clone());
+        self.selection.selected_file = Some(focused_id.clone());
         Some(ToggleSelectedSampleAdvanceResult {
             toggled_id,
             toggled_selected,
@@ -439,8 +448,8 @@ impl FolderBrowserState {
         let mut selection = self.file_selection_model();
         selection.select_all(&ids);
         self.apply_file_selection_model(selection);
-        self.selected_file_ids_explicit = true;
-        self.selected_file_ids.len()
+        self.selection.selected_file_ids_explicit = true;
+        self.selection.selected_file_ids.len()
     }
 
     fn selected_audio_file_ids(&self) -> Vec<String> {
@@ -462,16 +471,16 @@ impl FolderBrowserState {
 
     fn file_selection_model(&self) -> ui::KeyedListSelection<String> {
         ui::KeyedListSelection::from_parts(
-            self.selected_file.clone(),
-            self.selected_file.clone(),
-            self.selected_file_ids.clone(),
+            self.selection.selected_file.clone(),
+            self.selection.selected_file.clone(),
+            self.selection.selected_file_ids.clone(),
         )
     }
 
     fn apply_file_selection_model(&mut self, selection: ui::KeyedListSelection<String>) {
-        self.selected_file = selection.focused_key().cloned();
-        self.selected_file_ids = selection.selected_keys().iter().cloned().collect();
-        self.selected_file_ids_explicit = false;
+        self.selection.selected_file = selection.focused_key().cloned();
+        self.selection.selected_file_ids = selection.selected_keys().iter().cloned().collect();
+        self.selection.selected_file_ids_explicit = false;
     }
 
     pub(in crate::native_app) fn refresh_file_path(&mut self, path: &Path) -> bool {
@@ -480,9 +489,10 @@ impl FolderBrowserState {
         };
         let parent_id = path_id(parent);
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
         else {
             return false;
         };
@@ -493,7 +503,7 @@ impl FolderBrowserState {
             return false;
         };
         upsert_file(&mut parent_folder.files, file_entry(&path.to_path_buf()));
-        self.folders = vec![root_folder.clone()];
+        self.tree.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
         true
     }
@@ -504,13 +514,14 @@ impl FolderBrowserState {
         relative_paths: &[PathBuf],
     ) -> bool {
         let Some(source_index) = self
+            .source
             .sources
             .iter()
             .position(|source| source.id == source_id)
         else {
             return false;
         };
-        let root = self.sources[source_index].root.clone();
+        let root = self.source.sources[source_index].root.clone();
         let mut changed = false;
         for relative_path in relative_paths {
             changed |= self.refresh_one_source_relative_path(source_index, &root, relative_path);
@@ -529,6 +540,7 @@ impl FolderBrowserState {
             return false;
         };
         let Some(source_index) = self
+            .source
             .sources
             .iter()
             .position(|source| source.id == result.source_id)
@@ -536,7 +548,7 @@ impl FolderBrowserState {
             return false;
         };
         let folder_id = path_id(&result.folder_path);
-        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
         let Some(folder) = root_folder.find_mut(&folder_id) else {
@@ -545,21 +557,24 @@ impl FolderBrowserState {
         if !folder.replace_direct_entries(snapshot.child_paths, snapshot.files) {
             return false;
         }
-        if self.selected_source == result.source_id {
-            self.folders = vec![root_folder.clone()];
-            if self.selected_folder == folder_id {
+        if self.source.selected_source == result.source_id {
+            self.tree.folders = vec![root_folder.clone()];
+            if self.selection.selected_folder == folder_id {
                 let visible_ids = self
                     .selected_audio_files()
                     .into_iter()
                     .map(|file| file.id.clone())
                     .collect::<HashSet<_>>();
-                self.selected_file_ids.retain(|id| visible_ids.contains(id));
+                self.selection
+                    .selected_file_ids
+                    .retain(|id| visible_ids.contains(id));
                 if self
+                    .selection
                     .selected_file
                     .as_ref()
                     .is_some_and(|id| !visible_ids.contains(id))
                 {
-                    self.selected_file = None;
+                    self.selection.selected_file = None;
                 }
             }
         }
@@ -588,14 +603,14 @@ impl FolderBrowserState {
             return false;
         };
         let parent_id = path_id(parent);
-        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
         if root_folder.find(&parent_id).is_none() {
-            let source_root = self.sources[source_index].root.clone();
+            let source_root = self.source.sources[source_index].root.clone();
             return self.refresh_existing_folder_path(source_index, &source_root, parent);
         }
-        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
         let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
@@ -613,7 +628,7 @@ impl FolderBrowserState {
         let Some(folder) = load_folder_at_path(path, source_root) else {
             return false;
         };
-        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
         if root_folder.id == folder.id {
@@ -634,7 +649,7 @@ impl FolderBrowserState {
 
     fn remove_missing_path_from_source(&mut self, source_index: usize, path: &Path) -> bool {
         let path_id = path_id(path);
-        let Some(root_folder) = self.sources[source_index].root_folder.as_mut() else {
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
         let removed_folder = root_folder.remove_child_by_id(&path_id);
@@ -644,19 +659,20 @@ impl FolderBrowserState {
 
     fn after_source_tree_changed(&mut self, source_id: &str) {
         if let Some(root_folder) = self
+            .source
             .sources
             .iter()
             .find(|source| source.id == source_id)
             .and_then(|source| source.root_folder.clone())
         {
-            if self.selected_source == source_id {
-                if root_folder.find(&self.selected_folder).is_none() {
-                    self.selected_folder = root_folder.id.clone();
-                    self.selected_file = None;
-                    self.selected_file_ids.clear();
-                    self.selected_file_ids_explicit = false;
+            if self.source.selected_source == source_id {
+                if root_folder.find(&self.selection.selected_folder).is_none() {
+                    self.selection.selected_folder = root_folder.id.clone();
+                    self.selection.selected_file = None;
+                    self.selection.selected_file_ids.clear();
+                    self.selection.selected_file_ids_explicit = false;
                 }
-                self.folders = vec![root_folder];
+                self.tree.folders = vec![root_folder];
             }
             self.bump_file_content_revision();
         }
@@ -670,13 +686,13 @@ impl FolderBrowserState {
     ) -> bool {
         let file_id = path_id(path);
         let mut changed = false;
-        for source in &mut self.sources {
+        for source in &mut self.source.sources {
             let Some(root_folder) = &mut source.root_folder else {
                 continue;
             };
             changed |= root_folder.set_file_rating(&file_id, rating, locked);
-            if source.id == self.selected_source {
-                self.folders = vec![root_folder.clone()];
+            if source.id == self.source.selected_source {
+                self.tree.folders = vec![root_folder.clone()];
             }
         }
         if changed {

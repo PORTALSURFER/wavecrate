@@ -17,7 +17,7 @@ fn browser_keyboard_navigation_is_disabled_while_renaming() {
     assert_eq!(browser.navigate_vertical(1, false), None);
     assert!(!browser.expand_selected_folder());
     assert!(!browser.collapse_selected_folder());
-    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -94,7 +94,10 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
     assert_eq!(status, "Created folder loops");
     assert!(!pending.exists());
     assert!(drums.join("loops").is_dir());
-    assert_eq!(browser.selected_folder, path_id(&drums.join("loops")));
+    assert_eq!(
+        browser.selection.selected_folder,
+        path_id(&drums.join("loops"))
+    );
     assert!(
         browser
             .visible_folders()
@@ -123,7 +126,7 @@ fn create_subfolder_cancel_removes_pending_row_without_touching_disk() {
     browser.activate_folder(path_id(&drums));
 
     assert!(!pending.exists());
-    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
     assert!(
         browser
             .visible_folders()

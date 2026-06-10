@@ -19,9 +19,10 @@ impl FolderBrowserState {
         let old_id = path_id(old_path);
         let target_parent_id = path_id(target_parent);
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
         else {
             return Err(String::from(
                 "Folder move failed: selected source is unavailable",
@@ -44,24 +45,28 @@ impl FolderBrowserState {
             ));
         };
         upsert_folder(&mut target_folder.children, moved_folder);
-        self.folders = vec![root_folder.clone()];
+        self.tree.folders = vec![root_folder.clone()];
 
-        self.selected_folder = rewrite_path_id(&self.selected_folder, old_path, new_path);
-        self.selected_file = self
+        self.selection.selected_folder =
+            rewrite_path_id(&self.selection.selected_folder, old_path, new_path);
+        self.selection.selected_file = self
+            .selection
             .selected_file
             .take()
             .map(|id| rewrite_path_id(&id, old_path, new_path));
-        self.selected_file_ids = self
+        self.selection.selected_file_ids = self
+            .selection
             .selected_file_ids
             .iter()
             .map(|id| rewrite_path_id(id, old_path, new_path))
             .collect();
-        self.expanded_folders = self
+        self.tree.expanded_folders = self
+            .tree
             .expanded_folders
             .iter()
             .map(|id| rewrite_path_id(id, old_path, new_path))
             .collect();
-        self.expanded_folders.insert(target_parent_id);
+        self.tree.expanded_folders.insert(target_parent_id);
         self.bump_file_content_revision();
         Ok(())
     }
@@ -77,9 +82,10 @@ impl FolderBrowserState {
             .collect::<HashSet<_>>();
         let target_parent_id = path_id(target_parent);
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
         else {
             return Err(String::from(
                 "File move failed: selected source is unavailable",
@@ -97,7 +103,7 @@ impl FolderBrowserState {
         for (_, new_path) in moves {
             upsert_file(&mut target_folder.files, file_entry(new_path));
         }
-        self.folders = vec![root_folder.clone()];
+        self.tree.folders = vec![root_folder.clone()];
         let moved_ids = moves
             .iter()
             .map(|(_, new_path)| path_id(new_path))
@@ -110,25 +116,35 @@ impl FolderBrowserState {
                 .unwrap_or_else(|| id.to_string())
         };
         let selected_file_was_moved = self
+            .selection
             .selected_file
             .as_ref()
             .is_some_and(|id| old_ids.contains(id));
-        self.selected_file = if selected_file_was_moved {
-            self.selected_file.take().map(|id| rewrite_file_id(&id))
+        self.selection.selected_file = if selected_file_was_moved {
+            self.selection
+                .selected_file
+                .take()
+                .map(|id| rewrite_file_id(&id))
         } else {
             moved_ids.first().cloned()
         };
-        self.selected_file_ids = if self.selected_file_ids.iter().any(|id| old_ids.contains(id)) {
-            self.selected_file_ids
+        self.selection.selected_file_ids = if self
+            .selection
+            .selected_file_ids
+            .iter()
+            .any(|id| old_ids.contains(id))
+        {
+            self.selection
+                .selected_file_ids
                 .iter()
                 .map(|id| rewrite_file_id(id))
                 .collect()
         } else {
             moved_ids.iter().cloned().collect()
         };
-        self.selected_folder = target_parent_id.clone();
+        self.selection.selected_folder = target_parent_id.clone();
         self.reset_file_view();
-        self.expanded_folders.insert(target_parent_id);
+        self.tree.expanded_folders.insert(target_parent_id);
         self.bump_file_content_revision();
         Ok(())
     }

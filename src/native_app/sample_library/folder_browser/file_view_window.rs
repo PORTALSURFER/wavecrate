@@ -6,12 +6,11 @@ use super::FolderBrowserState;
 impl FolderBrowserState {
     #[cfg(test)]
     pub(in crate::native_app) fn file_view_start(&self) -> usize {
-        self.file_view_controller.viewport_start()
+        self.sample_list.view_controller.viewport_start()
     }
 
     pub(super) fn reset_file_view(&mut self) {
-        self.file_view_controller = ui::VirtualListController::default();
-        self.file_view_follow_selection.clear();
+        self.sample_list.reset_view();
     }
 
     #[cfg(test)]
@@ -21,7 +20,8 @@ impl FolderBrowserState {
         row_height: f32,
     ) {
         let total_items = self.selected_audio_files().len();
-        self.file_view_controller
+        self.sample_list
+            .view_controller
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
@@ -29,9 +29,11 @@ impl FolderBrowserState {
         &mut self,
         change: ui::VirtualListWindowChange,
     ) {
-        self.file_view_controller
+        self.sample_list
+            .view_controller
             .set_total_items(change.window.total_items);
-        self.file_view_controller
+        self.sample_list
+            .view_controller
             .set_viewport_start(change.window.viewport_start);
     }
 
@@ -48,12 +50,13 @@ impl FolderBrowserState {
             viewport_rows,
             overscan_rows,
             guard_rows,
-            self.selected_file.clone(),
+            self.selection.selected_file.clone(),
             |file, key| file.id.as_str() == key.as_str(),
         )
         .with_context_row();
-        self.file_view_controller
-            .configure_slice_focus_changed_optional(&mut self.file_view_follow_selection, focus)
+        self.sample_list
+            .view_controller
+            .configure_slice_focus_changed_optional(&mut self.sample_list.follow_selection, focus)
     }
 
     pub(in crate::native_app) fn follow_selected_file_view_matching_tags(
@@ -63,9 +66,9 @@ impl FolderBrowserState {
         guard_rows: usize,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> ui::VirtualListWindow {
-        let selected_file = self.selected_file.clone();
+        let selected_file = self.selection.selected_file.clone();
         let total_items = self.selected_audio_file_count_matching_tags(tags_by_file);
-        if self.file_view_follow_selection.focus_key() == selected_file.as_ref() {
+        if self.sample_list.follow_selection.focus_key() == selected_file.as_ref() {
             let projection = ui::VirtualListProjection::new(
                 total_items,
                 viewport_rows,
@@ -73,9 +76,11 @@ impl FolderBrowserState {
                 guard_rows,
             )
             .with_context_row();
-            self.file_view_controller.configure_projection(projection);
-            self.file_view_controller.clear_focus();
-            return self.file_view_controller.resolve();
+            self.sample_list
+                .view_controller
+                .configure_projection(projection);
+            self.sample_list.view_controller.clear_focus();
+            return self.sample_list.view_controller.resolve();
         }
 
         let projection =
@@ -85,9 +90,10 @@ impl FolderBrowserState {
             selected_file,
             self.selected_audio_file_index_matching_tags(tags_by_file),
         );
-        self.file_view_controller
+        self.sample_list
+            .view_controller
             .configure_projection_and_focus_changed_optional(
-                &mut self.file_view_follow_selection,
+                &mut self.sample_list.follow_selection,
                 projection,
                 focus,
             )

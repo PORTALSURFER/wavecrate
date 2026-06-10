@@ -11,48 +11,199 @@ use super::{
     CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, DEFAULT_FILTER_PANEL_HEIGHT,
     FileColumn, FileEntry, FileMoveConflictBatch, FileRenameEdit, FolderBrowserDrag,
     FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig,
-    SimilarityBrowserState, SourceEntry, default_file_columns, default_root_path, load_root_folder,
-    placeholder_folder,
+    SimilarityBrowserState, SourceEntry, collections::default_collections, default_file_columns,
+    default_root_path, load_root_folder, placeholder_folder,
 };
 
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct FolderBrowserState {
+    pub(super) source: BrowserSourceState,
+    pub(super) selection: BrowserSelectionState,
+    pub(super) filters: BrowserFilterState,
+    pub(super) tree: FolderTreeState,
+    pub(super) rename: BrowserRenameState,
+    pub(super) drag_drop: BrowserDragDropState,
+    pub(super) collection_panel: CollectionPanelState,
+    pub(super) panel_layout: BrowserPanelLayoutState,
+    pub(super) sample_list: SampleListState,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserSourceState {
     pub(super) selected_source: String,
     pub(super) sources: Vec<SourceEntry>,
+}
+
+impl BrowserSourceState {
+    fn new(sources: Vec<SourceEntry>, selected_source: String) -> Self {
+        Self {
+            selected_source,
+            sources,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserSelectionState {
     pub(super) selected_folder: String,
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
     pub(super) selected_file_ids_explicit: bool,
+    pub(super) selected_collection: Option<SampleCollection>,
+}
+
+impl BrowserSelectionState {
+    fn new(selected_folder: String) -> Self {
+        Self {
+            selected_folder,
+            selected_file: None,
+            selected_file_ids: HashSet::new(),
+            selected_file_ids_explicit: false,
+            selected_collection: None,
+        }
+    }
+
+    pub(super) fn clear_file_selection(&mut self) {
+        self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.selected_file_ids_explicit = false;
+    }
+
+    pub(super) fn select_folder(&mut self, folder_id: String) {
+        self.selected_collection = None;
+        self.selected_folder = folder_id;
+        self.clear_file_selection();
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct BrowserFilterState {
     pub(super) name_filter: String,
     pub(super) tag_filter: String,
-    pub(super) expanded_folders: HashSet<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct FolderTreeState {
     pub(super) folders: Vec<FolderEntry>,
-    pub(super) rename_edit: Option<FolderRenameEdit>,
-    pub(super) file_rename_edit: Option<FileRenameEdit>,
+    pub(super) expanded_folders: HashSet<String>,
+    pub(super) view_controller: ui::VirtualListController,
+    pub(super) follow_selection: ui::VirtualListFollowState<String>,
+}
+
+impl FolderTreeState {
+    fn new(root_folder: FolderEntry, root_id: String) -> Self {
+        Self {
+            folders: vec![root_folder],
+            expanded_folders: [root_id].into_iter().collect(),
+            view_controller: ui::VirtualListController::default(),
+            follow_selection: ui::VirtualListFollowState::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct BrowserRenameState {
+    pub(super) folder: Option<FolderRenameEdit>,
+    pub(super) file: Option<FileRenameEdit>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserDragDropState {
     pub(super) drag: Option<FolderBrowserDrag>,
     pub(super) drag_pointer: Option<Point>,
     pub(super) drop_target: ui::ExclusiveOpen<FolderBrowserDropTarget>,
     pub(super) pending_file_move_conflicts: Option<FileMoveConflictBatch>,
-    pub(super) drag_revision: ui::RevisionCounter,
+    pub(super) revision: ui::RevisionCounter,
+}
+
+impl BrowserDragDropState {
+    fn new() -> Self {
+        Self {
+            drag: None,
+            drag_pointer: None,
+            drop_target: ui::ExclusiveOpen::new(),
+            pending_file_move_conflicts: None,
+            revision: ui::RevisionCounter::default(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn revision(&self) -> u64 {
+        self.revision.get()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct CollectionPanelState {
     pub(super) collections: Vec<SampleCollectionConfig>,
-    pub(super) selected_collection: Option<SampleCollection>,
-    pub(super) collection_rename_edit: Option<CollectionRenameEdit>,
-    pub(super) collections_panel: ui::PanelResizeState,
-    pub(super) filter_panel: ui::PanelResizeState,
-    pub(super) metadata_panel: ui::PanelResizeState,
+    pub(super) rename_edit: Option<CollectionRenameEdit>,
+}
+
+impl CollectionPanelState {
+    fn new() -> Self {
+        Self {
+            collections: default_collections(),
+            rename_edit: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserPanelLayoutState {
+    pub(super) collections: ui::PanelResizeState,
+    pub(super) filter: ui::PanelResizeState,
+    pub(super) metadata: ui::PanelResizeState,
+}
+
+impl BrowserPanelLayoutState {
+    fn new() -> Self {
+        Self {
+            collections: ui::PanelResizeState::new(DEFAULT_COLLECTIONS_PANEL_HEIGHT),
+            filter: ui::PanelResizeState::new(DEFAULT_FILTER_PANEL_HEIGHT),
+            metadata: ui::PanelResizeState::new(DEFAULT_METADATA_PANEL_HEIGHT),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct SampleListState {
     pub(super) file_columns: Vec<FileColumn>,
     pub(super) file_sort: ui::DetailsSort,
     pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
     pub(super) similarity: Option<SimilarityBrowserState>,
-    pub(super) tree_view_controller: ui::VirtualListController,
-    pub(super) file_view_controller: ui::VirtualListController,
-    pub(super) tree_view_follow_selection: ui::VirtualListFollowState<String>,
-    pub(super) file_view_follow_selection: ui::VirtualListFollowState<String>,
-    file_content_revision: u64,
+    pub(super) view_controller: ui::VirtualListController,
+    pub(super) follow_selection: ui::VirtualListFollowState<String>,
+    pub(super) content_revision: u64,
     selected_audio_projection_cache: RefCell<HashMap<SelectedAudioProjectionKey, Vec<usize>>>,
+}
+
+impl SampleListState {
+    fn new() -> Self {
+        Self {
+            file_columns: default_file_columns(),
+            file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            file_column_resize: None,
+            file_column_reorder: None,
+            similarity: None,
+            view_controller: ui::VirtualListController::default(),
+            follow_selection: ui::VirtualListFollowState::default(),
+            content_revision: 0,
+            selected_audio_projection_cache: RefCell::new(HashMap::new()),
+        }
+    }
+
+    pub(super) fn reset_view(&mut self) {
+        self.view_controller = ui::VirtualListController::default();
+        self.follow_selection.clear();
+    }
+
+    pub(super) fn bump_content_revision(&mut self) {
+        self.content_revision = self.content_revision.saturating_add(1);
+        self.selected_audio_projection_cache.get_mut().clear();
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,41 +265,17 @@ impl FolderBrowserState {
 
     fn new(sources: Vec<SourceEntry>, source_index: usize, root_folder: FolderEntry) -> Self {
         let root_id = root_folder.id.clone();
+        let selected_source = sources[source_index].id.clone();
         let state = Self {
-            selected_source: sources[source_index].id.clone(),
-            sources,
-            selected_folder: root_id.clone(),
-            selected_file: None,
-            selected_file_ids: HashSet::new(),
-            selected_file_ids_explicit: false,
-            name_filter: String::new(),
-            tag_filter: String::new(),
-            expanded_folders: [root_id].into_iter().collect(),
-            folders: vec![root_folder],
-            rename_edit: None,
-            file_rename_edit: None,
-            drag: None,
-            drag_pointer: None,
-            drop_target: ui::ExclusiveOpen::new(),
-            pending_file_move_conflicts: None,
-            drag_revision: ui::RevisionCounter::default(),
-            collections: Self::default_collections(),
-            selected_collection: None,
-            collection_rename_edit: None,
-            collections_panel: ui::PanelResizeState::new(DEFAULT_COLLECTIONS_PANEL_HEIGHT),
-            filter_panel: ui::PanelResizeState::new(DEFAULT_FILTER_PANEL_HEIGHT),
-            metadata_panel: ui::PanelResizeState::new(DEFAULT_METADATA_PANEL_HEIGHT),
-            file_columns: default_file_columns(),
-            file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
-            file_column_resize: None,
-            file_column_reorder: None,
-            similarity: None,
-            tree_view_controller: ui::VirtualListController::default(),
-            file_view_controller: ui::VirtualListController::default(),
-            tree_view_follow_selection: ui::VirtualListFollowState::default(),
-            file_view_follow_selection: ui::VirtualListFollowState::default(),
-            file_content_revision: 0,
-            selected_audio_projection_cache: RefCell::new(HashMap::new()),
+            source: BrowserSourceState::new(sources, selected_source),
+            selection: BrowserSelectionState::new(root_id.clone()),
+            filters: BrowserFilterState::default(),
+            tree: FolderTreeState::new(root_folder, root_id),
+            rename: BrowserRenameState::default(),
+            drag_drop: BrowserDragDropState::new(),
+            collection_panel: CollectionPanelState::new(),
+            panel_layout: BrowserPanelLayoutState::new(),
+            sample_list: SampleListState::new(),
         };
         state.prewarm_selected_source_audio_projection_cache();
         state
@@ -156,7 +283,8 @@ impl FolderBrowserState {
 
     #[cfg(test)]
     pub(in crate::native_app) fn root_path(&self) -> &std::path::Path {
-        self.folders
+        self.tree
+            .folders
             .first()
             .map(|folder| std::path::Path::new(&folder.id))
             .unwrap_or_else(|| std::path::Path::new(""))
@@ -174,12 +302,12 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn selected_audio_files(&self) -> Vec<&FileEntry> {
-        if let Some(collection) = self.selected_collection {
+        if let Some(collection) = self.selection.selected_collection {
             let mut files = Vec::new();
             if let Some(folder) = self.selected_source_root_folder() {
                 collect_collection_audio_files(folder, collection, &mut files);
             }
-            filter_audio_files_by_name(&mut files, &self.name_filter);
+            filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             self.sort_files(&mut files);
             return files;
         }
@@ -208,7 +336,7 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<&FileEntry> {
         let mut files = self.selected_audio_files();
-        filter_audio_files_by_tags(&mut files, tags_by_file, &self.tag_filter);
+        filter_audio_files_by_tags(&mut files, tags_by_file, &self.filters.tag_filter);
         files
     }
 
@@ -216,12 +344,12 @@ impl FolderBrowserState {
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> usize {
-        let name_query = normalized_name_filter(&self.name_filter);
-        let required_tags = parsed_tag_filter(&self.tag_filter);
-        if required_tags.is_empty() && self.selected_collection.is_none() {
+        let name_query = normalized_name_filter(&self.filters.name_filter);
+        let required_tags = parsed_tag_filter(&self.filters.tag_filter);
+        if required_tags.is_empty() && self.selection.selected_collection.is_none() {
             return self.selected_folder_audio_file_count();
         }
-        if let Some(collection) = self.selected_collection {
+        if let Some(collection) = self.selection.selected_collection {
             return self
                 .selected_source_root_folder()
                 .map(|folder| {
@@ -247,7 +375,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn selected_folder_audio_file_count(&self) -> usize {
-        if self.selected_collection.is_some() {
+        if self.selection.selected_collection.is_some() {
             return self.selected_audio_files().len();
         }
         let Some(folder) = self.selected_folder() else {
@@ -261,8 +389,8 @@ impl FolderBrowserState {
         index: usize,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<&FileEntry> {
-        let required_tags = parsed_tag_filter(&self.tag_filter);
-        if self.selected_collection.is_some() {
+        let required_tags = parsed_tag_filter(&self.filters.tag_filter);
+        if self.selection.selected_collection.is_some() {
             return self
                 .selected_audio_files_matching_tags(tags_by_file)
                 .get(index)
@@ -286,9 +414,9 @@ impl FolderBrowserState {
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<usize> {
-        let selected = self.selected_file.as_deref()?;
-        let required_tags = parsed_tag_filter(&self.tag_filter);
-        if self.selected_collection.is_some() {
+        let selected = self.selection.selected_file.as_deref()?;
+        let required_tags = parsed_tag_filter(&self.filters.tag_filter);
+        if self.selection.selected_collection.is_some() {
             return self
                 .selected_audio_files_matching_tags(tags_by_file)
                 .iter()
@@ -312,26 +440,28 @@ impl FolderBrowserState {
     }
 
     pub(super) fn selected_source_root_folder(&self) -> Option<&FolderEntry> {
-        self.folders.first().or_else(|| {
-            self.sources
+        self.tree.folders.first().or_else(|| {
+            self.source
+                .sources
                 .iter()
-                .find(|source| source.id == self.selected_source)
+                .find(|source| source.id == self.source.selected_source)
                 .and_then(|source| source.root_folder.as_ref())
         })
     }
 
     pub(in crate::native_app) fn selected_file_id(&self) -> Option<&str> {
-        self.selected_file.as_deref()
+        self.selection.selected_file.as_deref()
     }
 
     pub(in crate::native_app) fn similarity_anchor_id(&self) -> Option<&str> {
-        self.similarity
+        self.sample_list
+            .similarity
             .as_ref()
             .map(SimilarityBrowserState::anchor_id)
     }
 
     pub(in crate::native_app) fn similarity_mode_active(&self) -> bool {
-        self.similarity.is_some()
+        self.sample_list.similarity.is_some()
     }
 
     pub(in crate::native_app) fn file_is_similarity_anchor(&self, file_id: &str) -> bool {
@@ -342,16 +472,17 @@ impl FolderBrowserState {
         &self,
         file_id: &str,
     ) -> Option<f32> {
-        self.similarity
+        self.sample_list
+            .similarity
             .as_ref()
             .and_then(|similarity| similarity.display_strength_for(file_id))
     }
 
     pub(in crate::native_app) fn toggle_similarity_anchor(&mut self, file_id: String) {
         if self.file_is_similarity_anchor(&file_id) {
-            self.similarity = None;
+            self.sample_list.similarity = None;
         } else {
-            self.similarity = Some(SimilarityBrowserState::new(file_id));
+            self.sample_list.similarity = Some(SimilarityBrowserState::new(file_id));
         }
         self.bump_file_content_revision();
     }
@@ -362,7 +493,7 @@ impl FolderBrowserState {
         anchor_id: String,
         scores_by_file: HashMap<String, f32>,
     ) {
-        self.similarity = Some(SimilarityBrowserState::with_scores(
+        self.sample_list.similarity = Some(SimilarityBrowserState::with_scores(
             anchor_id,
             scores_by_file,
         ));
@@ -375,9 +506,9 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn context_sample_path(&self, file_id: &str) -> Option<PathBuf> {
-        if self.selected_file_ids.contains(file_id)
-            && let Some(focused) = self.selected_file.as_deref()
-            && self.selected_file_ids.contains(focused)
+        if self.selection.selected_file_ids.contains(file_id)
+            && let Some(focused) = self.selection.selected_file.as_deref()
+            && self.selection.selected_file_ids.contains(focused)
         {
             return Some(PathBuf::from(focused));
         }
@@ -389,15 +520,16 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn is_file_selected(&self, file_id: &str) -> bool {
-        self.selected_file_ids.contains(file_id)
+        self.selection.selected_file_ids.contains(file_id)
     }
 
     pub(in crate::native_app) fn drag_revision(&self) -> u64 {
-        self.drag_revision.get()
+        self.drag_drop.revision.get()
     }
 
     pub(in crate::native_app) fn scan_is_active(&self, source_id: &str, task_id: u64) -> bool {
-        self.sources
+        self.source
+            .sources
             .iter()
             .any(|source| source.id == source_id && source.loading_task == Some(task_id))
     }
@@ -490,8 +622,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn bump_file_content_revision(&mut self) {
-        self.file_content_revision = self.file_content_revision.saturating_add(1);
-        self.selected_audio_projection_cache.get_mut().clear();
+        self.sample_list.bump_content_revision();
     }
 
     fn selected_folder_audio_files<'a>(&self, folder: &'a FolderEntry) -> Vec<&'a FileEntry> {
@@ -504,13 +635,14 @@ impl FolderBrowserState {
     fn selected_folder_audio_file_indices_ref(&self, folder: &FolderEntry) -> Ref<'_, Vec<usize>> {
         let key = SelectedAudioProjectionKey {
             folder_id: folder.id.clone(),
-            name_filter: normalized_name_filter(&self.name_filter),
-            sort_column_id: self.file_sort.column_id.clone(),
-            sort_descending: self.file_sort.direction == ui::SortDirection::Descending,
+            name_filter: normalized_name_filter(&self.filters.name_filter),
+            sort_column_id: self.sample_list.file_sort.column_id.clone(),
+            sort_descending: self.sample_list.file_sort.direction == ui::SortDirection::Descending,
             similarity_anchor_id: self.similarity_anchor_id().map(str::to_owned),
-            content_revision: self.file_content_revision,
+            content_revision: self.sample_list.content_revision,
         };
         if !self
+            .sample_list
             .selected_audio_projection_cache
             .borrow()
             .contains_key(&key)
@@ -526,19 +658,23 @@ impl FolderBrowserState {
                 .collect::<Vec<_>>();
             self.sort_file_indices(folder, &mut indices);
             self.sort_file_indices_by_similarity(folder, &mut indices);
-            self.selected_audio_projection_cache
+            self.sample_list
+                .selected_audio_projection_cache
                 .borrow_mut()
                 .insert(key.clone(), indices);
         }
-        Ref::map(self.selected_audio_projection_cache.borrow(), |cache| {
-            cache
-                .get(&key)
-                .expect("selected audio projection cache should contain computed key")
-        })
+        Ref::map(
+            self.sample_list.selected_audio_projection_cache.borrow(),
+            |cache| {
+                cache
+                    .get(&key)
+                    .expect("selected audio projection cache should contain computed key")
+            },
+        )
     }
 
     fn sort_file_indices(&self, folder: &FolderEntry, indices: &mut [usize]) {
-        match self.file_sort.column_id.as_str() {
+        match self.sample_list.file_sort.column_id.as_str() {
             "extension" => indices.sort_by_cached_key(|index| {
                 let file = &folder.files[*index];
                 (file.extension.to_ascii_lowercase(), file.name_sort_key())
@@ -569,13 +705,13 @@ impl FolderBrowserState {
             "path" => indices.sort_by(|a, b| folder.files[*a].id.cmp(&folder.files[*b].id)),
             _ => indices.sort_by_cached_key(|index| folder.files[*index].name_sort_key()),
         }
-        if self.file_sort.direction == ui::SortDirection::Descending {
+        if self.sample_list.file_sort.direction == ui::SortDirection::Descending {
             indices.reverse();
         }
     }
 
     fn sort_file_indices_by_similarity(&self, folder: &FolderEntry, indices: &mut [usize]) {
-        let Some(similarity) = self.similarity.as_ref() else {
+        let Some(similarity) = self.sample_list.similarity.as_ref() else {
             return;
         };
         let base_order = indices
@@ -589,7 +725,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn prewarm_selected_source_audio_projection_cache(&self) {
-        if let Some(root) = self.folders.first() {
+        if let Some(root) = self.tree.folders.first() {
             self.prewarm_folder_audio_projection_cache(root);
         }
     }
@@ -603,7 +739,10 @@ impl FolderBrowserState {
 
     #[cfg(test)]
     pub(in crate::native_app) fn selected_audio_projection_cache_len_for_tests(&self) -> usize {
-        self.selected_audio_projection_cache.borrow().len()
+        self.sample_list
+            .selected_audio_projection_cache
+            .borrow()
+            .len()
     }
 }
 

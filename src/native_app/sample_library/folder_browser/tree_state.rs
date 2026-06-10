@@ -5,11 +5,11 @@ use super::{
 
 impl FolderBrowserState {
     pub(super) fn selected_folder(&self) -> Option<&FolderEntry> {
-        if self.selected_collection.is_some() {
+        if self.selection.selected_collection.is_some() {
             return None;
         }
-        self.find_folder(&self.selected_folder)
-            .or_else(|| self.folders.first())
+        self.find_folder(&self.selection.selected_folder)
+            .or_else(|| self.tree.folders.first())
     }
 
     pub(in crate::native_app) fn selected_folder_path(&self) -> Option<std::path::PathBuf> {
@@ -22,7 +22,7 @@ impl FolderBrowserState {
     ) -> Option<FolderVerifyRequest> {
         let folder = self.selected_folder()?;
         Some(FolderVerifyRequest {
-            source_id: self.selected_source.clone(),
+            source_id: self.source.selected_source.clone(),
             folder_path: std::path::PathBuf::from(&folder.id),
             cached_child_ids: folder
                 .children
@@ -38,7 +38,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn find_folder(&self, id: &str) -> Option<&FolderEntry> {
-        self.folders.iter().find_map(|folder| folder.find(id))
+        self.tree.folders.iter().find_map(|folder| folder.find(id))
     }
 
     pub(super) fn folder_has_children(&self, id: &str) -> bool {
@@ -46,7 +46,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn is_expanded(&self, id: &str) -> bool {
-        self.expanded_folders.contains(id)
+        self.tree.expanded_folders.contains(id)
     }
 
     pub(super) fn activate_folder(&mut self, id: String) {
@@ -59,10 +59,10 @@ impl FolderBrowserState {
             return;
         }
         if !self.is_expanded(&id) {
-            self.expanded_folders.insert(id.clone());
+            self.tree.expanded_folders.insert(id.clone());
             self.select_folder(id);
-        } else if self.selected_folder == id {
-            self.expanded_folders.remove(&id);
+        } else if self.selection.selected_folder == id {
+            self.tree.expanded_folders.remove(&id);
         } else {
             self.select_folder(id);
         }
@@ -72,32 +72,29 @@ impl FolderBrowserState {
         if self.selected_folder_is_source_root_id(&id) || !self.folder_has_children(&id) {
             return;
         }
-        if !self.expanded_folders.remove(&id) {
-            self.expanded_folders.insert(id);
+        if !self.tree.expanded_folders.remove(&id) {
+            self.tree.expanded_folders.insert(id);
         }
     }
 
     pub(super) fn select_folder(&mut self, id: String) {
         self.cancel_rename();
-        self.selected_collection = None;
-        self.collection_rename_edit = None;
-        self.selected_folder = id;
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.selected_file_ids_explicit = false;
+        self.collection_panel.rename_edit = None;
+        self.selection.select_folder(id);
         self.reset_file_view();
     }
 
     pub(super) fn selected_folder_is_source_root(&self) -> bool {
-        self.sources.iter().any(|source| {
-            source.id == self.selected_source && path_id(&source.root) == self.selected_folder
+        self.source.sources.iter().any(|source| {
+            source.id == self.source.selected_source
+                && path_id(&source.root) == self.selection.selected_folder
         })
     }
 
     pub(super) fn selected_folder_is_source_root_id(&self, folder_id: &str) -> bool {
-        self.sources
-            .iter()
-            .any(|source| source.id == self.selected_source && path_id(&source.root) == folder_id)
+        self.source.sources.iter().any(|source| {
+            source.id == self.source.selected_source && path_id(&source.root) == folder_id
+        })
     }
 
     pub(in crate::native_app) fn selected_folder_status_label(&self) -> String {
@@ -120,7 +117,7 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn visible_folders(&self) -> Vec<VisibleFolder> {
         let mut folders = Vec::new();
-        for folder in &self.folders {
+        for folder in &self.tree.folders {
             self.push_visible_folder(folder, 0, &mut folders);
         }
         folders
@@ -154,13 +151,13 @@ impl FolderBrowserState {
         folders: &mut Vec<VisibleFolder>,
     ) {
         let is_source_root = self.selected_folder_is_source_root_id(&folder.id);
-        let drag_active = self.drag.is_some();
+        let drag_active = self.drag_drop.drag.is_some();
         let drop_target_active = matches!(
-            self.drop_target.current(),
+            self.drag_drop.drop_target.current(),
             Some(FolderBrowserDropTarget::Folder(_))
         );
         let drag_source = matches!(
-            self.drag.as_ref(),
+            self.drag_drop.drag.as_ref(),
             Some(super::FolderBrowserDrag::Folder { folder_id }) if folder_id == &folder.id
         );
         let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
@@ -175,22 +172,26 @@ impl FolderBrowserState {
             is_source_root,
             has_children: folder.has_children(),
             expanded: is_source_root || self.is_expanded(&folder.id),
-            selected: self.selected_collection.is_none() && self.selected_folder == folder.id,
+            selected: self.selection.selected_collection.is_none()
+                && self.selection.selected_folder == folder.id,
             drag_active,
             drag_source,
             drop_candidate,
             drop_target: drop_candidate
                 && self
+                    .drag_drop
                     .drop_target
                     .is_open(&FolderBrowserDropTarget::Folder(folder.id.clone())),
             drop_target_active,
             rename_draft: self
-                .rename_edit
+                .rename
+                .folder
                 .as_ref()
                 .filter(|edit| edit.folder_id == folder.id)
                 .map(|edit| edit.draft.clone()),
             rename_input_id: self
-                .rename_edit
+                .rename
+                .folder
                 .as_ref()
                 .filter(|edit| edit.folder_id == folder.id)
                 .map(|edit| edit.input_id),

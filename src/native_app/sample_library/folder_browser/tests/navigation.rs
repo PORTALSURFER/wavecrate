@@ -35,9 +35,9 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
     fs::create_dir_all(&snares).expect("create snares folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
 
-    assert_eq!(browser.selected_folder, path_id(&root));
+    assert_eq!(browser.selection.selected_folder, path_id(&root));
     assert!(browser.navigate_selected_folder(1));
-    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
     assert!(!browser.is_expanded(&path_id(&drums)));
     assert!(browser.expand_selected_folder());
     assert!(browser.is_expanded(&path_id(&drums)));
@@ -46,11 +46,11 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
     assert!(browser.expand_selected_folder());
     assert!(browser.is_expanded(&path_id(&drums)));
     assert!(browser.navigate_selected_folder(1));
-    assert_eq!(browser.selected_folder, path_id(&kicks));
+    assert_eq!(browser.selection.selected_folder, path_id(&kicks));
     assert!(browser.navigate_selected_folder(1));
-    assert_eq!(browser.selected_folder, path_id(&snares));
+    assert_eq!(browser.selection.selected_folder, path_id(&snares));
     assert!(!browser.navigate_selected_folder(1));
-    assert_eq!(browser.selected_folder, path_id(&snares));
+    assert_eq!(browser.selection.selected_folder, path_id(&snares));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -97,7 +97,7 @@ fn source_root_folder_is_static_dot_selector() {
 
     assert!(!browser.collapse_selected_folder());
     browser.activate_folder(root_id.clone());
-    assert_eq!(browser.selected_folder, root_id);
+    assert_eq!(browser.selection.selected_folder, root_id);
     assert!(
         browser
             .visible_folders()
@@ -123,21 +123,21 @@ fn folder_expander_toggles_without_selecting_folder() {
     let beta_id = path_id(&beta);
 
     browser.activate_folder(beta_id.clone());
-    assert_eq!(browser.selected_folder, beta_id);
+    assert_eq!(browser.selection.selected_folder, beta_id);
     assert!(!browser.is_expanded(&alpha_id));
 
     browser.apply_message(FolderBrowserMessage::ToggleFolderExpansion(
         alpha_id.clone(),
     ));
 
-    assert_eq!(browser.selected_folder, path_id(&beta));
+    assert_eq!(browser.selection.selected_folder, path_id(&beta));
     assert!(browser.is_expanded(&alpha_id));
 
     browser.apply_message(FolderBrowserMessage::ToggleFolderExpansion(
         alpha_id.clone(),
     ));
 
-    assert_eq!(browser.selected_folder, path_id(&beta));
+    assert_eq!(browser.selection.selected_folder, path_id(&beta));
     assert!(!browser.is_expanded(&alpha_id));
     let _ = fs::remove_dir_all(root);
 }
@@ -153,7 +153,7 @@ fn source_root_expander_toggle_is_ignored() {
     browser.apply_message(FolderBrowserMessage::ToggleFolderExpansion(root_id.clone()));
 
     assert!(browser.is_expanded(&root_id));
-    assert_eq!(browser.selected_folder, root_id);
+    assert_eq!(browser.selection.selected_folder, root_id);
     assert!(
         browser
             .visible_folders()
@@ -170,29 +170,29 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
     let mut browser = FolderBrowserState::from_root(root.clone());
 
     assert_eq!(
-        browser.collections_panel.size(),
+        browser.panel_layout.collections.size(),
         super::super::DEFAULT_COLLECTIONS_PANEL_HEIGHT
     );
 
     browser.resize_collections_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
     browser.resize_collections_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
     assert_eq!(
-        browser.collections_panel.size(),
+        browser.panel_layout.collections.size(),
         browser.max_collections_panel_height()
     );
 
     browser.resize_collections_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
     assert_eq!(
-        browser.collections_panel.size(),
+        browser.panel_layout.collections.size(),
         MIN_COLLECTIONS_PANEL_HEIGHT
     );
 
     browser.resize_collections_panel(DragHandleMessage::ended(Point::new(0.0, -1_000.0)));
     assert_eq!(
-        browser.collections_panel.size(),
+        browser.panel_layout.collections.size(),
         browser.max_collections_panel_height()
     );
-    assert!(!browser.collections_panel.is_resizing());
+    assert!(!browser.panel_layout.collections.is_resizing());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -201,21 +201,21 @@ fn collections_panel_splitter_resizes_and_clamps_height() {
 fn collections_panel_splitter_double_click_collapses_height() {
     let root = temp_source_root("wavecrate-gui-collections-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.collections_panel.size();
+    let initial_height = browser.panel_layout.collections.size();
     browser.resize_collections_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
 
     browser.resize_collections_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(
-        browser.collections_panel.size(),
+        browser.panel_layout.collections.size(),
         COLLAPSED_COLLECTIONS_PANEL_HEIGHT
     );
-    assert!(!browser.collections_panel.is_resizing());
+    assert!(!browser.panel_layout.collections.is_resizing());
 
     browser.resize_collections_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
-    assert_eq!(browser.collections_panel.size(), initial_height);
-    assert!(!browser.collections_panel.is_resizing());
+    assert_eq!(browser.panel_layout.collections.size(), initial_height);
+    assert!(!browser.panel_layout.collections.is_resizing());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -224,20 +224,23 @@ fn collections_panel_splitter_double_click_collapses_height() {
 fn filter_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-filter-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.filter_panel.size();
+    let initial_height = browser.panel_layout.filter.size();
 
     browser.resize_filter_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
     browser.resize_filter_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
 
-    assert!(browser.filter_panel.size() > initial_height);
+    assert!(browser.panel_layout.filter.size() > initial_height);
 
     browser.resize_filter_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
 
-    assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
+    assert_eq!(
+        browser.panel_layout.filter.size(),
+        COLLAPSED_FILTER_PANEL_HEIGHT
+    );
 
     browser.resize_filter_panel(DragHandleMessage::ended(Point::new(0.0, 1_000.0)));
 
-    assert!(!browser.filter_panel.is_resizing());
+    assert!(!browser.panel_layout.filter.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -245,17 +248,20 @@ fn filter_panel_splitter_resizes_and_clamps_height() {
 fn filter_panel_double_click_collapses_to_header_only_height() {
     let root = temp_source_root("wavecrate-gui-filter-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.filter_panel.size();
+    let initial_height = browser.panel_layout.filter.size();
 
     browser.resize_filter_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
-    assert_eq!(browser.filter_panel.size(), COLLAPSED_FILTER_PANEL_HEIGHT);
-    assert!(!browser.filter_panel.is_resizing());
+    assert_eq!(
+        browser.panel_layout.filter.size(),
+        COLLAPSED_FILTER_PANEL_HEIGHT
+    );
+    assert!(!browser.panel_layout.filter.is_resizing());
 
     browser.resize_filter_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
-    assert_eq!(browser.filter_panel.size(), initial_height);
-    assert!(!browser.filter_panel.is_resizing());
+    assert_eq!(browser.panel_layout.filter.size(), initial_height);
+    assert!(!browser.panel_layout.filter.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -417,23 +423,23 @@ fn tagged_file_count_matches_projected_filtered_samples() {
 fn metadata_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-metadata-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.metadata_panel.size();
+    let initial_height = browser.panel_layout.metadata.size();
 
     browser.resize_metadata_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
     browser.resize_metadata_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
 
-    assert!(browser.metadata_panel.size() > initial_height);
+    assert!(browser.panel_layout.metadata.size() > initial_height);
 
     browser.resize_metadata_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
 
     assert_eq!(
-        browser.metadata_panel.size(),
+        browser.panel_layout.metadata.size(),
         COLLAPSED_METADATA_PANEL_HEIGHT
     );
 
     browser.resize_metadata_panel(DragHandleMessage::ended(Point::new(0.0, 1_000.0)));
 
-    assert!(!browser.metadata_panel.is_resizing());
+    assert!(!browser.panel_layout.metadata.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -441,20 +447,20 @@ fn metadata_panel_splitter_resizes_and_clamps_height() {
 fn metadata_panel_double_click_collapses_to_header_only_height() {
     let root = temp_source_root("wavecrate-gui-metadata-panel-collapse");
     let mut browser = FolderBrowserState::from_root(root.clone());
-    let initial_height = browser.metadata_panel.size();
+    let initial_height = browser.panel_layout.metadata.size();
 
     browser.resize_metadata_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
     assert_eq!(
-        browser.metadata_panel.size(),
+        browser.panel_layout.metadata.size(),
         COLLAPSED_METADATA_PANEL_HEIGHT
     );
-    assert!(!browser.metadata_panel.is_resizing());
+    assert!(!browser.panel_layout.metadata.is_resizing());
 
     browser.resize_metadata_panel(DragHandleMessage::double_activate(Point::new(0.0, 200.0)));
 
-    assert_eq!(browser.metadata_panel.size(), initial_height);
-    assert!(!browser.metadata_panel.is_resizing());
+    assert_eq!(browser.panel_layout.metadata.size(), initial_height);
+    assert!(!browser.panel_layout.metadata.is_resizing());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -473,11 +479,11 @@ fn focus_file_across_sources_reselects_loaded_file_parent_folder() {
 
     browser.activate_folder(path_id(&loops));
     browser.select_file(path_id(&loop_file));
-    assert_eq!(browser.selected_folder, path_id(&loops));
+    assert_eq!(browser.selection.selected_folder, path_id(&loops));
 
     assert!(browser.focus_file_across_sources(&kick));
 
-    assert_eq!(browser.selected_folder, path_id(&kicks));
+    assert_eq!(browser.selection.selected_folder, path_id(&kicks));
     assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
     assert!(browser.is_expanded(&path_id(&root.join("drums"))));
     assert!(browser.is_expanded(&path_id(&kicks)));
@@ -509,6 +515,7 @@ fn focus_file_across_sources_loads_configured_source_before_selecting_file() {
 
     assert!(
         browser
+            .source
             .sources
             .iter()
             .find(|source| source.root == second)
@@ -518,10 +525,11 @@ fn focus_file_across_sources_loads_configured_source_before_selecting_file() {
 
     assert!(browser.focus_file_across_sources(&target));
 
-    assert_eq!(browser.selected_folder, path_id(&nested));
+    assert_eq!(browser.selection.selected_folder, path_id(&nested));
     assert_eq!(browser.selected_file_id(), Some(path_id(&target).as_str()));
     assert!(
         browser
+            .source
             .sources
             .iter()
             .find(|source| source.root == second)
@@ -554,7 +562,7 @@ fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
     assert_eq!(browser.navigate_vertical(1, false), None);
     assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
     assert_eq!(browser.navigate_vertical(-1, false), Some(path_id(&kick)));
-    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1210,14 +1218,14 @@ fn activating_collection_clears_stale_folder_focus_before_returning_to_tree() {
     browser.set_file_collection_state(&keep, collection);
     browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
 
-    assert_eq!(browser.selected_folder, path_id(&root));
+    assert_eq!(browser.selection.selected_folder, path_id(&root));
     assert_eq!(browser.selected_folder_path(), None);
 
     browser.activate_folder(alpha_id.clone());
 
     assert!(browser.is_expanded(&alpha_id));
     assert_eq!(browser.selected_folder_path(), Some(alpha.clone()));
-    assert_eq!(browser.selected_collection, None);
+    assert_eq!(browser.selection.selected_collection, None);
     let _ = fs::remove_dir_all(root);
 }
 

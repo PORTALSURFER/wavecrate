@@ -10,7 +10,8 @@ use super::{
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn file_rename_view(&self, file_id: &str) -> Option<FileRenameView> {
-        self.file_rename_edit
+        self.rename
+            .file
             .as_ref()
             .filter(|edit| edit.file_id == file_id)
             .map(|edit| FileRenameView {
@@ -22,7 +23,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn begin_file_rename_selected(&mut self) -> Option<u64> {
-        let file_id = self.selected_file.clone()?;
+        let file_id = self.selection.selected_file.clone()?;
         let (file_id, file_name) = self
             .selected_audio_files()
             .into_iter()
@@ -32,7 +33,7 @@ impl FolderBrowserState {
         let input_id = file_rename_input_id(&file_id);
         let draft = file_rename_draft(&file_name);
         let selection_end = draft.chars().count();
-        self.file_rename_edit = Some(FileRenameEdit {
+        self.rename.file = Some(FileRenameEdit {
             file_id,
             draft,
             input_id,
@@ -43,7 +44,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn commit_file_rename(&mut self, value: String) -> RenameCommitResult {
-        let Some(edit) = self.file_rename_edit.take() else {
+        let Some(edit) = self.rename.file.take() else {
             return RenameCommitResult::status("No file rename in progress");
         };
         let old_path = PathBuf::from(&edit.file_id);

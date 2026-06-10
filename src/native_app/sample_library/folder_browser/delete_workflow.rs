@@ -12,7 +12,7 @@ impl FolderBrowserState {
         if self.rename_active() {
             return Err(String::from("Finish rename before deleting a folder"));
         }
-        if self.selected_file.is_some() {
+        if self.selection.selected_file.is_some() {
             return Err(String::from("Select a folder to delete"));
         }
         let Some(folder) = self.selected_folder() else {
@@ -33,7 +33,7 @@ impl FolderBrowserState {
         if self.rename_active() {
             return Err(String::from("Finish rename before deleting a file"));
         }
-        if self.selected_file.is_none() {
+        if self.selection.selected_file.is_none() {
             return Err(String::from("Select a file to delete"));
         }
         let paths = self.selected_file_paths();
@@ -84,9 +84,10 @@ impl FolderBrowserState {
         let folder_id = path_id(path);
         let parent_id = path.parent().map(path_id);
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
         else {
             return false;
         };
@@ -97,21 +98,22 @@ impl FolderBrowserState {
         if !changed {
             return false;
         }
-        self.folders = vec![root_folder.clone()];
-        if self.selected_folder == folder_id {
-            self.selected_folder = parent_id
+        self.tree.folders = vec![root_folder.clone()];
+        if self.selection.selected_folder == folder_id {
+            self.selection.selected_folder = parent_id
                 .filter(|id| self.find_folder(id).is_some())
                 .unwrap_or_else(|| {
-                    self.folders
+                    self.tree
+                        .folders
                         .first()
                         .map(|folder| folder.id.clone())
                         .unwrap_or_default()
                 });
         }
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.selected_file_ids_explicit = false;
-        self.expanded_folders.retain(|id| id != &folder_id);
+        self.selection.selected_file = None;
+        self.selection.selected_file_ids.clear();
+        self.selection.selected_file_ids_explicit = false;
+        self.tree.expanded_folders.retain(|id| id != &folder_id);
         self.bump_file_content_revision();
         true
     }
@@ -125,9 +127,10 @@ impl FolderBrowserState {
             return false;
         }
         let Some(source) = self
+            .source
             .sources
             .iter_mut()
-            .find(|source| source.id == self.selected_source)
+            .find(|source| source.id == self.source.selected_source)
         else {
             return false;
         };
@@ -138,15 +141,18 @@ impl FolderBrowserState {
         if !changed {
             return false;
         }
-        self.folders = vec![root_folder.clone()];
+        self.tree.folders = vec![root_folder.clone()];
         if self
+            .selection
             .selected_file
             .as_ref()
             .is_some_and(|id| target_ids.contains(id))
         {
-            self.selected_file = None;
+            self.selection.selected_file = None;
         }
-        self.selected_file_ids.retain(|id| !target_ids.contains(id));
+        self.selection
+            .selected_file_ids
+            .retain(|id| !target_ids.contains(id));
         self.bump_file_content_revision();
         true
     }

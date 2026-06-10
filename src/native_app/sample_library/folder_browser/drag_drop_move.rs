@@ -110,10 +110,10 @@ impl FolderBrowserState {
             Vec::new()
         } else {
             let completed = rename_files_with_rollback(&plan.ready)?;
-            let previous_selected_folder = self.selected_folder.clone();
-            let previous_selected_file = self.selected_file.clone();
-            let previous_selected_file_ids = self.selected_file_ids.clone();
-            let previous_selected_file_ids_explicit = self.selected_file_ids_explicit;
+            let previous_selected_folder = self.selection.selected_folder.clone();
+            let previous_selected_file = self.selection.selected_file.clone();
+            let previous_selected_file_ids = self.selection.selected_file_ids.clone();
+            let previous_selected_file_ids_explicit = self.selection.selected_file_ids_explicit;
             if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
                 rollback_completed_file_moves(&completed);
                 return Err(error);
@@ -128,7 +128,7 @@ impl FolderBrowserState {
             completed
         };
         if !plan.conflicts.is_empty() {
-            self.pending_file_move_conflicts = Some(FileMoveConflictBatch {
+            self.drag_drop.pending_file_move_conflicts = Some(FileMoveConflictBatch {
                 target_folder: target_path,
                 conflicts: plan.conflicts,
                 current_index: 0,
@@ -159,7 +159,7 @@ impl FolderBrowserState {
             .iter()
             .map(|(old_path, _)| path_id(old_path))
             .collect::<HashSet<_>>();
-        self.selected_folder = selected_folder;
+        self.selection.selected_folder = selected_folder;
 
         let visible_ids = self
             .selected_audio_files()
@@ -167,27 +167,27 @@ impl FolderBrowserState {
             .map(|file| file.id.clone())
             .collect::<Vec<_>>();
         let visible_id_set = visible_ids.iter().cloned().collect::<HashSet<_>>();
-        self.selected_file_ids = selected_file_ids
+        self.selection.selected_file_ids = selected_file_ids
             .into_iter()
             .filter(|id| !moved_ids.contains(id) && visible_id_set.contains(id))
             .collect();
-        self.selected_file_ids_explicit = selected_file_ids_explicit;
-        self.selected_file = selected_file
+        self.selection.selected_file_ids_explicit = selected_file_ids_explicit;
+        self.selection.selected_file = selected_file
             .filter(|id| !moved_ids.contains(id) && visible_id_set.contains(id))
             .or_else(|| {
                 visible_ids
                     .iter()
-                    .find(|id| self.selected_file_ids.contains(*id))
+                    .find(|id| self.selection.selected_file_ids.contains(*id))
                     .cloned()
             });
 
-        if self.selected_file.is_none()
-            && self.selected_file_ids.is_empty()
+        if self.selection.selected_file.is_none()
+            && self.selection.selected_file_ids.is_empty()
             && let Some(first_visible) = visible_ids.first().cloned()
         {
-            self.selected_file = Some(first_visible.clone());
-            self.selected_file_ids.insert(first_visible);
-            self.selected_file_ids_explicit = false;
+            self.selection.selected_file = Some(first_visible.clone());
+            self.selection.selected_file_ids.insert(first_visible);
+            self.selection.selected_file_ids_explicit = false;
         }
         self.reset_file_view();
     }
@@ -230,20 +230,20 @@ impl FolderBrowserState {
         let new_path = unique_destination(&target_path.join(file_name));
         fs::rename(path, &new_path).map_err(|error| format!("Extraction move failed: {error}"))?;
         let completed = vec![(path.to_path_buf(), new_path.clone())];
-        let previous_selected_folder = self.selected_folder.clone();
-        let previous_selected_file = self.selected_file.clone();
-        let previous_selected_file_ids = self.selected_file_ids.clone();
-        let previous_selected_file_ids_explicit = self.selected_file_ids_explicit;
-        let previous_file_view_controller = self.file_view_controller.clone();
+        let previous_selected_folder = self.selection.selected_folder.clone();
+        let previous_selected_file = self.selection.selected_file.clone();
+        let previous_selected_file_ids = self.selection.selected_file_ids.clone();
+        let previous_selected_file_ids_explicit = self.selection.selected_file_ids_explicit;
+        let previous_file_view_controller = self.sample_list.view_controller.clone();
         if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
             rollback_completed_file_moves(&completed);
             return Err(error);
         }
-        self.selected_folder = previous_selected_folder;
-        self.selected_file = previous_selected_file;
-        self.selected_file_ids = previous_selected_file_ids;
-        self.selected_file_ids_explicit = previous_selected_file_ids_explicit;
-        self.file_view_controller = previous_file_view_controller;
+        self.selection.selected_folder = previous_selected_folder;
+        self.selection.selected_file = previous_selected_file;
+        self.selection.selected_file_ids = previous_selected_file_ids;
+        self.selection.selected_file_ids_explicit = previous_selected_file_ids_explicit;
+        self.sample_list.view_controller = previous_file_view_controller;
         Ok(FolderDropResult {
             moved_paths: completed,
             status: Some(format!(
@@ -259,7 +259,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn pending_file_move_conflict_view(
         &self,
     ) -> Option<FileMoveConflictView> {
-        let batch = self.pending_file_move_conflicts.as_ref()?;
+        let batch = self.drag_drop.pending_file_move_conflicts.as_ref()?;
         let conflict = batch.conflicts.get(batch.current_index)?;
         Some(FileMoveConflictView {
             source_path: conflict.source_path.clone(),
@@ -276,14 +276,15 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn pending_file_move_conflict_count(&self) -> usize {
-        self.pending_file_move_conflicts
+        self.drag_drop
+            .pending_file_move_conflicts
             .as_ref()
             .map(|batch| batch.conflicts.len().saturating_sub(batch.current_index))
             .unwrap_or(0)
     }
 
     pub(in crate::native_app) fn cancel_file_move_conflicts(&mut self) -> Option<String> {
-        let batch = self.pending_file_move_conflicts.take()?;
+        let batch = self.drag_drop.pending_file_move_conflicts.take()?;
         let remaining = batch.conflicts.len().saturating_sub(batch.current_index);
         Some(format!(
             "Skipped {} file conflict{}",
@@ -296,7 +297,7 @@ impl FolderBrowserState {
         &mut self,
         resolution: FileMoveConflictResolution,
     ) -> Result<FolderDropResult, String> {
-        let Some(mut batch) = self.pending_file_move_conflicts.take() else {
+        let Some(mut batch) = self.drag_drop.pending_file_move_conflicts.take() else {
             return Ok(FolderDropResult::default());
         };
         let Some(conflict) = batch.conflicts.get(batch.current_index).cloned() else {
@@ -312,7 +313,7 @@ impl FolderBrowserState {
                 let backup = match move_existing_destination_to_backup(&conflict.destination_path) {
                     Ok(backup) => backup,
                     Err(error) => {
-                        self.pending_file_move_conflicts = Some(batch);
+                        self.drag_drop.pending_file_move_conflicts = Some(batch);
                         return Err(error);
                     }
                 };
@@ -320,13 +321,13 @@ impl FolderBrowserState {
                     move_file_over_backup(&conflict.source_path, &conflict.destination_path)
                 {
                     restore_overwrite_backup(&backup);
-                    self.pending_file_move_conflicts = Some(batch);
+                    self.drag_drop.pending_file_move_conflicts = Some(batch);
                     return Err(error);
                 }
                 let completed = vec![(conflict.source_path.clone(), conflict.destination_path)];
                 if let Err(error) = self.relocate_moved_files(&completed, &batch.target_folder) {
                     rollback_overwrite_move(&completed[0], &backup);
-                    self.pending_file_move_conflicts = Some(batch);
+                    self.drag_drop.pending_file_move_conflicts = Some(batch);
                     return Err(error);
                 }
                 remove_overwrite_backup(&backup);
@@ -339,13 +340,13 @@ impl FolderBrowserState {
                 let completed = match rename_files_with_rollback(std::slice::from_ref(&move_pair)) {
                     Ok(completed) => completed,
                     Err(error) => {
-                        self.pending_file_move_conflicts = Some(batch);
+                        self.drag_drop.pending_file_move_conflicts = Some(batch);
                         return Err(error);
                     }
                 };
                 if let Err(error) = self.relocate_moved_files(&completed, &batch.target_folder) {
                     rollback_completed_file_moves(&completed);
-                    self.pending_file_move_conflicts = Some(batch);
+                    self.drag_drop.pending_file_move_conflicts = Some(batch);
                     return Err(error);
                 }
                 moved_paths = completed;
@@ -359,7 +360,7 @@ impl FolderBrowserState {
         batch.current_index += 1;
         let status = conflict_resolution_status(&batch, resolution, moved_paths.len());
         if batch.current_index < batch.conflicts.len() {
-            self.pending_file_move_conflicts = Some(batch);
+            self.drag_drop.pending_file_move_conflicts = Some(batch);
         }
         Ok(FolderDropResult {
             moved_paths,

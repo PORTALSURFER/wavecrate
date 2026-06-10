@@ -5,12 +5,12 @@ use super::{FolderBrowserState, VisibleFolder};
 impl FolderBrowserState {
     #[cfg(test)]
     pub(super) fn tree_view_start(&self) -> usize {
-        self.tree_view_controller.viewport_start()
+        self.tree.view_controller.viewport_start()
     }
 
     pub(super) fn reset_tree_view(&mut self) {
-        self.tree_view_controller = ui::VirtualListController::default();
-        self.tree_view_follow_selection.clear();
+        self.tree.view_controller = ui::VirtualListController::default();
+        self.tree.follow_selection.clear();
     }
 
     #[cfg(test)]
@@ -20,7 +20,8 @@ impl FolderBrowserState {
         row_height: f32,
     ) {
         let total_items = self.visible_folders().len();
-        self.tree_view_controller
+        self.tree
+            .view_controller
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
@@ -28,9 +29,11 @@ impl FolderBrowserState {
         &mut self,
         change: ui::VirtualListWindowChange,
     ) {
-        self.tree_view_controller
+        self.tree
+            .view_controller
             .set_total_items(change.window.total_items);
-        self.tree_view_controller
+        self.tree
+            .view_controller
             .set_viewport_start(change.window.viewport_start);
     }
 
@@ -44,7 +47,7 @@ impl FolderBrowserState {
         ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
             total_items: visible_folders.len(),
             viewport_len: viewport_rows,
-            requested_start: self.tree_view_controller.viewport_start(),
+            requested_start: self.tree.view_controller.viewport_start(),
             overscan: overscan_rows,
             focused_index: None,
             previous_start: None,
@@ -70,9 +73,10 @@ impl FolderBrowserState {
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
         let selected_id = self
+            .selection
             .selected_collection
             .is_none()
-            .then(|| self.selected_folder.clone());
+            .then(|| self.selection.selected_folder.clone());
         let focus = ui::VirtualListSliceFocus::from_slice_by(
             visible_folders,
             viewport_rows,
@@ -82,7 +86,8 @@ impl FolderBrowserState {
             |folder, key| folder.id.as_str() == key.as_str(),
         )
         .with_context_row();
-        self.tree_view_controller
-            .configure_slice_focus_changed_optional(&mut self.tree_view_follow_selection, focus)
+        self.tree
+            .view_controller
+            .configure_slice_focus_changed_optional(&mut self.tree.follow_selection, focus)
     }
 }

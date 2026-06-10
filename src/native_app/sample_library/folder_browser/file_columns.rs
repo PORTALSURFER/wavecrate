@@ -11,17 +11,17 @@ const FILE_COLUMN_DROP_MARKER_HANDLE_OFFSET: f32 =
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn visible_file_columns(&self) -> Vec<&FileColumn> {
-        self.file_columns.iter().collect()
+        self.sample_list.file_columns.iter().collect()
     }
 
     pub(in crate::native_app) fn file_sort(&self) -> &ui::DetailsSort {
-        &self.file_sort
+        &self.sample_list.file_sort
     }
 
     pub(in crate::native_app) fn file_column_drag_feedback(
         &self,
     ) -> Option<FileColumnDragFeedback> {
-        let drag = self.file_column_reorder.as_ref()?;
+        let drag = self.sample_list.file_column_reorder.as_ref()?;
         let feedback = ui::details_column_drag_feedback(
             drag,
             &self.details_column_placements(),
@@ -29,6 +29,7 @@ impl FolderBrowserState {
             FILE_COLUMN_DROP_MARKER_HANDLE_OFFSET,
         )?;
         let column = self
+            .sample_list
             .file_columns
             .iter()
             .find(|column| column.id == feedback.column_id)?;
@@ -41,21 +42,23 @@ impl FolderBrowserState {
     }
 
     pub(super) fn sort_file_column(&mut self, column_id: String) {
-        if self.file_sort.column_id == column_id {
-            self.file_sort.direction = self.file_sort.direction.toggled();
+        if self.sample_list.file_sort.column_id == column_id {
+            self.sample_list.file_sort.direction = self.sample_list.file_sort.direction.toggled();
         } else {
-            self.file_sort = ui::DetailsSort::new(column_id, ui::SortDirection::Ascending);
+            self.sample_list.file_sort =
+                ui::DetailsSort::new(column_id, ui::SortDirection::Ascending);
         }
     }
 
     pub(super) fn resize_file_column(&mut self, column_id: String, message: DragHandleMessage) {
         let current_width = self
+            .sample_list
             .file_columns
             .iter()
             .find(|column| column.id == column_id)
             .map(|column| column.width);
         let Some(update) = ui::update_details_column_resize_drag(
-            &mut self.file_column_resize,
+            &mut self.sample_list.file_column_resize,
             column_id,
             message,
             current_width,
@@ -65,6 +68,7 @@ impl FolderBrowserState {
             return;
         };
         let Some(column) = self
+            .sample_list
             .file_columns
             .iter_mut()
             .find(|column| column.id == update.column_id)
@@ -77,8 +81,8 @@ impl FolderBrowserState {
     pub(super) fn drag_file_column(&mut self, column_id: String, message: DragHandleMessage) {
         let placements = self.details_column_placements();
         ui::update_details_column_reorder_drag(
-            &mut self.file_column_reorder,
-            &mut self.file_columns,
+            &mut self.sample_list.file_column_reorder,
+            &mut self.sample_list.file_columns,
             column_id,
             message,
             &placements,
@@ -88,23 +92,25 @@ impl FolderBrowserState {
     }
 
     pub(super) fn cancel_file_column_drag(&mut self) {
-        self.file_column_reorder = None;
-        self.file_column_resize = None;
+        self.sample_list.file_column_reorder = None;
+        self.sample_list.file_column_resize = None;
     }
 
     pub(in crate::native_app) fn file_column_drag_active(&self) -> bool {
-        self.file_column_reorder.is_some() || self.file_column_resize.is_some()
+        self.sample_list.file_column_reorder.is_some()
+            || self.sample_list.file_column_resize.is_some()
     }
 
     fn details_column_placements(&self) -> Vec<ui::DetailsColumnPlacement> {
-        self.file_columns
+        self.sample_list
+            .file_columns
             .iter()
             .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
             .collect()
     }
 
     pub(super) fn sort_files(&self, files: &mut Vec<&FileEntry>) {
-        match self.file_sort.column_id.as_str() {
+        match self.sample_list.file_sort.column_id.as_str() {
             "extension" => files.sort_by_cached_key(|file| {
                 (file.extension.to_ascii_lowercase(), file.name_sort_key())
             }),
@@ -124,16 +130,16 @@ impl FolderBrowserState {
             "path" => files.sort_by(|a, b| a.id.cmp(&b.id)),
             _ => files.sort_by_cached_key(|file| file.name_sort_key()),
         }
-        if self.file_sort.direction == ui::SortDirection::Descending {
+        if self.sample_list.file_sort.direction == ui::SortDirection::Descending {
             files.reverse();
         }
-        if self.file_sort.column_id.as_str() != "similarity" {
+        if self.sample_list.file_sort.column_id.as_str() != "similarity" {
             self.sort_files_by_similarity(files);
         }
     }
 
     fn sort_files_by_similarity(&self, files: &mut [&FileEntry]) {
-        let Some(similarity) = self.similarity.as_ref() else {
+        let Some(similarity) = self.sample_list.similarity.as_ref() else {
             return;
         };
         let base_order = files

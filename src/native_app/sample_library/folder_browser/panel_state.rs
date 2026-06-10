@@ -20,11 +20,11 @@ const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn filter_panel_height(&self) -> f32 {
-        self.filter_panel.size()
+        self.panel_layout.filter.size()
     }
 
     pub(in crate::native_app) fn resize_filter_panel(&mut self, message: ui::DragHandleMessage) {
-        self.filter_panel.resize_collapsible(
+        self.panel_layout.filter.resize_collapsible(
             message,
             ui::CollapsiblePanelResizeConstraints::top(
                 MIN_FILTER_PANEL_HEIGHT,
@@ -35,11 +35,11 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn name_filter(&self) -> &str {
-        self.name_filter.as_str()
+        self.filters.name_filter.as_str()
     }
 
     pub(in crate::native_app) fn tag_filter(&self) -> &str {
-        self.tag_filter.as_str()
+        self.filters.tag_filter.as_str()
     }
 
     pub(in crate::native_app) fn apply_name_filter_input(
@@ -50,10 +50,10 @@ impl FolderBrowserState {
             return;
         }
         let value = message.into_value();
-        if self.name_filter == value {
+        if self.filters.name_filter == value {
             return;
         }
-        self.name_filter = value;
+        self.filters.name_filter = value;
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }
@@ -66,10 +66,10 @@ impl FolderBrowserState {
             return;
         }
         let value = message.into_value();
-        if self.tag_filter == value {
+        if self.filters.tag_filter == value {
             return;
         }
-        self.tag_filter = value;
+        self.filters.tag_filter = value;
         self.reset_file_view();
     }
 
@@ -82,16 +82,19 @@ impl FolderBrowserState {
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<HashSet<_>>();
-        self.selected_file_ids.retain(|id| visible_ids.contains(id));
+        self.selection
+            .selected_file_ids
+            .retain(|id| visible_ids.contains(id));
         if self
+            .selection
             .selected_file
             .as_ref()
             .is_some_and(|id| !visible_ids.contains(id))
         {
-            self.selected_file = None;
+            self.selection.selected_file = None;
         }
-        if self.selected_file.is_none() && self.selected_file_ids.is_empty() {
-            self.selected_file_ids_explicit = false;
+        if self.selection.selected_file.is_none() && self.selection.selected_file_ids.is_empty() {
+            self.selection.selected_file_ids_explicit = false;
         }
     }
 
@@ -101,25 +104,28 @@ impl FolderBrowserState {
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<HashSet<_>>();
-        self.selected_file_ids.retain(|id| visible_ids.contains(id));
+        self.selection
+            .selected_file_ids
+            .retain(|id| visible_ids.contains(id));
         if self
+            .selection
             .selected_file
             .as_ref()
             .is_some_and(|id| !visible_ids.contains(id))
         {
-            self.selected_file = None;
+            self.selection.selected_file = None;
         }
-        if self.selected_file.is_none() && self.selected_file_ids.is_empty() {
-            self.selected_file_ids_explicit = false;
+        if self.selection.selected_file.is_none() && self.selection.selected_file_ids.is_empty() {
+            self.selection.selected_file_ids_explicit = false;
         }
     }
 
     pub(in crate::native_app) fn metadata_panel_height(&self) -> f32 {
-        self.metadata_panel.size()
+        self.panel_layout.metadata.size()
     }
 
     pub(in crate::native_app) fn resize_metadata_panel(&mut self, message: ui::DragHandleMessage) {
-        self.metadata_panel.resize_collapsible(
+        self.panel_layout.metadata.resize_collapsible(
             message,
             ui::CollapsiblePanelResizeConstraints::top(
                 MIN_METADATA_PANEL_HEIGHT,
