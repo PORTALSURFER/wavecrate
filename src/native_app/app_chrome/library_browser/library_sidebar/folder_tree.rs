@@ -19,7 +19,6 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
 
 pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
     ui::column([
-        ui::text_line("Folders", 22.0),
         folder_tree_view(model.visible_folders, model.window, model.drag_revision),
         selected_folder_status(model.selected_folder_status_label),
     ])
