@@ -22,3 +22,6 @@ pub mod view_model;
 
 /// Migration-facing UI constants used by runtime hosts.
 pub mod ui;
+
+#[cfg(test)]
+pub(crate) mod test_fixtures;

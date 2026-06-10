@@ -2,12 +2,12 @@ use crate::app_core::actions::{
     NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
 };
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
-use crate::app_core::app_api::state::SampleBrowserIndex;
 use crate::app_core::controller::AppController;
 use crate::app_core::state::{
     MapBounds, MapPoint, MapQueryBounds, SampleBrowserSort, SampleBrowserTab, StatusTone,
     TriageFlagColumn, TriageFlagFilter, UpdateStatus,
 };
+use crate::app_core::test_fixtures as projection_fixtures;
 use crate::app_core::ui_bridge::invalidation::waveform_render_inputs_require_refresh;
 use crate::app_core::ui_bridge::projection_cache::{UiProjectionCache, build_projection_cache_key};
 use crate::waveform::WaveformRenderer;

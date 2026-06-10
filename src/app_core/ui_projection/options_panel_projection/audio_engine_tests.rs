@@ -1,5 +1,5 @@
 use super::*;
-use crate::app_core::app_api::state::{ActiveAudioOutput, AudioDeviceView, AudioHostView};
+use crate::app_core::test_fixtures as projection_fixtures;
 
 #[test]
 fn audio_engine_projection_reports_healthy_chip_from_applied_output() {
@@ -7,13 +7,13 @@ fn audio_engine_projection_reports_healthy_chip_from_applied_output() {
     ui.audio.selected.host = Some(String::from("asio"));
     ui.audio.selected.device = Some(String::from("Studio"));
     ui.audio.selected.sample_rate = Some(48_000);
-    ui.audio.applied = Some(ActiveAudioOutput {
-        host_id: String::from("asio"),
-        device_name: String::from("Studio"),
-        sample_rate: 48_000,
-        buffer_size_frames: Some(256),
-        channel_count: 2,
-    });
+    ui.audio.applied = Some(projection_fixtures::active_audio_output(
+        "asio",
+        "Studio",
+        48_000,
+        Some(256),
+        2,
+    ));
 
     let projected = project_audio_engine_model(&ui);
 
@@ -35,16 +35,12 @@ fn audio_engine_projection_reports_error_detail_picker_and_options() {
     ui.audio.selected.host = Some(String::from("asio"));
     ui.audio.selected.device = Some(String::from("USB"));
     ui.audio.selected.sample_rate = Some(44_100);
-    ui.audio.hosts.push(AudioHostView {
-        id: String::from("asio"),
-        label: String::from("ASIO"),
-        is_default: true,
-    });
-    ui.audio.devices.push(AudioDeviceView {
-        host_id: String::from("asio"),
-        name: String::from("USB"),
-        is_default: true,
-    });
+    ui.audio
+        .hosts
+        .push(projection_fixtures::audio_host_view("asio", "ASIO", true));
+    ui.audio
+        .devices
+        .push(projection_fixtures::audio_device_view("asio", "USB", true));
     ui.audio.sample_rates = vec![44_100, 48_000];
     ui.options_panel.active_audio_picker = Some(AudioPickerTarget::OutputSampleRate);
 
@@ -76,13 +72,13 @@ fn audio_engine_projection_surfaces_output_warning_without_error_chip() {
     ui.audio.selected.host = Some(String::from("asio"));
     ui.audio.selected.device = Some(String::from("Studio"));
     ui.audio.selected.sample_rate = Some(96_000);
-    ui.audio.applied = Some(ActiveAudioOutput {
-        host_id: String::from("asio"),
-        device_name: String::from("Studio"),
-        sample_rate: 48_000,
-        buffer_size_frames: Some(256),
-        channel_count: 2,
-    });
+    ui.audio.applied = Some(projection_fixtures::active_audio_output(
+        "asio",
+        "Studio",
+        48_000,
+        Some(256),
+        2,
+    ));
     ui.audio.warning = Some(String::from(
         "Using Studio via asio (sample rate 96000 unavailable)",
     ));
@@ -106,13 +102,13 @@ fn audio_engine_projection_reports_generic_mismatch_without_warning() {
     ui.audio.selected.host = Some(String::from("asio"));
     ui.audio.selected.device = Some(String::from("Studio"));
     ui.audio.selected.sample_rate = Some(96_000);
-    ui.audio.applied = Some(ActiveAudioOutput {
-        host_id: String::from("asio"),
-        device_name: String::from("Studio"),
-        sample_rate: 48_000,
-        buffer_size_frames: Some(256),
-        channel_count: 2,
-    });
+    ui.audio.applied = Some(projection_fixtures::active_audio_output(
+        "asio",
+        "Studio",
+        48_000,
+        Some(256),
+        2,
+    ));
 
     let projected = project_audio_engine_model(&ui);
 

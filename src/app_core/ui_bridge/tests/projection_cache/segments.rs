@@ -330,8 +330,7 @@ fn projection_segment_auto_rename_progress_updates_only_browser_rows() {
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 1 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(1);
     controller
         .begin_auto_rename_batch_for_tests(source.id.clone(), vec![PathBuf::from("kick.wav")]);
 

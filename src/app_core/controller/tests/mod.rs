@@ -1,6 +1,6 @@
 use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::state::{SampleBrowserTab, UpdateStatus};
+use crate::app_core::state::{SampleBrowserTab, UpdateStatus};
 use crate::app_dirs::ConfigBaseGuard;
 use crate::waveform::WaveformChannelView;
 

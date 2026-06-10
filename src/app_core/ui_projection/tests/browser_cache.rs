@@ -394,8 +394,7 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
         tag_named: false,
         normal_tags: Vec::new(),
     }]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_list(vec![0usize]);
     let mut rows = crate::app_core::actions::NativeRetainedVec::new();
 
     project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
@@ -446,7 +445,7 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
         },
     ]);
     controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::List(vec![0usize, 1usize].into());
+        projection_fixtures::visible_rows_list(vec![0usize, 1usize]);
     controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("snare.wav")];
     controller.mark_browser_selected_paths_changed();
 
@@ -524,8 +523,7 @@ fn browser_rows_projection_does_not_queue_feature_cache_refresh() {
         tag_named: false,
         normal_tags: Vec::new(),
     }]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_list(vec![0usize]);
     controller.clear_pending_browser_feature_cache_refresh_for_tests();
 
     let mut rows = crate::app_core::actions::NativeRetainedVec::new();
@@ -580,8 +578,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
     ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
 
     let projected = project_browser_model(&mut controller);
     assert_eq!(projected.rows[0].label.as_ref(), "alpha");
@@ -661,8 +658,7 @@ fn browser_rows_projection_refreshes_label_after_cached_rename() {
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 1 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(1);
 
     let projected = project_browser_model(&mut controller);
     assert_eq!(projected.rows[0].label.as_ref(), "raw");
@@ -714,8 +710,7 @@ fn browser_rows_projection_tracks_auto_rename_processing_states_and_remaps() {
     ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 3 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(3);
     controller.begin_auto_rename_batch_for_tests(
         source.id.clone(),
         vec![

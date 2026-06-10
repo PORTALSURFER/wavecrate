@@ -5,16 +5,14 @@ fn app_model_projection_fixture_controller() -> AppController {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.status.text = String::from("Projection fixture status");
     controller.ui.volume = 1.25;
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 24 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(24);
     controller.ui.browser.search.sort = SampleBrowserSort::PlaybackAgeAsc;
     controller.ui.browser.search.search_query = String::from("kick");
     controller.ui.browser.search.search_busy = true;
-    controller.ui.browser.selection.selected =
-        Some(crate::app_core::app_api::state::SampleBrowserIndex {
-            column: TriageFlagColumn::Keep,
-            row: 0,
-        });
+    controller.ui.browser.selection.selected = Some(projection_fixtures::sample_browser_index(
+        TriageFlagColumn::Keep,
+        0,
+    ));
     controller.ui.browser.active_tab = SampleBrowserTab::List;
     controller.ui.waveform.loop_enabled = true;
     controller.ui.update.status = UpdateStatus::Checking;
@@ -121,18 +119,17 @@ fn projection_distinguishes_source_loading_from_browser_filtering() {
 #[test]
 fn projection_uses_shared_footer_progress_summary_for_busy_text() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(8, 8), None);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 12 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(12);
     controller.ui.browser.search.search_query = String::from("kick");
     controller.ui.browser.search.search_busy = true;
     controller.show_status_progress(
-        crate::app_core::app_api::state::ProgressTaskKind::Analysis,
+        projection_fixtures::analysis_progress_task(),
         "Analyzing samples",
         7,
         true,
     );
     controller.update_progress_detail_for_task(
-        crate::app_core::app_api::state::ProgressTaskKind::Analysis,
+        projection_fixtures::analysis_progress_task(),
         "Jobs 3/7 • Samples 2/5",
     );
 

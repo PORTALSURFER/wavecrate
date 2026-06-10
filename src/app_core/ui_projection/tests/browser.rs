@@ -140,8 +140,7 @@ fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.browser.search.sort = SampleBrowserSort::PlaybackAgeDesc;
     controller.ui.browser.active_tab = SampleBrowserTab::Map;
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 42 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(42);
     let projected = project_browser_model(&mut controller);
     assert_eq!(
         projected.search_placeholder.as_deref(),
@@ -174,8 +173,7 @@ fn browser_projection_sidebar_uses_selected_visible_target_snapshot_fallback() {
         browser_projection_test_entry("first.wav"),
         browser_projection_test_entry("second.wav"),
     ]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
     controller.ui.browser.selection.selected_visible = Some(1);
     controller.ui.browser.selection.last_focused_path = None;
     controller.ui.browser.selection.selected_paths.clear();
@@ -356,8 +354,7 @@ fn browser_projection_exposes_manual_viewport_state() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.browser.selection.autoscroll = false;
     controller.ui.browser.viewport.view_window_start = 1_470;
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 1_506 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(1_506);
 
     let projected = project_browser_panel_frame_model(&mut controller);
 
@@ -378,8 +375,7 @@ fn browser_projection_controller_with_source(
     controller.select_browser_source_for_tests(source.id.clone());
     controller.cache_db(&source).unwrap();
     controller.set_wav_entries_for_tests(entries);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
     (controller, source)
 }
 
@@ -437,16 +433,14 @@ fn browser_projection_attaches_similarity_strength_for_similarity_query_rows() {
         browser_projection_test_entry("close.wav"),
         browser_projection_test_entry("far.wav"),
     ]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 3 };
-    controller.ui.browser.search.similar_query =
-        Some(crate::app_core::app_api::state::SimilarQuery {
-            sample_id: String::from("sample-id"),
-            label: String::from("anchor.wav"),
-            indices: vec![0, 1, 2],
-            scores: vec![1.0, 0.5, -1.0],
-            anchor_index: Some(0),
-        });
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(3);
+    controller.ui.browser.search.similar_query = Some(projection_fixtures::similar_query(
+        "sample-id",
+        "anchor.wav",
+        vec![0, 1, 2],
+        vec![1.0, 0.5, -1.0],
+        Some(0),
+    ));
 
     let projected = project_browser_model(&mut controller);
 
@@ -469,8 +463,7 @@ fn browser_projection_omits_similarity_strength_without_similarity_query() {
         browser_projection_test_entry("anchor.wav"),
         browser_projection_test_entry("close.wav"),
     ]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
 
     let projected = project_browser_model(&mut controller);
 
@@ -492,27 +485,23 @@ fn browser_projection_omits_similarity_strength_during_duplicate_cleanup() {
         browser_projection_test_entry("anchor.wav"),
         browser_projection_test_entry("close.wav"),
     ]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
-    controller.ui.browser.search.similar_query =
-        Some(crate::app_core::app_api::state::SimilarQuery {
-            sample_id: String::from("sample-id"),
-            label: String::from("anchor.wav"),
-            indices: vec![0, 1],
-            scores: vec![1.0, 0.4],
-            anchor_index: Some(0),
-        });
-    controller.ui.browser.duplicate_cleanup = Some(
-        crate::app_core::app_api::state::BrowserDuplicateCleanupState::new(
-            source_id,
-            String::from("sample-id"),
-            std::path::PathBuf::from("anchor.wav"),
-            String::from("anchor.wav"),
-            vec![0, 1],
-            vec![1.0, 0.4],
-            0,
-        ),
-    );
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
+    controller.ui.browser.search.similar_query = Some(projection_fixtures::similar_query(
+        "sample-id",
+        "anchor.wav",
+        vec![0, 1],
+        vec![1.0, 0.4],
+        Some(0),
+    ));
+    controller.ui.browser.duplicate_cleanup = Some(projection_fixtures::browser_duplicate_cleanup(
+        source_id,
+        "sample-id",
+        "anchor.wav",
+        "anchor.wav",
+        vec![0, 1],
+        vec![1.0, 0.4],
+        0,
+    ));
 
     let projected = project_browser_model(&mut controller);
 

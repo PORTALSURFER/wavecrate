@@ -235,13 +235,13 @@ fn projection_overlay_only_miss_reuses_unique_snapshot_arc() {
 #[test]
 fn projection_audio_engine_dirty_refreshes_retained_chip_and_panel_state() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    controller.ui.audio.applied = Some(crate::app_core::app_api::state::ActiveAudioOutput {
-        host_id: String::from("asio"),
-        device_name: String::from("Studio"),
-        sample_rate: 48_000,
-        buffer_size_frames: Some(256),
-        channel_count: 2,
-    });
+    controller.ui.audio.applied = Some(projection_fixtures::active_audio_output(
+        "asio",
+        "Studio",
+        48_000,
+        Some(256),
+        2,
+    ));
     let mut cache = UiProjectionCache::default();
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     let mut retained = Arc::unwrap_or_clone(first_model);
@@ -314,8 +314,7 @@ fn projection_overlay_only_miss_reuses_browser_row_text_arcs() {
         tag_named: false,
         normal_tags: Vec::new(),
     }]);
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_list(vec![0usize]);
 
     let mut cache = UiProjectionCache::default();
     let (first_model, _) = cache.resolve_or_project(&mut controller);
@@ -346,10 +345,10 @@ fn projection_status_miss_updates_selected_column_without_static_dirty() {
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     assert_eq!(first_model.selected_column, 1);
 
-    controller.ui.browser.selection.selected = Some(SampleBrowserIndex {
-        column: TriageFlagColumn::Trash,
-        row: 0,
-    });
+    controller.ui.browser.selection.selected = Some(projection_fixtures::sample_browser_index(
+        TriageFlagColumn::Trash,
+        0,
+    ));
     controller.ui.projection_revisions.status =
         controller.ui.projection_revisions.status.wrapping_add(1);
 
@@ -369,7 +368,7 @@ fn projection_status_segment_refreshes_for_footer_progress_updates() {
     let _ = cache.resolve_or_project(&mut controller);
 
     controller.show_status_progress(
-        crate::app_core::app_api::state::ProgressTaskKind::Normalization,
+        projection_fixtures::normalization_progress_task(),
         "Normalizing sample",
         4,
         true,

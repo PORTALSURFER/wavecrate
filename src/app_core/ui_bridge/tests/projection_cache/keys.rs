@@ -31,13 +31,13 @@ fn projection_cache_key_changes_when_options_panel_state_changes() {
 #[test]
 fn projection_cache_key_changes_when_audio_engine_chip_state_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    controller.ui.audio.applied = Some(crate::app_core::app_api::state::ActiveAudioOutput {
-        host_id: String::from("asio"),
-        device_name: String::from("Studio"),
-        sample_rate: 48_000,
-        buffer_size_frames: Some(256),
-        channel_count: 2,
-    });
+    controller.ui.audio.applied = Some(projection_fixtures::active_audio_output(
+        "asio",
+        "Studio",
+        48_000,
+        Some(256),
+        2,
+    ));
     let first = build_projection_cache_key(&controller);
     controller.ui.audio.output_runtime_error = Some(String::from("USB disconnected"));
     let second = build_projection_cache_key(&controller);
@@ -140,8 +140,7 @@ fn projection_cache_key_changes_when_browser_sidebar_focus_target_changes() {
 fn projection_cache_key_changes_when_browser_sidebar_selected_visible_target_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     controller.ui.browser.tag_sidebar_open = true;
-    controller.ui.browser.viewport.visible =
-        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
     controller.ui.browser.selection.selected_visible = Some(0);
     controller.set_wav_entries_for_tests(vec![
         crate::sample_sources::WavEntry {
