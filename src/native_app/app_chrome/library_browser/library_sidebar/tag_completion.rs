@@ -19,15 +19,27 @@ pub(in crate::native_app) fn tag_completion_overlay(
     if options.is_empty() {
         return ui::empty().fill_width();
     }
+    let option_values = options
+        .iter()
+        .map(|option| option.tag.clone())
+        .collect::<Vec<_>>();
     let parts = tag_completion_options(options, content_width);
-    ui::compact_option_list_anchored(ui::CompactOptionListAnchoredParts::new(
-        parts,
-        content_width,
-        ui::LayerHorizontalAnchor::Start,
-        ui::LayerVerticalAnchor::End,
-        inset_x,
-        inset_y,
-    ))
+    ui::compact_option_list_anchored_with_activation(
+        ui::CompactOptionListAnchoredParts::new(
+            parts,
+            content_width,
+            ui::LayerHorizontalAnchor::Start,
+            ui::LayerVerticalAnchor::End,
+            inset_x,
+            inset_y,
+        ),
+        move |index| {
+            option_values
+                .get(index)
+                .cloned()
+                .map(GuiMessage::SelectMetadataTagCompletion)
+        },
+    )
     .key("metadata-tag-completion-overlay")
 }
 

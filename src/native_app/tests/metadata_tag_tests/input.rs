@@ -295,6 +295,56 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
 }
 
 #[test]
+fn metadata_tag_category_invalid_completion_selection_keeps_enter_commit_available() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+
+    state.apply_message(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::from("Deep Kick"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        crate::native_app::test_support::GuiMessage::SelectMetadataTagCompletion(String::from(
+            "Not a category",
+        )),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.pending_metadata_tag_category_tag(), Some("deep-kick"));
+    assert!(state.metadata_tag_completion_active());
+    assert_eq!(state.ui.status.sample, "Choose a category for deep-kick");
+
+    state.apply_message(
+        crate::native_app::test_support::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::from("sound"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata.tags_by_file.get(&selected_file),
+        Some(&vec![String::from("deep-kick")])
+    );
+    assert_eq!(
+        state
+            .metadata
+            .tag_dictionary
+            .get("deep-kick")
+            .map(String::as_str),
+        Some("sound-type")
+    );
+    assert_eq!(state.pending_metadata_tag_category_tag(), None);
+}
+
+#[test]
 fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());

@@ -93,6 +93,52 @@ fn metadata_autocomplete_enter_commits_typed_prefix_without_selecting_first_sugg
 }
 
 #[test]
+fn metadata_category_completion_mouse_click_commits_pending_tag() {
+    let (state, _source_root, selected_file) = native_app_state_with_temp_sample("tag-target.wav");
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
+    let input_id = metadata_tag_text_input(&frame)
+        .map(|input| input.widget_id)
+        .expect("metadata tag input should paint");
+    assert!(runtime.focus_widget(input_id));
+
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::Character('d')),
+        Some(input_id)
+    );
+    for character in "eep-kick".chars() {
+        runtime.dispatch_focused_input(WidgetInput::Character(character));
+    }
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(input_id)
+    );
+
+    let category_rect = runtime
+        .frame_with_default_theme()
+        .paint_plan
+        .first_text_rect("Character")
+        .expect("category option should paint");
+    runtime.dispatch_primary_click(category_rect.center());
+
+    let state = runtime.bridge().state();
+    assert_eq!(
+        state.metadata.tags_by_file.get(&selected_file),
+        Some(&vec![String::from("deep-kick")])
+    );
+    assert_eq!(
+        state
+            .metadata
+            .tag_dictionary
+            .get("deep-kick")
+            .map(String::as_str),
+        Some("character")
+    );
+    assert_eq!(state.pending_metadata_tag_category_tag(), None);
+}
+
+#[test]
 fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");

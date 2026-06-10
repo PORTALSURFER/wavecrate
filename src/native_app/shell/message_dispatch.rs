@@ -175,6 +175,9 @@ impl NativeAppState {
             GuiMessage::MoveMetadataTagCompletion(delta) => {
                 self.move_metadata_tag_completion_selection(delta);
             }
+            GuiMessage::SelectMetadataTagCompletion(value) => {
+                self.submit_selected_metadata_tag_completion(value, context);
+            }
             GuiMessage::ToggleMetadataTagLibrary => self.toggle_metadata_tag_library(),
             GuiMessage::ToggleMetadataTagCategory(category_id) => {
                 self.toggle_metadata_tag_category(category_id);

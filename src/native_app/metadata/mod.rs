@@ -122,6 +122,21 @@ impl NativeAppState {
         }
     }
 
+    pub(super) fn submit_selected_metadata_tag_completion(
+        &mut self,
+        value: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if matches!(
+            self.metadata.tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            self.submit_metadata_tag_category_value(value, context);
+        } else {
+            self.submit_metadata_tag_input(value, context);
+        }
+    }
+
     fn submit_metadata_tag_value(
         &mut self,
         value: String,
@@ -165,6 +180,31 @@ impl NativeAppState {
             self.ui.status.sample = format!("Choose a category for {pending_tag}");
             return;
         };
+        self.commit_metadata_tag_category(pending_tag, category_id, context);
+    }
+
+    fn submit_metadata_tag_category_value(
+        &mut self,
+        value: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let MetadataTagInputMode::Category { pending_tag } = self.metadata.tag_input_mode.clone()
+        else {
+            return;
+        };
+        let Some(category_id) = self.metadata_tag_category_for_value(value.as_str()) else {
+            self.ui.status.sample = format!("Choose a category for {pending_tag}");
+            return;
+        };
+        self.commit_metadata_tag_category(pending_tag, category_id, context);
+    }
+
+    fn commit_metadata_tag_category(
+        &mut self,
+        pending_tag: String,
+        category_id: &str,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         self.metadata
             .tag_dictionary
             .insert(pending_tag.clone(), category_id.to_string());

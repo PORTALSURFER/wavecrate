@@ -230,6 +230,10 @@ impl NativeAppState {
             let index = self.selected_metadata_tag_category_completion_index(suggestions.len());
             return suggestions.get(index).map(|(id, _)| *id);
         }
+        self.metadata_tag_category_for_value(value)
+    }
+
+    pub(super) fn metadata_tag_category_for_value(&self, value: &str) -> Option<&'static str> {
         let normalized = normalize_metadata_category_query(value)?;
         USER_EXTENSIBLE_METADATA_TAG_CATEGORIES
             .into_iter()
