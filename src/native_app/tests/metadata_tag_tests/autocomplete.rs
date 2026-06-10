@@ -182,6 +182,50 @@ fn metadata_category_completion_pointer_hover_updates_active_category() {
 }
 
 #[test]
+fn metadata_category_completion_pointer_hover_uses_full_row_width() {
+    let (state, _source_root, _selected_file) = native_app_state_with_temp_sample("tag-target.wav");
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
+    let input_id = metadata_tag_text_input(&frame)
+        .map(|input| input.widget_id)
+        .expect("metadata tag input should paint");
+    assert!(runtime.focus_widget(input_id));
+
+    for character in "deep-kick".chars() {
+        runtime.dispatch_focused_input(WidgetInput::Character(character));
+    }
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(input_id)
+    );
+
+    let category_rect = runtime
+        .frame_with_default_theme()
+        .paint_plan
+        .first_text_rect("Character")
+        .expect("category option should paint");
+    let right_side = Point::new(category_rect.max.x + 120.0, category_rect.center().y);
+    runtime.dispatch_input_at(
+        right_side,
+        WidgetInput::PointerMove {
+            position: right_side,
+        },
+    );
+
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("Character")
+    );
+}
+
+#[test]
 fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
