@@ -33,6 +33,7 @@ impl FolderBrowserState {
         let source_changed = self.source.selected_source != source_id;
         self.cancel_rename();
         self.selection.selected_collection = None;
+        self.selection.folder_before_collection = None;
         self.collection_panel.rename_edit = None;
         self.source.selected_source = source_id;
         self.selection.selected_folder = parent_id;

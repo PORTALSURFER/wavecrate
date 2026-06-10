@@ -52,6 +52,26 @@ fn escape_shortcut_routes_to_stop_playback() {
 }
 
 #[test]
+fn escape_shortcut_exits_collection_focus_before_stopping_playback() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateCollection(collection),
+    );
+
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::native_app::test_support::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::FolderBrowserMessage::ExitCollectionFocus
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn escape_shortcut_cancels_rename_while_renaming() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let sample_path = state
@@ -144,6 +164,35 @@ fn audio_settings_window_does_not_block_main_shortcuts() {
 #[test]
 fn context_menu_escape_shortcut_closes_context_menu() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.browser_interaction.context_menu =
+        Some(crate::native_app::test_support::BrowserContextMenu {
+            kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,
+            path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
+            source_id: None,
+            source_removable: false,
+            metadata_tag: None,
+            collection: None,
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("kick.wav"),
+        });
+
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::native_app::test_support::GuiMessage::CloseContextMenu)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn context_menu_escape_takes_priority_over_collection_focus_escape() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::FolderBrowserMessage::ActivateCollection(collection),
+    );
     state.ui.browser_interaction.context_menu =
         Some(crate::native_app::test_support::BrowserContextMenu {
             kind: crate::native_app::test_support::BrowserContextTargetKind::Sample,

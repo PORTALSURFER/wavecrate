@@ -42,6 +42,10 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             state.metadata.selected_tag.is_some(),
             selected_metadata_tag_shortcuts(),
         )
+        .layer_when(
+            state.library.folder_browser.collection_focus_active(),
+            collection_focus_shortcuts(),
+        )
         .layer(default_shortcuts(state))
         .fallback(navigation_shortcut)
 }
@@ -69,6 +73,13 @@ fn selected_metadata_tag_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::Backspace),
         ],
         GuiMessage::DeleteSelectedMetadataTag,
+    )
+}
+
+fn collection_focus_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::new().bind(
+        ui::KeyPress::new(ui::KeyCode::Escape),
+        GuiMessage::FolderBrowser(FolderBrowserMessage::ExitCollectionFocus),
     )
 }
 

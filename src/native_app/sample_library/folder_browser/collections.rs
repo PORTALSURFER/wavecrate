@@ -240,11 +240,29 @@ impl FolderBrowserState {
     pub(super) fn activate_collection(&mut self, collection: SampleCollection) {
         if self.selection.selected_collection != Some(collection) {
             self.collection_panel.rename_edit = None;
+            self.selection.enter_collection(collection);
             self.reset_folder_focus_to_selected_source_root();
-            self.selection.clear_file_selection();
             self.reset_file_view();
         }
-        self.selection.selected_collection = Some(collection);
+    }
+
+    pub(in crate::native_app) fn collection_focus_active(&self) -> bool {
+        self.selection.selected_collection.is_some()
+    }
+
+    pub(in crate::native_app) fn exit_collection_focus(&mut self) -> bool {
+        let restored_folder = self
+            .selection
+            .folder_before_collection
+            .as_deref()
+            .filter(|folder_id| self.find_folder(folder_id).is_some())
+            .map(str::to_owned);
+        let restored = self.selection.exit_collection(restored_folder);
+        if restored {
+            self.collection_panel.rename_edit = None;
+            self.reset_file_view();
+        }
+        restored
     }
 
     pub(in crate::native_app) fn collection_rename_view(

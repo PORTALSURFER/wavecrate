@@ -52,6 +52,7 @@ pub(super) struct BrowserSelectionState {
     pub(super) selected_file_ids: HashSet<String>,
     pub(super) selected_file_ids_explicit: bool,
     pub(super) selected_collection: Option<SampleCollection>,
+    pub(super) folder_before_collection: Option<String>,
 }
 
 impl BrowserSelectionState {
@@ -62,6 +63,7 @@ impl BrowserSelectionState {
             selected_file_ids: HashSet::new(),
             selected_file_ids_explicit: false,
             selected_collection: None,
+            folder_before_collection: None,
         }
     }
 
@@ -73,8 +75,30 @@ impl BrowserSelectionState {
 
     pub(super) fn select_folder(&mut self, folder_id: String) {
         self.selected_collection = None;
+        self.folder_before_collection = None;
         self.selected_folder = folder_id;
         self.clear_file_selection();
+    }
+
+    pub(super) fn enter_collection(&mut self, collection: SampleCollection) {
+        if self.selected_collection.is_none() {
+            self.folder_before_collection = Some(self.selected_folder.clone());
+        }
+        self.selected_collection = Some(collection);
+        self.clear_file_selection();
+    }
+
+    pub(super) fn exit_collection(&mut self, restored_folder: Option<String>) -> bool {
+        if self.selected_collection.take().is_none() {
+            self.folder_before_collection = None;
+            return false;
+        }
+        if let Some(folder) = restored_folder {
+            self.selected_folder = folder;
+        }
+        self.folder_before_collection = None;
+        self.clear_file_selection();
+        true
     }
 }
 
@@ -596,6 +620,9 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::CancelFileColumnDrag => {
                 self.cancel_file_column_drag();
+            }
+            FolderBrowserMessage::ExitCollectionFocus => {
+                self.exit_collection_focus();
             }
             FolderBrowserMessage::ToggleSimilarityAnchor(file_id) => {
                 self.toggle_similarity_anchor(file_id);

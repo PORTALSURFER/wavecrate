@@ -163,6 +163,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     ResizeFileColumn(String, DragHandleMessage),
     DragFileColumn(String, DragHandleMessage),
     CancelFileColumnDrag,
+    ExitCollectionFocus,
     ToggleSimilarityAnchor(String),
 }
 
