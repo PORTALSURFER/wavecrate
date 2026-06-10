@@ -6,6 +6,84 @@ use super::super::save::save_settings_to_path;
 use super::TestConfigEnv;
 
 #[test]
+fn load_settings_from_accepts_nested_sections() {
+    let env = TestConfigEnv::new();
+    let path = env.path("cfg.toml");
+    let data = r#"
+[runtime]
+job_message_queue_capacity = 256
+
+[paths]
+app_data_dir = "data"
+trash_folder = "trash"
+
+[library]
+drop_targets = ["drop-a"]
+last_selected_source = "source::test"
+upper_folder_pane_source = "source::test"
+active_folder_pane = "upper"
+
+[audio]
+volume = 0.25
+
+[audio.output]
+host = "wasapi"
+device = "Studio"
+sample_rate = 48000
+
+[interaction.controls]
+invert_waveform_scroll = false
+
+[naming]
+default_identifier = "artist"
+
+[tags.dictionary]
+deep-kick = "sound-type"
+"#;
+    env.write(&path, data);
+
+    let loaded = load_settings_from(&path).unwrap();
+
+    assert_eq!(loaded.core.job_message_queue_capacity, 256);
+    assert_eq!(
+        loaded.core.app_data_dir,
+        Some(std::path::PathBuf::from("data"))
+    );
+    assert_eq!(
+        loaded.core.trash_folder,
+        Some(std::path::PathBuf::from("trash"))
+    );
+    assert_eq!(loaded.core.drop_targets.len(), 1);
+    assert_eq!(
+        loaded.core.drop_targets[0].path,
+        std::path::PathBuf::from("drop-a")
+    );
+    assert_eq!(
+        loaded
+            .core
+            .last_selected_source
+            .as_ref()
+            .map(|id| id.as_str()),
+        Some("source::test")
+    );
+    assert_eq!(loaded.core.active_folder_pane.as_deref(), Some("upper"));
+    assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
+    assert_eq!(loaded.core.audio_output.host.as_deref(), Some("wasapi"));
+    assert_eq!(loaded.core.audio_output.device.as_deref(), Some("Studio"));
+    assert_eq!(loaded.core.audio_output.sample_rate, Some(48_000));
+    assert!(!loaded.core.controls.invert_waveform_scroll);
+    assert_eq!(loaded.core.default_identifier, "artist");
+    assert_eq!(
+        loaded
+            .core
+            .tag_dictionary
+            .get("deep-kick")
+            .map(String::as_str),
+        Some("sound-type")
+    );
+}
+
+#[test]
 fn audio_input_channels_accepts_single_value() {
     let env = TestConfigEnv::new();
     let path = env.path("cfg.toml");

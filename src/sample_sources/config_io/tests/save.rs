@@ -38,6 +38,84 @@ fn saves_settings_to_toml() {
 }
 
 #[test]
+fn saves_settings_with_nested_section_ownership() {
+    let env = TestConfigEnv::new();
+    let path = env.path("cfg.toml");
+    let source_id = SourceId::from_string("source::nested");
+    let cfg = AppConfig {
+        core: AppSettingsCore {
+            job_message_queue_capacity: 256,
+            app_data_dir: Some(std::path::PathBuf::from("data")),
+            trash_folder: Some(std::path::PathBuf::from("trash")),
+            drop_targets: vec![DropTargetConfig::new(std::path::PathBuf::from("drop-a"))],
+            last_selected_source: Some(source_id.clone()),
+            audio_output: AudioOutputConfig {
+                host: Some("wasapi".into()),
+                device: Some("Studio".into()),
+                sample_rate: Some(48_000),
+                buffer_size: None,
+            },
+            volume: 0.25,
+            default_identifier: String::from("artist"),
+            tag_dictionary: std::collections::BTreeMap::from([(
+                String::from("deep-kick"),
+                String::from("sound-type"),
+            )]),
+            ..AppSettingsCore::default()
+        },
+        ..AppConfig::default()
+    };
+
+    save_to_path(&cfg, &path).unwrap();
+
+    let text = std::fs::read_to_string(&path).unwrap();
+    let value = text.parse::<toml::Value>().unwrap();
+    let root = value.as_table().expect("saved settings table");
+
+    assert!(root.get("runtime").is_some());
+    assert!(root.get("paths").is_some());
+    assert!(root.get("library").is_some());
+    assert!(root.get("audio").is_some());
+    assert!(root.get("interaction").is_some());
+    assert!(root.get("naming").is_some());
+    assert!(root.get("tags").is_some());
+    assert!(
+        root.get("volume").is_none(),
+        "volume should be owned by the audio section"
+    );
+    assert!(
+        root.get("trash_folder").is_none(),
+        "trash_folder should be owned by the paths section"
+    );
+
+    let loaded = load_settings_from(&path).unwrap();
+    assert_eq!(loaded.core.job_message_queue_capacity, 256);
+    assert_eq!(
+        loaded.core.trash_folder,
+        Some(std::path::PathBuf::from("trash"))
+    );
+    assert_eq!(
+        loaded
+            .core
+            .last_selected_source
+            .as_ref()
+            .map(|id| id.as_str()),
+        Some(source_id.as_str())
+    );
+    assert_eq!(loaded.core.audio_output.host.as_deref(), Some("wasapi"));
+    assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
+    assert_eq!(loaded.core.default_identifier, "artist");
+    assert_eq!(
+        loaded
+            .core
+            .tag_dictionary
+            .get("deep-kick")
+            .map(String::as_str),
+        Some("sound-type")
+    );
+}
+
+#[test]
 fn volume_defaults_and_persists() {
     let env = TestConfigEnv::new();
     let path = env.path("cfg.toml");
