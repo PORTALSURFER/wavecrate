@@ -90,6 +90,21 @@ fn representative_actions_round_trip_through_kind_matcher() {
 }
 
 #[test]
+fn catalog_domain_views_are_exposed_for_action_ownership_tests() {
+    let covered = crate::app_core::actions::GUI_ACTION_CATALOG_DOMAINS
+        .iter()
+        .flat_map(|domain| crate::app_core::actions::action_catalog_entries_by_domain(*domain))
+        .map(|entry| entry.kind)
+        .collect::<BTreeSet<_>>();
+    let all = GUI_ACTION_CATALOG
+        .iter()
+        .map(|entry| entry.kind)
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(covered, all);
+}
+
+#[test]
 fn every_history_enabled_catalog_entry_has_a_transaction_handler() {
     for entry in GUI_ACTION_CATALOG {
         assert!(

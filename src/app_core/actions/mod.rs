@@ -11,8 +11,9 @@ mod ui_projection_bridge;
 pub(crate) mod ui_projection_dtos;
 
 pub use self::catalog::{
-    GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy,
-    GuiEffectClass, GuiHistoryPolicy, GuiSurface, action_catalog_entry, action_catalog_entry_by_id,
+    GUI_ACTION_CATALOG, GUI_ACTION_CATALOG_DOMAINS, GuiActionCatalogEntry, GuiActionKind,
+    GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass, GuiHistoryPolicy, GuiSurface,
+    action_catalog_entries_by_domain, action_catalog_entry, action_catalog_entry_by_id,
     action_kind, representative_action_for_kind,
 };
 pub use self::ui_projection_dtos::folder_row_model as native_folder_row_model;
