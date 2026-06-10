@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Transport and global playback actions emitted by the UI runtime input layer.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransportAction {
     /// Toggle transport playback state.
     ToggleTransport,
