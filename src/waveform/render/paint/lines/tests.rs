@@ -1,4 +1,7 @@
 use super::*;
+use crate::waveform::WaveformChannelView;
+use crate::waveform::render::model::{LineRenderModel, WaveformRenderModel};
+use crate::waveform::render::viewport::WaveformRenderViewport;
 
 fn solid_image(width: usize, height: usize, color: WaveformRgba) -> WaveformImage {
     WaveformImage::new([width, height], vec![color; width * height])
@@ -116,15 +119,25 @@ fn draw_line_aa_handles_steep_segment_with_coverage() {
 
 #[test]
 fn paint_line_image_fills_between_center_and_trace() {
-    let image = WaveformRenderer::paint_line_image(
+    let model = WaveformRenderer::render_model(
         &[0.0_f32, 0.0, 1.0, 1.0],
         1,
+        WaveformChannelView::Mono,
+        WaveformRenderViewport {
+            size: [4, 9],
+            view_start: 0.0,
+            view_end: 1.0,
+            edit_fade: None,
+        },
+    );
+    let WaveformRenderModel::Line(model) = model else {
+        panic!("expected line model")
+    };
+    let image = WaveformRenderer::paint_line_image(
+        &model,
         LinePaintConfig {
-            width: 4,
-            height: 9,
             foreground: WaveformRgba::from_rgb(255, 194, 71),
             background: WaveformRgba::from_rgb(14, 14, 14),
-            channel_index: None,
             transient_glow: None,
         },
     );
@@ -146,12 +159,23 @@ fn paint_line_image_fills_between_center_and_trace() {
 #[test]
 fn paint_split_line_image_fills_both_channel_bands() {
     let samples = [0.0_f32, 0.0, 0.0, 0.0, 1.0, -1.0, 1.0, -1.0];
-    let image = WaveformRenderer::paint_split_line_image(
+    let model = WaveformRenderer::render_model(
         &samples,
         2,
+        WaveformChannelView::SplitStereo,
+        WaveformRenderViewport {
+            size: [4, 12],
+            view_start: 0.0,
+            view_end: 1.0,
+            edit_fade: None,
+        },
+    );
+    let WaveformRenderModel::SplitLine(model) = model else {
+        panic!("expected split line model")
+    };
+    let image = WaveformRenderer::paint_split_line_image(
+        &model,
         SplitLinePaintConfig {
-            width: 4,
-            height: 12,
             foreground: WaveformRgba::from_rgb(255, 194, 71),
             background: WaveformRgba::from_rgb(14, 14, 14),
             transient_glow: None,
@@ -175,28 +199,24 @@ fn paint_split_line_image_fills_both_channel_bands() {
 fn transient_glow_brightens_existing_pixels_only() {
     let foreground = WaveformRgba::from_rgb(255, 194, 71);
     let background = WaveformRgba::from_rgb(14, 14, 14);
-    let samples = vec![1.0_f32; 64];
+    let model = LineRenderModel {
+        width: 32,
+        height: 9,
+        y_points: vec![1.0; 32],
+    };
     let plain = WaveformRenderer::paint_line_image(
-        &samples,
-        1,
+        &model,
         LinePaintConfig {
-            width: 32,
-            height: 9,
             foreground,
             background,
-            channel_index: None,
             transient_glow: None,
         },
     );
     let glowed = WaveformRenderer::paint_line_image(
-        &samples,
-        1,
+        &model,
         LinePaintConfig {
-            width: 32,
-            height: 9,
             foreground,
             background,
-            channel_index: None,
             transient_glow: Some(super::super::super::TransientGlow {
                 positions: &[0.5],
                 view_start: 0.0,

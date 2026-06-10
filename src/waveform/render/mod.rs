@@ -1,11 +1,12 @@
 mod cache;
 mod fade_preview;
+mod model;
 mod paint;
 mod viewport;
 
 use super::WaveformImage;
-use super::{WaveformChannelView, WaveformColumnView, WaveformRenderer};
-use fade_preview::{apply_fade_to_columns, apply_fade_to_samples, fade_intersects_view};
+use super::{WaveformChannelView, WaveformRenderer};
+use model::WaveformRenderModel;
 
 pub use viewport::WaveformRenderViewport;
 
@@ -69,24 +70,8 @@ impl WaveformRenderer {
         } = viewport;
         let width = width.max(1);
         let height = height.max(1);
-        let frame_count = samples.len() / channels.max(1);
-        let frames_per_column = (frame_count as f32 / width as f32).max(1.0);
         let transient_glow = TransientGlow::new(transients, view_start, view_end);
-        if frames_per_column <= LINE_RENDER_MAX_FRAMES_PER_COLUMN {
-            return self.render_line_or_faded_line_image(
-                samples,
-                channels,
-                view,
-                WaveformRenderViewport {
-                    size: [width, height],
-                    view_start,
-                    view_end,
-                    edit_fade,
-                },
-                transient_glow,
-            );
-        }
-        self.render_column_image(
+        let model = Self::render_model(
             samples,
             channels,
             view,
@@ -96,112 +81,44 @@ impl WaveformRenderer {
                 view_end,
                 edit_fade,
             },
-            frames_per_column,
-            transient_glow,
-        )
+        );
+        self.paint_render_model(&model, transient_glow)
     }
 
-    fn render_line_or_faded_line_image(
+    fn paint_render_model(
         &self,
-        samples: &[f32],
-        channels: usize,
-        view: WaveformChannelView,
-        viewport: WaveformRenderViewport,
+        model: &WaveformRenderModel,
         transient_glow: Option<TransientGlow<'_>>,
     ) -> WaveformImage {
-        let WaveformRenderViewport {
-            size: [width, height],
-            view_start,
-            view_end,
-            edit_fade,
-        } = viewport;
-        let line_samples =
-            if edit_fade.is_some() && fade_intersects_view(view_start, view_end, edit_fade) {
-                apply_fade_to_samples(
-                    samples,
-                    channels.max(1),
-                    samples.len() / channels.max(1),
-                    view_start,
-                    view_end,
-                    edit_fade,
-                )
-            } else {
-                samples.to_vec()
-            };
-        match view {
-            WaveformChannelView::Mono => Self::paint_line_image(
-                &line_samples,
-                channels,
+        match model {
+            WaveformRenderModel::Line(model) => Self::paint_line_image(
+                model,
                 paint::LinePaintConfig {
-                    width,
-                    height,
                     foreground: self.foreground,
                     background: self.background,
-                    channel_index: None,
                     transient_glow,
                 },
             ),
-            WaveformChannelView::SplitStereo => Self::paint_split_line_image(
-                &line_samples,
-                channels,
+            WaveformRenderModel::SplitLine(model) => Self::paint_split_line_image(
+                model,
                 paint::SplitLinePaintConfig {
-                    width,
-                    height,
                     foreground: self.foreground,
                     background: self.background,
                     transient_glow,
                 },
             ),
-        }
-    }
-
-    fn render_column_image(
-        &self,
-        samples: &[f32],
-        channels: usize,
-        view: WaveformChannelView,
-        viewport: WaveformRenderViewport,
-        frames_per_column: f32,
-        transient_glow: Option<TransientGlow<'_>>,
-    ) -> WaveformImage {
-        let WaveformRenderViewport {
-            size: [width, height],
-            view_start,
-            view_end,
-            edit_fade,
-        } = viewport;
-        let columns = Self::sample_columns_for_width(samples, channels, width, view);
-        let smooth_radius = Self::smoothing_radius(frames_per_column, width);
-        match columns {
-            WaveformColumnView::Mono(cols) => {
-                let mut cols = Self::smooth_columns(&cols, smooth_radius);
-                apply_fade_to_columns(&mut cols, view_start, view_end, edit_fade);
-                Self::paint_color_image_for_size_with_density(
-                    &cols,
-                    width,
-                    height,
-                    self.foreground,
-                    self.background,
-                    frames_per_column,
-                    transient_glow,
-                )
-            }
-            WaveformColumnView::SplitStereo { left, right } => {
-                let mut left = Self::smooth_columns(&left, smooth_radius);
-                let mut right = Self::smooth_columns(&right, smooth_radius);
-                apply_fade_to_columns(&mut left, view_start, view_end, edit_fade);
-                apply_fade_to_columns(&mut right, view_start, view_end, edit_fade);
-                Self::paint_split_color_image_with_density(
-                    &left,
-                    &right,
-                    width,
-                    height,
-                    self.foreground,
-                    self.background,
-                    frames_per_column,
-                    transient_glow,
-                )
-            }
+            WaveformRenderModel::Columns(model) => Self::paint_color_image_for_size_with_density(
+                model,
+                self.foreground,
+                self.background,
+                transient_glow,
+            ),
+            WaveformRenderModel::SplitColumns(model) => Self::paint_split_color_image_with_density(
+                model,
+                self.foreground,
+                self.background,
+                transient_glow,
+            ),
         }
     }
 }

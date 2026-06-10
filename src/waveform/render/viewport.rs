@@ -4,6 +4,7 @@ use crate::waveform::{
 };
 
 use super::fade_preview::apply_fade_to_columns;
+use super::model::{ColumnRenderModel, SplitColumnRenderModel, split_band_heights};
 
 /// View-window and raster-size inputs for one waveform render request.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -193,13 +194,16 @@ fn render_peak_only_view(
                 let mut cols = WaveformRenderer::smooth_columns(&cols, smooth_radius);
                 apply_fade_to_columns(&mut cols, view_start, view_end, fade);
                 let transient_glow = super::TransientGlow::new(transients, view_start, view_end);
-                WaveformRenderer::paint_color_image_for_size_with_density(
-                    &cols,
+                let model = ColumnRenderModel {
                     width,
                     height,
+                    frames_per_column,
+                    columns: cols,
+                };
+                WaveformRenderer::paint_color_image_for_size_with_density(
+                    &model,
                     renderer.foreground,
                     renderer.background,
-                    frames_per_column,
                     transient_glow,
                 )
             }
@@ -209,14 +213,28 @@ fn render_peak_only_view(
                 apply_fade_to_columns(&mut left, view_start, view_end, fade);
                 apply_fade_to_columns(&mut right, view_start, view_end, fade);
                 let transient_glow = super::TransientGlow::new(transients, view_start, view_end);
-                WaveformRenderer::paint_split_color_image_with_density(
-                    &left,
-                    &right,
+                let (top_height, bottom_height, gap) = split_band_heights(height);
+                let model = SplitColumnRenderModel {
                     width,
                     height,
+                    gap,
+                    top: ColumnRenderModel {
+                        width,
+                        height: top_height,
+                        frames_per_column,
+                        columns: left,
+                    },
+                    bottom: ColumnRenderModel {
+                        width,
+                        height: bottom_height,
+                        frames_per_column,
+                        columns: right,
+                    },
+                };
+                WaveformRenderer::paint_split_color_image_with_density(
+                    &model,
                     renderer.foreground,
                     renderer.background,
-                    frames_per_column,
                     transient_glow,
                 )
             }

@@ -60,7 +60,7 @@ impl WaveformRenderer {
     ///
     /// Uses a fixed 8-sample subdivision within each column and interpolates each
     /// sample point before averaging to reduce aliasing.
-    pub(super) fn supersampled_frame(
+    pub(in crate::waveform::render) fn supersampled_frame(
         samples: &[f32],
         channels: usize,
         frame_count: usize,

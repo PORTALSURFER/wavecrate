@@ -1,3 +1,4 @@
+use super::super::model::{LineRenderModel, SplitLineRenderModel};
 use super::WaveformRenderer;
 use crate::waveform::{WaveformImage, WaveformRgba};
 
@@ -7,20 +8,15 @@ mod sampling;
 #[cfg(test)]
 mod tests;
 
-/// Raster + channel-selection inputs for one mono line-render pass.
+/// Raster color inputs for one mono line-render pass.
 pub(in crate::waveform::render) struct LinePaintConfig<'a> {
-    pub width: u32,
-    pub height: u32,
     pub foreground: WaveformRgba,
     pub background: WaveformRgba,
-    pub channel_index: Option<usize>,
     pub transient_glow: Option<super::super::TransientGlow<'a>>,
 }
 
 /// Raster + color inputs for one split-stereo line-render pass.
 pub(in crate::waveform::render) struct SplitLinePaintConfig<'a> {
-    pub width: u32,
-    pub height: u32,
     pub foreground: WaveformRgba,
     pub background: WaveformRgba,
     pub transient_glow: Option<super::super::TransientGlow<'a>>,
@@ -73,34 +69,24 @@ struct RasterEndpointConfig {
 }
 
 impl WaveformRenderer {
-    /// Render a waveform line image for a single drawing pass.
-    ///
-    /// Uses per-column supersampling and anti-aliased line stepping so the rendered
-    /// waveform remains stable at high zoom. When `channel_index` is set, only that
-    /// channel is sampled; otherwise the channel with the largest absolute amplitude
-    /// is selected for each frame.
+    /// Paint a waveform line image from precomputed per-column Y positions.
     pub(in crate::waveform::render) fn paint_line_image(
-        samples: &[f32],
-        channels: usize,
+        model: &LineRenderModel,
         config: LinePaintConfig<'_>,
     ) -> WaveformImage {
         let LinePaintConfig {
-            width,
-            height,
             foreground,
             background,
-            channel_index,
             transient_glow,
         } = config;
+        let width = model.width;
+        let height = model.height;
         let mut image = Self::new_line_image(width, height, background);
         let stride = width as usize;
-        let channels = channels.max(1);
-        let frame_count = samples.len() / channels;
-        if frame_count == 0 || width == 0 || height == 0 {
+        if model.y_points.is_empty() || width == 0 || height == 0 {
             return image;
         }
         let mid = (height.saturating_sub(1)) as f32 / 2.0;
-        let half_height = mid.max(1.0);
         let fg = (
             foreground.r(),
             foreground.g(),
@@ -113,26 +99,17 @@ impl WaveformRenderer {
             foreground.b(),
             foreground.a().min(220),
         );
-        let to_y = |sample: f32| -> f32 { (mid - sample * half_height).clamp(0.0, mid * 2.0) };
-
-        let ys: Vec<f32> = (0..width as usize)
-            .map(|x| {
-                let sample = Self::supersampled_frame(
-                    samples,
-                    channels,
-                    frame_count,
-                    x,
-                    width as usize,
-                    channel_index,
-                );
-                to_y(sample)
-            })
-            .collect();
-
-        Self::fill_line_body(&mut image, stride, height as usize, mid, fill_color, &ys);
+        Self::fill_line_body(
+            &mut image,
+            stride,
+            height as usize,
+            mid,
+            fill_color,
+            &model.y_points,
+        );
 
         let mut prev_y = None;
-        for (x, y) in ys.iter().copied().enumerate() {
+        for (x, y) in model.y_points.iter().copied().enumerate() {
             if let Some(prev) = prev_y {
                 Self::draw_line_aa(RasterLineConfig {
                     image: &mut image,
@@ -160,49 +137,34 @@ impl WaveformRenderer {
     /// Left and right channels are rendered separately and packed into top/bottom bands
     /// with an optional separator gap. Transparent background pixels are preserved.
     pub(in crate::waveform::render) fn paint_split_line_image(
-        samples: &[f32],
-        channels: usize,
+        model: &SplitLineRenderModel,
         config: SplitLinePaintConfig<'_>,
     ) -> WaveformImage {
         let SplitLinePaintConfig {
-            width,
-            height,
             foreground,
             background,
             transient_glow,
         } = config;
-        let gap = if height >= 3 { 2 } else { 0 };
-        let split_height = height.saturating_sub(gap);
-        let top_height = (split_height / 2).max(1);
-        let bottom_height = split_height.saturating_sub(top_height).max(1);
 
         let top = Self::paint_line_image(
-            samples,
-            channels,
+            &model.top,
             LinePaintConfig {
-                width,
-                height: top_height,
                 foreground,
                 background,
-                channel_index: Some(0),
                 transient_glow,
             },
         );
         let bottom = Self::paint_line_image(
-            samples,
-            channels,
+            &model.bottom,
             LinePaintConfig {
-                width,
-                height: bottom_height,
                 foreground,
                 background,
-                channel_index: Some(1),
                 transient_glow,
             },
         );
-        let mut image = Self::new_line_image(width, height, background);
+        let mut image = Self::new_line_image(model.width, model.height, background);
         Self::blit_image(&mut image, &top, 0);
-        let bottom_offset = top_height as usize + gap as usize;
+        let bottom_offset = model.top.height as usize + model.gap as usize;
         let clamped_offset = bottom_offset.min(image.size[1]);
         Self::blit_image(&mut image, &bottom, clamped_offset);
         image

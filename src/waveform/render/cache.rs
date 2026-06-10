@@ -1,4 +1,5 @@
 use super::WaveformImage;
+use super::model::{ColumnRenderModel, SplitColumnRenderModel, split_band_heights};
 use super::{TransientGlow, WaveformChannelView, WaveformRenderViewport, WaveformRenderer};
 use crate::waveform::DecodedWaveform;
 use crate::waveform::render::LINE_RENDER_MAX_FRAMES_PER_COLUMN;
@@ -45,13 +46,16 @@ impl WaveformRenderer {
                 super::fade_preview::apply_fade_to_columns(
                     &mut cols, view_start, view_end, edit_fade,
                 );
-                Self::paint_color_image_for_size_with_density(
-                    &cols,
+                let model = ColumnRenderModel {
                     width,
                     height,
+                    frames_per_column,
+                    columns: cols,
+                };
+                Self::paint_color_image_for_size_with_density(
+                    &model,
                     self.foreground,
                     self.background,
-                    frames_per_column,
                     transient_glow,
                 )
             }
@@ -64,14 +68,28 @@ impl WaveformRenderer {
                 super::fade_preview::apply_fade_to_columns(
                     &mut right, view_start, view_end, edit_fade,
                 );
-                Self::paint_split_color_image_with_density(
-                    &left,
-                    &right,
+                let (top_height, bottom_height, gap) = split_band_heights(height);
+                let model = SplitColumnRenderModel {
                     width,
                     height,
+                    gap,
+                    top: ColumnRenderModel {
+                        width,
+                        height: top_height,
+                        frames_per_column,
+                        columns: left,
+                    },
+                    bottom: ColumnRenderModel {
+                        width,
+                        height: bottom_height,
+                        frames_per_column,
+                        columns: right,
+                    },
+                };
+                Self::paint_split_color_image_with_density(
+                    &model,
                     self.foreground,
                     self.background,
-                    frames_per_column,
                     transient_glow,
                 )
             }
