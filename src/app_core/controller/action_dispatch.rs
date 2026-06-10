@@ -76,21 +76,37 @@ fn apply_transport_ui_action(
     match action {
         NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
         NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
-        NativeUiAction::PlayFromStart => {
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromStart,
+        ) => {
             controller.play_from_start();
         }
-        NativeUiAction::PlayFromCurrentPlayhead => {
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromCurrentPlayhead,
+        ) => {
             controller.play_from_current_playhead();
         }
-        NativeUiAction::PlayFromWaveformCursor => {
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromWaveformCursor,
+        ) => {
             controller.play_from_cursor();
         }
-        NativeUiAction::PlayWaveformAtPrecise { position_nanos } => {
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise {
+                position_nanos,
+            },
+        ) => {
             controller.seek_waveform_nanos(position_nanos);
         }
-        NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
-        NativeUiAction::PlayCompareAnchor => controller.play_compare_anchor(),
-        NativeUiAction::HandleEscape => controller.handle_escape(),
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::ToggleTransport,
+        ) => controller.toggle_play_pause(),
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayCompareAnchor,
+        ) => controller.play_compare_anchor(),
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::HandleEscape,
+        ) => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
         NativeUiAction::SetVolume { value_milli } => {

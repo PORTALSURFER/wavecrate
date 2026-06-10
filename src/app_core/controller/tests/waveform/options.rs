@@ -97,7 +97,9 @@ fn handle_escape_exits_slice_review_before_clearing_slice_batch() {
     ];
     controller.start_slice_review();
 
-    controller.apply_ui_action(NativeUiAction::HandleEscape);
+    controller.apply_ui_action(NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::HandleEscape,
+    ));
 
     assert!(!controller.ui.waveform.slice_review.active);
     assert_eq!(controller.ui.waveform.slices.len(), 2);

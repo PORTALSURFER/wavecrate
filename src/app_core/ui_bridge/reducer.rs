@@ -19,7 +19,7 @@ use super::{
     },
     projection_cache::UiProjectionCacheKey,
 };
-use crate::app_core::actions::NativeUiAction;
+use crate::app_core::actions::{NativeUiAction, NativeUiActionDomain};
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 use crate::app_core::controller::AppControllerUiRuntimeExt;
 use std::time::{Duration, Instant};
@@ -28,6 +28,12 @@ use tracing::debug;
 fn additional_dirty_sources_for_action(
     action: &NativeUiAction,
 ) -> &'static [(DerivedNodeId, DirtyReason)] {
+    if !matches!(
+        action.domain(),
+        NativeUiActionDomain::Browser | NativeUiActionDomain::PromptsAndEdits
+    ) {
+        return &[];
+    }
     match action {
         NativeUiAction::AdjustSelectedBrowserRating { .. }
         | NativeUiAction::TagBrowserSelection { .. }
@@ -261,8 +267,9 @@ impl WavecrateUiBridge {
         let profiling = bridge_profiling_enabled();
         let interaction_class = classify_action_interaction(&action);
         let action_start = profiling.then(Instant::now);
+        let action_domain = action.domain();
         if call <= 64 {
-            debug!(call, action = ?action, "UI bridge: reduce_action");
+            debug!(call, domain = ?action_domain, action = ?action, "UI bridge: reduce_action");
         }
         let handled = self.apply_action_immediately(action);
         if profiling {

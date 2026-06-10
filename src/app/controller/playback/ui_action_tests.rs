@@ -67,7 +67,9 @@ fn toggle_transport_stops_active_playback() {
         return;
     };
 
-    controller.apply_ui_action(NativeUiAction::ToggleTransport);
+    controller.apply_ui_action(NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::ToggleTransport,
+    ));
 
     assert!(!controller.is_playing());
     assert!(!controller.ui.waveform.playhead.visible);
@@ -87,7 +89,9 @@ fn play_from_start_auditions_focused_review_slice_without_selection() {
     controller.start_slice_review();
     controller.move_slice_review_focus(1);
 
-    controller.apply_ui_action(NativeUiAction::PlayFromStart);
+    controller.apply_ui_action(NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::PlayFromStart,
+    ));
 
     assert!(controller.selection_state.range.range().is_none());
     assert!(controller.ui.waveform.selection.is_none());

@@ -27,7 +27,9 @@ pub(super) fn transport_play_from_selection_start_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::PlayFromStart,
+                action: NativeUiAction::Transport(
+                    crate::app_core::actions::NativeTransportAction::PlayFromStart,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::ActionRecorded {

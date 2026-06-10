@@ -139,7 +139,9 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::PlayFromStart
+                    crate::app_core::actions::NativeUiAction::Transport(
+                        crate::app_core::actions::NativeTransportAction::PlayFromStart
+                    )
                 )
             }),
             FocusContext::SampleBrowser,
@@ -150,7 +152,9 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::PlayFromCurrentPlayhead
+                    crate::app_core::actions::NativeUiAction::Transport(
+                        crate::app_core::actions::NativeTransportAction::PlayFromCurrentPlayhead
+                    )
                 )
             }),
             FocusContext::SampleBrowser,
@@ -235,7 +239,9 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::PlayCompareAnchor
+                    crate::app_core::actions::NativeUiAction::Transport(
+                        crate::app_core::actions::NativeTransportAction::PlayCompareAnchor
+                    )
                 )
             }),
             FocusContext::Waveform,

@@ -32,6 +32,31 @@ macro_rules! build_action_mapping {
             }
         }
     };
+    (@match ToggleTransport {}) => {
+        NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::ToggleTransport)
+    };
+    (@match PlayCompareAnchor {}) => {
+        NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayCompareAnchor)
+    };
+    (@match PlayFromStart {}) => {
+        NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromStart)
+    };
+    (@match PlayFromCurrentPlayhead {}) => {
+        NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromCurrentPlayhead)
+    };
+    (@match PlayFromWaveformCursor {}) => {
+        NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromWaveformCursor)
+    };
+    (@match PlayWaveformAtPrecise { position_nanos }) => {
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise {
+                position_nanos: _,
+            },
+        )
+    };
+    (@match HandleEscape {}) => {
+        NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::HandleEscape)
+    };
     (@match $kind:ident {}) => {
         NativeUiAction::$kind
     };

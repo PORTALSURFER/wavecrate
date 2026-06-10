@@ -28,8 +28,12 @@ pub(super) fn classify_action_interaction(
         }
         NativeUiAction::SeekWaveformPrecise { .. }
         | NativeUiAction::SetWaveformCursorPrecise { .. }
-        | NativeUiAction::PlayFromWaveformCursor
-        | NativeUiAction::PlayWaveformAtPrecise { .. }
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromWaveformCursor,
+        )
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise { .. },
+        )
         | NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::BeginWaveformCircularSlide { .. }

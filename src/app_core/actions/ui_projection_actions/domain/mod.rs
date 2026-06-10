@@ -38,13 +38,27 @@ impl UiAction {
             UiAction::SelectColumn { .. } => UiActionDomain::ColumnTriage,
             UiAction::MoveColumn { .. } => UiActionDomain::ColumnTriage,
             // Transport and global playback actions.
-            UiAction::ToggleTransport => UiActionDomain::Transport,
-            UiAction::PlayCompareAnchor => UiActionDomain::Transport,
-            UiAction::PlayFromStart => UiActionDomain::Transport,
-            UiAction::PlayFromCurrentPlayhead => UiActionDomain::Transport,
-            UiAction::PlayFromWaveformCursor => UiActionDomain::Transport,
-            UiAction::PlayWaveformAtPrecise { .. } => UiActionDomain::Transport,
-            UiAction::HandleEscape => UiActionDomain::Transport,
+            UiAction::Transport(
+                crate::app_core::actions::NativeTransportAction::ToggleTransport,
+            ) => UiActionDomain::Transport,
+            UiAction::Transport(
+                crate::app_core::actions::NativeTransportAction::PlayCompareAnchor,
+            ) => UiActionDomain::Transport,
+            UiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromStart) => {
+                UiActionDomain::Transport
+            }
+            UiAction::Transport(
+                crate::app_core::actions::NativeTransportAction::PlayFromCurrentPlayhead,
+            ) => UiActionDomain::Transport,
+            UiAction::Transport(
+                crate::app_core::actions::NativeTransportAction::PlayFromWaveformCursor,
+            ) => UiActionDomain::Transport,
+            UiAction::Transport(
+                crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise { .. },
+            ) => UiActionDomain::Transport,
+            UiAction::Transport(crate::app_core::actions::NativeTransportAction::HandleEscape) => {
+                UiActionDomain::Transport
+            }
             // Focus and shell-surface actions.
             UiAction::FocusBrowserPanel => UiActionDomain::Shell,
             UiAction::FocusSourcesPanel => UiActionDomain::Shell,

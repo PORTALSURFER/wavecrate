@@ -94,21 +94,27 @@ pub(super) const PLAY_FROM_START: HotkeyAction = HotkeyAction {
     label: "Play from start",
     gesture: HotkeyGesture::new(Key::Space),
     scope: GLOBAL,
-    action: NativeUiAction::PlayFromStart,
+    action: NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::PlayFromStart,
+    ),
 };
 pub(super) const PLAY_COMPARE_ANCHOR: HotkeyAction = HotkeyAction {
     id: "play-compare-anchor",
     label: "Play compare anchor",
     gesture: HotkeyGesture::with_shift(Key::Space),
     scope: GLOBAL,
-    action: NativeUiAction::PlayCompareAnchor,
+    action: NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::PlayCompareAnchor,
+    ),
 };
 pub(super) const PLAY_FROM_CURRENT_PLAYHEAD: HotkeyAction = HotkeyAction {
     id: "play-from-current-playhead",
     label: "Play from current playhead",
     gesture: HotkeyGesture::with_command(Key::Space),
     scope: GLOBAL,
-    action: NativeUiAction::PlayFromCurrentPlayhead,
+    action: NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::PlayFromCurrentPlayhead,
+    ),
 };
 pub(super) const TOGGLE_LOOP: HotkeyAction = HotkeyAction {
     id: "toggle-loop",

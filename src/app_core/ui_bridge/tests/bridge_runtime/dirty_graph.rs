@@ -27,9 +27,11 @@ fn mark_dirty_for_waveform_action_marks_graph_nodes() {
 fn mark_dirty_for_waveform_click_play_marks_transport_state_dirty() {
     let mut bridge = test_bridge(16);
 
-    bridge.mark_dirty_for_action(&NativeUiAction::PlayWaveformAtPrecise {
-        position_nanos: 420_000_000,
-    });
+    bridge.mark_dirty_for_action(&NativeUiAction::Transport(
+        crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise {
+            position_nanos: 420_000_000,
+        },
+    ));
 
     assert!(
         bridge

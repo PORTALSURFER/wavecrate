@@ -236,12 +236,24 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
             Some((DerivedNodeId::MapState, DirtyReason::MapAction))
         }
-        NativeUiAction::PlayCompareAnchor
-        | NativeUiAction::PlayFromStart
-        | NativeUiAction::PlayFromCurrentPlayhead
-        | NativeUiAction::PlayFromWaveformCursor
-        | NativeUiAction::PlayWaveformAtPrecise { .. }
-        | NativeUiAction::ToggleTransport
+        NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayCompareAnchor,
+        )
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromStart,
+        )
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromCurrentPlayhead,
+        )
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromWaveformCursor,
+        )
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise { .. },
+        )
+        | NativeUiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::ToggleTransport,
+        )
         | NativeUiAction::ToggleLoopPlayback
         | NativeUiAction::SetVolume { .. }
         | NativeUiAction::CommitVolumeSetting => {
