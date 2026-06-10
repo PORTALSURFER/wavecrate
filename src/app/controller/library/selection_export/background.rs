@@ -1,22 +1,19 @@
 //! Background selection-export worker implementation and timing capture.
 
-use super::background_recording::{
-    next_clip_export_path, record_clip_entry, record_crop_entry, record_slice_batch_entry,
-};
+use super::background_recording::record_slice_batch_entry;
 use super::helpers::cleanup_written_export_after_registration_failure;
+use super::pipeline::{
+    resolve_selection_export_audio, run_clip_export_pipeline, run_crop_export_pipeline,
+    write_slice_batch_clip,
+};
 use super::*;
 use crate::app::controller::jobs::{
     SelectionClipDestination, SelectionClipExportSuccess, SelectionCropExportSuccess,
-    SelectionExportAudioPayload, SelectionExportJob, SelectionExportMessage,
-    SelectionExportPlaybackState, SelectionExportResult, SelectionExportSnapshot,
-    SelectionExportTimings, SelectionSliceBatchExportSnapshot, SelectionSliceBatchExportSuccess,
+    SelectionExportJob, SelectionExportMessage, SelectionExportPlaybackState,
+    SelectionExportResult, SelectionExportSnapshot, SelectionSliceBatchExportSnapshot,
+    SelectionSliceBatchExportSuccess,
 };
-use crate::app::controller::library::selection_edits::{
-    apply_short_edge_fades_to_clip, next_crop_relative_path,
-};
-use crate::app::controller::playback::audio_samples::{crop_samples, decode_samples_from_bytes};
-use std::borrow::Cow;
-use std::path::Path;
+use crate::app::controller::playback::audio_samples::crop_samples;
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
@@ -75,49 +72,7 @@ fn run_clip_export_job(
     destination: SelectionClipDestination,
     started_at: Instant,
 ) -> Result<SelectionClipExportSuccess, String> {
-    let prepare_started = Instant::now();
-    let audio = resolve_selection_export_audio(&snapshot.audio)?;
-    let mut prepared = prepare_selection_clip(&audio, &snapshot)?;
-    let prepare = prepare_started.elapsed();
-
-    let target_relative = next_clip_export_path(&snapshot, &destination);
-    let (target_source_id, target_source_root) = match &destination {
-        SelectionClipDestination::Folder {
-            source_id,
-            source_root,
-            ..
-        } => (source_id.clone(), source_root.clone()),
-        SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
-            (snapshot.source_id.clone(), snapshot.source_root.clone())
-        }
-    };
-    let absolute_path = target_source_root.join(&target_relative);
-    let write_started = Instant::now();
-    write_selection_clip(&absolute_path, &mut prepared, &snapshot)?;
-    let write = write_started.elapsed();
-
-    let register_started = Instant::now();
-    let entry = record_clip_entry(&snapshot, &destination, target_relative.clone())
-        .map_err(|err| cleanup_written_export_after_registration_failure(&absolute_path, err))?;
-    let register = register_started.elapsed();
-    let backup = crate::app::controller::undo::OverwriteBackup::capture_before(&absolute_path)?;
-    backup.capture_after(&absolute_path)?;
-
-    Ok(SelectionClipExportSuccess {
-        request_id,
-        source_id: target_source_id,
-        source_root: target_source_root,
-        entry,
-        absolute_path,
-        backup,
-        destination,
-        timings: SelectionExportTimings {
-            prepare,
-            write,
-            register,
-            total: started_at.elapsed(),
-        },
-    })
+    run_clip_export_pipeline(request_id, snapshot, destination, started_at)
 }
 
 fn run_crop_export_job(
@@ -126,41 +81,7 @@ fn run_crop_export_job(
     playback: SelectionExportPlaybackState,
     started_at: Instant,
 ) -> Result<SelectionCropExportSuccess, String> {
-    let prepare_started = Instant::now();
-    let audio = resolve_selection_export_audio(&snapshot.audio)?;
-    let mut prepared = prepare_selection_clip(&audio, &snapshot)?;
-    let prepare = prepare_started.elapsed();
-
-    let new_relative = next_crop_relative_path(&snapshot.relative_path, &snapshot.source_root)?;
-    let absolute_path = snapshot.source_root.join(&new_relative);
-    let write_started = Instant::now();
-    write_selection_clip(&absolute_path, &mut prepared, &snapshot)?;
-    let write = write_started.elapsed();
-
-    let register_started = Instant::now();
-    let entry = record_crop_entry(&snapshot, new_relative.clone())
-        .map_err(|err| cleanup_written_export_after_registration_failure(&absolute_path, err))?;
-    let register = register_started.elapsed();
-    let backup = crate::app::controller::undo::OverwriteBackup::capture_before(&absolute_path)?;
-    backup.capture_after(&absolute_path)?;
-
-    Ok(SelectionCropExportSuccess {
-        request_id,
-        source_id: snapshot.source_id,
-        source_root: snapshot.source_root,
-        source_relative_path: snapshot.relative_path,
-        entry,
-        absolute_path,
-        backup,
-        tag: snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
-        playback,
-        timings: SelectionExportTimings {
-            prepare,
-            write,
-            register,
-            total: started_at.elapsed(),
-        },
-    })
+    run_crop_export_pipeline(request_id, snapshot, playback, started_at)
 }
 
 fn run_slice_batch_export(
@@ -252,108 +173,4 @@ fn run_slice_batch_export(
             total: started_at.elapsed(),
         },
     })
-}
-
-struct PreparedSelectionClip {
-    samples: Vec<f32>,
-    sample_rate: u32,
-    channels: u16,
-}
-
-struct ResolvedSelectionExportAudio<'a> {
-    samples: Cow<'a, [f32]>,
-    sample_rate: u32,
-    channels: u16,
-}
-
-fn resolve_selection_export_audio<'a>(
-    audio: &'a SelectionExportAudioPayload,
-) -> Result<ResolvedSelectionExportAudio<'a>, String> {
-    match audio {
-        SelectionExportAudioPayload::Decoded {
-            samples,
-            channels,
-            sample_rate,
-        } => Ok(ResolvedSelectionExportAudio {
-            samples: Cow::Borrowed(samples.as_ref()),
-            sample_rate: (*sample_rate).max(1),
-            channels: (*channels).max(1),
-        }),
-        SelectionExportAudioPayload::Encoded { bytes } => {
-            let decoded = decode_samples_from_bytes(bytes)?;
-            Ok(ResolvedSelectionExportAudio {
-                samples: Cow::Owned(decoded.samples),
-                sample_rate: decoded.sample_rate.max(1),
-                channels: decoded.channels.max(1),
-            })
-        }
-    }
-}
-
-fn prepare_selection_clip(
-    audio: &ResolvedSelectionExportAudio<'_>,
-    snapshot: &SelectionExportSnapshot,
-) -> Result<PreparedSelectionClip, String> {
-    let (mut samples, sample_rate, channels) = (
-        crop_samples(audio.samples.as_ref(), audio.channels, snapshot.bounds)?,
-        audio.sample_rate,
-        audio.channels,
-    );
-    if samples.is_empty() {
-        return Err("Selection has no audio to export".to_string());
-    }
-    if snapshot.apply_edge_fades {
-        let fade_duration =
-            Duration::from_secs_f32(snapshot.edge_fade_ms.max(0.0).max(0.0) / 1000.0);
-        apply_short_edge_fades_to_clip(&mut samples, channels as usize, sample_rate, fade_duration);
-    }
-    Ok(PreparedSelectionClip {
-        samples,
-        sample_rate,
-        channels,
-    })
-}
-
-fn write_selection_clip(
-    absolute_path: &Path,
-    prepared: &mut PreparedSelectionClip,
-    snapshot: &SelectionExportSnapshot,
-) -> Result<(), String> {
-    crate::app::controller::playback::audio_samples::write_wav_with_spec(
-        absolute_path,
-        &prepared.samples,
-        snapshot
-            .write_format
-            .wav_spec_for_source(prepared.channels, prepared.sample_rate),
-    )
-}
-
-fn write_slice_batch_clip(
-    absolute_path: &Path,
-    samples: &[f32],
-    snapshot: &SelectionSliceBatchExportSnapshot,
-    sample_rate: u32,
-    channels: u16,
-) -> Result<(), String> {
-    let mut prepared = PreparedSelectionClip {
-        samples: samples.to_vec(),
-        sample_rate,
-        channels,
-    };
-    if snapshot.apply_edge_fades {
-        let fade_duration = Duration::from_secs_f32(snapshot.edge_fade_ms.max(0.0) / 1000.0);
-        apply_short_edge_fades_to_clip(
-            &mut prepared.samples,
-            prepared.channels as usize,
-            prepared.sample_rate,
-            fade_duration,
-        );
-    }
-    crate::app::controller::playback::audio_samples::write_wav_with_spec(
-        absolute_path,
-        &prepared.samples,
-        snapshot
-            .write_format
-            .wav_spec_for_source(prepared.channels, prepared.sample_rate),
-    )
 }

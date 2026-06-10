@@ -1,5 +1,45 @@
 use super::*;
 
+fn decoded_clip_snapshot(
+    source: &SampleSource,
+    relative_path: impl Into<PathBuf>,
+    bounds: SelectionRange,
+    samples: Vec<f32>,
+) -> SelectionExportSnapshot {
+    SelectionExportSnapshot {
+        source_id: source.id.clone(),
+        source_root: source.root.clone(),
+        relative_path: relative_path.into(),
+        bounds,
+        audio: SelectionExportAudioPayload::Decoded {
+            samples: Arc::from(samples),
+            channels: 1,
+            sample_rate: 44_100,
+        },
+        apply_edge_fades: false,
+        edge_fade_ms: 0.0,
+        write_format: crate::sample_sources::config::AudioWriteFormatConfig::default(),
+        target_tag: None,
+        looped: false,
+        bpm: None,
+    }
+}
+
+fn run_clip_export(
+    request_id: u64,
+    snapshot: SelectionExportSnapshot,
+    destination: SelectionClipDestination,
+) -> Result<SelectionClipExportSuccess, String> {
+    match run_selection_export_job(SelectionExportJob::Clip {
+        request_id,
+        snapshot,
+        destination,
+    }) {
+        SelectionExportResult::Clip { result, .. } => result,
+        other => panic!("expected clip export result, got {other:?}"),
+    }
+}
+
 #[test]
 fn export_selection_clip_to_root_can_flatten_name_hint() {
     let temp = tempdir().unwrap();
@@ -42,6 +82,128 @@ fn export_selection_clip_to_root_can_flatten_name_hint() {
     );
     assert!(clip_root.join(&entry.relative_path).is_file());
     assert!(!clip_root.join("drums").join(&entry.relative_path).exists());
+}
+
+#[test]
+fn background_clip_export_pipeline_rejects_empty_selection_before_write() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    let source = SampleSource::new(source_root.clone());
+    let snapshot = decoded_clip_snapshot(
+        &source,
+        "empty.wav",
+        SelectionRange::new(0.0, 1.0),
+        Vec::new(),
+    );
+
+    let result = run_clip_export(
+        7,
+        snapshot,
+        SelectionClipDestination::Browser {
+            keep_source_focused: true,
+            folder_override: None,
+        },
+    );
+
+    assert_eq!(result.unwrap_err(), "No audio data to export");
+    assert!(!source_root.join("empty_selection_001.wav").exists());
+}
+
+#[test]
+fn background_clip_export_pipeline_rejects_missing_destination_folder() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    let source = SampleSource::new(source_root.clone());
+    let snapshot = decoded_clip_snapshot(
+        &source,
+        "clip.wav",
+        SelectionRange::new(0.0, 0.5),
+        vec![0.1, 0.2, 0.3, 0.4],
+    );
+
+    let result = run_clip_export(
+        8,
+        snapshot,
+        SelectionClipDestination::Browser {
+            keep_source_focused: true,
+            folder_override: Some(PathBuf::from("missing")),
+        },
+    );
+
+    assert!(
+        result.unwrap_err().contains("Folder not found"),
+        "missing folder should fail during destination validation"
+    );
+    assert!(!source_root.join("missing/clip_selection_001.wav").exists());
+}
+
+#[test]
+fn background_clip_export_pipeline_skips_existing_conflict_name() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    std::fs::write(source_root.join("clip_selection_001.wav"), b"occupied").unwrap();
+    let source = SampleSource::new(source_root.clone());
+    let snapshot = decoded_clip_snapshot(
+        &source,
+        "clip.wav",
+        SelectionRange::new(0.0, 0.5),
+        vec![0.1, 0.2, 0.3, 0.4],
+    );
+
+    let entry = run_clip_export(
+        9,
+        snapshot,
+        SelectionClipDestination::Browser {
+            keep_source_focused: true,
+            folder_override: None,
+        },
+    )
+    .unwrap()
+    .entry;
+
+    assert_eq!(entry.relative_path, PathBuf::from("clip_selection_002.wav"));
+    assert!(source_root.join("clip_selection_001.wav").is_file());
+    assert!(source_root.join("clip_selection_002.wav").is_file());
+}
+
+#[test]
+fn background_clip_export_pipeline_writes_and_registers_entry() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    let source = SampleSource::new(source_root.clone());
+    let snapshot = decoded_clip_snapshot(
+        &source,
+        "clip.wav",
+        SelectionRange::new(0.25, 0.75),
+        vec![0.1, 0.2, 0.3, 0.4],
+    );
+
+    let success = run_clip_export(
+        10,
+        snapshot,
+        SelectionClipDestination::Browser {
+            keep_source_focused: true,
+            folder_override: None,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(success.request_id, 10);
+    assert_eq!(
+        success.entry.relative_path,
+        PathBuf::from("clip_selection_001.wav")
+    );
+    assert!(source_root.join("clip_selection_001.wav").is_file());
+    let db = SourceDatabase::open(&source_root).unwrap();
+    assert!(
+        db.tag_for_path(Path::new("clip_selection_001.wav"))
+            .unwrap()
+            .is_some()
+    );
 }
 
 #[test]

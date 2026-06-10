@@ -6,6 +6,8 @@ mod background_recording;
 mod completion;
 /// Helper routines shared by the selection-export workflow.
 mod helpers;
+/// Staged worker-side selection export pipelines.
+mod pipeline;
 /// Persistence and cache-registration steps for newly exported clips.
 mod recording;
 /// Typed export/registration request objects used by the selection-export workflow.
