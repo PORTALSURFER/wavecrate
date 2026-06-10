@@ -136,7 +136,7 @@ pub struct WaveformState {
 /// convention for user-authored slices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WaveformSliceBatchProfile {
-    /// Slice batch created manually or by legacy slice tools.
+    /// Slice batch created manually or by retained slice tools.
     Manual,
     /// Slice batch created from silence-only detection.
     SilenceSplit,

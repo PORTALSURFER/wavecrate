@@ -19,8 +19,8 @@ pub(super) fn snapshot_bundle(
     failure_summary: Option<String>,
     step_timings_ms: Vec<GuiStepTimingSample>,
 ) -> GuiTestArtifactBundle {
-    let compat_model = bridge.project_model();
-    let model = NativeAppModel::from(compat_model.as_ref().clone());
+    let projected_model = bridge.project_model();
+    let model = NativeAppModel::from(projected_model.as_ref().clone());
     GuiTestArtifactBundle {
         schema_version: 1,
         scenario_name: config.scenario_name.clone(),
@@ -46,7 +46,7 @@ pub(super) fn current_snapshot(
     config: &GuiTestModeConfig,
     bridge: &mut impl NativeAppBridge,
 ) -> NativeGuiAutomationSnapshot {
-    let compat_model = bridge.project_model();
-    let model = NativeAppModel::from(compat_model.as_ref().clone());
+    let projected_model = bridge.project_model();
+    let model = NativeAppModel::from(projected_model.as_ref().clone());
     capture_gui_automation_snapshot(config.viewport_f32(), &model)
 }

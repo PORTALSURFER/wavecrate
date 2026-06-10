@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
-// Keep this crate-boundary allowance narrow while compatibility-heavy projection
-// and runtime surfaces are still being decomposed across the active cleanup lane.
+// Keep this crate-boundary allowance narrow while migration projection and
+// runtime surfaces are still being decomposed across the active cleanup lane.
 #![allow(clippy::type_complexity)]
 #![allow(
     clippy::cloned_ref_to_slice_refs,

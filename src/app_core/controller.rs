@@ -1,7 +1,7 @@
 //! Backend-neutral controller aliases for migration consumers.
 //!
 //! These aliases keep UI runtime entrypoints stable while the runtime-agnostic
-//! controller API remains sourced from the legacy `app` implementation during
+//! controller API remains sourced from the current `app` implementation during
 //! migration.
 
 /// UI runtime action dispatch orchestration and telemetry helpers.
@@ -19,12 +19,12 @@ mod startup;
 /// Focused waveform-UI action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
-use crate::app_core::app_api::controller::AppController as LegacyAppController;
+use crate::app_core::app_api::controller::AppController as CurrentAppController;
 pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
 pub(crate) use frame_preparation::UiFramePreparationPlan;
 pub use startup::build_ui_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
-pub type AppController = LegacyAppController;
+pub type AppController = CurrentAppController;
 /// Retained browser preload-window cache type used by ui-projection helpers.
 pub(crate) type ProjectedBrowserPreloadWindow =
     crate::app_core::app_api::controller::ProjectedBrowserPreloadWindow;

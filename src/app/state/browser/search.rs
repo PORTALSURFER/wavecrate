@@ -30,7 +30,7 @@ pub struct BrowserSearchState {
     pub marked_only: bool,
     /// Optional filter for samples whose filenames are marked as tag-derived.
     pub tag_named_filter: TagNamedFilter,
-    /// Sidebar metadata facets applied alongside legacy browser filters.
+    /// Sidebar metadata facets applied alongside rating and playback-age filters.
     pub sidebar_filters: BrowserSidebarFilterState,
     /// Text query applied to visible rows via fuzzy search.
     pub search_query: String,

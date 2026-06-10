@@ -8,7 +8,7 @@ use super::AppController;
 /// Build a configured migration-facing controller for UI runtime hosts.
 ///
 /// This centralizes controller creation and config loading so UI hosts need not
-/// depend directly on legacy initialization details.
+/// depend directly on app-controller initialization details.
 pub fn build_ui_app_controller(
     renderer: WaveformRenderer,
     player: Option<Rc<RefCell<AudioPlayer>>>,

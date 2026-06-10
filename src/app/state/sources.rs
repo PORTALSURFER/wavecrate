@@ -46,7 +46,7 @@ pub struct SourcePanelState {
     pub sources_height_override: Option<f32>,
     /// Cached list height at the start of a sources resize drag for stable deltas.
     pub sources_resize_origin_height: Option<f32>,
-    /// Active folder browser sub-state kept for controller compatibility.
+    /// Active folder browser sub-state used by current controller projections.
     pub folders: FolderBrowserUiState,
     /// Retained folder-pane assignments and inactive-pane UI state.
     pub folder_panes: FolderPaneStateSet,

@@ -1,6 +1,6 @@
 //! Migration-facing state aliases and small projection helpers.
 //!
-//! This module keeps the public `app_core` state API stable while the legacy app
+//! This module keeps the public `app_core` state API stable while the current app
 //! module remains the source of truth during migration.
 
 use crate::app_core::actions::NativeBrowserTagTarget;

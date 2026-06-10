@@ -3,7 +3,7 @@
 //! These helpers project controller state into Wavecrate-owned DTOs and translate
 //! normalized UI ranges back into controller-domain selection math. New default
 //! GUI work should compose Radiant's current public API through `src/native_app.rs`
-//! instead of expanding this compatibility surface.
+//! instead of expanding this migration projection surface.
 
 use super::controller::{
     AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
