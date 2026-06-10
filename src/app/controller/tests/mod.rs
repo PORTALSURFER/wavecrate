@@ -8,6 +8,7 @@ mod browser_core;
 /// Browser-row inline metadata regression tests.
 mod browser_inline_tags;
 mod browser_selection;
+mod classification;
 mod common;
 /// Compare-anchor regression coverage for browser-relative selection anchoring.
 mod compare_anchor;
