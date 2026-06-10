@@ -81,51 +81,41 @@ fn get_json_with_retry<T: for<'de> Deserialize<'de>>(
 
 fn get_json_with_retry_from<T: for<'de> Deserialize<'de>, F>(
     retry_config: http_client::RetryConfig,
-    mut request: F,
+    request: F,
 ) -> Result<T, UpdateError>
 where
     F: FnMut() -> Result<ureq::Response, ureq::Error>,
 {
-    let mut attempt = 0usize;
-    loop {
-        attempt += 1;
-        match request() {
-            Ok(response) => {
-                let bytes = http_client::read_response_bytes(response, MAX_RELEASE_JSON_BYTES)
-                    .map_err(|err| UpdateError::Http(err.to_string()))?;
-                let parsed = serde_json::from_slice(&bytes)?;
-                return Ok(parsed);
-            }
-            Err(err) => {
-                let retryable = is_retryable_github_error(&err);
-                if attempt >= retry_config.max_attempts || !retryable {
-                    return Err(map_github_error(err));
-                }
-                let delay = retry_delay_for_error(&err, retry_config, attempt);
-                if delay > Duration::from_secs(0) {
-                    std::thread::sleep(delay);
-                }
-            }
-        }
-    }
+    get_json_with_retry_from_with_sleep(retry_config, request, std::thread::sleep)
 }
 
-fn is_retryable_github_error(err: &ureq::Error) -> bool {
+fn get_json_with_retry_from_with_sleep<T: for<'de> Deserialize<'de>, F, S>(
+    retry_config: http_client::RetryConfig,
+    request: F,
+    sleep: S,
+) -> Result<T, UpdateError>
+where
+    F: FnMut() -> Result<ureq::Response, ureq::Error>,
+    S: FnMut(Duration),
+{
+    let response =
+        http_client::retry_with_policy_using(retry_config, request, github_retry_decision, sleep)
+            .map_err(map_github_error)?;
+    let bytes = http_client::read_response_bytes(response, MAX_RELEASE_JSON_BYTES)
+        .map_err(|err| UpdateError::Http(err.to_string()))?;
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
+fn github_retry_decision(err: &ureq::Error) -> http_client::RetryDecision {
     match err {
-        ureq::Error::Transport(_) => true,
-        ureq::Error::Status(code, _) => *code == 429 || (500..=599).contains(code),
-    }
-}
-
-fn retry_delay_for_error(
-    err: &ureq::Error,
-    config: http_client::RetryConfig,
-    attempt: usize,
-) -> Duration {
-    let retry_after = retry_after_delay(err);
-    match retry_after {
-        Some(delay) => delay.min(config.max_delay),
-        None => http_client::backoff_delay(config.base_delay, config.max_delay, attempt),
+        ureq::Error::Transport(_) => http_client::RetryDecision::Retry,
+        ureq::Error::Status(429, _) => retry_after_delay(err)
+            .map(http_client::RetryDecision::RetryAfter)
+            .unwrap_or(http_client::RetryDecision::Retry),
+        ureq::Error::Status(code, _) if (500..=599).contains(code) => {
+            http_client::RetryDecision::Retry
+        }
+        ureq::Error::Status(_, _) => http_client::RetryDecision::Stop,
     }
 }
 
@@ -346,20 +336,62 @@ mod tests {
         };
 
         let mut index = 0usize;
-        let value: serde_json::Value = get_json_with_retry_from(config, || {
-            let current =
-                response_from_str(responses.get(index).expect("response sequence exhausted"));
-            attempts.fetch_add(1, Ordering::SeqCst);
-            index += 1;
-            if index < 3 {
-                Err(ureq::Error::Status(current.status(), current))
-            } else {
-                Ok(current)
-            }
-        })
+        let value: serde_json::Value = get_json_with_retry_from_with_sleep(
+            config,
+            || {
+                let current =
+                    response_from_str(responses.get(index).expect("response sequence exhausted"));
+                attempts.fetch_add(1, Ordering::SeqCst);
+                index += 1;
+                if index < 3 {
+                    Err(ureq::Error::Status(current.status(), current))
+                } else {
+                    Ok(current)
+                }
+            },
+            |_| {},
+        )
         .unwrap();
         assert_eq!(value["ok"].as_bool(), Some(true));
         assert_eq!(attempts.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn retry_after_delay_is_supplied_to_shared_retry_executor() {
+        let responses = [
+            "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 7\r\nContent-Length: 0\r\n\r\n"
+                .to_string(),
+            "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\n{\"ok\":true}".to_string(),
+        ];
+        let attempts = AtomicUsize::new(0);
+        let mut delays = Vec::new();
+        let config = http_client::RetryConfig {
+            max_attempts: 3,
+            base_delay: Duration::from_millis(1),
+            max_delay: Duration::from_secs(2),
+        };
+        let mut index = 0usize;
+
+        let value: serde_json::Value = get_json_with_retry_from_with_sleep(
+            config,
+            || {
+                let current =
+                    response_from_str(responses.get(index).expect("response sequence exhausted"));
+                attempts.fetch_add(1, Ordering::SeqCst);
+                index += 1;
+                if index == 1 {
+                    Err(ureq::Error::Status(current.status(), current))
+                } else {
+                    Ok(current)
+                }
+            },
+            |delay| delays.push(delay),
+        )
+        .unwrap();
+
+        assert_eq!(value["ok"].as_bool(), Some(true));
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert_eq!(delays, vec![Duration::from_secs(2)]);
     }
 
     fn response_from_str(raw: &str) -> ureq::Response {

@@ -19,6 +19,17 @@ pub(crate) struct RetryConfig {
     pub max_delay: Duration,
 }
 
+/// Retry classification returned by operation-specific error classifiers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RetryDecision {
+    /// Do not retry this error.
+    Stop,
+    /// Retry using the configured exponential backoff delay.
+    Retry,
+    /// Retry after an operation-provided delay, capped by `RetryConfig::max_delay`.
+    RetryAfter(Duration),
+}
+
 /// Return a shared HTTP agent with consistent timeouts.
 pub(crate) fn agent() -> &'static ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
@@ -34,12 +45,46 @@ pub(crate) fn agent() -> &'static ureq::Agent {
 /// Retry an operation with bounded exponential backoff when the predicate allows it.
 pub(crate) fn retry_with_backoff<T, E, F, R>(
     config: RetryConfig,
-    mut action: F,
+    action: F,
     mut should_retry: R,
 ) -> Result<T, E>
 where
     F: FnMut() -> Result<T, E>,
     R: FnMut(&E) -> bool,
+{
+    retry_with_policy(config, action, |err| {
+        if should_retry(err) {
+            RetryDecision::Retry
+        } else {
+            RetryDecision::Stop
+        }
+    })
+}
+
+/// Retry an operation with bounded policy-controlled backoff.
+pub(crate) fn retry_with_policy<T, E, F, R>(
+    config: RetryConfig,
+    action: F,
+    classify_error: R,
+) -> Result<T, E>
+where
+    F: FnMut() -> Result<T, E>,
+    R: FnMut(&E) -> RetryDecision,
+{
+    retry_with_policy_using(config, action, classify_error, std::thread::sleep)
+}
+
+/// Retry an operation with an injectable sleeper for deterministic tests.
+pub(crate) fn retry_with_policy_using<T, E, F, R, S>(
+    config: RetryConfig,
+    mut action: F,
+    mut classify_error: R,
+    mut sleep: S,
+) -> Result<T, E>
+where
+    F: FnMut() -> Result<T, E>,
+    R: FnMut(&E) -> RetryDecision,
+    S: FnMut(Duration),
 {
     let mut attempt = 0usize;
     loop {
@@ -47,10 +92,16 @@ where
         match action() {
             Ok(value) => return Ok(value),
             Err(err) => {
-                if attempt >= config.max_attempts || !should_retry(&err) {
+                if attempt >= config.max_attempts {
                     return Err(err);
                 }
-                std::thread::sleep(backoff_delay(config.base_delay, config.max_delay, attempt));
+                let decision = classify_error(&err);
+                let Some(delay) = retry_delay(config, decision, attempt) else {
+                    return Err(err);
+                };
+                if delay > Duration::from_secs(0) {
+                    sleep(delay);
+                }
             }
         }
     }
@@ -157,6 +208,14 @@ pub(crate) fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Du
     if delay > max { max } else { delay }
 }
 
+fn retry_delay(config: RetryConfig, decision: RetryDecision, attempt: usize) -> Option<Duration> {
+    match decision {
+        RetryDecision::Stop => None,
+        RetryDecision::Retry => Some(backoff_delay(config.base_delay, config.max_delay, attempt)),
+        RetryDecision::RetryAfter(delay) => Some(delay.min(config.max_delay)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,5 +304,57 @@ mod tests {
         );
         assert_eq!(result, Err("fail"));
         assert_eq!(attempts, 1);
+    }
+
+    #[test]
+    fn retry_with_policy_stops_after_limit_without_extra_sleep() {
+        let mut attempts = 0usize;
+        let mut delays = Vec::new();
+        let config = RetryConfig {
+            max_attempts: 3,
+            base_delay: Duration::from_millis(10),
+            max_delay: Duration::from_millis(100),
+        };
+
+        let result: Result<(), &'static str> = retry_with_policy_using(
+            config,
+            || {
+                attempts += 1;
+                Err("fail")
+            },
+            |_| RetryDecision::Retry,
+            |delay| delays.push(delay),
+        );
+
+        assert_eq!(result, Err("fail"));
+        assert_eq!(attempts, 3);
+        assert_eq!(
+            delays,
+            vec![Duration::from_millis(10), Duration::from_millis(20)]
+        );
+    }
+
+    #[test]
+    fn retry_with_policy_uses_operation_retry_after_delay() {
+        let mut attempts = 0usize;
+        let mut delays = Vec::new();
+        let config = RetryConfig {
+            max_attempts: 2,
+            base_delay: Duration::from_millis(10),
+            max_delay: Duration::from_millis(100),
+        };
+
+        let result: Result<u32, &'static str> = retry_with_policy_using(
+            config,
+            || {
+                attempts += 1;
+                if attempts == 1 { Err("rate") } else { Ok(9) }
+            },
+            |_| RetryDecision::RetryAfter(Duration::from_millis(250)),
+            |delay| delays.push(delay),
+        );
+
+        assert_eq!(result, Ok(9));
+        assert_eq!(delays, vec![Duration::from_millis(100)]);
     }
 }
