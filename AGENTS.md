@@ -157,6 +157,11 @@ validation expectations for `C:\dev\wavecrate`.
   Wavecrate/Radiant split and the "large import lists are architecture signals"
   policy. Keep comments focused on why, not what. Remove `todo!()`,
   `unimplemented!()`, and `dbg!()` before committing.
+- When a module grows a broad GUI import or export surface, split the module by responsibility,
+  move reusable GUI behavior into Radiant, and avoid wildcard
+  imports outside tests/preludes. A facade may wire focused modules together, but
+  it should not hide ownership, state shape, widget construction, and side
+  effects behind a dumping-ground module.
 - Optimize architecture first. Avoid unnecessary allocations, cloning, boxing,
   and async unless justified.
 

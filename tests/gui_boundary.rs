@@ -1,18 +1,19 @@
 //! Source-quality guardrails for the Wavecrate/Radiant GUI boundary.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 #[test]
 fn gui_module_stays_a_pure_radiant_reexport_boundary() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let source = fs::read_to_string(format!("{manifest_dir}/src/gui/mod.rs"))
-        .expect("src/gui/mod.rs should be readable");
+    let source = fs::read_to_string(format!("{manifest_dir}/src/ui_primitives/mod.rs"))
+        .expect("src/ui_primitives/mod.rs should be readable");
 
     for forbidden in ["pub trait ", "impl ", "fn ", "struct ", "enum ", "const "] {
         assert!(
             !source.contains(forbidden),
-            "src/gui should stay a pure Radiant re-export boundary; found `{forbidden}`"
+            "src/ui_primitives should stay a pure Radiant re-export boundary; found `{forbidden}`"
         );
     }
 }
@@ -44,7 +45,7 @@ fn agent_instructions_call_out_large_gui_import_lists() {
         .expect("AGENTS.md should be readable");
 
     for required in [
-        "large import lists as architecture signals",
+        "large import lists are architecture signals",
         "split the module by responsibility",
         "move reusable",
         "GUI behavior into Radiant",
@@ -60,7 +61,7 @@ fn agent_instructions_call_out_large_gui_import_lists() {
 #[test]
 fn production_gui_modules_do_not_use_top_level_wildcard_imports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let gui_root = manifest_dir.join("src/gui_app");
+    let gui_root = manifest_dir.join("src/native_app/app_chrome");
     let mut offenders = Vec::new();
     collect_top_level_wildcard_imports(&gui_root, &mut offenders);
 
@@ -68,6 +69,54 @@ fn production_gui_modules_do_not_use_top_level_wildcard_imports() {
         offenders.is_empty(),
         "production GUI modules should use explicit imports instead of top-level wildcard imports:\n{}",
         offenders.join("\n")
+    );
+}
+
+#[test]
+fn cross_crate_public_wildcard_reexports_are_explicitly_audited() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_root = manifest_dir.join("src");
+    let mut actual = BTreeSet::new();
+    collect_cross_crate_public_wildcard_reexports(&source_root, &manifest_dir, &mut actual);
+
+    let expected: BTreeSet<String> = [
+        "src/sample_sources/mod.rs:wavecrate_library::sample_sources::db::*",
+        "src/sample_sources/mod.rs:wavecrate_library::sample_sources::library::*",
+        "src/sample_sources/mod.rs:wavecrate_scan::sample_sources::scan_state::*",
+        "src/sample_sources/mod.rs:wavecrate_scan::sample_sources::scanner::*",
+        "src/ui_primitives/mod.rs:radiant::gui::automation::*",
+        "src/ui_primitives/mod.rs:radiant::gui::badge::*",
+        "src/ui_primitives/mod.rs:radiant::gui::chrome::*",
+        "src/ui_primitives/mod.rs:radiant::gui::feedback::*",
+        "src/ui_primitives/mod.rs:radiant::gui::fingerprint::*",
+        "src/ui_primitives/mod.rs:radiant::gui::focus::*",
+        "src/ui_primitives/mod.rs:radiant::gui::form::*",
+        "src/ui_primitives/mod.rs:radiant::gui::frame::*",
+        "src/ui_primitives/mod.rs:radiant::gui::input::*",
+        "src/ui_primitives/mod.rs:radiant::gui::invalidation::*",
+        "src/ui_primitives/mod.rs:radiant::gui::layout_core::*",
+        "src/ui_primitives/mod.rs:radiant::gui::list::*",
+        "src/ui_primitives/mod.rs:radiant::gui::paint::*",
+        "src/ui_primitives/mod.rs:radiant::gui::panel::*",
+        "src/ui_primitives/mod.rs:radiant::gui::range::*",
+        "src/ui_primitives/mod.rs:radiant::gui::repaint::*",
+        "src/ui_primitives/mod.rs:radiant::gui::retained::*",
+        "src/ui_primitives/mod.rs:radiant::gui::selection::*",
+        "src/ui_primitives/mod.rs:radiant::gui::shortcuts::*",
+        "src/ui_primitives/mod.rs:radiant::gui::snapshot::*",
+        "src/ui_primitives/mod.rs:radiant::gui::svg::*",
+        "src/ui_primitives/mod.rs:radiant::gui::text_layout::*",
+        "src/ui_primitives/mod.rs:radiant::gui::types::*",
+        "src/ui_primitives/mod.rs:radiant::gui::visualization::*",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+
+    assert_eq!(
+        actual, expected,
+        "cross-crate public wildcard re-exports must be audited compatibility shims; \
+         narrow the export or add an explicit ownership note before updating this list"
     );
 }
 
@@ -96,6 +145,52 @@ fn collect_top_level_wildcard_imports(dir: &Path, offenders: &mut Vec<String>) {
             }
         }
     }
+}
+
+fn collect_cross_crate_public_wildcard_reexports(
+    dir: &Path,
+    manifest_dir: &Path,
+    actual: &mut BTreeSet<String>,
+) {
+    for entry in fs::read_dir(dir).unwrap_or_else(|err| panic!("{dir:?} should be readable: {err}"))
+    {
+        let entry = entry.expect("source directory entry should be readable");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_cross_crate_public_wildcard_reexports(&path, manifest_dir, actual);
+            continue;
+        }
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("{} should be readable: {err}", path.display()));
+        for line in source
+            .lines()
+            .filter_map(cross_crate_public_wildcard_target)
+        {
+            let relative = path.strip_prefix(manifest_dir).unwrap_or(&path);
+            actual.insert(format!("{}:{line}", relative.display()).replace('\\', "/"));
+        }
+    }
+}
+
+fn cross_crate_public_wildcard_target(line: &str) -> Option<String> {
+    let target = line
+        .trim()
+        .strip_prefix("pub use ")?
+        .strip_suffix(';')?
+        .trim();
+    if !target.ends_with("::*") || !target.contains("::") {
+        return None;
+    }
+    let root = target.split("::").next().unwrap_or_default();
+    matches!(
+        root,
+        "radiant" | "reson" | "wavecrate_analysis" | "wavecrate_library" | "wavecrate_scan"
+    )
+    .then(|| target.to_owned())
 }
 
 fn is_test_source(path: &Path) -> bool {
