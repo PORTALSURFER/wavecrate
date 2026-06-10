@@ -80,10 +80,6 @@ fn cross_crate_public_wildcard_reexports_are_explicitly_audited() {
     collect_cross_crate_public_wildcard_reexports(&source_root, &manifest_dir, &mut actual);
 
     let expected: BTreeSet<String> = [
-        "src/sample_sources/mod.rs:wavecrate_library::sample_sources::db::*",
-        "src/sample_sources/mod.rs:wavecrate_library::sample_sources::library::*",
-        "src/sample_sources/mod.rs:wavecrate_scan::sample_sources::scan_state::*",
-        "src/sample_sources/mod.rs:wavecrate_scan::sample_sources::scanner::*",
         "src/ui_primitives/mod.rs:radiant::gui::automation::*",
         "src/ui_primitives/mod.rs:radiant::gui::badge::*",
         "src/ui_primitives/mod.rs:radiant::gui::chrome::*",
