@@ -92,14 +92,7 @@ impl AudioPlayer {
                     plan.sample_count(),
                 ))
             } else {
-                let loop_source = repeating_source_for_audio_source(
-                    self.audio_source()?,
-                    sample_rate,
-                    channels,
-                    0,
-                    plan.sample_count(),
-                    plan.seek_offset_frames(),
-                )?;
+                let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
@@ -143,36 +136,30 @@ impl AudioPlayer {
             self.anti_clip_fade(),
         );
         let final_source: Box<dyn Source<Item = f32> + Send> = if looped {
-            let diagnostic: Box<dyn Source<Item = f32> + Send> =
-                if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                    let source = SamplesBuffer::from_arc_span(
-                        channels,
-                        sample_rate,
-                        samples,
-                        plan.start_sample(),
-                        plan.end_sample(),
-                    )
-                    .repeat_infinite();
-                    Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                        source,
-                        plan.sample_count(),
-                    ))
-                } else {
-                    let loop_source = repeating_source_for_audio_source(
-                        self.audio_source()?,
-                        sample_rate,
-                        channels,
-                        plan.start_frame(),
-                        plan.sample_count(),
-                        0,
-                    )?;
-                    let mut async_source = AsyncSource::new(loop_source);
-                    async_source.prefill();
-                    Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                        async_source,
-                        plan.sample_count(),
-                    ))
-                };
+            let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
+                self.playback_samples.as_ref().cloned()
+            {
+                let source = SamplesBuffer::from_arc_span(
+                    channels,
+                    sample_rate,
+                    samples,
+                    plan.start_sample(),
+                    plan.end_sample(),
+                )
+                .repeat_infinite();
+                Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
+                    source,
+                    plan.sample_count(),
+                ))
+            } else {
+                let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
+                let mut async_source = AsyncSource::new(loop_source);
+                async_source.prefill();
+                Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
+                    async_source,
+                    plan.sample_count(),
+                ))
+            };
             let editable = EditFadeSource::new_looped(
                 diagnostic,
                 self.edit_fade_handle.clone(),
@@ -192,14 +179,8 @@ impl AudioPlayer {
                         plan.end_sample(),
                     ))
                 } else {
-                    let lazy_source = span_source_for_audio_source(
-                        self.audio_source()?,
-                        sample_rate,
-                        channels,
-                        plan.start_frame(),
-                        plan.sample_count(),
-                        duration,
-                    )?;
+                    let lazy_source =
+                        span_source_for_audio_source(self.audio_source()?, &plan, duration)?;
                     let mut async_source = AsyncSource::new(lazy_source);
                     async_source.prefill();
                     Box::new(
@@ -268,14 +249,7 @@ impl AudioPlayer {
                     plan.sample_count(),
                 ))
             } else {
-                let loop_source = repeating_source_for_audio_source(
-                    self.audio_source()?,
-                    sample_rate,
-                    channels,
-                    plan.start_frame(),
-                    plan.sample_count(),
-                    plan.seek_offset_frames(),
-                )?;
+                let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
                 let editable = EditFadeSource::new_looped(
@@ -340,20 +314,19 @@ impl AudioPlayer {
 
 fn span_source_for_audio_source(
     source: AudioPlaybackSource,
-    sample_rate: u32,
-    channels: u16,
-    start_frame: u64,
-    span_samples: u64,
+    plan: &PlaybackSpanPlan,
     duration: f32,
 ) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
+    let sample_rate = plan.layout().sample_rate();
+    let channels = plan.layout().channels();
     match source {
         AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
             Ok(Box::new(InterleavedF32FileSpanSource::new(
                 path,
                 sample_rate,
                 channels,
-                start_frame,
-                span_samples,
+                plan.start_frame(),
+                plan.sample_count(),
                 sample_count,
                 duration,
             )))
@@ -362,8 +335,8 @@ fn span_source_for_audio_source(
             source,
             sample_rate,
             channels,
-            start_frame,
-            span_samples,
+            plan.start_frame(),
+            plan.sample_count(),
             duration,
         ))),
     }
@@ -371,21 +344,19 @@ fn span_source_for_audio_source(
 
 fn repeating_source_for_audio_source(
     source: AudioPlaybackSource,
-    sample_rate: u32,
-    channels: u16,
-    start_frame: u64,
-    span_samples: u64,
-    offset_frames: u64,
+    plan: &PlaybackSpanPlan,
 ) -> Result<Box<dyn Source<Item = f32> + Send>, String> {
+    let sample_rate = plan.layout().sample_rate();
+    let channels = plan.layout().channels();
     match source {
         AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
             Ok(Box::new(InterleavedF32FileRepeatingSpanSource::new(
                 path,
                 sample_rate,
                 channels,
-                start_frame,
-                span_samples,
-                offset_frames,
+                plan.start_frame(),
+                plan.sample_count(),
+                plan.seek_offset_frames(),
                 sample_count,
             )))
         }
@@ -393,9 +364,9 @@ fn repeating_source_for_audio_source(
             source,
             sample_rate,
             channels,
-            start_frame,
-            span_samples,
-            offset_frames,
+            plan.start_frame(),
+            plan.sample_count(),
+            plan.seek_offset_frames(),
         ))),
     }
 }
