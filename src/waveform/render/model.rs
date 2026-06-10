@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::fade_preview::{apply_fade_to_columns, apply_fade_to_samples, fade_intersects_view};
 use super::{WaveformRenderViewport, WaveformRenderer};
 use crate::waveform::{WaveformChannelView, WaveformColumnView};
@@ -109,25 +111,12 @@ impl WaveformRenderer {
         view: WaveformChannelView,
         viewport: RenderModelViewport,
     ) -> WaveformRenderModel {
-        let line_samples = if viewport.edit_fade.is_some()
-            && fade_intersects_view(viewport.view_start, viewport.view_end, viewport.edit_fade)
-        {
-            apply_fade_to_samples(
-                samples,
-                channels,
-                samples.len() / channels,
-                viewport.view_start,
-                viewport.view_end,
-                viewport.edit_fade,
-            )
-        } else {
-            samples.to_vec()
-        };
+        let line_samples = line_render_samples(samples, channels, viewport);
 
         match view {
             WaveformChannelView::Mono => {
                 WaveformRenderModel::Line(Self::line_trace_model(LineTraceRequest {
-                    samples: &line_samples,
+                    samples: line_samples.as_ref(),
                     channels,
                     width: viewport.width,
                     height: viewport.height,
@@ -141,14 +130,14 @@ impl WaveformRenderer {
                     height: viewport.height,
                     gap,
                     top: Self::line_trace_model(LineTraceRequest {
-                        samples: &line_samples,
+                        samples: line_samples.as_ref(),
                         channels,
                         width: viewport.width,
                         height: top_height,
                         channel_index: Some(0),
                     }),
                     bottom: Self::line_trace_model(LineTraceRequest {
-                        samples: &line_samples,
+                        samples: line_samples.as_ref(),
                         channels,
                         width: viewport.width,
                         height: bottom_height,
@@ -258,6 +247,26 @@ impl WaveformRenderer {
     }
 }
 
+fn line_render_samples<'a>(
+    samples: &'a [f32],
+    channels: usize,
+    viewport: RenderModelViewport,
+) -> Cow<'a, [f32]> {
+    if viewport.edit_fade.is_some()
+        && fade_intersects_view(viewport.view_start, viewport.view_end, viewport.edit_fade)
+    {
+        return Cow::Owned(apply_fade_to_samples(
+            samples,
+            channels,
+            samples.len() / channels,
+            viewport.view_start,
+            viewport.view_end,
+            viewport.edit_fade,
+        ));
+    }
+    Cow::Borrowed(samples)
+}
+
 pub(in crate::waveform::render) fn split_band_heights(height: u32) -> (u32, u32, u32) {
     let gap = if height >= 3 { 2 } else { 0 };
     let split_height = height.saturating_sub(gap);
@@ -320,5 +329,74 @@ mod tests {
                 .last()
                 .is_some_and(|column| column.0.abs() < 1e-6 && column.1.abs() < 1e-6)
         );
+    }
+
+    #[test]
+    fn line_render_samples_borrows_when_fade_is_absent() {
+        let samples = [0.0, 0.25, -0.25, 0.5];
+        let viewport = RenderModelViewport {
+            width: 4,
+            height: 5,
+            view_start: 0.0,
+            view_end: 1.0,
+            edit_fade: None,
+        };
+
+        let line_samples = line_render_samples(&samples, 1, viewport);
+
+        assert!(matches!(line_samples, Cow::Borrowed(_)));
+        assert!(std::ptr::eq(
+            line_samples.as_ref().as_ptr(),
+            samples.as_ptr()
+        ));
+    }
+
+    #[test]
+    fn non_fade_line_model_matches_owned_clone_reference() {
+        let samples = [0.0, 0.5, -0.5, 1.0];
+        let viewport = WaveformRenderViewport {
+            size: [4, 5],
+            view_start: 0.0,
+            view_end: 1.0,
+            edit_fade: None,
+        };
+        let model =
+            WaveformRenderer::render_model(&samples, 1, WaveformChannelView::Mono, viewport);
+        let owned = samples.to_vec();
+        let reference =
+            WaveformRenderModel::Line(WaveformRenderer::line_trace_model(LineTraceRequest {
+                samples: &owned,
+                channels: 1,
+                width: 4,
+                height: 5,
+                channel_index: None,
+            }));
+
+        assert_eq!(model, reference);
+    }
+
+    #[test]
+    fn fade_line_model_matches_faded_sample_reference() {
+        let samples = [1.0, 1.0, 1.0, 1.0];
+        let selection = SelectionRange::new(0.0, 1.0).with_fade_out(1.0, 0.0);
+        let viewport = WaveformRenderViewport {
+            size: [4, 5],
+            view_start: 0.0,
+            view_end: 1.0,
+            edit_fade: Some(selection),
+        };
+        let model =
+            WaveformRenderer::render_model(&samples, 1, WaveformChannelView::Mono, viewport);
+        let faded = apply_fade_to_samples(&samples, 1, 4, 0.0, 1.0, Some(selection));
+        let reference =
+            WaveformRenderModel::Line(WaveformRenderer::line_trace_model(LineTraceRequest {
+                samples: &faded,
+                channels: 1,
+                width: 4,
+                height: 5,
+                channel_index: None,
+            }));
+
+        assert_eq!(model, reference);
     }
 }
