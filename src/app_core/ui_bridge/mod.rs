@@ -191,6 +191,7 @@ impl WavecrateUiBridge {
 
     /// Reduce one Wavecrate-owned runtime UI action into controller state.
     pub(crate) fn reduce_action(&mut self, action: NativeUiAction) {
+        let action = action.upgrade_compatibility();
         let handled = if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
             self.reduce_browser_focus_action(delta);
             true

@@ -1,9 +1,8 @@
 //! Domain-family classification for Wavecrate UI actions.
 //!
-//! `UiAction` keeps its stable serialized variant surface for runtime and
-//! automation compatibility. This module names the action families explicitly
-//! so dispatch, catalog, invalidation, and tests can migrate by domain without
-//! treating the compatibility enum as one undifferentiated API.
+//! This module names action families explicitly so dispatch, catalog,
+//! invalidation, and tests can migrate by domain without treating the root
+//! action enum as one undifferentiated API.
 
 use super::UiAction;
 
@@ -34,7 +33,7 @@ impl UiAction {
     /// Return the domain family that owns this action's behavior.
     pub fn domain(&self) -> UiActionDomain {
         match self {
-            // Column / triage compatibility actions.
+            // Column / triage actions.
             UiAction::SelectColumn { .. } => UiActionDomain::ColumnTriage,
             UiAction::MoveColumn { .. } => UiActionDomain::ColumnTriage,
             // Transport and global playback actions.

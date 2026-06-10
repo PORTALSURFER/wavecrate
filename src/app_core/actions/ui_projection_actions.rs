@@ -1,19 +1,22 @@
 //! Wavecrate-owned UI runtime action DTOs.
 //!
-//! These actions describe Wavecrate user intent inside app-core. Radiant still
-//! emits and consumes a compatibility copy at the runtime boundary, so this
-//! module keeps narrow adapters without making Radiant the owner of Wavecrate
-//! dispatch payloads.
+//! These actions describe Wavecrate user intent inside app-core. Retained
+//! legacy input shapes are owned by the sibling compatibility adapter so the
+//! primary action contract can stay focused on active behavior.
 
 use super::ui_projection_dtos::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use crate::app_core::state::{BrowserSidebarFilterFacet, BrowserSidebarFilterOption};
 use serde::{Deserialize, Serialize};
 
+mod compatibility;
 mod domain;
 #[cfg(test)]
 mod precision_eq;
 mod transport;
 
+pub use self::compatibility::{
+    CompatibilityAction, CompatibilityPolicy, upgrade_compatibility_action,
+};
 pub use self::domain::UiActionDomain;
 pub use self::transport::TransportAction;
 
@@ -32,7 +35,7 @@ pub enum BrowserTagTarget {
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UiAction {
-    // Column / triage compatibility actions.
+    // Column / triage actions.
     /// Select a target triage/browser column.
     SelectColumn {
         /// Target column index in the visible triage column set.
@@ -623,17 +626,11 @@ pub enum UiAction {
         position_nanos: u32,
     },
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
-    ///
-    /// This compatibility action is retained for older callers and is upgraded
-    /// to the precise nanounit path at the host boundary.
     SeekWaveform {
         /// Normalized milli target position (`0..=1000`).
         position_milli: u16,
     },
     /// Set waveform cursor to a normalized milli position (`0..=1000`).
-    ///
-    /// This compatibility action is retained for older callers and is upgraded
-    /// to the precise nanounit path at the host boundary.
     SetWaveformCursor {
         /// Normalized milli cursor position (`0..=1000`).
         position_milli: u16,
