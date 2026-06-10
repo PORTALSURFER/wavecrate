@@ -29,12 +29,6 @@ const FOLDER_TREE_ACTIVE_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
     b: 78,
     a: 220,
 };
-const FOLDER_TREE_CANDIDATE_HOVER_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 122,
-    b: 74,
-    a: 150,
-};
 const FOLDER_TREE_DROP_OUTLINE: ui::Rgba8 = ui::Rgba8 {
     r: 255,
     g: 180,
@@ -199,7 +193,7 @@ fn folder_tree_palette() -> ui::DenseRowPalette {
         .selected(FOLDER_TREE_SELECTED_FILL)
         .interaction_fills(SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL)
         .active_target(FOLDER_TREE_ACTIVE_TARGET_FILL)
-        .candidate_hovered(FOLDER_TREE_CANDIDATE_HOVER_FILL)
+        .candidate_hovered(SIDEBAR_ROW_HOVER_FILL)
 }
 
 fn folder_tree_drop_target_outline() -> ui::DenseRowOutlineStyle {
@@ -235,6 +229,7 @@ mod tests {
         let palette = folder_tree_palette();
 
         assert_eq!(palette.hovered, Some(SIDEBAR_ROW_HOVER_FILL));
+        assert_eq!(palette.candidate_hovered, Some(SIDEBAR_ROW_HOVER_FILL));
         assert_eq!(palette.selected, Some(FOLDER_TREE_SELECTED_FILL));
     }
 }

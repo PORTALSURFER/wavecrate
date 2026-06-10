@@ -168,3 +168,55 @@ pub(super) fn sidebar_row_palette(paints_interaction: bool) -> ui::DenseRowPalet
         )
         .active_target(SIDEBAR_ROW_DROP_TARGET_FILL)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::widgets::{Widget, WidgetInput};
+
+    fn hit_target(selected: bool, active_target: bool) -> SidebarRowHitTarget {
+        SidebarRowHitTarget {
+            row: ui::interactive_row().custom_paint_hit_target().widget(),
+            actions: ui::InteractiveRowActions::new(),
+            selected,
+            active_target,
+            leading_marker: None,
+        }
+    }
+
+    #[test]
+    fn hovered_sidebar_row_paints_neutral_sample_list_hover_fill() {
+        let bounds = ui::Rect::from_size(120.0, 22.0);
+        let mut target = hit_target(false, false);
+        target.handle_input(bounds, WidgetInput::pointer_move(ui::Point::new(8.0, 8.0)));
+
+        let plan = target.paint_plan_with_defaults(bounds);
+
+        assert!(
+            plan.fill_rects()
+                .any(|fill| fill.color == SIDEBAR_ROW_HOVER_FILL),
+            "hovered sidebar rows should use the neutral sample-list hover fill"
+        );
+    }
+
+    #[test]
+    fn hovered_selected_sidebar_row_keeps_neutral_hover_priority() {
+        let bounds = ui::Rect::from_size(120.0, 22.0);
+        let mut target = hit_target(true, false);
+        target.handle_input(bounds, WidgetInput::pointer_move(ui::Point::new(8.0, 8.0)));
+
+        let plan = target.paint_plan_with_defaults(bounds);
+
+        assert!(
+            plan.fill_rects()
+                .any(|fill| fill.color == SIDEBAR_ROW_HOVER_FILL),
+            "hover should stay neutral even when a sidebar row is selected"
+        );
+        assert!(
+            !plan
+                .fill_rects()
+                .any(|fill| fill.color == SIDEBAR_ROW_SELECTED_FILL),
+            "hover fill has priority over the selected fill"
+        );
+    }
+}
