@@ -4,6 +4,10 @@ use std::fs::File;
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
+mod riff;
+
+use riff::{WavChunkItem, WavChunkIter};
+
 const MAX_SANITIZED_WAV_BYTES: u64 = 64 * 1024 * 1024;
 const SANITIZE_PROBE_BYTES: u64 = 4096;
 
@@ -162,50 +166,22 @@ pub fn open_sanitized_wav(path: &Path) -> Result<SanitizedWavReader, String> {
 /// beyond `total_file_len`, and it stops once the `fmt ` chunk falls outside the
 /// buffered prefix because the unsupported bytes cannot be inspected safely.
 fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
-    if bytes.len() < 12 {
+    let Ok(chunks) = WavChunkIter::new(bytes, total_file_len) else {
         return false;
-    }
-    if &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
-        return false;
-    }
-
-    let mut offset = 12usize;
-    while offset + 8 <= bytes.len() {
-        let chunk_id = [
-            bytes[offset],
-            bytes[offset + 1],
-            bytes[offset + 2],
-            bytes[offset + 3],
-        ];
-        let chunk_size =
-            u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap()) as usize;
-        let chunk_data = match offset.checked_add(8) {
-            Some(value) => value,
-            None => return false,
-        };
-        let chunk_end = match chunk_data.checked_add(chunk_size) {
-            Some(value) => value,
-            None => return false,
-        };
-        if (chunk_data as u64)
-            .checked_add(chunk_size as u64)
-            .is_none_or(|end| end > total_file_len)
-        {
-            return false;
-        }
-        if chunk_end > bytes.len() {
-            break;
-        }
-        if &chunk_id == b"fmt " {
-            return shrink_pcm_fmt_chunk_with_padding(bytes, offset, chunk_size, total_file_len);
-        }
-
-        offset = chunk_end;
-        if chunk_size % 2 == 1 {
-            offset = match offset.checked_add(1) {
-                Some(value) => value,
-                None => return false,
-            };
+    };
+    for item in chunks {
+        match item {
+            WavChunkItem::Chunk(chunk) if chunk.id() == b"fmt " => {
+                return shrink_pcm_fmt_chunk_with_padding(
+                    bytes,
+                    chunk.offset(),
+                    chunk.data_size(),
+                    total_file_len,
+                );
+            }
+            WavChunkItem::Chunk(_) => {}
+            WavChunkItem::IncompletePrefix { .. } => break,
+            WavChunkItem::Invalid(_) => return false,
         }
     }
 
