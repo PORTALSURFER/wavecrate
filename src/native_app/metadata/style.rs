@@ -12,12 +12,12 @@ pub(in crate::native_app) fn metadata_tag_category_tone(category_id: &str) -> ui
     }
 }
 
-pub(in crate::native_app) fn metadata_tag_category_style(
+pub(in crate::native_app) fn metadata_tag_pill_style(
     category_id: &str,
-    selected: bool,
+    active: bool,
 ) -> ui::WidgetStyle {
     let tone = metadata_tag_category_tone(category_id);
-    if selected || metadata_tag_category_is_pinned(category_id) {
+    if active {
         ui::WidgetStyle::strong(tone)
     } else {
         ui::WidgetStyle::subtle(tone)
@@ -33,7 +33,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metadata_category_style_keeps_fixed_vocabulary_visual_policy() {
+    fn metadata_tag_pill_style_keeps_fixed_vocabulary_visual_policy() {
         assert_eq!(
             metadata_tag_category_tone("sound-type"),
             ui::WidgetTone::Accent
@@ -43,15 +43,19 @@ mod tests {
             ui::WidgetTone::Success
         );
         assert_eq!(
-            metadata_tag_category_style("playback-type", false).prominence,
-            ui::WidgetProminence::Strong
-        );
-        assert_eq!(
-            metadata_tag_category_style("character", false).prominence,
+            metadata_tag_pill_style("playback-type", false).prominence,
             ui::WidgetProminence::Subtle
         );
         assert_eq!(
-            metadata_tag_category_style("character", true).prominence,
+            metadata_tag_pill_style("playback-type", true).prominence,
+            ui::WidgetProminence::Strong
+        );
+        assert_eq!(
+            metadata_tag_pill_style("character", false).prominence,
+            ui::WidgetProminence::Subtle
+        );
+        assert_eq!(
+            metadata_tag_pill_style("character", true).prominence,
             ui::WidgetProminence::Strong
         );
     }

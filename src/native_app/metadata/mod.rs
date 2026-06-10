@@ -5,9 +5,7 @@ use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::time::Instant;
 
 pub(super) use metrics::{metadata_tag_input_width_policy, metadata_tag_pill_width};
-pub(in crate::native_app) use style::{
-    metadata_tag_category_is_pinned, metadata_tag_category_style, metadata_tag_category_tone,
-};
+pub(in crate::native_app) use style::{metadata_tag_category_is_pinned, metadata_tag_pill_style};
 #[cfg(test)]
 pub(super) use types::MetadataTagCommit;
 pub(super) use types::{

@@ -3,7 +3,7 @@ use radiant::prelude as ui;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::TagEditorViewModel;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
-use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_category_style};
+use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_pill_style};
 use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::ui::ids as widget_ids;
 
@@ -239,21 +239,19 @@ fn tag_entry_row(
 }
 
 fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<GuiMessage> {
-    let style = metadata_tag_category_style(category_id, selected);
+    let active = selected || metadata_tag_category_is_pinned(category_id);
+    let style = metadata_tag_pill_style(category_id, active);
     let tag_for_input = tag.to_string();
-    let mut badge = ui::interactive_badge(tag.to_string())
+    ui::interactive_badge(tag.to_string())
         .style(style)
+        .active(active)
         .actions(ui::InteractiveRowActions::new().activate_secondary_key(
             tag_for_input,
             GuiMessage::SelectMetadataTag,
             |tag, position| GuiMessage::OpenMetadataTagContextMenu { tag, position },
         ))
         .key(format!("metadata-tag-accepted-{tag}"))
-        .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT);
-    if !selected && !metadata_tag_category_is_pinned(category_id) {
-        badge = badge.subtle();
-    }
-    badge
+        .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
 }
 
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {

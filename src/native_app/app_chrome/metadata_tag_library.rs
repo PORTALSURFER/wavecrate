@@ -1,7 +1,7 @@
 use crate::native_app::{
     app::{GuiMessage, NativeAppState},
     metadata::metadata_tag_pill_width,
-    metadata::{MetadataTagCategoryGroup, metadata_tag_category_tone},
+    metadata::{MetadataTagCategoryGroup, metadata_tag_pill_style},
 };
 use radiant::prelude as ui;
 
@@ -161,21 +161,13 @@ fn tag_row(
     active_drop_target: bool,
 ) -> ui::View<GuiMessage> {
     let selected = selected_tags.iter().any(|selected| selected == &tag);
-    let tone = metadata_tag_category_tone(category_id);
-    let style = if selected || locked {
-        ui::WidgetStyle::strong(tone)
-    } else {
-        ui::WidgetStyle::subtle(tone)
-    };
+    let style = metadata_tag_pill_style(category_id, selected);
     let width = metadata_tag_pill_width(&tag);
     let tag_for_input = tag.clone();
     let category_for_input = category_id.to_string();
     let mut badge = ui::interactive_badge(tag.clone())
         .style(style)
-        .active(selected || locked);
-    if !selected && !locked {
-        badge = badge.subtle();
-    }
+        .active(selected);
 
     if !locked {
         badge = badge
