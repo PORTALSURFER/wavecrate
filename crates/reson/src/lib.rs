@@ -32,7 +32,11 @@ pub use output::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioOutputError, ResolvedOutput,
     available_devices, available_hosts, open_output_stream, supported_sample_rates,
 };
-pub use player::{AudioPlayer, EditFadeRange, FadeParams};
+pub use player::{
+    AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackSeekBehavior,
+    PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan, PlaybackSpanPlanError,
+    PlaybackSpanRequest,
+};
 pub use recording::{AudioRecorder, InputMonitor, RecordingOutcome};
 pub use time_stretch::Wsola;
 

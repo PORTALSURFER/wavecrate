@@ -8,7 +8,10 @@ use crate::{Source, player::AudioPlayer};
 use super::super::super::mixer::{
     decoder_duration, decoder_from_bytes, map_seek_error, wav_header_duration,
 };
-use super::span::QuantizedSpan;
+use super::super::{
+    PlaybackChannelLayout, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
+    PlaybackSpanPlan, PlaybackSpanRequest,
+};
 
 impl AudioPlayer {
     /// Calculate a frame-aligned span duration that never extends beyond the
@@ -37,18 +40,29 @@ impl AudioPlayer {
         let mut source = decoder_from_bytes(bytes)?;
         let sample_rate = source.sample_rate().max(1);
         let channels = source.channels().max(1);
-        let span = QuantizedSpan::new(start_seconds, end_seconds, duration, sample_rate, channels);
+        let span = PlaybackSpanPlan::new(
+            PlaybackSourceIdentity::new(PlaybackSourceKind::Bytes, None),
+            PlaybackChannelLayout::new(channels, sample_rate).map_err(|err| err.to_string())?,
+            PlaybackSpanRequest::new(
+                start_seconds,
+                end_seconds,
+                duration,
+                true,
+                PlaybackSeekBehavior::SpanStart,
+            ),
+        )
+        .map_err(|err| err.to_string())?;
 
         source
-            .try_seek(duration_for_frames(span.start_frame, sample_rate))
+            .try_seek(duration_for_frames(span.start_frame(), sample_rate))
             .map_err(map_seek_error)?;
 
-        let samples = read_span_samples(source, span.samples);
+        let samples = read_span_samples(source, span.sample_count());
         let offset_samples = offset_seconds
-            .map(|seconds| seconds_to_frames_round(seconds, sample_rate) % span.frames)
+            .map(|seconds| seconds_to_frames_round(seconds, sample_rate) % span.frame_count())
             .map(|frames| frames.saturating_mul(channels as u64) as usize);
         let emitted = looped_sample_count(samples, channels, sample_rate, offset_samples);
-        Ok((emitted, span.frames as usize, sample_rate, channels))
+        Ok((emitted, span.frame_count() as usize, sample_rate, channels))
     }
 }
 

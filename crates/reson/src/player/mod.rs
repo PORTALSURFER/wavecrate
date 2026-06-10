@@ -8,10 +8,15 @@ use super::output::{CpalAudioStream, ResolvedOutput};
 mod edit_fade_impl;
 mod helpers;
 mod playback;
+mod playback_span_plan;
 mod progress;
 mod state;
 pub(crate) use edit_fade_impl::{EditFadeHandle, EditFadeSource};
 pub use edit_fade_impl::{EditFadeRange, FadeParams};
+pub use playback_span_plan::{
+    PlaybackChannelLayout, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
+    PlaybackSpanPlan, PlaybackSpanPlanError, PlaybackSpanRequest,
+};
 
 #[derive(Clone)]
 pub(crate) enum AudioPlaybackSource {
@@ -26,6 +31,17 @@ impl AudioPlaybackSource {
             Self::Bytes(_) => "bytes",
             Self::File(_) => "file",
             Self::InterleavedF32File { .. } => "interleaved_f32_file",
+        }
+    }
+
+    pub(crate) fn identity(&self) -> PlaybackSourceIdentity {
+        match self {
+            Self::Bytes(_) => PlaybackSourceIdentity::new(PlaybackSourceKind::Bytes, None),
+            Self::File(_) => PlaybackSourceIdentity::new(PlaybackSourceKind::File, None),
+            Self::InterleavedF32File { sample_count, .. } => PlaybackSourceIdentity::new(
+                PlaybackSourceKind::InterleavedF32File,
+                Some(*sample_count),
+            ),
         }
     }
 }

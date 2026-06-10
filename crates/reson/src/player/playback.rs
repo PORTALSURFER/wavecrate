@@ -3,15 +3,16 @@ use crate::timebase::{frames_to_seconds, seconds_to_frames_round};
 use crate::{AsyncSource, Source};
 
 use super::super::fade::{EdgeFade, fade_duration};
-use super::{AudioPlaybackSource, AudioPlayer, EditFadeSource};
+use super::{
+    AudioPlaybackSource, AudioPlayer, EditFadeSource, PlaybackChannelLayout, PlaybackSeekBehavior,
+    PlaybackSpanPlan, PlaybackSpanRequest,
+};
 
 use lazy_sources::{
     InterleavedF32FileRepeatingSpanSource, InterleavedF32FileSpanSource, LazyRepeatingSpanSource,
     LazySpanSource,
 };
-use span::QuantizedSpan;
 mod lazy_sources;
-mod span;
 #[cfg(test)]
 mod test_support;
 
@@ -61,31 +62,34 @@ impl AudioPlayer {
 
         let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
         let channels = self.track_channels.unwrap_or(1).max(1);
+
         let total_frames = self
             .track_total_frames
             .unwrap_or_else(|| seconds_to_frames_round(duration, sample_rate).max(1));
-        if total_frames == 0 {
-            return Err("Load a .wav file first".into());
-        }
-
-        let offset_frames = ((start.clamp(0.0, 1.0) * total_frames as f64).floor() as u64)
+        let plan_duration = frames_to_seconds(total_frames, sample_rate);
+        let offset_frame = ((start.clamp(0.0, 1.0) * total_frames as f64).floor() as u64)
             .min(total_frames.saturating_sub(1));
-        let span_samples = total_frames.saturating_mul(channels as u64);
+        let plan = self.playback_span_plan(
+            0.0,
+            plan_duration,
+            plan_duration,
+            true,
+            PlaybackSeekBehavior::FrameOffset(offset_frame),
+        )?;
         let diagnostic: Box<dyn Source<Item = f32> + Send> =
             if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
                 let source = SamplesBuffer::from_arc_span_at(
                     channels,
                     sample_rate,
                     samples,
                     0,
-                    span_samples as usize,
-                    offset_samples,
+                    plan.sample_count() as usize,
+                    plan.seek_sample(),
                 )
                 .repeat_infinite();
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                     source,
-                    span_samples,
+                    plan.sample_count(),
                 ))
             } else {
                 let loop_source = repeating_source_for_audio_source(
@@ -93,34 +97,21 @@ impl AudioPlayer {
                     sample_rate,
                     channels,
                     0,
-                    span_samples,
-                    offset_frames,
+                    plan.sample_count(),
+                    plan.seek_offset_frames(),
                 )?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                     async_source,
-                    span_samples,
+                    plan.sample_count(),
                 ))
             };
 
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
-        let track_duration_seconds = frames_to_seconds(total_frames, sample_rate);
-        self.started_at = Some(std::time::Instant::now());
-        self.play_span = Some((0.0, track_duration_seconds));
-        self.play_span_frames = Some((0, total_frames));
-        self.looping = true;
-        self.loop_offset = Some(frames_to_seconds(offset_frames, sample_rate));
-        self.loop_offset_frames = Some(offset_frames);
-        self.track_duration = Some(track_duration_seconds);
-        self.track_total_frames = Some(total_frames);
-        self.sample_rate = Some(sample_rate);
+        self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
-        #[cfg(test)]
-        {
-            self.elapsed_override = None;
-        }
         Ok(())
     }
 
@@ -137,88 +128,94 @@ impl AudioPlayer {
 
         self.fade_out_current_sink(self.anti_clip_fade());
 
-        let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
-        let channels = self.track_channels.unwrap_or(1).max(1);
-        let span = QuantizedSpan::new(start_seconds, end_seconds, duration, sample_rate, channels);
+        let plan = self.playback_span_plan(
+            start_seconds,
+            end_seconds,
+            duration,
+            looped,
+            PlaybackSeekBehavior::SpanStart,
+        )?;
+        let sample_rate = plan.layout().sample_rate();
+        let channels = plan.layout().channels();
 
         let fade = fade_duration(
-            (span.end_seconds - span.start_seconds).max(f32::EPSILON),
+            (plan.end_seconds() - plan.start_seconds()).max(f32::EPSILON),
             self.anti_clip_fade(),
         );
         let final_source: Box<dyn Source<Item = f32> + Send> = if looped {
             let diagnostic: Box<dyn Source<Item = f32> + Send> =
                 if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                    let start_sample = span.start_sample();
-                    let end_sample = start_sample.saturating_add(span.samples as usize);
                     let source = SamplesBuffer::from_arc_span(
                         channels,
                         sample_rate,
                         samples,
-                        start_sample,
-                        end_sample,
+                        plan.start_sample(),
+                        plan.end_sample(),
                     )
                     .repeat_infinite();
                     Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                         source,
-                        span.samples,
+                        plan.sample_count(),
                     ))
                 } else {
                     let loop_source = repeating_source_for_audio_source(
                         self.audio_source()?,
                         sample_rate,
                         channels,
-                        span.start_frame,
-                        span.samples,
+                        plan.start_frame(),
+                        plan.sample_count(),
                         0,
                     )?;
                     let mut async_source = AsyncSource::new(loop_source);
                     async_source.prefill();
                     Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                         async_source,
-                        span.samples,
+                        plan.sample_count(),
                     ))
                 };
             let editable = EditFadeSource::new_looped(
                 diagnostic,
                 self.edit_fade_handle.clone(),
-                span.start_seconds,
-                span.frames,
+                plan.start_seconds(),
+                plan.frame_count(),
                 0,
             );
             Box::new(editable)
         } else {
             let source: Box<dyn Source<Item = f32> + Send> =
                 if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                    let start_sample = span.start_sample();
-                    let end_sample = start_sample.saturating_add(span.samples as usize);
                     Box::new(SamplesBuffer::from_arc_span(
                         channels,
                         sample_rate,
                         samples,
-                        start_sample,
-                        end_sample,
+                        plan.start_sample(),
+                        plan.end_sample(),
                     ))
                 } else {
                     let lazy_source = span_source_for_audio_source(
                         self.audio_source()?,
                         sample_rate,
                         channels,
-                        span.start_frame,
-                        span.samples,
+                        plan.start_frame(),
+                        plan.sample_count(),
                         duration,
                     )?;
                     let mut async_source = AsyncSource::new(lazy_source);
                     async_source.prefill();
-                    Box::new(async_source.take_samples(span.samples as usize).buffered())
+                    Box::new(
+                        async_source
+                            .take_samples(plan.sample_count() as usize)
+                            .buffered(),
+                    )
                 };
             let editable =
-                EditFadeSource::new(source, self.edit_fade_handle.clone(), span.start_seconds);
+                EditFadeSource::new(source, self.edit_fade_handle.clone(), plan.start_seconds());
             let faded = EdgeFade::new(editable, fade);
             Box::new(faded)
         };
 
         let (handle, format) = self.build_sink_with_fade(final_source)?;
-        self.finish_span_playback(&span, sample_rate, looped, None);
+        self.finish_span_playback(&plan, None);
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
         Ok(())
@@ -238,81 +235,101 @@ impl AudioPlayer {
         self.fade_out_current_sink(self.anti_clip_fade());
 
         let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
-        let channels = self.track_channels.unwrap_or(1).max(1);
-        let span = QuantizedSpan::new(start_seconds, end_seconds, duration, sample_rate, channels);
-        let offset_frames = seconds_to_frames_round(offset_seconds, sample_rate) % span.frames;
+        let offset_frames = seconds_to_frames_round(offset_seconds, sample_rate);
+        let plan = self.playback_span_plan(
+            start_seconds,
+            end_seconds,
+            duration,
+            true,
+            PlaybackSeekBehavior::FrameOffset(offset_frames),
+        )?;
+        let sample_rate = plan.layout().sample_rate();
+        let channels = plan.layout().channels();
 
         let diagnostic: Box<dyn Source<Item = f32> + Send> =
             if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                let start_sample = span.start_sample();
-                let end_sample = start_sample.saturating_add(span.samples as usize);
-                let offset_samples = start_sample
-                    .saturating_add(offset_frames.saturating_mul(channels as u64) as usize);
                 let source = SamplesBuffer::from_arc_span_at(
                     channels,
                     sample_rate,
                     samples,
-                    start_sample,
-                    end_sample,
-                    offset_samples,
+                    plan.start_sample(),
+                    plan.end_sample(),
+                    plan.seek_sample(),
                 );
                 let editable = EditFadeSource::new_looped(
                     source,
                     self.edit_fade_handle.clone(),
-                    span.start_seconds,
-                    span.frames,
-                    offset_frames,
+                    plan.start_seconds(),
+                    plan.frame_count(),
+                    plan.seek_offset_frames(),
                 );
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                     editable.repeat_infinite(),
-                    span.samples,
+                    plan.sample_count(),
                 ))
             } else {
                 let loop_source = repeating_source_for_audio_source(
                     self.audio_source()?,
                     sample_rate,
                     channels,
-                    span.start_frame,
-                    span.samples,
-                    offset_frames,
+                    plan.start_frame(),
+                    plan.sample_count(),
+                    plan.seek_offset_frames(),
                 )?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
                 let editable = EditFadeSource::new_looped(
                     async_source,
                     self.edit_fade_handle.clone(),
-                    span.start_seconds,
-                    span.frames,
-                    offset_frames,
+                    plan.start_seconds(),
+                    plan.frame_count(),
+                    plan.seek_offset_frames(),
                 );
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                     editable,
-                    span.samples,
+                    plan.sample_count(),
                 ))
             };
 
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
-        self.finish_span_playback(&span, sample_rate, true, Some(offset_frames));
+        self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
         Ok(())
     }
 
-    fn finish_span_playback(
-        &mut self,
-        span: &QuantizedSpan,
-        sample_rate: u32,
+    fn playback_span_plan(
+        &self,
+        start_seconds: f32,
+        end_seconds: f32,
+        duration: f32,
         looped: bool,
-        offset_frames: Option<u64>,
-    ) {
+        seek: PlaybackSeekBehavior,
+    ) -> Result<PlaybackSpanPlan, String> {
+        let source = self.audio_source()?;
+        let layout = PlaybackChannelLayout::new(
+            self.track_channels.unwrap_or(1).max(1),
+            self.sample_rate.unwrap_or(44_100).max(1),
+        )
+        .map_err(|err| err.to_string())?;
+        PlaybackSpanPlan::new(
+            source.identity(),
+            layout,
+            PlaybackSpanRequest::new(start_seconds, end_seconds, duration, looped, seek),
+        )
+        .map_err(|err| err.to_string())
+    }
+
+    fn finish_span_playback(&mut self, span: &PlaybackSpanPlan, offset_frames: Option<u64>) {
+        let sample_rate = span.layout().sample_rate();
         self.started_at = Some(std::time::Instant::now());
-        self.play_span = Some((span.start_seconds, span.end_seconds));
-        self.play_span_frames = Some((span.start_frame, span.end_frame));
-        self.looping = looped;
+        self.play_span = Some((span.start_seconds(), span.end_seconds()));
+        self.play_span_frames = Some((span.start_frame(), span.end_frame()));
+        self.looping = span.looped();
         self.loop_offset = offset_frames.map(|frames| frames_to_seconds(frames, sample_rate));
         self.loop_offset_frames = offset_frames;
-        self.track_duration = Some(frames_to_seconds(span.track_frames, sample_rate));
-        self.track_total_frames = Some(span.track_frames);
+        self.track_duration = Some(frames_to_seconds(span.track_frames(), sample_rate));
+        self.track_total_frames = Some(span.track_frames());
         self.sample_rate = Some(sample_rate);
         #[cfg(test)]
         {
