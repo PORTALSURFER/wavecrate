@@ -3,6 +3,7 @@
 mod decode;
 mod error;
 mod loading;
+mod lru_cache;
 mod model;
 pub(crate) mod peak_analysis;
 mod render;

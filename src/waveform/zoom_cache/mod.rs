@@ -1,7 +1,7 @@
 use super::{WaveformChannelView, WaveformColumnView, WaveformRenderer};
+use crate::waveform::lru_cache::BoundedLruCache;
 use std::{
     collections::hash_map::DefaultHasher,
-    collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
     mem::size_of,
     sync::Mutex,
@@ -82,11 +82,7 @@ impl WaveformZoomCache {
             Err(poisoned) => {
                 warn!("Waveform zoom cache mutex poisoned; recovering with cleared cache.");
                 let mut inner = poisoned.into_inner();
-                let stale_bytes = inner.resident_bytes;
-                inner.map.clear();
-                inner.order.clear();
-                inner.next_stamp = 1;
-                inner.resident_bytes = 0;
+                let stale_bytes = inner.clear();
                 if telemetry::zoom_cache_telemetry_enabled() {
                     telemetry::record_zoom_cache_poison_recovery(stale_bytes);
                 }
@@ -165,132 +161,70 @@ impl Hash for CacheKey {
 }
 
 struct CacheInner {
-    map: HashMap<CacheKey, CacheEntry>,
-    order: VecDeque<TouchEntry>,
-    max_entries: usize,
-    next_stamp: u64,
-    resident_bytes: usize,
+    entries: BoundedLruCache<CacheKey, CachedColumns>,
 }
 
 impl CacheInner {
     /// Create one bounded LRU shard with `max_entries` capacity.
     fn new(max_entries: usize) -> Self {
         Self {
-            map: HashMap::new(),
-            order: VecDeque::new(),
-            max_entries: max_entries.max(1),
-            next_stamp: 1,
-            resident_bytes: 0,
+            entries: BoundedLruCache::new(max_entries),
         }
     }
 
     fn get(&mut self, key: CacheKey) -> Option<CachedColumns> {
-        let stamp = self.next_stamp();
-        let columns = match self.map.get_mut(&key) {
-            Some(entry) => {
-                entry.stamp = stamp;
-                entry.columns.clone()
-            }
-            None => {
-                telemetry::record_zoom_cache_miss();
-                return None;
-            }
+        let result = self.entries.get(&key);
+        if result.compacted {
+            telemetry::record_zoom_cache_compaction();
+        }
+        let Some(columns) = result.value else {
+            telemetry::record_zoom_cache_miss();
+            return None;
         };
-        self.order.push_back(TouchEntry { key, stamp });
-        self.compact_order_if_needed();
         telemetry::record_zoom_cache_hit();
         Some(columns)
     }
 
     #[cfg(test)]
     fn touch(&mut self, key: CacheKey) {
-        let stamp = self.next_stamp();
-        if let Some(entry) = self.map.get_mut(&key) {
-            entry.stamp = stamp;
-            self.order.push_back(TouchEntry { key, stamp });
-            self.compact_order_if_needed();
+        let result = self.entries.get(&key);
+        if result.compacted {
+            telemetry::record_zoom_cache_compaction();
         }
     }
 
     fn insert(&mut self, key: CacheKey, value: CachedColumns) {
-        let stamp = self.next_stamp();
         let bytes_estimate = cached_columns_bytes(&value);
-        if let Some(replaced) = self.map.insert(
-            key,
-            CacheEntry {
-                columns: value,
-                stamp,
-                bytes_estimate,
-            },
-        ) {
-            self.resident_bytes = self.resident_bytes.saturating_sub(replaced.bytes_estimate);
-            telemetry::subtract_zoom_cache_resident_bytes(replaced.bytes_estimate);
+        let outcome = self.entries.insert(key, value, bytes_estimate);
+        if outcome.replaced_bytes > 0 {
+            telemetry::subtract_zoom_cache_resident_bytes(outcome.replaced_bytes);
         }
-        self.resident_bytes = self.resident_bytes.saturating_add(bytes_estimate);
-        telemetry::add_zoom_cache_resident_bytes(bytes_estimate);
+        telemetry::add_zoom_cache_resident_bytes(outcome.inserted_bytes);
+        if outcome.evicted_bytes > 0 {
+            telemetry::subtract_zoom_cache_resident_bytes(outcome.evicted_bytes);
+        }
         telemetry::record_zoom_cache_insert();
-        self.order.push_back(TouchEntry { key, stamp });
-        self.compact_order_if_needed();
-        self.evict();
-    }
-
-    fn evict(&mut self) {
-        while self.map.len() > self.max_entries {
-            let Some(touch) = self.order.pop_front() else {
-                break;
-            };
-            let is_current = self
-                .map
-                .get(&touch.key)
-                .is_some_and(|entry| entry.stamp == touch.stamp);
-            if is_current && let Some(removed) = self.map.remove(&touch.key) {
-                self.resident_bytes = self.resident_bytes.saturating_sub(removed.bytes_estimate);
-                telemetry::subtract_zoom_cache_resident_bytes(removed.bytes_estimate);
-                telemetry::record_zoom_cache_evict();
-            }
+        if outcome.compacted {
+            telemetry::record_zoom_cache_compaction();
+        }
+        for _ in 0..outcome.evicted_count {
+            telemetry::record_zoom_cache_evict();
         }
     }
 
-    fn compact_order_if_needed(&mut self) {
-        let compact_threshold = self.max_entries.saturating_mul(8).max(self.max_entries + 1);
-        if self.order.len() <= compact_threshold {
-            return;
-        }
-
-        let mut active: Vec<_> = self
-            .map
-            .iter()
-            .map(|(key, entry)| TouchEntry {
-                key: *key,
-                stamp: entry.stamp,
-            })
-            .collect();
-        active.sort_by_key(|entry| entry.stamp);
-        self.order = active.into_iter().collect();
-        telemetry::record_zoom_cache_compaction();
+    fn clear(&mut self) -> usize {
+        self.entries.clear()
     }
 
-    fn next_stamp(&mut self) -> u64 {
-        let stamp = self.next_stamp;
-        self.next_stamp = self.next_stamp.wrapping_add(1);
-        if self.next_stamp == 0 {
-            self.next_stamp = 1;
-        }
-        stamp
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
     }
-}
 
-#[derive(Clone)]
-struct CacheEntry {
-    columns: CachedColumns,
-    stamp: u64,
-    bytes_estimate: usize,
-}
-
-#[derive(Clone, Copy)]
-struct TouchEntry {
-    key: CacheKey,
-    stamp: u64,
+    #[cfg(test)]
+    fn order_len(&self) -> usize {
+        self.entries.order_len()
+    }
 }
 
 fn cached_columns_bytes(columns: &CachedColumns) -> usize {

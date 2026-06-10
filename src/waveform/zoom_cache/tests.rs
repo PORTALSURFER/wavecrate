@@ -35,7 +35,6 @@ fn shard_index_is_stable_for_identical_keys() {
 #[test]
 fn cache_order_stays_bounded_for_repeated_touch() {
     let mut inner = CacheInner::new(1);
-    inner.max_entries = 1;
     let samples = vec![0.0_f32, 1.0];
     let key = CacheKey::new(1, &samples, 1, WaveformChannelView::Mono, 10);
     let value = CachedColumns::Mono(std::sync::Arc::from([(0.0, 1.0)]));
@@ -45,8 +44,8 @@ fn cache_order_stays_bounded_for_repeated_touch() {
         inner.touch(key);
     }
 
-    assert_eq!(inner.map.len(), 1);
-    assert!(inner.order.len() <= 8);
+    assert_eq!(inner.len(), 1);
+    assert!(inner.order_len() <= 8);
 }
 
 #[test]

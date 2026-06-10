@@ -1,4 +1,3 @@
-use std::collections::{HashMap, VecDeque};
 use std::mem::size_of;
 use std::sync::{
     Arc, OnceLock,
@@ -8,17 +7,14 @@ use std::time::Duration;
 
 use crate::hotpath_telemetry;
 use crate::waveform::DecodedWaveform;
+use crate::waveform::lru_cache::BoundedLruCache;
 
 /// LRU cache of decoded waveform payloads used by [`WaveformRenderer`].
 ///
 /// Cache keys are derived from input bytes and entries are kept in insertion/access
 /// order with bounded eviction.
 pub(crate) struct DecodeCache {
-    entries: HashMap<DecodeCacheKey, CacheEntry>,
-    order: VecDeque<TouchEntry>,
-    max_entries: usize,
-    next_stamp: u64,
-    resident_bytes: usize,
+    entries: BoundedLruCache<DecodeCacheKey, Arc<DecodedWaveform>>,
 }
 
 /// Compact fixed-size decode cache key derived from source bytes.
@@ -179,11 +175,7 @@ impl DecodeCache {
     /// Create a bounded cache with the requested maximum number of entries.
     pub(super) fn new(max_entries: usize) -> Self {
         Self {
-            entries: HashMap::new(),
-            order: VecDeque::new(),
-            max_entries: max_entries.max(1),
-            next_stamp: 1,
-            resident_bytes: 0,
+            entries: BoundedLruCache::new(max_entries),
         }
     }
 
@@ -191,102 +183,42 @@ impl DecodeCache {
     ///
     /// When a hit occurs the entry is marked as most recently used.
     pub(super) fn get(&mut self, key: &DecodeCacheKey) -> Option<Arc<DecodedWaveform>> {
-        let stamp = self.next_stamp();
-        let waveform = match self.entries.get_mut(key) {
-            Some(entry) => {
-                entry.stamp = stamp;
-                Arc::clone(&entry.waveform)
-            }
-            None => {
-                record_decode_cache_miss();
-                return None;
-            }
+        let result = self.entries.get(key);
+        if result.compacted {
+            record_decode_cache_compaction();
+        }
+        let Some(waveform) = result.value else {
+            record_decode_cache_miss();
+            return None;
         };
-        self.order.push_back(TouchEntry { key: *key, stamp });
-        self.compact_order_if_needed();
         record_decode_cache_hit();
         Some(waveform)
     }
 
     /// Insert a decoded waveform and evict least-recently-used entries if needed.
     pub(super) fn insert(&mut self, key: DecodeCacheKey, value: Arc<DecodedWaveform>) {
-        let stamp = self.next_stamp();
         let bytes_estimate =
             decoded_waveform_bytes_estimate(&value).saturating_add(size_of::<DecodeCacheKey>());
-        if let Some(replaced) = self.entries.insert(
-            key,
-            CacheEntry {
-                waveform: value,
-                stamp,
-                bytes_estimate,
-            },
-        ) {
-            self.resident_bytes = self.resident_bytes.saturating_sub(replaced.bytes_estimate);
-        }
-        self.resident_bytes = self.resident_bytes.saturating_add(bytes_estimate);
-        update_decode_cache_resident_bytes(self.resident_bytes);
+        let outcome = self.entries.insert(key, value, bytes_estimate);
+        update_decode_cache_resident_bytes(outcome.resident_bytes);
         record_decode_cache_insert();
-        self.order.push_back(TouchEntry { key, stamp });
-        self.compact_order_if_needed();
-        self.evict_overflow();
-    }
-
-    /// Remove oldest entries until cache occupancy is within the configured limit.
-    fn evict_overflow(&mut self) {
-        while self.entries.len() > self.max_entries {
-            let Some(touch) = self.order.pop_front() else {
-                break;
-            };
-            let is_current = self
-                .entries
-                .get(&touch.key)
-                .is_some_and(|entry| entry.stamp == touch.stamp);
-            if is_current && let Some(removed) = self.entries.remove(&touch.key) {
-                self.resident_bytes = self.resident_bytes.saturating_sub(removed.bytes_estimate);
-                update_decode_cache_resident_bytes(self.resident_bytes);
-                record_decode_cache_evict();
-            }
+        if outcome.compacted {
+            record_decode_cache_compaction();
+        }
+        for _ in 0..outcome.evicted_count {
+            record_decode_cache_evict();
         }
     }
 
-    fn compact_order_if_needed(&mut self) {
-        let compact_threshold = self.max_entries.saturating_mul(8).max(self.max_entries + 1);
-        if self.order.len() <= compact_threshold {
-            return;
-        }
-
-        let mut active: Vec<_> = self
-            .entries
-            .iter()
-            .map(|(key, entry)| TouchEntry {
-                key: *key,
-                stamp: entry.stamp,
-            })
-            .collect();
-        active.sort_by_key(|entry| entry.stamp);
-        self.order = active.into_iter().collect();
-        record_decode_cache_compaction();
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
     }
 
-    fn next_stamp(&mut self) -> u64 {
-        let stamp = self.next_stamp;
-        self.next_stamp = self.next_stamp.wrapping_add(1);
-        if self.next_stamp == 0 {
-            self.next_stamp = 1;
-        }
-        stamp
+    #[cfg(test)]
+    fn order_len(&self) -> usize {
+        self.entries.order_len()
     }
-}
-
-struct CacheEntry {
-    waveform: Arc<DecodedWaveform>,
-    stamp: u64,
-    bytes_estimate: usize,
-}
-
-struct TouchEntry {
-    key: DecodeCacheKey,
-    stamp: u64,
 }
 
 /// Compute a stable content hash for decoded bytes for cache keying.
@@ -341,7 +273,7 @@ mod tests {
             let _ = cache.get(&key);
         }
 
-        assert_eq!(cache.entries.len(), 1);
-        assert!(cache.order.len() <= 8);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.order_len() <= 8);
     }
 }
