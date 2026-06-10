@@ -36,10 +36,7 @@ fn center_panel_panes(state: &mut NativeAppState) -> ui::Children<GuiMessage> {
 fn library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
     let sidebar = library_sidebar_view(state).overlays(library_pane_overlays(state));
     ui::resizable(sidebar)
-        .hover_chrome_only()
-        .handle_key("library-sidebar-resize-handle")
-        .handle_style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .resize_handle(GuiMessage::ResizeFolder)
+        .subtle_resize_handle("library-sidebar-resize-handle", GuiMessage::ResizeFolder)
 }
 
 fn library_sidebar_view(state: &NativeAppState) -> ui::View<GuiMessage> {
