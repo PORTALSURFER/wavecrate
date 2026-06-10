@@ -1,5 +1,9 @@
 use super::*;
 
+mod fixture;
+
+use fixture::WaveformPlaybackScenario;
+
 static WAVEFORM_CONFIG_BASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn set_waveform_test_config_base(
@@ -29,34 +33,15 @@ fn looped_waveform_click_resolves_to_full_sample_without_playmark() {
 
 #[test]
 fn looped_waveform_click_resolves_to_playmark_span_when_selected() {
-    let mut state = gui_state_for_span_tests();
-    state.audio.loop_playback = true;
-    state
-        .waveform
-        .current
-        .apply_interaction(WaveformInteraction::BeginSelection {
-            kind: WaveformSelectionKind::Play,
-            visible_ratio: 0.25,
-        });
-    state
-        .waveform
-        .current
-        .apply_interaction(WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.60,
-        });
-    state
-        .waveform
-        .current
-        .apply_interaction(WaveformInteraction::FinishSelection {
-            visible_ratio: 0.60,
-        });
+    let mut scenario = WaveformPlaybackScenario::synthetic().with_looping();
+    scenario.select_play_range(0.25, 0.60);
 
-    let inside_span = state.resolve_playback_span(0.45, 1.0, None);
+    let inside_span = scenario.state.resolve_playback_span(0.45, 1.0, None);
     assert_eq!(inside_span.start_ratio, 0.25);
     assert_eq!(inside_span.end_ratio, 0.60);
     assert_eq!(inside_span.offset_ratio, 0.45);
 
-    let outside_span = state.resolve_playback_span(0.85, 1.0, None);
+    let outside_span = scenario.state.resolve_playback_span(0.85, 1.0, None);
     assert_eq!(outside_span.start_ratio, 0.25);
     assert_eq!(outside_span.end_ratio, 0.60);
     assert_eq!(outside_span.offset_ratio, 0.25);
@@ -80,27 +65,15 @@ fn random_audition_span_plays_whole_short_sample() {
 
 #[test]
 fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
-    let mut state = gui_state_for_span_tests();
+    let mut scenario = WaveformPlaybackScenario::synthetic();
 
     for (start, end) in [(0.10, 0.20), (0.55, 0.70)] {
-        state
-            .waveform
-            .current
-            .apply_interaction(WaveformInteraction::BeginSelection {
-                kind: WaveformSelectionKind::Play,
-                visible_ratio: start,
-            });
-        state
-            .waveform
-            .current
-            .apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: end });
-        state
-            .waveform
-            .current
-            .apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: end });
+        scenario.select_play_range(start, end);
     }
 
-    let span = state.random_audition_span_for_loaded_waveform(0.75);
+    let span = scenario
+        .state
+        .random_audition_span_for_loaded_waveform(0.75);
 
     assert_eq!(
         span.source,
@@ -113,7 +86,7 @@ fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
     );
     assert!((span.end - 0.70).abs() < 0.001, "end was {}", span.end);
     assert_eq!(
-        state.waveform.current.play_selection(),
+        scenario.state.waveform.current.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.55, 0.70))
     );
 }
@@ -144,55 +117,44 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
 
 #[test]
 fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
-    let (mut state, _source_root, selected_file) =
-        native_app_state_with_temp_sample("random-load.wav");
-    let path = PathBuf::from(&selected_file);
-    write_test_wav_i16(&path, &[0, 1024, -2048, 4096, -1024, 512]);
-    state.waveform.current = crate::native_app::test_support::WaveformState::empty();
-    state.audio.loop_playback = true;
-    assert!(!state.waveform.current.has_loaded_sample());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "random-load.wav",
+        &[0, 1024, -2048, 4096, -1024, 512],
+    )
+    .with_unloaded_waveform()
+    .with_looping();
+    assert!(!scenario.state.waveform.current.has_loaded_sample());
 
-    let mut context = ui::UpdateContext::default();
-    state.play_random_sample_range_with_unit(0.5, &mut context);
+    scenario.play_random_range(0.5);
 
     assert!(matches!(
-        state.audio.pending_sample_playback,
+        scenario.state.audio.pending_sample_playback,
         Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { unit })
             if (unit - 0.5).abs() < f32::EPSILON
     ));
 
-    start_deferred_sample_load_for_tests(&mut state, selected_file.clone(), false, &mut context);
-    let ticket = state
-        .background
-        .sample_load_task
-        .active()
-        .expect("sample load queued");
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
-            ticket,
-            output: crate::native_app::test_support::SampleLoadResult {
-                path: selected_file.clone(),
-                result: crate::native_app::test_support::WaveformState::load_path(path),
-                autoplay: false,
-            },
-        }),
-        &mut context,
-    );
+    scenario.start_deferred_load(false);
+    scenario.finish_deferred_load(false);
 
-    assert_eq!(state.audio.pending_sample_playback, None);
+    assert_eq!(scenario.state.audio.pending_sample_playback, None);
     assert!(
-        state.audio.pending_playback_start.is_some(),
+        scenario.state.audio.pending_playback_start.is_some(),
         "random audition should request playback even when the audio device is still opening"
     );
     assert!(
-        !state.audio.loop_playback,
+        !scenario.state.audio.loop_playback,
         "random audition should remain one-shot after the selected sample loads"
     );
     assert!(
-        state.ui.status.sample.contains("Playback unavailable")
-            || state.ui.status.sample.contains("Random audition"),
+        scenario
+            .state
+            .ui
+            .status
+            .sample
+            .contains("Playback unavailable")
+            || scenario.state.ui.status.sample.contains("Random audition"),
         "random load completion should route through random playback, got {}",
-        state.ui.status.sample
+        scenario.state.ui.status.sample
     );
 }
 
@@ -1151,6 +1113,7 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
             .expect("cache sample");
     let file = waveform.file();
     super::super::waveform::store_cached_waveform_file_for_tests(&file);
+    wait_for_playback_ready_cache(&sample_path);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -1722,50 +1685,33 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
 
 #[test]
 fn play_selected_sample_uses_active_playmark_selection_span() {
-    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
         return;
     };
-    let mut state = NativeAppState::load_default().expect("default state loads");
-    state.audio.player = Some(player);
-    let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
-    state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(sample_path.into())
-            .expect("test sample loads");
-    state
-        .waveform
-        .current
-        .apply_interaction(WaveformInteraction::BeginSelection {
-            kind: WaveformSelectionKind::Play,
-            visible_ratio: 0.25,
-        });
-    state
-        .waveform
-        .current
-        .apply_interaction(WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.60,
-        });
-    state
-        .waveform
-        .current
-        .apply_interaction(WaveformInteraction::FinishSelection {
-            visible_ratio: 0.60,
-        });
-    state.audio.loop_playback = true;
+    scenario.select_play_range(0.25, 0.60);
+    scenario.state.audio.loop_playback = true;
 
-    let mut context = ui::UpdateContext::default();
-    state.play_selected_sample(&mut context);
+    scenario.play_selected_sample();
 
-    assert!(state.waveform.current.is_playing());
-    assert_eq!(state.waveform.current.play_mark_ratio(), Some(0.25));
-    assert_eq!(state.audio.current_playback_span, Some((0.25, 0.6)));
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_eq!(
+        scenario.state.waveform.current.play_mark_ratio(),
+        Some(0.25)
+    );
+    assert_eq!(
+        scenario.state.audio.current_playback_span,
+        Some((0.25, 0.6))
+    );
     assert!(
-        state
+        scenario
+            .state
             .audio
             .player
             .as_ref()
             .is_some_and(|player| player.is_looping())
     );
-    let progress = state
+    let progress = scenario
+        .state
         .audio
         .player
         .as_ref()
@@ -1779,87 +1725,29 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
 
 #[test]
 fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
-    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
         return;
     };
-    let mut state = gui_state_for_span_tests();
-    state.audio.player = Some(player);
-    let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
-    state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(sample_path.into())
-            .expect("test sample loads");
-    state.audio.loop_playback = true;
-    state
-        .start_playback_current_span(0.0, 1.0)
-        .expect("full sample loop starts");
-    assert_player_progress_inside_span(&state, 0.0, 1.0);
+    scenario.start_full_sample_loop();
+    assert_player_progress_inside_span(&scenario.state, 0.0, 1.0);
 
-    let mut context = ui::UpdateContext::default();
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
-            WaveformInteraction::BeginSelection {
-                kind: WaveformSelectionKind::Play,
-                visible_ratio: 0.25,
-            },
-        ),
-        &mut context,
-    );
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
-            WaveformInteraction::UpdateSelection {
-                visible_ratio: 0.60,
-            },
-        ),
-        &mut context,
-    );
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
-            WaveformInteraction::FinishSelection {
-                visible_ratio: 0.60,
-            },
-        ),
-        &mut context,
-    );
+    scenario.select_play_range(0.25, 0.60);
 
-    assert_playback_span_state(&state, 0.25, 0.60);
-    assert_player_progress_inside_span(&state, 0.25, 0.60);
+    assert_playback_span_state(&scenario.state, 0.25, 0.60);
+    assert_player_progress_inside_span(&scenario.state, 0.25, 0.60);
     assert!(
-        state
+        scenario
+            .state
             .audio
             .player
             .as_ref()
             .is_some_and(|player| player.is_looping())
     );
 
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
-            WaveformInteraction::BeginSelectionResize {
-                kind: WaveformSelectionKind::Play,
-                edge: WaveformSelectionEdge::Start,
-                visible_ratio: 0.25,
-            },
-        ),
-        &mut context,
-    );
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
-            WaveformInteraction::UpdateSelection {
-                visible_ratio: 0.10,
-            },
-        ),
-        &mut context,
-    );
-    state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
-            WaveformInteraction::FinishSelection {
-                visible_ratio: 0.10,
-            },
-        ),
-        &mut context,
-    );
+    scenario.resize_play_range_start(0.25, 0.10);
 
-    assert_playback_span_state(&state, 0.10, 0.60);
-    assert_player_progress_inside_span(&state, 0.10, 0.60);
+    assert_playback_span_state(&scenario.state, 0.10, 0.60);
+    assert_player_progress_inside_span(&scenario.state, 0.10, 0.60);
 }
 
 fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expected_end: f32) {
