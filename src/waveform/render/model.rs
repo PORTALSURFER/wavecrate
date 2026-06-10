@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 
+#[cfg(test)]
+use super::WaveformRenderViewport;
+use super::WaveformRenderer;
 use super::fade_preview::{apply_fade_to_columns, apply_fade_to_samples, fade_intersects_view};
-use super::{WaveformRenderViewport, WaveformRenderer};
+use super::plan::{PlannedViewport, WaveformRenderPlan, WaveformRenderStrategy};
 use crate::waveform::{WaveformChannelView, WaveformColumnView};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -45,15 +48,6 @@ pub(in crate::waveform::render) enum WaveformRenderModel {
     SplitColumns(SplitColumnRenderModel),
 }
 
-#[derive(Clone, Copy)]
-struct RenderModelViewport {
-    width: u32,
-    height: u32,
-    view_start: f32,
-    view_end: f32,
-    edit_fade: Option<crate::selection::SelectionRange>,
-}
-
 struct LineTraceRequest<'a> {
     samples: &'a [f32],
     channels: usize,
@@ -74,42 +68,40 @@ struct ColumnModelRequest {
 }
 
 impl WaveformRenderer {
+    #[cfg(test)]
     pub(in crate::waveform::render) fn render_model(
         samples: &[f32],
         channels: usize,
         view: WaveformChannelView,
         viewport: WaveformRenderViewport,
     ) -> WaveformRenderModel {
-        let WaveformRenderViewport {
-            size: [width, height],
-            view_start,
-            view_end,
-            edit_fade,
-        } = viewport;
-        let width = width.max(1);
-        let height = height.max(1);
-        let channels = channels.max(1);
-        let frame_count = samples.len() / channels;
-        let frames_per_column = (frame_count as f32 / width as f32).max(1.0);
-        let viewport = RenderModelViewport {
-            width,
-            height,
-            view_start,
-            view_end,
-            edit_fade,
-        };
-        if frames_per_column <= super::LINE_RENDER_MAX_FRAMES_PER_COLUMN {
-            return Self::line_render_model(samples, channels, view, viewport);
-        }
+        let plan = WaveformRenderPlan::new(samples.len(), channels, view, viewport, None);
+        Self::render_model_for_plan(samples, plan)
+    }
 
-        Self::column_render_model(samples, channels, view, viewport, frames_per_column)
+    pub(in crate::waveform::render) fn render_model_for_plan(
+        samples: &[f32],
+        plan: WaveformRenderPlan<'_>,
+    ) -> WaveformRenderModel {
+        match plan.strategy {
+            WaveformRenderStrategy::Line => {
+                Self::line_render_model(samples, plan.channels, plan.view, plan.viewport)
+            }
+            WaveformRenderStrategy::Columns => Self::column_render_model(
+                samples,
+                plan.channels,
+                plan.view,
+                plan.viewport,
+                plan.frames_per_column,
+            ),
+        }
     }
 
     fn line_render_model(
         samples: &[f32],
         channels: usize,
         view: WaveformChannelView,
-        viewport: RenderModelViewport,
+        viewport: PlannedViewport,
     ) -> WaveformRenderModel {
         let line_samples = line_render_samples(samples, channels, viewport);
 
@@ -181,7 +173,7 @@ impl WaveformRenderer {
         samples: &[f32],
         channels: usize,
         view: WaveformChannelView,
-        viewport: RenderModelViewport,
+        viewport: PlannedViewport,
         frames_per_column: f32,
     ) -> WaveformRenderModel {
         let columns = Self::sample_columns_for_width(samples, channels, viewport.width, view);
@@ -250,7 +242,7 @@ impl WaveformRenderer {
 fn line_render_samples<'a>(
     samples: &'a [f32],
     channels: usize,
-    viewport: RenderModelViewport,
+    viewport: PlannedViewport,
 ) -> Cow<'a, [f32]> {
     if viewport.edit_fade.is_some()
         && fade_intersects_view(viewport.view_start, viewport.view_end, viewport.edit_fade)
@@ -334,7 +326,7 @@ mod tests {
     #[test]
     fn line_render_samples_borrows_when_fade_is_absent() {
         let samples = [0.0, 0.25, -0.25, 0.5];
-        let viewport = RenderModelViewport {
+        let viewport = PlannedViewport {
             width: 4,
             height: 5,
             view_start: 0.0,

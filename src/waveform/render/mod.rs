@@ -2,11 +2,13 @@ mod cache;
 mod fade_preview;
 mod model;
 mod paint;
+mod plan;
 mod viewport;
 
 use super::WaveformImage;
 use super::{WaveformChannelView, WaveformRenderer};
 use model::WaveformRenderModel;
+use plan::WaveformRenderPlan;
 
 pub use viewport::WaveformRenderViewport;
 
@@ -14,7 +16,7 @@ pub use viewport::WaveformRenderViewport;
 pub(super) const LINE_RENDER_MAX_FRAMES_PER_COLUMN: f32 = 1.5;
 
 /// View-local transient highlight inputs for one waveform render pass.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct TransientGlow<'a> {
     /// Normalized transient positions for the loaded waveform.
     pub positions: &'a [f32],
@@ -62,33 +64,15 @@ impl WaveformRenderer {
         viewport: WaveformRenderViewport,
         transients: Option<&[f32]>,
     ) -> WaveformImage {
-        let WaveformRenderViewport {
-            size: [width, height],
-            view_start,
-            view_end,
-            edit_fade,
-        } = viewport;
-        let width = width.max(1);
-        let height = height.max(1);
-        let transient_glow = TransientGlow::new(transients, view_start, view_end);
-        let model = Self::render_model(
-            samples,
-            channels,
-            view,
-            WaveformRenderViewport {
-                size: [width, height],
-                view_start,
-                view_end,
-                edit_fade,
-            },
-        );
-        self.paint_render_model(&model, transient_glow)
+        let plan = WaveformRenderPlan::new(samples.len(), channels, view, viewport, transients);
+        let model = Self::render_model_for_plan(samples, plan);
+        self.paint_render_model(&model, plan)
     }
 
     fn paint_render_model(
         &self,
         model: &WaveformRenderModel,
-        transient_glow: Option<TransientGlow<'_>>,
+        plan: WaveformRenderPlan<'_>,
     ) -> WaveformImage {
         match model {
             WaveformRenderModel::Line(model) => Self::paint_line_image(
@@ -96,7 +80,7 @@ impl WaveformRenderer {
                 paint::LinePaintConfig {
                     foreground: self.foreground,
                     background: self.background,
-                    transient_glow,
+                    transient_glow: plan.transient_glow,
                 },
             ),
             WaveformRenderModel::SplitLine(model) => Self::paint_split_line_image(
@@ -104,20 +88,20 @@ impl WaveformRenderer {
                 paint::SplitLinePaintConfig {
                     foreground: self.foreground,
                     background: self.background,
-                    transient_glow,
+                    transient_glow: plan.transient_glow,
                 },
             ),
             WaveformRenderModel::Columns(model) => Self::paint_color_image_for_size_with_density(
                 model,
                 self.foreground,
                 self.background,
-                transient_glow,
+                plan.transient_glow,
             ),
             WaveformRenderModel::SplitColumns(model) => Self::paint_split_color_image_with_density(
                 model,
                 self.foreground,
                 self.background,
-                transient_glow,
+                plan.transient_glow,
             ),
         }
     }
