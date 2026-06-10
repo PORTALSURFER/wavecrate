@@ -5,6 +5,7 @@
 //! avoid unbounded growth.
 
 mod contract;
+mod files;
 mod policy;
 
 pub use contract::{
@@ -18,25 +19,17 @@ pub use policy::{
 
 use std::{
     backtrace::Backtrace,
-    fs::{self, OpenOptions},
     panic,
     path::{Path, PathBuf},
     sync::{
         OnceLock,
         atomic::{AtomicBool, Ordering},
     },
-    time::SystemTime,
 };
 
-use time::{OffsetDateTime, UtcOffset, format_description::FormatItem, macros::format_description};
+use time::{UtcOffset, format_description::FormatItem, macros::format_description};
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
 use tracing_subscriber::{Registry, fmt, prelude::*};
-
-use crate::app_dirs;
-
-/// Maximum number of log files to retain.
-const MAX_LOG_FILES: usize = 10;
-const LOG_FILE_PREFIX: &str = "wavecrate";
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 static DEBUG_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -106,14 +99,9 @@ where
     }
 
     let settings = DebugLoggingSettings::from_process(args);
-    let log_dir = log_directory()?;
-    let log_file_name = format_log_file_name(now_local_or_utc())?;
-    let log_path = log_dir.join(&log_file_name);
-    ensure_file_exists(&log_path)?;
-
-    let file_appender = rolling::never(&log_dir, log_file_name);
+    let launch_log = files::prepare_launch_log_file()?;
+    let file_appender = rolling::never(&launch_log.dir, launch_log.file_name.clone());
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
-    prune_old_logs(&log_dir, MAX_LOG_FILES)?;
 
     let timer = build_timer();
     let env_filter = settings.env_filter();
@@ -135,7 +123,7 @@ where
     wavecrate_library::diagnostics::set_debug_logging_enabled(settings.mode().enabled());
 
     tracing::info!(
-        log_path = %log_path.display(),
+        log_path = %launch_log.path.display(),
         debug_logging_mode = settings.mode().as_str(),
         debug_logging_launch_arg = settings.enabled_by_launch_arg(),
         debug_logging_filter_source = settings.filter_source(),
@@ -158,6 +146,11 @@ where
 /// broad `RUST_LOG` override as product intent.
 pub fn debug_logging_enabled() -> bool {
     DEBUG_LOGGING_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Return the newest `.log` file under one resolved log directory.
+pub fn newest_log_file(dir: &Path) -> Result<Option<PathBuf>, LoggingError> {
+    files::newest_log_file(dir)
 }
 
 #[cfg(test)]
@@ -199,169 +192,9 @@ pub fn install_panic_hook() {
     }));
 }
 
-fn log_directory() -> Result<PathBuf, LoggingError> {
-    app_dirs::logs_dir().map_err(map_app_dir_error)
-}
-
-fn ensure_file_exists(path: &Path) -> Result<(), LoggingError> {
-    OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map(|_| ())
-        .map_err(|source| LoggingError::CreateLogFile {
-            path: path.to_path_buf(),
-            source,
-        })
-}
-
-fn prune_old_logs(dir: &Path, max_files: usize) -> Result<(), LoggingError> {
-    let mut entries = fs::read_dir(dir)
-        .map_err(|source| LoggingError::ReadDir {
-            path: dir.to_path_buf(),
-            source,
-        })?
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-        .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("log"))
-        .map(|entry| {
-            let modified = entry
-                .metadata()
-                .and_then(|meta| meta.modified())
-                .unwrap_or(SystemTime::UNIX_EPOCH);
-            (modified, entry.path())
-        })
-        .collect::<Vec<_>>();
-
-    entries.sort_by_key(|(modified, _)| *modified);
-    while entries.len() > max_files {
-        if let Some((_, path)) = entries.first() {
-            fs::remove_file(path).map_err(|source| LoggingError::RemoveFile {
-                path: path.to_path_buf(),
-                source,
-            })?;
-        }
-        entries.remove(0);
-    }
-    Ok(())
-}
-
-fn format_log_file_name(now: OffsetDateTime) -> Result<String, LoggingError> {
-    const NAME_FORMAT: &[FormatItem<'_>] =
-        format_description!("[year]-[month]-[day]_[hour]-[minute]-[second]");
-    let name = now.format(NAME_FORMAT).map_err(LoggingError::FormatTime)?;
-    Ok(format!("{LOG_FILE_PREFIX}_{name}.log"))
-}
-
 fn build_timer() -> fmt::time::OffsetTime<time::format_description::BorrowedFormatItem<'static>> {
     const DISPLAY_FORMAT: &[FormatItem<'static>] =
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
     let offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
     fmt::time::OffsetTime::new(offset, DISPLAY_FORMAT.into())
-}
-
-fn now_local_or_utc() -> OffsetDateTime {
-    OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc())
-}
-
-fn map_app_dir_error(error: app_dirs::AppDirError) -> LoggingError {
-    match error {
-        app_dirs::AppDirError::NoBaseDir => LoggingError::NoDataDir,
-        app_dirs::AppDirError::CreateDir { path, source } => {
-            LoggingError::CreateDir { path, source }
-        }
-        app_dirs::AppDirError::InvalidProfileName { profile } => {
-            LoggingError::InvalidProfile { profile }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::{thread, time::Duration};
-    use tempfile::tempdir;
-
-    #[test]
-    fn log_filename_has_timestamp_and_prefix() {
-        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let name = format_log_file_name(fixed).unwrap();
-        assert_eq!(name, "wavecrate_2023-11-14_22-13-20.log");
-    }
-
-    #[test]
-    fn prune_removes_oldest_files_beyond_limit() {
-        let dir = tempdir().unwrap();
-        for idx in 0..12 {
-            let path = dir.path().join(format!("wavecrate_{idx}.log"));
-            ensure_file_exists(&path).unwrap();
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        prune_old_logs(dir.path(), 10).unwrap();
-        let remaining = fs::read_dir(dir.path())
-            .unwrap()
-            .filter(|entry| {
-                entry.as_ref().ok().map(|e| e.path()).is_some_and(|path| {
-                    path.extension()
-                        .and_then(|ext| ext.to_str())
-                        .map(|ext| ext == "log")
-                        .unwrap_or(false)
-                })
-            })
-            .count();
-        assert_eq!(remaining, 10);
-    }
-
-    #[test]
-    fn prune_keeps_newest_log_files() {
-        let dir = tempdir().unwrap();
-        for idx in 0..12 {
-            let path = dir.path().join(format!("wavecrate_{idx}.log"));
-            ensure_file_exists(&path).unwrap();
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        prune_old_logs(dir.path(), 10).unwrap();
-
-        let mut remaining = fs::read_dir(dir.path())
-            .unwrap()
-            .filter_map(|entry| entry.ok())
-            .map(|entry| entry.file_name().to_string_lossy().to_string())
-            .filter(|name| name.ends_with(".log"))
-            .collect::<Vec<_>>();
-        remaining.sort();
-
-        assert_eq!(
-            remaining,
-            vec![
-                "wavecrate_10.log".to_string(),
-                "wavecrate_11.log".to_string(),
-                "wavecrate_2.log".to_string(),
-                "wavecrate_3.log".to_string(),
-                "wavecrate_4.log".to_string(),
-                "wavecrate_5.log".to_string(),
-                "wavecrate_6.log".to_string(),
-                "wavecrate_7.log".to_string(),
-                "wavecrate_8.log".to_string(),
-                "wavecrate_9.log".to_string(),
-            ]
-        );
-    }
-
-    #[test]
-    fn prune_ignores_non_log_files() {
-        let dir = tempdir().unwrap();
-        for idx in 0..12 {
-            let path = dir.path().join(format!("wavecrate_{idx}.log"));
-            ensure_file_exists(&path).unwrap();
-            thread::sleep(Duration::from_millis(10));
-        }
-        let non_log_path = dir.path().join("keep.txt");
-        ensure_file_exists(&non_log_path).unwrap();
-
-        prune_old_logs(dir.path(), 10).unwrap();
-
-        assert!(non_log_path.exists());
-    }
 }
