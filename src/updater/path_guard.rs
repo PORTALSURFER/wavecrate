@@ -15,21 +15,39 @@ use std::sync::{Mutex, OnceLock};
 
 use super::UpdateError;
 
-/// Return a validated child path rooted under an installation directory.
-pub(crate) fn ensure_child_path(dir: &Path, name: &str) -> Result<PathBuf, UpdateError> {
-    let relative = sanitize_relative_path(name)?;
-    let dir = dir
-        .canonicalize()
-        .map_err(|err| UpdateError::Invalid(format!("Invalid install dir: {err}")))?;
-    let candidate = dir.join(relative);
-    if !candidate.starts_with(&dir) {
-        return Err(UpdateError::Invalid(format!(
-            "Refusing to write outside install dir: {}",
-            candidate.display()
-        )));
+/// Canonical, validated updater install root used to resolve update payload paths.
+#[derive(Debug, Clone)]
+pub(crate) struct ValidatedInstallRoot {
+    dir: PathBuf,
+}
+
+impl ValidatedInstallRoot {
+    /// Create a validated install root from an existing installation directory.
+    pub(crate) fn new(dir: &Path) -> Result<Self, UpdateError> {
+        let dir = dir
+            .canonicalize()
+            .map_err(|err| UpdateError::Invalid(format!("Invalid install dir: {err}")))?;
+        Ok(Self { dir })
     }
-    ensure_no_symlink_path(&candidate)?;
-    Ok(candidate)
+
+    /// Return the canonical install root.
+    pub(crate) fn path(&self) -> &Path {
+        &self.dir
+    }
+
+    /// Return a validated child path rooted under this installation directory.
+    pub(crate) fn child_path(&self, name: &str) -> Result<PathBuf, UpdateError> {
+        let relative = sanitize_relative_path(name)?;
+        let candidate = self.dir.join(relative);
+        if !candidate.starts_with(&self.dir) {
+            return Err(UpdateError::Invalid(format!(
+                "Refusing to write outside install dir: {}",
+                candidate.display()
+            )));
+        }
+        ensure_no_symlink_path(&candidate)?;
+        Ok(candidate)
+    }
 }
 
 fn ensure_no_symlink_path(path: &Path) -> Result<(), UpdateError> {
@@ -199,7 +217,10 @@ mod tests {
     fn ensure_child_path_rejects_parent_dir() {
         let _lock = updater_test_lock().lock().expect("updater test lock");
         let dir = tempdir().expect("tempdir");
-        let err = ensure_child_path(dir.path(), "../evil.txt").expect_err("parent dir must fail");
+        let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
+        let err = root
+            .child_path("../evil.txt")
+            .expect_err("parent dir must fail");
         assert!(err.to_string().contains("Invalid update path"));
     }
 
@@ -211,7 +232,8 @@ mod tests {
         let name = "C:\\evil.txt";
         #[cfg(not(windows))]
         let name = "/tmp/evil.txt";
-        let err = ensure_child_path(dir.path(), name).expect_err("absolute path must fail");
+        let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
+        let err = root.child_path(name).expect_err("absolute path must fail");
         assert!(err.to_string().contains("Invalid update path"));
     }
 
@@ -220,7 +242,8 @@ mod tests {
         let _lock = updater_test_lock().lock().expect("updater test lock");
         let _guard = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let dir = tempdir().expect("tempdir");
-        let path = ensure_child_path(dir.path(), "./ok/file.txt").expect("relative path");
+        let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
+        let path = root.child_path("./ok/file.txt").expect("relative path");
         let canonical = dir.path().canonicalize().expect("canonical install dir");
         assert!(path.starts_with(&canonical));
         assert!(path.ends_with(Path::new("ok").join("file.txt")));
@@ -240,7 +263,10 @@ mod tests {
         let link = install.join("link");
         symlink(&external, &link).expect("symlink");
 
-        let err = ensure_child_path(&install, "link/file.txt").expect_err("symlink must fail");
+        let root = ValidatedInstallRoot::new(&install).expect("install root");
+        let err = root
+            .child_path("link/file.txt")
+            .expect_err("symlink must fail");
         assert!(err.to_string().contains("symlink"));
     }
 
@@ -257,7 +283,9 @@ mod tests {
         let _env = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "0");
         let _guard = SymlinkMetadataHookGuard::new(Some(fail_metadata));
         let dir = tempdir().expect("tempdir");
-        let err = ensure_child_path(dir.path(), "ok/file.txt")
+        let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
+        let err = root
+            .child_path("ok/file.txt")
             .expect_err("metadata failures must fail closed");
         assert!(
             err.to_string()

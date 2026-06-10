@@ -5,7 +5,7 @@ use std::process::Command;
 
 use serde_json;
 
-use super::{StaleRemovalFailure, UpdateError, UpdateManifest, ensure_child_path, fs_ops};
+use super::{StaleRemovalFailure, UpdateError, UpdateManifest, ValidatedInstallRoot, fs_ops};
 
 /// Resolve the root payload directory for an update archive.
 pub(super) fn validate_root_dir(unpack_dir: &Path, expected: &str) -> Result<PathBuf, UpdateError> {
@@ -54,7 +54,7 @@ pub(super) fn load_installed_manifest(
 }
 
 pub(super) fn collect_stale_files(
-    install_dir: &Path,
+    install_root: &ValidatedInstallRoot,
     installed: &UpdateManifest,
     current: &UpdateManifest,
 ) -> Result<Vec<PathBuf>, UpdateError> {
@@ -67,7 +67,7 @@ pub(super) fn collect_stale_files(
     let mut stale = Vec::new();
     for file in installed.files.iter() {
         if !current_files.contains(file.as_str()) {
-            stale.push(ensure_child_path(install_dir, file)?);
+            stale.push(install_root.child_path(file)?);
         }
     }
     Ok(stale)

@@ -12,7 +12,7 @@ use std::{
 use serde::Deserialize;
 
 use super::{
-    UpdateChannel, UpdateError, UpdateProgress, UpdaterRunArgs, archive, ensure_child_path,
+    UpdateChannel, UpdateError, UpdateProgress, UpdaterRunArgs, ValidatedInstallRoot, archive,
     expected_checksums_name, expected_checksums_signature_name, expected_zip_asset_name, fs_ops,
     github,
 };
@@ -231,34 +231,33 @@ fn apply_files_and_dirs(
     root_dir: &Path,
     manifest: &UpdateManifest,
 ) -> ApplyFilesPlanResult {
-    let installed_manifest = load_installed_manifest(install_dir)?;
+    let install_root = ValidatedInstallRoot::new(install_dir)?;
+    let installed_manifest = load_installed_manifest(install_root.path())?;
     let mut stale_files = match installed_manifest.as_ref() {
-        Some(installed) => collect_stale_files(install_dir, installed, manifest)?,
+        Some(installed) => collect_stale_files(&install_root, installed, manifest)?,
         None => Vec::new(),
     };
-    if install_dir.join("resources").exists() && !root_dir.join("resources").is_dir() {
-        stale_files.push(ensure_child_path(install_dir, "resources")?);
+    if install_root.path().join("resources").exists() && !root_dir.join("resources").is_dir() {
+        stale_files.push(install_root.child_path("resources")?);
     }
-    let mut transaction = fs_ops::UpdateTransaction::new();
+    let mut transaction = fs_ops::UpdateTransaction::new(install_root.clone());
     let mut copied = Vec::new();
     for file in manifest.files.iter() {
         let src = root_dir.join(file);
-        let dest = ensure_child_path(install_dir, file)?;
-        transaction.stage_file(&src, &dest)?;
+        transaction.stage_file(&src, file)?;
         copied.push(file.clone());
     }
 
     let mut replaced_dirs = Vec::new();
     let resources_src = root_dir.join("resources");
     if resources_src.is_dir() {
-        let resources_dest = ensure_child_path(install_dir, "resources")?;
-        transaction.stage_dir(&resources_src, &resources_dest)?;
+        transaction.stage_dir(&resources_src, "resources")?;
         replaced_dirs.push("resources".to_string());
     }
 
     transaction.commit()?;
 
-    let stale_removal_failures = remove_stale_paths(&stale_files, install_dir)?;
+    let stale_removal_failures = remove_stale_paths(&stale_files, install_root.path())?;
 
     Ok((copied, replaced_dirs, stale_removal_failures))
 }

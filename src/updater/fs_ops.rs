@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::UpdateError;
+use super::{UpdateError, ValidatedInstallRoot};
 
 /// Ensure a directory exists and is empty, deleting any prior contents.
 pub(super) fn ensure_empty_dir(path: &Path) -> Result<(), UpdateError> {
@@ -45,25 +45,30 @@ struct CommittedEntry {
 }
 
 /// Transactional update helper that stages updates before swapping them in.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct UpdateTransaction {
+    root: ValidatedInstallRoot,
     staged: Vec<StagedEntry>,
     committed: Vec<CommittedEntry>,
 }
 
 impl UpdateTransaction {
     /// Create a new update transaction.
-    pub(super) fn new() -> Self {
-        Self::default()
+    pub(super) fn new(root: ValidatedInstallRoot) -> Self {
+        Self {
+            root,
+            staged: Vec::new(),
+            committed: Vec::new(),
+        }
     }
 
     /// Stage a file update by copying into a `.new` sibling.
-    pub(super) fn stage_file(&mut self, src: &Path, dest: &Path) -> Result<(), UpdateError> {
+    pub(super) fn stage_file(&mut self, src: &Path, dest: &str) -> Result<(), UpdateError> {
         self.stage_entry(src, dest, StagedKind::File)
     }
 
     /// Stage a directory update by copying into a `.new` sibling.
-    pub(super) fn stage_dir(&mut self, src: &Path, dest: &Path) -> Result<(), UpdateError> {
+    pub(super) fn stage_dir(&mut self, src: &Path, dest: &str) -> Result<(), UpdateError> {
         self.stage_entry(src, dest, StagedKind::Dir)
     }
 
@@ -92,13 +97,11 @@ impl UpdateTransaction {
         Ok(())
     }
 
-    fn stage_entry(
-        &mut self,
-        src: &Path,
-        dest: &Path,
-        kind: StagedKind,
-    ) -> Result<(), UpdateError> {
-        let result = stage_entry_copy(src, dest, kind);
+    fn stage_entry(&mut self, src: &Path, dest: &str, kind: StagedKind) -> Result<(), UpdateError> {
+        let result = self
+            .root
+            .child_path(dest)
+            .and_then(|dest| stage_entry_copy(src, &dest, kind));
         match result {
             Ok(entry) => {
                 self.staged.push(entry);
@@ -261,9 +264,10 @@ mod tests {
         fs::write(src_dir.join("a.txt"), "new-a").unwrap();
         fs::write(src_dir.join("b.txt"), "new-b").unwrap();
 
-        let mut tx = UpdateTransaction::new();
-        tx.stage_file(&src_dir.join("a.txt"), &file_a).unwrap();
-        tx.stage_file(&src_dir.join("b.txt"), &file_b).unwrap();
+        let install_root = ValidatedInstallRoot::new(&install_dir).unwrap();
+        let mut tx = UpdateTransaction::new(install_root);
+        tx.stage_file(&src_dir.join("a.txt"), "a.txt").unwrap();
+        tx.stage_file(&src_dir.join("b.txt"), "b.txt").unwrap();
 
         let missing_new = tx.staged[1].new_path.clone();
         fs::remove_file(&missing_new).unwrap();
@@ -276,5 +280,25 @@ mod tests {
         assert!(!file_a.with_file_name("a.txt.old").exists());
         assert!(!file_b.with_file_name("b.txt.new").exists());
         assert!(!file_b.with_file_name("b.txt.old").exists());
+    }
+
+    #[test]
+    fn update_transaction_rejects_destinations_outside_install_root() {
+        let tmp = tempdir().unwrap();
+        let install_dir = tmp.path().join("install");
+        let src_dir = tmp.path().join("src");
+        fs::create_dir_all(&install_dir).unwrap();
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("payload.txt"), "payload").unwrap();
+
+        let install_root = ValidatedInstallRoot::new(&install_dir).unwrap();
+        let mut tx = UpdateTransaction::new(install_root);
+        let err = tx
+            .stage_file(&src_dir.join("payload.txt"), "../escape.txt")
+            .expect_err("parent traversal must be rejected");
+
+        assert!(err.to_string().contains("Invalid update path"));
+        assert!(!tmp.path().join("escape.txt").exists());
+        assert!(!install_dir.join("escape.txt.new").exists());
     }
 }

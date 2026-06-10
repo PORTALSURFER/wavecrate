@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 pub(super) use asset_names::{
     expected_checksums_name, expected_checksums_signature_name, expected_zip_asset_name,
 };
-pub(super) use path_guard::ensure_child_path;
+pub(super) use path_guard::ValidatedInstallRoot;
 
 pub use apply::{ApplyPlan, StaleRemovalFailure, UpdateManifest};
 pub use check::{UpdateCheckOutcome, UpdateCheckRequest};
