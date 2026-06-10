@@ -133,7 +133,59 @@ impl NativeAppState {
                     .apply_message(FolderBrowserMessage::CancelFileColumnDrag);
                 context.end_drag();
             }
+            FolderBrowserMessage::ToggleSimilarityAnchor(file_id) => {
+                self.toggle_similarity_anchor(file_id, context);
+            }
             message => self.library.folder_browser.apply_message(message),
+        }
+    }
+
+    fn toggle_similarity_anchor(
+        &mut self,
+        file_id: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let clearing = self
+            .library
+            .folder_browser
+            .file_is_similarity_anchor(&file_id);
+        self.library
+            .folder_browser
+            .apply_message(FolderBrowserMessage::ToggleSimilarityAnchor(
+                file_id.clone(),
+            ));
+        if clearing {
+            self.ui.status.sample = String::from("Similarity mode cleared");
+            emit_gui_action(
+                "browser.similarity_anchor.clear",
+                Some("browser"),
+                Some(&sample_path_label(&file_id)),
+                "applied",
+                started_at,
+                None,
+            );
+        } else {
+            context.scroll_into_view_snapped(
+                SAMPLE_BROWSER_LIST_ID,
+                0.0,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                0.0,
+                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32 * SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+            );
+            self.ui.status.sample = format!(
+                "Similarity anchor set to {}",
+                sample_path_label(file_id.as_str())
+            );
+            emit_gui_action(
+                "browser.similarity_anchor.set",
+                Some("browser"),
+                Some(&sample_path_label(&file_id)),
+                "applied",
+                started_at,
+                None,
+            );
         }
     }
 

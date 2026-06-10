@@ -68,6 +68,51 @@ pub(super) enum FolderBrowserDrag {
     ExtractedFile { path: PathBuf },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SimilarityBrowserState {
+    anchor_id: String,
+    scores_by_file: std::collections::HashMap<String, f32>,
+    score_bounds: Option<(f32, f32)>,
+}
+
+impl SimilarityBrowserState {
+    pub(in crate::native_app) fn new(anchor_id: String) -> Self {
+        Self::with_scores(anchor_id, std::collections::HashMap::new())
+    }
+
+    pub(in crate::native_app) fn with_scores(
+        anchor_id: String,
+        mut scores_by_file: std::collections::HashMap<String, f32>,
+    ) -> Self {
+        scores_by_file.retain(|_, score| score.is_finite());
+        scores_by_file.insert(anchor_id.clone(), 1.0);
+        let score_bounds = score_bounds(scores_by_file.values().copied());
+        Self {
+            anchor_id,
+            scores_by_file,
+            score_bounds,
+        }
+    }
+
+    pub(in crate::native_app) fn anchor_id(&self) -> &str {
+        &self.anchor_id
+    }
+
+    pub(in crate::native_app) fn raw_score_for(&self, file_id: &str) -> Option<f32> {
+        self.scores_by_file.get(file_id).copied()
+    }
+
+    pub(in crate::native_app) fn display_strength_for(&self, file_id: &str) -> Option<f32> {
+        let score = self.raw_score_for(file_id)?.clamp(-1.0, 1.0);
+        let (min_score, max_score) = self.score_bounds?;
+        let range = max_score - min_score;
+        if range <= f32::EPSILON {
+            return Some(absolute_display_strength(score));
+        }
+        Some(((score - min_score) / range).clamp(0.0, 1.0))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct VisibleFolder {
     pub(in crate::native_app) id: String,
@@ -103,4 +148,21 @@ fn file_column(id: &str, label: &str, width: f32) -> FileColumn {
         label: label.to_owned(),
         width,
     }
+}
+
+fn score_bounds(scores: impl IntoIterator<Item = f32>) -> Option<(f32, f32)> {
+    let mut scores = scores.into_iter().map(|score| score.clamp(-1.0, 1.0));
+    let first = scores.next()?;
+    let mut min_score = first;
+    let mut max_score = first;
+    for score in scores {
+        min_score = min_score.min(score);
+        max_score = max_score.max(score);
+    }
+    Some((min_score, max_score))
+}
+
+fn absolute_display_strength(score: f32) -> f32 {
+    let normalized = ((score.clamp(-1.0, 1.0) + 1.0) * 0.5).clamp(0.0, 1.0);
+    normalized.powf(2.0)
 }

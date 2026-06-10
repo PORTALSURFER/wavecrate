@@ -10,8 +10,9 @@ use wavecrate::sample_sources::SampleCollection;
 use super::{
     CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, DEFAULT_FILTER_PANEL_HEIGHT,
     FileColumn, FileEntry, FileMoveConflictBatch, FileRenameEdit, FolderBrowserDrag,
-    FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig, SourceEntry,
-    default_file_columns, default_root_path, load_root_folder, placeholder_folder,
+    FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig,
+    SimilarityBrowserState, SourceEntry, default_file_columns, default_root_path, load_root_folder,
+    placeholder_folder,
 };
 
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
@@ -45,6 +46,7 @@ pub(in crate::native_app) struct FolderBrowserState {
     pub(super) file_sort: ui::DetailsSort,
     pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
+    pub(super) similarity: Option<SimilarityBrowserState>,
     pub(super) tree_view_controller: ui::VirtualListController,
     pub(super) file_view_controller: ui::VirtualListController,
     pub(super) tree_view_follow_selection: ui::VirtualListFollowState<String>,
@@ -65,6 +67,7 @@ struct SelectedAudioProjectionKey {
     name_filter: String,
     sort_column_id: String,
     sort_descending: bool,
+    similarity_anchor_id: Option<String>,
     content_revision: u64,
 }
 
@@ -74,6 +77,7 @@ impl Hash for SelectedAudioProjectionKey {
         self.name_filter.hash(state);
         self.sort_column_id.hash(state);
         self.sort_descending.hash(state);
+        self.similarity_anchor_id.hash(state);
         self.content_revision.hash(state);
     }
 }
@@ -138,6 +142,7 @@ impl FolderBrowserState {
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
+            similarity: None,
             tree_view_controller: ui::VirtualListController::default(),
             file_view_controller: ui::VirtualListController::default(),
             tree_view_follow_selection: ui::VirtualListFollowState::default(),
@@ -319,6 +324,51 @@ impl FolderBrowserState {
         self.selected_file.as_deref()
     }
 
+    pub(in crate::native_app) fn similarity_anchor_id(&self) -> Option<&str> {
+        self.similarity
+            .as_ref()
+            .map(SimilarityBrowserState::anchor_id)
+    }
+
+    pub(in crate::native_app) fn similarity_mode_active(&self) -> bool {
+        self.similarity.is_some()
+    }
+
+    pub(in crate::native_app) fn file_is_similarity_anchor(&self, file_id: &str) -> bool {
+        self.similarity_anchor_id() == Some(file_id)
+    }
+
+    pub(in crate::native_app) fn similarity_display_strength_for_file(
+        &self,
+        file_id: &str,
+    ) -> Option<f32> {
+        self.similarity
+            .as_ref()
+            .and_then(|similarity| similarity.display_strength_for(file_id))
+    }
+
+    pub(in crate::native_app) fn toggle_similarity_anchor(&mut self, file_id: String) {
+        if self.file_is_similarity_anchor(&file_id) {
+            self.similarity = None;
+        } else {
+            self.similarity = Some(SimilarityBrowserState::new(file_id));
+        }
+        self.bump_file_content_revision();
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn set_similarity_scores_for_tests(
+        &mut self,
+        anchor_id: String,
+        scores_by_file: HashMap<String, f32>,
+    ) {
+        self.similarity = Some(SimilarityBrowserState::with_scores(
+            anchor_id,
+            scores_by_file,
+        ));
+        self.bump_file_content_revision();
+    }
+
     pub(in crate::native_app) fn folder_path(&self, folder_id: &str) -> Option<PathBuf> {
         self.find_folder(folder_id)
             .map(|folder| PathBuf::from(&folder.id))
@@ -415,6 +465,9 @@ impl FolderBrowserState {
             FolderBrowserMessage::CancelFileColumnDrag => {
                 self.cancel_file_column_drag();
             }
+            FolderBrowserMessage::ToggleSimilarityAnchor(file_id) => {
+                self.toggle_similarity_anchor(file_id);
+            }
             FolderBrowserMessage::ResizeCollectionsPanel(message) => {
                 self.resize_collections_panel(message);
             }
@@ -454,6 +507,7 @@ impl FolderBrowserState {
             name_filter: normalized_name_filter(&self.name_filter),
             sort_column_id: self.file_sort.column_id.clone(),
             sort_descending: self.file_sort.direction == ui::SortDirection::Descending,
+            similarity_anchor_id: self.similarity_anchor_id().map(str::to_owned),
             content_revision: self.file_content_revision,
         };
         if !self
@@ -471,6 +525,7 @@ impl FolderBrowserState {
                 .map(|(index, _)| index)
                 .collect::<Vec<_>>();
             self.sort_file_indices(folder, &mut indices);
+            self.sort_file_indices_by_similarity(folder, &mut indices);
             self.selected_audio_projection_cache
                 .borrow_mut()
                 .insert(key.clone(), indices);
@@ -517,6 +572,20 @@ impl FolderBrowserState {
         if self.file_sort.direction == ui::SortDirection::Descending {
             indices.reverse();
         }
+    }
+
+    fn sort_file_indices_by_similarity(&self, folder: &FolderEntry, indices: &mut [usize]) {
+        let Some(similarity) = self.similarity.as_ref() else {
+            return;
+        };
+        let base_order = indices
+            .iter()
+            .enumerate()
+            .map(|(order, index)| (*index, order))
+            .collect::<HashMap<_, _>>();
+        indices.sort_by(|left, right| {
+            similarity_file_order(folder, similarity, &base_order, *left, *right)
+        });
     }
 
     pub(super) fn prewarm_selected_source_audio_projection_cache(&self) {
@@ -567,6 +636,41 @@ fn collect_collection_audio_files<'a>(
     for child in &folder.children {
         collect_collection_audio_files(child, collection, files);
     }
+}
+
+fn similarity_file_order(
+    folder: &FolderEntry,
+    similarity: &SimilarityBrowserState,
+    base_order: &HashMap<usize, usize>,
+    left: usize,
+    right: usize,
+) -> std::cmp::Ordering {
+    let left_file = &folder.files[left];
+    let right_file = &folder.files[right];
+    match (
+        left_file.id == similarity.anchor_id(),
+        right_file.id == similarity.anchor_id(),
+    ) {
+        (true, false) => return std::cmp::Ordering::Less,
+        (false, true) => return std::cmp::Ordering::Greater,
+        _ => {}
+    }
+
+    match (
+        similarity.raw_score_for(&left_file.id),
+        similarity.raw_score_for(&right_file.id),
+    ) {
+        (Some(left_score), Some(right_score)) => right_score
+            .total_cmp(&left_score)
+            .then_with(|| base_order_for(left, base_order).cmp(&base_order_for(right, base_order))),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => base_order_for(left, base_order).cmp(&base_order_for(right, base_order)),
+    }
+}
+
+fn base_order_for(index: usize, base_order: &HashMap<usize, usize>) -> usize {
+    base_order.get(&index).copied().unwrap_or(usize::MAX)
 }
 
 fn count_matching_audio_files_in_folder(

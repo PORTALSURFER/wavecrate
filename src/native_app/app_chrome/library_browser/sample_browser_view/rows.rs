@@ -15,6 +15,11 @@ use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };
 
+const SIMILARITY_TOGGLE_WIDTH: f32 = 22.0;
+const SIMILARITY_TOGGLE_SIZE: f32 = 18.0;
+const SIMILARITY_SCORE_TRACK: ui::Rgba8 = ui::Rgba8::new(64, 68, 72, 150);
+const SIMILARITY_SCORE_FILL: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
+
 pub(super) fn sample_browser_rows(
     folder_browser: &FolderBrowserState,
     file_count: usize,
@@ -67,6 +72,7 @@ fn empty_sample_browser_rows() -> ui::View<GuiMessage> {
 
 fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
     let file_id = row.file_id.to_string();
+    let file_id_for_toggle = row.file_id.to_string();
     let hit_target = sample_file_hit_target(
         row.file_id,
         row.selected,
@@ -77,7 +83,17 @@ fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
         file_id,
     );
     let row = ui::input_underlay(
-        ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)),
+        ui::row([
+            similarity_anchor_toggle(
+                file_id_for_toggle,
+                row.similarity_anchor,
+                row.similarity_strength,
+            ),
+            ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)).fill_width(),
+        ])
+        .spacing(0.0)
+        .fill_width()
+        .height(SAMPLE_BROWSER_ROW_HEIGHT),
         hit_target,
     )
     .key(format!("sample-row-{}", row.file_id))
@@ -121,7 +137,25 @@ fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
         SampleColumnContent::Collection(colors) => {
             sample_collection_cell(colors, column.width, column.file_id)
         }
+        SampleColumnContent::Similarity(strength) => {
+            sample_similarity_cell(strength, column.width, column.file_id)
+        }
     }
+}
+
+fn similarity_anchor_toggle(
+    file_id: String,
+    active: bool,
+    strength: Option<f32>,
+) -> ui::View<GuiMessage> {
+    ui::icon_button(similarity_anchor_icon(active, strength.is_some()))
+        .subtle()
+        .active(active)
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::ToggleSimilarityAnchor(file_id.clone()),
+        ))
+        .key(format!("sample-similarity-anchor-{file_id}"))
+        .size(SIMILARITY_TOGGLE_WIDTH, SIMILARITY_TOGGLE_SIZE)
 }
 
 fn sample_rename_cell(rename: FileRenameView, width: f32, file_id: &str) -> ui::View<GuiMessage> {
@@ -151,6 +185,40 @@ fn sample_collection_cell(
             .key(format!("sample-collection-{file_id}")),
         Some(width),
     )
+}
+
+fn sample_similarity_cell(
+    strength: Option<f32>,
+    width: f32,
+    file_id: &str,
+) -> ui::View<GuiMessage> {
+    let content = if let Some(strength) = strength {
+        ui::determinate_progress_bar(strength)
+            .colors(SIMILARITY_SCORE_TRACK, SIMILARITY_SCORE_FILL)
+            .max_track_height(5.0)
+            .mapped(|_| GuiMessage::CloseContextMenu)
+            .key(format!("sample-similarity-score-{file_id}"))
+            .height(12.0)
+            .fill_width()
+    } else {
+        ui::text("N/A")
+            .muted_text()
+            .key(format!("sample-similarity-score-missing-{file_id}"))
+            .height(18.0)
+            .fill_width()
+    };
+    ui::compact_details_cell(content, Some(width))
+}
+
+fn similarity_anchor_icon(active: bool, available: bool) -> ui::SvgIcon {
+    let color = if active {
+        ui::Rgba8::new(255, 160, 82, 255)
+    } else if available {
+        ui::Rgba8::new(238, 238, 238, 220)
+    } else {
+        ui::Rgba8::new(142, 146, 150, 210)
+    };
+    SIMILARITY_ANCHOR_ICON.icon(color)
 }
 
 fn sample_rating_cell(
@@ -201,3 +269,9 @@ fn sample_file_cell(
 #[cfg(test)]
 #[path = "rows_tests.rs"]
 mod tests;
+
+static SIMILARITY_ANCHOR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="8" cy="8" r="4.2" fill="currentColor"/>
+</svg>"#,
+);

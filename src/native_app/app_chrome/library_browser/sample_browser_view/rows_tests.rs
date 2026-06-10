@@ -165,3 +165,37 @@ fn collection_cell_paints_each_collection_membership_color() {
         "collection column should paint the third collection color"
     );
 }
+
+#[test]
+/// Verifies similarity scores render as compact progress bars.
+fn similarity_score_cell_paints_progress_fill() {
+    let theme = ThemeTokens::default();
+    let file = file_entry();
+    let frame = sample_similarity_cell(Some(0.65), 58.0, file.id.as_str())
+        .view_frame_at_size(Vector2::new(58.0, 20.0), &theme);
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == SIMILARITY_SCORE_FILL && fill.rect.width() > 20.0),
+        "available similarity scores should paint a progress fill"
+    );
+}
+
+#[test]
+/// Verifies unavailable similarity scores are explicit instead of showing a zero bar.
+fn missing_similarity_score_cell_paints_na_label() {
+    let theme = ThemeTokens::default();
+    let file = file_entry();
+    let frame = sample_similarity_cell(None, 58.0, file.id.as_str())
+        .view_frame_at_size(Vector2::new(58.0, 20.0), &theme);
+
+    assert!(
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text == "N/A" && run.color == theme.text_muted),
+        "missing similarity scores should paint a muted N/A label"
+    );
+}

@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 use std::collections::HashMap;
 
+use super::SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH;
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::{
@@ -14,6 +15,8 @@ pub(super) struct SampleRowDisplay<'a> {
     pub(super) drag_active: bool,
     pub(super) drag_source: bool,
     pub(super) cached: bool,
+    pub(super) similarity_anchor: bool,
+    pub(super) similarity_strength: Option<f32>,
     pub(super) columns: Vec<SampleColumnDisplay<'a>>,
 }
 
@@ -29,6 +32,7 @@ pub(super) enum SampleColumnContent {
     Rename(folder_browser::FileRenameView),
     Rating(RatingIndicator),
     Collection(Vec<ui::Rgba8>),
+    Similarity(Option<f32>),
 }
 
 pub(super) fn sample_row_display<'a>(
@@ -47,20 +51,58 @@ pub(super) fn sample_row_display<'a>(
         drag_active: folder_browser.file_drag_active(),
         drag_source: folder_browser.file_drag_source(&file.id),
         cached,
-        columns: columns
-            .iter()
-            .map(|column| {
-                sample_column_display(
-                    file,
-                    rename.clone(),
-                    column,
-                    folder_browser,
-                    name_view_mode,
-                    metadata_tags_by_file,
-                    cached,
-                )
-            })
-            .collect(),
+        similarity_anchor: folder_browser.file_is_similarity_anchor(&file.id),
+        similarity_strength: folder_browser.similarity_display_strength_for_file(&file.id),
+        columns: sample_column_displays(
+            file,
+            rename,
+            columns,
+            folder_browser,
+            name_view_mode,
+            metadata_tags_by_file,
+            cached,
+        ),
+    }
+}
+
+fn sample_column_displays<'a>(
+    file: &'a FileEntry,
+    rename: Option<folder_browser::FileRenameView>,
+    columns: &[&'a FileColumn],
+    folder_browser: &FolderBrowserState,
+    name_view_mode: SampleNameViewMode,
+    metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cached: bool,
+) -> Vec<SampleColumnDisplay<'a>> {
+    let mut displays = Vec::with_capacity(columns.len() + 1);
+    for column in columns {
+        displays.push(sample_column_display(
+            file,
+            rename.clone(),
+            column,
+            folder_browser,
+            name_view_mode,
+            metadata_tags_by_file,
+            cached,
+        ));
+        if column.id == "name" && folder_browser.similarity_mode_active() {
+            displays.push(similarity_column_display(file, folder_browser));
+        }
+    }
+    displays
+}
+
+fn similarity_column_display<'a>(
+    file: &'a FileEntry,
+    folder_browser: &FolderBrowserState,
+) -> SampleColumnDisplay<'a> {
+    SampleColumnDisplay {
+        file_id: file.id.as_str(),
+        id: "similarity",
+        width: SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH,
+        content: SampleColumnContent::Similarity(
+            folder_browser.similarity_display_strength_for_file(&file.id),
+        ),
     }
 }
 

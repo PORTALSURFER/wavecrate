@@ -120,11 +120,63 @@ impl FolderBrowserState {
                     file.name_sort_key(),
                 )
             }),
+            "similarity" => self.sort_files_by_similarity(files),
             "path" => files.sort_by(|a, b| a.id.cmp(&b.id)),
             _ => files.sort_by_cached_key(|file| file.name_sort_key()),
         }
         if self.file_sort.direction == ui::SortDirection::Descending {
             files.reverse();
         }
+        if self.file_sort.column_id.as_str() != "similarity" {
+            self.sort_files_by_similarity(files);
+        }
     }
+
+    fn sort_files_by_similarity(&self, files: &mut [&FileEntry]) {
+        let Some(similarity) = self.similarity.as_ref() else {
+            return;
+        };
+        let base_order = files
+            .iter()
+            .enumerate()
+            .map(|(order, file)| (file.id.as_str(), order))
+            .collect::<std::collections::HashMap<_, _>>();
+        files
+            .sort_by(|left, right| similarity_file_ref_order(similarity, &base_order, left, right));
+    }
+}
+
+fn similarity_file_ref_order(
+    similarity: &super::SimilarityBrowserState,
+    base_order: &std::collections::HashMap<&str, usize>,
+    left: &FileEntry,
+    right: &FileEntry,
+) -> std::cmp::Ordering {
+    match (
+        left.id == similarity.anchor_id(),
+        right.id == similarity.anchor_id(),
+    ) {
+        (true, false) => return std::cmp::Ordering::Less,
+        (false, true) => return std::cmp::Ordering::Greater,
+        _ => {}
+    }
+    match (
+        similarity.raw_score_for(&left.id),
+        similarity.raw_score_for(&right.id),
+    ) {
+        (Some(left_score), Some(right_score)) => {
+            right_score.total_cmp(&left_score).then_with(|| {
+                base_order_for(left.id.as_str(), base_order)
+                    .cmp(&base_order_for(right.id.as_str(), base_order))
+            })
+        }
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => base_order_for(left.id.as_str(), base_order)
+            .cmp(&base_order_for(right.id.as_str(), base_order)),
+    }
+}
+
+fn base_order_for(id: &str, base_order: &std::collections::HashMap<&str, usize>) -> usize {
+    base_order.get(id).copied().unwrap_or(usize::MAX)
 }

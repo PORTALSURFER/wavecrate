@@ -19,6 +19,8 @@ use rows::sample_browser_rows;
 
 const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = widget_ids::SAMPLE_HEADER_SORT_DRAG_ID;
 const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
+const SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH: f32 = 22.0;
+pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 58.0;
 
 #[cfg(test)]
 pub(in crate::native_app) fn sample_browser_from_state(
@@ -36,6 +38,7 @@ pub(in crate::native_app) fn sample_browser(
             model.folder_browser.file_sort(),
             model.drag_feedback.as_ref(),
             model.name_view_mode,
+            model.similarity_mode_active,
         ),
         sample_browser_rows(
             model.folder_browser,
@@ -106,9 +109,10 @@ fn sample_browser_header_bar(
     sort: &ui::DetailsSort,
     drag_feedback: Option<&FileColumnDragFeedback>,
     mode: SampleNameViewMode,
+    similarity_mode_active: bool,
 ) -> ui::View<GuiMessage> {
     ui::row([
-        sample_browser_header(columns, sort, drag_feedback).fill_width(),
+        sample_browser_header(columns, sort, drag_feedback, similarity_mode_active).fill_width(),
         sample_name_view_mode_button(mode),
     ])
     .fill_width()
@@ -131,12 +135,20 @@ fn sample_browser_header(
     columns: &[&FileColumn],
     sort: &ui::DetailsSort,
     drag_feedback: Option<&FileColumnDragFeedback>,
+    similarity_mode_active: bool,
 ) -> ui::View<GuiMessage> {
-    let header = ui::compact_details_header_row(
-        columns
-            .iter()
-            .map(|column| sample_header_cell(column, sort)),
-    );
+    let header_cells = columns
+        .iter()
+        .flat_map(|column| sample_header_cells(column, sort, similarity_mode_active));
+    let header = ui::row([
+        ui::spacer()
+            .width(SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH)
+            .height(24.0),
+        ui::compact_details_header_row(header_cells).fill_width(),
+    ])
+    .spacing(0.0)
+    .fill_width()
+    .height(24.0);
     let Some(feedback) = drag_feedback else {
         return header;
     };
@@ -184,6 +196,29 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
             ))
         },
     )
+}
+
+fn sample_header_cells(
+    column: &FileColumn,
+    sort: &ui::DetailsSort,
+    similarity_mode_active: bool,
+) -> Vec<ui::View<GuiMessage>> {
+    let mut cells = vec![sample_header_cell(column, sort)];
+    if column.id == "name" && similarity_mode_active {
+        cells.push(sample_similarity_header_cell());
+    }
+    cells
+}
+
+fn sample_similarity_header_cell() -> ui::View<GuiMessage> {
+    ui::compact_details_cell(
+        ui::text("Sim")
+            .muted_text()
+            .key("sample-header-similarity-label")
+            .height(20.0),
+        Some(SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH),
+    )
+    .key("sample-header-similarity")
 }
 
 fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {

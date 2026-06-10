@@ -65,7 +65,7 @@ mod rename_tree;
 mod rename_workflow;
 
 mod state_types;
-pub(in crate::native_app) use state_types::FileColumn;
+pub(in crate::native_app) use state_types::{FileColumn, SimilarityBrowserState};
 use state_types::{
     FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind, default_file_columns,
 };
