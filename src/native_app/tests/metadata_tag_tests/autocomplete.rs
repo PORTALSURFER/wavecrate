@@ -166,17 +166,21 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     assert!(runtime.focused_widget().is_some());
 
     let frame = runtime.frame_with_default_theme();
-    let (label, folder_rect) = frame
+    let clicked_folder_label = std::path::Path::new(&clicked_folder_id)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("clicked folder should have a display label");
+    let folder_rect = frame
         .paint_plan
         .text_runs()
         .find_map(|text| {
             text.text
                 .as_str()
-                .starts_with('[')
-                .then(|| (text.text.to_string(), text.rect))
+                .eq(clicked_folder_label)
+                .then_some(text.rect)
         })
-        .expect("selected root folder toggle should paint");
-    let point = folder_rect.center();
+        .expect("folder row label should paint");
+    let point = ui::Point::new(folder_rect.min.x - 14.0, folder_rect.center().y);
 
     runtime.dispatch_primary_click(point);
 
@@ -188,7 +192,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
             .folder_browser
             .folder_expansion_for_tests(&clicked_folder_id),
         Some(!initially_expanded),
-        "autocomplete popup must not prevent clicking folder row {label}"
+        "autocomplete popup must not prevent clicking folder row {clicked_folder_label}"
     );
 }
 

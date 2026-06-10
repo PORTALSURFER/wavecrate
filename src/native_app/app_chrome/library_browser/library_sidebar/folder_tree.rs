@@ -7,14 +7,48 @@ use crate::native_app::sample_library::folder_browser::{
     TREE_ROW_HEIGHT, VisibleFolder,
 };
 
-use super::tree_hit_target::FolderTreeHitTarget;
-
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
 const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
     r: 255,
     g: 126,
     b: 64,
     a: 152,
+};
+const FOLDER_TREE_SELECTED_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 82,
+    b: 62,
+    a: 105,
+};
+const FOLDER_TREE_INTERACTION_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 110,
+    b: 85,
+    a: 80,
+};
+const FOLDER_TREE_ACTIVE_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 130,
+    b: 78,
+    a: 220,
+};
+const FOLDER_TREE_CANDIDATE_HOVER_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 122,
+    b: 74,
+    a: 150,
+};
+const FOLDER_TREE_DROP_OUTLINE: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 180,
+    b: 130,
+    a: 235,
+};
+const FOLDER_TREE_HIGHLIGHTED_LABEL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 238,
+    b: 224,
+    a: 255,
 };
 
 pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
@@ -48,7 +82,7 @@ fn folder_tree_window(
         TREE_ROW_HEIGHT,
         &folder_tree_guide_rows(&visible_folders),
         folder_tree_guide_style(),
-        |index| folder_row(visible_folders[index].clone(), drag_revision),
+        |index| folder_row(&visible_folders[index], drag_revision),
         TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
     .on_scroll_update({
@@ -65,13 +99,13 @@ fn folder_tree_window(
     .fill_height()
 }
 
-fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
+fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
-    if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
+    if let (Some(draft), Some(input_id)) = (&folder.rename_draft, folder.rename_input_id) {
         let caret = draft.chars().count();
         return ui::row([
             ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
-            ui::text_input(draft)
+            ui::text_input(draft.clone())
                 .selection(0, caret)
                 .message_event(|message| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
@@ -89,49 +123,90 @@ fn folder_row(folder: VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage>
         .hoverable();
     }
 
-    let label_text = folder.name.clone();
-    let expander = if folder.has_children && !folder.is_source_root {
-        let expander_label = if folder.expanded { "[-]" } else { "[+]" };
-        ui::button(expander_label)
-            .subtle()
-            .message(GuiMessage::FolderBrowser(
-                FolderBrowserMessage::ToggleFolderExpansion(id.clone()),
-            ))
-            .key(format!("folder-expander-{id}"))
-            .size(FOLDER_EXPANDER_WIDTH, 22.0)
-    } else {
-        ui::spacer()
-            .key(format!("folder-expander-spacer-{id}"))
-            .size(FOLDER_EXPANDER_WIDTH, 22.0)
-    };
-    let hit_target = ui::custom_widget_direct(FolderTreeHitTarget::new(
-        id.clone(),
-        label_text,
-        folder.selected,
-        folder.drop_target,
-        folder.drag_active,
-        folder.drag_source,
-        folder.drop_candidate,
-        folder.drop_target_active,
-    ))
-    .key(format!("folder-row-hit-{id}-{drag_revision}"))
-    .fill_width()
-    .height(22.0);
+    ui::tree_row(folder.name.clone())
+        .depth(folder.depth)
+        .expanded(folder.expanded)
+        .has_children(folder.has_children && !folder.is_source_root)
+        .selected(folder.selected)
+        .drag_drop_state(folder_tree_drag_drop_state(folder))
+        .row_height(TREE_ROW_HEIGHT)
+        .expander_width(FOLDER_EXPANDER_WIDTH)
+        .guide_style(folder_tree_guide_style())
+        .palette(folder_tree_palette())
+        .drop_target_outline(folder_tree_drop_target_outline())
+        .highlighted_label_color(FOLDER_TREE_HIGHLIGHTED_LABEL)
+        .row_key(format!("folder-row-{id}"))
+        .hit_key(format!("folder-row-hit-{id}-{drag_revision}"))
+        .on_toggle({
+            let id = id.clone();
+            move || {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleFolderExpansion(id.clone()))
+            }
+        })
+        .interactive_actions(folder_row_actions(
+            id,
+            folder.drop_candidate,
+            folder.drop_target_active,
+        ))
+}
 
-    ui::row([
-        ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
-        expander,
-        hit_target.fill_width().height(22.0),
-    ])
-    .key(format!("folder-row-{id}"))
-    .style(if folder.selected || folder.drop_target {
-        ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
+fn folder_row_actions(
+    id: String,
+    drop_candidate: bool,
+    drop_target_active: bool,
+) -> ui::InteractiveRowActions<GuiMessage> {
+    ui::InteractiveRowActions::new().activate_or_double_secondary_drag_drop_target_key(
+        id,
+        |id| GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id)),
+        |id, position| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::OpenFolderContextMenu(id, position))
+        },
+        |id, drag| GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag)),
+        |id| GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id)),
+        move |id, position| {
+            GuiMessage::FolderBrowser(folder_hover_drop_message(
+                id,
+                position,
+                drop_candidate,
+                drop_target_active,
+            ))
+        },
+    )
+}
+
+fn folder_hover_drop_message(
+    id: String,
+    position: ui::Point,
+    drop_candidate: bool,
+    drop_target_active: bool,
+) -> FolderBrowserMessage {
+    if drop_target_active && !drop_candidate {
+        FolderBrowserMessage::ClearDropTargetUnless(id, position)
     } else {
-        ui::WidgetStyle::default()
-    })
-    .fill_width()
-    .height(TREE_ROW_HEIGHT)
-    .spacing(1.0)
+        FolderBrowserMessage::HoverDropTarget(id, position)
+    }
+}
+
+fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropState {
+    ui::TreeRowDragDropState {
+        drag_active: folder.drag_active,
+        drag_source: folder.drag_source,
+        drop_candidate: folder.drop_candidate,
+        drop_target: folder.drop_target,
+        drop_target_active: folder.drop_target_active,
+    }
+}
+
+fn folder_tree_palette() -> ui::DenseRowPalette {
+    ui::DenseRowPalette::new()
+        .selected(FOLDER_TREE_SELECTED_FILL)
+        .interaction_fills(FOLDER_TREE_INTERACTION_FILL, FOLDER_TREE_INTERACTION_FILL)
+        .active_target(FOLDER_TREE_ACTIVE_TARGET_FILL)
+        .candidate_hovered(FOLDER_TREE_CANDIDATE_HOVER_FILL)
+}
+
+fn folder_tree_drop_target_outline() -> ui::DenseRowOutlineStyle {
+    ui::DenseRowOutlineStyle::new(0.5, FOLDER_TREE_DROP_OUTLINE, 1.5)
 }
 
 fn folder_tree_guide_style() -> ui::TreeGuideStyle {

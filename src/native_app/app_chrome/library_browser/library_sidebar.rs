@@ -13,7 +13,6 @@ mod tag_editor;
 mod tag_entry_layout;
 #[cfg(test)]
 mod test_support;
-mod tree_hit_target;
 
 use collections_section::collections_section;
 use filter_section::filter_section;
