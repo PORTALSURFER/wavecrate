@@ -17,6 +17,7 @@ pub(super) fn native_run_options(debug_layout: bool) -> NativeRunOptions {
             },
             behavior: NativeWindowBehavior {
                 drag_and_drop: true,
+                maximized: true,
                 ..NativeWindowBehavior::default()
             },
             ..NativeWindowOptions::default()
@@ -30,5 +31,28 @@ pub(super) fn native_run_options(debug_layout: bool) -> NativeRunOptions {
             font_paths: vec![wavecrate_ui_font_path()],
         },
         ..NativeRunOptions::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_native_run_options_start_main_window_maximized() {
+        let options = native_run_options(false);
+
+        assert!(options.window.behavior.maximized);
+        assert!(options.window.behavior.decorations);
+        assert_eq!(options.window.title, DEFAULT_WINDOW_TITLE);
+    }
+
+    #[test]
+    fn debug_layout_arg_does_not_change_default_window_mode() {
+        let options = native_run_options(true);
+
+        assert!(options.frame.debug_layout);
+        assert!(options.window.behavior.maximized);
+        assert!(options.window.behavior.decorations);
     }
 }
