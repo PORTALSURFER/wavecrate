@@ -1,9 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row_style::{
-    active_sidebar_row_style, sidebar_row_style,
-};
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::sample_library::folder_browser::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, FolderBrowserMessage,
@@ -96,10 +94,10 @@ fn collection_input(
     visual: ui::View<GuiMessage>,
     collection: &SampleCollectionView,
 ) -> ui::View<GuiMessage> {
-    ui::interactive_row_underlay(visual)
+    sidebar_row_underlay(visual)
         .tracked_drop_target(collection.drag_active, collection.drop_target)
         .stable_u64_input_id(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64)
-        .style(collection_input_style(collection))
+        .selected(collection.selected)
         .actions(
             ui::InteractiveRowActions::new()
                 .drop_target_key(
@@ -163,26 +161,13 @@ fn collection_count(count: usize) -> ui::View<GuiMessage> {
         .height(COLLECTION_ROW_HEIGHT)
 }
 
-/// Resolves selected and drop-target visual state for the input layer.
-fn collection_input_style(collection: &SampleCollectionView) -> ui::WidgetStyle {
-    let tone = if collection.drop_target {
-        ui::WidgetTone::Warning
-    } else {
-        ui::WidgetTone::Accent
-    };
-    if collection.drop_target {
-        ui::WidgetStyle::strong(tone)
-    } else if collection.selected {
-        active_sidebar_row_style()
-    } else {
-        sidebar_row_style()
-    }
-}
-
 /// Collection-section view tests.
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
+        SIDEBAR_ROW_DROP_TARGET_FILL, SIDEBAR_ROW_HOVER_FILL, sidebar_row_palette,
+    };
     use radiant::prelude::IntoView;
     use wavecrate::sample_sources::SampleCollection;
 
@@ -216,7 +201,9 @@ mod tests {
             collection_input(collection_id, collection_visual(&collection), &collection)
                 .view_dispatch_widget_output(
                 ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64),
-                ui::WidgetOutput::typed(ui::InteractiveRowMessage::DoubleActivate),
+                ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::RenameCollection(collection_id)
+                )),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::RenameCollection(collection)
@@ -225,54 +212,33 @@ mod tests {
     }
 
     #[test]
-    /// Verifies active drop targets suppress redundant hover-drop messages.
-    fn collection_input_uses_drop_only_for_current_drop_target() {
+    /// Verifies active drop targets keep a distinct visual state.
+    fn collection_input_paints_current_drop_target_fill() {
         let collection = collection_view(true, true);
         let collection_id = collection.collection;
-        let surface = collection_input(collection_id, collection_visual(&collection), &collection)
-            .into_surface();
-        let widget = surface
-            .find_widget(ui::stable_widget_id_u64(
-                COLLECTION_ROW_INPUT_SCOPE,
-                collection_id.index() as u64,
-            ))
-            .and_then(|widget| {
-                widget
-                    .widget()
-                    .as_any()
-                    .downcast_ref::<ui::InteractiveRowWidget>()
-            })
-            .expect("collection row input widget");
+        let frame = collection_input(collection_id, collection_visual(&collection), &collection)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, COLLECTION_ROW_HEIGHT));
 
-        assert!(widget.props.droppable);
-        assert!(!widget.props.drop_hover);
+        assert!(frame.paint_plan.fill_rects().any(|fill| {
+            fill.color == SIDEBAR_ROW_DROP_TARGET_FILL
+                && fill.rect.width() == 180.0
+                && fill.rect.height() == COLLECTION_ROW_HEIGHT
+        }));
     }
 
     #[test]
-    fn collection_input_uses_sidebar_accent_hover_style() {
-        let collection = collection_view(false, false);
-
-        assert_eq!(collection_input_style(&collection), sidebar_row_style());
-    }
-
-    #[test]
-    fn selected_collection_keeps_distinct_active_style() {
-        let mut collection = collection_view(false, false);
-        collection.selected = true;
-
+    fn collection_rows_use_shared_grey_sidebar_hover_fill() {
         assert_eq!(
-            collection_input_style(&collection),
-            active_sidebar_row_style()
+            sidebar_row_palette(true).hovered,
+            Some(SIDEBAR_ROW_HOVER_FILL)
         );
     }
 
     #[test]
-    fn collection_drop_target_keeps_warning_style() {
-        let collection = collection_view(true, true);
-
+    fn collection_drop_target_keeps_distinct_target_fill() {
         assert_eq!(
-            collection_input_style(&collection),
-            ui::WidgetStyle::strong(ui::WidgetTone::Warning)
+            sidebar_row_palette(true).active_target,
+            Some(SIDEBAR_ROW_DROP_TARGET_FILL)
         );
     }
 

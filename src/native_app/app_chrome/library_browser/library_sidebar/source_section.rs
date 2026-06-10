@@ -1,9 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row_style::{
-    active_sidebar_row_style, sidebar_row_style,
-};
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserMessage, FolderBrowserState, SourceEntry,
 };
@@ -11,12 +9,6 @@ use crate::native_app::sample_library::folder_browser::{
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
 const ACTIVE_SOURCE_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 245);
 const ACTIVE_SOURCE_MARKER_WIDTH: f32 = 3.0;
-const ACTIVE_SOURCE_MARKER_SIDE: ui::BorderSides = ui::BorderSides {
-    top: false,
-    bottom: false,
-    left: true,
-    right: false,
-};
 
 pub(super) fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::column([
@@ -53,9 +45,11 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
     } else {
         source.label.clone()
     };
-    let visual = source_row_content(label, selected);
-    ui::interactive_row_underlay(visual)
+    let visual = source_row_content(label);
+    sidebar_row_underlay(visual)
         .stable_input_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str())
+        .selected(selected)
+        .leading_marker_if(selected, active_source_marker())
         .actions(ui::InteractiveRowActions::new().activate_secondary_key(
             source.id.clone(),
             |source_id| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id)),
@@ -66,41 +60,29 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
             },
         ))
         .key(format!("source-row-{row_key}"))
-        .style(source_row_style(selected))
         .fill_width()
         .height(24.0)
 }
 
-fn source_row_content(label: String, selected: bool) -> ui::View<GuiMessage> {
-    let content = ui::text_line(label, 24.0).padding_x(8.0);
-    if !selected {
-        return content;
-    }
-
-    ui::stack([
-        content,
-        ui::feedback_overlay()
-            .edge(
-                ACTIVE_SOURCE_MARKER_COLOR,
-                ACTIVE_SOURCE_MARKER_WIDTH,
-                ACTIVE_SOURCE_MARKER_SIDE,
-            )
-            .view()
-            .fill(),
-    ])
+fn source_row_content(label: String) -> ui::View<GuiMessage> {
+    ui::text_line(label, 24.0).padding_x(8.0)
 }
 
-fn source_row_style(selected: bool) -> ui::WidgetStyle {
-    if selected {
-        active_sidebar_row_style()
-    } else {
-        sidebar_row_style()
-    }
+fn active_source_marker() -> ui::DenseRowMarkerStyle {
+    ui::DenseRowMarkerStyle::new(
+        ui::DenseRowMarkerParts::leading(ACTIVE_SOURCE_MARKER_WIDTH)
+            .edge_inset(4.0)
+            .vertical_inset(4.0),
+        ACTIVE_SOURCE_MARKER_COLOR,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
+        SIDEBAR_ROW_HOVER_FILL, sidebar_row_palette,
+    };
     use radiant::prelude::IntoView;
 
     fn test_source(id: &str) -> SourceEntry {
@@ -116,7 +98,9 @@ mod tests {
         assert_eq!(
             source_row(&state, &source).view_dispatch_widget_output(
                 ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
-                ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+                ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::SelectSource(source.id.clone())
+                )),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::SelectSource(source.id.clone())
@@ -134,7 +118,9 @@ mod tests {
         assert_eq!(
             source_row(&state, &source).view_dispatch_widget_output(
                 ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
-                ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
+                ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::OpenSourceContextMenu(source.id.clone(), position)
+                )),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::OpenSourceContextMenu(source.id.clone(), position)
@@ -183,12 +169,10 @@ mod tests {
     }
 
     #[test]
-    fn inactive_source_row_uses_sidebar_accent_hover_style() {
-        assert_eq!(source_row_style(false), sidebar_row_style());
-    }
-
-    #[test]
-    fn selected_source_row_keeps_distinct_active_style() {
-        assert_eq!(source_row_style(true), active_sidebar_row_style());
+    fn source_rows_use_shared_grey_sidebar_hover_fill() {
+        assert_eq!(
+            sidebar_row_palette(true).hovered,
+            Some(SIDEBAR_ROW_HOVER_FILL)
+        );
     }
 }

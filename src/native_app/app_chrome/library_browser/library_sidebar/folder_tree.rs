@@ -1,6 +1,9 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
+    SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL,
+};
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
 use crate::native_app::sample_library::folder_browser::{
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FolderBrowserMessage, TREE_DEPTH_INDENT,
@@ -16,15 +19,9 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
 };
 const FOLDER_TREE_SELECTED_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
-    g: 82,
-    b: 62,
-    a: 105,
-};
-const FOLDER_TREE_INTERACTION_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 110,
-    b: 85,
-    a: 80,
+    g: 255,
+    b: 255,
+    a: 34,
 };
 const FOLDER_TREE_ACTIVE_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
@@ -200,7 +197,7 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
 fn folder_tree_palette() -> ui::DenseRowPalette {
     ui::DenseRowPalette::new()
         .selected(FOLDER_TREE_SELECTED_FILL)
-        .interaction_fills(FOLDER_TREE_INTERACTION_FILL, FOLDER_TREE_INTERACTION_FILL)
+        .interaction_fills(SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL)
         .active_target(FOLDER_TREE_ACTIVE_TARGET_FILL)
         .candidate_hovered(FOLDER_TREE_CANDIDATE_HOVER_FILL)
 }
@@ -227,4 +224,17 @@ fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
 
 fn selected_folder_status(label: String) -> ui::View<GuiMessage> {
     ui::text_line(label, 20.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
+        let palette = folder_tree_palette();
+
+        assert_eq!(palette.hovered, Some(SIDEBAR_ROW_HOVER_FILL));
+        assert_eq!(palette.selected, Some(FOLDER_TREE_SELECTED_FILL));
+    }
 }

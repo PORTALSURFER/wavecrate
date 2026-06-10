@@ -7,7 +7,7 @@ use crate::native_app::sample_library::folder_browser::FolderBrowserState;
 mod collections_section;
 mod filter_section;
 mod folder_tree;
-mod sidebar_row_style;
+mod sidebar_row;
 mod source_section;
 mod tag_completion;
 mod tag_editor;
