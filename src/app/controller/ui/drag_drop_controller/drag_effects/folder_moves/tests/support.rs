@@ -1,7 +1,6 @@
 use super::super::super::super::file_metadata;
 use crate::app::controller::jobs::FolderMoveRequest;
 use crate::app::controller::test_support::write_test_wav;
-use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleSource, SourceDatabase};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -88,24 +87,4 @@ pub(super) fn folder_move_request(
         folder: PathBuf::from(folder),
         target_folder: PathBuf::from(target_folder),
     }
-}
-
-/// Hold an immediate SQLite transaction open until the returned sender is released.
-pub(super) fn lock_db_until_released(
-    source_root: &Path,
-) -> (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) {
-    let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
-    let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
-    let (locked_tx, locked_rx) = std::sync::mpsc::channel();
-    let db_file = source_root.join(DB_FILE_NAME);
-    std::thread::spawn(move || {
-        let conn = rusqlite::Connection::open(db_file).must();
-        conn.execute_batch("BEGIN IMMEDIATE").must();
-        let _ = locked_tx.send(());
-        let _ = lock_release_rx.recv();
-        let _ = conn.execute_batch("COMMIT");
-        let _ = lock_done_tx.send(());
-    });
-    locked_rx.recv().must();
-    (lock_release_tx, lock_done_rx)
 }

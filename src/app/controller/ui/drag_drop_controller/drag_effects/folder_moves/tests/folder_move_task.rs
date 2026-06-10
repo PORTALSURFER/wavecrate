@@ -1,8 +1,8 @@
-use super::super::worker::run_folder_move_task;
+use super::super::worker::{run_folder_move_task, set_before_folder_move_batch_hook};
 use super::support::{
-    Must, folder_move_request, folder_move_test_guard, lock_db_until_released,
-    setup_folder_move_fixture,
+    Must, folder_move_request, folder_move_test_guard, setup_folder_move_fixture,
 };
+use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SourceDatabase};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool};
@@ -12,6 +12,7 @@ use std::time::Duration;
 /// Moving a folder relocates contained files and rewrites their source DB paths.
 fn folder_move_updates_db_entries() {
     let _guard = folder_move_test_guard();
+    set_before_folder_move_batch_hook(None);
     let (_temp, source, source_root) = setup_folder_move_fixture();
     let request = folder_move_request(&source, &source_root, "old", "dest");
     let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
@@ -45,6 +46,7 @@ fn folder_move_updates_db_entries() {
 /// Cancelling before folder processing starts leaves filesystem and DB state unchanged.
 fn folder_move_cancelled_before_processing_keeps_source_unchanged() {
     let _guard = folder_move_test_guard();
+    set_before_folder_move_batch_hook(None);
     let (_temp, source, source_root) = setup_folder_move_fixture();
     let request = folder_move_request(&source, &source_root, "old", "dest");
     let result = run_folder_move_task(request, Arc::new(AtomicBool::new(true)), None);
@@ -70,6 +72,7 @@ fn folder_move_cancelled_before_processing_keeps_source_unchanged() {
 /// Moving a folder into one of its descendants is rejected without touching the source tree.
 fn folder_move_rejects_descendant_target() {
     let _guard = folder_move_test_guard();
+    set_before_folder_move_batch_hook(None);
     let (_temp, source, source_root) = setup_folder_move_fixture();
     std::fs::create_dir_all(source_root.join("old/child")).must();
     let request = folder_move_request(&source, &source_root, "old", "old/child");
@@ -89,6 +92,7 @@ fn folder_move_rejects_descendant_target() {
 /// An existing destination folder rejects the move before any filesystem rename occurs.
 fn folder_move_rejects_existing_destination_folder() {
     let _guard = folder_move_test_guard();
+    set_before_folder_move_batch_hook(None);
     let (_temp, source, source_root) = setup_folder_move_fixture();
     std::fs::create_dir_all(source_root.join("dest/old")).must();
     let request = folder_move_request(&source, &source_root, "old", "dest");
@@ -120,10 +124,31 @@ fn folder_move_rejects_existing_destination_folder() {
 /// A database lock after the filesystem rename rolls the folder back to its original path.
 fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
     let _guard = folder_move_test_guard();
+    set_before_folder_move_batch_hook(None);
     let (_temp, source, source_root) = setup_folder_move_fixture();
-    let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source_root);
+    let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
+    let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
+    let mut lock_release_rx = Some(lock_release_rx);
+    let mut lock_done_tx = Some(lock_done_tx);
+    let source_root_for_hook = source_root.clone();
+    set_before_folder_move_batch_hook(Some(Box::new(move || {
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+        let db_file = source_root_for_hook.join(DB_FILE_NAME);
+        let lock_release_rx = lock_release_rx.take().must();
+        let lock_done_tx = lock_done_tx.take().must();
+        std::thread::spawn(move || {
+            let conn = rusqlite::Connection::open(db_file).must();
+            conn.execute_batch("BEGIN IMMEDIATE").must();
+            let _ = locked_tx.send(());
+            let _ = lock_release_rx.recv();
+            let _ = conn.execute_batch("COMMIT");
+            let _ = lock_done_tx.send(());
+        });
+        locked_rx.recv().must();
+    })));
     let request = folder_move_request(&source, &source_root, "old", "dest");
     let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
+    set_before_folder_move_batch_hook(None);
     let _ = lock_release_tx.send(());
     lock_done_rx.recv_timeout(Duration::from_secs(1)).must();
 

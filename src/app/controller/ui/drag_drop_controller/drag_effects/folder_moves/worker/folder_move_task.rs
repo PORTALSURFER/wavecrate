@@ -19,6 +19,15 @@ struct PreparedFolderMove {
     absolute_new: PathBuf,
 }
 
+/// Prepared folder move transaction with explicit filesystem and database stages.
+struct FolderMoveTransaction {
+    request: FolderMoveRequest,
+    prepared: PreparedFolderMove,
+    db: SourceDatabase,
+    entries: Vec<WavEntry>,
+    moved: Vec<FolderEntryMove>,
+}
+
 /// Execute a background move for a folder dropped onto another folder.
 pub(super) fn run_folder_move_task(
     request: FolderMoveRequest,
@@ -29,38 +38,66 @@ pub(super) fn run_folder_move_task(
         return cancelled_result(&request);
     }
 
-    let prepared = match prepare_folder_move(&request) {
-        Ok(prepared) => prepared,
+    let mut transaction = match prepare_folder_move_transaction(request) {
+        Ok(transaction) => transaction,
         Err(result) => return result,
     };
-    let db = match SourceDatabase::open(&request.source_root) {
-        Ok(db) => db,
-        Err(err) => {
-            return error_result(
-                &request,
-                prepared.new_relative,
-                format!("Failed to open source DB: {err}"),
-                false,
-            );
-        }
-    };
-    let entries = match load_folder_entries(&db, &request, &prepared) {
-        Ok(entries) => entries,
-        Err(result) => return result,
-    };
-    if let Err(result) = rename_folder(&request, &prepared) {
+    if let Err(result) = transaction.commit_filesystem_stage() {
         return result;
     }
-    let moved = match rewrite_folder_entries(&db, &request, &prepared, &entries) {
-        Ok(moved) => moved,
-        Err(result) => return result,
-    };
+    #[cfg(test)]
+    super::run_before_folder_move_batch_hook();
+    if let Err(result) = transaction.commit_db_stage() {
+        return result;
+    }
     report_progress(
         sender,
         1,
-        Some(format!("Moved {}", request.folder.display())),
+        Some(format!("Moved {}", transaction.request.folder.display())),
     );
-    success_result(&request, prepared.new_relative, moved)
+    transaction.into_success()
+}
+
+/// Validate the request, open its source DB, and snapshot entries before mutation.
+fn prepare_folder_move_transaction(
+    request: FolderMoveRequest,
+) -> Result<FolderMoveTransaction, FolderMoveResult> {
+    let prepared = prepare_folder_move(&request)?;
+    let db = SourceDatabase::open(&request.source_root).map_err(|err| {
+        error_result(
+            &request,
+            prepared.new_relative.clone(),
+            format!("Failed to open source DB: {err}"),
+            false,
+        )
+    })?;
+    let entries = load_folder_entries(&db, &request, &prepared)?;
+    Ok(FolderMoveTransaction {
+        request,
+        prepared,
+        db,
+        entries,
+        moved: Vec::new(),
+    })
+}
+
+impl FolderMoveTransaction {
+    /// Rename the folder before database rows are rewritten.
+    fn commit_filesystem_stage(&self) -> Result<(), FolderMoveResult> {
+        rename_folder(&self.request, &self.prepared)
+    }
+
+    /// Rewrite all tracked rows or roll the folder rename back on failure.
+    fn commit_db_stage(&mut self) -> Result<(), FolderMoveResult> {
+        self.moved =
+            rewrite_folder_entries(&self.db, &self.request, &self.prepared, &self.entries)?;
+        Ok(())
+    }
+
+    /// Build the standard success payload after both transaction stages commit.
+    fn into_success(self) -> FolderMoveResult {
+        success_result(&self.request, self.prepared.new_relative, self.moved)
+    }
 }
 
 /// Validate the request and derive the old/new filesystem locations.
