@@ -7,7 +7,6 @@ use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::jobs::{
     FolderProjectionJob, FolderProjectionResult, FolderProjectionSnapshot, FolderProjectionWork,
 };
-use crate::app::controller::state::runtime::PendingFolderProjection;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -23,13 +22,13 @@ impl AppController {
     pub(crate) fn queue_folder_browser_refresh(&mut self) {
         let pane = self.active_folder_pane();
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
-            self.finish_folder_projecting(pane);
+            self.cancel_folder_projection_for_empty_pane(pane);
             self.ui.sources.folders = FolderBrowserUiState::default();
             self.sync_active_folder_ui_to_pane();
             return;
         };
         let Some(source) = self.current_source() else {
-            self.finish_folder_projecting(pane);
+            self.cancel_folder_projection_for_empty_pane(pane);
             self.ui.sources.folders = FolderBrowserUiState::default();
             self.sync_active_folder_ui_to_pane();
             return;
@@ -119,7 +118,11 @@ impl AppController {
 
     /// Apply one completed folder projection when it still matches the latest pane request.
     pub(crate) fn handle_folder_projected_message(&mut self, message: FolderProjectionResult) {
-        if !self.folder_projection_matches(&message) {
+        if !self.runtime.source_lane.folder_projection.matches(
+            message.pane,
+            &message.source_id,
+            message.request_id,
+        ) {
             projection_telemetry::record_folder_projection_stale_drop();
             return;
         }
@@ -134,35 +137,43 @@ impl AppController {
             .snapshots
             .insert(key, message.snapshot.tree);
         self.apply_folder_projection_view(message.pane, message.snapshot.view);
-        self.finish_folder_projecting(message.pane);
+        self.finish_folder_projecting(message.pane, &message.source_id, message.request_id);
         projection_telemetry::record_folder_projection_apply(apply_start.elapsed());
     }
 
     /// Clear any in-flight folder projection state owned by `pane`.
     pub(crate) fn clear_folder_projection_state(&mut self, pane: FolderPaneId) {
-        self.runtime
-            .source_lane
-            .folder_projection
-            .pending
-            .remove(&pane);
+        self.runtime.source_lane.folder_projection.cancel_pane(pane);
         self.ui.sources.folder_pane_mut(pane).projecting = false;
     }
 
     /// Clear all folder projection state and stale flags during source clear/loading flows.
     pub(crate) fn clear_all_folder_projection_state(&mut self) {
-        self.runtime.source_lane.folder_projection.pending.clear();
+        self.runtime.source_lane.folder_projection.cancel_all();
         for pane in [FolderPaneId::Upper, FolderPaneId::Lower] {
             self.ui.sources.folder_pane_mut(pane).projecting = false;
         }
     }
 
     /// Mark the pane projection as finished when the latest matching result lands.
-    pub(crate) fn finish_folder_projecting(&mut self, pane: FolderPaneId) {
-        self.runtime
+    pub(crate) fn finish_folder_projecting(
+        &mut self,
+        pane: FolderPaneId,
+        source_id: &SourceId,
+        request_id: u64,
+    ) {
+        if self
+            .runtime
             .source_lane
             .folder_projection
-            .pending
-            .remove(&pane);
+            .finish_matching(pane, source_id, request_id)
+        {
+            self.ui.sources.folder_pane_mut(pane).projecting = false;
+        }
+    }
+
+    fn cancel_folder_projection_for_empty_pane(&mut self, pane: FolderPaneId) {
+        self.runtime.source_lane.folder_projection.cancel_pane(pane);
         self.ui.sources.folder_pane_mut(pane).projecting = false;
     }
 
@@ -174,14 +185,11 @@ impl AppController {
         work: FolderProjectionWork,
     ) {
         let request_id = self.runtime.jobs.next_folder_projection_request_id();
-        self.runtime.source_lane.folder_projection.pending.insert(
+        self.runtime.source_lane.folder_projection.begin(
+            request_id,
             pane,
-            PendingFolderProjection {
-                request_id,
-                pane,
-                source_id: source_id.clone(),
-                queued_at: Instant::now(),
-            },
+            source_id.clone(),
+            Instant::now(),
         );
         self.ui.sources.folder_pane_mut(pane).projecting = true;
         projection_telemetry::record_folder_projection_dispatch(model.available.len());
@@ -221,19 +229,6 @@ impl AppController {
             paths.push(entry.relative_path.clone());
         }
         paths
-    }
-
-    fn folder_projection_matches(&self, message: &FolderProjectionResult) -> bool {
-        self.runtime
-            .source_lane
-            .folder_projection
-            .pending
-            .get(&message.pane)
-            .is_some_and(|pending| {
-                pending.request_id == message.request_id
-                    && pending.source_id == message.source_id
-                    && pending.pane == message.pane
-            })
     }
 }
 

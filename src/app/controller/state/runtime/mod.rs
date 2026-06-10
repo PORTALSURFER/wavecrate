@@ -27,8 +27,8 @@ pub(crate) use source_lane::AutoRenameBatchRowSnapshot;
 pub(crate) use source_lane::{ActiveAutoRenameBatchSnapshot, AutoRenameBatchRowState};
 pub(crate) use source_lane::{
     BrowserRenameBusyDecision, BrowserRenameIntentKey, MetadataRollback,
-    PendingBrowserAutoRenameIntent, PendingFolderProjection, PendingMetadataMutation,
-    PendingSourceHydration, SourceLaneRuntimeState,
+    PendingBrowserAutoRenameIntent, PendingMetadataMutation, PendingSourceHydration,
+    SourceLaneRuntimeState,
 };
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;

@@ -482,8 +482,7 @@ fn startup_active_source_hydration_defers_follow_up_work_after_first_paint() {
             .runtime
             .source_lane
             .folder_projection
-            .pending
-            .contains_key(&FolderPaneId::Upper)
+            .is_pending(FolderPaneId::Upper)
     );
     assert!(
         controller

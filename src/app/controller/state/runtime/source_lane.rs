@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 mod auto_rename_batch;
+mod folder_projection;
 mod hydration;
 mod mutations;
 
@@ -34,7 +35,7 @@ pub(crate) struct SourceHydrationRuntime {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct FolderProjectionRuntime {
     /// Pending pane-scoped folder projection jobs keyed by owning sidebar pane.
-    pub(crate) pending: HashMap<FolderPaneId, PendingFolderProjection>,
+    pending: HashMap<FolderPaneId, PendingFolderProjection>,
 }
 
 /// Runtime tracking for optimistic metadata writes and background file mutations.
