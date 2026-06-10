@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
-    SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL,
+    SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL, SIDEBAR_ROW_SELECTED_FILL,
 };
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
 use crate::native_app::sample_library::folder_browser::{
@@ -16,12 +16,6 @@ const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
     g: 126,
     b: 64,
     a: 152,
-};
-const FOLDER_TREE_SELECTED_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 255,
-    b: 255,
-    a: 34,
 };
 const FOLDER_TREE_ACTIVE_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
@@ -190,7 +184,7 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
 
 fn folder_tree_palette() -> ui::DenseRowPalette {
     ui::DenseRowPalette::new()
-        .selected(FOLDER_TREE_SELECTED_FILL)
+        .selected(SIDEBAR_ROW_SELECTED_FILL)
         .interaction_fills(SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL)
         .active_target(FOLDER_TREE_ACTIVE_TARGET_FILL)
         .candidate_hovered(SIDEBAR_ROW_HOVER_FILL)
@@ -230,6 +224,6 @@ mod tests {
 
         assert_eq!(palette.hovered, Some(SIDEBAR_ROW_HOVER_FILL));
         assert_eq!(palette.candidate_hovered, Some(SIDEBAR_ROW_HOVER_FILL));
-        assert_eq!(palette.selected, Some(FOLDER_TREE_SELECTED_FILL));
+        assert_eq!(palette.selected, Some(SIDEBAR_ROW_SELECTED_FILL));
     }
 }

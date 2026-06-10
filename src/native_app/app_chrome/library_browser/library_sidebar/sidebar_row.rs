@@ -22,9 +22,9 @@ pub(super) const SIDEBAR_ROW_PRESSED_FILL: ui::Rgba8 = ui::Rgba8 {
 };
 pub(super) const SIDEBAR_ROW_SELECTED_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
-    g: 255,
-    b: 255,
-    a: 34,
+    g: 82,
+    b: 62,
+    a: 120,
 };
 pub(super) const SIDEBAR_ROW_DROP_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
@@ -217,6 +217,20 @@ mod tests {
                 .fill_rects()
                 .any(|fill| fill.color == SIDEBAR_ROW_SELECTED_FILL),
             "hover fill has priority over the selected fill"
+        );
+    }
+
+    #[test]
+    fn selected_sidebar_row_paints_orange_highlight_fill() {
+        let bounds = ui::Rect::from_size(120.0, 22.0);
+        let target = hit_target(true, false);
+
+        let plan = target.paint_plan_with_defaults(bounds);
+
+        assert!(
+            plan.fill_rects()
+                .any(|fill| fill.color == SIDEBAR_ROW_SELECTED_FILL),
+            "selected sidebar rows should use the orange selected/focused highlight"
         );
     }
 }
