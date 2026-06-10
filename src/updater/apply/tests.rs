@@ -21,6 +21,9 @@ fn relaunch_app_errors_when_executable_missing() {
 
 #[test]
 fn apply_files_and_dirs_keeps_running_executable_on_stage_failure() {
+    let _lock = crate::updater::path_guard::updater_path_guard_test_lock()
+        .lock()
+        .expect("updater test lock");
     let tmp = tempdir().unwrap();
     let install_dir = tmp.path().join("install");
     let root_dir = tmp.path().join("root");
@@ -53,6 +56,9 @@ fn apply_files_and_dirs_keeps_running_executable_on_stage_failure() {
 
 #[test]
 fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
+    let _lock = crate::updater::path_guard::updater_path_guard_test_lock()
+        .lock()
+        .expect("updater test lock");
     let tmp = tempdir().unwrap();
     let install_dir = tmp.path().join("install");
     let root_dir = tmp.path().join("root");
@@ -101,6 +107,9 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
 
 #[test]
 fn apply_files_and_dirs_removes_stale_resources_dir() {
+    let _lock = crate::updater::path_guard::updater_path_guard_test_lock()
+        .lock()
+        .expect("updater test lock");
     let tmp = tempdir().unwrap();
     let install_dir = tmp.path().join("install");
     let root_dir = tmp.path().join("root");
@@ -151,6 +160,9 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
 #[cfg(unix)]
 #[test]
 fn apply_files_and_dirs_reports_stale_removal_failures() {
+    let _lock = crate::updater::path_guard::updater_path_guard_test_lock()
+        .lock()
+        .expect("updater test lock");
     let tmp = tempdir().unwrap();
     let install_dir = tmp.path().join("install");
     let root_dir = tmp.path().join("root");

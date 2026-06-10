@@ -145,6 +145,12 @@ type SymlinkMetadataHook = fn(&Path) -> std::io::Result<fs::Metadata>;
 static SYMLINK_METADATA_HOOK: OnceLock<Mutex<Option<SymlinkMetadataHook>>> = OnceLock::new();
 
 #[cfg(test)]
+pub(super) fn updater_path_guard_test_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+#[cfg(test)]
 struct SymlinkMetadataHookGuard {
     prev: Option<SymlinkMetadataHook>,
 }
@@ -173,7 +179,6 @@ impl Drop for SymlinkMetadataHookGuard {
 mod tests {
     use super::*;
     use std::io;
-    use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
 
     struct EnvVarGuard {
@@ -208,14 +213,11 @@ mod tests {
         }
     }
 
-    fn updater_test_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
     #[test]
     fn ensure_child_path_rejects_parent_dir() {
-        let _lock = updater_test_lock().lock().expect("updater test lock");
+        let _lock = updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         let dir = tempdir().expect("tempdir");
         let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
         let err = root
@@ -226,7 +228,9 @@ mod tests {
 
     #[test]
     fn ensure_child_path_rejects_absolute_path() {
-        let _lock = updater_test_lock().lock().expect("updater test lock");
+        let _lock = updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         let dir = tempdir().expect("tempdir");
         #[cfg(windows)]
         let name = "C:\\evil.txt";
@@ -239,7 +243,9 @@ mod tests {
 
     #[test]
     fn ensure_child_path_allows_relative_path() {
-        let _lock = updater_test_lock().lock().expect("updater test lock");
+        let _lock = updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         let _guard = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let dir = tempdir().expect("tempdir");
         let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
@@ -254,7 +260,9 @@ mod tests {
     fn ensure_child_path_rejects_symlinked_component() {
         use std::os::unix::fs::symlink;
 
-        let _lock = updater_test_lock().lock().expect("updater test lock");
+        let _lock = updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         let dir = tempdir().expect("tempdir");
         let install = dir.path().join("install");
         let external = dir.path().join("external");
@@ -272,7 +280,9 @@ mod tests {
 
     #[test]
     fn ensure_child_path_fails_on_symlink_metadata_error() {
-        let _lock = updater_test_lock().lock().expect("updater test lock");
+        let _lock = updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         fn fail_metadata(_: &Path) -> io::Result<fs::Metadata> {
             Err(io::Error::new(
                 ErrorKind::PermissionDenied,

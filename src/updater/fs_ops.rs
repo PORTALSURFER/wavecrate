@@ -251,6 +251,9 @@ mod tests {
 
     #[test]
     fn update_transaction_rolls_back_on_commit_failure() {
+        let _lock = crate::updater::path_guard::updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         let tmp = tempdir().unwrap();
         let install_dir = tmp.path().join("install");
         let src_dir = tmp.path().join("src");
@@ -284,6 +287,9 @@ mod tests {
 
     #[test]
     fn update_transaction_rejects_destinations_outside_install_root() {
+        let _lock = crate::updater::path_guard::updater_path_guard_test_lock()
+            .lock()
+            .expect("updater test lock");
         let tmp = tempdir().unwrap();
         let install_dir = tmp.path().join("install");
         let src_dir = tmp.path().join("src");
