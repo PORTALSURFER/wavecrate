@@ -9,8 +9,11 @@ use super::ui_projection_dtos::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use crate::app_core::state::{BrowserSidebarFilterFacet, BrowserSidebarFilterOption};
 use serde::{Deserialize, Serialize};
 
+mod domain;
 #[cfg(test)]
 mod precision_eq;
+
+pub use self::domain::UiActionDomain;
 
 /// Triage targets used by UI browser action surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

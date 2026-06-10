@@ -71,6 +71,9 @@ pub type NativeBrowserTagTarget = self::ui_projection_actions::BrowserTagTarget;
 /// UI runtime UI action payload.
 pub type NativeUiAction = self::ui_projection_actions::UiAction;
 
+/// UI runtime UI action domain family.
+pub type NativeUiActionDomain = self::ui_projection_actions::UiActionDomain;
+
 /// UI runtime projected app model.
 pub type NativeAppModel = self::ui_projection_dtos::AppModel;
 
