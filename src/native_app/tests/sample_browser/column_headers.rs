@@ -30,13 +30,13 @@ fn sample_browser_column_drag_paints_drop_marker() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
     state.library.folder_browser.apply_message(
-        crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(292.0, 8.0)),
         ),
     );
     state.library.folder_browser.apply_message(
-        crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(420.0, 8.0)),
         ),
@@ -97,13 +97,13 @@ fn full_gui_column_drag_paints_pointer_preview() {
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
 
     runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
-        crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(600.0, 320.0)),
         ),
     ));
     runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
-        crate::native_app::sample_library::folder_browser::FolderBrowserMessage::DragFileColumn(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(620.0, 320.0)),
         ),

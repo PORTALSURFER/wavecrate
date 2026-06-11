@@ -1,4 +1,5 @@
-use super::{FolderBrowserMessage, FolderBrowserState, path_id};
+use super::commands::FolderBrowserMessage;
+use super::{FolderBrowserState, path_id};
 use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolution;
 use crate::native_app::sample_library::folder_browser::scan::{
     FolderScanDiscoveryBatch, scan_source_with_progress,
@@ -31,4 +32,31 @@ fn temp_source_root(name: &str) -> PathBuf {
     ));
     fs::create_dir_all(&root).expect("create temp root");
     root
+}
+
+#[test]
+fn root_facade_exports_only_stable_entrypoints() {
+    let source = include_str!("../../folder_browser.rs");
+    let root_exports = source
+        .lines()
+        .filter(|line| line.starts_with("pub(in crate::native_app) use "))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        root_exports,
+        vec!["pub(in crate::native_app) use state::FolderBrowserState;"]
+    );
+    for module in [
+        "commands",
+        "model",
+        "projection",
+        "scan",
+        "test_support",
+        "view_contract",
+    ] {
+        assert!(
+            source.contains(&format!("pub(in crate::native_app) mod {module}")),
+            "folder-browser API group `{module}` should stay explicit"
+        );
+    }
 }

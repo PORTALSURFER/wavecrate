@@ -5,7 +5,7 @@ use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     SourceRowViewModel, SourceSelectorViewModel,
 };
-use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
 const ACTIVE_SOURCE_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 245);

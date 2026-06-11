@@ -3,11 +3,10 @@ use radiant::prelude as ui;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
-};
-use crate::native_app::sample_library::folder_browser::{
-    FolderBrowserMessage, model::VisibleFolder,
 };
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;

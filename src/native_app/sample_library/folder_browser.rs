@@ -79,7 +79,7 @@ mod drag_types;
 use drag_types::{FileColumnDragFeedback, FolderDragPreview, FolderDropResult};
 
 mod messages;
-pub(in crate::native_app) use messages::FolderBrowserMessage;
+use messages::FolderBrowserMessage;
 
 mod move_types;
 use move_types::{
@@ -98,6 +98,7 @@ mod verify_types;
 use verify_types::{FolderVerifyRequest, FolderVerifyResult};
 
 pub(in crate::native_app) mod commands {
+    pub(in crate::native_app) use super::messages::FolderBrowserMessage;
     pub(in crate::native_app) use super::move_types::FileMoveConflictResolution;
     pub(in crate::native_app) use super::rename_types::{FileRenameView, RenamePathRemap};
 }

@@ -8,7 +8,7 @@ use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserVie
 use crate::native_app::app_chrome::view_models::sample_browser::{
     SampleBrowserViewProjection, prepare_sample_browser_view,
 };
-use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::FileColumn;
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
 use crate::native_app::ui::ids as widget_ids;

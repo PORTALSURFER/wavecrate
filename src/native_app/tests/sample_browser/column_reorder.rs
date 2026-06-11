@@ -9,13 +9,13 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     let initial_extension_x = first_row_extension_x(&initial_frame);
 
     runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
-        crate::native_app::sample_library::folder_browser::FolderBrowserMessage::ResizeFileColumn(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
             radiant::widgets::DragHandleMessage::started(Point::new(0.0, 0.0)),
         ),
     ));
     runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
-        crate::native_app::sample_library::folder_browser::FolderBrowserMessage::ResizeFileColumn(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
             radiant::widgets::DragHandleMessage::moved(Point::new(120.0, 0.0)),
         ),

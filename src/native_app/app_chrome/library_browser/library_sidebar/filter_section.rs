@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
-use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::ui::ids as widget_ids;
 
 const FILTER_PANEL_PADDING: f32 = 6.0;

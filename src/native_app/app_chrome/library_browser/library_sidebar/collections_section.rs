@@ -5,7 +5,7 @@ use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     CollectionRowViewModel, CollectionsSectionViewModel,
 };
-use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, SampleCollectionView,
