@@ -49,11 +49,12 @@ pub(super) struct VisibleSampleProjectionCache {
 }
 
 impl VisibleSampleProjectionCache {
-    pub(super) fn get_or_build(
+    pub(super) fn audio_indices(
         &self,
-        key: VisibleSampleProjectionKey,
+        request: VisibleSampleProjectionRequest<'_>,
         build: impl FnOnce() -> Vec<usize>,
     ) -> Ref<'_, Vec<usize>> {
+        let key = request.key();
         if !self.entries.borrow().contains_key(&key) {
             self.entries.borrow_mut().insert(key.clone(), build());
         }
@@ -76,18 +77,55 @@ impl VisibleSampleProjectionCache {
     }
 }
 
+pub(super) struct VisibleSampleProjectionRequest<'a> {
+    folder_id: &'a str,
+    name_filter: &'a str,
+    sort: &'a ui::DetailsSort,
+    similarity_anchor_id: Option<&'a str>,
+    content_revision: u64,
+}
+
+impl<'a> VisibleSampleProjectionRequest<'a> {
+    pub(super) fn new(
+        folder_id: &'a str,
+        name_filter: &'a str,
+        sort: &'a ui::DetailsSort,
+        similarity_anchor_id: Option<&'a str>,
+        content_revision: u64,
+    ) -> Self {
+        Self {
+            folder_id,
+            name_filter,
+            sort,
+            similarity_anchor_id,
+            content_revision,
+        }
+    }
+
+    fn key(&self) -> VisibleSampleProjectionKey {
+        VisibleSampleProjectionKey::new(
+            self.folder_id.to_owned(),
+            self.name_filter.to_owned(),
+            self.sort.column_id.clone(),
+            self.sort.direction == ui::SortDirection::Descending,
+            self.similarity_anchor_id.map(str::to_owned),
+            self.content_revision,
+        )
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct VisibleSampleProjectionKey {
-    pub(super) folder_id: String,
-    pub(super) name_filter: String,
-    pub(super) sort_column_id: String,
-    pub(super) sort_descending: bool,
-    pub(super) similarity_anchor_id: Option<String>,
+struct VisibleSampleProjectionKey {
+    folder_id: String,
+    name_filter: String,
+    sort_column_id: String,
+    sort_descending: bool,
+    similarity_anchor_id: Option<String>,
     content_revision: u64,
 }
 
 impl VisibleSampleProjectionKey {
-    pub(super) fn new(
+    fn new(
         folder_id: String,
         name_filter: String,
         sort_column_id: String,
@@ -103,6 +141,36 @@ impl VisibleSampleProjectionKey {
             similarity_anchor_id,
             content_revision,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn projection_request_key_tracks_query_and_revision_inputs() {
+        let ascending = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let descending = ui::DetailsSort::new("size", ui::SortDirection::Descending);
+
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", &descending, None, 4).key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "snare", &ascending, None, 4).key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("a.wav"), 4)
+                .key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("b.wav"), 4)
+                .key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 5).key()
+        );
     }
 }
 

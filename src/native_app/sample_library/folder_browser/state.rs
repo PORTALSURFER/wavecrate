@@ -15,7 +15,7 @@ use super::{
     default_file_columns, default_root_path,
     file_columns::{sort_file_indices_by_column_kind, sort_kind_for_details_sort},
     load_root_folder, placeholder_folder,
-    visible_samples::{VisibleSampleProjectionCache, VisibleSampleProjectionKey},
+    visible_samples::{VisibleSampleProjectionCache, VisibleSampleProjectionRequest},
 };
 
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
@@ -647,28 +647,29 @@ impl FolderBrowserState {
 
     fn selected_folder_audio_file_indices_ref(&self, folder: &FolderEntry) -> Ref<'_, Vec<usize>> {
         let name_filter = normalized_name_filter(&self.filters.name_filter);
-        let key = VisibleSampleProjectionKey::new(
-            folder.id.clone(),
-            name_filter.clone(),
-            self.sample_list.file_sort.column_id.clone(),
-            self.sample_list.file_sort.direction == ui::SortDirection::Descending,
-            self.similarity_anchor_id().map(str::to_owned),
+        let request = VisibleSampleProjectionRequest::new(
+            folder.id.as_str(),
+            name_filter.as_str(),
+            &self.sample_list.file_sort,
+            self.similarity_anchor_id(),
             self.sample_list.content_revision,
         );
-        self.sample_list.projection_cache.get_or_build(key, || {
-            let mut indices = folder
-                .files
-                .iter()
-                .enumerate()
-                .filter(|(_, file)| {
-                    file.is_audio() && audio_file_matches_name_query(file, &name_filter)
-                })
-                .map(|(index, _)| index)
-                .collect::<Vec<_>>();
-            self.sort_file_indices(folder, &mut indices);
-            self.sort_file_indices_by_similarity(folder, &mut indices);
-            indices
-        })
+        self.sample_list
+            .projection_cache
+            .audio_indices(request, || {
+                let mut indices = folder
+                    .files
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, file)| {
+                        file.is_audio() && audio_file_matches_name_query(file, &name_filter)
+                    })
+                    .map(|(index, _)| index)
+                    .collect::<Vec<_>>();
+                self.sort_file_indices(folder, &mut indices);
+                self.sort_file_indices_by_similarity(folder, &mut indices);
+                indices
+            })
     }
 
     fn sort_file_indices(&self, folder: &FolderEntry, indices: &mut [usize]) {
