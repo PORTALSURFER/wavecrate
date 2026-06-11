@@ -1,11 +1,13 @@
 use std::path::PathBuf;
 
+#[cfg(test)]
+use super::scan_types::FolderScanDiscovery;
 use super::{
     FolderBrowserState, FolderEntry, RemovedSource, SourceEntry,
     path_helpers::{folder_label, path_id},
+    scan_types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
     scanning::{default_root_path, load_root_folder, merge_scan_discovery, placeholder_folder},
     source_scan_cache::{load_source_scan_cache, save_source_scan_cache},
-    types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
 };
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
@@ -271,10 +273,7 @@ impl FolderBrowserState {
     }
 
     #[cfg(test)]
-    pub(super) fn apply_scan_discovered(
-        &mut self,
-        event: super::types::FolderScanDiscovery,
-    ) -> bool {
+    pub(super) fn apply_scan_discovered(&mut self, event: FolderScanDiscovery) -> bool {
         self.apply_scan_discovered_batch(FolderScanDiscoveryBatch {
             task_id: event.task_id,
             source_id: event.source_id.clone(),

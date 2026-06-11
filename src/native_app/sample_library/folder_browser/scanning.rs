@@ -7,10 +7,11 @@ use std::{
 use super::{
     FileEntry, FolderEntry,
     path_helpers::{file_label, folder_label, path_id},
-    types::{
+    scan_types::{
         FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-        FolderScanResult, FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
+        FolderScanResult,
     },
+    verify_types::{FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot},
 };
 use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 

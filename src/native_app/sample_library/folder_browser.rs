@@ -68,19 +68,34 @@ mod tree_state;
 
 mod tree_view_window;
 
-mod types;
-pub(in crate::native_app) use types::FolderBrowserMessage;
-use types::{
-    FileColumnDragFeedback, FileDeleteTargetView, FileMoveConflict, FileMoveConflictBatch,
-    FileMoveConflictResolution, FileMoveConflictView, FileRenameView, FolderDeleteTargetView,
-    FolderDragPreview, FolderDropResult, FolderVerifyRequest, FolderVerifyResult, RemovedSource,
-    RenameCommitResult, RenameTargetView,
+mod delete_types;
+use delete_types::{FileDeleteTargetView, FolderDeleteTargetView};
+
+mod drag_types;
+use drag_types::{FileColumnDragFeedback, FolderDragPreview, FolderDropResult};
+
+mod messages;
+pub(in crate::native_app) use messages::FolderBrowserMessage;
+
+mod move_types;
+use move_types::{
+    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution, FileMoveConflictView,
 };
 
+mod rename_types;
+use rename_types::{FileRenameView, RenameCommitResult, RenameTargetView};
+
+mod scan_types;
+
+mod source_types;
+use source_types::RemovedSource;
+
+mod verify_types;
+use verify_types::{FolderVerifyRequest, FolderVerifyResult};
+
 pub(in crate::native_app) mod commands {
-    pub(in crate::native_app) use super::types::{
-        FileMoveConflictResolution, FileRenameView, RenamePathRemap,
-    };
+    pub(in crate::native_app) use super::move_types::FileMoveConflictResolution;
+    pub(in crate::native_app) use super::rename_types::{FileRenameView, RenamePathRemap};
 }
 
 pub(in crate::native_app) mod model {
@@ -89,29 +104,30 @@ pub(in crate::native_app) mod model {
 }
 
 pub(in crate::native_app) mod projection {
-    pub(in crate::native_app) use super::types::FileColumnDragFeedback;
+    pub(in crate::native_app) use super::drag_types::FileColumnDragFeedback;
     pub(in crate::native_app) use super::visible_samples::{
         VisibleSampleList, VisibleSampleQuery, VisibleSampleRow, VisibleSampleWindowPolicy,
     };
 }
 
 pub(in crate::native_app) mod scan {
+    pub(in crate::native_app) use super::scan_types::{
+        FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
+        FolderScanResult,
+    };
     pub(in crate::native_app) use super::scanning::{
         scan_source_with_progress, verify_direct_folder,
     };
-    pub(in crate::native_app) use super::types::{
-        FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-        FolderScanResult, FolderVerifyResult,
-    };
+    pub(in crate::native_app) use super::verify_types::FolderVerifyResult;
 }
 
 #[cfg(test)]
 pub(in crate::native_app) mod test_support {
+    pub(in crate::native_app) use super::drag_types::FolderDragPreview;
     pub(in crate::native_app) use super::file_columns::MIN_FILE_COLUMN_WIDTH;
     pub(in crate::native_app) use super::panel_state::{
         COLLAPSED_FILTER_PANEL_HEIGHT, COLLAPSED_METADATA_PANEL_HEIGHT,
     };
-    pub(in crate::native_app) use super::types::FolderDragPreview;
 }
 
 pub(in crate::native_app) mod view_contract {
