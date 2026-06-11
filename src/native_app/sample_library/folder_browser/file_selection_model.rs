@@ -197,3 +197,99 @@ impl FileSelectionModel {
         self.explicit = false;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ids(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    fn set(values: &[&str]) -> HashSet<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn implicit_selection_uses_focused_file_as_active_id() {
+        let selection = FileSelectionModel::new(Some(String::from("kick")), HashSet::new(), false);
+
+        assert_eq!(selection.active_ids(), set(&["kick"]));
+    }
+
+    #[test]
+    fn command_selection_tracks_explicit_multi_selection() {
+        let visible_ids = ids(&["kick", "snare", "hat"]);
+        let mut selection = FileSelectionModel::new(None, HashSet::new(), false);
+
+        assert!(selection.select_single(String::from("kick"), &visible_ids));
+        assert!(selection.select_with_modifiers(
+            String::from("hat"),
+            &visible_ids,
+            PointerModifiers {
+                command: true,
+                ..PointerModifiers::default()
+            },
+        ));
+
+        assert_eq!(selection.focused_id(), Some("hat"));
+        assert!(selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["kick", "hat"]));
+    }
+
+    #[test]
+    fn navigation_uses_supplied_filtered_visible_ids() {
+        let visible_ids = ids(&["kick", "hat"]);
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick"]), false);
+
+        let target = selection.navigate(1, false, &visible_ids);
+
+        assert_eq!(target.as_deref(), Some("hat"));
+        assert_eq!(selection.focused_id(), Some("hat"));
+        assert!(!selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["hat"]));
+    }
+
+    #[test]
+    fn focus_preserving_selection_keeps_explicit_selection_set() {
+        let visible_ids = ids(&["kick", "snare", "hat"]);
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick", "hat"]), true);
+
+        assert!(selection.focus_preserving_selection(String::from("hat"), &visible_ids));
+
+        assert_eq!(selection.focused_id(), Some("hat"));
+        assert!(selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["kick", "hat"]));
+    }
+
+    #[test]
+    fn retain_visible_removes_hidden_focus_and_selected_ids() {
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick", "hat"]), true);
+
+        selection.retain_visible(&set(&["hat"]));
+
+        assert_eq!(selection.focused_id(), None);
+        assert!(selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["hat"]));
+    }
+
+    #[test]
+    fn toggle_focused_file_advances_within_visible_ids() {
+        let visible_ids = ids(&["kick", "snare", "hat"]);
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), HashSet::new(), false);
+
+        let outcome = selection
+            .toggle_focused_and_advance(&visible_ids)
+            .expect("focused file should toggle");
+
+        assert_eq!(outcome.toggled_id, "kick");
+        assert!(outcome.toggled_selected);
+        assert_eq!(outcome.focused_id, "snare");
+        assert_eq!(selection.focused_id(), Some("snare"));
+        assert_eq!(selection.active_ids(), set(&["kick"]));
+    }
+}
