@@ -19,11 +19,10 @@ pub(in crate::native_app) fn metadata_tag_completion(
     let tag_field_content_width =
         library_sidebar::tag_field_content_width(state.ui.chrome.folder_panel.size());
     let inset_x = LIBRARY_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
+    let metadata_panel_height = state.library.folder_browser.metadata_panel_height();
     let inset_y = BOTTOM_STATUS_BAR_HEIGHT
         + LIBRARY_SIDEBAR_PADDING
-        + library_sidebar::metadata_tag_completion_bottom_inset(
-            state.library.folder_browser.metadata_panel_height(),
-        )
+        + metadata_panel_height
         + library_sidebar::TAG_COMPLETION_POPUP_GAP;
     Some(library_sidebar::tag_completion_overlay(
         completion_options.as_slice(),

@@ -2,11 +2,14 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
+use crate::native_app::app_chrome::view_models::library_sidebar::{
+    CollectionRowViewModel, CollectionsSectionViewModel,
+};
+use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, SampleCollectionView,
 };
-use crate::native_app::sample_library::folder_browser::{FolderBrowserMessage, FolderBrowserState};
 use crate::native_app::ui::ids as widget_ids;
 
 const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
@@ -15,12 +18,8 @@ const COLLECTIONS_SECTION_NODE_ID: u64 = widget_ids::COLLECTIONS_SECTION_NODE_ID
 /// Stable layout node id for the collection rows scroll viewport.
 const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = widget_ids::COLLECTIONS_LIST_SCROLL_NODE_ID;
 
-pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
-    let rows = state
-        .visible_collections()
-        .into_iter()
-        .map(|collection| collection_row(state, collection))
-        .collect::<Vec<_>>();
+pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
+    let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
     ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Collections",
@@ -28,7 +27,7 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
                 ui::column(rows)
                     .spacing(COLLECTION_ROW_SPACING)
                     .fill_width()
-                    .height(state.collections_list_height()),
+                    .height(model.list_height),
             )
             .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
@@ -41,18 +40,16 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
         .padding(COLLECTIONS_PANEL_PADDING)
         .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
         .title_height(COLLECTIONS_PANEL_HEADER_HEIGHT)
-        .height(state.collections_panel_height()),
+        .height(model.panel_height),
     )
     .id(COLLECTIONS_SECTION_NODE_ID)
     .fill_width()
 }
 
-fn collection_row(
-    state: &FolderBrowserState,
-    collection: SampleCollectionView,
-) -> ui::View<GuiMessage> {
+fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessage> {
+    let collection = &row.collection;
     let collection_id = collection.collection;
-    if let Some(rename) = state.collection_rename_view(collection_id) {
+    if let Some(rename) = &row.rename {
         return ui::row([
             collection_swatch(collection.color)
                 .key(format!(
@@ -61,7 +58,7 @@ fn collection_row(
                 ))
                 .width(34.0)
                 .height(COLLECTION_ROW_HEIGHT),
-            ui::text_input(rename.draft)
+            ui::text_input(rename.draft.clone())
                 .selection(rename.selection_start, rename.selection_end)
                 .message_event(|message| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
@@ -82,7 +79,7 @@ fn collection_row(
         .height(COLLECTION_ROW_HEIGHT)
         .spacing(2.0);
     }
-    collection_input(collection_id, collection_visual(&collection), &collection)
+    collection_input(collection_id, collection_visual(collection), collection)
         .key(format!("collection-row-{}", collection.collection.index()))
         .fill_width()
         .height(COLLECTION_ROW_HEIGHT)
@@ -168,6 +165,7 @@ mod tests {
     use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
         SIDEBAR_ROW_DROP_TARGET_FILL, SIDEBAR_ROW_HOVER_FILL, sidebar_row_palette,
     };
+    use crate::native_app::sample_library::folder_browser::FolderBrowserState;
     use radiant::prelude::IntoView;
     use wavecrate::sample_sources::SampleCollection;
 
@@ -196,10 +194,13 @@ mod tests {
     fn collection_input_routes_double_click_to_rename() {
         let collection = collection_view(false, false);
         let collection_id = collection.collection;
+        let row = CollectionRowViewModel {
+            collection,
+            rename: None,
+        };
 
         assert!(matches!(
-            collection_input(collection_id, collection_visual(&collection), &collection)
-                .view_dispatch_widget_output(
+            collection_row(&row).view_dispatch_widget_output(
                 ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64),
                 ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
                     FolderBrowserMessage::RenameCollection(collection_id)
@@ -215,8 +216,11 @@ mod tests {
     /// Verifies active drop targets keep a distinct visual state.
     fn collection_input_paints_current_drop_target_fill() {
         let collection = collection_view(true, true);
-        let collection_id = collection.collection;
-        let frame = collection_input(collection_id, collection_visual(&collection), &collection)
+        let row = CollectionRowViewModel {
+            collection,
+            rename: None,
+        };
+        let frame = collection_row(&row)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, COLLECTION_ROW_HEIGHT));
 
         assert!(frame.paint_plan.fill_rects().any(|fill| {
@@ -287,7 +291,7 @@ mod tests {
         state.resize_collections_panel(ui::DragHandleMessage::moved(ui::Point::new(0.0, 120.0)));
 
         let layout = ui::column([
-            collections_section(&state),
+            collections_section(&CollectionsSectionViewModel::from_folder_browser(&state)),
             ui::spacer().fill_width().fill_height(),
         ])
         .view_layout_at_size(ui::Vector2::new(240.0, 600.0));
@@ -303,20 +307,22 @@ mod tests {
     /// Verifies the collection list reserves exactly the useful row stack height.
     fn collections_section_list_height_matches_visible_rows() {
         let state = FolderBrowserState::load_default();
-        let expected = COLLECTION_ROW_HEIGHT * state.visible_collections().len() as f32
-            + COLLECTION_ROW_SPACING * (state.visible_collections().len() - 1) as f32;
+        let model = CollectionsSectionViewModel::from_folder_browser(&state);
+        let expected = COLLECTION_ROW_HEIGHT * model.rows.len() as f32
+            + COLLECTION_ROW_SPACING * (model.rows.len() - 1) as f32;
 
-        assert_eq!(state.collections_list_height(), expected);
+        assert_eq!(model.list_height, expected);
     }
 
     #[test]
     /// The useful maximum height should fit all collection rows without residual scroll.
     fn collections_section_max_height_does_not_overflow_rows() {
         let state = FolderBrowserState::load_default();
-        let layout = collections_section(&state).view_layout_at_size(ui::Vector2::new(
-            240.0,
-            state.max_collections_panel_height(),
-        ));
+        let layout = collections_section(&CollectionsSectionViewModel::from_folder_browser(&state))
+            .view_layout_at_size(ui::Vector2::new(
+                240.0,
+                state.max_collections_panel_height(),
+            ));
 
         assert!(
             !layout

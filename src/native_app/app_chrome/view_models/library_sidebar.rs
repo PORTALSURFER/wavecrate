@@ -3,15 +3,33 @@ use radiant::prelude as ui;
 use crate::native_app::app::NativeAppState;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
 use crate::native_app::sample_library::folder_browser::view_contract::{
-    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+    CollectionRenameView, FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS,
+    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, SampleCollectionView,
 };
-use crate::native_app::sample_library::folder_browser::{FolderBrowserState, model::VisibleFolder};
+use crate::native_app::sample_library::folder_browser::{
+    FolderBrowserState,
+    model::{SourceEntry, VisibleFolder},
+};
 
 pub(in crate::native_app) struct LibrarySidebarViewModel {
     pub(in crate::native_app) sidebar_width: f32,
     pub(in crate::native_app) metadata_panel_height: f32,
+    pub(in crate::native_app) source_selector: SourceSelectorViewModel,
     pub(in crate::native_app) folder_tree: FolderTreeViewModel,
+    pub(in crate::native_app) collections: CollectionsSectionViewModel,
+    pub(in crate::native_app) filter: FilterSectionViewModel,
     pub(in crate::native_app) tag_editor: TagEditorViewModel,
+}
+
+pub(in crate::native_app) struct SourceSelectorViewModel {
+    pub(in crate::native_app) rows: Vec<SourceRowViewModel>,
+}
+
+pub(in crate::native_app) struct SourceRowViewModel {
+    pub(in crate::native_app) id: String,
+    pub(in crate::native_app) label: String,
+    pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) scanning: bool,
 }
 
 pub(in crate::native_app) struct FolderTreeViewModel {
@@ -19,6 +37,23 @@ pub(in crate::native_app) struct FolderTreeViewModel {
     pub(in crate::native_app) window: ui::VirtualListWindow,
     pub(in crate::native_app) drag_revision: u64,
     pub(in crate::native_app) selected_folder_status_label: String,
+}
+
+pub(in crate::native_app) struct CollectionsSectionViewModel {
+    pub(in crate::native_app) rows: Vec<CollectionRowViewModel>,
+    pub(in crate::native_app) panel_height: f32,
+    pub(in crate::native_app) list_height: f32,
+}
+
+pub(in crate::native_app) struct CollectionRowViewModel {
+    pub(in crate::native_app) collection: SampleCollectionView,
+    pub(in crate::native_app) rename: Option<CollectionRenameView>,
+}
+
+pub(in crate::native_app) struct FilterSectionViewModel {
+    pub(in crate::native_app) name_filter: String,
+    pub(in crate::native_app) tag_filter: String,
+    pub(in crate::native_app) panel_height: f32,
 }
 
 pub(in crate::native_app) struct TagEditorViewModel {
@@ -39,8 +74,35 @@ impl LibrarySidebarViewModel {
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
+            source_selector: SourceSelectorViewModel::from_folder_browser(folder_browser),
             folder_tree: FolderTreeViewModel::from_folder_browser(folder_browser),
+            collections: CollectionsSectionViewModel::from_folder_browser(folder_browser),
+            filter: FilterSectionViewModel::from_folder_browser(folder_browser),
             tag_editor: TagEditorViewModel::from_app_state(state),
+        }
+    }
+}
+
+impl SourceSelectorViewModel {
+    pub(in crate::native_app) fn from_folder_browser(folder_browser: &FolderBrowserState) -> Self {
+        let selected_source_id = folder_browser.selected_source_id();
+        let rows = folder_browser
+            .sources()
+            .iter()
+            .map(|source| SourceRowViewModel::from_source(source, selected_source_id))
+            .collect();
+
+        Self { rows }
+    }
+}
+
+impl SourceRowViewModel {
+    fn from_source(source: &SourceEntry, selected_source_id: &str) -> Self {
+        Self {
+            id: source.id.clone(),
+            label: source.label.clone(),
+            selected: selected_source_id == source.id,
+            scanning: source.loading_task.is_some(),
         }
     }
 }
@@ -60,6 +122,34 @@ impl FolderTreeViewModel {
             window,
             drag_revision: folder_browser.drag_revision(),
             selected_folder_status_label: folder_browser.selected_folder_status_label(),
+        }
+    }
+}
+
+impl CollectionsSectionViewModel {
+    pub(in crate::native_app) fn from_folder_browser(folder_browser: &FolderBrowserState) -> Self {
+        let rows = folder_browser
+            .visible_collections()
+            .into_iter()
+            .map(|collection| {
+                let rename = folder_browser.collection_rename_view(collection.collection);
+                CollectionRowViewModel { collection, rename }
+            })
+            .collect::<Vec<_>>();
+        Self {
+            rows,
+            panel_height: folder_browser.collections_panel_height(),
+            list_height: folder_browser.collections_list_height(),
+        }
+    }
+}
+
+impl FilterSectionViewModel {
+    pub(in crate::native_app) fn from_folder_browser(folder_browser: &FolderBrowserState) -> Self {
+        Self {
+            name_filter: folder_browser.name_filter().to_owned(),
+            tag_filter: folder_browser.tag_filter().to_owned(),
+            panel_height: folder_browser.filter_panel_height(),
         }
     }
 }

@@ -1,7 +1,8 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::sample_library::folder_browser::{FolderBrowserMessage, FolderBrowserState};
+use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
+use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::ui::ids as widget_ids;
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
@@ -13,11 +14,11 @@ const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 #[cfg(test)]
 const FILTER_SECTION_NODE_ID: u64 = widget_ids::FILTER_SECTION_NODE_ID;
 
-pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Filter",
-            ui::column([name_filter_row(state), tag_filter_row(state)])
+            ui::column([name_filter_row(model), tag_filter_row(model)])
                 .fill_width()
                 .spacing(1.0),
         )
@@ -27,7 +28,7 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
         .padding(FILTER_PANEL_PADDING)
         .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING)
         .title_height(FILTER_PANEL_HEADER_HEIGHT)
-        .height(state.filter_panel_height()),
+        .height(model.panel_height),
     )
     .fill_width();
 
@@ -41,11 +42,11 @@ pub(super) fn filter_section(state: &FolderBrowserState) -> ui::View<GuiMessage>
     }
 }
 
-fn name_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+fn name_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     ui::form_row(
         "name",
         ui::text("Name").key("filter-name-label"),
-        ui::text_input(state.name_filter().to_owned())
+        ui::text_input(model.name_filter.clone())
             .placeholder("Any")
             .message_event(|message| {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::NameFilterInput(message))
@@ -56,11 +57,11 @@ fn name_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     )
 }
 
-fn tag_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     ui::form_row(
         "tags",
         ui::text("Tags").key("filter-tags-label"),
-        ui::text_input(state.tag_filter().to_owned())
+        ui::text_input(model.tag_filter.clone())
             .placeholder("Any")
             .message_event(|message| {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::TagFilterInput(message))
@@ -74,6 +75,7 @@ fn tag_filter_row(state: &FolderBrowserState) -> ui::View<GuiMessage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_app::sample_library::folder_browser::FolderBrowserState;
     use radiant::prelude::IntoView;
 
     #[test]
@@ -81,9 +83,10 @@ mod tests {
         let mut state = FolderBrowserState::load_default();
         state.resize_filter_panel(ui::DragHandleMessage::started(ui::Point::new(0.0, 200.0)));
         state.resize_filter_panel(ui::DragHandleMessage::moved(ui::Point::new(0.0, 120.0)));
+        let model = FilterSectionViewModel::from_folder_browser(&state);
 
         let layout = ui::column([
-            filter_section(&state),
+            filter_section(&model),
             ui::spacer().fill_width().fill_height(),
         ])
         .view_layout_at_size(ui::Vector2::new(240.0, 600.0));
@@ -98,8 +101,9 @@ mod tests {
     #[test]
     fn filter_section_projects_name_text_input() {
         let state = FolderBrowserState::load_default();
+        let model = FilterSectionViewModel::from_folder_browser(&state);
 
-        let frame = filter_section(&state)
+        let frame = filter_section(&model)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
         let input = frame
             .paint_plan
@@ -123,8 +127,9 @@ mod tests {
     #[test]
     fn filter_section_replaces_type_value_with_tag_text_input() {
         let state = FolderBrowserState::load_default();
+        let model = FilterSectionViewModel::from_folder_browser(&state);
 
-        let frame = filter_section(&state)
+        let frame = filter_section(&model)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
         let inputs = frame.paint_plan.text_inputs().collect::<Vec<_>>();
 

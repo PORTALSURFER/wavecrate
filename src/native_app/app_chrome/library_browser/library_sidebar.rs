@@ -2,7 +2,6 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::LibrarySidebarViewModel;
-use crate::native_app::sample_library::folder_browser::FolderBrowserState;
 
 mod collections_section;
 mod filter_section;
@@ -22,7 +21,6 @@ use source_section::source_selector;
 use tag_editor::tag_editor_section;
 
 pub(in crate::native_app) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
-pub(in crate::native_app) use tag_editor::metadata_tag_completion_bottom_inset;
 #[cfg(test)]
 pub(in crate::native_app) use tag_editor::{
     METADATA_SIDEBAR_PANEL_ID, METADATA_TAG_INPUT_ID, METADATA_TAG_LIBRARY_TOGGLE_ID,
@@ -32,24 +30,20 @@ pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 pub(in crate::native_app) use test_support::library_sidebar_view;
 
 pub(in crate::native_app) fn library_sidebar(
-    folder_browser: &FolderBrowserState,
     model: LibrarySidebarViewModel,
 ) -> ui::View<GuiMessage> {
     let sidebar_width = model.sidebar_width;
-    library_sidebar_content(folder_browser, model)
+    library_sidebar_content(model)
         .width(sidebar_width)
         .fill_height()
 }
 
-fn library_sidebar_content(
-    folder_browser: &FolderBrowserState,
-    model: LibrarySidebarViewModel,
-) -> ui::View<GuiMessage> {
+fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessage> {
     ui::column([
-        source_selector(folder_browser),
+        source_selector(&model.source_selector),
         folder_tree_section(model.folder_tree),
-        collections_section(folder_browser),
-        filter_section(folder_browser),
+        collections_section(&model.collections),
+        filter_section(&model.filter),
         tag_editor_section(
             &model.tag_editor,
             model.sidebar_width,

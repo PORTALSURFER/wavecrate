@@ -12,7 +12,7 @@ pub(in crate::native_app) use layout::{
 };
 pub(super) use model::{CollectionRenameEdit, SampleCollectionConfig, default_collections};
 pub(in crate::native_app) use model::{
-    SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
+    CollectionRenameView, SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
 };
 
 #[cfg(test)]

@@ -41,7 +41,7 @@ fn library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
 
 fn library_sidebar_view(state: &NativeAppState) -> ui::View<GuiMessage> {
     let model = LibrarySidebarViewModel::from_app_state(state);
-    library_sidebar::library_sidebar(&state.library.folder_browser, model)
+    library_sidebar::library_sidebar(model)
 }
 
 fn metadata_tag_library_pane_visible(state: &NativeAppState) -> bool {

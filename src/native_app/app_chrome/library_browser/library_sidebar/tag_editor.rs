@@ -143,11 +143,6 @@ fn tag_field_height(field: &TagEditorFieldParts<'_>) -> f32 {
         .field_height
 }
 
-pub(in crate::native_app) fn metadata_tag_completion_bottom_inset(panel_height: f32) -> f32 {
-    metadata_sidebar_panel_parts(ui::empty(), None, panel_height)
-        .content_top_inset_from_bottom(panel_height)
-}
-
 fn tag_text_input(
     tag_draft: &str,
     placeholder: &str,
