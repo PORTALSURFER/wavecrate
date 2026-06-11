@@ -19,7 +19,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) deferred_sample_load_task: ui::LatestTask,
     pub(in crate::native_app) sample_load_task: ui::LatestTask,
     pub(in crate::native_app) sample_load_cancel: Option<ui::CancellationToken>,
-    pub(in crate::native_app) audio_open: AudioOpenCompletionOwner,
+    pub(in crate::native_app) audio_open: AudioOpenTaskOwner,
     pub(in crate::native_app) startup_folder_verify_task: ui::LatestTask,
     pub(in crate::native_app) startup_folder_verify_results:
         Arc<Mutex<HashMap<ui::TaskTicket, FolderVerifyResult>>>,
@@ -40,7 +40,7 @@ impl BackgroundTaskState {
             deferred_sample_load_task: ui::LatestTask::new(),
             sample_load_task: ui::LatestTask::new(),
             sample_load_cancel: None,
-            audio_open: AudioOpenCompletionOwner::new(),
+            audio_open: AudioOpenTaskOwner::new(),
             startup_folder_verify_task: ui::LatestTask::new(),
             startup_folder_verify_results: Default::default(),
             normalization_progress: None,
@@ -61,16 +61,15 @@ impl BackgroundTaskState {
     }
 }
 
-pub(in crate::native_app) struct AudioOpenCompletionOwner {
+/// Owns audio-output open task identity and stale-completion policy.
+pub(in crate::native_app) struct AudioOpenTaskOwner {
     task: ui::LatestTask,
-    results: Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
 }
 
-impl AudioOpenCompletionOwner {
+impl AudioOpenTaskOwner {
     fn new() -> Self {
         Self {
             task: ui::LatestTask::new(),
-            results: Default::default(),
         }
     }
 
@@ -78,48 +77,76 @@ impl AudioOpenCompletionOwner {
         self.task.active()
     }
 
-    pub(in crate::native_app) fn begin(&mut self) -> ui::TaskTicket {
-        self.task.begin()
+    pub(in crate::native_app) fn begin(&mut self) -> AudioOpenTaskRequest {
+        AudioOpenTaskRequest {
+            ticket: self.task.begin(),
+        }
     }
 
     pub(in crate::native_app) fn cancel(&mut self) {
         self.task.cancel();
     }
 
-    pub(in crate::native_app) fn sink(&self) -> AudioOpenCompletionSink {
-        AudioOpenCompletionSink {
-            results: Arc::clone(&self.results),
-        }
-    }
-
-    pub(in crate::native_app) fn finish(&mut self, ticket: ui::TaskTicket) -> AudioOpenCompletion {
-        let result = self
-            .results
-            .lock()
-            .ok()
-            .and_then(|mut results| results.remove(&ticket));
-        if !self.task.finish(ticket) {
+    pub(in crate::native_app) fn finish(
+        &mut self,
+        completion: AudioOpenTaskCompletion,
+    ) -> AudioOpenCompletion {
+        if !self.task.finish(completion.ticket()) {
             return AudioOpenCompletion::Stale;
         }
         AudioOpenCompletion::Current(Box::new(
-            result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))),
+            completion
+                .take_result()
+                .unwrap_or_else(|| Err(String::from("audio output worker did not report"))),
         ))
     }
 }
 
+/// Cloneable message payload for a non-cloneable audio-open result.
 #[derive(Clone)]
-pub(in crate::native_app) struct AudioOpenCompletionSink {
-    results: Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
+pub(in crate::native_app) struct AudioOpenTaskCompletion {
+    ticket: ui::TaskTicket,
+    result: Arc<Mutex<Option<Result<AudioPlayer, String>>>>,
 }
 
-impl AudioOpenCompletionSink {
+impl AudioOpenTaskCompletion {
+    pub(in crate::native_app) fn ticket(&self) -> ui::TaskTicket {
+        self.ticket
+    }
+
+    fn take_result(self) -> Option<Result<AudioPlayer, String>> {
+        self.result.lock().ok().and_then(|mut result| result.take())
+    }
+}
+
+impl std::fmt::Debug for AudioOpenTaskCompletion {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AudioOpenTaskCompletion")
+            .field("ticket", &self.ticket)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for AudioOpenTaskCompletion {
+    fn eq(&self, other: &Self) -> bool {
+        self.ticket == other.ticket
+    }
+}
+
+/// Worker-owned request token that can produce exactly one completion result.
+pub(in crate::native_app) struct AudioOpenTaskRequest {
+    ticket: ui::TaskTicket,
+}
+
+impl AudioOpenTaskRequest {
     pub(in crate::native_app) fn complete(
-        &self,
-        ticket: ui::TaskTicket,
+        self,
         result: Result<AudioPlayer, String>,
-    ) {
-        if let Ok(mut results) = self.results.lock() {
-            results.insert(ticket, result);
+    ) -> AudioOpenTaskCompletion {
+        AudioOpenTaskCompletion {
+            ticket: self.ticket,
+            result: Arc::new(Mutex::new(Some(result))),
         }
     }
 }
@@ -134,19 +161,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn audio_open_completion_owner_ignores_stale_ticket_results() {
-        let mut owner = AudioOpenCompletionOwner::new();
-        let stale_ticket = owner.begin();
-        let sink = owner.sink();
-        sink.complete(stale_ticket, Err(String::from("stale")));
-        let current_ticket = owner.begin();
+    fn audio_open_task_owner_ignores_stale_ticket_results() {
+        let mut owner = AudioOpenTaskOwner::new();
+        let stale_completion = owner.begin().complete(Err(String::from("stale")));
+        let current_completion = owner.begin().complete(Err(String::from("current")));
 
         assert!(matches!(
-            owner.finish(stale_ticket),
+            owner.finish(stale_completion),
             AudioOpenCompletion::Stale
         ));
         assert!(
-            matches!(owner.finish(current_ticket), AudioOpenCompletion::Current(result) if result.is_err())
+            matches!(owner.finish(current_completion), AudioOpenCompletion::Current(result) if result.as_ref().is_err())
         );
+    }
+
+    #[test]
+    fn audio_open_task_completion_reports_missing_result_after_consumption() {
+        let completion = AudioOpenTaskOwner::new()
+            .begin()
+            .complete(Err(String::from("reported")));
+        let clone = completion.clone();
+
+        assert!(matches!(
+            completion.take_result(),
+            Some(Err(error)) if error == "reported"
+        ));
+        assert!(clone.take_result().is_none());
     }
 }

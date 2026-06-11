@@ -226,7 +226,9 @@ impl NativeAppState {
             GuiMessage::ActiveFolderCacheWarmFinished(result) => {
                 self.finish_active_folder_cache_warm(result, context);
             }
-            GuiMessage::AudioPlayerOpenFinished(ticket) => self.finish_audio_player_open(ticket),
+            GuiMessage::AudioPlayerOpenFinished(completion) => {
+                self.finish_audio_player_open(completion)
+            }
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::PlayRandomSampleRange => self.play_random_sample_range(context),
             GuiMessage::StopPlayback => self.stop_playback(),

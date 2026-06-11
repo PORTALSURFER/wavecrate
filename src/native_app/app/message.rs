@@ -6,8 +6,8 @@ use std::{path::PathBuf, time::Instant};
 use wavecrate::sample_sources::SampleCollection;
 
 use crate::native_app::app::{
-    ActiveFolderCacheWarmResult, AppSettingsTab, NormalizationProgress, NormalizationResult,
-    SampleLoadResult, SamplePlaybackReady,
+    ActiveFolderCacheWarmResult, AppSettingsTab, AudioOpenTaskCompletion, NormalizationProgress,
+    NormalizationResult, SampleLoadResult, SamplePlaybackReady,
 };
 use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
@@ -72,7 +72,7 @@ pub(in crate::native_app) enum GuiMessage {
     WaveformCacheWarmFinished(ui::TaskTicket),
     ActiveFolderCacheWarmReady(ui::TaskTicket),
     ActiveFolderCacheWarmFinished(ui::TaskCompletion<ActiveFolderCacheWarmResult>),
-    AudioPlayerOpenFinished(ui::TaskTicket),
+    AudioPlayerOpenFinished(AudioOpenTaskCompletion),
     PlaySelectedSample,
     PlayRandomSampleRange,
     StopPlayback,

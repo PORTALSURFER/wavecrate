@@ -33,10 +33,9 @@ impl NativeAppState {
             return;
         }
         let started_at = Instant::now();
-        let ticket = self.background.audio_open.begin();
+        let request = self.background.audio_open.begin();
         let config = self.audio.output_config.clone();
         let volume = self.audio.volume;
-        let completions = self.background.audio_open.sink();
         self.audio.settings_error = None;
         context.spawn_with_priority(
             "gui-audio-open",
@@ -53,8 +52,7 @@ impl NativeAppState {
                     open_started_at.elapsed(),
                     true,
                 );
-                completions.complete(ticket, result);
-                ticket
+                request.complete(result)
             },
             GuiMessage::AudioPlayerOpenFinished,
         );
@@ -68,9 +66,13 @@ impl NativeAppState {
         );
     }
 
-    pub(in crate::native_app) fn finish_audio_player_open(&mut self, ticket: ui::TaskTicket) {
+    pub(in crate::native_app) fn finish_audio_player_open(
+        &mut self,
+        completion: crate::native_app::app::AudioOpenTaskCompletion,
+    ) {
         let started_at = Instant::now();
-        let AudioOpenCompletion::Current(result) = self.background.audio_open.finish(ticket) else {
+        let AudioOpenCompletion::Current(result) = self.background.audio_open.finish(completion)
+        else {
             emit_gui_action(
                 "audio.output.open",
                 Some("audio"),
