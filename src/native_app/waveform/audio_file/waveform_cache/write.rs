@@ -18,7 +18,14 @@ use super::{
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
 
-pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum StoreWriteOutcome {
+    Completed,
+    SerializeFailed,
+    WriteFailed,
+}
+
+pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> StoreWriteOutcome {
     let started_at = Instant::now();
     update_playback_ready_marker(&job.cache_path, false);
     let sidecar_path = playback_sidecar_path(&job.cache_path);
@@ -29,14 +36,17 @@ pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) {
     let cached = CachedWaveformFile::from_waveform_file(&job.file, &job.identity, sidecar);
     let playback_ready = cached.playback_cache.is_some();
     let Ok(bytes) = bincode::serialize(&cached) else {
-        return;
+        return StoreWriteOutcome::SerializeFailed;
     };
     let temp_path = job.cache_path.with_extension("tmp");
     if fs::write(&temp_path, bytes).is_ok() && fs::rename(temp_path, &job.cache_path).is_ok() {
         update_playback_ready_marker(&job.cache_path, playback_ready);
         prune_waveform_cache_dir(&job.cache_path, MAX_PERSISTED_WAVEFORM_CACHE_BYTES);
+        log_slow_cache_store(&job.file.path, started_at);
+        return StoreWriteOutcome::Completed;
     }
     log_slow_cache_store(&job.file.path, started_at);
+    StoreWriteOutcome::WriteFailed
 }
 
 fn persist_playback_sidecar(

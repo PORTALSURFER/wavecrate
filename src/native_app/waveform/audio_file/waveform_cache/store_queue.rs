@@ -1,7 +1,7 @@
 use std::{
-    collections::HashSet,
+    collections::{HashSet, VecDeque},
     path::{Path, PathBuf},
-    sync::{Condvar, LazyLock, Mutex},
+    sync::{Arc, Condvar, LazyLock, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -12,16 +12,21 @@ use super::{
     write::store_cached_waveform_file_now,
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
+use diagnostics::{log_slow_cache_shutdown_flush, log_store_completion};
 
-static BACKGROUND_STORE_TRACKER: LazyLock<BackgroundStoreTracker> =
-    LazyLock::new(BackgroundStoreTracker::default);
+mod diagnostics;
+
+const BACKGROUND_STORE_QUEUE_CAPACITY: usize = 128;
+
+static BACKGROUND_STORE_QUEUE: LazyLock<Arc<BackgroundStoreQueue>> =
+    LazyLock::new(|| BackgroundStoreQueue::start(BACKGROUND_STORE_QUEUE_CAPACITY));
 
 #[cfg(test)]
 pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file(file: &WaveformFile) {
     let Some(job) = CachedWaveformStoreJob::new(file) else {
         return;
     };
-    store_cached_waveform_file_now(job);
+    let _ = store_cached_waveform_file_now(job);
 }
 
 pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in_background(
@@ -30,84 +35,218 @@ pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in
     let Some(job) = CachedWaveformStoreJob::new(file) else {
         return;
     };
-    if !begin_background_store(&job.cache_path) {
-        return;
-    }
     let path = job.file.path.clone();
-    let worker_cache_path = job.cache_path.clone();
-    let spawn_error_cache_path = worker_cache_path.clone();
-    let _ = thread::Builder::new()
-        .name(String::from("waveform-cache-store"))
-        .spawn(move || {
-            store_cached_waveform_file_now(job);
-            finish_background_store(&worker_cache_path);
-        })
-        .map_err(|err| {
-            finish_background_store(&spawn_error_cache_path);
+    let cache_path = job.cache_path.clone();
+    match BACKGROUND_STORE_QUEUE.enqueue(job) {
+        StoreEnqueueOutcome::Enqueued => {}
+        StoreEnqueueOutcome::Coalesced => {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.store_coalesced",
+                path = %path.display(),
+                cache_path = %cache_path.display(),
+                "Coalesced duplicate waveform cache persistence"
+            );
+        }
+        StoreEnqueueOutcome::QueueFull => {
             tracing::warn!(
                 target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_spawn_error",
+                event = "browser.sample_cache.store_dropped_queue_full",
                 path = %path.display(),
-                error = %err,
-                "Failed to spawn waveform cache persistence"
+                cache_path = %cache_path.display(),
+                capacity = BACKGROUND_STORE_QUEUE.capacity(),
+                "Dropped waveform cache persistence because the writer queue is full"
             );
-        });
-}
-
-pub(super) fn begin_background_store(cache_path: &Path) -> bool {
-    let Ok(mut in_flight) = BACKGROUND_STORE_TRACKER.in_flight.lock() else {
-        return true;
-    };
-    in_flight.insert(cache_path.to_path_buf())
-}
-
-pub(super) fn finish_background_store(cache_path: &Path) {
-    if let Ok(mut in_flight) = BACKGROUND_STORE_TRACKER.in_flight.lock() {
-        in_flight.remove(cache_path);
-        BACKGROUND_STORE_TRACKER.empty.notify_all();
+        }
+        StoreEnqueueOutcome::WorkerUnavailable => {
+            tracing::warn!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.store_dropped_worker_unavailable",
+                path = %path.display(),
+                cache_path = %cache_path.display(),
+                "Dropped waveform cache persistence because the writer worker is unavailable"
+            );
+        }
     }
 }
 
 pub(in crate::native_app) fn flush_background_waveform_cache_stores_for_shutdown() {
-    let started_at = Instant::now();
-    let Ok(mut in_flight) = BACKGROUND_STORE_TRACKER.in_flight.lock() else {
-        return;
-    };
-    while !in_flight.is_empty() {
-        let remaining = BACKGROUND_STORE_SHUTDOWN_WAIT.saturating_sub(started_at.elapsed());
-        if remaining.is_zero() {
-            break;
+    BACKGROUND_STORE_QUEUE.flush_for_shutdown(BACKGROUND_STORE_SHUTDOWN_WAIT);
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(test, allow(dead_code))]
+pub(super) enum StoreEnqueueOutcome {
+    Enqueued,
+    Coalesced,
+    QueueFull,
+    WorkerUnavailable,
+}
+
+pub(super) struct BackgroundStoreQueue {
+    capacity: usize,
+    state: Mutex<StoreQueueState>,
+    available: Condvar,
+    drained: Condvar,
+}
+
+impl BackgroundStoreQueue {
+    fn start(capacity: usize) -> Arc<Self> {
+        let queue = Arc::new(Self::new(capacity, true));
+        let worker_queue = Arc::clone(&queue);
+        if let Err(err) = thread::Builder::new()
+            .name(String::from("waveform-cache-store"))
+            .spawn(move || worker_queue.run_worker())
+        {
+            if let Ok(mut state) = queue.state.lock() {
+                state.worker_available = false;
+            }
+            tracing::warn!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.store_worker_spawn_error",
+                error = %err,
+                "Failed to spawn waveform cache persistence worker"
+            );
         }
-        let Ok((next_in_flight, timeout)) = BACKGROUND_STORE_TRACKER
-            .empty
-            .wait_timeout(in_flight, remaining)
-        else {
-            return;
-        };
-        in_flight = next_in_flight;
-        if timeout.timed_out() {
-            break;
+        queue
+    }
+
+    fn new(capacity: usize, worker_available: bool) -> Self {
+        Self {
+            capacity,
+            state: Mutex::new(StoreQueueState {
+                worker_available,
+                ..StoreQueueState::default()
+            }),
+            available: Condvar::new(),
+            drained: Condvar::new(),
         }
     }
-    if !in_flight.is_empty() {
-        tracing::warn!(
-            target: "wavecrate::debug::sample_cache",
-            event = "browser.sample_cache.shutdown_flush_timeout",
-            pending = in_flight.len(),
-            elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
-            "Timed out waiting for waveform cache persistence during shutdown"
-        );
-    } else {
-        log_slow_cache_shutdown_flush(started_at);
+
+    fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    pub(super) fn enqueue(&self, job: CachedWaveformStoreJob) -> StoreEnqueueOutcome {
+        let Ok(mut state) = self.state.lock() else {
+            return StoreEnqueueOutcome::WorkerUnavailable;
+        };
+        if !state.worker_available {
+            return StoreEnqueueOutcome::WorkerUnavailable;
+        }
+        if state.queued_paths.contains(&job.cache_path) {
+            replace_queued_job(&mut state.queued, job);
+            return StoreEnqueueOutcome::Coalesced;
+        }
+        if state.active_paths.contains(&job.cache_path) {
+            return StoreEnqueueOutcome::Coalesced;
+        }
+        if state.queued.len() >= self.capacity {
+            return StoreEnqueueOutcome::QueueFull;
+        }
+        state.queued_paths.insert(job.cache_path.clone());
+        state.queued.push_back(job);
+        self.available.notify_one();
+        StoreEnqueueOutcome::Enqueued
+    }
+
+    fn run_worker(&self) {
+        loop {
+            let job = self.next_job();
+            let cache_path = job.cache_path.clone();
+            let outcome = store_cached_waveform_file_now(job);
+            log_store_completion(&cache_path, outcome);
+            self.finish_job(&cache_path);
+        }
+    }
+
+    fn next_job(&self) -> CachedWaveformStoreJob {
+        let mut state = self.state.lock().expect("waveform cache queue lock");
+        loop {
+            if let Some(job) = state.queued.pop_front() {
+                state.queued_paths.remove(&job.cache_path);
+                state.active_paths.insert(job.cache_path.clone());
+                return job;
+            }
+            state = self
+                .available
+                .wait(state)
+                .expect("waveform cache queue condvar");
+        }
+    }
+
+    pub(super) fn finish_job(&self, cache_path: &Path) {
+        if let Ok(mut state) = self.state.lock() {
+            state.active_paths.remove(cache_path);
+            if state.is_drained() {
+                self.drained.notify_all();
+            }
+        }
+    }
+
+    pub(super) fn flush_for_shutdown(&self, wait: Duration) {
+        let started_at = Instant::now();
+        let Ok(mut state) = self.state.lock() else {
+            return;
+        };
+        while !state.is_drained() {
+            let remaining = wait.saturating_sub(started_at.elapsed());
+            if remaining.is_zero() {
+                break;
+            }
+            let Ok((next_state, timeout)) = self.drained.wait_timeout(state, remaining) else {
+                return;
+            };
+            state = next_state;
+            if timeout.timed_out() {
+                break;
+            }
+        }
+        if !state.is_drained() {
+            tracing::warn!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.shutdown_flush_timeout",
+                queued = state.queued.len(),
+                active = state.active_paths.len(),
+                elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+                "Timed out waiting for waveform cache persistence during shutdown"
+            );
+        } else {
+            log_slow_cache_shutdown_flush(started_at);
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn pop_next_for_test(&self) -> Option<CachedWaveformStoreJob> {
+        let mut state = self.state.lock().expect("waveform cache queue lock");
+        let job = state.queued.pop_front()?;
+        state.queued_paths.remove(&job.cache_path);
+        state.active_paths.insert(job.cache_path.clone());
+        Some(job)
+    }
+
+    #[cfg(test)]
+    pub(super) fn pending_for_test(&self) -> usize {
+        let state = self.state.lock().expect("waveform cache queue lock");
+        state.queued.len() + state.active_paths.len()
     }
 }
 
 #[derive(Default)]
-struct BackgroundStoreTracker {
-    in_flight: Mutex<HashSet<PathBuf>>,
-    empty: Condvar,
+struct StoreQueueState {
+    worker_available: bool,
+    queued: VecDeque<CachedWaveformStoreJob>,
+    queued_paths: HashSet<PathBuf>,
+    active_paths: HashSet<PathBuf>,
 }
 
+impl StoreQueueState {
+    fn is_drained(&self) -> bool {
+        self.queued.is_empty() && self.active_paths.is_empty()
+    }
+}
+
+#[derive(Clone)]
 pub(super) struct CachedWaveformStoreJob {
     pub(super) file: WaveformFile,
     pub(super) identity: CacheIdentity,
@@ -115,7 +254,7 @@ pub(super) struct CachedWaveformStoreJob {
 }
 
 impl CachedWaveformStoreJob {
-    fn new(file: &WaveformFile) -> Option<Self> {
+    pub(super) fn new(file: &WaveformFile) -> Option<Self> {
         if file.path.as_os_str().is_empty()
             || (file.audio_bytes.is_empty()
                 && file.playback_samples.is_none()
@@ -133,15 +272,16 @@ impl CachedWaveformStoreJob {
     }
 }
 
-fn log_slow_cache_shutdown_flush(started_at: Instant) {
-    let elapsed = started_at.elapsed();
-    if elapsed < Duration::from_millis(8) {
-        return;
+fn replace_queued_job(queued: &mut VecDeque<CachedWaveformStoreJob>, job: CachedWaveformStoreJob) {
+    if let Some(existing) = queued
+        .iter_mut()
+        .find(|existing| existing.cache_path == job.cache_path)
+    {
+        *existing = job;
     }
-    tracing::warn!(
-        target: "wavecrate::debug::sample_cache",
-        event = "browser.sample_cache.shutdown_flush",
-        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
-        "Waited for waveform cache persistence during shutdown"
-    );
+}
+
+#[cfg(test)]
+pub(super) fn test_store_queue(capacity: usize) -> BackgroundStoreQueue {
+    BackgroundStoreQueue::new(capacity, true)
 }
