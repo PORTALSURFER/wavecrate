@@ -47,19 +47,7 @@ impl FolderBrowserState {
         upsert_folder(&mut target_folder.children, moved_folder);
         self.tree.folders = vec![root_folder.clone()];
 
-        self.selection.selected_folder =
-            rewrite_path_id(&self.selection.selected_folder, old_path, new_path);
-        self.selection.selected_file = self
-            .selection
-            .selected_file
-            .take()
-            .map(|id| rewrite_path_id(&id, old_path, new_path));
-        self.selection.selected_file_ids = self
-            .selection
-            .selected_file_ids
-            .iter()
-            .map(|id| rewrite_path_id(id, old_path, new_path))
-            .collect();
+        self.selection.rewrite_folder_prefix(old_path, new_path);
         self.tree.expanded_folders = self
             .tree
             .expanded_folders
@@ -104,45 +92,12 @@ impl FolderBrowserState {
             upsert_file(&mut target_folder.files, file_entry(new_path));
         }
         self.tree.folders = vec![root_folder.clone()];
-        let moved_ids = moves
+        let moved_file_ids = moves
             .iter()
-            .map(|(_, new_path)| path_id(new_path))
+            .map(|(old_path, new_path)| (path_id(old_path), path_id(new_path)))
             .collect::<Vec<_>>();
-        let rewrite_file_id = |id: &str| {
-            moves
-                .iter()
-                .find(|(old_path, _)| path_id(old_path) == id)
-                .map(|(_, new_path)| path_id(new_path))
-                .unwrap_or_else(|| id.to_string())
-        };
-        let selected_file_was_moved = self
-            .selection
-            .selected_file
-            .as_ref()
-            .is_some_and(|id| old_ids.contains(id));
-        self.selection.selected_file = if selected_file_was_moved {
-            self.selection
-                .selected_file
-                .take()
-                .map(|id| rewrite_file_id(&id))
-        } else {
-            moved_ids.first().cloned()
-        };
-        self.selection.selected_file_ids = if self
-            .selection
-            .selected_file_ids
-            .iter()
-            .any(|id| old_ids.contains(id))
-        {
-            self.selection
-                .selected_file_ids
-                .iter()
-                .map(|id| rewrite_file_id(id))
-                .collect()
-        } else {
-            moved_ids.iter().cloned().collect()
-        };
-        self.selection.selected_folder = target_parent_id.clone();
+        self.selection
+            .select_moved_files(target_parent_id.clone(), &moved_file_ids);
         self.reset_file_view();
         self.tree.expanded_folders.insert(target_parent_id);
         self.bump_file_content_revision();

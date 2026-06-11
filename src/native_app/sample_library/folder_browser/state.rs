@@ -474,7 +474,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn selected_file_id(&self) -> Option<&str> {
-        self.selection.selected_file.as_deref()
+        self.selection.selected_file_id()
     }
 
     pub(in crate::native_app) fn similarity_anchor_id(&self) -> Option<&str> {
@@ -544,7 +544,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn is_file_selected(&self, file_id: &str) -> bool {
-        self.selection.selected_file_ids.contains(file_id)
+        self.selection.selected_file_ids_contains(file_id)
     }
 
     pub(in crate::native_app) fn drag_revision(&self) -> u64 {

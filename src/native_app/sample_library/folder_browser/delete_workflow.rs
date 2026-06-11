@@ -12,7 +12,7 @@ impl FolderBrowserState {
         if self.rename_active() {
             return Err(String::from("Finish rename before deleting a folder"));
         }
-        if self.selection.selected_file.is_some() {
+        if self.selection.selected_file_active() {
             return Err(String::from("Select a folder to delete"));
         }
         let Some(folder) = self.selected_folder() else {
@@ -33,7 +33,7 @@ impl FolderBrowserState {
         if self.rename_active() {
             return Err(String::from("Finish rename before deleting a file"));
         }
-        if self.selection.selected_file.is_none() {
+        if !self.selection.selected_file_active() {
             return Err(String::from("Select a file to delete"));
         }
         let paths = self.selected_file_paths();
@@ -99,8 +99,8 @@ impl FolderBrowserState {
             return false;
         }
         self.tree.folders = vec![root_folder.clone()];
-        if self.selection.selected_folder == folder_id {
-            self.selection.selected_folder = parent_id
+        if self.selection.selected_folder_id() == folder_id {
+            let selected_folder = parent_id
                 .filter(|id| self.find_folder(id).is_some())
                 .unwrap_or_else(|| {
                     self.tree
@@ -109,10 +109,11 @@ impl FolderBrowserState {
                         .map(|folder| folder.id.clone())
                         .unwrap_or_default()
                 });
+            self.selection
+                .select_folder_and_clear_files(selected_folder);
+        } else {
+            self.selection.clear_file_selection();
         }
-        self.selection.selected_file = None;
-        self.selection.selected_file_ids.clear();
-        self.selection.selected_file_ids_explicit = false;
         self.tree.expanded_folders.retain(|id| id != &folder_id);
         self.bump_file_content_revision();
         true
@@ -142,17 +143,7 @@ impl FolderBrowserState {
             return false;
         }
         self.tree.folders = vec![root_folder.clone()];
-        if self
-            .selection
-            .selected_file
-            .as_ref()
-            .is_some_and(|id| target_ids.contains(id))
-        {
-            self.selection.selected_file = None;
-        }
-        self.selection
-            .selected_file_ids
-            .retain(|id| !target_ids.contains(id));
+        self.selection.discard_files(&target_ids);
         self.bump_file_content_revision();
         true
     }

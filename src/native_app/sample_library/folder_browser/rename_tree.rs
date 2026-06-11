@@ -22,22 +22,10 @@ impl FolderBrowserState {
             root_folder.rewrite_path_prefix(old_path, new_path);
             self.tree.folders = vec![root_folder.clone()];
         }
-        self.selection.selected_folder =
-            rewrite_path_id(&self.selection.selected_folder, old_path, new_path);
-        if self.selection.selected_folder == old_id {
-            self.selection.selected_folder = new_id;
+        self.selection.rewrite_folder_prefix(old_path, new_path);
+        if self.selection.selected_folder_id() == old_id {
+            self.selection.set_folder_focus(new_id);
         }
-        self.selection.selected_file = self
-            .selection
-            .selected_file
-            .take()
-            .map(|id| rewrite_path_id(&id, old_path, new_path));
-        self.selection.selected_file_ids = self
-            .selection
-            .selected_file_ids
-            .iter()
-            .map(|id| rewrite_path_id(id, old_path, new_path))
-            .collect();
         self.tree.expanded_folders = self
             .tree
             .expanded_folders
@@ -60,11 +48,7 @@ impl FolderBrowserState {
             root_folder.rewrite_file_path(old_path, new_path);
             self.tree.folders = vec![root_folder.clone()];
         }
-        let new_id = path_id(new_path);
-        self.selection.selected_file = Some(new_id);
-        self.selection.selected_file_ids.clear();
-        self.selection.selected_file_ids.insert(path_id(new_path));
-        self.selection.selected_file_ids_explicit = false;
+        self.selection.set_renamed_file(path_id(new_path));
         self.bump_file_content_revision();
     }
 
@@ -79,8 +63,8 @@ impl FolderBrowserState {
 
     pub(super) fn remove_pending_created_folder(&mut self, folder_id: &str, parent_id: &str) {
         self.remove_folder_by_id(folder_id);
-        if self.selection.selected_folder == folder_id {
-            self.selection.selected_folder = if self.find_folder(parent_id).is_some() {
+        if self.selection.selected_folder_id() == folder_id {
+            let selected_folder = if self.find_folder(parent_id).is_some() {
                 parent_id.to_string()
             } else {
                 self.tree
@@ -89,6 +73,7 @@ impl FolderBrowserState {
                     .map(|folder| folder.id.clone())
                     .unwrap_or_default()
             };
+            self.selection.set_folder_focus(selected_folder);
         }
         self.tree.expanded_folders.remove(folder_id);
     }

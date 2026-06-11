@@ -82,20 +82,7 @@ impl FolderBrowserState {
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<HashSet<_>>();
-        self.selection
-            .selected_file_ids
-            .retain(|id| visible_ids.contains(id));
-        if self
-            .selection
-            .selected_file
-            .as_ref()
-            .is_some_and(|id| !visible_ids.contains(id))
-        {
-            self.selection.selected_file = None;
-        }
-        if self.selection.selected_file.is_none() && self.selection.selected_file_ids.is_empty() {
-            self.selection.selected_file_ids_explicit = false;
-        }
+        self.selection.retain_visible_files(&visible_ids);
     }
 
     fn retain_visible_file_selection_after_filter(&mut self) {
@@ -104,20 +91,7 @@ impl FolderBrowserState {
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<HashSet<_>>();
-        self.selection
-            .selected_file_ids
-            .retain(|id| visible_ids.contains(id));
-        if self
-            .selection
-            .selected_file
-            .as_ref()
-            .is_some_and(|id| !visible_ids.contains(id))
-        {
-            self.selection.selected_file = None;
-        }
-        if self.selection.selected_file.is_none() && self.selection.selected_file_ids.is_empty() {
-            self.selection.selected_file_ids_explicit = false;
-        }
+        self.selection.retain_visible_files(&visible_ids);
     }
 
     pub(in crate::native_app) fn metadata_panel_height(&self) -> f32 {

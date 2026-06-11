@@ -7,6 +7,7 @@ use std::{
 use super::{
     FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution, FileMoveConflictView,
     FolderBrowserState, FolderDropResult, path_helpers::path_id, plural,
+    selection_state::BrowserSelectionSnapshot,
 };
 
 #[derive(Debug, Default)]
@@ -110,21 +111,12 @@ impl FolderBrowserState {
             Vec::new()
         } else {
             let completed = rename_files_with_rollback(&plan.ready)?;
-            let previous_selected_folder = self.selection.selected_folder.clone();
-            let previous_selected_file = self.selection.selected_file.clone();
-            let previous_selected_file_ids = self.selection.selected_file_ids.clone();
-            let previous_selected_file_ids_explicit = self.selection.selected_file_ids_explicit;
+            let previous_selection = self.selection.snapshot();
             if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
                 rollback_completed_file_moves(&completed);
                 return Err(error);
             }
-            self.restore_source_selection_after_file_drop(
-                previous_selected_folder,
-                previous_selected_file,
-                previous_selected_file_ids,
-                previous_selected_file_ids_explicit,
-                &completed,
-            );
+            self.restore_source_selection_after_file_drop(previous_selection, &completed);
             completed
         };
         if !plan.conflicts.is_empty() {
@@ -145,13 +137,10 @@ impl FolderBrowserState {
 
     fn restore_source_selection_after_file_drop(
         &mut self,
-        selected_folder: String,
-        selected_file: Option<String>,
-        selected_file_ids: HashSet<String>,
-        selected_file_ids_explicit: bool,
+        selection: BrowserSelectionSnapshot,
         moved_paths: &[(PathBuf, PathBuf)],
     ) {
-        if self.find_folder(&selected_folder).is_none() {
+        if self.find_folder(&selection.selected_folder).is_none() {
             return;
         }
 
@@ -159,36 +148,16 @@ impl FolderBrowserState {
             .iter()
             .map(|(old_path, _)| path_id(old_path))
             .collect::<HashSet<_>>();
-        self.selection.selected_folder = selected_folder;
+        self.selection
+            .set_folder_focus(selection.selected_folder.clone());
 
         let visible_ids = self
             .selected_audio_files()
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<Vec<_>>();
-        let visible_id_set = visible_ids.iter().cloned().collect::<HashSet<_>>();
-        self.selection.selected_file_ids = selected_file_ids
-            .into_iter()
-            .filter(|id| !moved_ids.contains(id) && visible_id_set.contains(id))
-            .collect();
-        self.selection.selected_file_ids_explicit = selected_file_ids_explicit;
-        self.selection.selected_file = selected_file
-            .filter(|id| !moved_ids.contains(id) && visible_id_set.contains(id))
-            .or_else(|| {
-                visible_ids
-                    .iter()
-                    .find(|id| self.selection.selected_file_ids.contains(*id))
-                    .cloned()
-            });
-
-        if self.selection.selected_file.is_none()
-            && self.selection.selected_file_ids.is_empty()
-            && let Some(first_visible) = visible_ids.first().cloned()
-        {
-            self.selection.selected_file = Some(first_visible.clone());
-            self.selection.selected_file_ids.insert(first_visible);
-            self.selection.selected_file_ids_explicit = false;
-        }
+        self.selection
+            .restore_after_moved_files(selection, &moved_ids, &visible_ids);
         self.reset_file_view();
     }
 
@@ -230,19 +199,13 @@ impl FolderBrowserState {
         let new_path = unique_destination(&target_path.join(file_name));
         fs::rename(path, &new_path).map_err(|error| format!("Extraction move failed: {error}"))?;
         let completed = vec![(path.to_path_buf(), new_path.clone())];
-        let previous_selected_folder = self.selection.selected_folder.clone();
-        let previous_selected_file = self.selection.selected_file.clone();
-        let previous_selected_file_ids = self.selection.selected_file_ids.clone();
-        let previous_selected_file_ids_explicit = self.selection.selected_file_ids_explicit;
+        let previous_selection = self.selection.snapshot();
         let previous_file_view_controller = self.sample_list.view_controller.clone();
         if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
             rollback_completed_file_moves(&completed);
             return Err(error);
         }
-        self.selection.selected_folder = previous_selected_folder;
-        self.selection.selected_file = previous_selected_file;
-        self.selection.selected_file_ids = previous_selected_file_ids;
-        self.selection.selected_file_ids_explicit = previous_selected_file_ids_explicit;
+        self.selection.restore_snapshot(previous_selection);
         self.sample_list.view_controller = previous_file_view_controller;
         Ok(FolderDropResult {
             moved_paths: completed,

@@ -35,6 +35,8 @@ mod delete_workflow;
 
 mod file_selection;
 
+mod selection_state;
+
 mod file_view_window;
 
 mod file_rename_workflow;
