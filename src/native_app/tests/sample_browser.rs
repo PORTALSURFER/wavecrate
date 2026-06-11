@@ -1,14 +1,12 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::IntoView,
+    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
     runtime::{Event, SurfaceFrame},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
 };
 use std::fs;
 
 use super::{native_app_state_with_temp_sample, native_runtime_for_tests};
-
-const FOLDER_DROP_TARGET_FILL: Rgba8 = Rgba8::new(255, 130, 78, 220);
 
 fn sample_hit_target(
     selected: bool,
@@ -23,6 +21,15 @@ fn sample_hit_target(
         drag_source,
         cached,
     )
+}
+
+fn folder_drop_target_fill() -> Rgba8 {
+    dense_row_palette_from_style(
+        &ThemeTokens::default(),
+        WidgetStyle::subtle(WidgetTone::Accent),
+    )
+    .active_target
+    .expect("sidebar dense-row active target fill")
 }
 
 fn text_center(frame: &SurfaceFrame, label: &str) -> Point {

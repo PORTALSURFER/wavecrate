@@ -4,6 +4,10 @@ use radiant::prelude as ui;
 use crate::native_app::app::NativeAppState;
 use crate::native_app::app::{GuiMessage, MetadataMessage, SampleNameViewMode};
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
+#[cfg(test)]
+use crate::native_app::app_chrome::view_models::sample_browser::{
+    SampleBrowserViewProjection, prepare_sample_browser_view,
+};
 use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::FileColumn;
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
@@ -26,8 +30,10 @@ pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 58.0;
 pub(in crate::native_app) fn sample_browser_from_state(
     state: &mut NativeAppState,
 ) -> ui::View<GuiMessage> {
-    SampleBrowserViewModel::prepare_visible_sample_window(state);
-    sample_browser(SampleBrowserViewModel::from_app_state(state))
+    prepare_sample_browser_view(state);
+    sample_browser(SampleBrowserViewModel::from_projection(
+        SampleBrowserViewProjection::from_prepared_app_state(state),
+    ))
 }
 
 pub(in crate::native_app) fn sample_browser(

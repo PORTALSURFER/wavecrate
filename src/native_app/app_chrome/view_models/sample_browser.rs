@@ -19,20 +19,18 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) drag_feedback: Option<FileColumnDragFeedback>,
 }
 
-impl<'a> SampleBrowserViewModel<'a> {
-    pub(in crate::native_app) fn prepare_visible_sample_window(state: &mut NativeAppState) {
-        state
-            .library
-            .folder_browser
-            .prepare_visible_sample_window(VisibleSampleWindowPolicy {
-                tags_by_file: &state.metadata.tags_by_file,
-                viewport_rows: SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
-                overscan_rows: SAMPLE_BROWSER_OVERSCAN_ROWS,
-                guard_rows: SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-            });
-    }
+pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
+    visible_samples: VisibleSampleList<'a>,
+    name_view_mode: SampleNameViewMode,
+    metadata_tags_by_file: &'a HashMap<String, Vec<String>>,
+    file_drag_active: bool,
+    extracted_file_drag_active: bool,
+    hovered_folder_drop_target: bool,
+    drag_feedback: Option<FileColumnDragFeedback>,
+}
 
-    pub(in crate::native_app) fn from_app_state(state: &'a NativeAppState) -> Self {
+impl<'a> SampleBrowserViewProjection<'a> {
+    pub(in crate::native_app) fn from_prepared_app_state(state: &'a NativeAppState) -> Self {
         let file_drag_active = state.library.folder_browser.file_drag_active();
         let extracted_file_drag_active = state.library.folder_browser.extracted_file_drag_active();
         let hovered_folder_drop_target = state
@@ -59,4 +57,32 @@ impl<'a> SampleBrowserViewModel<'a> {
             drag_feedback,
         }
     }
+}
+
+impl<'a> SampleBrowserViewModel<'a> {
+    pub(in crate::native_app) fn from_projection(
+        projection: SampleBrowserViewProjection<'a>,
+    ) -> Self {
+        Self {
+            visible_samples: projection.visible_samples,
+            name_view_mode: projection.name_view_mode,
+            metadata_tags_by_file: projection.metadata_tags_by_file,
+            file_drag_active: projection.file_drag_active,
+            extracted_file_drag_active: projection.extracted_file_drag_active,
+            hovered_folder_drop_target: projection.hovered_folder_drop_target,
+            drag_feedback: projection.drag_feedback,
+        }
+    }
+}
+
+pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppState) {
+    state
+        .library
+        .folder_browser
+        .prepare_visible_sample_window(VisibleSampleWindowPolicy {
+            tags_by_file: &state.metadata.tags_by_file,
+            viewport_rows: SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+            overscan_rows: SAMPLE_BROWSER_OVERSCAN_ROWS,
+            guard_rows: SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+        });
 }

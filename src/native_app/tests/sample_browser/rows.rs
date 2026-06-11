@@ -1,4 +1,7 @@
 use super::*;
+use crate::native_app::app_chrome::view_models::sample_browser::{
+    SampleBrowserViewModel, SampleBrowserViewProjection, prepare_sample_browser_view,
+};
 
 fn shared_dense_row_palette() -> radiant::prelude::DenseRowPalette {
     radiant::prelude::dense_row_palette_from_style(
@@ -48,10 +51,11 @@ fn sample_browser_projection_window_matches_rendered_row_order() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
         .expect("default state loads");
     let projection_names = {
-        crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel::prepare_visible_sample_window(&mut state);
+        prepare_sample_browser_view(&mut state);
         let state = &state;
-        let model =
-            crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel::from_app_state(state);
+        let model = SampleBrowserViewModel::from_projection(
+            SampleBrowserViewProjection::from_prepared_app_state(state),
+        );
         assert_eq!(
             model.visible_samples.window.total_items,
             model.visible_samples.total_count

@@ -58,7 +58,7 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
         dragging_frame
             .paint_plan
             .fill_rects()
-            .any(|fill| fill.color == FOLDER_DROP_TARGET_FILL),
+            .any(|fill| fill.color == folder_drop_target_fill()),
         "active folder drop target should paint its background highlight"
     );
 
@@ -68,7 +68,7 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
         !returned_frame
             .paint_plan
             .fill_rects()
-            .any(|fill| fill.color == FOLDER_DROP_TARGET_FILL),
+            .any(|fill| fill.color == folder_drop_target_fill()),
         "moving back over the sample list should clear the folder drop target"
     );
 
@@ -92,7 +92,7 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
         !released_frame
             .paint_plan
             .fill_rects()
-            .any(|fill| fill.color == FOLDER_DROP_TARGET_FILL),
+            .any(|fill| fill.color == folder_drop_target_fill()),
         "dropping back on the sample list must not leave stale folder drop feedback"
     );
 }

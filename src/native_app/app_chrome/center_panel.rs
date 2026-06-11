@@ -9,8 +9,12 @@ use crate::native_app::app_chrome::modals;
 use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::{
-    library_sidebar::LibrarySidebarViewModel, sample_browser::SampleBrowserViewModel,
-    toolbar::MainToolbarViewModel, waveform_panel::WaveformPanelViewModel,
+    library_sidebar::LibrarySidebarViewModel,
+    sample_browser::{
+        SampleBrowserViewModel, SampleBrowserViewProjection, prepare_sample_browser_view,
+    },
+    toolbar::MainToolbarViewModel,
+    waveform_panel::WaveformPanelViewModel,
 };
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 
@@ -53,10 +57,12 @@ fn metadata_tag_library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
 }
 
 fn sample_workspace_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    SampleBrowserViewModel::prepare_visible_sample_window(state);
+    prepare_sample_browser_view(state);
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
-    let sample_browser_model = SampleBrowserViewModel::from_app_state(state);
+    let sample_browser_model = SampleBrowserViewModel::from_projection(
+        SampleBrowserViewProjection::from_prepared_app_state(state),
+    );
     ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
         .padding(4.0)
         .fill()
