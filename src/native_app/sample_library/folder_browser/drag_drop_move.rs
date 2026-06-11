@@ -5,22 +5,17 @@ use std::{
 };
 
 use super::{
-    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution, FileMoveConflictView,
-    FolderBrowserState, FolderDropResult, path_helpers::path_id, plural,
+    FileMoveConflictBatch, FileMoveConflictResolution, FileMoveConflictView, FolderBrowserState,
+    FolderDropResult,
+    file_move_transaction::{
+        file_move_plan_to_folder, move_existing_destination_to_backup, move_file_over_backup,
+        remove_overwrite_backup, rename_files_with_rollback, restore_overwrite_backup,
+        rollback_completed_file_moves, rollback_overwrite_move, unique_destination,
+    },
+    path_helpers::path_id,
+    plural,
     selection_state::BrowserSelectionSnapshot,
 };
-
-#[derive(Debug, Default)]
-struct FileMovePlan {
-    ready: Vec<(PathBuf, PathBuf)>,
-    conflicts: Vec<FileMoveConflict>,
-}
-
-#[derive(Debug)]
-struct OverwriteBackup {
-    destination_path: PathBuf,
-    backup_path: PathBuf,
-}
 
 impl FolderBrowserState {
     pub(super) fn move_folder_to_folder(
@@ -332,90 +327,6 @@ impl FolderBrowserState {
     }
 }
 
-fn file_move_plan_to_folder(
-    file_ids: &[String],
-    target_path: &Path,
-) -> Result<FileMovePlan, String> {
-    let mut plan = FileMovePlan::default();
-    let mut seen = HashSet::new();
-    for id in file_ids {
-        if !seen.insert(id.clone()) {
-            continue;
-        }
-        let old_path = PathBuf::from(id);
-        if !old_path.is_file() {
-            return Err(format!(
-                "File move failed: {} is missing",
-                old_path
-                    .file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_else(|| old_path.display().to_string())
-            ));
-        }
-        if old_path.parent() == Some(target_path) {
-            continue;
-        }
-        let Some(file_name) = old_path.file_name() else {
-            return Err(String::from("File move failed: source file has no name"));
-        };
-        let new_path = target_path.join(file_name);
-        if new_path.exists() {
-            plan.conflicts.push(FileMoveConflict {
-                source_path: old_path,
-                destination_path: new_path,
-            });
-        } else {
-            plan.ready.push((old_path, new_path));
-        }
-    }
-    Ok(plan)
-}
-
-fn rename_files_with_rollback(
-    moves: &[(PathBuf, PathBuf)],
-) -> Result<Vec<(PathBuf, PathBuf)>, String> {
-    let mut completed = Vec::new();
-    for (old_path, new_path) in moves {
-        if let Err(error) = fs::rename(old_path, new_path) {
-            rollback_completed_file_moves(&completed);
-            return Err(format!("File move failed: {error}"));
-        }
-        completed.push((old_path.clone(), new_path.clone()));
-    }
-    Ok(completed)
-}
-
-fn rollback_completed_file_moves(completed: &[(PathBuf, PathBuf)]) {
-    for (moved_old, moved_new) in completed.iter().rev() {
-        let _ = fs::rename(moved_new, moved_old);
-    }
-}
-
-fn unique_destination(first_candidate: &Path) -> PathBuf {
-    if !first_candidate.exists() {
-        return first_candidate.to_path_buf();
-    }
-    let parent = first_candidate.parent().unwrap_or_else(|| Path::new(""));
-    let stem = first_candidate
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_else(|| String::from("sample"));
-    let extension = first_candidate
-        .extension()
-        .map(|extension| extension.to_string_lossy().to_string());
-    for count in 1.. {
-        let file_name = match &extension {
-            Some(extension) => format!("{stem}_copy{count:03}.{extension}"),
-            None => format!("{stem}_copy{count:03}"),
-        };
-        let candidate = parent.join(file_name);
-        if !candidate.exists() {
-            return candidate;
-        }
-    }
-    unreachable!("unbounded copy suffix search should find a destination")
-}
-
 fn file_move_status(moved_count: usize, conflict_count: usize) -> String {
     match (moved_count, conflict_count) {
         (0, 0) => String::from("File move unchanged"),
@@ -466,50 +377,4 @@ fn conflict_resolution_action_status(
         (FileMoveConflictResolution::Skip, _) => "Skipped conflicting file",
         _ => "Resolved file conflict",
     }
-}
-
-fn move_existing_destination_to_backup(destination_path: &Path) -> Result<OverwriteBackup, String> {
-    let backup_path = unique_overwrite_backup_path(destination_path);
-    fs::rename(destination_path, &backup_path)
-        .map_err(|error| format!("File overwrite failed: {error}"))?;
-    Ok(OverwriteBackup {
-        destination_path: destination_path.to_path_buf(),
-        backup_path,
-    })
-}
-
-fn move_file_over_backup(source_path: &Path, destination_path: &Path) -> Result<(), String> {
-    fs::rename(source_path, destination_path)
-        .map_err(|error| format!("File overwrite failed: {error}"))
-}
-
-fn rollback_overwrite_move(completed: &(PathBuf, PathBuf), backup: &OverwriteBackup) {
-    let (source_path, destination_path) = completed;
-    let _ = fs::rename(destination_path, source_path);
-    restore_overwrite_backup(backup);
-}
-
-fn restore_overwrite_backup(backup: &OverwriteBackup) {
-    let _ = fs::rename(&backup.backup_path, &backup.destination_path);
-}
-
-fn remove_overwrite_backup(backup: &OverwriteBackup) {
-    let _ = fs::remove_file(&backup.backup_path);
-}
-
-fn unique_overwrite_backup_path(destination_path: &Path) -> PathBuf {
-    let parent = destination_path.parent().unwrap_or_else(|| Path::new(""));
-    let file_name = destination_path
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| String::from("file"));
-    for count in 1.. {
-        let candidate = parent.join(format!(
-            ".wavecrate-overwrite-backup-{count:03}-{file_name}"
-        ));
-        if !candidate.exists() {
-            return candidate;
-        }
-    }
-    unreachable!("unbounded backup suffix search should find a destination")
 }

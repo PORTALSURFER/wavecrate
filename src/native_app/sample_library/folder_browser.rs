@@ -39,6 +39,8 @@ mod visible_samples;
 
 mod file_rename_workflow;
 
+mod file_move_transaction;
+
 mod file_columns;
 
 mod file_model;
