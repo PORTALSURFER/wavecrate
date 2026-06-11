@@ -4,6 +4,40 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+struct FacadeBudget {
+    path: &'static str,
+    max_lines: usize,
+    max_exports: usize,
+    owner: &'static str,
+}
+
+const WAVECRATE_FACADE_BUDGETS: &[FacadeBudget] = &[
+    FacadeBudget {
+        path: "src/native_app/sample_library/folder_browser.rs",
+        max_lines: 180,
+        max_exports: 32,
+        owner: "OPT-541: folder-browser root stays a thin module/export facade",
+    },
+    FacadeBudget {
+        path: "src/app_core/app_api.rs",
+        max_lines: 150,
+        max_exports: 28,
+        owner: "OPT-541: app-api remains the owned legacy-crossing allowlist",
+    },
+    FacadeBudget {
+        path: "src/app_core/actions/mod.rs",
+        max_lines: 240,
+        max_exports: 66,
+        owner: "OPT-541: app-core action facade exports remain deliberate",
+    },
+    FacadeBudget {
+        path: "src/native_app/test_support.rs",
+        max_lines: 40,
+        max_exports: 12,
+        owner: "OPT-541: test support root stays a test-only re-export facade",
+    },
+];
+
 #[test]
 fn gui_module_stays_a_pure_radiant_reexport_boundary() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -56,6 +90,62 @@ fn agent_instructions_call_out_large_gui_import_lists() {
             "AGENTS.md should preserve the GUI import hygiene rule: missing `{required}`"
         );
     }
+}
+
+#[test]
+fn wavecrate_root_facades_stay_within_owned_size_budgets() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    for budget in WAVECRATE_FACADE_BUDGETS {
+        let path = manifest_dir.join(budget.path);
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("{} should be readable: {err}", path.display()));
+        let line_count = source.lines().count();
+        let export_count = source.lines().filter(|line| is_export_line(line)).count();
+
+        assert!(
+            line_count <= budget.max_lines,
+            "{} has {line_count} lines; budget is {}. {}",
+            budget.path,
+            budget.max_lines,
+            budget.owner
+        );
+        assert!(
+            export_count <= budget.max_exports,
+            "{} has {export_count} export lines; budget is {}. {}",
+            budget.path,
+            budget.max_exports,
+            budget.owner
+        );
+    }
+}
+
+#[test]
+fn production_app_core_legacy_crossings_go_through_app_api() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let app_core_root = manifest_dir.join("src/app_core");
+    let mut offenders = Vec::new();
+    collect_app_core_legacy_crossings(&app_core_root, &manifest_dir, &mut offenders);
+
+    assert!(
+        offenders.is_empty(),
+        "production app-core code must import legacy app modules through src/app_core/app_api.rs:\n{}",
+        offenders.join("\n")
+    );
+}
+
+#[test]
+fn production_native_app_modules_do_not_import_test_support_facade() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let native_app_root = manifest_dir.join("src/native_app");
+    let mut offenders = Vec::new();
+    collect_native_app_test_support_imports(&native_app_root, &manifest_dir, &mut offenders);
+
+    assert!(
+        offenders.is_empty(),
+        "production native-app modules must not import the cfg(test) test_support facade:\n{}",
+        offenders.join("\n")
+    );
 }
 
 #[test]
@@ -116,31 +206,48 @@ fn cross_crate_public_wildcard_reexports_are_explicitly_audited() {
     );
 }
 
+fn collect_app_core_legacy_crossings(dir: &Path, manifest_dir: &Path, offenders: &mut Vec<String>) {
+    for_rust_source_file(dir, &mut |path| {
+        if is_test_source(path) || path.ends_with("app_api.rs") {
+            return;
+        }
+        collect_matching_lines(path, manifest_dir, offenders, app_core_legacy_crossing);
+    });
+}
+
+fn collect_native_app_test_support_imports(
+    dir: &Path,
+    manifest_dir: &Path,
+    offenders: &mut Vec<String>,
+) {
+    for_rust_source_file(dir, &mut |path| {
+        if is_test_source(path) || path.ends_with("test_support.rs") {
+            return;
+        }
+        collect_matching_lines(
+            path,
+            manifest_dir,
+            offenders,
+            native_app_test_support_import,
+        );
+    });
+}
+
 fn collect_top_level_wildcard_imports(dir: &Path, offenders: &mut Vec<String>) {
-    for entry in fs::read_dir(dir).unwrap_or_else(|err| panic!("{dir:?} should be readable: {err}"))
-    {
-        let entry = entry.expect("GUI source directory entry should be readable");
-        let path = entry.path();
-        if path.is_dir() {
-            collect_top_level_wildcard_imports(&path, offenders);
-            continue;
+    for_rust_source_file(dir, &mut |path| {
+        if is_test_source(path) {
+            return;
         }
-        if path.extension().and_then(|extension| extension.to_str()) != Some("rs")
-            || is_test_source(&path)
-        {
-            continue;
-        }
-        let source = fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("{} should be readable: {err}", path.display()));
+        let source = read_source(path);
         for (line_index, line) in source.lines().enumerate() {
             if line.starts_with("use super::*") {
                 let relative = path
                     .strip_prefix(env!("CARGO_MANIFEST_DIR"))
-                    .unwrap_or(&path);
+                    .unwrap_or(path);
                 offenders.push(format!("{}:{}", relative.display(), line_index + 1));
             }
         }
-    }
+    });
 }
 
 fn collect_cross_crate_public_wildcard_reexports(
@@ -148,28 +255,95 @@ fn collect_cross_crate_public_wildcard_reexports(
     manifest_dir: &Path,
     actual: &mut BTreeSet<String>,
 ) {
+    for_rust_source_file(dir, &mut |path| {
+        let source = read_source(path);
+        for line in source
+            .lines()
+            .filter_map(cross_crate_public_wildcard_target)
+        {
+            let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
+            actual.insert(format!("{}:{line}", relative.display()).replace('\\', "/"));
+        }
+    });
+}
+
+fn for_rust_source_file(dir: &Path, visit: &mut impl FnMut(&Path)) {
     for entry in fs::read_dir(dir).unwrap_or_else(|err| panic!("{dir:?} should be readable: {err}"))
     {
         let entry = entry.expect("source directory entry should be readable");
         let path = entry.path();
         if path.is_dir() {
-            collect_cross_crate_public_wildcard_reexports(&path, manifest_dir, actual);
+            for_rust_source_file(&path, visit);
             continue;
         }
         if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
             continue;
         }
-
-        let source = fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("{} should be readable: {err}", path.display()));
-        for line in source
-            .lines()
-            .filter_map(cross_crate_public_wildcard_target)
-        {
-            let relative = path.strip_prefix(manifest_dir).unwrap_or(&path);
-            actual.insert(format!("{}:{line}", relative.display()).replace('\\', "/"));
-        }
+        visit(&path);
     }
+}
+
+fn collect_matching_lines(
+    path: &Path,
+    manifest_dir: &Path,
+    offenders: &mut Vec<String>,
+    matches_line: impl Fn(&str) -> bool,
+) {
+    let source = read_source(path);
+    let mut previous_line_was_cfg_test = false;
+    for (line_index, line) in source.lines().enumerate() {
+        let cfg_test_line = is_cfg_test_line(line);
+        if matches_line(line) && !previous_line_was_cfg_test {
+            let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
+            offenders.push(format!(
+                "{}:{}: {}",
+                relative.display(),
+                line_index + 1,
+                line.trim()
+            ));
+        }
+        previous_line_was_cfg_test = cfg_test_line;
+    }
+}
+
+fn read_source(path: &Path) -> String {
+    fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", path.display()))
+}
+
+fn app_core_legacy_crossing(line: &str) -> bool {
+    let code = line.trim();
+    !is_comment_or_empty(code)
+        && (code.contains("crate::app::controller")
+            || code.contains("crate::app::state")
+            || code.contains("crate::app::view_model"))
+}
+
+fn native_app_test_support_import(line: &str) -> bool {
+    let code = line.trim();
+    !is_comment_or_empty(code)
+        && (code.contains("native_app::test_support")
+            || code.contains("super::test_support")
+            || code.contains("test_support::"))
+}
+
+fn is_export_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("pub use ")
+        || trimmed.starts_with("pub(crate) use ")
+        || trimmed.starts_with("pub(in ")
+        || trimmed.starts_with("pub const ")
+        || trimmed.starts_with("pub(crate) const ")
+        || trimmed.starts_with("pub type ")
+        || trimmed.starts_with("pub(crate) type ")
+}
+
+fn is_comment_or_empty(line: &str) -> bool {
+    line.is_empty() || line.starts_with("//")
+}
+
+fn is_cfg_test_line(line: &str) -> bool {
+    matches!(line.trim(), "#[cfg(test)]" | "#[cfg(any(test, doctest))]")
 }
 
 fn cross_crate_public_wildcard_target(line: &str) -> Option<String> {
