@@ -31,6 +31,11 @@ pub(super) use store_queue::store_cached_waveform_file_in_background;
 use store_queue::{CachedWaveformStoreJob, StoreEnqueueOutcome, test_store_queue};
 use write::mark_cached_waveform_file_playback_ready;
 #[cfg(test)]
+use write::{
+    MarkerUpdateOutcome, PlaybackSidecarOutcome, playback_sample_bytes,
+    write_playback_sidecar_outcome,
+};
+#[cfg(test)]
 use write::{update_playback_ready_marker, write_playback_sidecar};
 
 mod format;
@@ -286,13 +291,17 @@ mod tests {
         set_file_modified_seconds(&newer_path, 20);
         set_file_modified_seconds(&pinned_path, 30);
 
-        prune_waveform_cache_dir(&pinned_path, 8);
+        let prune = prune_waveform_cache_dir(&pinned_path, 8);
 
         assert!(!old_path.exists());
         assert!(!old_sidecar.exists());
         assert!(!temp_path.exists());
         assert!(newer_path.exists());
         assert!(pinned_path.exists());
+        assert_eq!(prune.stale_temp_removed, 1);
+        assert_eq!(prune.cache_removed, 1);
+        assert_eq!(prune.companion_remove_failed, 0);
+        assert_eq!(prune.bytes_after, 8);
     }
 
     #[test]
@@ -318,6 +327,42 @@ mod tests {
 
         assert!(!cached_waveform_file_playback_ready_exists(&path));
         assert!(load_cached_waveform_file_for_playback(path).is_none());
+    }
+
+    #[test]
+    fn marker_update_classifies_write_and_remove_failures() {
+        let _guard = waveform_cache_test_guard();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cache_path = dir.path().join("blocked-marker.wfc");
+        let marker_path = cache_path.with_extension("ready");
+        fs::create_dir(&marker_path).expect("create marker directory");
+
+        assert_eq!(
+            update_playback_ready_marker(&cache_path, true),
+            MarkerUpdateOutcome::WriteFailed
+        );
+        assert_eq!(
+            update_playback_ready_marker(&cache_path, false),
+            MarkerUpdateOutcome::RemoveFailed
+        );
+    }
+
+    #[test]
+    fn sidecar_write_classifies_missing_temp_parent() {
+        let _guard = waveform_cache_test_guard();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sidecar_path = dir.path().join("missing").join("sidecar.pcm");
+        let samples: Arc<[f32]> = Arc::from([0.0_f32, 0.5]);
+
+        assert_eq!(
+            write_playback_sidecar_outcome(&samples, &sidecar_path),
+            PlaybackSidecarOutcome::CreateTempFailed
+        );
+    }
+
+    #[test]
+    fn sidecar_byte_count_classifies_overflow_before_writing() {
+        assert!(playback_sample_bytes(usize::MAX).is_none());
     }
 
     #[test]

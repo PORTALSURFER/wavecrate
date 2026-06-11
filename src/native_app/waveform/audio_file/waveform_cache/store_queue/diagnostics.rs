@@ -6,28 +6,37 @@ use std::{
 use crate::native_app::waveform::audio_file::waveform_cache::write::StoreWriteOutcome;
 
 pub(super) fn log_store_completion(cache_path: &Path, outcome: StoreWriteOutcome) {
+    if matches!(outcome, StoreWriteOutcome::Completed(_)) && !outcome.report().has_failures() {
+        tracing::debug!(
+            target: "wavecrate::debug::sample_cache",
+            event = "browser.sample_cache.store_completed",
+            cache_path = %cache_path.display(),
+            outcome = outcome.kind(),
+            report = ?outcome.report(),
+            "Completed waveform cache persistence"
+        );
+        return;
+    }
     match outcome {
-        StoreWriteOutcome::Completed => {
-            tracing::debug!(
-                target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_completed",
-                cache_path = %cache_path.display(),
-                "Completed waveform cache persistence"
-            );
-        }
-        StoreWriteOutcome::SerializeFailed => {
+        StoreWriteOutcome::Completed(_) => {
             tracing::warn!(
                 target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_serialize_failed",
+                event = "browser.sample_cache.store_completed_with_diagnostics",
                 cache_path = %cache_path.display(),
-                "Failed to serialize waveform cache persistence"
+                outcome = outcome.kind(),
+                report = ?outcome.report(),
+                "Completed waveform cache persistence with write-side diagnostics"
             );
         }
-        StoreWriteOutcome::WriteFailed => {
+        StoreWriteOutcome::SerializeFailed(_)
+        | StoreWriteOutcome::TempWriteFailed(_)
+        | StoreWriteOutcome::RenameFailed(_) => {
             tracing::warn!(
                 target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_write_failed",
+                event = "browser.sample_cache.store_failed",
                 cache_path = %cache_path.display(),
+                outcome = outcome.kind(),
+                report = ?outcome.report(),
                 "Failed to write waveform cache persistence"
             );
         }

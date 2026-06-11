@@ -6,12 +6,33 @@ use std::{
 
 use super::identity::{playback_ready_marker_path, playback_sidecar_path};
 
-pub(super) fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct PruneWaveformCacheOutcome {
+    pub(super) read_dir_failed: bool,
+    pub(super) stale_temp_removed: usize,
+    pub(super) stale_temp_remove_failed: usize,
+    pub(super) orphan_sidecar_removed: usize,
+    pub(super) orphan_sidecar_remove_failed: usize,
+    pub(super) orphan_marker_removed: usize,
+    pub(super) orphan_marker_remove_failed: usize,
+    pub(super) cache_removed: usize,
+    pub(super) cache_remove_failed: usize,
+    pub(super) companion_remove_failed: usize,
+    pub(super) bytes_before: u64,
+    pub(super) bytes_after: u64,
+}
+
+pub(super) fn prune_waveform_cache_dir(
+    pinned_path: &Path,
+    max_bytes: u64,
+) -> PruneWaveformCacheOutcome {
+    let mut outcome = PruneWaveformCacheOutcome::default();
     let Some(cache_dir) = pinned_path.parent() else {
-        return;
+        return outcome;
     };
     let Ok(entries) = fs::read_dir(cache_dir) else {
-        return;
+        outcome.read_dir_failed = true;
+        return outcome;
     };
     let mut cache_entries = Vec::new();
     let mut total_bytes = 0_u64;
@@ -19,12 +40,20 @@ pub(super) fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().is_some_and(|extension| extension == "tmp") {
-            let _ = fs::remove_file(path);
+            if fs::remove_file(path).is_ok() {
+                outcome.stale_temp_removed += 1;
+            } else {
+                outcome.stale_temp_remove_failed += 1;
+            }
             continue;
         }
         if path.extension().is_some_and(|extension| extension == "pcm") {
             if !path.with_extension("wfc").is_file() {
-                let _ = fs::remove_file(path);
+                if fs::remove_file(path).is_ok() {
+                    outcome.orphan_sidecar_removed += 1;
+                } else {
+                    outcome.orphan_sidecar_remove_failed += 1;
+                }
             }
             continue;
         }
@@ -33,7 +62,11 @@ pub(super) fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
             .is_some_and(|extension| extension == "ready")
         {
             if !path.with_extension("wfc").is_file() {
-                let _ = fs::remove_file(path);
+                if fs::remove_file(path).is_ok() {
+                    outcome.orphan_marker_removed += 1;
+                } else {
+                    outcome.orphan_marker_remove_failed += 1;
+                }
             }
             continue;
         }
@@ -59,9 +92,11 @@ pub(super) fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
             modified: metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH),
         });
     }
+    outcome.bytes_before = total_bytes;
+    outcome.bytes_after = total_bytes;
 
     if total_bytes <= max_bytes {
-        return;
+        return outcome;
     }
 
     cache_entries.sort_by_key(|entry| entry.modified);
@@ -73,11 +108,20 @@ pub(super) fn prune_waveform_cache_dir(pinned_path: &Path, max_bytes: u64) {
             continue;
         }
         if fs::remove_file(&entry.path).is_ok() {
-            let _ = fs::remove_file(playback_ready_marker_path(&entry.path));
-            let _ = fs::remove_file(playback_sidecar_path(&entry.path));
+            if remove_if_exists(playback_ready_marker_path(&entry.path)).is_err() {
+                outcome.companion_remove_failed += 1;
+            }
+            if remove_if_exists(playback_sidecar_path(&entry.path)).is_err() {
+                outcome.companion_remove_failed += 1;
+            }
             total_bytes = total_bytes.saturating_sub(entry.len);
+            outcome.cache_removed += 1;
+        } else {
+            outcome.cache_remove_failed += 1;
         }
     }
+    outcome.bytes_after = total_bytes;
+    outcome
 }
 
 #[derive(Debug)]
@@ -85,4 +129,12 @@ struct CacheFileForPrune {
     path: PathBuf,
     len: u64,
     modified: SystemTime,
+}
+
+fn remove_if_exists(path: PathBuf) -> Result<(), ()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(()),
+    }
 }

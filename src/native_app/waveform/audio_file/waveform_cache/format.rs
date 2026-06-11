@@ -43,7 +43,7 @@ pub(super) struct CachedWaveformFileV2 {
     pub(super) playback_samples: Option<Vec<f32>>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(super) struct CachedPlaybackCacheFile {
     pub(super) sample_count: u64,
     pub(super) byte_len: u64,
