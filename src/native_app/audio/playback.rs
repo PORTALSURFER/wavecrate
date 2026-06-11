@@ -1,25 +1,28 @@
-use intent::{PlaybackCommand, PlaybackIntent, PlaybackMode};
+use intent::{PlaybackCommand, PlaybackMode};
 use rand::Rng;
+use runtime::PlaybackRuntime;
 use span::ResolvedPlaybackSpan;
 use std::{
     path::Path,
     time::{Duration, Instant},
 };
-use wavecrate::audio::{AudioPlayer, edit_fade_range_from_selection};
+use wavecrate::audio::AudioPlayer;
 
 pub(in crate::native_app) const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration =
     Duration::from_millis(120);
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, PendingPlaybackStart, PendingSamplePlayback, emit_gui_action,
-    sample_path_label,
+    GuiMessage, NativeAppState, PendingSamplePlayback, emit_gui_action, sample_path_label,
 };
 use radiant::prelude as ui;
 
 mod intent;
 mod loop_control;
 mod progress;
+mod runtime;
 mod span;
+
+pub(in crate::native_app) use intent::PlaybackIntent;
 
 const RANDOM_AUDITION_SECONDS: f32 = 4.0;
 
@@ -278,7 +281,7 @@ impl NativeAppState {
             return Err(String::from("Select a sample to load"));
         }
         if self.audio.player.is_none() {
-            self.audio.pending_playback_start = Some(PendingPlaybackStart::from(intent));
+            self.audio.pending_playback_start = Some(intent);
             if self.background.audio_open.active().is_none() {
                 return Err(String::from("Audio output is starting"));
             }
@@ -305,111 +308,19 @@ impl NativeAppState {
         command: PlaybackCommand,
         playback_started_at: Instant,
     ) -> Result<(), String> {
-        let start_ratio = command.resolved.start_ratio;
-        let end_ratio = command.resolved.end_ratio;
-        let duration = self.waveform.current.frames() as f32
-            / self.waveform.current.sample_rate().max(1) as f32;
         let player = self
             .audio
             .player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
-        let playback_cache_file = self.waveform.current.playback_cache_file();
-        let source_kind = if self.waveform.current.playback_samples().is_some() {
-            "decoded_samples"
-        } else if playback_cache_file.is_some() {
-            "interleaved_f32_file"
-        } else {
-            "audio_bytes"
-        };
-        let file_name = self.waveform.current.file_name();
-        let output_setup_started_at = Instant::now();
-        player.set_volume(self.audio.volume);
-        self.audio.output_resolved = Some(player.output_details().clone());
-        log_slow_playback_phase(
-            "playback.start.output_setup",
-            &file_name,
-            source_kind,
-            output_setup_started_at,
-        );
-        let metadata_started_at = Instant::now();
-        if let Some(samples) = self.waveform.current.playback_samples() {
-            player.set_audio_samples_with_metadata(
-                self.waveform.current.audio_bytes(),
-                samples,
-                duration,
-                self.waveform.current.sample_rate(),
-                self.waveform.current.channels(),
-            );
-        } else if let Some(cache_file) = playback_cache_file {
-            player.set_interleaved_f32_file_with_metadata(
-                cache_file.path,
-                cache_file.sample_count,
-                duration,
-                self.waveform.current.sample_rate(),
-                self.waveform.current.channels(),
-            );
-        } else {
-            player.set_audio_with_metadata(
-                self.waveform.current.audio_bytes(),
-                duration,
-                self.waveform.current.sample_rate(),
-                self.waveform.current.channels(),
-            );
-        }
-        log_slow_playback_phase(
-            "playback.start.set_audio",
-            &file_name,
-            source_kind,
-            metadata_started_at,
-        );
-        let fade_started_at = Instant::now();
-        player.set_edit_fade_state(edit_fade_range_from_selection(
-            self.waveform.current.edit_selection(),
-        ));
-        log_slow_playback_phase(
-            "playback.start.set_edit_fade",
-            &file_name,
-            source_kind,
-            fade_started_at,
-        );
-        let play_started_at = Instant::now();
-        let playback_start = match command.mode {
-            PlaybackMode::Looped { offset_ratio } => {
-                player.play_looped_range_from(
-                    f64::from(start_ratio),
-                    f64::from(end_ratio),
-                    f64::from(offset_ratio),
-                )?;
-                offset_ratio
-            }
-            PlaybackMode::OneShot => {
-                player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
-                start_ratio
-            }
-        };
-        log_slow_playback_phase(
-            "playback.start.player_play",
-            &file_name,
-            source_kind,
-            play_started_at,
-        );
-        let waveform_started_at = Instant::now();
-        self.waveform.current.start_playback(playback_start);
-        self.audio.current_playback_span = Some((start_ratio, end_ratio));
-        log_slow_playback_phase(
-            "playback.start.waveform_state",
-            &file_name,
-            source_kind,
-            waveform_started_at,
-        );
-        log_slow_playback_phase(
-            "playback.start.total",
-            &file_name,
-            source_kind,
-            playback_started_at,
-        );
-        Ok(())
+        PlaybackRuntime::new(
+            player,
+            self.audio.volume,
+            &mut self.audio.output_resolved,
+            &mut self.audio.current_playback_span,
+            &mut self.waveform.current,
+        )
+        .execute(command, playback_started_at)
     }
 
     pub(in crate::native_app) fn resolve_playback_span(
