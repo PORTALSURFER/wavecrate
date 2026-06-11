@@ -11,7 +11,7 @@ mod waveform;
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
 
 pub(in crate::native_app) use audio::AudioAppState;
-pub(in crate::native_app) use background::BackgroundTaskState;
+pub(in crate::native_app) use background::{AudioOpenCompletion, BackgroundTaskState};
 pub(in crate::native_app) use library::LibraryAppState;
 pub(in crate::native_app) use metadata::MetadataAppState;
 pub(in crate::native_app) use source_scan_workflow::{

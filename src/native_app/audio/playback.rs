@@ -279,7 +279,7 @@ impl NativeAppState {
         }
         if self.audio.player.is_none() {
             self.audio.pending_playback_start = Some(PendingPlaybackStart::from(intent));
-            if self.background.audio_open_task.active().is_none() {
+            if self.background.audio_open.active().is_none() {
                 return Err(String::from("Audio output is starting"));
             }
             return Ok(());

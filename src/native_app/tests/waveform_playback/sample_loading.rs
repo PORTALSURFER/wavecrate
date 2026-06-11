@@ -235,7 +235,7 @@ fn active_folder_cache_warm_uses_lower_priority_than_selected_sample_load() {
 fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     let mut state = gui_state_for_span_tests();
     assert!(state.audio.player.is_none());
-    assert!(state.background.audio_open_task.active().is_none());
+    assert!(state.background.audio_open.active().is_none());
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -244,7 +244,7 @@ fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     );
 
     assert!(
-        state.background.audio_open_task.active().is_some(),
+        state.background.audio_open.active().is_some(),
         "frame processing should begin audio output warm-up before the first explicit playback"
     );
 }

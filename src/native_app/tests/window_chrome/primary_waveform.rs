@@ -70,7 +70,7 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
             .bridge()
             .state()
             .background
-            .audio_open_task
+            .audio_open
             .active()
             .is_some(),
         "waveform click playback should queue audio output immediately"

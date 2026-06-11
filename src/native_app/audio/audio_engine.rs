@@ -5,8 +5,8 @@ use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supporte
 pub(in crate::native_app) const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
 
 use crate::native_app::app::{
-    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, emit_gui_action,
-    format_sample_rate_label,
+    AppSettingsTab, AudioOpenCompletion, AudioSettingsDropdown, GuiMessage, NativeAppState,
+    emit_gui_action, format_sample_rate_label,
 };
 
 mod options;
@@ -17,7 +17,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if self.audio.player.is_some()
-            || self.background.audio_open_task.active().is_some()
+            || self.background.audio_open.active().is_some()
             || self.audio.settings_error.is_some()
         {
             return;
@@ -29,14 +29,14 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.background.audio_open_task.active().is_some() {
+        if self.background.audio_open.active().is_some() {
             return;
         }
         let started_at = Instant::now();
-        let ticket = self.background.audio_open_task.begin();
+        let ticket = self.background.audio_open.begin();
         let config = self.audio.output_config.clone();
         let volume = self.audio.volume;
-        let results = self.background.audio_open_results.clone();
+        let completions = self.background.audio_open.sink();
         self.audio.settings_error = None;
         context.spawn_with_priority(
             "gui-audio-open",
@@ -53,9 +53,7 @@ impl NativeAppState {
                     open_started_at.elapsed(),
                     true,
                 );
-                if let Ok(mut results) = results.lock() {
-                    results.insert(ticket, result);
-                }
+                completions.complete(ticket, result);
                 ticket
             },
             GuiMessage::AudioPlayerOpenFinished,
@@ -72,13 +70,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn finish_audio_player_open(&mut self, ticket: ui::TaskTicket) {
         let started_at = Instant::now();
-        let result = self
-            .background
-            .audio_open_results
-            .lock()
-            .ok()
-            .and_then(|mut results| results.remove(&ticket));
-        if !self.background.audio_open_task.finish(ticket) {
+        let AudioOpenCompletion::Current(result) = self.background.audio_open.finish(ticket) else {
             emit_gui_action(
                 "audio.output.open",
                 Some("audio"),
@@ -88,8 +80,8 @@ impl NativeAppState {
                 None,
             );
             return;
-        }
-        match result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))) {
+        };
+        match result {
             Ok(player) => {
                 log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
                 self.audio.output_resolved = Some(player.output_details().clone());
@@ -320,7 +312,7 @@ impl NativeAppState {
         if let Some(player) = self.audio.player.as_mut() {
             player.stop();
         }
-        self.background.audio_open_task.cancel();
+        self.background.audio_open.cancel();
         self.audio.player = None;
         self.audio.output_resolved = None;
         self.refresh_audio_options();
