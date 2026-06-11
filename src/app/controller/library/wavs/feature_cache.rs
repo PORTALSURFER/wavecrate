@@ -4,13 +4,11 @@ use crate::app::controller::controller_state::{
 };
 use crate::app::controller::jobs::{BrowserFeatureCacheRefreshResult, JobMessage};
 use crate::app::controller::state::runtime::PendingBrowserFeatureCacheRefresh;
-use rusqlite::params;
-use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-const ANALYSIS_JOB_TYPE: &str = "wav_metadata_v1";
+mod repository;
 
 /// Build one stable browser feature-cache key from ordered wav-entry paths.
 pub(crate) fn feature_cache_key_for_paths(entry_paths: &[PathBuf]) -> FeatureCacheKey {
@@ -33,106 +31,10 @@ pub(crate) fn build_feature_cache_for_paths(
 ) -> Result<FeatureCache, String> {
     let key = feature_cache_key_for_paths(entry_paths);
     let conn = analysis_jobs::open_source_db(source_root)?;
-    let mut rows = vec![None; key.entries_len];
-
-    let prefix = format!("{}::", source_id.as_str());
-    let prefix_end = format!("{prefix}\u{10FFFF}");
-
-    let mut sample_map: HashMap<String, FeatureStatus> = HashMap::new();
-    {
-        let mut stmt = conn
-            .prepare(
-                "SELECT s.sample_id,
-                        s.duration_seconds,
-                        s.sr_used,
-                        s.long_sample_mark,
-                        CASE WHEN f.sample_id IS NULL THEN 0 ELSE 1 END AS has_features_v1,
-                        CASE WHEN e.sample_id IS NULL THEN 0 ELSE 1 END AS has_embedding,
-                        j.status
-                 FROM samples s
-                 LEFT JOIN features f ON f.sample_id = s.sample_id AND f.feat_version = 1
-                 LEFT JOIN embeddings e ON e.sample_id = s.sample_id AND e.model_id = ?2
-                 LEFT JOIN analysis_jobs j ON j.sample_id = s.sample_id AND j.job_type = ?1
-                 WHERE s.sample_id >= ?3 AND s.sample_id < ?4",
-            )
-            .map_err(|err| format!("Prepare feature cache query failed: {err}"))?;
-        let mut query_rows = stmt
-            .query(params![
-                ANALYSIS_JOB_TYPE,
-                crate::analysis::similarity::SIMILARITY_MODEL_ID,
-                prefix,
-                prefix_end
-            ])
-            .map_err(|err| format!("Query feature cache failed: {err}"))?;
-        while let Some(row) = query_rows
-            .next()
-            .map_err(|err| format!("Query feature cache failed: {err}"))?
-        {
-            let sample_id: String = row.get::<_, String>(0).map_err(|err| err.to_string())?;
-            let duration_seconds: Option<f64> = row
-                .get::<_, Option<f64>>(1)
-                .map_err(|err| err.to_string())?;
-            let sr_used: Option<i64> = row
-                .get::<_, Option<i64>>(2)
-                .map_err(|err| err.to_string())?;
-            let long_sample_mark: Option<i64> = row
-                .get::<_, Option<i64>>(3)
-                .map_err(|err| err.to_string())?;
-            let has_features_v1: i64 = row.get::<_, i64>(4).map_err(|err| err.to_string())?;
-            let has_embedding: i64 = row.get::<_, i64>(5).map_err(|err| err.to_string())?;
-            let status: Option<String> = row
-                .get::<_, Option<String>>(6)
-                .map_err(|err| err.to_string())?;
-            let analysis_status = status.as_deref().and_then(parse_job_status);
-            let Some(relative_path) = sample_id.split_once("::").map(|(_, path)| path) else {
-                continue;
-            };
-            sample_map.insert(
-                normalize_relative_key(relative_path),
-                FeatureStatus {
-                    has_features_v1: has_features_v1 != 0,
-                    has_embedding: has_embedding != 0,
-                    duration_seconds: duration_seconds.map(|seconds| seconds as f32),
-                    sr_used,
-                    long_sample_mark: long_sample_mark.map(|value| value != 0),
-                    analysis_status,
-                },
-            );
-        }
-    }
-
-    for (index, row_slot) in rows.iter_mut().enumerate() {
-        let key = entry_paths
-            .get(index)
-            .map(|path| normalize_relative_key(&path.to_string_lossy()))
-            .unwrap_or_default();
-        let mut status = sample_map.remove(&key).unwrap_or(FeatureStatus {
-            has_features_v1: false,
-            has_embedding: false,
-            duration_seconds: None,
-            sr_used: None,
-            long_sample_mark: None,
-            analysis_status: None,
-        });
-        if status.duration_seconds.is_none()
-            && let Some(fallback) = fallback_rows.get(index).and_then(|row| row.as_ref())
-            && let Some(duration) = fallback
-                .duration_seconds
-                .filter(|value| value.is_finite() && *value > 0.0)
-        {
-            status.duration_seconds = Some(duration);
-            if status.sr_used.is_none() {
-                status.sr_used = fallback.sr_used;
-            }
-        }
-        if status.long_sample_mark.is_none()
-            && let Some(fallback) = fallback_rows.get(index).and_then(|row| row.as_ref())
-        {
-            status.long_sample_mark = fallback.long_sample_mark;
-        }
-        *row_slot = Some(status);
-    }
-
+    let source_rows = repository::FeatureCacheRepository::new(&conn)
+        .load_source_rows(source_id)
+        .map_err(|err| err.to_string())?;
+    let rows = repository::align_rows_to_entries(entry_paths, fallback_rows, source_rows);
     Ok(FeatureCache {
         key,
         rows: rows.into(),
