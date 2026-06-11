@@ -47,7 +47,7 @@ fn folder_context_menu_outside_click_closes_menu() {
             if *open {
                 ui::scene(ui::empty())
                     .layer(
-                        ui::Layer::context_menu(
+                        radiant::Layer::context_menu(
                             super::super::app_chrome::browser_context_menu::overlay(&menu),
                         )
                         .dismiss_on_outside_click(
