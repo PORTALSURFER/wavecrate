@@ -257,14 +257,20 @@ fn restore_meaningful_ui_snapshot_recovers_browser_folder_and_waveform_context()
     );
     assert_eq!(controller.ui.waveform.cursor, Some(0.42));
     assert!(controller.ui.waveform.loop_enabled);
-    assert!(
-        controller
-            .runtime
-            .jobs
-            .pending_audio()
-            .as_ref()
-            .is_some_and(|pending| pending.relative_path == PathBuf::from("a/one.wav"))
-    );
+    let restored_audio_path = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .map(|audio| audio.relative_path.clone())
+        .or_else(|| {
+            controller
+                .runtime
+                .jobs
+                .pending_audio()
+                .map(|pending| pending.relative_path)
+        });
+    assert_eq!(restored_audio_path, Some(PathBuf::from("a/one.wav")));
 }
 
 #[test]

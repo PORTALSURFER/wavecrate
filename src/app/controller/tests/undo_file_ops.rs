@@ -203,7 +203,7 @@ fn remove_sample_job_fails_when_filesystem_delete_fails() {
 }
 
 #[test]
-fn remove_sample_job_fails_when_db_cleanup_fails() {
+fn remove_sample_job_fails_without_deleting_when_db_is_unavailable() {
     let (temp, source, relative_path, absolute_path) = remove_sample_fixture("db-lock.wav");
     let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
 
@@ -221,10 +221,13 @@ fn remove_sample_job_fails_when_db_cleanup_fails() {
     release_db_lock(lock_release_tx, lock_done_rx);
 
     let err = result.result.expect_err("locked db cleanup should fail");
-    assert!(err.contains("Failed to drop database row"));
     assert!(
-        !absolute_path.exists(),
-        "file delete happens before the db cleanup failure is surfaced"
+        err.contains("Database unavailable"),
+        "unexpected error: {err}"
+    );
+    assert!(
+        absolute_path.exists(),
+        "db unavailability must not remove the sample file"
     );
     let db = SourceDatabase::open(&source.root).expect("open source db");
     assert_eq!(
