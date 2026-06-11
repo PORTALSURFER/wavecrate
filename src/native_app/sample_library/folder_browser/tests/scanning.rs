@@ -152,6 +152,10 @@ fn selected_folder_audio_projection_refreshes_after_file_update() {
 
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
+    assert!(
+        browser.selected_audio_projection_cache_len_for_tests() > 0,
+        "initial source load should prewarm projection cache entries"
+    );
     assert_eq!(
         browser
             .selected_audio_files()
@@ -163,6 +167,11 @@ fn selected_folder_audio_projection_refreshes_after_file_update() {
 
     fs::write(&snare, [0_u8; 8]).expect("write snare");
     assert!(browser.refresh_file_path(&snare));
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        0,
+        "content revision changes should invalidate stale projection cache entries"
+    );
 
     assert_eq!(
         browser
@@ -171,6 +180,11 @@ fn selected_folder_audio_projection_refreshes_after_file_update() {
             .map(|file| file.name.as_str())
             .collect::<Vec<_>>(),
         vec!["kick.wav", "snare.wav"]
+    );
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        1,
+        "projection cache should rebuild explicitly after invalidation"
     );
     let _ = fs::remove_dir_all(root);
 }

@@ -1,8 +1,7 @@
 use radiant::{gui::types::Point, prelude as ui};
 use std::{
-    cell::{Ref, RefCell},
+    cell::Ref,
     collections::{HashMap, HashSet},
-    hash::{Hash, Hasher},
     path::PathBuf,
 };
 use wavecrate::sample_sources::SampleCollection;
@@ -11,8 +10,10 @@ use super::{
     CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, DEFAULT_FILTER_PANEL_HEIGHT,
     FileColumn, FileEntry, FileMoveConflictBatch, FileRenameEdit, FolderBrowserDrag,
     FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig,
-    SimilarityBrowserState, SourceEntry, collections::default_collections, default_file_columns,
-    default_root_path, load_root_folder, placeholder_folder,
+    SimilarityBrowserState, SourceEntry,
+    collections::default_collections,
+    default_file_columns, default_root_path, load_root_folder, placeholder_folder,
+    visible_samples::{VisibleSampleProjectionCache, VisibleSampleProjectionKey},
 };
 
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
@@ -202,7 +203,7 @@ pub(super) struct SampleListState {
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
     pub(super) prepared_window: ui::VirtualListWindow,
     pub(super) content_revision: u64,
-    selected_audio_projection_cache: RefCell<HashMap<SelectedAudioProjectionKey, Vec<usize>>>,
+    projection_cache: VisibleSampleProjectionCache,
 }
 
 impl SampleListState {
@@ -217,7 +218,7 @@ impl SampleListState {
             follow_selection: ui::VirtualListFollowState::default(),
             prepared_window: ui::VirtualListWindow::default(),
             content_revision: 0,
-            selected_audio_projection_cache: RefCell::new(HashMap::new()),
+            projection_cache: VisibleSampleProjectionCache::default(),
         }
     }
 
@@ -229,7 +230,8 @@ impl SampleListState {
 
     pub(super) fn bump_content_revision(&mut self) {
         self.content_revision = self.content_revision.saturating_add(1);
-        self.selected_audio_projection_cache.get_mut().clear();
+        self.projection_cache
+            .invalidate_for_content_revision(self.content_revision);
     }
 }
 
@@ -237,27 +239,6 @@ impl SampleListState {
 pub(in crate::native_app) enum FolderBrowserDropTarget {
     Folder(String),
     Collection(SampleCollection),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct SelectedAudioProjectionKey {
-    folder_id: String,
-    name_filter: String,
-    sort_column_id: String,
-    sort_descending: bool,
-    similarity_anchor_id: Option<String>,
-    content_revision: u64,
-}
-
-impl Hash for SelectedAudioProjectionKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.folder_id.hash(state);
-        self.name_filter.hash(state);
-        self.sort_column_id.hash(state);
-        self.sort_descending.hash(state);
-        self.similarity_anchor_id.hash(state);
-        self.content_revision.hash(state);
-    }
 }
 
 impl FolderBrowserState {
@@ -663,44 +644,29 @@ impl FolderBrowserState {
     }
 
     fn selected_folder_audio_file_indices_ref(&self, folder: &FolderEntry) -> Ref<'_, Vec<usize>> {
-        let key = SelectedAudioProjectionKey {
-            folder_id: folder.id.clone(),
-            name_filter: normalized_name_filter(&self.filters.name_filter),
-            sort_column_id: self.sample_list.file_sort.column_id.clone(),
-            sort_descending: self.sample_list.file_sort.direction == ui::SortDirection::Descending,
-            similarity_anchor_id: self.similarity_anchor_id().map(str::to_owned),
-            content_revision: self.sample_list.content_revision,
-        };
-        if !self
-            .sample_list
-            .selected_audio_projection_cache
-            .borrow()
-            .contains_key(&key)
-        {
+        let name_filter = normalized_name_filter(&self.filters.name_filter);
+        let key = VisibleSampleProjectionKey::new(
+            folder.id.clone(),
+            name_filter.clone(),
+            self.sample_list.file_sort.column_id.clone(),
+            self.sample_list.file_sort.direction == ui::SortDirection::Descending,
+            self.similarity_anchor_id().map(str::to_owned),
+            self.sample_list.content_revision,
+        );
+        self.sample_list.projection_cache.get_or_build(key, || {
             let mut indices = folder
                 .files
                 .iter()
                 .enumerate()
                 .filter(|(_, file)| {
-                    file.is_audio() && audio_file_matches_name_query(file, &key.name_filter)
+                    file.is_audio() && audio_file_matches_name_query(file, &name_filter)
                 })
                 .map(|(index, _)| index)
                 .collect::<Vec<_>>();
             self.sort_file_indices(folder, &mut indices);
             self.sort_file_indices_by_similarity(folder, &mut indices);
-            self.sample_list
-                .selected_audio_projection_cache
-                .borrow_mut()
-                .insert(key.clone(), indices);
-        }
-        Ref::map(
-            self.sample_list.selected_audio_projection_cache.borrow(),
-            |cache| {
-                cache
-                    .get(&key)
-                    .expect("selected audio projection cache should contain computed key")
-            },
-        )
+            indices
+        })
     }
 
     fn sort_file_indices(&self, folder: &FolderEntry, indices: &mut [usize]) {
@@ -769,10 +735,7 @@ impl FolderBrowserState {
 
     #[cfg(test)]
     pub(in crate::native_app) fn selected_audio_projection_cache_len_for_tests(&self) -> usize {
-        self.sample_list
-            .selected_audio_projection_cache
-            .borrow()
-            .len()
+        self.sample_list.projection_cache.len()
     }
 }
 
