@@ -1,61 +1,36 @@
+use self::router::{
+    AnalysisProgressRouteAction, AnalysisProgressRouteContext, AnalysisProgressRouter,
+};
 use super::super::analysis_jobs::{self, RunningJobInfo};
 use super::*;
-use crate::app::state::ProgressTaskKind;
-use crate::app::state::RunningJobSnapshot;
+use crate::app::state::{ProgressTaskKind, RunningJobSnapshot};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-/// Minimum interval between controller-thread refreshes of selected-source progress.
+mod router;
+
 const SCOPED_ANALYSIS_PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
-/// Minimum interval between controller-thread refreshes of running-job snapshots.
 const RUNNING_JOB_SNAPSHOT_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Apply background analysis worker events to progress UI and follow-up queues.
 pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
-    match message {
-        AnalysisJobMessage::Progress {
-            source_id,
-            progress,
-        } => {
-            handle_analysis_progress_message(controller, source_id, progress);
-        }
-        AnalysisJobMessage::EnqueueFinished {
-            inserted,
-            progress,
-            announce,
-        } => {
-            handle_enqueue_finished(controller, inserted, progress, false, announce);
-        }
-        AnalysisJobMessage::EnqueueFailed(err) => {
-            controller.set_status(format!("Analysis enqueue failed: {err}"), StatusTone::Error);
-        }
-        AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
-            inserted,
-            progress,
-            announce,
-        } => {
-            handle_enqueue_finished(controller, inserted, progress, true, announce);
-        }
-        AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err) => {
-            controller.set_status(
-                format!("Embedding backfill enqueue failed: {err}"),
-                StatusTone::Error,
-            );
-        }
-        AnalysisJobMessage::DurationsUpdated { source_id, updated } => {
-            invalidate_cached_browser_analysis_data(controller, source_id, updated > 0);
-        }
+    let message = resolve_analysis_progress_message(controller, message);
+    let context = analysis_progress_route_context(controller);
+    for action in AnalysisProgressRouter::route_message(&context, message) {
+        apply_analysis_progress_route_action(controller, action);
     }
 }
 
-fn handle_analysis_progress_message(
+fn resolve_analysis_progress_message(
     controller: &mut AppController,
-    source_id: Option<SourceId>,
-    progress: analysis_jobs::AnalysisProgress,
-) {
-    if should_ignore_analysis_progress(controller, source_id.as_ref()) {
-        return;
-    }
-    cache_selected_source_progress(controller, source_id.as_ref(), progress);
+    message: AnalysisJobMessage,
+) -> AnalysisJobMessage {
+    let AnalysisJobMessage::Progress {
+        source_id,
+        progress,
+    } = message
+    else {
+        return message;
+    };
     let selected_source = controller.selection_state.ctx.selected_source.clone();
     let progress = resolve_scoped_analysis_progress(
         controller,
@@ -63,31 +38,10 @@ fn handle_analysis_progress_message(
         source_id.is_none(),
         progress,
     );
-    route_similarity_analysis_progress(controller, source_id.as_ref(), &progress);
-    if !progress_matches_selected_source(selected_source.as_ref(), source_id.as_ref()) {
-        return;
+    AnalysisJobMessage::Progress {
+        source_id,
+        progress,
     }
-    if progress.total() == 0 {
-        clear_analysis_progress_if_active(controller);
-        return;
-    }
-    if analysis_progress_is_idle(&progress) {
-        finalize_selected_source_analysis_progress(controller);
-        clear_analysis_progress_if_active(controller);
-        return;
-    }
-    update_analysis_progress_ui(controller, &progress);
-}
-
-fn should_ignore_analysis_progress(
-    controller: &AppController,
-    source_id: Option<&SourceId>,
-) -> bool {
-    controller
-        .runtime
-        .similarity_prep
-        .as_ref()
-        .is_some_and(|state| source_id != Some(&state.source_id))
 }
 
 fn resolve_scoped_analysis_progress(
@@ -120,44 +74,6 @@ fn selected_source_matches_current_source(
     source_id: &SourceId,
 ) -> bool {
     selected_source.is_some_and(|selected| selected == source_id)
-}
-
-fn progress_matches_selected_source(
-    selected_source: Option<&SourceId>,
-    source_id: Option<&SourceId>,
-) -> bool {
-    match source_id {
-        None => true,
-        Some(id) => selected_source.is_some_and(|selected| selected == id),
-    }
-}
-
-fn route_similarity_analysis_progress(
-    controller: &mut AppController,
-    source_id: Option<&SourceId>,
-    progress: &analysis_jobs::AnalysisProgress,
-) {
-    if let Some(source_id) = source_id
-        && controller
-            .runtime
-            .similarity_prep
-            .as_ref()
-            .is_some_and(|state| &state.source_id == source_id)
-    {
-        controller.handle_similarity_analysis_progress(progress);
-    }
-}
-
-fn analysis_progress_is_idle(progress: &analysis_jobs::AnalysisProgress) -> bool {
-    progress.pending == 0 && progress.running == 0
-}
-
-fn finalize_selected_source_analysis_progress(controller: &mut AppController) {
-    if let Some(source) = controller.current_source() {
-        controller.queue_analysis_failures_refresh(&source);
-        controller.force_feature_cache_refresh_for_browser();
-        controller.ui_cache.browser.bpm_values.remove(&source.id);
-    }
 }
 
 fn clear_analysis_progress_if_active(controller: &mut AppController) {
@@ -219,18 +135,61 @@ fn analysis_progress_detail(
     detail
 }
 
-fn cache_selected_source_progress(
-    controller: &mut AppController,
-    source_id: Option<&SourceId>,
-    progress: analysis_jobs::AnalysisProgress,
-) {
-    let Some(source_id) = source_id else {
-        return;
-    };
-    if controller.selection_state.ctx.selected_source.as_ref() != Some(source_id) {
-        return;
+fn analysis_progress_route_context(controller: &AppController) -> AnalysisProgressRouteContext {
+    AnalysisProgressRouteContext {
+        selected_source_id: controller.selection_state.ctx.selected_source.clone(),
+        current_source_id: controller.current_source().map(|source| source.id.clone()),
+        similarity_prep_source_id: controller
+            .runtime
+            .similarity_prep
+            .as_ref()
+            .map(|state| state.source_id.clone()),
     }
-    store_scoped_analysis_progress(controller, source_id.clone(), progress);
+}
+
+fn apply_analysis_progress_route_action(
+    controller: &mut AppController,
+    action: AnalysisProgressRouteAction,
+) {
+    match action {
+        AnalysisProgressRouteAction::CacheSelectedSourceProgress {
+            source_id,
+            progress,
+        } => store_scoped_analysis_progress(controller, source_id, progress),
+        AnalysisProgressRouteAction::ClearAnalysisProgress => {
+            clear_analysis_progress_if_active(controller);
+        }
+        AnalysisProgressRouteAction::ForwardSimilarityPrepProgress(progress) => {
+            controller.handle_similarity_analysis_progress(&progress);
+        }
+        AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh => {
+            controller.force_feature_cache_refresh_for_browser();
+        }
+        AnalysisProgressRouteAction::QueueAnalysisFailuresRefresh => {
+            if let Some(source) = controller.current_source() {
+                controller.queue_analysis_failures_refresh(&source);
+                controller.ui_cache.browser.bpm_values.remove(&source.id);
+            }
+        }
+        AnalysisProgressRouteAction::QueueSelectedSourceProgress(progress) => {
+            queue_selected_source_analysis_progress(controller, progress);
+        }
+        AnalysisProgressRouteAction::RemoveBrowserDurations(source_id) => {
+            controller.ui_cache.browser.durations.remove(&source_id);
+        }
+        AnalysisProgressRouteAction::RemoveFeatureCache(source_id) => {
+            controller.ui_cache.browser.features.remove(&source_id);
+        }
+        AnalysisProgressRouteAction::ResumeAnalysis => {
+            controller.runtime.analysis.resume();
+        }
+        AnalysisProgressRouteAction::SetStatus { text, tone } => {
+            controller.set_status(text, tone);
+        }
+        AnalysisProgressRouteAction::ShowAnalysisProgress(progress) => {
+            update_analysis_progress_ui(controller, &progress);
+        }
+    }
 }
 
 fn cached_scoped_analysis_progress(
@@ -322,37 +281,6 @@ fn build_running_job_snapshots(jobs: Vec<RunningJobInfo>) -> Vec<RunningJobSnaps
         .collect()
 }
 
-fn handle_enqueue_finished(
-    controller: &mut AppController,
-    inserted: usize,
-    progress: analysis_jobs::AnalysisProgress,
-    embedding_backfill: bool,
-    announce: bool,
-) {
-    controller.runtime.analysis.resume();
-    if inserted > 0 && announce {
-        let label = if embedding_backfill {
-            "embedding backfill jobs"
-        } else {
-            "analysis jobs"
-        };
-        controller.set_status(format!("Queued {inserted} {label}"), StatusTone::Info);
-    }
-    if !embedding_backfill
-        && let Some(source_id) = controller.selection_state.ctx.selected_source.clone()
-    {
-        if controller
-            .current_source()
-            .is_some_and(|source| source.id == source_id)
-        {
-            controller.force_feature_cache_refresh_for_browser();
-        } else {
-            controller.ui_cache.browser.features.remove(&source_id);
-        }
-    }
-    queue_selected_source_analysis_progress(controller, progress);
-}
-
 fn queue_selected_source_analysis_progress(
     controller: &mut AppController,
     progress: analysis_jobs::AnalysisProgress,
@@ -365,22 +293,6 @@ fn queue_selected_source_analysis_progress(
             source_id: controller.selection_state.ctx.selected_source.clone(),
             progress,
         }));
-}
-
-fn invalidate_cached_browser_analysis_data(
-    controller: &mut AppController,
-    source_id: SourceId,
-    should_invalidate: bool,
-) {
-    if !should_invalidate {
-        return;
-    }
-    if controller.selection_state.ctx.selected_source.as_ref() == Some(&source_id) {
-        controller.force_feature_cache_refresh_for_browser();
-    } else {
-        controller.ui_cache.browser.features.remove(&source_id);
-    }
-    controller.ui_cache.browser.durations.remove(&source_id);
 }
 
 #[cfg(test)]
