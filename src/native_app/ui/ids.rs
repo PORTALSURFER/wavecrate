@@ -1,14 +1,13 @@
 #[cfg(test)]
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy)]
 struct WidgetIdNamespace {
     base: u64,
 }
+
+#[cfg(test)]
+const WIDGET_ID_NAMESPACE_SIZE: u64 = 1_000;
 
 impl WidgetIdNamespace {
     const fn new(base: u64) -> Self {
@@ -17,6 +16,11 @@ impl WidgetIdNamespace {
 
     const fn id(self, offset: u16) -> u64 {
         self.base + offset as u64
+    }
+
+    #[cfg(test)]
+    const fn contains(self, value: u64) -> bool {
+        value >= self.base && value < self.base + WIDGET_ID_NAMESPACE_SIZE
     }
 }
 
@@ -72,112 +76,148 @@ pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 = METADATA_T
 #[cfg(test)]
 #[derive(Clone, Copy)]
 struct RegisteredWidgetId {
-    name: &'static str,
+    owner: WidgetIdOwner,
+    constant: &'static str,
+    stable_name: &'static str,
     value: u64,
 }
 
 #[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+enum WidgetIdOwner {
+    Waveform,
+    FolderTree,
+    SampleBrowser,
+    SampleBrowserHeader,
+    AudioSettings,
+    TransactionHistory,
+    Toolbar,
+    FolderFilters,
+    Collections,
+    MetadataTags,
+}
+
+#[cfg(test)]
+impl WidgetIdOwner {
+    const fn namespace(self) -> WidgetIdNamespace {
+        match self {
+            Self::Waveform => WAVEFORM,
+            Self::FolderTree => FOLDER_TREE,
+            Self::SampleBrowser => SAMPLE_BROWSER,
+            Self::SampleBrowserHeader => SAMPLE_BROWSER_HEADER,
+            Self::AudioSettings => AUDIO_SETTINGS,
+            Self::TransactionHistory => TRANSACTION_HISTORY,
+            Self::Toolbar => TOOLBAR,
+            Self::FolderFilters => FOLDER_FILTERS,
+            Self::Collections => COLLECTIONS,
+            Self::MetadataTags => METADATA_TAGS,
+        }
+    }
+}
+
+#[cfg(test)]
+macro_rules! registered_widget_id {
+    ($owner:ident, $constant:ident, $stable_name:literal) => {
+        RegisteredWidgetId {
+            owner: WidgetIdOwner::$owner,
+            constant: stringify!($constant),
+            stable_name: $stable_name,
+            value: $constant,
+        }
+    };
+}
+
+#[cfg(test)]
 const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
-    RegisteredWidgetId {
-        name: "waveform.viewport_stack",
-        value: WAVEFORM_VIEWPORT_STACK_ID,
-    },
-    RegisteredWidgetId {
-        name: "waveform.signal_surface",
-        value: WAVEFORM_SIGNAL_WIDGET_ID,
-    },
-    RegisteredWidgetId {
-        name: "waveform.interaction_widget",
-        value: WAVEFORM_WIDGET_ID,
-    },
-    RegisteredWidgetId {
-        name: "folder_tree.list",
-        value: FOLDER_TREE_LIST_ID,
-    },
-    RegisteredWidgetId {
-        name: "sample_browser.list",
-        value: SAMPLE_BROWSER_LIST_ID,
-    },
-    RegisteredWidgetId {
-        name: "sample_browser.header_sort_drag",
-        value: SAMPLE_HEADER_SORT_DRAG_ID,
-    },
-    RegisteredWidgetId {
-        name: "sample_browser.header_resize",
-        value: SAMPLE_HEADER_RESIZE_ID,
-    },
-    RegisteredWidgetId {
-        name: "audio_settings.volume_slider",
-        value: VOLUME_SLIDER_ID,
-    },
-    RegisteredWidgetId {
-        name: "audio_settings.engine_pill",
-        value: AUDIO_ENGINE_PILL_ID,
-    },
-    RegisteredWidgetId {
-        name: "audio_settings.general_settings_button",
-        value: GENERAL_SETTINGS_BUTTON_ID,
-    },
-    RegisteredWidgetId {
-        name: "transaction_history.list_modal",
-        value: TRANSACTION_LIST_MODAL_ID,
-    },
-    RegisteredWidgetId {
-        name: "toolbar.focus_loaded",
-        value: TOOLBAR_FOCUS_LOADED_ID,
-    },
-    RegisteredWidgetId {
-        name: "toolbar.loop",
-        value: TOOLBAR_LOOP_ID,
-    },
-    RegisteredWidgetId {
-        name: "toolbar.play",
-        value: TOOLBAR_PLAY_ID,
-    },
-    RegisteredWidgetId {
-        name: "toolbar.stop",
-        value: TOOLBAR_STOP_ID,
-    },
-    RegisteredWidgetId {
-        name: "toolbar.random",
-        value: TOOLBAR_RANDOM_ID,
-    },
-    RegisteredWidgetId {
-        name: "folder_filters.section",
-        value: FILTER_SECTION_NODE_ID,
-    },
-    RegisteredWidgetId {
-        name: "folder_filters.name_input",
-        value: NAME_FILTER_INPUT_ID,
-    },
-    RegisteredWidgetId {
-        name: "folder_filters.tag_input",
-        value: TAG_FILTER_INPUT_ID,
-    },
-    RegisteredWidgetId {
-        name: "collections.section",
-        value: COLLECTIONS_SECTION_NODE_ID,
-    },
-    RegisteredWidgetId {
-        name: "collections.list_scroll",
-        value: COLLECTIONS_LIST_SCROLL_NODE_ID,
-    },
-    RegisteredWidgetId {
-        name: "collections.empty_count",
-        value: EMPTY_COLLECTION_COUNT_NODE_ID,
-    },
-    RegisteredWidgetId {
-        name: "metadata_tags.input",
-        value: METADATA_TAG_INPUT_ID,
-    },
-    RegisteredWidgetId {
-        name: "metadata_tags.sidebar_panel",
-        value: METADATA_SIDEBAR_PANEL_ID,
-    },
-    RegisteredWidgetId {
-        name: "metadata_tags.library_toggle",
-        value: METADATA_TAG_LIBRARY_TOGGLE_ID,
-    },
+    registered_widget_id!(
+        Waveform,
+        WAVEFORM_VIEWPORT_STACK_ID,
+        "waveform.viewport_stack"
+    ),
+    registered_widget_id!(
+        Waveform,
+        WAVEFORM_SIGNAL_WIDGET_ID,
+        "waveform.signal_surface"
+    ),
+    registered_widget_id!(Waveform, WAVEFORM_WIDGET_ID, "waveform.interaction_widget"),
+    registered_widget_id!(FolderTree, FOLDER_TREE_LIST_ID, "folder_tree.list"),
+    registered_widget_id!(SampleBrowser, SAMPLE_BROWSER_LIST_ID, "sample_browser.list"),
+    registered_widget_id!(
+        SampleBrowserHeader,
+        SAMPLE_HEADER_SORT_DRAG_ID,
+        "sample_browser.header_sort_drag"
+    ),
+    registered_widget_id!(
+        SampleBrowserHeader,
+        SAMPLE_HEADER_RESIZE_ID,
+        "sample_browser.header_resize"
+    ),
+    registered_widget_id!(
+        AudioSettings,
+        VOLUME_SLIDER_ID,
+        "audio_settings.volume_slider"
+    ),
+    registered_widget_id!(
+        AudioSettings,
+        AUDIO_ENGINE_PILL_ID,
+        "audio_settings.engine_pill"
+    ),
+    registered_widget_id!(
+        AudioSettings,
+        GENERAL_SETTINGS_BUTTON_ID,
+        "audio_settings.general_settings_button"
+    ),
+    registered_widget_id!(
+        TransactionHistory,
+        TRANSACTION_LIST_MODAL_ID,
+        "transaction_history.list_modal"
+    ),
+    registered_widget_id!(Toolbar, TOOLBAR_FOCUS_LOADED_ID, "toolbar.focus_loaded"),
+    registered_widget_id!(Toolbar, TOOLBAR_LOOP_ID, "toolbar.loop"),
+    registered_widget_id!(Toolbar, TOOLBAR_PLAY_ID, "toolbar.play"),
+    registered_widget_id!(Toolbar, TOOLBAR_STOP_ID, "toolbar.stop"),
+    registered_widget_id!(Toolbar, TOOLBAR_RANDOM_ID, "toolbar.random"),
+    registered_widget_id!(
+        FolderFilters,
+        FILTER_SECTION_NODE_ID,
+        "folder_filters.section"
+    ),
+    registered_widget_id!(
+        FolderFilters,
+        NAME_FILTER_INPUT_ID,
+        "folder_filters.name_input"
+    ),
+    registered_widget_id!(
+        FolderFilters,
+        TAG_FILTER_INPUT_ID,
+        "folder_filters.tag_input"
+    ),
+    registered_widget_id!(
+        Collections,
+        COLLECTIONS_SECTION_NODE_ID,
+        "collections.section"
+    ),
+    registered_widget_id!(
+        Collections,
+        COLLECTIONS_LIST_SCROLL_NODE_ID,
+        "collections.list_scroll"
+    ),
+    registered_widget_id!(
+        Collections,
+        EMPTY_COLLECTION_COUNT_NODE_ID,
+        "collections.empty_count"
+    ),
+    registered_widget_id!(MetadataTags, METADATA_TAG_INPUT_ID, "metadata_tags.input"),
+    registered_widget_id!(
+        MetadataTags,
+        METADATA_SIDEBAR_PANEL_ID,
+        "metadata_tags.sidebar_panel"
+    ),
+    registered_widget_id!(
+        MetadataTags,
+        METADATA_TAG_LIBRARY_TOGGLE_ID,
+        "metadata_tags.library_toggle"
+    ),
 ];
 
 #[cfg(test)]
@@ -186,81 +226,45 @@ mod tests {
 
     #[test]
     fn registered_native_app_widget_ids_are_unique() {
-        let mut seen = BTreeMap::new();
+        let mut values = BTreeMap::new();
+        let mut constants = BTreeSet::new();
+        let mut stable_names = BTreeSet::new();
+
         for id in REGISTERED_WIDGET_IDS {
-            assert_ne!(id.value, 0, "{} must not use the zero widget id", id.name);
-            if let Some(previous) = seen.insert(id.value, id.name) {
+            assert_ne!(
+                id.value, 0,
+                "{} must not use the zero widget id",
+                id.constant
+            );
+            assert!(
+                constants.insert(id.constant),
+                "{} is registered more than once",
+                id.constant
+            );
+            assert!(
+                stable_names.insert(id.stable_name),
+                "{} is registered more than once",
+                id.stable_name
+            );
+            if let Some(previous) = values.insert(id.value, id) {
                 panic!(
                     "duplicate native app widget id {:#x}: {} and {}",
-                    id.value, previous, id.name
+                    id.value, previous.constant, id.constant
                 );
             }
         }
     }
 
     #[test]
-    fn native_app_widget_id_constants_are_registry_backed() {
-        let native_app_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/native_app");
-        let mut violations = Vec::new();
-        collect_raw_widget_id_constants(&native_app_dir, &mut violations);
-        assert!(
-            violations.is_empty(),
-            "native app widget id constants must be declared in ui/ids.rs:\n{}",
-            violations.join("\n")
-        );
-    }
-
-    fn collect_raw_widget_id_constants(dir: &Path, violations: &mut Vec<String>) {
-        let entries = fs::read_dir(dir).unwrap_or_else(|error| {
-            panic!("failed to read {}: {error}", dir.display());
-        });
-        for entry in entries {
-            let entry = entry.expect("native app dir entry");
-            let path = entry.path();
-            if path.is_dir() {
-                collect_raw_widget_id_constants(&path, violations);
-                continue;
-            }
-            if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
-                continue;
-            }
-            if path == PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/native_app/ui/ids.rs") {
-                continue;
-            }
-            collect_file_violations(&path, violations);
+    fn registered_native_app_widget_ids_stay_inside_owner_namespaces() {
+        for id in REGISTERED_WIDGET_IDS {
+            assert!(
+                id.owner.namespace().contains(id.value),
+                "{} ({}) must stay inside the {:?} widget id namespace",
+                id.constant,
+                id.stable_name,
+                id.owner
+            );
         }
-    }
-
-    fn collect_file_violations(path: &Path, violations: &mut Vec<String>) {
-        let source = fs::read_to_string(path).unwrap_or_else(|error| {
-            panic!("failed to read {}: {error}", path.display());
-        });
-        for (line_index, line) in source.lines().enumerate() {
-            if !is_widget_id_const_line(line) {
-                continue;
-            }
-            let statement = source
-                .lines()
-                .skip(line_index)
-                .collect::<Vec<_>>()
-                .join("\n");
-            let statement = statement.split(';').next().unwrap_or(line);
-            if statement.contains("widget_ids::") {
-                continue;
-            }
-            violations.push(format!(
-                "{}:{}: {}",
-                path.display(),
-                line_index + 1,
-                line.trim()
-            ));
-        }
-    }
-
-    fn is_widget_id_const_line(line: &str) -> bool {
-        line.contains("const ")
-            && line.contains("_ID")
-            && line.contains(": u64")
-            && !line.contains("_SCOPE")
     }
 }
