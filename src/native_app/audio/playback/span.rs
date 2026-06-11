@@ -1,5 +1,6 @@
 use wavecrate::selection::SelectionRange;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) struct ResolvedPlaybackSpan {
     pub(in crate::native_app) start_ratio: f32,
     pub(in crate::native_app) end_ratio: f32,

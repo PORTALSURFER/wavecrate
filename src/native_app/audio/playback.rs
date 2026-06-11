@@ -1,3 +1,4 @@
+use intent::{PlaybackCommand, PlaybackIntent, PlaybackMode};
 use rand::Rng;
 use span::ResolvedPlaybackSpan;
 use std::{
@@ -15,6 +16,7 @@ use crate::native_app::app::{
 };
 use radiant::prelude as ui;
 
+mod intent;
 mod loop_control;
 mod progress;
 mod span;
@@ -251,7 +253,7 @@ impl NativeAppState {
         start_ratio: f32,
         end_ratio: f32,
     ) -> Result<(), String> {
-        self.start_playback_span(start_ratio, end_ratio, None)
+        self.start_playback_intent(PlaybackIntent::new(start_ratio, end_ratio))
     }
 
     pub(in crate::native_app) fn start_playback_span(
@@ -260,24 +262,51 @@ impl NativeAppState {
         end_ratio: f32,
         loop_offset_ratio: Option<f32>,
     ) -> Result<(), String> {
+        self.start_playback_intent(PlaybackIntent::with_loop_offset(
+            start_ratio,
+            end_ratio,
+            loop_offset_ratio,
+        ))
+    }
+
+    pub(in crate::native_app) fn start_playback_intent(
+        &mut self,
+        intent: PlaybackIntent,
+    ) -> Result<(), String> {
         let playback_started_at = Instant::now();
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
         if self.audio.player.is_none() {
-            self.audio.pending_playback_start = Some(PendingPlaybackStart {
-                start_ratio,
-                end_ratio,
-                loop_offset_ratio,
-            });
+            self.audio.pending_playback_start = Some(PendingPlaybackStart::from(intent));
             if self.background.audio_open_task.active().is_none() {
                 return Err(String::from("Audio output is starting"));
             }
             return Ok(());
         }
-        let playback_span = self.resolve_playback_span(start_ratio, end_ratio, loop_offset_ratio);
-        let start_ratio = playback_span.start_ratio;
-        let end_ratio = playback_span.end_ratio;
+        let command = self.playback_command_for_intent(intent);
+        self.execute_playback_command(command, playback_started_at)
+    }
+
+    pub(in crate::native_app) fn playback_command_for_intent(
+        &self,
+        intent: PlaybackIntent,
+    ) -> PlaybackCommand {
+        let resolved = self.resolve_playback_span(
+            intent.start_ratio,
+            intent.end_ratio,
+            intent.loop_offset_ratio,
+        );
+        PlaybackCommand::from_intent(intent, resolved, self.audio.loop_playback)
+    }
+
+    fn execute_playback_command(
+        &mut self,
+        command: PlaybackCommand,
+        playback_started_at: Instant,
+    ) -> Result<(), String> {
+        let start_ratio = command.resolved.start_ratio;
+        let end_ratio = command.resolved.end_ratio;
         let duration = self.waveform.current.frames() as f32
             / self.waveform.current.sample_rate().max(1) as f32;
         let player = self
@@ -345,16 +374,19 @@ impl NativeAppState {
             fade_started_at,
         );
         let play_started_at = Instant::now();
-        let playback_start = if self.audio.loop_playback {
-            player.play_looped_range_from(
-                f64::from(start_ratio),
-                f64::from(end_ratio),
-                f64::from(playback_span.offset_ratio),
-            )?;
-            playback_span.offset_ratio
-        } else {
-            player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
-            start_ratio
+        let playback_start = match command.mode {
+            PlaybackMode::Looped { offset_ratio } => {
+                player.play_looped_range_from(
+                    f64::from(start_ratio),
+                    f64::from(end_ratio),
+                    f64::from(offset_ratio),
+                )?;
+                offset_ratio
+            }
+            PlaybackMode::OneShot => {
+                player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
+                start_ratio
+            }
         };
         log_slow_playback_phase(
             "playback.start.player_play",
