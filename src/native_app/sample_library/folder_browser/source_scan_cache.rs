@@ -144,7 +144,7 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::sample_library::folder_browser::{FileEntry, FolderEntry};
+    use crate::native_app::sample_library::folder_browser::{FolderEntry, model::FileEntry};
     use wavecrate::sample_sources::{Rating, SampleCollection};
 
     #[test]

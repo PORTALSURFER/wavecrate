@@ -4,9 +4,9 @@ use radiant::prelude as ui;
 use crate::native_app::app::NativeAppState;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
-use crate::native_app::sample_library::folder_browser::{
-    FileColumn, FileColumnDragFeedback, FolderBrowserMessage,
-};
+use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::model::FileColumn;
+use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
 use crate::native_app::ui::ids as widget_ids;
 
 mod hit_target;

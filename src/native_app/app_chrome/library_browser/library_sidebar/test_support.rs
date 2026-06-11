@@ -5,9 +5,9 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
     FolderTreeViewModel, LibrarySidebarViewModel, TagEditorViewModel,
 };
 use crate::native_app::metadata::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
-use crate::native_app::sample_library::folder_browser::{
+use crate::native_app::sample_library::folder_browser::FolderBrowserState;
+use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
-    FolderBrowserState,
 };
 
 use super::library_sidebar_content;

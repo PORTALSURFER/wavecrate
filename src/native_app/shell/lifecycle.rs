@@ -4,7 +4,7 @@ use crate::native_app::app::{
     UiAppState, WaveformAppState, WaveformState, sample_path_label,
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
-use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
+use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
 use radiant::prelude as ui;
 use std::{
     sync::mpsc,

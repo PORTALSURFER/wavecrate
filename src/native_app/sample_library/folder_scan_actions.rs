@@ -4,8 +4,9 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
-use crate::native_app::sample_library::folder_browser::{
-    self, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
+use crate::native_app::sample_library::folder_browser::scan::{
+    self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
+    FolderScanResult,
 };
 
 const DISCOVERY_BATCH_SIZE: usize = 64;
@@ -412,7 +413,7 @@ impl NativeAppState {
         context.spawn(
             "gui-startup-folder-verify",
             move || {
-                let result = folder_browser::verify_direct_folder(request);
+                let result = scan::verify_direct_folder(request);
                 if let Ok(mut results) = results.lock() {
                     results.insert(ticket, result);
                 }
@@ -465,7 +466,7 @@ impl NativeAppState {
 
     fn launch_folder_scan(
         &mut self,
-        request: folder_browser::FolderScanRequest,
+        request: FolderScanRequest,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -552,14 +553,14 @@ impl NativeAppState {
 }
 
 fn run_folder_scan_worker(
-    request: folder_browser::FolderScanRequest,
+    request: FolderScanRequest,
     sender: std::sync::mpsc::Sender<GuiMessage>,
 ) -> FolderScanResult {
     let discovery_sender = sender.clone();
     let mut pending_discoveries = Vec::with_capacity(DISCOVERY_BATCH_SIZE);
     let task_id = request.task_id;
     let source_id = request.source_id.clone();
-    let result = folder_browser::scan_source_with_progress(
+    let result = scan::scan_source_with_progress(
         request,
         |progress| {
             let _ = sender.send(GuiMessage::FolderScanProgress(progress));
@@ -591,7 +592,7 @@ fn send_discovery_batch(
     sender: &std::sync::mpsc::Sender<GuiMessage>,
     task_id: u64,
     source_id: String,
-    pending_discoveries: &mut Vec<folder_browser::FolderScanDiscovery>,
+    pending_discoveries: &mut Vec<FolderScanDiscovery>,
 ) {
     let events = std::mem::take(pending_discoveries);
     let _ = sender.send(GuiMessage::FolderScanDiscoveryBatch(

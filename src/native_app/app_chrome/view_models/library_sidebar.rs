@@ -2,10 +2,10 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::NativeAppState;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
-use crate::native_app::sample_library::folder_browser::{
+use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
-    FolderBrowserState, VisibleFolder,
 };
+use crate::native_app::sample_library::folder_browser::{FolderBrowserState, model::VisibleFolder};
 
 pub(in crate::native_app) struct LibrarySidebarViewModel {
     pub(in crate::native_app) sidebar_width: f32,

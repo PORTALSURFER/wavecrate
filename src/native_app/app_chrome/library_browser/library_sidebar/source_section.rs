@@ -3,7 +3,7 @@ use radiant::prelude as ui;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::sample_library::folder_browser::{
-    FolderBrowserMessage, FolderBrowserState, SourceEntry,
+    FolderBrowserMessage, FolderBrowserState, model::SourceEntry,
 };
 
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;

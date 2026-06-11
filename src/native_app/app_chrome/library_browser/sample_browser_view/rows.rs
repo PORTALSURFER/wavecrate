@@ -7,9 +7,9 @@ use super::row_projection::{
 };
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
-use crate::native_app::sample_library::folder_browser::{
-    FileRenameView, FolderBrowserMessage, VisibleSampleList,
-};
+use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
+use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
 };

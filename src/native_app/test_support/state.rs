@@ -1,5 +1,5 @@
 pub(in crate::native_app) use crate::native_app::app::*;
-use crate::native_app::sample_library::folder_browser::DEFAULT_FOLDER_WIDTH;
+use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
 use wavecrate::sample_sources::config::AppSettingsCore;
 
 pub(in crate::native_app) struct NativeAppStateFixture {

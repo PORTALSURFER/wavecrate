@@ -110,7 +110,7 @@ fn metadata_section_collapses_to_header_only_height() {
 
     assert_eq!(
         metadata_rect.height(),
-        crate::native_app::sample_library::folder_browser::COLLAPSED_METADATA_PANEL_HEIGHT
+        crate::native_app::sample_library::folder_browser::test_support::COLLAPSED_METADATA_PANEL_HEIGHT
     );
 }
 

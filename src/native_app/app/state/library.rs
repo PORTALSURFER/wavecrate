@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use crate::native_app::sample_library::folder_browser::{FolderBrowserState, FolderScanProgress};
+use crate::native_app::sample_library::folder_browser::FolderBrowserState;
+use crate::native_app::sample_library::folder_browser::scan::FolderScanProgress;
 use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
 
 pub(in crate::native_app) struct LibraryAppState {

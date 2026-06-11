@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::native_app::app::{NativeAppState, SampleNameViewMode};
-use crate::native_app::sample_library::folder_browser::{
+use crate::native_app::sample_library::folder_browser::projection::{
     FileColumnDragFeedback, VisibleSampleList, VisibleSampleQuery, VisibleSampleWindowPolicy,
 };
 use crate::native_app::sample_library::sample_list::{

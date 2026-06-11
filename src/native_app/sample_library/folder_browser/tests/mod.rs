@@ -1,6 +1,10 @@
-use super::{
-    FileMoveConflictResolution, FolderBrowserMessage, FolderBrowserState, FolderDragPreview,
-    FolderScanDiscoveryBatch, MIN_FILE_COLUMN_WIDTH, path_id, scan_source_with_progress,
+use super::{FolderBrowserMessage, FolderBrowserState, path_id};
+use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolution;
+use crate::native_app::sample_library::folder_browser::scan::{
+    FolderScanDiscoveryBatch, scan_source_with_progress,
+};
+use crate::native_app::sample_library::folder_browser::test_support::{
+    FolderDragPreview, MIN_FILE_COLUMN_WIDTH,
 };
 use radiant::{
     layout::Point,

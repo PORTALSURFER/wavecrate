@@ -10,7 +10,7 @@ use radiant::prelude as ui;
 use wavecrate::audio::AudioPlayer;
 
 use crate::native_app::app::{GuiMessage, NormalizationProgress};
-use crate::native_app::sample_library::folder_browser::FolderVerifyResult;
+use crate::native_app::sample_library::folder_browser::scan::FolderVerifyResult;
 
 pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) worker_sender: Sender<GuiMessage>,

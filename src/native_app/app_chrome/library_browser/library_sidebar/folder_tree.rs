@@ -5,9 +5,11 @@ use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row
     SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL, SIDEBAR_ROW_SELECTED_FILL,
 };
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
+use crate::native_app::sample_library::folder_browser::view_contract::{
+    FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
+};
 use crate::native_app::sample_library::folder_browser::{
-    FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FolderBrowserMessage, TREE_DEPTH_INDENT,
-    TREE_ROW_HEIGHT, VisibleFolder,
+    FolderBrowserMessage, model::VisibleFolder,
 };
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;

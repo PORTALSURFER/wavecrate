@@ -198,7 +198,9 @@ impl NativeAppState {
         updates: Vec<CollectionUpdate>,
     ) {
         let hotkey =
-            crate::native_app::sample_library::folder_browser::collection_hotkey(collection);
+            crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey(
+                collection,
+            );
         let label = match command {
             CollectionCommand::Add => format!("Add to Collection {hotkey}"),
             CollectionCommand::Remove => format!("Remove from Collection {hotkey}"),
@@ -289,7 +291,7 @@ impl CollectionCommand {
 
 fn collection_update_for_candidate(
     state: &NativeAppState,
-    candidate: crate::native_app::sample_library::folder_browser::SelectedFileCollectionCandidate,
+    candidate: crate::native_app::sample_library::folder_browser::view_contract::SelectedFileCollectionCandidate,
     collection: SampleCollection,
     command: CollectionCommand,
 ) -> Option<CollectionUpdate> {
@@ -366,7 +368,10 @@ fn collection_status(
     removed: usize,
     command: CollectionCommand,
 ) -> String {
-    let hotkey = crate::native_app::sample_library::folder_browser::collection_hotkey(collection);
+    let hotkey =
+        crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey(
+            collection,
+        );
     match command {
         CollectionCommand::Add => format!(
             "Added {added} sample{} to Collection {hotkey}",

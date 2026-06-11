@@ -4,9 +4,10 @@ use std::collections::HashMap;
 use super::SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH;
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::SampleNameViewMode;
-use crate::native_app::sample_library::folder_browser::{
-    self, FileColumn, FileEntry, VisibleSampleRow,
-};
+use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
+use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileEntry};
+use crate::native_app::sample_library::folder_browser::projection::VisibleSampleRow;
+use crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey;
 
 pub(super) struct SampleRowDisplay<'a> {
     pub(super) file_id: &'a str,
@@ -29,7 +30,7 @@ pub(super) struct SampleColumnDisplay<'a> {
 
 pub(super) enum SampleColumnContent {
     Text { value: String, cached: bool },
-    Rename(folder_browser::FileRenameView),
+    Rename(FileRenameView),
     Rating(RatingIndicator),
     Collection(Vec<ui::Rgba8>),
     Similarity(Option<f32>),
@@ -168,7 +169,7 @@ fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
         "collection" => file
             .collection_memberships()
             .into_iter()
-            .map(folder_browser::collection_hotkey)
+            .map(collection_hotkey)
             .map(|hotkey| hotkey.to_string())
             .collect::<Vec<_>>()
             .join(","),
@@ -180,7 +181,7 @@ fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::sample_library::folder_browser::VisibleSampleRow;
+    use crate::native_app::sample_library::folder_browser::projection::VisibleSampleRow;
     use wavecrate::sample_sources::Rating;
 
     fn file_entry() -> FileEntry {

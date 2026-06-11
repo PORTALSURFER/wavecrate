@@ -1,7 +1,7 @@
 use super::*;
 use crate::native_app::sample_library::folder_browser::{
-    COLLAPSED_FILTER_PANEL_HEIGHT, COLLAPSED_METADATA_PANEL_HEIGHT,
     collections::{COLLAPSED_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT},
+    test_support::{COLLAPSED_FILTER_PANEL_HEIGHT, COLLAPSED_METADATA_PANEL_HEIGHT},
 };
 
 #[test]

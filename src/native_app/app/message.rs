@@ -11,9 +11,10 @@ use crate::native_app::app::{
 };
 use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
-use crate::native_app::sample_library::folder_browser::{
-    FileMoveConflictResolution, FolderBrowserMessage, FolderScanDiscoveryBatch, FolderScanProgress,
-    FolderScanResult,
+use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolution;
+use crate::native_app::sample_library::folder_browser::scan::{
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
 };
 use crate::native_app::waveform::WaveformInteraction;
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::native_app::sample_library::folder_browser::verify_direct_folder;
+use crate::native_app::sample_library::folder_browser::scan::verify_direct_folder;
 
 #[test]
 fn source_scan_installs_finished_tree_after_placeholder_selection() {
