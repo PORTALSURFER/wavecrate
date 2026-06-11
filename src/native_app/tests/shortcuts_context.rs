@@ -454,6 +454,19 @@ fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
 }
 
 #[test]
+fn backquote_shortcut_routes_to_metadata_tag_input_focus() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Backquote));
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::native_app::test_support::GuiMessage::FocusMetadataTagInput)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn x_shortcut_is_consumed_while_renaming() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let sample_path = state

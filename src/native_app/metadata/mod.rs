@@ -105,6 +105,10 @@ impl NativeAppState {
         }
     }
 
+    pub(super) fn focus_metadata_tag_input(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        context.focus(crate::native_app::ui::ids::METADATA_TAG_INPUT_ID);
+    }
+
     fn submit_metadata_tag_input(
         &mut self,
         value: String,

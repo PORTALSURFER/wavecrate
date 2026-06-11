@@ -88,6 +88,7 @@ pub(in crate::native_app) enum GuiMessage {
     SetAudioOutputHost(Option<String>),
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
+    FocusMetadataTagInput,
     MetadataTagInput(radiant::widgets::TextInputMessage),
     CancelMetadataTagEntry,
     MoveMetadataTagCompletion(i32),

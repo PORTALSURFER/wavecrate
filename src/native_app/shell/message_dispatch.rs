@@ -166,6 +166,9 @@ impl NativeAppState {
             GuiMessage::SetAudioOutputSampleRate(sample_rate) => {
                 self.set_audio_output_sample_rate(sample_rate);
             }
+            GuiMessage::FocusMetadataTagInput => {
+                self.focus_metadata_tag_input(context);
+            }
             GuiMessage::MetadataTagInput(message) => {
                 self.apply_metadata_tag_input(message, context)
             }

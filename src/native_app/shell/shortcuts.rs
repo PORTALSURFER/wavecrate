@@ -130,6 +130,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::ToggleSelectedSampleAndAdvance,
         )
         .bind(
+            ui::KeyPress::new(ui::KeyCode::Backquote),
+            GuiMessage::FocusMetadataTagInput,
+        )
+        .bind(
             ui::KeyPress::with_command(ui::KeyCode::A),
             GuiMessage::SelectAllSamples,
         )
