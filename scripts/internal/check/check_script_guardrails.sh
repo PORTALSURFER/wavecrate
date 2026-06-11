@@ -66,6 +66,48 @@ run_expect_exit_code() {
   rm -f "$output_file"
 }
 
+run_expect_output() {
+  local label="$1"
+  local expected_code="$2"
+  local work_dir="$3"
+  shift 3
+
+  local -a fragments=()
+  while (( $# > 0 )); do
+    if [[ "$1" == "--" ]]; then
+      shift
+      break
+    fi
+    fragments+=("$1")
+    shift
+  done
+
+  local output_file
+  output_file="$(mktemp)"
+  set +e
+  (cd "$work_dir" && "$@") >"$output_file" 2>&1
+  local exit_code=$?
+  set -e
+
+  local missing=0
+  local fragment
+  for fragment in "${fragments[@]}"; do
+    if ! grep -Fq -- "$fragment" "$output_file"; then
+      echo "[guardrails] Missing fragment '$fragment' in $label output" >&2
+      missing=1
+    fi
+  done
+
+  if (( exit_code == expected_code && missing == 0 )); then
+    echo "[guardrails] PASS: $label"
+  else
+    echo "[guardrails] FAIL: $label (expected $expected_code, got $exit_code)" >&2
+    cat "$output_file" >&2
+    failures=$((failures + 1))
+  fi
+  rm -f "$output_file"
+}
+
 assert_file_contains() {
   local label="$1"
   local path="$2"
@@ -494,6 +536,21 @@ run_expect_exit_code \
   "$ROOT_DIR" \
   scripts/internal/agent/run_agent_preflight.sh \
   --help
+
+run_expect_output \
+  "size hotspot report surfaces scripts and Radiant scopes" \
+  0 \
+  "$ROOT_DIR" \
+  "# Size Hotspot Report" \
+  "scripts/internal" \
+  "vendor/radiant" \
+  "Over Budget" \
+  -- \
+  scripts/internal/check/report_size_hotspots.sh \
+  --limit \
+  1 \
+  --top-files \
+  5
 
 run_file_size_budget_fixture
 run_cleanup_audit_fixture

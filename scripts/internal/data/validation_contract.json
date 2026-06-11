@@ -18,7 +18,8 @@
       "scripts/internal/check/check_native_app_boundary.ps1",
       "scripts/internal/check/check_wavecrate_facades.ps1",
       "scripts/internal/check/check_docs_index.ps1",
-      "scripts/internal/check/report_file_size_budget_allowlist.ps1"
+      "scripts/internal/check/report_file_size_budget_allowlist.ps1",
+      "scripts/internal/check/report_size_hotspots.ps1"
     ],
     "syntax_bash": [
       "scripts/agent.sh",
@@ -33,6 +34,7 @@
       "scripts/internal/check/check_rust_private_docs.sh",
       "scripts/internal/check/check_native_app_boundary.sh",
       "scripts/internal/check/check_rust_dead_deps_advisory.sh",
+      "scripts/internal/check/report_size_hotspots.sh",
       "scripts/internal/perf/run_perf_guard.sh",
       "scripts/internal/perf/calibrate_startup_thresholds.sh",
       "scripts/internal/perf/run_perf_wheel_stability.sh",

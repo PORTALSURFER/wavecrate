@@ -262,6 +262,10 @@
           "reason": "Full markdown-link reporting remains a Bash-only advisory report."
         },
         {
+          "name": "report-size-hotspots",
+          "target": "report_size_hotspots.ps1"
+        },
+        {
           "name": "rust-no-todos",
           "target": "check_rust_no_todos.ps1"
         },

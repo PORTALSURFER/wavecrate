@@ -42,6 +42,7 @@ $commands = @{
   "report-env-vars" = "report_env_vars_drift.sh"
   "report-file-budget" = "report_file_size_budget_allowlist.ps1"
   "report-markdown-links" = "report_markdown_links_all.sh"
+  "report-size-hotspots" = "report_size_hotspots.ps1"
   "rust-no-todos" = "check_rust_no_todos.ps1"
   "script-guardrails" = "check_script_guardrails.ps1"
   "taste" = "check_rust_taste_invariants.ps1"

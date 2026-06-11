@@ -41,6 +41,7 @@ case "$command" in
   report-env-vars) exec "$script_dir/report_env_vars_drift.sh" "$@" ;;
   report-file-budget) exec "$script_dir/report_file_size_budget_allowlist.sh" "$@" ;;
   report-markdown-links) exec "$script_dir/report_markdown_links_all.sh" "$@" ;;
+  report-size-hotspots) exec "$script_dir/report_size_hotspots.sh" "$@" ;;
   rust-no-todos) exec "$script_dir/check_rust_no_todos.sh" "$@" ;;
   script-guardrails) exec "$script_dir/check_script_guardrails.sh" "$@" ;;
   taste) exec "$script_dir/check_rust_taste_invariants.sh" "$@" ;;

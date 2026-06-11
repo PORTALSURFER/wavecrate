@@ -398,6 +398,7 @@ try {
   Invoke-ExpectExitCode -Label "ci smoke --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "ci.ps1") -Arguments @("smoke", "-Help")
   Invoke-ExpectExitCode -Label "ci agent --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "ci.ps1") -Arguments @("agent", "-Help")
   Invoke-ExpectExitCode -Label "ci quick --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "ci.ps1") -Arguments @("quick", "-Help")
+  Invoke-ExpectOutput -Label "size hotspot report surfaces scripts and Radiant scopes" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "internal/check/report_size_hotspots.ps1") -Arguments @("-Limit", "1", "-TopFiles", "5") -ExpectedSubstrings @("# Size Hotspot Report", "scripts/internal", "vendor/radiant", "Over Budget")
 
   $fixtureDir = New-TempDir
   try {
