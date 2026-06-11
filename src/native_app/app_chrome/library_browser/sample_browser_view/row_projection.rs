@@ -5,7 +5,9 @@ use super::SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH;
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
-use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileEntry};
+use crate::native_app::sample_library::folder_browser::model::{
+    FileColumn, FileColumnKind, FileEntry,
+};
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleRow;
 use crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey;
 
@@ -81,7 +83,7 @@ fn sample_column_displays<'a>(
             name_view_mode,
             metadata_tags_by_file,
         ));
-        if column.id == "name" && similarity_mode_active {
+        if column.kind() == FileColumnKind::Name && similarity_mode_active {
             displays.push(similarity_column_display(file, row));
         }
     }
@@ -107,20 +109,22 @@ fn sample_column_display<'a>(
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> SampleColumnDisplay<'a> {
-    let content = match column.id.as_str() {
-        "name" => row.rename.clone().map_or_else(
+    let content = match column.kind() {
+        FileColumnKind::Name => row.rename.clone().map_or_else(
             || SampleColumnContent::Text {
                 value: sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
                 cached: row.cached,
             },
             SampleColumnContent::Rename,
         ),
-        "rating" => {
+        FileColumnKind::Rating => {
             SampleColumnContent::Rating(RatingIndicator::new(file.rating, file.rating_locked))
         }
-        "collection" => SampleColumnContent::Collection(row.collection_colors.clone()),
-        column_id => SampleColumnContent::Text {
-            value: sample_file_column_value(file, column_id),
+        FileColumnKind::Collection => {
+            SampleColumnContent::Collection(row.collection_colors.clone())
+        }
+        kind => SampleColumnContent::Text {
+            value: sample_file_column_value(file, kind),
             cached: row.cached,
         },
     };
@@ -160,21 +164,23 @@ fn metadata_display_stem(file: &FileEntry, metadata_tags: Option<&[String]>) -> 
     }
 }
 
-fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
-    match column_id {
-        "extension" => file.extension.clone(),
-        "size" => file.size.clone(),
-        "modified" => file.modified.clone(),
-        "kind" => file.kind.clone(),
-        "collection" => file
+fn sample_file_column_value(file: &FileEntry, kind: FileColumnKind) -> String {
+    match kind {
+        FileColumnKind::Extension => file.extension.clone(),
+        FileColumnKind::Size => file.size.clone(),
+        FileColumnKind::Modified => file.modified.clone(),
+        FileColumnKind::Kind => file.kind.clone(),
+        FileColumnKind::Collection => file
             .collection_memberships()
             .into_iter()
             .map(collection_hotkey)
             .map(|hotkey| hotkey.to_string())
             .collect::<Vec<_>>()
             .join(","),
-        "path" => file.id.clone(),
-        _ => file.stem.clone(),
+        FileColumnKind::Path => file.id.clone(),
+        FileColumnKind::Name | FileColumnKind::Rating | FileColumnKind::Similarity => {
+            file.stem.clone()
+        }
     }
 }
 

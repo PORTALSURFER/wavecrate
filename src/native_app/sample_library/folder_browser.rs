@@ -104,8 +104,10 @@ pub(in crate::native_app) mod commands {
 }
 
 pub(in crate::native_app) mod model {
-    pub(in crate::native_app) use super::file_model::FileEntry;
-    pub(in crate::native_app) use super::state_types::{FileColumn, SourceEntry, VisibleFolder};
+    pub(in crate::native_app) use super::{
+        file_model::FileEntry,
+        state_types::{FileColumn, FileColumnKind, SourceEntry, VisibleFolder},
+    };
 }
 
 pub(in crate::native_app) mod projection {

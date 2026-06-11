@@ -9,7 +9,7 @@ use crate::native_app::app_chrome::view_models::sample_browser::{
     SampleBrowserViewProjection, prepare_sample_browser_view,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::model::FileColumn;
+use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
 use crate::native_app::ui::ids as widget_ids;
 
@@ -209,7 +209,7 @@ fn sample_header_cells(
     similarity_mode_active: bool,
 ) -> Vec<ui::View<GuiMessage>> {
     let mut cells = vec![sample_header_cell(column, sort)];
-    if column.id == "name" && similarity_mode_active {
+    if column.kind() == FileColumnKind::Name && similarity_mode_active {
         cells.push(sample_similarity_header_cell());
     }
     cells

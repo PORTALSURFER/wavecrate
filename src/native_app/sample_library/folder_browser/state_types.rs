@@ -63,6 +63,10 @@ pub(in crate::native_app) struct FileColumn {
 }
 
 impl FileColumn {
+    pub(in crate::native_app) fn kind(&self) -> FileColumnKind {
+        self.kind
+    }
+
     #[cfg(test)]
     pub(in crate::native_app) fn for_tests(id: &str, label: &str, width: f32) -> Self {
         file_column_with(
@@ -74,7 +78,7 @@ impl FileColumn {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum FileColumnKind {
+pub(in crate::native_app) enum FileColumnKind {
     Name,
     Rating,
     Collection,
