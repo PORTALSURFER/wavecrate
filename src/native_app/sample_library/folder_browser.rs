@@ -60,8 +60,8 @@ mod rename_workflow;
 
 mod state_types;
 use state_types::{
-    FileColumn, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind,
-    SimilarityBrowserState, SourceEntry, VisibleFolder, default_file_columns,
+    FileColumn, FileColumnKind, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit,
+    FolderRenameKind, SimilarityBrowserState, SourceEntry, VisibleFolder, default_file_columns,
 };
 
 mod state;

@@ -264,11 +264,7 @@ mod tests {
             similarity_strength: None,
             collection_colors: vec![ui::Rgba8::new(1, 2, 3, 255), ui::Rgba8::new(4, 5, 6, 255)],
         };
-        let column = FileColumn {
-            id: String::from("collection"),
-            label: String::from("Collection"),
-            width: 80.0,
-        };
+        let column = FileColumn::for_tests("collection", "Collection", 80.0);
 
         let display = sample_column_display(
             &file,

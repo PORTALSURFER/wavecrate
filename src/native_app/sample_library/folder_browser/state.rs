@@ -12,7 +12,9 @@ use super::{
     FolderBrowserMessage, FolderEntry, FolderRenameEdit, SampleCollectionConfig,
     SimilarityBrowserState, SourceEntry,
     collections::default_collections,
-    default_file_columns, default_root_path, load_root_folder, placeholder_folder,
+    default_file_columns, default_root_path,
+    file_columns::{sort_file_indices_by_column_kind, sort_kind_for_details_sort},
+    load_root_folder, placeholder_folder,
     visible_samples::{VisibleSampleProjectionCache, VisibleSampleProjectionKey},
 };
 
@@ -670,37 +672,11 @@ impl FolderBrowserState {
     }
 
     fn sort_file_indices(&self, folder: &FolderEntry, indices: &mut [usize]) {
-        match self.sample_list.file_sort.column_id.as_str() {
-            "extension" => indices.sort_by_cached_key(|index| {
-                let file = &folder.files[*index];
-                (file.extension.to_ascii_lowercase(), file.name_sort_key())
-            }),
-            "size" => indices.sort_by_cached_key(|index| {
-                let file = &folder.files[*index];
-                (file.size_bytes, file.name_sort_key())
-            }),
-            "modified" => indices.sort_by_cached_key(|index| {
-                let file = &folder.files[*index];
-                (file.modified_rank, file.name_sort_key())
-            }),
-            "kind" => indices.sort_by_cached_key(|index| {
-                let file = &folder.files[*index];
-                (file.kind.clone(), file.name_sort_key())
-            }),
-            "rating" => indices.sort_by_cached_key(|index| {
-                let file = &folder.files[*index];
-                (file.rating.val(), file.name_sort_key())
-            }),
-            "collection" => indices.sort_by_cached_key(|index| {
-                let file = &folder.files[*index];
-                (
-                    file.first_collection().map(|collection| collection.index()),
-                    file.name_sort_key(),
-                )
-            }),
-            "path" => indices.sort_by(|a, b| folder.files[*a].id.cmp(&folder.files[*b].id)),
-            _ => indices.sort_by_cached_key(|index| folder.files[*index].name_sort_key()),
-        }
+        sort_file_indices_by_column_kind(
+            sort_kind_for_details_sort(&self.sample_list.file_sort),
+            folder,
+            indices,
+        );
         if self.sample_list.file_sort.direction == ui::SortDirection::Descending {
             indices.reverse();
         }

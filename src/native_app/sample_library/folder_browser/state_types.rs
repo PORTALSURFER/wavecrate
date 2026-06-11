@@ -56,9 +56,102 @@ pub(super) struct FileRenameEdit {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct FileColumn {
+    pub(super) kind: FileColumnKind,
     pub(in crate::native_app) id: String,
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) width: f32,
+}
+
+impl FileColumn {
+    #[cfg(test)]
+    pub(in crate::native_app) fn for_tests(id: &str, label: &str, width: f32) -> Self {
+        file_column_with(
+            FileColumnKind::from_id(id).unwrap_or(FileColumnKind::Name),
+            label,
+            width,
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FileColumnKind {
+    Name,
+    Rating,
+    Collection,
+    Extension,
+    Size,
+    Modified,
+    Kind,
+    Path,
+    Similarity,
+}
+
+impl FileColumnKind {
+    pub(super) const DEFAULT_VISIBLE: [Self; 6] = [
+        Self::Name,
+        Self::Rating,
+        Self::Collection,
+        Self::Extension,
+        Self::Size,
+        Self::Modified,
+    ];
+
+    pub(super) fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "name" => Some(Self::Name),
+            "rating" => Some(Self::Rating),
+            "collection" => Some(Self::Collection),
+            "extension" => Some(Self::Extension),
+            "size" => Some(Self::Size),
+            "modified" => Some(Self::Modified),
+            "kind" => Some(Self::Kind),
+            "path" => Some(Self::Path),
+            "similarity" => Some(Self::Similarity),
+            _ => None,
+        }
+    }
+
+    pub(super) fn id(self) -> &'static str {
+        match self {
+            Self::Name => "name",
+            Self::Rating => "rating",
+            Self::Collection => "collection",
+            Self::Extension => "extension",
+            Self::Size => "size",
+            Self::Modified => "modified",
+            Self::Kind => "kind",
+            Self::Path => "path",
+            Self::Similarity => "similarity",
+        }
+    }
+
+    fn default_label(self) -> &'static str {
+        match self {
+            Self::Name => "Name",
+            Self::Rating => "Rating",
+            Self::Collection => "Col",
+            Self::Extension => "Ext",
+            Self::Size => "Size",
+            Self::Modified => "Modified",
+            Self::Kind => "Kind",
+            Self::Path => "Path",
+            Self::Similarity => "Sim",
+        }
+    }
+
+    fn default_width(self) -> f32 {
+        match self {
+            Self::Name => 240.0,
+            Self::Rating => 68.0,
+            Self::Collection => 58.0,
+            Self::Extension => 54.0,
+            Self::Size => 78.0,
+            Self::Modified => 112.0,
+            Self::Kind => 78.0,
+            Self::Path => 220.0,
+            Self::Similarity => 58.0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -132,19 +225,20 @@ pub(in crate::native_app) struct VisibleFolder {
 }
 
 pub(super) fn default_file_columns() -> Vec<FileColumn> {
-    vec![
-        file_column("name", "Name", 240.0),
-        file_column("rating", "Rating", 68.0),
-        file_column("collection", "Col", 58.0),
-        file_column("extension", "Ext", 54.0),
-        file_column("size", "Size", 78.0),
-        file_column("modified", "Modified", 112.0),
-    ]
+    FileColumnKind::DEFAULT_VISIBLE
+        .into_iter()
+        .map(file_column)
+        .collect()
 }
 
-fn file_column(id: &str, label: &str, width: f32) -> FileColumn {
+fn file_column(kind: FileColumnKind) -> FileColumn {
+    file_column_with(kind, kind.default_label(), kind.default_width())
+}
+
+fn file_column_with(kind: FileColumnKind, label: &str, width: f32) -> FileColumn {
     FileColumn {
-        id: id.to_owned(),
+        kind,
+        id: kind.id().to_owned(),
         label: label.to_owned(),
         width,
     }
