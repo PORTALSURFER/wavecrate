@@ -44,15 +44,17 @@ fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
         .stable_input_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str())
         .selected(source.selected)
         .leading_marker_if(source.selected, active_source_marker())
-        .actions(ui::InteractiveRowActions::new().activate_secondary_key(
-            source.id.clone(),
-            |source_id| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id)),
-            |source_id, position| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                    source_id, position,
-                ))
-            },
-        ))
+        .actions(
+            ui::row_actions()
+                .primary_key(source.id.clone(), |source_id| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
+                })
+                .secondary_key(source.id.clone(), |source_id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                        source_id, position,
+                    ))
+                }),
+        )
         .key(format!("source-row-{row_key}"))
         .fill_width()
         .height(24.0)

@@ -204,13 +204,18 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
     ui::interactive_badge(tag.to_string())
         .style(style)
         .active(active)
-        .actions(ui::InteractiveRowActions::new().activate_secondary_key(
-            tag_for_input,
-            |tag| GuiMessage::Metadata(MetadataMessage::SelectMetadataTag(tag)),
-            |tag, position| {
-                GuiMessage::Metadata(MetadataMessage::OpenMetadataTagContextMenu { tag, position })
-            },
-        ))
+        .actions(
+            ui::row_actions()
+                .primary_key(tag_for_input.clone(), |tag| {
+                    GuiMessage::Metadata(MetadataMessage::SelectMetadataTag(tag))
+                })
+                .secondary_key(tag_for_input, |tag, position| {
+                    GuiMessage::Metadata(MetadataMessage::OpenMetadataTagContextMenu {
+                        tag,
+                        position,
+                    })
+                }),
+        )
         .key(format!("metadata-tag-accepted-{tag}"))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
 }

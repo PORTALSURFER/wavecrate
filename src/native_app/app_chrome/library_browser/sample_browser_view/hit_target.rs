@@ -31,7 +31,7 @@ impl SampleFileHitTarget {
             .activation_modifiers()
             .custom_paint_hit_target()
             .widget();
-        let actions = ui::InteractiveRowActions::new()
+        let actions = ui::row_actions()
             .primary_with_modifiers_key(path.clone(), |path, modifiers| {
                 GuiMessage::SelectSampleWithModifiers { path, modifiers }
             })

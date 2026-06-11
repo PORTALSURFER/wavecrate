@@ -140,21 +140,16 @@ fn category_header(
         .tracked_drop_target(drag_active && !locked, drop_hover)
         .style(style)
         .actions(
-            ui::InteractiveRowActions::new()
-                .drop_target_key(
-                    category_for_input.clone(),
-                    |category_id| {
-                        GuiMessage::Metadata(MetadataMessage::DropMetadataTagOnCategory {
-                            category_id,
-                        })
-                    },
-                    |category_id, _| {
-                        GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory {
-                            category_id,
-                        })
-                    },
-                )
-                .activate_key(category_for_input, toggle_metadata_tag_category),
+            ui::row_actions()
+                .drop_key(category_for_input.clone(), |category_id| {
+                    GuiMessage::Metadata(MetadataMessage::DropMetadataTagOnCategory { category_id })
+                })
+                .hover_drop_key(category_for_input.clone(), |category_id, _| {
+                    GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory {
+                        category_id,
+                    })
+                })
+                .primary_key(category_for_input, toggle_metadata_tag_category),
         )
         .key(format!("metadata-tag-category-{}", category_id))
         .fill_width()
@@ -210,15 +205,12 @@ fn tag_row(
     }
     badge
         .actions(
-            ui::InteractiveRowActions::new()
+            ui::row_actions()
                 .secondary_key(tag_for_input.clone(), open_metadata_tag_context_menu)
                 .drag_key(tag_for_input.clone(), drag_metadata_tag)
-                .drop_target_key(
-                    category_for_input,
-                    drop_metadata_tag_on_category,
-                    hover_metadata_tag_drop_category,
-                )
-                .activate_key(tag_for_input, toggle_metadata_tag),
+                .drop_key(category_for_input.clone(), drop_metadata_tag_on_category)
+                .hover_drop_key(category_for_input, hover_metadata_tag_drop_category)
+                .primary_key(tag_for_input, toggle_metadata_tag),
         )
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)
@@ -235,11 +227,11 @@ fn empty_category_target(
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
         .tracked_drop_target(drag_active && !locked, active_drop_target)
-        .actions(ui::InteractiveRowActions::new().drop_target_key(
-            category_for_input,
-            drop_metadata_tag_on_category,
-            hover_metadata_tag_drop_category,
-        ))
+        .actions(
+            ui::row_actions()
+                .drop_key(category_for_input.clone(), drop_metadata_tag_on_category)
+                .hover_drop_key(category_for_input, hover_metadata_tag_drop_category),
+        )
         .key(format!("metadata-tag-empty-category-{category_id}"))
         .fill_width()
         .height(20.0)

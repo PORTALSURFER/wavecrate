@@ -184,7 +184,7 @@ mod tests {
     fn hit_target(selected: bool, active_target: bool) -> SidebarRowHitTarget {
         SidebarRowHitTarget {
             row: ui::interactive_row().custom_paint_hit_target().widget(),
-            actions: ui::InteractiveRowActions::new(),
+            actions: ui::row_actions(),
             selected,
             active_target,
             leading_marker: None,

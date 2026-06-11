@@ -121,7 +121,7 @@ fn folder_row_actions(
     drop_candidate: bool,
     drop_target_active: bool,
 ) -> ui::InteractiveRowActions<GuiMessage> {
-    ui::InteractiveRowActions::new()
+    ui::row_actions()
         .primary_key(id.clone(), |id| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id))
         })

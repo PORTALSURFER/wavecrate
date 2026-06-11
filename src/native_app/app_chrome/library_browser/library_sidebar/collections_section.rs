@@ -96,27 +96,22 @@ fn collection_input(
         .stable_u64_input_id(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64)
         .selected(collection.selected)
         .actions(
-            ui::InteractiveRowActions::new()
-                .drop_target_key(
-                    collection_id,
-                    |collection_id| {
-                        GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(
-                            collection_id,
-                        ))
-                    },
-                    |collection_id, position| {
-                        GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
-                            collection_id,
-                            position,
-                        ))
-                    },
-                )
-                .activate_key(collection_id, |collection_id| {
+            ui::row_actions()
+                .drop_key(collection_id, |collection_id| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))
+                })
+                .hover_drop_key(collection_id, |collection_id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
+                        collection_id,
+                        position,
+                    ))
+                })
+                .primary_key(collection_id, |collection_id| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
                         collection_id,
                     ))
                 })
-                .double_activate_key(collection_id, |collection_id| {
+                .double_key(collection_id, |collection_id| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
                 }),
         )
