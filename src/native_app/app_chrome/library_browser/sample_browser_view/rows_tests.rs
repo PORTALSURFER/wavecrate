@@ -1,5 +1,5 @@
 use super::*;
-use crate::native_app::sample_library::folder_browser::FileEntry;
+use crate::native_app::sample_library::folder_browser::{FileEntry, FolderBrowserState};
 use radiant::{layout::Vector2, prelude::IntoView, theme::ThemeTokens};
 use wavecrate::sample_sources::{Rating, SampleCollection};
 

@@ -37,6 +37,49 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
 }
 
 #[test]
+fn sample_browser_projection_window_matches_rendered_row_order() {
+    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+        .expect("default state loads");
+    let projection_names = {
+        let model =
+            crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel::from_app_state(&mut state);
+        assert_eq!(
+            model.visible_samples.window.total_items,
+            model.visible_samples.total_count
+        );
+        assert_eq!(
+            model.visible_samples.rows.len(),
+            model.visible_samples.window.window_len()
+        );
+        model
+            .visible_samples
+            .rows
+            .iter()
+            .take(4)
+            .map(|row| row.file.stem.clone())
+            .collect::<Vec<_>>()
+    };
+    let frame = crate::native_app::test_support::sample_browser(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+    let rendered_positions = projection_names
+        .iter()
+        .map(|name| {
+            frame
+                .paint_plan
+                .text_runs()
+                .find(|text| text.text.as_str().starts_with(name))
+                .map(|text| text.rect.min.y)
+                .unwrap_or_else(|| panic!("{name} should render from projected row order"))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        rendered_positions.windows(2).all(|pair| pair[0] < pair[1]),
+        "{rendered_positions:?}"
+    );
+}
+
+#[test]
 fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
     assert_eq!(
         crate::native_app::test_support::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,

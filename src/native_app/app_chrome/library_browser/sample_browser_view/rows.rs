@@ -1,6 +1,5 @@
 use radiant::prelude as ui;
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use super::SampleFileHitTarget;
 use super::row_projection::{
@@ -9,7 +8,7 @@ use super::row_projection::{
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::{
-    FileColumn, FileRenameView, FolderBrowserMessage, FolderBrowserState,
+    FileRenameView, FolderBrowserMessage, VisibleSampleList,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -21,35 +20,31 @@ const SIMILARITY_SCORE_TRACK: ui::Rgba8 = ui::Rgba8::new(64, 68, 72, 150);
 const SIMILARITY_SCORE_FILL: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
 
 pub(super) fn sample_browser_rows(
-    folder_browser: &FolderBrowserState,
-    file_count: usize,
-    columns: &[&FileColumn],
-    window: ui::VirtualListWindow,
+    visible_samples: &VisibleSampleList<'_>,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached_sample_paths: &HashSet<String>,
 ) -> ui::View<GuiMessage> {
-    if file_count == 0 {
+    if visible_samples.total_count == 0 {
         return empty_sample_browser_rows();
     }
 
-    ui::virtual_list_windowed(|index| {
-        let Some(file) =
-            folder_browser.selected_audio_file_at_matching_tags(index, metadata_tags_by_file)
-        else {
+    ui::virtual_list_windowed(|index: usize| {
+        let Some(row_index) = index.checked_sub(visible_samples.window.window_start) else {
+            return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
+        };
+        let Some(row) = visible_samples.rows.get(row_index) else {
             return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
         };
         sample_browser_row(sample_row_display(
-            file,
-            folder_browser,
-            columns,
+            row,
+            &visible_samples.columns,
+            visible_samples.similarity_mode_active,
             name_view_mode,
             metadata_tags_by_file,
-            cached_sample_paths.contains(&file.id),
         ))
     })
     .row_height(SAMPLE_BROWSER_ROW_HEIGHT)
-    .window(window)
+    .window(visible_samples.window)
     .overscan_px(SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32)
     .on_window_changed(GuiMessage::SampleBrowserWindowChanged)
     .view()

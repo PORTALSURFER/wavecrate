@@ -5,7 +5,7 @@ use super::SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH;
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::{
-    self, FileColumn, FileEntry, FolderBrowserState,
+    self, FileColumn, FileEntry, VisibleSampleRow,
 };
 
 pub(super) struct SampleRowDisplay<'a> {
@@ -36,57 +36,52 @@ pub(super) enum SampleColumnContent {
 }
 
 pub(super) fn sample_row_display<'a>(
-    file: &'a FileEntry,
-    folder_browser: &FolderBrowserState,
+    row: &'a VisibleSampleRow<'a>,
     columns: &[&'a FileColumn],
+    similarity_mode_active: bool,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached: bool,
 ) -> SampleRowDisplay<'a> {
-    let rename = folder_browser.file_rename_view(&file.id);
+    let file = row.file;
     SampleRowDisplay {
         file_id: file.id.as_str(),
-        selected: folder_browser.is_file_selected(&file.id),
-        drag_revision: folder_browser.drag_revision(),
-        drag_active: folder_browser.file_drag_active(),
-        drag_source: folder_browser.file_drag_source(&file.id),
-        cached,
-        similarity_anchor: folder_browser.file_is_similarity_anchor(&file.id),
-        similarity_strength: folder_browser.similarity_display_strength_for_file(&file.id),
+        selected: row.selected,
+        drag_revision: row.drag_revision,
+        drag_active: row.drag_active,
+        drag_source: row.drag_source,
+        cached: row.cached,
+        similarity_anchor: row.similarity_anchor,
+        similarity_strength: row.similarity_strength,
         columns: sample_column_displays(
             file,
-            rename,
+            row,
             columns,
-            folder_browser,
+            similarity_mode_active,
             name_view_mode,
             metadata_tags_by_file,
-            cached,
         ),
     }
 }
 
 fn sample_column_displays<'a>(
     file: &'a FileEntry,
-    rename: Option<folder_browser::FileRenameView>,
+    row: &'a VisibleSampleRow<'a>,
     columns: &[&'a FileColumn],
-    folder_browser: &FolderBrowserState,
+    similarity_mode_active: bool,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached: bool,
 ) -> Vec<SampleColumnDisplay<'a>> {
     let mut displays = Vec::with_capacity(columns.len() + 1);
     for column in columns {
         displays.push(sample_column_display(
             file,
-            rename.clone(),
+            row,
             column,
-            folder_browser,
             name_view_mode,
             metadata_tags_by_file,
-            cached,
         ));
-        if column.id == "name" && folder_browser.similarity_mode_active() {
-            displays.push(similarity_column_display(file, folder_browser));
+        if column.id == "name" && similarity_mode_active {
+            displays.push(similarity_column_display(file, row));
         }
     }
     displays
@@ -94,44 +89,38 @@ fn sample_column_displays<'a>(
 
 fn similarity_column_display<'a>(
     file: &'a FileEntry,
-    folder_browser: &FolderBrowserState,
+    row: &VisibleSampleRow<'_>,
 ) -> SampleColumnDisplay<'a> {
     SampleColumnDisplay {
         file_id: file.id.as_str(),
         id: "similarity",
         width: SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH,
-        content: SampleColumnContent::Similarity(
-            folder_browser.similarity_display_strength_for_file(&file.id),
-        ),
+        content: SampleColumnContent::Similarity(row.similarity_strength),
     }
 }
 
 fn sample_column_display<'a>(
     file: &'a FileEntry,
-    rename: Option<folder_browser::FileRenameView>,
+    row: &VisibleSampleRow<'_>,
     column: &'a FileColumn,
-    folder_browser: &FolderBrowserState,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-    cached: bool,
 ) -> SampleColumnDisplay<'a> {
     let content = match column.id.as_str() {
-        "name" => rename.map_or_else(
+        "name" => row.rename.clone().map_or_else(
             || SampleColumnContent::Text {
                 value: sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
-                cached,
+                cached: row.cached,
             },
             SampleColumnContent::Rename,
         ),
         "rating" => {
             SampleColumnContent::Rating(RatingIndicator::new(file.rating, file.rating_locked))
         }
-        "collection" => {
-            SampleColumnContent::Collection(sample_collection_colors(file, folder_browser))
-        }
+        "collection" => SampleColumnContent::Collection(row.collection_colors.clone()),
         column_id => SampleColumnContent::Text {
             value: sample_file_column_value(file, column_id),
-            cached,
+            cached: row.cached,
         },
     };
     SampleColumnDisplay {
@@ -188,21 +177,11 @@ fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
     }
 }
 
-fn sample_collection_colors(
-    file: &FileEntry,
-    folder_browser: &FolderBrowserState,
-) -> Vec<ui::Rgba8> {
-    file.collection_memberships()
-        .into_iter()
-        .filter_map(|collection| folder_browser.collection_color(collection))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::sample_library::folder_browser::FolderBrowserState;
-    use wavecrate::sample_sources::{Rating, SampleCollection};
+    use crate::native_app::sample_library::folder_browser::VisibleSampleRow;
+    use wavecrate::sample_sources::Rating;
 
     fn file_entry() -> FileEntry {
         FileEntry {
@@ -271,18 +250,37 @@ mod tests {
 
     #[test]
     fn sample_collection_projection_uses_collection_colors() {
-        let first = SampleCollection::new(0).expect("collection");
-        let third = SampleCollection::new(2).expect("collection");
-        let mut file = file_entry();
-        file.collections = vec![third, first];
-        let folder_browser = FolderBrowserState::load_default();
+        let file = file_entry();
+        let row = VisibleSampleRow {
+            file: &file,
+            selected: false,
+            drag_revision: 0,
+            drag_active: false,
+            drag_source: false,
+            cached: false,
+            rename: None,
+            similarity_anchor: false,
+            similarity_strength: None,
+            collection_colors: vec![ui::Rgba8::new(1, 2, 3, 255), ui::Rgba8::new(4, 5, 6, 255)],
+        };
+        let column = FileColumn {
+            id: String::from("collection"),
+            label: String::from("Collection"),
+            width: 80.0,
+        };
 
-        assert_eq!(
-            sample_collection_colors(&file, &folder_browser),
-            vec![
-                folder_browser.collection_color(first).expect("first color"),
-                folder_browser.collection_color(third).expect("third color"),
-            ]
+        let display = sample_column_display(
+            &file,
+            &row,
+            &column,
+            SampleNameViewMode::DiskFilename,
+            &HashMap::new(),
         );
+
+        assert!(matches!(
+            display.content,
+            SampleColumnContent::Collection(colors)
+                if colors == vec![ui::Rgba8::new(1, 2, 3, 255), ui::Rgba8::new(4, 5, 6, 255)]
+        ));
     }
 }

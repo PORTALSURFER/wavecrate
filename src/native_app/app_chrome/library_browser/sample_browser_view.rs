@@ -34,22 +34,18 @@ pub(in crate::native_app) fn sample_browser(
 ) -> ui::View<GuiMessage> {
     ui::column([
         sample_browser_header_bar(
-            &model.columns,
-            model.folder_browser.file_sort(),
+            &model.visible_samples.columns,
+            model.visible_samples.sort,
             model.drag_feedback.as_ref(),
             model.name_view_mode,
-            model.similarity_mode_active,
+            model.visible_samples.similarity_mode_active,
         ),
         sample_browser_rows(
-            model.folder_browser,
-            model.audio_count,
-            &model.columns,
-            model.window,
+            &model.visible_samples,
             model.name_view_mode,
             model.metadata_tags_by_file,
-            model.cached_sample_paths,
         ),
-        sample_browser_status(model.audio_count),
+        sample_browser_status(model.visible_samples.total_count),
     ])
     .spacing(0.0)
     .style(ui::WidgetStyle::default())

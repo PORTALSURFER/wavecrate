@@ -38,6 +38,10 @@ mod file_selection;
 mod selection_state;
 
 mod file_view_window;
+mod visible_samples;
+pub(in crate::native_app) use visible_samples::{
+    VisibleSampleList, VisibleSampleQuery, VisibleSampleRow,
+};
 
 mod file_rename_workflow;
 
