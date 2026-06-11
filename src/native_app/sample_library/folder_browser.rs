@@ -30,6 +30,8 @@ mod delete_workflow;
 
 mod file_selection;
 
+mod file_selection_model;
+
 mod selection_state;
 
 mod file_view_window;

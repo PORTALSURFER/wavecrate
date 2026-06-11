@@ -1,9 +1,13 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use radiant::{prelude as ui, widgets::PointerModifiers};
+use radiant::widgets::PointerModifiers;
 
-use super::{path_helpers::rewrite_path_id, state::BrowserSelectionState};
+use super::{
+    file_selection_model::{FileSelectionModel, SelectionToggleAdvanceOutcome},
+    path_helpers::rewrite_path_id,
+    state::BrowserSelectionState,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct BrowserSelectionSnapshot {
@@ -13,22 +17,9 @@ pub(super) struct BrowserSelectionSnapshot {
     pub(super) selected_file_ids_explicit: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct SelectionToggleAdvanceOutcome {
-    pub(super) toggled_id: String,
-    pub(super) toggled_selected: bool,
-    pub(super) focused_id: String,
-}
-
 impl BrowserSelectionState {
     pub(super) fn active_file_ids(&self) -> HashSet<String> {
-        if self.selected_file_ids_explicit || !self.selected_file_ids.is_empty() {
-            return self.selected_file_ids.clone();
-        }
-        self.selected_file
-            .as_deref()
-            .map(|id| [id.to_string()].into_iter().collect())
-            .unwrap_or_default()
+        self.file_selection_model().active_ids()
     }
 
     pub(super) fn selected_file_count(&self) -> usize {
@@ -44,7 +35,7 @@ impl BrowserSelectionState {
     }
 
     pub(super) fn selected_file_ids_contains(&self, file_id: &str) -> bool {
-        self.selected_file_ids.contains(file_id)
+        self.file_selection_model().contains_selected_id(file_id)
     }
 
     pub(super) fn selected_collection_active_without_file_focus(&self) -> bool {
@@ -75,10 +66,10 @@ impl BrowserSelectionState {
         if !visible_ids.contains(&id) {
             return false;
         }
-        let mut selection = ui::KeyedListSelection::new();
-        selection.select_with_intent(id, visible_ids, ui::ListSelectionIntent::Replace);
+        let mut selection = self.file_selection_model();
+        let selected = selection.select_single(id, visible_ids);
         self.apply_file_selection_model(selection);
-        true
+        selected
     }
 
     pub(super) fn select_file_with_modifiers(
@@ -91,14 +82,9 @@ impl BrowserSelectionState {
             return false;
         }
         let mut selection = self.file_selection_model();
-        selection.select_with_intent(
-            id,
-            visible_ids,
-            ui::ListSelectionIntent::from_extend_toggle(modifiers.shift, modifiers.command),
-        );
+        let selected = selection.select_with_modifiers(id, visible_ids, modifiers);
         self.apply_file_selection_model(selection);
-        self.selected_file_ids_explicit = modifiers.shift || modifiers.command;
-        true
+        selected
     }
 
     pub(super) fn focus_file_preserving_selection(
@@ -106,19 +92,17 @@ impl BrowserSelectionState {
         id: String,
         visible_ids: &[String],
     ) -> bool {
-        if self.selected_file_ids.contains(&id) && visible_ids.contains(&id) {
-            self.selected_file = Some(id);
-            return true;
-        }
-        self.select_single_file(id, visible_ids)
+        let mut selection = self.file_selection_model();
+        let focused = selection.focus_preserving_selection(id, visible_ids);
+        self.apply_file_selection_model(selection);
+        focused
     }
 
     pub(super) fn select_all_files(&mut self, ids: Vec<String>) -> usize {
         let mut selection = self.file_selection_model();
-        selection.select_all(&ids);
+        let count = selection.select_all(ids);
         self.apply_file_selection_model(selection);
-        self.selected_file_ids_explicit = true;
-        self.selected_file_ids.len()
+        count
     }
 
     pub(super) fn navigate_file(
@@ -127,18 +111,9 @@ impl BrowserSelectionState {
         extend: bool,
         visible_ids: &[String],
     ) -> Option<String> {
-        if self.selected_file_ids_explicit && !extend {
-            return self.navigate_focused_file_preserving_selection(delta, visible_ids);
-        }
-
         let mut selection = self.file_selection_model();
-        let target = if extend {
-            selection.navigate_preserving_existing(delta as isize, visible_ids)?
-        } else {
-            selection.navigate(delta as isize, visible_ids, false)?
-        };
+        let target = selection.navigate(delta, extend, visible_ids)?;
         self.apply_file_selection_model(selection);
-        self.selected_file_ids_explicit = extend;
         Some(target)
     }
 
@@ -146,41 +121,16 @@ impl BrowserSelectionState {
         &mut self,
         visible_ids: &[String],
     ) -> Option<SelectionToggleAdvanceOutcome> {
-        let focused = self.selected_file.as_ref()?;
-        let current_index = visible_ids.iter().position(|id| id == focused)?;
-        let toggled_id = focused.clone();
-        let already_marked =
-            self.selected_file_ids_explicit && self.selected_file_ids.contains(&toggled_id);
-        let toggled_selected = if already_marked {
-            self.selected_file_ids.remove(&toggled_id);
-            false
-        } else {
-            self.selected_file_ids.insert(toggled_id.clone());
-            true
-        };
-        self.selected_file_ids_explicit = true;
-        let focused_id =
-            visible_ids[current_index.saturating_add(1).min(visible_ids.len() - 1)].clone();
-        self.selected_file = Some(focused_id.clone());
-        Some(SelectionToggleAdvanceOutcome {
-            toggled_id,
-            toggled_selected,
-            focused_id,
-        })
+        let mut selection = self.file_selection_model();
+        let outcome = selection.toggle_focused_and_advance(visible_ids)?;
+        self.apply_file_selection_model(selection);
+        Some(outcome)
     }
 
     pub(super) fn retain_visible_files(&mut self, visible_ids: &HashSet<String>) {
-        self.selected_file_ids.retain(|id| visible_ids.contains(id));
-        if self
-            .selected_file
-            .as_ref()
-            .is_some_and(|id| !visible_ids.contains(id))
-        {
-            self.selected_file = None;
-        }
-        if self.selected_file.is_none() && self.selected_file_ids.is_empty() {
-            self.selected_file_ids_explicit = false;
-        }
+        let mut selection = self.file_selection_model();
+        selection.retain_visible(visible_ids);
+        self.apply_file_selection_model(selection);
     }
 
     pub(super) fn select_folder_after_tree_changed(&mut self, folder_id: String) {
@@ -313,34 +263,17 @@ impl BrowserSelectionState {
         }
     }
 
-    fn navigate_focused_file_preserving_selection(
-        &mut self,
-        delta: i32,
-        visible_ids: &[String],
-    ) -> Option<String> {
-        let current = self.selected_file.as_ref()?;
-        let current_index = visible_ids.iter().position(|id| id == current)?;
-        let target_index =
-            ui::list_index_after_delta(current_index, delta as isize, visible_ids.len())?;
-        if target_index == current_index {
-            return None;
-        }
-        let target = visible_ids[target_index].clone();
-        self.selected_file = Some(target.clone());
-        Some(target)
-    }
-
-    fn file_selection_model(&self) -> ui::KeyedListSelection<String> {
-        ui::KeyedListSelection::from_parts(
-            self.selected_file.clone(),
+    fn file_selection_model(&self) -> FileSelectionModel {
+        FileSelectionModel::new(
             self.selected_file.clone(),
             self.selected_file_ids.clone(),
+            self.selected_file_ids_explicit,
         )
     }
 
-    fn apply_file_selection_model(&mut self, selection: ui::KeyedListSelection<String>) {
-        self.selected_file = selection.focused_key().cloned();
-        self.selected_file_ids = selection.selected_keys().iter().cloned().collect();
-        self.selected_file_ids_explicit = false;
+    fn apply_file_selection_model(&mut self, selection: FileSelectionModel) {
+        self.selected_file = selection.focused_id().map(ToOwned::to_owned);
+        self.selected_file_ids = selection.selected_ids().clone();
+        self.selected_file_ids_explicit = selection.explicit();
     }
 }
