@@ -1,96 +1,21 @@
 //! Test-only native-app accessors.
 
-pub(in crate::native_app) use super::metadata::MetadataTagInputMode;
-pub(in crate::native_app) use super::sample_library::context_menu_target::{
-    BrowserContextMenu, BrowserContextTargetKind,
-};
-pub(in crate::native_app) use crate::native_app::app::*;
-pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::SampleFileHitTarget;
-pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser_from_state as sample_browser;
-pub(in crate::native_app) use crate::native_app::app_chrome::settings::{
-    AUDIO_ENGINE_PILL_ID, AUDIO_SETTINGS_POPUP_HEIGHT, GENERAL_SETTINGS_BUTTON_ID, VOLUME_SLIDER_ID,
-};
-pub(in crate::native_app) use crate::native_app::app_chrome::settings::{
-    audio_settings_popover, top_control_bar,
-};
-pub(in crate::native_app) use crate::native_app::app_chrome::toolbar::{
-    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_RANDOM_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button,
-    toolbar_icon_color, toolbar_icon_glyph,
-};
-pub(in crate::native_app) use crate::native_app::audio::sample_load_actions::{
-    KEYBOARD_SAMPLE_LOAD_DEBOUNCE, UNCACHED_SAMPLE_LOAD_DEBOUNCE,
-};
-pub(in crate::native_app) use crate::native_app::sample_library::file_actions::{
-    format_copy_path, normalize_wav_file_in_place,
-};
-pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
-    DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
-};
-pub(in crate::native_app) use crate::native_app::sample_library::sample_list::{
-    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
-};
-pub(in crate::native_app) use crate::native_app::shell::{
-    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEBUG_OVERLAYS_ARG, DEFAULT_WINDOW_TITLE,
-    debug_layout_requested,
-};
-pub(in crate::native_app) use crate::native_app::waveform::{
-    WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID,
-};
-pub(in crate::native_app) use wavecrate::audio::{
-    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, ResolvedOutput,
-};
-pub(in crate::native_app) use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
+mod audio;
+mod config;
+mod context_menu;
+mod sample_browser;
+mod settings;
+mod shell;
+mod state;
+mod toolbar;
+mod waveform;
 
-pub(in crate::native_app) struct NativeAppStateFixture {
-    folder_browser: FolderBrowserState,
-    waveform: Option<WaveformState>,
-    sample_status: String,
-    persisted_settings: AppSettingsCore,
-}
-
-impl Default for NativeAppStateFixture {
-    fn default() -> Self {
-        Self {
-            folder_browser: FolderBrowserState::load_default(),
-            waveform: None,
-            sample_status: String::from("Select a sample to load"),
-            persisted_settings: AppSettingsCore::default(),
-        }
-    }
-}
-
-impl NativeAppStateFixture {
-    pub(in crate::native_app) fn with_synthetic_waveform(mut self) -> Self {
-        self.waveform = Some(WaveformState::synthetic_for_tests());
-        self
-    }
-
-    pub(in crate::native_app) fn with_sample_status(
-        mut self,
-        sample_status: impl Into<String>,
-    ) -> Self {
-        self.sample_status = sample_status.into();
-        self
-    }
-
-    pub(in crate::native_app) fn build(self) -> NativeAppState {
-        NativeAppState {
-            ui: UiAppState::new(
-                ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
-                StatusState::new(self.sample_status),
-                SettingsAppState::new(self.persisted_settings.clone()),
-                StartupState::new(false, false, false),
-            ),
-            library: LibraryAppState::new(self.folder_browser, None),
-            waveform: WaveformAppState::new(
-                self.waveform.unwrap_or_else(|| {
-                    WaveformState::load_default().expect("default waveform state")
-                }),
-            ),
-            background: BackgroundTaskState::for_tests(),
-            audio: AudioAppState::for_tests(),
-            transactions: Default::default(),
-            metadata: MetadataAppState::from_settings(&self.persisted_settings),
-        }
-    }
-}
+pub(in crate::native_app) use audio::*;
+pub(in crate::native_app) use config::*;
+pub(in crate::native_app) use context_menu::*;
+pub(in crate::native_app) use sample_browser::*;
+pub(in crate::native_app) use settings::*;
+pub(in crate::native_app) use shell::*;
+pub(in crate::native_app) use state::*;
+pub(in crate::native_app) use toolbar::*;
+pub(in crate::native_app) use waveform::*;
