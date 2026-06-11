@@ -8,30 +8,8 @@ use radiant::{
 
 use crate::native_app::app::GuiMessage;
 
-pub(super) const SIDEBAR_ROW_HOVER_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 255,
-    b: 255,
-    a: 24,
-};
-pub(super) const SIDEBAR_ROW_PRESSED_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 108,
-    b: 88,
-    a: 170,
-};
-pub(super) const SIDEBAR_ROW_SELECTED_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 82,
-    b: 62,
-    a: 120,
-};
-pub(super) const SIDEBAR_ROW_DROP_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 130,
-    b: 78,
-    a: 220,
-};
+pub(super) const SIDEBAR_ROW_STYLE: ui::WidgetStyle =
+    ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
 
 pub(super) fn sidebar_row_underlay(content: ui::View<GuiMessage>) -> SidebarRowUnderlayBuilder {
     SidebarRowUnderlayBuilder {
@@ -141,7 +119,7 @@ impl ui::EmbeddedInteractiveRowWidget for SidebarRowHitTarget {
         primitives: &mut Vec<PaintPrimitive>,
         bounds: ui::Rect,
         _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
+        theme: &ThemeTokens,
     ) {
         let mut chrome = self.row.dense_chrome_parts(
             ui::InteractiveRowVisualStateParts {
@@ -149,7 +127,7 @@ impl ui::EmbeddedInteractiveRowWidget for SidebarRowHitTarget {
                 active_target: self.active_target,
                 ..ui::InteractiveRowVisualStateParts::default()
             },
-            sidebar_row_palette(self.row.paints_interaction_fill()),
+            sidebar_row_palette(theme, self.row.paints_interaction_fill()),
         );
         if let Some(marker) = self.leading_marker {
             chrome = chrome.leading_marker(marker);
@@ -158,15 +136,44 @@ impl ui::EmbeddedInteractiveRowWidget for SidebarRowHitTarget {
     }
 }
 
-pub(super) fn sidebar_row_palette(paints_interaction: bool) -> ui::DenseRowPalette {
-    ui::DenseRowPalette::new()
-        .selected(SIDEBAR_ROW_SELECTED_FILL)
-        .interaction_fills_if(
-            paints_interaction,
-            SIDEBAR_ROW_HOVER_FILL,
-            SIDEBAR_ROW_PRESSED_FILL,
-        )
-        .active_target(SIDEBAR_ROW_DROP_TARGET_FILL)
+pub(super) fn sidebar_row_palette(
+    theme: &ThemeTokens,
+    paints_interaction: bool,
+) -> ui::DenseRowPalette {
+    let palette = ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE);
+    if paints_interaction {
+        palette
+    } else {
+        ui::DenseRowPalette::new()
+            .selected(palette.selected.expect("dense-row selected fill"))
+            .active_target(palette.active_target.expect("dense-row active-target fill"))
+    }
+}
+
+#[cfg(test)]
+pub(super) fn sidebar_row_palette_for_tests() -> ui::DenseRowPalette {
+    ui::dense_row_palette_from_style(&ThemeTokens::default(), SIDEBAR_ROW_STYLE)
+}
+
+#[cfg(test)]
+pub(super) fn sidebar_row_hover_fill_for_tests() -> ui::Rgba8 {
+    sidebar_row_palette_for_tests()
+        .hovered
+        .expect("dense-row hover fill")
+}
+
+#[cfg(test)]
+pub(super) fn sidebar_row_selected_fill_for_tests() -> ui::Rgba8 {
+    sidebar_row_palette_for_tests()
+        .selected
+        .expect("dense-row selected fill")
+}
+
+#[cfg(test)]
+pub(super) fn sidebar_row_active_target_fill_for_tests() -> ui::Rgba8 {
+    sidebar_row_palette_for_tests()
+        .active_target
+        .expect("dense-row active-target fill")
 }
 
 #[cfg(test)]
@@ -194,7 +201,7 @@ mod tests {
 
         assert!(
             plan.fill_rects()
-                .any(|fill| fill.color == SIDEBAR_ROW_HOVER_FILL),
+                .any(|fill| fill.color == sidebar_row_hover_fill_for_tests()),
             "hovered sidebar rows should use the neutral sample-list hover fill"
         );
     }
@@ -209,13 +216,13 @@ mod tests {
 
         assert!(
             plan.fill_rects()
-                .any(|fill| fill.color == SIDEBAR_ROW_HOVER_FILL),
+                .any(|fill| fill.color == sidebar_row_hover_fill_for_tests()),
             "hover should stay neutral even when a sidebar row is selected"
         );
         assert!(
             !plan
                 .fill_rects()
-                .any(|fill| fill.color == SIDEBAR_ROW_SELECTED_FILL),
+                .any(|fill| fill.color == sidebar_row_selected_fill_for_tests()),
             "hover fill has priority over the selected fill"
         );
     }
@@ -229,7 +236,7 @@ mod tests {
 
         assert!(
             plan.fill_rects()
-                .any(|fill| fill.color == SIDEBAR_ROW_SELECTED_FILL),
+                .any(|fill| fill.color == sidebar_row_selected_fill_for_tests()),
             "selected sidebar rows should use the orange selected/focused highlight"
         );
     }

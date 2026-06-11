@@ -163,7 +163,8 @@ fn collection_count(count: usize) -> ui::View<GuiMessage> {
 mod tests {
     use super::*;
     use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
-        SIDEBAR_ROW_DROP_TARGET_FILL, SIDEBAR_ROW_HOVER_FILL, sidebar_row_palette,
+        sidebar_row_active_target_fill_for_tests, sidebar_row_hover_fill_for_tests,
+        sidebar_row_palette_for_tests,
     };
     use crate::native_app::sample_library::folder_browser::FolderBrowserState;
     use radiant::prelude::IntoView;
@@ -224,7 +225,7 @@ mod tests {
             .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, COLLECTION_ROW_HEIGHT));
 
         assert!(frame.paint_plan.fill_rects().any(|fill| {
-            fill.color == SIDEBAR_ROW_DROP_TARGET_FILL
+            fill.color == sidebar_row_active_target_fill_for_tests()
                 && fill.rect.width() == 180.0
                 && fill.rect.height() == COLLECTION_ROW_HEIGHT
         }));
@@ -233,16 +234,16 @@ mod tests {
     #[test]
     fn collection_rows_use_shared_grey_sidebar_hover_fill() {
         assert_eq!(
-            sidebar_row_palette(true).hovered,
-            Some(SIDEBAR_ROW_HOVER_FILL)
+            sidebar_row_palette_for_tests().hovered,
+            Some(sidebar_row_hover_fill_for_tests())
         );
     }
 
     #[test]
     fn collection_drop_target_keeps_distinct_target_fill() {
         assert_eq!(
-            sidebar_row_palette(true).active_target,
-            Some(SIDEBAR_ROW_DROP_TARGET_FILL)
+            sidebar_row_palette_for_tests().active_target,
+            Some(sidebar_row_active_target_fill_for_tests())
         );
     }
 

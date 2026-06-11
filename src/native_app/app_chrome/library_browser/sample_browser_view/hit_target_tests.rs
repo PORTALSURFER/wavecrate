@@ -30,7 +30,16 @@ fn sample_hit_target(
 
 /// Reports whether the paint plan contains the row hover fill.
 fn paints_hover_fill(plan: &SurfacePaintPlan) -> bool {
-    plan.fill_rects().any(|fill| fill.color == HOVER_FILL)
+    let hover = sample_row_palette_for_tests()
+        .hovered
+        .expect("dense-row hover fill");
+    plan.fill_rects().any(|fill| fill.color == hover)
+}
+
+fn selected_fill() -> Rgba8 {
+    sample_row_palette_for_tests()
+        .selected
+        .expect("dense-row selected fill")
 }
 
 fn is_hovered(target: &SampleFileHitTarget) -> bool {
@@ -187,13 +196,7 @@ fn hover_fill_is_neutral_not_selection_red() {
     let plan = target.paint_plan_with_defaults(bounds);
 
     assert!(paints_hover_fill(&plan));
-    assert!(!plan.fill_rects().any(|fill| fill.color
-        == Rgba8 {
-            r: 255,
-            g: 82,
-            b: 62,
-            a: 120
-        }));
+    assert!(!plan.fill_rects().any(|fill| fill.color == selected_fill()));
 }
 
 #[test]

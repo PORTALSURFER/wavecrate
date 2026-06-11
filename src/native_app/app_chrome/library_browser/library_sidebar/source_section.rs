@@ -75,7 +75,7 @@ fn active_source_marker() -> ui::DenseRowMarkerStyle {
 mod tests {
     use super::*;
     use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
-        SIDEBAR_ROW_HOVER_FILL, sidebar_row_palette,
+        sidebar_row_hover_fill_for_tests, sidebar_row_palette_for_tests,
     };
     use crate::native_app::sample_library::folder_browser::{
         FolderBrowserState, model::SourceEntry,
@@ -176,8 +176,8 @@ mod tests {
     #[test]
     fn source_rows_use_shared_grey_sidebar_hover_fill() {
         assert_eq!(
-            sidebar_row_palette(true).hovered,
-            Some(SIDEBAR_ROW_HOVER_FILL)
+            sidebar_row_palette_for_tests().hovered,
+            Some(sidebar_row_hover_fill_for_tests())
         );
     }
 }

@@ -7,18 +7,7 @@ use radiant::widgets::{InteractiveRowWidget, PointerModifiers};
 
 use crate::native_app::app::GuiMessage;
 
-const HOVER_FILL: Rgba8 = Rgba8 {
-    r: 255,
-    g: 255,
-    b: 255,
-    a: 24,
-};
-const PRESSED_FILL: Rgba8 = Rgba8 {
-    r: 255,
-    g: 108,
-    b: 88,
-    a: 170,
-};
+const SAMPLE_ROW_STYLE: ui::WidgetStyle = ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct SampleFileHitTarget {
@@ -83,22 +72,22 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
         _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
+        theme: &ThemeTokens,
     ) {
         self.row
-            .push_dense_chrome(primitives, bounds, self.chrome_parts());
+            .push_dense_chrome(primitives, bounds, self.chrome_parts(theme));
     }
 }
 
 impl SampleFileHitTarget {
-    fn chrome_parts(&self) -> ui::DenseRowChromeParts {
+    fn chrome_parts(&self, theme: &ThemeTokens) -> ui::DenseRowChromeParts {
         self.row
             .dense_chrome_parts(
                 ui::InteractiveRowVisualStateParts {
                     selected: self.selected,
                     ..ui::InteractiveRowVisualStateParts::default()
                 },
-                self.chrome_palette(),
+                self.chrome_palette(theme),
             )
             .trailing_marker_if(
                 self.cached && !self.selected,
@@ -126,16 +115,19 @@ impl SampleFileHitTarget {
             )
     }
 
-    fn chrome_palette(&self) -> ui::DenseRowPalette {
-        ui::DenseRowPalette::new()
-            .selected(Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 120,
-            })
-            .interaction_fills_if(self.row.paints_interaction_fill(), HOVER_FILL, PRESSED_FILL)
+    fn chrome_palette(&self, theme: &ThemeTokens) -> ui::DenseRowPalette {
+        let palette = ui::dense_row_palette_from_style(theme, SAMPLE_ROW_STYLE);
+        if self.row.paints_interaction_fill() {
+            palette
+        } else {
+            ui::DenseRowPalette::new().selected(palette.selected.expect("dense-row selected fill"))
+        }
     }
+}
+
+#[cfg(test)]
+fn sample_row_palette_for_tests() -> ui::DenseRowPalette {
+    ui::dense_row_palette_from_style(&ThemeTokens::default(), SAMPLE_ROW_STYLE)
 }
 
 #[cfg(test)]

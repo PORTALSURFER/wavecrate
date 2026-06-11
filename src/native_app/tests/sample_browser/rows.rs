@@ -1,5 +1,12 @@
 use super::*;
 
+fn shared_dense_row_palette() -> radiant::prelude::DenseRowPalette {
+    radiant::prelude::dense_row_palette_from_style(
+        &radiant::prelude::ThemeTokens::default(),
+        radiant::prelude::WidgetStyle::subtle(radiant::prelude::WidgetTone::Accent),
+    )
+}
+
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::native_app::test_support::NativeAppState::load_default()
@@ -99,15 +106,15 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
     let bounds = Rect::from_xy_size(12.0, 8.0, 240.0, 22.0);
     let plan = widget.paint_plan_with_defaults(bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
+    let selected_fill = shared_dense_row_palette()
+        .selected
+        .expect("dense-row selected fill");
 
-    assert!(fills.iter().any(|fill| fill.rect == bounds
-        && fill.color
-            == Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 120,
-            }));
+    assert!(
+        fills
+            .iter()
+            .any(|fill| fill.rect == bounds && fill.color == selected_fill)
+    );
     assert!(fills.iter().any(|fill| {
         fill.color
             == Rgba8 {
@@ -132,16 +139,14 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
 
     let plan = hit_target.paint_plan_with_defaults(bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
+    let hover_fill = shared_dense_row_palette()
+        .hovered
+        .expect("dense-row hover fill");
 
     assert!(
-        fills.iter().any(|fill| fill.rect == bounds
-            && fill.color
-                == Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 24,
-                }),
+        fills
+            .iter()
+            .any(|fill| fill.rect == bounds && fill.color == hover_fill),
         "{fills:?}"
     );
 }

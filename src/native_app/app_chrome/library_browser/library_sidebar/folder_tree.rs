@@ -1,9 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
-    SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL, SIDEBAR_ROW_SELECTED_FILL,
-};
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
@@ -13,24 +11,6 @@ use crate::native_app::sample_library::folder_browser::{
 };
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
-const FOLDER_TREE_GUIDE_COLOR: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 126,
-    b: 64,
-    a: 152,
-};
-const FOLDER_TREE_ACTIVE_TARGET_FILL: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 130,
-    b: 78,
-    a: 220,
-};
-const FOLDER_TREE_DROP_OUTLINE: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 180,
-    b: 130,
-    a: 235,
-};
 const FOLDER_TREE_HIGHLIGHTED_LABEL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
     g: 238,
@@ -192,19 +172,19 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
 }
 
 fn folder_tree_palette() -> ui::DenseRowPalette {
-    ui::DenseRowPalette::new()
-        .selected(SIDEBAR_ROW_SELECTED_FILL)
-        .interaction_fills(SIDEBAR_ROW_HOVER_FILL, SIDEBAR_ROW_PRESSED_FILL)
-        .active_target(FOLDER_TREE_ACTIVE_TARGET_FILL)
-        .candidate_hovered(SIDEBAR_ROW_HOVER_FILL)
+    ui::dense_row_palette_from_style(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE)
 }
 
 fn folder_tree_drop_target_outline() -> ui::DenseRowOutlineStyle {
-    ui::DenseRowOutlineStyle::new(0.5, FOLDER_TREE_DROP_OUTLINE, 1.5)
+    ui::dense_row_drop_outline_from_style(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE)
 }
 
 fn folder_tree_guide_style() -> ui::TreeGuideStyle {
-    ui::TreeGuideStyle::new(TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, FOLDER_TREE_GUIDE_COLOR)
+    ui::TreeGuideStyle::new(
+        TREE_DEPTH_INDENT,
+        TREE_ROW_HEIGHT,
+        ui::dense_row_tree_guide_color(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE),
+    )
 }
 
 fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
@@ -230,9 +210,11 @@ mod tests {
     #[test]
     fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
         let palette = folder_tree_palette();
+        let expected =
+            ui::dense_row_palette_from_style(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE);
 
-        assert_eq!(palette.hovered, Some(SIDEBAR_ROW_HOVER_FILL));
-        assert_eq!(palette.candidate_hovered, Some(SIDEBAR_ROW_HOVER_FILL));
-        assert_eq!(palette.selected, Some(SIDEBAR_ROW_SELECTED_FILL));
+        assert_eq!(palette.hovered, expected.hovered);
+        assert_eq!(palette.candidate_hovered, expected.candidate_hovered);
+        assert_eq!(palette.selected, expected.selected);
     }
 }
