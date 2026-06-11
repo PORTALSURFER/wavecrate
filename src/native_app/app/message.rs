@@ -78,34 +78,7 @@ pub(in crate::native_app) enum GuiMessage {
     StopPlayback,
     ToggleLoopPlayback,
     Settings(SettingsMessage),
-    FocusMetadataTagInput,
-    MetadataTagInput(radiant::widgets::TextInputMessage),
-    CancelMetadataTagEntry,
-    MoveMetadataTagCompletion(i32),
-    HoverMetadataTagCompletion(String),
-    SelectMetadataTagCompletion(String),
-    ToggleMetadataTagLibrary,
-    ToggleMetadataTagCategory(String),
-    SelectMetadataTag(String),
-    ToggleMetadataTag(String),
-    DragMetadataTag {
-        tag: String,
-        drag: DragHandleMessage,
-    },
-    HoverMetadataTagDropCategory {
-        category_id: String,
-    },
-    DropMetadataTagOnCategory {
-        category_id: String,
-    },
-    OpenMetadataTagContextMenu {
-        tag: String,
-        position: ui::Point,
-    },
-    DeleteContextMetadataTag,
-    DeleteSelectedMetadataTag,
-    MetadataTagsPersisted(MetadataTagPersistResult),
-    ToggleSampleNameViewMode,
+    Metadata(MetadataMessage),
     FocusLoadedFile,
     AdjustSelectedRating(i8),
     AssignSelectedCollection(SampleCollection),
@@ -144,6 +117,38 @@ pub(in crate::native_app) enum GuiMessage {
     Waveform(WaveformInteraction),
     WaveformFileDrop(NativeFileDrop),
     Frame,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) enum MetadataMessage {
+    FocusMetadataTagInput,
+    MetadataTagInput(radiant::widgets::TextInputMessage),
+    CancelMetadataTagEntry,
+    MoveMetadataTagCompletion(i32),
+    HoverMetadataTagCompletion(String),
+    SelectMetadataTagCompletion(String),
+    ToggleMetadataTagLibrary,
+    ToggleMetadataTagCategory(String),
+    SelectMetadataTag(String),
+    ToggleMetadataTag(String),
+    DragMetadataTag {
+        tag: String,
+        drag: DragHandleMessage,
+    },
+    HoverMetadataTagDropCategory {
+        category_id: String,
+    },
+    DropMetadataTagOnCategory {
+        category_id: String,
+    },
+    OpenMetadataTagContextMenu {
+        tag: String,
+        position: ui::Point,
+    },
+    DeleteContextMetadataTag,
+    DeleteSelectedMetadataTag,
+    MetadataTagsPersisted(MetadataTagPersistResult),
+    ToggleSampleNameViewMode,
 }
 
 #[derive(Clone, Debug, PartialEq)]

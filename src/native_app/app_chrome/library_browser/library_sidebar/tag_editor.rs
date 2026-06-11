@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::GuiMessage;
+use crate::native_app::app::{GuiMessage, MetadataMessage};
 use crate::native_app::app_chrome::view_models::library_sidebar::TagEditorViewModel;
 use crate::native_app::metadata::MetadataTagDisplayCategory;
 use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_pill_style};
@@ -158,7 +158,7 @@ fn tag_text_input(
     }
 
     input
-        .message_event(GuiMessage::MetadataTagInput)
+        .message_event(|message| GuiMessage::Metadata(MetadataMessage::MetadataTagInput(message)))
         .id(METADATA_TAG_INPUT_ID)
         .key("metadata-tag-input")
         .size(width, TAG_FIELD_CONTROL_HEIGHT)
@@ -206,8 +206,10 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
         .active(active)
         .actions(ui::InteractiveRowActions::new().activate_secondary_key(
             tag_for_input,
-            GuiMessage::SelectMetadataTag,
-            |tag, position| GuiMessage::OpenMetadataTagContextMenu { tag, position },
+            |tag| GuiMessage::Metadata(MetadataMessage::SelectMetadataTag(tag)),
+            |tag, position| {
+                GuiMessage::Metadata(MetadataMessage::OpenMetadataTagContextMenu { tag, position })
+            },
         ))
         .key(format!("metadata-tag-accepted-{tag}"))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
@@ -280,7 +282,9 @@ fn metadata_header_trailing(tag_count: Option<usize>) -> ui::View<GuiMessage> {
 
 fn metadata_tag_library_toggle() -> ui::View<GuiMessage> {
     let toggle = ui::disclosure_button(false)
-        .message(GuiMessage::ToggleMetadataTagLibrary)
+        .message(GuiMessage::Metadata(
+            MetadataMessage::ToggleMetadataTagLibrary,
+        ))
         .key("metadata-tag-library-toggle")
         .size(24.0, 20.0);
     #[cfg(test)]

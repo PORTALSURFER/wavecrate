@@ -14,7 +14,7 @@ pub(in crate::native_app) use drop::NativeFileDropHover;
 pub(in crate::native_app) use loading::{
     PendingPlaybackStart, PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady,
 };
-pub(in crate::native_app) use message::{GuiMessage, SettingsMessage};
+pub(in crate::native_app) use message::{GuiMessage, MetadataMessage, SettingsMessage};
 pub(in crate::native_app) use progress::{NormalizationProgress, NormalizationResult};
 pub(in crate::native_app) use settings::{
     AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,

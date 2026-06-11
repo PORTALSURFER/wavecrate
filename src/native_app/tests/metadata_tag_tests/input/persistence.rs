@@ -27,11 +27,9 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         .select_file(selected_file.clone());
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick, Warm Tone"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick, Warm Tone"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -82,11 +80,9 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
     let mut state = gui_state_for_span_tests();
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("kick, warm tone"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("kick, warm tone"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 

@@ -8,11 +8,9 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -25,11 +23,9 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
     assert_eq!(state.ui.status.sample, "Choose a category for deep-kick");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("sound"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("sound"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -42,11 +38,9 @@ fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("sound"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("sound"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -75,11 +69,9 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -99,7 +91,7 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
     assert!(state.metadata_tag_completion_active());
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
+        move_metadata_tag_completion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -112,11 +104,9 @@ fn metadata_tag_category_selection_shows_all_options_immediately() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::new(),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::new(),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -142,17 +132,13 @@ fn metadata_tag_category_hover_updates_active_selection() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::HoverMetadataTagCompletion(String::from(
-            "Character",
-        )),
+        hover_metadata_tag_completion(String::from("Character")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -166,11 +152,9 @@ fn metadata_tag_category_hover_updates_active_selection() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::new(),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::new(),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -196,21 +180,17 @@ fn metadata_tag_category_keyboard_navigation_continues_from_hover_selection() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::HoverMetadataTagCompletion(String::from(
-            "Character",
-        )),
+        hover_metadata_tag_completion(String::from("Character")),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
+        move_metadata_tag_completion(1),
         &mut ui::UpdateContext::default(),
     );
 
@@ -232,19 +212,15 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("sound"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("sound"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -252,7 +228,7 @@ fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
     assert!(state.metadata_tag_completion_active());
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::CancelMetadataTagEntry,
+        cancel_metadata_tag_entry(),
         &mut ui::UpdateContext::default(),
     );
 
@@ -273,17 +249,13 @@ fn metadata_tag_category_invalid_completion_selection_keeps_enter_commit_availab
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("Deep Kick"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectMetadataTagCompletion(String::from(
-            "Not a category",
-        )),
+        select_metadata_tag_completion(String::from("Not a category")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -292,11 +264,9 @@ fn metadata_tag_category_invalid_completion_selection_keeps_enter_commit_availab
     assert_eq!(state.ui.status.sample, "Choose a category for deep-kick");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("sound"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("sound"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 

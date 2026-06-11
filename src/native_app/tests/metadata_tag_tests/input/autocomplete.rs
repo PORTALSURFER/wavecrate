@@ -10,11 +10,9 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -31,11 +29,9 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -54,19 +50,15 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::CompletionRequested {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::CompletionRequested {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -81,11 +73,9 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -104,27 +94,21 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::CompletionRequested {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::CompletionRequested {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::CompletionRequested {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::CompletionRequested {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -138,11 +122,9 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 
@@ -166,11 +148,9 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -183,7 +163,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
+        move_metadata_tag_completion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -196,7 +176,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
+        move_metadata_tag_completion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -209,7 +189,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MoveMetadataTagCompletion(1),
+        move_metadata_tag_completion(1),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(
@@ -222,11 +202,9 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::Submitted {
-                value: String::from("ki"),
-            },
-        ),
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("ki"),
+        }),
         &mut ui::UpdateContext::default(),
     );
 

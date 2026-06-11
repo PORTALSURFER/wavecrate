@@ -1,4 +1,7 @@
-use super::gui_state_for_span_tests;
+use super::{
+    cancel_metadata_tag_entry, delete_selected_metadata_tag, focus_metadata_tag_input,
+    gui_state_for_span_tests,
+};
 use crate::native_app::test_support::{
     DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEBUG_OVERLAYS_ARG, NativeAppState,
     debug_layout_requested,
@@ -226,10 +229,7 @@ fn metadata_tag_category_escape_shortcut_cancels_tag_entry() {
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
 
-    assert_eq!(
-        resolution.action,
-        Some(crate::native_app::test_support::GuiMessage::CancelMetadataTagEntry)
-    );
+    assert_eq!(resolution.action, Some(cancel_metadata_tag_entry()));
     assert!(resolution.handled);
 }
 
@@ -422,10 +422,7 @@ fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Delete));
 
-    assert_eq!(
-        resolution.action,
-        Some(crate::native_app::test_support::GuiMessage::DeleteSelectedMetadataTag)
-    );
+    assert_eq!(resolution.action, Some(delete_selected_metadata_tag()));
     assert!(resolution.handled);
 }
 
@@ -461,10 +458,7 @@ fn backquote_shortcut_routes_to_metadata_tag_input_focus() {
     let resolution = crate::native_app::test_support::default_gui_shortcuts(&state)
         .resolve(ui::KeyPress::new(ui::KeyCode::Backquote));
 
-    assert_eq!(
-        resolution.action,
-        Some(crate::native_app::test_support::GuiMessage::FocusMetadataTagInput)
-    );
+    assert_eq!(resolution.action, Some(focus_metadata_tag_input()));
     assert!(resolution.handled);
 }
 

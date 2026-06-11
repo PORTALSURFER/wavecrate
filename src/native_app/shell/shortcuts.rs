@@ -1,6 +1,8 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{FolderBrowserMessage, GuiMessage, NativeAppState, SettingsMessage};
+use crate::native_app::app::{
+    FolderBrowserMessage, GuiMessage, MetadataMessage, NativeAppState, SettingsMessage,
+};
 
 pub(in crate::native_app) fn default_gui_shortcuts(
     state: &NativeAppState,
@@ -56,15 +58,15 @@ fn metadata_tag_completion_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
     ui::ShortcutLayer::new()
         .bind(
             ui::KeyPress::new(ui::KeyCode::Escape),
-            GuiMessage::CancelMetadataTagEntry,
+            GuiMessage::Metadata(MetadataMessage::CancelMetadataTagEntry),
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowUp),
-            GuiMessage::MoveMetadataTagCompletion(-1),
+            GuiMessage::Metadata(MetadataMessage::MoveMetadataTagCompletion(-1)),
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowDown),
-            GuiMessage::MoveMetadataTagCompletion(1),
+            GuiMessage::Metadata(MetadataMessage::MoveMetadataTagCompletion(1)),
         )
 }
 
@@ -74,7 +76,7 @@ fn selected_metadata_tag_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::Delete),
             ui::KeyPress::new(ui::KeyCode::Backspace),
         ],
-        GuiMessage::DeleteSelectedMetadataTag,
+        GuiMessage::Metadata(MetadataMessage::DeleteSelectedMetadataTag),
     )
 }
 
@@ -133,7 +135,7 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::Backquote),
-            GuiMessage::FocusMetadataTagInput,
+            GuiMessage::Metadata(MetadataMessage::FocusMetadataTagInput),
         )
         .bind(
             ui::KeyPress::with_command(ui::KeyCode::A),

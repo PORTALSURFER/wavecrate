@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 
 #[cfg(test)]
 use crate::native_app::app::NativeAppState;
-use crate::native_app::app::{GuiMessage, SampleNameViewMode};
+use crate::native_app::app::{GuiMessage, MetadataMessage, SampleNameViewMode};
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::FileColumn;
@@ -123,7 +123,9 @@ fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage
         SampleNameViewMode::MetadataLabel => "Label",
     };
     ui::button(label)
-        .message(GuiMessage::ToggleSampleNameViewMode)
+        .message(GuiMessage::Metadata(
+            MetadataMessage::ToggleSampleNameViewMode,
+        ))
         .key("sample-name-view-mode-toggle")
         .size(58.0, 22.0)
 }

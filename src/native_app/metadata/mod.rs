@@ -1,4 +1,5 @@
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app::MetadataMessage;
 use crate::native_app::app::NativeAppState;
 use radiant::prelude as ui;
 use radiant::widgets::{TextInputMessage, TextInputMessageKind};

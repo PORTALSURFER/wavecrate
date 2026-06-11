@@ -2,8 +2,8 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::app::{
-    AudioSettingsDropdown, GuiMessage, NativeAppState, SettingsMessage, WaveformActiveDragKind,
-    WaveformInteraction, WaveformSelectionKind, emit_gui_action,
+    AudioSettingsDropdown, GuiMessage, MetadataMessage, NativeAppState, SettingsMessage,
+    WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, emit_gui_action,
 };
 
 impl NativeAppState {
@@ -79,6 +79,67 @@ impl NativeAppState {
             SettingsMessage::PickTrashFolder => self.pick_trash_folder(context),
             SettingsMessage::ClearTrashFolder => self.clear_trash_folder(),
             SettingsMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
+        }
+    }
+
+    fn apply_metadata_message(
+        &mut self,
+        message: MetadataMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        match message {
+            MetadataMessage::FocusMetadataTagInput => {
+                self.focus_metadata_tag_input(context);
+            }
+            MetadataMessage::MetadataTagInput(message) => {
+                self.apply_metadata_tag_input(message, context)
+            }
+            MetadataMessage::CancelMetadataTagEntry => {
+                self.cancel_metadata_tag_entry();
+            }
+            MetadataMessage::MoveMetadataTagCompletion(delta) => {
+                self.move_metadata_tag_completion_selection(delta);
+            }
+            MetadataMessage::HoverMetadataTagCompletion(value) => {
+                self.hover_metadata_tag_completion(value);
+            }
+            MetadataMessage::SelectMetadataTagCompletion(value) => {
+                self.submit_selected_metadata_tag_completion(value, context);
+            }
+            MetadataMessage::ToggleMetadataTagLibrary => self.toggle_metadata_tag_library(),
+            MetadataMessage::ToggleMetadataTagCategory(category_id) => {
+                self.toggle_metadata_tag_category(category_id);
+            }
+            MetadataMessage::SelectMetadataTag(tag) => {
+                self.select_metadata_tag(tag);
+            }
+            MetadataMessage::ToggleMetadataTag(tag) => {
+                self.toggle_metadata_tag(tag, context);
+            }
+            MetadataMessage::DragMetadataTag { tag, drag } => {
+                self.drag_metadata_tag(tag, drag, context);
+            }
+            MetadataMessage::HoverMetadataTagDropCategory { category_id } => {
+                self.hover_metadata_tag_drop_category(category_id);
+            }
+            MetadataMessage::DropMetadataTagOnCategory { category_id } => {
+                self.drop_metadata_tag_on_category(category_id, context);
+            }
+            MetadataMessage::OpenMetadataTagContextMenu { tag, position } => {
+                self.open_metadata_tag_context_menu(tag, position);
+            }
+            MetadataMessage::DeleteContextMetadataTag => {
+                self.delete_context_metadata_tag(context);
+            }
+            MetadataMessage::DeleteSelectedMetadataTag => {
+                self.remove_selected_metadata_tag(context);
+            }
+            MetadataMessage::MetadataTagsPersisted(result) => {
+                self.finish_metadata_tag_persist(result);
+            }
+            MetadataMessage::ToggleSampleNameViewMode => {
+                self.metadata.sample_name_view_mode = self.metadata.sample_name_view_mode.toggled();
+            }
         }
     }
 
@@ -171,56 +232,7 @@ impl NativeAppState {
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
             GuiMessage::Settings(message) => self.apply_settings_message(message, context),
-            GuiMessage::FocusMetadataTagInput => {
-                self.focus_metadata_tag_input(context);
-            }
-            GuiMessage::MetadataTagInput(message) => {
-                self.apply_metadata_tag_input(message, context)
-            }
-            GuiMessage::CancelMetadataTagEntry => {
-                self.cancel_metadata_tag_entry();
-            }
-            GuiMessage::MoveMetadataTagCompletion(delta) => {
-                self.move_metadata_tag_completion_selection(delta);
-            }
-            GuiMessage::HoverMetadataTagCompletion(value) => {
-                self.hover_metadata_tag_completion(value);
-            }
-            GuiMessage::SelectMetadataTagCompletion(value) => {
-                self.submit_selected_metadata_tag_completion(value, context);
-            }
-            GuiMessage::ToggleMetadataTagLibrary => self.toggle_metadata_tag_library(),
-            GuiMessage::ToggleMetadataTagCategory(category_id) => {
-                self.toggle_metadata_tag_category(category_id);
-            }
-            GuiMessage::SelectMetadataTag(tag) => {
-                self.select_metadata_tag(tag);
-            }
-            GuiMessage::ToggleMetadataTag(tag) => {
-                self.toggle_metadata_tag(tag, context);
-            }
-            GuiMessage::DragMetadataTag { tag, drag } => {
-                self.drag_metadata_tag(tag, drag, context);
-            }
-            GuiMessage::HoverMetadataTagDropCategory { category_id } => {
-                self.hover_metadata_tag_drop_category(category_id);
-            }
-            GuiMessage::DropMetadataTagOnCategory { category_id } => {
-                self.drop_metadata_tag_on_category(category_id, context);
-            }
-            GuiMessage::OpenMetadataTagContextMenu { tag, position } => {
-                self.open_metadata_tag_context_menu(tag, position);
-            }
-            GuiMessage::DeleteContextMetadataTag => {
-                self.delete_context_metadata_tag(context);
-            }
-            GuiMessage::DeleteSelectedMetadataTag => {
-                self.remove_selected_metadata_tag(context);
-            }
-            GuiMessage::MetadataTagsPersisted(result) => self.finish_metadata_tag_persist(result),
-            GuiMessage::ToggleSampleNameViewMode => {
-                self.metadata.sample_name_view_mode = self.metadata.sample_name_view_mode.toggled();
-            }
+            GuiMessage::Metadata(message) => self.apply_metadata_message(message, context),
             GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),
             GuiMessage::AdjustSelectedRating(delta) => self.adjust_selected_rating(delta, context),
             GuiMessage::AssignSelectedCollection(collection) => {

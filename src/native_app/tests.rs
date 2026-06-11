@@ -82,6 +82,64 @@ fn reduce_gui_message_for_tests(
     context.into_command()
 }
 
+fn metadata_message(
+    message: super::test_support::MetadataMessage,
+) -> super::test_support::GuiMessage {
+    super::test_support::GuiMessage::Metadata(message)
+}
+
+fn focus_metadata_tag_input() -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::FocusMetadataTagInput)
+}
+
+fn metadata_tag_input(
+    message: radiant::widgets::TextInputMessage,
+) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::MetadataTagInput(
+        message,
+    ))
+}
+
+fn cancel_metadata_tag_entry() -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::CancelMetadataTagEntry)
+}
+
+fn move_metadata_tag_completion(delta: i32) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::MoveMetadataTagCompletion(delta))
+}
+
+fn hover_metadata_tag_completion(value: String) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::HoverMetadataTagCompletion(value))
+}
+
+fn select_metadata_tag_completion(value: String) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::SelectMetadataTagCompletion(value))
+}
+
+fn toggle_metadata_tag_library() -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::ToggleMetadataTagLibrary)
+}
+
+fn toggle_metadata_tag_category(category_id: String) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::ToggleMetadataTagCategory(category_id))
+}
+
+fn select_metadata_tag(tag: String) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::SelectMetadataTag(tag))
+}
+
+fn toggle_metadata_tag(tag: String) -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::ToggleMetadataTag(tag))
+}
+
+fn delete_selected_metadata_tag() -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::DeleteSelectedMetadataTag)
+}
+
+fn toggle_sample_name_view_mode() -> super::test_support::GuiMessage {
+    metadata_message(super::test_support::MetadataMessage::ToggleSampleNameViewMode)
+}
+
 fn native_app_state_with_temp_sample(name: &str) -> (NativeAppState, tempfile::TempDir, String) {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");

@@ -2,7 +2,7 @@
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::GuiMessage;
+use crate::native_app::app::{GuiMessage, MetadataMessage};
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
@@ -18,7 +18,11 @@ pub(in crate::native_app) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiM
 fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMessage>> {
     if menu.kind == BrowserContextTargetKind::MetadataTag {
         return vec![
-            ui::MenuCommand::new("Delete Tag", GuiMessage::DeleteContextMetadataTag).danger(),
+            ui::MenuCommand::new(
+                "Delete Tag",
+                GuiMessage::Metadata(MetadataMessage::DeleteContextMetadataTag),
+            )
+            .danger(),
         ];
     }
 

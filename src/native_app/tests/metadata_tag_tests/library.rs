@@ -36,11 +36,11 @@ fn default_gui_tag_library_can_apply_default_playback_tags() {
         native_app_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTagLibrary,
+        toggle_metadata_tag_library(),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTag(String::from("one-shot")),
+        toggle_metadata_tag(String::from("one-shot")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -127,11 +127,11 @@ fn default_gui_tag_library_button_adds_existing_tag() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTagLibrary,
+        toggle_metadata_tag_library(),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTag(String::from("bass")),
+        toggle_metadata_tag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -156,11 +156,11 @@ fn default_gui_tag_library_button_removes_selected_tag() {
         .insert(String::from("other.wav"), vec![String::from("bass")]);
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTagLibrary,
+        toggle_metadata_tag_library(),
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTag(String::from("bass")),
+        toggle_metadata_tag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -182,13 +182,13 @@ fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectMetadataTag(String::from("bass")),
+        select_metadata_tag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
     assert_eq!(state.metadata.selected_tag.as_deref(), Some("bass"));
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::DeleteSelectedMetadataTag,
+        delete_selected_metadata_tag(),
         &mut ui::UpdateContext::default(),
     );
 
@@ -211,9 +211,7 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
     state.metadata.tag_library_open = true;
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleMetadataTagCategory(String::from(
-            "sound-type",
-        )),
+        toggle_metadata_tag_category(String::from("sound-type")),
         &mut ui::UpdateContext::default(),
     );
 

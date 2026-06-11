@@ -4,7 +4,7 @@ use super::vocabulary::{
     metadata_tag_category_is_locked, metadata_tag_category_label_for_id,
     static_metadata_tag_category_id,
 };
-use super::{GuiMessage, NativeAppState};
+use super::{GuiMessage, MetadataMessage, NativeAppState};
 use crate::native_app::sample_library::DRAG_PREVIEW_HEIGHT;
 use radiant::prelude as ui;
 use radiant::widgets::DragHandleMessage;
@@ -177,7 +177,7 @@ impl NativeAppState {
             context.spawn(
                 "gui-metadata-tag-delete-persist",
                 move || persist_metadata_tag_deletions(requests),
-                GuiMessage::MetadataTagsPersisted,
+                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
             );
         }
     }

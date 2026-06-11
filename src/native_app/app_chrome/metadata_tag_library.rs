@@ -1,5 +1,5 @@
 use crate::native_app::{
-    app::{GuiMessage, NativeAppState},
+    app::{GuiMessage, MetadataMessage, NativeAppState},
     metadata::metadata_tag_pill_width,
     metadata::{MetadataTagCategoryGroup, metadata_tag_pill_style},
 };
@@ -27,7 +27,9 @@ pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessag
         )
         .trailing(
             ui::close_button()
-                .message(GuiMessage::ToggleMetadataTagLibrary)
+                .message(GuiMessage::Metadata(
+                    MetadataMessage::ToggleMetadataTagLibrary,
+                ))
                 .key("metadata-tag-library-close")
                 .size(22.0, 20.0),
         )
@@ -141,14 +143,46 @@ fn category_header(
             ui::InteractiveRowActions::new()
                 .drop_target_key(
                     category_for_input.clone(),
-                    |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
-                    |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
+                    |category_id| {
+                        GuiMessage::Metadata(MetadataMessage::DropMetadataTagOnCategory {
+                            category_id,
+                        })
+                    },
+                    |category_id, _| {
+                        GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory {
+                            category_id,
+                        })
+                    },
                 )
-                .activate_key(category_for_input, GuiMessage::ToggleMetadataTagCategory),
+                .activate_key(category_for_input, toggle_metadata_tag_category),
         )
         .key(format!("metadata-tag-category-{}", category_id))
         .fill_width()
         .height(22.0)
+}
+
+fn open_metadata_tag_context_menu(tag: String, position: ui::Point) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::OpenMetadataTagContextMenu { tag, position })
+}
+
+fn drag_metadata_tag(tag: String, drag: ui::DragHandleMessage) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::DragMetadataTag { tag, drag })
+}
+
+fn drop_metadata_tag_on_category(category_id: String) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::DropMetadataTagOnCategory { category_id })
+}
+
+fn hover_metadata_tag_drop_category(category_id: String, _: ui::Point) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory { category_id })
+}
+
+fn toggle_metadata_tag(tag: String) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(tag))
+}
+
+fn toggle_metadata_tag_category(category_id: String) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagCategory(category_id))
 }
 
 fn tag_row(
@@ -177,18 +211,14 @@ fn tag_row(
     badge
         .actions(
             ui::InteractiveRowActions::new()
-                .secondary_key(tag_for_input.clone(), |tag, position| {
-                    GuiMessage::OpenMetadataTagContextMenu { tag, position }
-                })
-                .drag_key(tag_for_input.clone(), |tag, drag| {
-                    GuiMessage::DragMetadataTag { tag, drag }
-                })
+                .secondary_key(tag_for_input.clone(), open_metadata_tag_context_menu)
+                .drag_key(tag_for_input.clone(), drag_metadata_tag)
                 .drop_target_key(
                     category_for_input,
-                    |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
-                    |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
+                    drop_metadata_tag_on_category,
+                    hover_metadata_tag_drop_category,
                 )
-                .activate_key(tag_for_input, GuiMessage::ToggleMetadataTag),
+                .activate_key(tag_for_input, toggle_metadata_tag),
         )
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)
@@ -207,8 +237,8 @@ fn empty_category_target(
         .tracked_drop_target(drag_active && !locked, active_drop_target)
         .actions(ui::InteractiveRowActions::new().drop_target_key(
             category_for_input,
-            |category_id| GuiMessage::DropMetadataTagOnCategory { category_id },
-            |category_id, _| GuiMessage::HoverMetadataTagDropCategory { category_id },
+            drop_metadata_tag_on_category,
+            hover_metadata_tag_drop_category,
         ))
         .key(format!("metadata-tag-empty-category-{category_id}"))
         .fill_width()

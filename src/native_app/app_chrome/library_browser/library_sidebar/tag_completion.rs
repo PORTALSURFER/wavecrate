@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::metadata::MetadataTagCompletionOption;
 
-use crate::native_app::app::GuiMessage;
+use crate::native_app::app::{GuiMessage, MetadataMessage};
 
 const MAX_TAG_COMPLETION_ROWS: usize = 6;
 const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
@@ -38,13 +38,13 @@ pub(in crate::native_app) fn tag_completion_overlay(
             option_values
                 .get(index)
                 .cloned()
-                .map(GuiMessage::SelectMetadataTagCompletion)
+                .map(|tag| GuiMessage::Metadata(MetadataMessage::SelectMetadataTagCompletion(tag)))
         },
         move |index| {
             hover_option_values
                 .get(index)
                 .cloned()
-                .map(GuiMessage::HoverMetadataTagCompletion)
+                .map(|tag| GuiMessage::Metadata(MetadataMessage::HoverMetadataTagCompletion(tag)))
         },
     )
     .key("metadata-tag-completion-overlay")

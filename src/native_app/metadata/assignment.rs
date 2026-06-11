@@ -1,6 +1,6 @@
 use super::persistence::persist_metadata_tag_assignment;
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
-use super::{GuiMessage, NativeAppState};
+use super::{GuiMessage, MetadataMessage, NativeAppState};
 use radiant::prelude as ui;
 use std::path::PathBuf;
 
@@ -63,7 +63,7 @@ impl NativeAppState {
             context.spawn(
                 "gui-metadata-tag-persist",
                 move || persist_metadata_tag_assignment(request),
-                GuiMessage::MetadataTagsPersisted,
+                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
             );
         }
     }
@@ -140,7 +140,7 @@ impl NativeAppState {
         context.spawn(
             "gui-metadata-tag-persist",
             move || persist_metadata_tag_assignment(request),
-            GuiMessage::MetadataTagsPersisted,
+            |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
         );
     }
 
