@@ -3,13 +3,13 @@ use radiant::prelude::PlatformResultExt as _;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
-use crate::native_app::sample_library::folder_browser::scan::{
-    self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-    FolderScanResult,
+use crate::native_app::app::{
+    GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish,
+    emit_gui_action, logging, run_folder_scan_worker,
 };
-
-const DISCOVERY_BATCH_SIZE: usize = 64;
+use crate::native_app::sample_library::folder_browser::scan::{
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest, FolderScanResult,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn next_folder_task_id(&mut self) -> u64 {
@@ -21,13 +21,12 @@ impl NativeAppState {
         progress: FolderScanProgress,
     ) {
         let started_at = Instant::now();
-        if self
-            .library
-            .folder_browser
-            .scan_is_active(&progress.source_id, progress.task_id)
-        {
-            let phase = progress.phase.clone();
-            self.library.folder_progress = Some(progress);
+        if self.library.apply_folder_scan_progress(progress) {
+            let phase = self
+                .library
+                .folder_progress()
+                .map(|progress| progress.phase.clone())
+                .unwrap_or_default();
             emit_gui_action(
                 "folder_browser.scan.progress",
                 Some("folder_browser"),
@@ -45,9 +44,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let count = batch.events.len();
-        self.library
-            .folder_browser
-            .apply_scan_discovered_batch(batch);
+        self.library.apply_folder_scan_discovery_batch(batch);
         if logging::debug_logging_enabled() {
             tracing::debug!(
                 target: logging::ACTION_EVENT_TARGET,
@@ -129,11 +126,7 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self
-            .library
-            .folder_browser
-            .begin_add_source_path(path, task_id)
-        {
+        if let Some(request) = self.library.begin_add_source_path(path, task_id) {
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.add_source_dialog",
@@ -163,7 +156,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.library.folder_browser.begin_select_source(id, task_id) {
+        if let Some(request) = self.library.begin_select_source(id, task_id) {
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.select_source",
@@ -193,7 +186,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.library.folder_browser.begin_source_scan(id, task_id) {
+        if let Some(request) = self.library.begin_source_scan(id, task_id) {
             let label = request.label.clone();
             self.ui.browser_interaction.context_menu = None;
             emit_gui_action(
@@ -227,77 +220,67 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self
+        match self
             .library
-            .folder_browser
-            .source_root_path(&source_id)
-            .is_none()
+            .plan_filesystem_change(source_id, &paths, overflowed)
         {
-            self.library.pending_source_refreshes.remove(&source_id);
-            emit_gui_action(
-                "folder_browser.source.filesystem_change",
-                Some("sources"),
-                Some(&source_id),
-                "ignored",
-                started_at,
-                Some("source_not_found"),
-            );
-            return;
-        }
-        if !overflowed && !paths.is_empty() {
-            let changed = self
-                .library
-                .folder_browser
-                .refresh_filesystem_paths(&source_id, &paths);
-            if changed {
-                self.ui.status.sample = format!("Synced {} filesystem change(s)", paths.len());
-                self.refresh_persisted_metadata_tags_for_source(&source_id);
-                self.schedule_persisted_waveform_cache_indicator_refresh(context);
-                self.schedule_active_folder_cache_warm(context);
-                self.persist_user_configuration(
-                    "folder_browser.source.filesystem_patch",
+            SourceFilesystemChangePlan::IgnoredSourceMissing { source_id } => {
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&source_id),
+                    "ignored",
                     started_at,
+                    Some("source_not_found"),
                 );
             }
-            emit_gui_action(
-                "folder_browser.source.filesystem_change",
-                Some("sources"),
-                Some(&source_id),
-                "patched",
-                started_at,
-                None,
-            );
-            return;
+            SourceFilesystemChangePlan::Patched {
+                source_id,
+                changed_count,
+                changed,
+            } => {
+                if changed {
+                    self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
+                    self.refresh_persisted_metadata_tags_for_source(&source_id);
+                    self.schedule_persisted_waveform_cache_indicator_refresh(context);
+                    self.schedule_active_folder_cache_warm(context);
+                    self.persist_user_configuration(
+                        "folder_browser.source.filesystem_patch",
+                        started_at,
+                    );
+                }
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&source_id),
+                    "patched",
+                    started_at,
+                    None,
+                );
+            }
+            SourceFilesystemChangePlan::DeferredAlreadyRunning { source_id } => {
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&source_id),
+                    "deferred",
+                    started_at,
+                    Some("scan_already_running"),
+                );
+            }
+            SourceFilesystemChangePlan::QueueRefresh { source_id } => {
+                self.queue_filesystem_source_refresh(source_id, started_at, context);
+            }
         }
-        if self.library.folder_progress.is_some() {
-            self.library
-                .pending_source_refreshes
-                .insert(source_id.clone());
-            emit_gui_action(
-                "folder_browser.source.filesystem_change",
-                Some("sources"),
-                Some(&source_id),
-                "deferred",
-                started_at,
-                Some("scan_already_running"),
-            );
-            return;
-        }
-        self.queue_filesystem_source_refresh(source_id, started_at, context);
     }
 
     pub(in crate::native_app) fn maybe_run_pending_source_refresh(
         &mut self,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if self.library.folder_progress.is_some() {
-            return;
+        if let Some(source_id) = self.library.next_pending_source_refresh_if_idle() {
+            self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
         }
-        let Some(source_id) = self.library.pending_source_refreshes.iter().next().cloned() else {
-            return;
-        };
-        self.library.pending_source_refreshes.remove(&source_id);
-        self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
     }
 
     fn queue_filesystem_source_refresh(
@@ -307,34 +290,33 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self
+        match self
             .library
-            .folder_browser
-            .begin_source_scan(source_id.clone(), task_id)
+            .begin_filesystem_refresh(source_id.clone(), task_id)
         {
-            let label = request.label.clone();
-            emit_gui_action(
-                "folder_browser.source.filesystem_change",
-                Some("sources"),
-                Some(&label),
-                "scan_queued",
-                started_at,
-                None,
-            );
-            self.launch_folder_scan(request, context);
-            return;
+            SourceRefreshRequest::Queued(request) => {
+                let label = request.label.clone();
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&label),
+                    "scan_queued",
+                    started_at,
+                    None,
+                );
+                self.launch_folder_scan(request, context);
+            }
+            SourceRefreshRequest::Deferred { source_id } => {
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&source_id),
+                    "deferred",
+                    started_at,
+                    Some("source_not_queued"),
+                );
+            }
         }
-        self.library
-            .pending_source_refreshes
-            .insert(source_id.clone());
-        emit_gui_action(
-            "folder_browser.source.filesystem_change",
-            Some("sources"),
-            Some(&source_id),
-            "deferred",
-            started_at,
-            Some("source_not_queued"),
-        );
     }
 
     pub(in crate::native_app) fn refresh_context_source(
@@ -363,11 +345,7 @@ impl NativeAppState {
         self.ui.startup.source_scan_pending = false;
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self
-            .library
-            .folder_browser
-            .begin_selected_source_scan(task_id)
-        {
+        if let Some(request) = self.library.begin_selected_source_scan(task_id) {
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.startup_scan",
@@ -390,80 +368,6 @@ impl NativeAppState {
         }
     }
 
-    fn maybe_startup_visible_folder_verify(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
-        if !self.ui.startup.folder_verify_pending {
-            return;
-        }
-        if self
-            .background
-            .startup_folder_verify_task
-            .active()
-            .is_some()
-        {
-            return;
-        }
-        let Some(request) = self.library.folder_browser.selected_folder_verify_request() else {
-            self.ui.startup.folder_verify_pending = false;
-            return;
-        };
-        self.ui.startup.folder_verify_pending = false;
-        let started_at = Instant::now();
-        let ticket = self.background.startup_folder_verify_task.begin();
-        let results = self.background.startup_folder_verify_results.clone();
-        context.spawn(
-            "gui-startup-folder-verify",
-            move || {
-                let result = scan::verify_direct_folder(request);
-                if let Ok(mut results) = results.lock() {
-                    results.insert(ticket, result);
-                }
-                ticket
-            },
-            GuiMessage::StartupFolderVerifyFinished,
-        );
-        emit_gui_action(
-            "folder_browser.startup_verify",
-            Some("folder_browser"),
-            None,
-            "queued",
-            started_at,
-            None,
-        );
-    }
-
-    pub(in crate::native_app) fn finish_startup_folder_verify(&mut self, ticket: ui::TaskTicket) {
-        let started_at = Instant::now();
-        let result = self
-            .background
-            .startup_folder_verify_results
-            .lock()
-            .ok()
-            .and_then(|mut results| results.remove(&ticket));
-        if !self.background.startup_folder_verify_task.finish(ticket) {
-            return;
-        }
-        let Some(result) = result else {
-            return;
-        };
-        let source_id = result.source_id.clone();
-        let changed = self
-            .library
-            .folder_browser
-            .apply_direct_folder_verify_result(result);
-        if changed {
-            self.refresh_persisted_metadata_tags_for_source(&source_id);
-            self.persist_user_configuration("folder_browser.startup_verify.persist", started_at);
-        }
-        emit_gui_action(
-            "folder_browser.startup_verify",
-            Some("folder_browser"),
-            Some(&source_id),
-            if changed { "patched" } else { "unchanged" },
-            started_at,
-            None,
-        );
-    }
-
     fn launch_folder_scan(
         &mut self,
         request: FolderScanRequest,
@@ -472,15 +376,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         let label = request.label.clone();
         let root = request.root.display().to_string();
-        self.library.folder_progress = Some(FolderScanProgress {
-            task_id: request.task_id,
-            source_id: request.source_id.clone(),
-            label: request.label.clone(),
-            phase: String::from("Queued"),
-            completed: 0,
-            total: 0,
-            detail: request.root.display().to_string(),
-        });
+        self.library.start_folder_scan(&request);
         self.ui.status.sample = format!("Scanning source {}", request.label);
         tracing::info!(
             source = label,
@@ -510,96 +406,47 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let source_id = result.source_id.clone();
-        let label = result.label.clone();
-        let file_count = result.file_count;
-        let folder_count = result.folder_count;
-        if self.library.folder_browser.apply_scan_finished(result) {
-            self.library.folder_progress = None;
-            self.ui.chrome.job_details_open = false;
-            self.background.progress_tick = 0.0;
-            self.ui.status.sample =
-                format!("Loaded source {label}: {file_count} files in {folder_count} folders");
-            tracing::info!(
-                source = label,
+        match self.library.finish_folder_scan(result) {
+            SourceScanFinish::Applied {
+                source_id,
+                label,
                 file_count,
                 folder_count,
-                "default gui: folder scan finished"
-            );
-            emit_gui_action(
-                "folder_browser.scan.finish",
-                Some("folder_browser"),
-                Some(&label),
-                "success",
-                started_at,
-                None,
-            );
-            self.refresh_persisted_metadata_tags_for_source(&source_id);
-            self.schedule_persisted_waveform_cache_indicator_refresh(context);
-            self.schedule_active_folder_cache_warm(context);
-            self.persist_user_configuration("folder_browser.sources.persist", started_at);
-            self.sync_source_watcher();
-        } else {
-            emit_gui_action(
-                "folder_browser.scan.finish",
-                Some("folder_browser"),
-                Some(&label),
-                "stale",
-                started_at,
-                None,
-            );
-        }
-    }
-}
-
-fn run_folder_scan_worker(
-    request: FolderScanRequest,
-    sender: std::sync::mpsc::Sender<GuiMessage>,
-) -> FolderScanResult {
-    let discovery_sender = sender.clone();
-    let mut pending_discoveries = Vec::with_capacity(DISCOVERY_BATCH_SIZE);
-    let task_id = request.task_id;
-    let source_id = request.source_id.clone();
-    let result = scan::scan_source_with_progress(
-        request,
-        |progress| {
-            let _ = sender.send(GuiMessage::FolderScanProgress(progress));
-        },
-        |event| {
-            pending_discoveries.push(event);
-            if pending_discoveries.len() >= DISCOVERY_BATCH_SIZE {
-                send_discovery_batch(
-                    &discovery_sender,
-                    task_id,
-                    source_id.clone(),
-                    &mut pending_discoveries,
+            } => {
+                self.ui.chrome.job_details_open = false;
+                self.background.progress_tick = 0.0;
+                self.ui.status.sample =
+                    format!("Loaded source {label}: {file_count} files in {folder_count} folders");
+                tracing::info!(
+                    source = label,
+                    file_count,
+                    folder_count,
+                    "default gui: folder scan finished"
+                );
+                emit_gui_action(
+                    "folder_browser.scan.finish",
+                    Some("folder_browser"),
+                    Some(&label),
+                    "success",
+                    started_at,
+                    None,
+                );
+                self.refresh_persisted_metadata_tags_for_source(&source_id);
+                self.schedule_persisted_waveform_cache_indicator_refresh(context);
+                self.schedule_active_folder_cache_warm(context);
+                self.persist_user_configuration("folder_browser.sources.persist", started_at);
+                self.sync_source_watcher();
+            }
+            SourceScanFinish::Stale { label } => {
+                emit_gui_action(
+                    "folder_browser.scan.finish",
+                    Some("folder_browser"),
+                    Some(&label),
+                    "stale",
+                    started_at,
+                    None,
                 );
             }
-        },
-    );
-    if !pending_discoveries.is_empty() {
-        send_discovery_batch(
-            &discovery_sender,
-            task_id,
-            source_id,
-            &mut pending_discoveries,
-        );
+        }
     }
-    result
-}
-
-fn send_discovery_batch(
-    sender: &std::sync::mpsc::Sender<GuiMessage>,
-    task_id: u64,
-    source_id: String,
-    pending_discoveries: &mut Vec<FolderScanDiscovery>,
-) {
-    let events = std::mem::take(pending_discoveries);
-    let _ = sender.send(GuiMessage::FolderScanDiscoveryBatch(
-        FolderScanDiscoveryBatch {
-            task_id,
-            source_id,
-            events,
-        },
-    ));
 }

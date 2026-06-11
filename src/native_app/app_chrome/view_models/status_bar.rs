@@ -27,7 +27,7 @@ pub(in crate::native_app) struct WorkerProgressViewModel {
 }
 
 fn bottom_status_text(state: &NativeAppState) -> String {
-    if let Some(progress) = state.library.folder_progress.as_ref() {
+    if let Some(progress) = state.library.folder_progress() {
         let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
         return if counters.is_indeterminate() {
             format!(
@@ -69,8 +69,7 @@ fn bottom_status_text(state: &NativeAppState) -> String {
 fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewModel> {
     state
         .library
-        .folder_progress
-        .as_ref()
+        .folder_progress()
         .map(WorkerProgressViewModel::from_folder_progress)
         .or_else(|| {
             state

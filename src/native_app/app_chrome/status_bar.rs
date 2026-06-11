@@ -65,7 +65,7 @@ fn status_bar_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
 
 fn job_details_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     if state.ui.chrome.job_details_open
-        && let Some(progress) = state.library.folder_progress.as_ref()
+        && let Some(progress) = state.library.folder_progress()
     {
         return Some(job_details_popover(progress));
     }

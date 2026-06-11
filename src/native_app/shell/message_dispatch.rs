@@ -254,7 +254,7 @@ impl NativeAppState {
             }
             GuiMessage::ToggleJobDetails => {
                 self.ui.chrome.job_details_open =
-                    self.library.folder_progress.is_some() && !self.ui.chrome.job_details_open;
+                    self.library.folder_scan_active() && !self.ui.chrome.job_details_open;
             }
             GuiMessage::CloseJobDetails => {
                 self.ui.chrome.job_details_open = false;

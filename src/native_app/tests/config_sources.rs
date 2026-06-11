@@ -110,7 +110,7 @@ fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
     state.maybe_startup_source_scan(&mut context);
 
     assert!(
-        state.library.folder_progress.is_none(),
+        state.library.folder_progress().is_none(),
         "cached startup must not queue a foreground source scan"
     );
     assert!(
@@ -244,8 +244,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
     assert_eq!(state.ui.browser_interaction.context_menu, None);
     let task_id = state
         .library
-        .folder_progress
-        .as_ref()
+        .folder_progress()
         .expect("refresh should show scan progress")
         .task_id;
     assert!(
@@ -296,8 +295,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
 
     let task_id = state
         .library
-        .folder_progress
-        .as_ref()
+        .folder_progress()
         .expect("filesystem change should show scan progress")
         .task_id;
     assert!(
@@ -343,12 +341,15 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         },
         &mut context,
     );
-    assert!(state.library.pending_source_refreshes.contains(&source_id));
+    assert!(
+        state
+            .library
+            .pending_source_refresh_contains_for_tests(&source_id)
+    );
 
     let active_task = state
         .library
-        .folder_progress
-        .as_ref()
+        .folder_progress()
         .expect("first refresh should be active")
         .task_id;
     assert!(
@@ -374,8 +375,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
 
     let next_task = state
         .library
-        .folder_progress
-        .as_ref()
+        .folder_progress()
         .expect("pending refresh should start after active scan")
         .task_id;
     assert_ne!(next_task, active_task);

@@ -1,13 +1,17 @@
-use std::collections::HashSet;
-
-use crate::native_app::sample_library::folder_browser::FolderBrowserState;
 use crate::native_app::sample_library::folder_browser::scan::FolderScanProgress;
+use crate::native_app::sample_library::folder_browser::{
+    FolderBrowserState,
+    scan::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
+};
 use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
+
+use super::{
+    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
+};
 
 pub(in crate::native_app) struct LibraryAppState {
     pub(in crate::native_app) folder_browser: FolderBrowserState,
-    pub(in crate::native_app) folder_progress: Option<FolderScanProgress>,
-    pub(in crate::native_app) pending_source_refreshes: HashSet<String>,
+    source_scan: SourceScanWorkflow,
     pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
 }
 
@@ -18,9 +22,123 @@ impl LibraryAppState {
     ) -> Self {
         Self {
             folder_browser,
-            folder_progress: None,
-            pending_source_refreshes: HashSet::new(),
+            source_scan: SourceScanWorkflow::new(),
             source_watcher,
         }
+    }
+
+    pub(in crate::native_app) fn folder_progress(&self) -> Option<&FolderScanProgress> {
+        self.source_scan.progress()
+    }
+
+    pub(in crate::native_app) fn folder_scan_active(&self) -> bool {
+        self.source_scan.active()
+    }
+
+    pub(in crate::native_app) fn begin_add_source_path(
+        &mut self,
+        root: std::path::PathBuf,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.source_scan
+            .begin_add_source_path(&mut self.folder_browser, root, task_id)
+    }
+
+    pub(in crate::native_app) fn begin_select_source(
+        &mut self,
+        id: String,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.source_scan
+            .begin_select_source(&mut self.folder_browser, id, task_id)
+    }
+
+    pub(in crate::native_app) fn begin_source_scan(
+        &mut self,
+        id: String,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.source_scan
+            .begin_source_scan(&mut self.folder_browser, id, task_id)
+    }
+
+    pub(in crate::native_app) fn begin_selected_source_scan(
+        &mut self,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.source_scan
+            .begin_selected_source_scan(&mut self.folder_browser, task_id)
+    }
+
+    pub(in crate::native_app) fn start_folder_scan(&mut self, request: &FolderScanRequest) {
+        self.source_scan.start_scan(request);
+    }
+
+    pub(in crate::native_app) fn apply_folder_scan_progress(
+        &mut self,
+        progress: FolderScanProgress,
+    ) -> bool {
+        self.source_scan
+            .apply_progress(&self.folder_browser, progress)
+    }
+
+    pub(in crate::native_app) fn apply_folder_scan_discovery_batch(
+        &mut self,
+        batch: FolderScanDiscoveryBatch,
+    ) -> bool {
+        self.source_scan
+            .apply_discovery_batch(&mut self.folder_browser, batch)
+    }
+
+    pub(in crate::native_app) fn plan_filesystem_change(
+        &mut self,
+        source_id: String,
+        paths: &[std::path::PathBuf],
+        overflowed: bool,
+    ) -> SourceFilesystemChangePlan {
+        self.source_scan.plan_filesystem_change(
+            &mut self.folder_browser,
+            source_id,
+            paths,
+            overflowed,
+        )
+    }
+
+    pub(in crate::native_app) fn next_pending_source_refresh_if_idle(&mut self) -> Option<String> {
+        self.source_scan.next_pending_refresh_if_idle()
+    }
+
+    pub(in crate::native_app) fn begin_filesystem_refresh(
+        &mut self,
+        source_id: String,
+        task_id: u64,
+    ) -> SourceRefreshRequest {
+        self.source_scan
+            .begin_filesystem_refresh(&mut self.folder_browser, source_id, task_id)
+    }
+
+    pub(in crate::native_app) fn finish_folder_scan(
+        &mut self,
+        result: FolderScanResult,
+    ) -> SourceScanFinish {
+        self.source_scan
+            .finish_scan(&mut self.folder_browser, result)
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn set_folder_progress_for_tests(
+        &mut self,
+        progress: FolderScanProgress,
+    ) {
+        self.source_scan.set_progress_for_tests(progress);
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn pending_source_refresh_contains_for_tests(
+        &self,
+        source_id: &str,
+    ) -> bool {
+        self.source_scan
+            .pending_refresh_contains_for_tests(source_id)
     }
 }

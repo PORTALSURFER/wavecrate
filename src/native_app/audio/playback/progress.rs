@@ -48,7 +48,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn frame_message_animation_active(&self) -> bool {
         self.waveform.current.is_playing()
             || self.waveform.current.play_selection_flash_active()
-            || self.library.folder_progress.is_some()
+            || self.library.folder_scan_active()
             || self.background.normalization_progress.is_some()
             || self.ui.startup.source_scan_pending
             || self.ui.startup.auto_load_pending
@@ -185,7 +185,7 @@ impl FrameRepaintScopeSnapshot {
         Self {
             playing: state.waveform.current.is_playing(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
-            folder_progress_active: state.library.folder_progress.is_some(),
+            folder_progress_active: state.library.folder_scan_active(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
             waveform_loading_active: state.waveform_sample_load_active(),
             sample_loading: state.background.sample_load_task.active().is_some(),

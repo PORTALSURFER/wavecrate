@@ -23,7 +23,9 @@ pub(in crate::native_app) use settings::{
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::{
     AudioAppState, BackgroundTaskState, ChromeUiState, LibraryAppState, MetadataAppState,
-    NativeAppState, SettingsAppState, StartupState, StatusState, UiAppState, WaveformAppState,
+    NativeAppState, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
+    SourceScanFinish, StartupState, StatusState, UiAppState, WaveformAppState,
+    run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;

@@ -2,6 +2,7 @@ mod audio;
 mod background;
 mod library;
 mod metadata;
+mod source_scan_workflow;
 mod transactions;
 mod ui_state;
 mod waveform;
@@ -13,6 +14,10 @@ pub(in crate::native_app) use audio::AudioAppState;
 pub(in crate::native_app) use background::BackgroundTaskState;
 pub(in crate::native_app) use library::LibraryAppState;
 pub(in crate::native_app) use metadata::MetadataAppState;
+pub(in crate::native_app) use source_scan_workflow::{
+    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
+    run_folder_scan_worker,
+};
 pub(in crate::native_app) use transactions::TransactionState;
 pub(in crate::native_app) use ui_state::{
     ChromeUiState, SettingsAppState, StartupState, StatusState, UiAppState,

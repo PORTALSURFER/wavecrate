@@ -118,9 +118,7 @@ impl NativeAppState {
         let playback_started_at = Instant::now();
         self.refresh_playback_progress();
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
-        if self.library.folder_progress.is_some()
-            || self.background.normalization_progress.is_some()
-        {
+        if self.library.folder_scan_active() || self.background.normalization_progress.is_some() {
             self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
         }
         if self.waveform.load.label.is_some() {
@@ -150,7 +148,7 @@ impl NativeAppState {
         let max_delta_ms = duration_ms(report.max_delta);
         let sample_loading = self.background.sample_load_task.active().is_some();
         let audio_opening = self.background.audio_open_task.active().is_some();
-        let folder_scanning = self.library.folder_progress.is_some();
+        let folder_scanning = self.library.folder_scan_active();
         let normalizing = self.background.normalization_progress.is_some();
         let waveform_loading = self.waveform_sample_load_active();
         let playing = self.waveform.current.is_playing();

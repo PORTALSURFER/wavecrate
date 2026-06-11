@@ -39,15 +39,17 @@ fn bottom_status_bar_reports_selected_sample_count() {
 #[test]
 fn bottom_status_progress_bar_paints_without_text_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.library.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
-        task_id: 7,
-        source_id: String::from("assets"),
-        label: String::from("Assets"),
-        phase: String::from("Scanning"),
-        completed: 2,
-        total: 5,
-        detail: String::from("kick.wav"),
-    });
+    state.library.set_folder_progress_for_tests(
+        crate::native_app::test_support::FolderScanProgress {
+            task_id: 7,
+            source_id: String::from("assets"),
+            label: String::from("Assets"),
+            phase: String::from("Scanning"),
+            completed: 2,
+            total: 5,
+            detail: String::from("kick.wav"),
+        },
+    );
     let model = StatusBarViewModel::from_app_state(&state);
     let frame = crate::native_app::app_chrome::status_bar::worker_progress_bar(
         model.worker_progress,
@@ -102,15 +104,17 @@ fn bottom_status_progress_bar_click_opens_job_details() {
 fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.progress_tick = 0.5;
-    state.library.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
-        task_id: 7,
-        source_id: String::from("assets"),
-        label: String::from("Assets"),
-        phase: String::from("Scanning"),
-        completed: 128,
-        total: 0,
-        detail: String::from("kick.wav"),
-    });
+    state.library.set_folder_progress_for_tests(
+        crate::native_app::test_support::FolderScanProgress {
+            task_id: 7,
+            source_id: String::from("assets"),
+            label: String::from("Assets"),
+            phase: String::from("Scanning"),
+            completed: 128,
+            total: 0,
+            detail: String::from("kick.wav"),
+        },
+    );
     let model = StatusBarViewModel::from_app_state(&state);
     let frame = crate::native_app::app_chrome::status_bar::worker_progress_bar(
         model.worker_progress,
@@ -147,15 +151,17 @@ fn job_details_popover_reports_active_scan_progress() {
 fn status_bar_view_model_prioritizes_active_worker_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.status.sample = String::from("Ready");
-    state.library.folder_progress = Some(crate::native_app::test_support::FolderScanProgress {
-        task_id: 7,
-        source_id: String::from("assets"),
-        label: String::from("Assets"),
-        phase: String::from("Scanning"),
-        completed: 2,
-        total: 5,
-        detail: String::from("kick.wav"),
-    });
+    state.library.set_folder_progress_for_tests(
+        crate::native_app::test_support::FolderScanProgress {
+            task_id: 7,
+            source_id: String::from("assets"),
+            label: String::from("Assets"),
+            phase: String::from("Scanning"),
+            completed: 2,
+            total: 5,
+            detail: String::from("kick.wav"),
+        },
+    );
     state.background.normalization_progress =
         Some(crate::native_app::test_support::NormalizationProgress {
             task_id: 9,
