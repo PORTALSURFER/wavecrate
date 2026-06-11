@@ -38,6 +38,46 @@ fn preview_candidate_preserves_existing_matching_load_state() {
 }
 
 #[test]
+fn preview_candidate_commits_and_settles_without_requesting_load() {
+    let initial = BrowserSelectionTransitionMachine::new(None)
+        .publish_preview(candidate("kick.wav", 3))
+        .transition;
+
+    let outcome = BrowserSelectionTransitionMachine::new(initial).publish_commit(
+        candidate("kick.wav", 3),
+        commit_request(false),
+        None,
+    );
+    let transition = outcome.transition.expect("transition");
+    assert!(matches!(
+        transition.commit_stage,
+        BrowserSelectionCommitStage::DispatchPending(_)
+    ));
+
+    let outcome = BrowserSelectionTransitionMachine::new(Some(transition)).flush_commit(true);
+    assert!(matches!(
+        outcome
+            .transition
+            .as_ref()
+            .map(|transition| &transition.commit_stage),
+        Some(BrowserSelectionCommitStage::Settled)
+    ));
+    assert!(outcome.effects.iter().any(|effect| matches!(
+        effect,
+        BrowserSelectionTransitionEffect::RecordFocusHistory { .. }
+    )));
+    assert!(outcome.effects.iter().any(|effect| matches!(
+        effect,
+        BrowserSelectionTransitionEffect::RefreshSimilarityHighlight(_)
+    )));
+    assert!(!outcome.effects.iter().any(|effect| matches!(
+        effect,
+        BrowserSelectionTransitionEffect::QueueAudioLoad(_)
+            | BrowserSelectionTransitionEffect::CancelLoad(_)
+    )));
+}
+
+#[test]
 fn commit_with_load_queues_history_similarity_and_audio_load() {
     let outcome = BrowserSelectionTransitionMachine::new(None).publish_commit(
         candidate("kick.wav", 3),
