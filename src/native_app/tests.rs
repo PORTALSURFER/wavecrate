@@ -534,7 +534,9 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
     state.ui.status.sample = String::from("ready");
 
     state.apply_message(
-        super::test_support::GuiMessage::ClearRebuildableCaches,
+        super::test_support::GuiMessage::Settings(
+            super::app::SettingsMessage::ClearRebuildableCaches,
+        ),
         &mut ui::UpdateContext::default(),
     );
 

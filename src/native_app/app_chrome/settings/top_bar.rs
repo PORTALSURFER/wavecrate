@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{AppSettingsTab, GuiMessage, NativeAppState};
+use crate::native_app::app::{AppSettingsTab, GuiMessage, NativeAppState, SettingsMessage};
 use crate::native_app::ui::ids as widget_ids;
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
@@ -88,7 +88,7 @@ fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
     ui::badge(model.label)
         .style(model.style)
         .active(model.active)
-        .message(GuiMessage::ToggleAudioSettings)
+        .message(GuiMessage::Settings(SettingsMessage::ToggleAudioSettings))
         .id(AUDIO_ENGINE_PILL_ID)
         .key("top-audio-engine-pill")
         .size(AUDIO_ENGINE_PILL_SIZE.width, AUDIO_ENGINE_PILL_SIZE.height)
@@ -97,7 +97,7 @@ fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
 fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
     ui::icon_button(settings_gear_icon(active))
         .active(active)
-        .message(GuiMessage::OpenGeneralSettings)
+        .message(GuiMessage::Settings(SettingsMessage::OpenGeneralSettings))
         .id(GENERAL_SETTINGS_BUTTON_ID)
         .key("top-general-settings-button")
         .size(
@@ -109,7 +109,7 @@ fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
 pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
     ui::slider(volume)
         .compact()
-        .message(GuiMessage::SetVolume)
+        .message(|volume| GuiMessage::Settings(SettingsMessage::SetVolume(volume)))
         .id(VOLUME_SLIDER_ID)
         .key("top-volume-slider")
         .size(VOLUME_SLIDER_SIZE.width, VOLUME_SLIDER_SIZE.height)

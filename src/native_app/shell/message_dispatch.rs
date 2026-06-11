@@ -2,8 +2,8 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::app::{
-    AudioSettingsDropdown, GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformInteraction,
-    WaveformSelectionKind, emit_gui_action,
+    AudioSettingsDropdown, GuiMessage, NativeAppState, SettingsMessage, WaveformActiveDragKind,
+    WaveformInteraction, WaveformSelectionKind, emit_gui_action,
 };
 
 impl NativeAppState {
@@ -51,6 +51,34 @@ impl NativeAppState {
         if let Some(start_ratio) = self.waveform.current.take_pending_playback_start() {
             self.maybe_open_audio_player(context);
             self.play_waveform_from_ratio(start_ratio);
+        }
+    }
+
+    fn apply_settings_message(
+        &mut self,
+        message: SettingsMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        match message {
+            SettingsMessage::SetVolume(volume) => self.set_volume(volume),
+            SettingsMessage::ToggleAudioSettings => self.toggle_audio_settings(),
+            SettingsMessage::OpenGeneralSettings => self.open_general_settings(),
+            SettingsMessage::SelectSettingsTab(tab) => self.select_settings_tab(tab),
+            SettingsMessage::CloseAudioSettings => self.close_audio_settings_window(),
+            SettingsMessage::ToggleAudioBackendDropdown => self.toggle_audio_backend_dropdown(),
+            SettingsMessage::ToggleAudioOutputDropdown => self.toggle_audio_output_dropdown(),
+            SettingsMessage::ToggleAudioSampleRateDropdown => {
+                self.toggle_audio_sample_rate_dropdown();
+            }
+            SettingsMessage::CloseAudioSettingsDropdowns => self.close_audio_settings_dropdowns(),
+            SettingsMessage::SetAudioOutputHost(host) => self.set_audio_output_host(host),
+            SettingsMessage::SetAudioOutputDevice(device) => self.set_audio_output_device(device),
+            SettingsMessage::SetAudioOutputSampleRate(sample_rate) => {
+                self.set_audio_output_sample_rate(sample_rate);
+            }
+            SettingsMessage::PickTrashFolder => self.pick_trash_folder(context),
+            SettingsMessage::ClearTrashFolder => self.clear_trash_folder(),
+            SettingsMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
         }
     }
 
@@ -142,30 +170,7 @@ impl NativeAppState {
             GuiMessage::PlayRandomSampleRange => self.play_random_sample_range(context),
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
-            GuiMessage::SetVolume(volume) => self.set_volume(volume),
-            GuiMessage::ToggleAudioSettings => self.toggle_audio_settings(),
-            GuiMessage::OpenGeneralSettings => self.open_general_settings(),
-            GuiMessage::SelectSettingsTab(tab) => self.select_settings_tab(tab),
-            GuiMessage::CloseAudioSettings => {
-                self.close_audio_settings_window();
-            }
-            GuiMessage::ToggleAudioBackendDropdown => {
-                self.toggle_audio_backend_dropdown();
-            }
-            GuiMessage::ToggleAudioOutputDropdown => {
-                self.toggle_audio_output_dropdown();
-            }
-            GuiMessage::ToggleAudioSampleRateDropdown => {
-                self.toggle_audio_sample_rate_dropdown();
-            }
-            GuiMessage::CloseAudioSettingsDropdowns => {
-                self.close_audio_settings_dropdowns();
-            }
-            GuiMessage::SetAudioOutputHost(host) => self.set_audio_output_host(host),
-            GuiMessage::SetAudioOutputDevice(device) => self.set_audio_output_device(device),
-            GuiMessage::SetAudioOutputSampleRate(sample_rate) => {
-                self.set_audio_output_sample_rate(sample_rate);
-            }
+            GuiMessage::Settings(message) => self.apply_settings_message(message, context),
             GuiMessage::FocusMetadataTagInput => {
                 self.focus_metadata_tag_input(context);
             }
@@ -216,9 +221,6 @@ impl NativeAppState {
             GuiMessage::ToggleSampleNameViewMode => {
                 self.metadata.sample_name_view_mode = self.metadata.sample_name_view_mode.toggled();
             }
-            GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
-            GuiMessage::PickTrashFolder => self.pick_trash_folder(context),
-            GuiMessage::ClearTrashFolder => self.clear_trash_folder(),
             GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),
             GuiMessage::AdjustSelectedRating(delta) => self.adjust_selected_rating(delta, context),
             GuiMessage::AssignSelectedCollection(collection) => {

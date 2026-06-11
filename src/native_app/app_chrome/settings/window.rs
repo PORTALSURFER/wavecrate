@@ -3,7 +3,7 @@ use radiant::prelude as ui;
 use super::{AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH};
 #[cfg(test)]
 use crate::native_app::app::NativeAppState;
-use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, GuiMessage};
+use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, GuiMessage, SettingsMessage};
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 use crate::native_app::ui::display::format_sample_rate_label;
 
@@ -42,7 +42,7 @@ pub(in crate::native_app) fn audio_settings_window_view(
         ui::dismissible_overlay(
             base,
             audio_settings_dropdown_overlay(snapshot),
-            GuiMessage::CloseAudioSettingsDropdowns,
+            GuiMessage::Settings(SettingsMessage::CloseAudioSettingsDropdowns),
         )
     } else {
         base
@@ -76,7 +76,9 @@ fn settings_tab_button(
     };
     ui::button(label)
         .style(style)
-        .message(GuiMessage::SelectSettingsTab(tab))
+        .message(GuiMessage::Settings(SettingsMessage::SelectSettingsTab(
+            tab,
+        )))
         .key(format!("settings-tab-{label}"))
         .fill_width()
         .height(28.0)
@@ -141,11 +143,11 @@ fn trash_folder_section(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage
             .fill_width(),
         ui::row([
             ui::button("Choose Folder")
-                .message(GuiMessage::PickTrashFolder)
+                .message(GuiMessage::Settings(SettingsMessage::PickTrashFolder))
                 .key("settings-trash-folder-pick")
                 .height(24.0),
             ui::button("Clear")
-                .message(GuiMessage::ClearTrashFolder)
+                .message(GuiMessage::Settings(SettingsMessage::ClearTrashFolder))
                 .key("settings-trash-folder-clear")
                 .height(24.0),
         ])
@@ -163,7 +165,9 @@ fn cache_maintenance_section() -> ui::View<GuiMessage> {
     ui::labeled_control(
         "Maintenance",
         ui::button("Clear Rebuildable Caches")
-            .message(GuiMessage::ClearRebuildableCaches)
+            .message(GuiMessage::Settings(
+                SettingsMessage::ClearRebuildableCaches,
+            ))
             .key("settings-clear-rebuildable-caches")
             .fill_width()
             .height(24.0),
@@ -187,7 +191,9 @@ fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage>
         selected_audio_host_label(snapshot),
         snapshot.dropdown_open(AudioSettingsDropdown::Backend),
     )
-    .toggle_message(GuiMessage::ToggleAudioBackendDropdown)
+    .toggle_message(GuiMessage::Settings(
+        SettingsMessage::ToggleAudioBackendDropdown,
+    ))
     .build()
 }
 
@@ -196,7 +202,9 @@ fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessag
         selected_audio_output_label(snapshot),
         snapshot.dropdown_open(AudioSettingsDropdown::Output),
     )
-    .toggle_message(GuiMessage::ToggleAudioOutputDropdown)
+    .toggle_message(GuiMessage::Settings(
+        SettingsMessage::ToggleAudioOutputDropdown,
+    ))
     .build()
 }
 
@@ -205,7 +213,9 @@ fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiM
         selected_audio_sample_rate_label(snapshot),
         snapshot.dropdown_open(AudioSettingsDropdown::SampleRate),
     )
-    .toggle_message(GuiMessage::ToggleAudioSampleRateDropdown)
+    .toggle_message(GuiMessage::Settings(
+        SettingsMessage::ToggleAudioSampleRateDropdown,
+    ))
     .build()
 }
 
@@ -256,14 +266,14 @@ fn audio_host_dropdown_options(
         "System default",
         None::<String>,
         snapshot.audio_output_config.host.as_ref(),
-        GuiMessage::SetAudioOutputHost,
+        |host| GuiMessage::Settings(SettingsMessage::SetAudioOutputHost(host)),
     )];
     for host in &snapshot.audio_hosts {
         options.push(ui::DropdownOption::for_optional_value(
             default_option_label(host.label.as_str(), host.is_default),
             Some(host.id.clone()),
             snapshot.audio_output_config.host.as_ref(),
-            GuiMessage::SetAudioOutputHost,
+            |host| GuiMessage::Settings(SettingsMessage::SetAudioOutputHost(host)),
         ));
     }
     options
@@ -292,14 +302,14 @@ fn audio_output_dropdown_options(
         "Host default",
         None::<String>,
         snapshot.audio_output_config.device.as_ref(),
-        GuiMessage::SetAudioOutputDevice,
+        |device| GuiMessage::Settings(SettingsMessage::SetAudioOutputDevice(device)),
     )];
     options.extend(snapshot.audio_devices.iter().map(|device| {
         ui::DropdownOption::for_optional_value(
             default_option_label(device.name.as_str(), device.is_default),
             Some(device.name.clone()),
             snapshot.audio_output_config.device.as_ref(),
-            GuiMessage::SetAudioOutputDevice,
+            |device| GuiMessage::Settings(SettingsMessage::SetAudioOutputDevice(device)),
         )
     }));
     options
@@ -328,14 +338,16 @@ fn audio_sample_rate_dropdown_options(
         "Device default",
         None::<u32>,
         snapshot.audio_output_config.sample_rate.as_ref(),
-        GuiMessage::SetAudioOutputSampleRate,
+        |sample_rate| GuiMessage::Settings(SettingsMessage::SetAudioOutputSampleRate(sample_rate)),
     )];
     options.extend(snapshot.audio_sample_rates.iter().copied().map(|rate| {
         ui::DropdownOption::for_optional_value(
             format_sample_rate_label(rate),
             Some(rate),
             snapshot.audio_output_config.sample_rate.as_ref(),
-            GuiMessage::SetAudioOutputSampleRate,
+            |sample_rate| {
+                GuiMessage::Settings(SettingsMessage::SetAudioOutputSampleRate(sample_rate))
+            },
         )
     }));
     options

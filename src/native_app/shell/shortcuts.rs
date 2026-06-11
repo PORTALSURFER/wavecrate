@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{FolderBrowserMessage, GuiMessage, NativeAppState};
+use crate::native_app::app::{FolderBrowserMessage, GuiMessage, NativeAppState, SettingsMessage};
 
 pub(in crate::native_app) fn default_gui_shortcuts(
     state: &NativeAppState,
@@ -24,7 +24,9 @@ pub(in crate::native_app) fn default_gui_shortcuts(
         )
         .layer_when(
             state.audio_settings_dropdown_open(),
-            ui::ShortcutLayer::modal_escape(GuiMessage::CloseAudioSettingsDropdowns),
+            ui::ShortcutLayer::modal_escape(GuiMessage::Settings(
+                SettingsMessage::CloseAudioSettingsDropdowns,
+            )),
         )
         .layer_when(
             state.ui.chrome.job_details_open,

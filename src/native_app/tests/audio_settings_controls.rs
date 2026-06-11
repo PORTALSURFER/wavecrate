@@ -72,7 +72,9 @@ fn volume_slider_drag_emits_normalized_volume() {
                 value: 0.75
             },),
         ),
-        Some(crate::native_app::test_support::GuiMessage::SetVolume(0.75))
+        Some(crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::SetVolume(0.75)
+        ))
     );
 }
 
@@ -131,7 +133,9 @@ fn audio_engine_pill_activates_settings_toggle() {
             crate::native_app::test_support::AUDIO_ENGINE_PILL_ID,
             radiant::widgets::WidgetOutput::typed(BadgeMessage::Activate),
         ),
-        Some(crate::native_app::test_support::GuiMessage::ToggleAudioSettings)
+        Some(crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::ToggleAudioSettings
+        ))
     );
 }
 
@@ -158,7 +162,9 @@ fn general_settings_button_opens_general_tab() {
             crate::native_app::test_support::GENERAL_SETTINGS_BUTTON_ID,
             radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         ),
-        Some(crate::native_app::test_support::GuiMessage::OpenGeneralSettings)
+        Some(crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::OpenGeneralSettings
+        ))
     );
 }
 
@@ -168,7 +174,9 @@ fn settings_top_bar_actions_open_expected_tabs() {
     let mut context = radiant::prelude::UpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::OpenGeneralSettings,
+        crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::OpenGeneralSettings,
+        ),
         &mut context,
     );
     assert!(state.ui.settings.ui.audio_settings_open);
@@ -178,7 +186,9 @@ fn settings_top_bar_actions_open_expected_tabs() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleAudioSettings,
+        crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::ToggleAudioSettings,
+        ),
         &mut context,
     );
     assert!(state.ui.settings.ui.audio_settings_open);
@@ -188,7 +198,9 @@ fn settings_top_bar_actions_open_expected_tabs() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ToggleAudioSettings,
+        crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::ToggleAudioSettings,
+        ),
         &mut context,
     );
     assert!(!state.ui.settings.ui.audio_settings_open);

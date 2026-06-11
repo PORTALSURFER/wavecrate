@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 use std::sync::Arc;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, SettingsMessage};
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 
 mod top_bar;
@@ -35,7 +35,7 @@ pub(in crate::native_app) fn auxiliary_windows(
     let surface = audio_settings_window_view(&snapshot).into_surface();
     vec![
         ui::AuxiliaryWindow::new("audio-settings", options, Arc::new(surface))
-            .on_close(GuiMessage::CloseAudioSettings)
+            .on_close(GuiMessage::Settings(SettingsMessage::CloseAudioSettings))
             .cache_on_close(),
     ]
 }

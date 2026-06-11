@@ -248,7 +248,9 @@ fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
 
     assert_eq!(
         resolution.action,
-        Some(crate::native_app::test_support::GuiMessage::CloseAudioSettingsDropdowns)
+        Some(crate::native_app::test_support::GuiMessage::Settings(
+            crate::native_app::app::SettingsMessage::CloseAudioSettingsDropdowns
+        ))
     );
     assert!(resolution.handled);
 }
