@@ -172,7 +172,7 @@ impl BrowserSelectionTransitionMachine {
         if !candidate_is_current {
             let effects = transition
                 .load_requested()
-                .then(|| BrowserSelectionTransitionEffect::CancelLoad(transition));
+                .then_some(BrowserSelectionTransitionEffect::CancelLoad(transition));
             return BrowserSelectionTransitionOutcome {
                 transition: None,
                 effects: effects.into_iter().collect(),

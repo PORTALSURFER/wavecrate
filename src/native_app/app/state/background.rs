@@ -101,9 +101,9 @@ impl AudioOpenCompletionOwner {
         if !self.task.finish(ticket) {
             return AudioOpenCompletion::Stale;
         }
-        AudioOpenCompletion::Current(
+        AudioOpenCompletion::Current(Box::new(
             result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))),
-        )
+        ))
     }
 }
 
@@ -125,7 +125,7 @@ impl AudioOpenCompletionSink {
 }
 
 pub(in crate::native_app) enum AudioOpenCompletion {
-    Current(Result<AudioPlayer, String>),
+    Current(Box<Result<AudioPlayer, String>>),
     Stale,
 }
 
@@ -145,9 +145,8 @@ mod tests {
             owner.finish(stale_ticket),
             AudioOpenCompletion::Stale
         ));
-        assert!(matches!(
-            owner.finish(current_ticket),
-            AudioOpenCompletion::Current(Err(_))
-        ));
+        assert!(
+            matches!(owner.finish(current_ticket), AudioOpenCompletion::Current(result) if result.is_err())
+        );
     }
 }

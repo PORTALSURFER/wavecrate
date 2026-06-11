@@ -268,67 +268,85 @@ mod tests {
     use super::*;
     use wavecrate::sample_sources::{Rating, SampleCollection};
 
-    fn file_entry(
-        stem: &str,
-        id_prefix: &str,
-        extension: &str,
+    struct TestFileEntry<'a> {
+        stem: &'a str,
+        id_prefix: &'a str,
+        extension: &'a str,
         size_bytes: u64,
         modified_rank: u64,
-        kind: &str,
+        kind: &'a str,
         rating: Rating,
         collection: Option<SampleCollection>,
-    ) -> FileEntry {
-        FileEntry {
-            id: format!("{id_prefix}/{stem}.{extension}"),
-            name: format!("{stem}.{extension}"),
-            stem: stem.to_owned(),
-            extension: extension.to_owned(),
-            kind: kind.to_owned(),
-            size: format!("{size_bytes} B"),
-            size_bytes,
-            modified: modified_rank.to_string(),
-            modified_rank,
-            rating,
-            rating_locked: false,
-            collection,
-            collections: collection.into_iter().collect(),
+    }
+
+    impl TestFileEntry<'_> {
+        fn build(self) -> FileEntry {
+            let Self {
+                stem,
+                id_prefix,
+                extension,
+                size_bytes,
+                modified_rank,
+                kind,
+                rating,
+                collection,
+            } = self;
+
+            FileEntry {
+                id: format!("{id_prefix}/{stem}.{extension}"),
+                name: format!("{stem}.{extension}"),
+                stem: stem.to_owned(),
+                extension: extension.to_owned(),
+                kind: kind.to_owned(),
+                size: format!("{size_bytes} B"),
+                size_bytes,
+                modified: modified_rank.to_string(),
+                modified_rank,
+                rating,
+                rating_locked: false,
+                collection,
+                collections: collection.into_iter().collect(),
+            }
         }
     }
 
     fn sort_names_by(kind: FileColumnKind) -> Vec<String> {
         let low_collection = SampleCollection::new(0).expect("collection 0");
         let high_collection = SampleCollection::new(1).expect("collection 1");
-        let files = vec![
-            file_entry(
-                "alpha",
-                "C:/z",
-                "wav",
-                20,
-                3,
-                "Audio",
-                Rating::NEUTRAL,
-                None,
-            ),
-            file_entry(
-                "bravo",
-                "C:/a",
-                "aif",
-                10,
-                2,
-                "Loop",
-                Rating::KEEP_1,
-                Some(high_collection),
-            ),
-            file_entry(
-                "charlie",
-                "C:/m",
-                "mp3",
-                30,
-                1,
-                "Drum",
-                Rating::TRASH_1,
-                Some(low_collection),
-            ),
+        let files = [
+            TestFileEntry {
+                stem: "alpha",
+                id_prefix: "C:/z",
+                extension: "wav",
+                size_bytes: 20,
+                modified_rank: 3,
+                kind: "Audio",
+                rating: Rating::NEUTRAL,
+                collection: None,
+            }
+            .build(),
+            TestFileEntry {
+                stem: "bravo",
+                id_prefix: "C:/a",
+                extension: "aif",
+                size_bytes: 10,
+                modified_rank: 2,
+                kind: "Loop",
+                rating: Rating::KEEP_1,
+                collection: Some(high_collection),
+            }
+            .build(),
+            TestFileEntry {
+                stem: "charlie",
+                id_prefix: "C:/m",
+                extension: "mp3",
+                size_bytes: 30,
+                modified_rank: 1,
+                kind: "Drum",
+                rating: Rating::TRASH_1,
+                collection: Some(low_collection),
+            }
+            .build(),
         ];
         let mut file_refs = files.iter().collect::<Vec<_>>();
         sort_file_refs_by_column_kind(kind, &mut file_refs);

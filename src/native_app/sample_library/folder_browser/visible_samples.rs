@@ -144,36 +144,6 @@ impl VisibleSampleProjectionKey {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn projection_request_key_tracks_query_and_revision_inputs() {
-        let ascending = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
-        let descending = ui::DetailsSort::new("size", ui::SortDirection::Descending);
-
-        assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
-            VisibleSampleProjectionRequest::new("folder", "kick", &descending, None, 4).key()
-        );
-        assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
-            VisibleSampleProjectionRequest::new("folder", "snare", &ascending, None, 4).key()
-        );
-        assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("a.wav"), 4)
-                .key(),
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("b.wav"), 4)
-                .key()
-        );
-        assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 5).key()
-        );
-    }
-}
-
 impl Hash for VisibleSampleProjectionKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.folder_id.hash(state);
@@ -240,5 +210,35 @@ impl FolderBrowserState {
                 .filter_map(|collection| self.collection_color(collection))
                 .collect(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn projection_request_key_tracks_query_and_revision_inputs() {
+        let ascending = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let descending = ui::DetailsSort::new("size", ui::SortDirection::Descending);
+
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", &descending, None, 4).key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "snare", &ascending, None, 4).key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("a.wav"), 4)
+                .key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("b.wav"), 4)
+                .key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 5).key()
+        );
     }
 }

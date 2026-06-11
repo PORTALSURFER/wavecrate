@@ -81,7 +81,7 @@ impl NativeAppState {
             );
             return;
         };
-        match result {
+        match *result {
             Ok(player) => {
                 log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
                 self.audio.output_resolved = Some(player.output_details().clone());
