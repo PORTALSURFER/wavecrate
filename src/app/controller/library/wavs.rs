@@ -39,6 +39,7 @@ mod metadata_facade;
 mod search_scoring;
 mod selection_ops;
 mod selection_transition;
+mod selection_transition_machine;
 mod similar;
 mod waveform_loading;
 pub mod waveform_rendering;
