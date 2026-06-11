@@ -6,6 +6,64 @@ use crate::app_core::controller::AppController;
 use crate::app_core::ui_projection;
 use std::sync::Arc;
 
+type SegmentMaterializer = for<'ctx> fn(&mut SegmentMaterializeContext<'ctx>) -> bool;
+
+#[derive(Clone, Copy)]
+struct ProjectionSegmentHandler {
+    segment: ProjectionSegment,
+    dirty_bits: u16,
+    materialize: SegmentMaterializer,
+}
+
+struct SegmentMaterializeContext<'a> {
+    cache: &'a mut UiProjectionCache,
+    model: &'a mut NativeAppModel,
+    controller: &'a mut AppController,
+    derived: &'a DerivedProjectionState,
+    has_retained_model: bool,
+}
+
+const RETAINED_SEGMENT_HANDLERS: &[ProjectionSegmentHandler] = &[
+    ProjectionSegmentHandler {
+        segment: ProjectionSegment::StatusBar,
+        dirty_bits: NativeDirtySegments::STATUS_BAR,
+        materialize: materialize_status_segment,
+    },
+    ProjectionSegmentHandler {
+        segment: ProjectionSegment::BrowserFrame,
+        dirty_bits: NativeDirtySegments::BROWSER_FRAME,
+        materialize: materialize_browser_frame_segment,
+    },
+    ProjectionSegmentHandler {
+        segment: ProjectionSegment::BrowserTagSidebar,
+        dirty_bits: NativeDirtySegments::BROWSER_FRAME,
+        materialize: materialize_browser_tag_sidebar_segment,
+    },
+    ProjectionSegmentHandler {
+        segment: ProjectionSegment::BrowserRowsWindow,
+        dirty_bits: NativeDirtySegments::BROWSER_ROWS_WINDOW,
+        materialize: materialize_browser_rows_segment,
+    },
+    ProjectionSegmentHandler {
+        segment: ProjectionSegment::MapPanel,
+        dirty_bits: NativeDirtySegments::MAP_PANEL,
+        materialize: materialize_map_segment,
+    },
+    ProjectionSegmentHandler {
+        segment: ProjectionSegment::WaveformOverlay,
+        dirty_bits: NativeDirtySegments::WAVEFORM_OVERLAY,
+        materialize: materialize_waveform_segment,
+    },
+];
+
+#[cfg(test)]
+pub(crate) fn retained_segment_handler_plan() -> Vec<(ProjectionSegment, u16)> {
+    RETAINED_SEGMENT_HANDLERS
+        .iter()
+        .map(|handler| (handler.segment, handler.dirty_bits))
+        .collect()
+}
+
 /// Resolve the retained app-model snapshot using a fresh derive-state snapshot.
 pub(super) fn resolve_or_project(
     cache: &mut UiProjectionCache,
@@ -44,37 +102,15 @@ pub(super) fn resolve_or_project_with_derived(
 
     let mut dirty_segments = NativeDirtySegments::empty();
 
-    if materialize_status_segment(cache, model, controller, derived, has_retained_model) {
-        dirty_segments.insert(NativeDirtySegments::STATUS_BAR);
-    }
-
-    let browser_frame_changed =
-        materialize_browser_frame_segment(cache, model, controller, derived, has_retained_model);
-    if browser_frame_changed {
-        dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
-    }
-
-    let browser_tag_sidebar_changed = materialize_browser_tag_sidebar_segment(
-        cache,
-        model,
-        controller,
-        derived,
-        has_retained_model,
-    );
-    if browser_tag_sidebar_changed {
-        dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
-    }
-
-    if materialize_browser_rows_segment(cache, model, controller, derived, has_retained_model) {
-        dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
-    }
-
-    if materialize_map_segment(cache, model, controller, derived, has_retained_model) {
-        dirty_segments.insert(NativeDirtySegments::MAP_PANEL);
-    }
-
-    if materialize_waveform_segment(cache, model, controller, derived, has_retained_model) {
-        dirty_segments.insert(NativeDirtySegments::WAVEFORM_OVERLAY);
+    {
+        let mut segment_context = SegmentMaterializeContext {
+            cache,
+            model,
+            controller,
+            derived,
+            has_retained_model,
+        };
+        materialize_retained_segments(&mut segment_context, &mut dirty_segments);
     }
 
     let non_segment_static_changed =
@@ -96,6 +132,21 @@ pub(super) fn resolve_or_project_with_derived(
     cache.app_key = Some(derived.app_key.clone());
     cache.app_model = Some(Arc::clone(&snapshot));
     (snapshot, dirty_segments)
+}
+
+fn materialize_retained_segments(
+    context: &mut SegmentMaterializeContext<'_>,
+    dirty_segments: &mut NativeDirtySegments,
+) {
+    for handler in RETAINED_SEGMENT_HANDLERS {
+        let changed = (handler.materialize)(context);
+        context
+            .cache
+            .record_segment_lookup(handler.segment, !changed);
+        if changed {
+            dirty_segments.insert(handler.dirty_bits);
+        }
+    }
 }
 
 /// Copy browser metadata fields while preserving any retained row vector.
@@ -190,166 +241,129 @@ fn segment_key_changed<T: PartialEq>(
 }
 
 /// Materialize status/footer fields when the status segment is dirty.
-fn materialize_status_segment(
-    cache: &mut UiProjectionCache,
-    model: &mut NativeAppModel,
-    controller: &mut AppController,
-    derived: &DerivedProjectionState,
-    has_retained_model: bool,
-) -> bool {
-    let changed = segment_key_changed(has_retained_model, &cache.status_key, &derived.status_key);
+fn materialize_status_segment(context: &mut SegmentMaterializeContext<'_>) -> bool {
+    let changed = segment_key_changed(
+        context.has_retained_model,
+        &context.cache.status_key,
+        &context.derived.status_key,
+    );
     if changed {
-        cache.record_segment_lookup(ProjectionSegment::StatusBar, false);
-        model.status = ui_projection::project_status_model(controller, derived.selected_column);
-        model.status_text = controller.ui.status.text.clone();
-        cache.status_key = Some(derived.status_key.clone());
-    } else {
-        cache.record_segment_lookup(ProjectionSegment::StatusBar, true);
+        context.model.status = ui_projection::project_status_model(
+            context.controller,
+            context.derived.selected_column,
+        );
+        context.model.status_text = context.controller.ui.status.text.clone();
+        context.cache.status_key = Some(context.derived.status_key.clone());
     }
     changed
 }
 
 /// Materialize browser frame/chrome/action fields when the frame segment is dirty.
-fn materialize_browser_frame_segment(
-    cache: &mut UiProjectionCache,
-    model: &mut NativeAppModel,
-    controller: &mut AppController,
-    derived: &DerivedProjectionState,
-    has_retained_model: bool,
-) -> bool {
+fn materialize_browser_frame_segment(context: &mut SegmentMaterializeContext<'_>) -> bool {
     let changed = segment_key_changed(
-        has_retained_model,
-        &cache.browser_frame_key,
-        &derived.browser_frame_key,
+        context.has_retained_model,
+        &context.cache.browser_frame_key,
+        &context.derived.browser_frame_key,
     );
     if changed {
-        cache.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
-        let frame = ui_projection::project_browser_panel_frame_model(controller);
-        apply_browser_frame(model, frame);
-        model.browser_chrome = ui_projection::project_browser_chrome_model(
-            &controller.ui,
-            model.browser.visible_count,
+        let frame = ui_projection::project_browser_panel_frame_model(context.controller);
+        apply_browser_frame(context.model, frame);
+        context.model.browser_chrome = ui_projection::project_browser_chrome_model(
+            &context.controller.ui,
+            context.model.browser.visible_count,
         );
-        model.browser_actions = ui_projection::project_browser_actions_model(&controller.ui);
-        cache.browser_frame_key = Some(derived.browser_frame_key.clone());
-    } else {
-        cache.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
+        context.model.browser_actions =
+            ui_projection::project_browser_actions_model(&context.controller.ui);
+        context.cache.browser_frame_key = Some(context.derived.browser_frame_key.clone());
     }
     changed
 }
 
 /// Materialize browser tag-sidebar fields when sidebar-specific inputs changed.
-fn materialize_browser_tag_sidebar_segment(
-    cache: &mut UiProjectionCache,
-    model: &mut NativeAppModel,
-    controller: &mut AppController,
-    derived: &DerivedProjectionState,
-    has_retained_model: bool,
-) -> bool {
+fn materialize_browser_tag_sidebar_segment(context: &mut SegmentMaterializeContext<'_>) -> bool {
     let changed = segment_key_changed(
-        has_retained_model,
-        &cache.browser_tag_sidebar_key,
-        &derived.browser_tag_sidebar_key,
+        context.has_retained_model,
+        &context.cache.browser_tag_sidebar_key,
+        &context.derived.browser_tag_sidebar_key,
     );
     if changed {
-        cache.record_segment_lookup(ProjectionSegment::BrowserTagSidebar, false);
         apply_browser_tag_sidebar(
-            model,
-            ui_projection::project_browser_focused_sample_label(controller),
-            ui_projection::project_browser_tag_sidebar_model(controller),
+            context.model,
+            ui_projection::project_browser_focused_sample_label(context.controller),
+            ui_projection::project_browser_tag_sidebar_model(context.controller),
         );
-        cache.browser_tag_sidebar_key = Some(derived.browser_tag_sidebar_key.clone());
-    } else {
-        cache.record_segment_lookup(ProjectionSegment::BrowserTagSidebar, true);
+        context.cache.browser_tag_sidebar_key =
+            Some(context.derived.browser_tag_sidebar_key.clone());
     }
     changed
 }
 
 /// Materialize browser visible-row window when row-window inputs changed.
-fn materialize_browser_rows_segment(
-    cache: &mut UiProjectionCache,
-    model: &mut NativeAppModel,
-    controller: &mut AppController,
-    derived: &DerivedProjectionState,
-    has_retained_model: bool,
-) -> bool {
+fn materialize_browser_rows_segment(context: &mut SegmentMaterializeContext<'_>) -> bool {
     let browser_rows_changed = segment_key_changed(
-        has_retained_model,
-        &cache.browser_rows_key,
-        &derived.browser_rows_key,
+        context.has_retained_model,
+        &context.cache.browser_rows_key,
+        &context.derived.browser_rows_key,
     );
     let browser_row_state_changed = segment_key_changed(
-        has_retained_model,
-        &cache.browser_rows_state_key,
-        &derived.browser_rows_state_key,
+        context.has_retained_model,
+        &context.cache.browser_rows_state_key,
+        &context.derived.browser_rows_state_key,
     );
     if browser_rows_changed {
-        cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
-        let row_inputs = ui_projection::project_browser_rows_projection_inputs(controller);
+        let row_inputs = ui_projection::project_browser_rows_projection_inputs(context.controller);
         ui_projection::project_browser_rows_model_into(
-            controller,
+            context.controller,
             row_inputs.visible_count,
             row_inputs.selected_visible_row,
             row_inputs.anchor_visible_row,
-            &mut model.browser.rows,
+            &mut context.model.browser.rows,
         );
-        cache.browser_rows_key = Some(derived.browser_rows_key.clone());
-        cache.browser_rows_state_key = Some(derived.browser_rows_state_key.clone());
+        context.cache.browser_rows_key = Some(context.derived.browser_rows_key.clone());
+        context.cache.browser_rows_state_key = Some(context.derived.browser_rows_state_key.clone());
         return true;
     }
     if browser_row_state_changed {
-        cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
         ui_projection::patch_browser_rows_state(
-            controller,
-            derived.browser_rows_state_key.browser_selected_visible,
-            model.browser.rows.make_mut().as_mut_slice(),
+            context.controller,
+            context
+                .derived
+                .browser_rows_state_key
+                .browser_selected_visible,
+            context.model.browser.rows.make_mut().as_mut_slice(),
         );
-        cache.browser_rows_state_key = Some(derived.browser_rows_state_key.clone());
+        context.cache.browser_rows_state_key = Some(context.derived.browser_rows_state_key.clone());
         return true;
     }
-    cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
     false
 }
 
 /// Materialize map-panel fields when the map segment is dirty.
-fn materialize_map_segment(
-    cache: &mut UiProjectionCache,
-    model: &mut NativeAppModel,
-    controller: &mut AppController,
-    derived: &DerivedProjectionState,
-    has_retained_model: bool,
-) -> bool {
-    let changed = segment_key_changed(has_retained_model, &cache.map_key, &derived.map_key);
+fn materialize_map_segment(context: &mut SegmentMaterializeContext<'_>) -> bool {
+    let changed = segment_key_changed(
+        context.has_retained_model,
+        &context.cache.map_key,
+        &context.derived.map_key,
+    );
     if changed {
-        cache.record_segment_lookup(ProjectionSegment::MapPanel, false);
-        model.map = ui_projection::project_map_model(controller);
-        cache.map_key = Some(derived.map_key.clone());
-    } else {
-        cache.record_segment_lookup(ProjectionSegment::MapPanel, true);
+        context.model.map = ui_projection::project_map_model(context.controller);
+        context.cache.map_key = Some(context.derived.map_key.clone());
     }
     changed
 }
 
 /// Materialize waveform panel/chrome fields when the waveform segment is dirty.
-fn materialize_waveform_segment(
-    cache: &mut UiProjectionCache,
-    model: &mut NativeAppModel,
-    controller: &mut AppController,
-    derived: &DerivedProjectionState,
-    has_retained_model: bool,
-) -> bool {
+fn materialize_waveform_segment(context: &mut SegmentMaterializeContext<'_>) -> bool {
     let changed = segment_key_changed(
-        has_retained_model,
-        &cache.waveform_key,
-        &derived.waveform_key,
+        context.has_retained_model,
+        &context.cache.waveform_key,
+        &context.derived.waveform_key,
     );
     if changed {
-        cache.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
-        model.waveform = ui_projection::project_waveform_model(controller);
-        model.waveform_chrome = ui_projection::project_waveform_chrome_model(&controller.ui);
-        cache.waveform_key = Some(derived.waveform_key.clone());
-    } else {
-        cache.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
+        context.model.waveform = ui_projection::project_waveform_model(context.controller);
+        context.model.waveform_chrome =
+            ui_projection::project_waveform_chrome_model(&context.controller.ui);
+        context.cache.waveform_key = Some(context.derived.waveform_key.clone());
     }
     changed
 }

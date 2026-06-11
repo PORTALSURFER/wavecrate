@@ -9,7 +9,9 @@ use crate::app_core::state::{
 };
 use crate::app_core::test_fixtures as projection_fixtures;
 use crate::app_core::ui_bridge::invalidation::waveform_render_inputs_require_refresh;
-use crate::app_core::ui_bridge::projection_cache::{UiProjectionCache, build_projection_cache_key};
+use crate::app_core::ui_bridge::projection_cache::{
+    ProjectionSegment, UiProjectionCache, build_projection_cache_key, retained_segment_handler_plan,
+};
 use crate::waveform::WaveformRenderer;
 use std::path::PathBuf;
 use std::sync::Arc;

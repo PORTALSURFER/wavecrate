@@ -23,6 +23,8 @@ pub(super) use segment_lookup::ProjectionSegment;
 pub use segment_lookup::{
     ProjectionSegmentLookupCount, ProjectionSegmentLookupCounts, ProjectionSegmentProbeMeasurement,
 };
+#[cfg(test)]
+pub(super) use segment_materialize::retained_segment_handler_plan;
 
 #[cfg(test)]
 pub(super) fn build_projection_cache_key(controller: &AppController) -> UiProjectionCacheKey {
