@@ -71,6 +71,19 @@ pub(super) fn rename_files_with_rollback(
     Ok(completed)
 }
 
+pub(super) fn move_file_to_unique_destination(
+    source_path: &Path,
+    target_folder: &Path,
+    error_prefix: &'static str,
+) -> Result<(PathBuf, PathBuf), String> {
+    let Some(file_name) = source_path.file_name() else {
+        return Err(format!("{error_prefix}: file has no name"));
+    };
+    let destination = unique_destination(&target_folder.join(file_name));
+    fs::rename(source_path, &destination).map_err(|error| format!("{error_prefix}: {error}"))?;
+    Ok((source_path.to_path_buf(), destination))
+}
+
 pub(super) fn rollback_completed_file_moves(completed: &[(PathBuf, PathBuf)]) {
     for (moved_old, moved_new) in completed.iter().rev() {
         let _ = fs::rename(moved_new, moved_old);
@@ -232,6 +245,29 @@ mod tests {
             fs::read(&second_source).expect("read second source"),
             b"second"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn move_file_to_unique_destination_renames_conflicting_extracted_file() {
+        let root = temp_dir("wavecrate-file-move-unique-extracted");
+        let source = root.join("source");
+        let target = root.join("target");
+        fs::create_dir_all(&source).expect("create source");
+        fs::create_dir_all(&target).expect("create target");
+        let extracted = source.join("loop.wav");
+        let existing = target.join("loop.wav");
+        fs::write(&extracted, b"extracted").expect("write extracted");
+        fs::write(&existing, b"existing").expect("write existing");
+
+        let moved = move_file_to_unique_destination(&extracted, &target, "Extraction move failed")
+            .expect("move extracted file");
+
+        let renamed = target.join("loop_copy001.wav");
+        assert_eq!(moved, (extracted.clone(), renamed.clone()));
+        assert!(!extracted.exists());
+        assert_eq!(fs::read(existing).expect("read existing"), b"existing");
+        assert_eq!(fs::read(renamed).expect("read renamed"), b"extracted");
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -9,8 +9,9 @@ use super::{
     FolderDropResult,
     file_move_transaction::{
         file_move_plan_to_folder, move_existing_destination_to_backup, move_file_over_backup,
-        remove_overwrite_backup, rename_files_with_rollback, restore_overwrite_backup,
-        rollback_completed_file_moves, rollback_overwrite_move, unique_destination,
+        move_file_to_unique_destination, remove_overwrite_backup, rename_files_with_rollback,
+        restore_overwrite_backup, rollback_completed_file_moves, rollback_overwrite_move,
+        unique_destination,
     },
     path_helpers::path_id,
     plural,
@@ -188,12 +189,10 @@ impl FolderBrowserState {
                 status: Some(String::from("Extraction kept in current folder")),
             });
         }
-        let Some(file_name) = path.file_name() else {
-            return Err(String::from("Extraction move failed: file has no name"));
-        };
-        let new_path = unique_destination(&target_path.join(file_name));
-        fs::rename(path, &new_path).map_err(|error| format!("Extraction move failed: {error}"))?;
-        let completed = vec![(path.to_path_buf(), new_path.clone())];
+        let completed_move =
+            move_file_to_unique_destination(path, &target_path, "Extraction move failed")?;
+        let new_path = completed_move.1.clone();
+        let completed = vec![completed_move];
         let previous_selection = self.selection.snapshot();
         let previous_file_view_controller = self.sample_list.view_controller.clone();
         if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
