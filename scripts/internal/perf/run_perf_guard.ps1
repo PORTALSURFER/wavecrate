@@ -122,88 +122,6 @@ function Get-BoolEnvFlag {
   return @('1', 'true', 'yes', 'on').Contains($raw.Trim().ToLowerInvariant())
 }
 
-function Get-Median {
-  param(
-    [Parameter(Mandatory = $true)]
-    [double[]]$Values
-  )
-
-  $ordered = @($Values | Sort-Object)
-  if ($ordered.Count -eq 0) {
-    throw "[perf_guard] ERROR: median requested with no values."
-  }
-  $middle = [int][Math]::Floor($ordered.Count / 2)
-  if (($ordered.Count % 2) -eq 1) {
-    return [double]$ordered[$middle]
-  }
-  return ([double]$ordered[$middle - 1] + [double]$ordered[$middle]) / 2.0
-}
-
-function Get-MedianInt {
-  param(
-    [Parameter(Mandatory = $true)]
-    [double[]]$Values
-  )
-
-  return [int][Math]::Round((Get-Median -Values $Values), [MidpointRounding]::AwayFromZero)
-}
-
-function Test-HasProperty {
-  param(
-    [Parameter(Mandatory = $true)]
-    [object]$Object,
-    [Parameter(Mandatory = $true)]
-    [string]$Key
-  )
-
-  if ($Object -is [System.Collections.IDictionary]) {
-    return $Object.Contains($Key)
-  }
-  return $null -ne $Object.PSObject.Properties[$Key]
-}
-
-function Get-RequiredPropertyValue {
-  param(
-    [Parameter(Mandatory = $true)]
-    [object]$Object,
-    [Parameter(Mandatory = $true)]
-    [string]$Key
-  )
-
-  if (-not (Test-HasProperty -Object $Object -Key $Key)) {
-    throw "[perf_guard] ERROR: missing `$Key` in benchmark report."
-  }
-  if ($Object -is [System.Collections.IDictionary]) {
-    return $Object[$Key]
-  }
-  return $Object.$Key
-}
-
-function Get-ScenarioSamples {
-  param(
-    [Parameter(Mandatory = $true)]
-    [object[]]$GuiReports,
-    [Parameter(Mandatory = $true)]
-    [string]$ScenarioKey
-  )
-
-  $samples = @()
-  for ($index = 0; $index -lt $GuiReports.Count; $index += 1) {
-    $gui = $GuiReports[$index]
-    if (-not (Test-HasProperty -Object $gui -Key $ScenarioKey)) {
-      Write-Warning "[perf_guard] missing scenario '$ScenarioKey' in run $($index + 1); excluding run from this scenario"
-      continue
-    }
-    $scenario = Get-RequiredPropertyValue -Object $gui -Key $ScenarioKey
-    if ($scenario -isnot [System.Collections.IDictionary] -and $scenario -isnot [psobject]) {
-      Write-Warning "[perf_guard] malformed scenario '$ScenarioKey' in run $($index + 1); excluding run from this scenario"
-      continue
-    }
-    $samples += ,$scenario
-  }
-  return $samples
-}
-
 function Invoke-PerfBenchRun {
   param(
     [Parameter(Mandatory = $true)]
@@ -336,12 +254,6 @@ if (-not [string]::IsNullOrWhiteSpace($reportDir)) {
 }
 
 $validationContract = Get-ValidationContract
-$scenarioConfigs = @($validationContract.perf.scenarios)
-$frameQualityConfig = $validationContract.perf.frame_quality
-$warnJankRatio = Get-EnvDouble -Name ([string]$frameQualityConfig.warn_jank_env) -Default ([double]$frameQualityConfig.warn_jank_default)
-$warnMissedPresentRatio = Get-EnvDouble -Name ([string]$frameQualityConfig.warn_missed_present_env) -Default ([double]$frameQualityConfig.warn_missed_present_default)
-$failJankRatio = Get-OptionalEnvDouble -Name ([string]$frameQualityConfig.fail_jank_env)
-$failMissedPresentRatio = Get-OptionalEnvDouble -Name ([string]$frameQualityConfig.fail_missed_present_env)
 
 $reportPaths = New-Object System.Collections.Generic.List[string]
 $startupLogPaths = New-Object System.Collections.Generic.List[string]
@@ -398,121 +310,11 @@ try {
   }
 
   Write-Host "[perf_guard] parsing benchmark reports ($runs run(s)); canonical report: $canonicalReportPath"
-
-  $guiReports = @()
-  foreach ($reportPath in $reportPaths) {
-    if (-not (Test-Path $reportPath)) {
-      throw "[perf_guard] ERROR: report missing at $reportPath"
-    }
-    $report = Get-Content $reportPath -Raw | ConvertFrom-Json
-    if (-not (Test-HasProperty -Object $report -Key "gui") -or $null -eq (Get-RequiredPropertyValue -Object $report -Key "gui")) {
-      throw "[perf_guard] ERROR: missing `gui` benchmark section in $reportPath"
-    }
-    $guiReports += ,(Get-RequiredPropertyValue -Object $report -Key "gui")
-  }
-
-  if ($guiReports.Count -gt 0 -and (Test-HasProperty -Object $guiReports[0] -Key "retained_app_model_projection_p95_us")) {
-    $retainedProjectionP95Us = Get-MedianInt -Values ($guiReports | ForEach-Object {
-      [double](Get-RequiredPropertyValue -Object $_ -Key "retained_app_model_projection_p95_us")
-    })
-    Write-Host "[perf_guard] retained_app_model_projection_p95_us: median=$retainedProjectionP95Us us (diagnostic, retained runtime path)"
-  }
-
-  $controllerProjectionSamples = @()
-  foreach ($gui in $guiReports) {
-    if (-not (Test-HasProperty -Object $gui -Key "controller_app_model_projection")) {
-      continue
-    }
-    $summary = Get-RequiredPropertyValue -Object $gui -Key "controller_app_model_projection"
-    if ($summary -is [System.Collections.IDictionary] -or $summary -is [psobject]) {
-      $controllerProjectionSamples += [double](Get-RequiredPropertyValue -Object $summary -Key "p95_us")
-    }
-  }
-  if ($controllerProjectionSamples.Count -gt 0) {
-    $controllerProjectionP95Us = Get-MedianInt -Values $controllerProjectionSamples
-    Write-Host "[perf_guard] controller_app_model_projection_p95_us: median=$controllerProjectionP95Us us (diagnostic, legacy controller path)"
-  }
-
-  $warned = $false
-  $failed = $false
-
-  foreach ($config in $scenarioConfigs) {
-    $scenarioKey = [string]$config.key
-    $samples = @(Get-ScenarioSamples -GuiReports $guiReports -ScenarioKey $scenarioKey)
-    if ($samples.Count -eq 0) {
-      Write-Warning "[perf_guard] skipping scenario '$scenarioKey' because no runs provided it"
-      continue
-    }
-
-    $p50 = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "p50_us") })
-    $p95 = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "p95_us") })
-    $p99 = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "p99_us") })
-    $maxUs = [int](($samples | ForEach-Object { [int](Get-RequiredPropertyValue -Object $_ -Key "max_us") } | Measure-Object -Maximum).Maximum)
-    $meanUs = Get-Median -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "mean_us") })
-    $stdDevUs = Get-Median -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "stddev_us") })
-    $outlierHighCount = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "outlier_high_count") })
-    $outlierHighRatio = Get-Median -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "outlier_high_ratio") })
-    $frameBudgetUs = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "frame_budget_us") })
-    $frameJankCount = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "frame_jank_count") })
-    $frameJankRatio = Get-Median -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "frame_jank_ratio") })
-    $missedPresentCount = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "missed_present_proxy_count") })
-    $missedPresentRatio = Get-Median -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "missed_present_proxy_ratio") })
-
-    $warnLimit = Get-EnvInt -Name ([string]$config.warn_env) -Default ([int]$config.warn_default)
-    $failLimit = Get-OptionalEnvInt -Name ([string]$config.fail_env)
-    if ($null -eq $failLimit -and $null -ne $config.fail_default) {
-      $failLimit = [int]$config.fail_default
-    }
-
-    $status = "(warn>$warnLimit" + "us"
-    if ($null -ne $failLimit) {
-      $status += ", fail>$failLimit" + "us"
-    }
-    $status += ")"
-
-    Write-Host (
-      "[perf_guard] {0}: p50={1}us p95={2}us p99={3}us max={4}us mean={5:N1}us stddev={6:N1}us outliers={7} ({8:P1}) runs={9} {10}" -f
-      $scenarioKey, $p50, $p95, $p99, $maxUs, $meanUs, $stdDevUs, $outlierHighCount, $outlierHighRatio, $samples.Count, $status
-    )
-    Write-Host (
-      "[perf_guard]   {0} frame_quality_proxy: budget={1}us jank={2} ({3:P1}) missed_present={4} ({5:P1}) (warn_jank>{6:P1} warn_missed>{7:P1})" -f
-      $scenarioKey, $frameBudgetUs, $frameJankCount, $frameJankRatio, $missedPresentCount, $missedPresentRatio, $warnJankRatio, $warnMissedPresentRatio
-    )
-
-    if ($p95 -gt $warnLimit) {
-      $warned = $true
-      Write-Warning "[perf_guard] $scenarioKey exceeded warning threshold: p95=${p95}us > ${warnLimit}us"
-    }
-    if ($null -ne $failLimit -and $p95 -gt $failLimit) {
-      $failed = $true
-      Write-Error "[perf_guard] $scenarioKey exceeded fail threshold: p95=${p95}us > ${failLimit}us"
-    }
-    if ($frameJankRatio -gt $warnJankRatio) {
-      $warned = $true
-      Write-Warning "[perf_guard] $scenarioKey exceeded frame-jank warning threshold: $([string]::Format('{0:P1}', $frameJankRatio)) > $([string]::Format('{0:P1}', $warnJankRatio))"
-    }
-    if ($null -ne $failJankRatio -and $frameJankRatio -gt $failJankRatio) {
-      $failed = $true
-      Write-Error "[perf_guard] $scenarioKey exceeded frame-jank fail threshold: $([string]::Format('{0:P1}', $frameJankRatio)) > $([string]::Format('{0:P1}', $failJankRatio))"
-    }
-    if ($missedPresentRatio -gt $warnMissedPresentRatio) {
-      $warned = $true
-      Write-Warning "[perf_guard] $scenarioKey exceeded missed-present warning threshold: $([string]::Format('{0:P1}', $missedPresentRatio)) > $([string]::Format('{0:P1}', $warnMissedPresentRatio))"
-    }
-    if ($null -ne $failMissedPresentRatio -and $missedPresentRatio -gt $failMissedPresentRatio) {
-      $failed = $true
-      Write-Error "[perf_guard] $scenarioKey exceeded missed-present fail threshold: $([string]::Format('{0:P1}', $missedPresentRatio)) > $([string]::Format('{0:P1}', $failMissedPresentRatio))"
-    }
-  }
-
-  if ($warned) {
-    Write-Host "[perf_guard] completed with warnings"
-  } else {
-    Write-Host "[perf_guard] completed without warnings"
-  }
-
-  if ($failed) {
-    throw "[perf_guard] ERROR: fail thresholds exceeded."
+  python scripts/internal/perf/evaluate_perf_guard_report.py `
+    --contract scripts/internal/data/validation_contract.json `
+    @reportPaths
+  if ($LASTEXITCODE -ne 0) {
+    throw "[perf_guard] ERROR: shared perf report evaluation failed with exit code $LASTEXITCODE."
   }
 
   if ($startupProfileEnabled) {
