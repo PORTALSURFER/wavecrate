@@ -48,6 +48,7 @@ run_check "workflow toolchain pinning" ./scripts/internal/check/check_workflow_t
 run_check "manual docs scope guard" ./scripts/internal/check/check_manual_docs_scope.sh
 run_check "legacy app coupling guardrail" ./scripts/internal/check/check_legacy_app_coupling.sh
 run_check "native app boundary guardrail" ./scripts/internal/check/check_native_app_boundary.sh
+run_check "Wavecrate facade guardrail" ./scripts/internal/check/check_wavecrate_facades.sh
 run_check "rust todo/todo guardrail (non-test only)" ./scripts/internal/check/check_rust_no_todos.sh
 run_check "rust dead dependency/unused code sweep (advisory)" \
   ./scripts/internal/check/check_rust_dead_deps_advisory.sh --advisory

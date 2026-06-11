@@ -46,6 +46,7 @@ $commands = @{
   "script-guardrails" = "check_script_guardrails.ps1"
   "taste" = "check_rust_taste_invariants.ps1"
   "workflow-toolchain" = "check_workflow_toolchain_pinning.ps1"
+  "wavecrate-facades" = "check_wavecrate_facades.ps1"
 }
 
 if ([string]::IsNullOrWhiteSpace($Command)) {

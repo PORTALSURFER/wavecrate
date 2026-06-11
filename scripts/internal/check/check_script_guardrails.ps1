@@ -373,6 +373,7 @@ try {
     (Join-Path $scriptsDir "internal/ci/ci_local.ps1"),
     (Join-Path $scriptsDir "internal/check/audit_cleanup_hotspots.ps1"),
     (Join-Path $scriptsDir "internal/check/check_native_app_boundary.ps1"),
+    (Join-Path $scriptsDir "internal/check/check_wavecrate_facades.ps1"),
     (Join-Path $scriptsDir "internal/check/check_docs_index.ps1"),
     (Join-Path $scriptsDir "internal/check/report_file_size_budget_allowlist.ps1")
   )

@@ -276,6 +276,10 @@
         {
           "name": "workflow-toolchain",
           "target": "check_workflow_toolchain_pinning.ps1"
+        },
+        {
+          "name": "wavecrate-facades",
+          "target": "check_wavecrate_facades.ps1"
         }
       ]
     },

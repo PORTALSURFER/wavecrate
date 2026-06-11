@@ -45,6 +45,7 @@ case "$command" in
   script-guardrails) exec "$script_dir/check_script_guardrails.sh" "$@" ;;
   taste) exec "$script_dir/check_rust_taste_invariants.sh" "$@" ;;
   workflow-toolchain) exec "$script_dir/check_workflow_toolchain_pinning.sh" "$@" ;;
+  wavecrate-facades) exec "$script_dir/check_wavecrate_facades.sh" "$@" ;;
   -h|--help) usage ;;
   *)
     echo "Unknown check command: $command" >&2
