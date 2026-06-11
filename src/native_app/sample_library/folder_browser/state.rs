@@ -200,6 +200,7 @@ pub(super) struct SampleListState {
     pub(super) similarity: Option<SimilarityBrowserState>,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
+    pub(super) prepared_window: ui::VirtualListWindow,
     pub(super) content_revision: u64,
     selected_audio_projection_cache: RefCell<HashMap<SelectedAudioProjectionKey, Vec<usize>>>,
 }
@@ -214,6 +215,7 @@ impl SampleListState {
             similarity: None,
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
+            prepared_window: ui::VirtualListWindow::default(),
             content_revision: 0,
             selected_audio_projection_cache: RefCell::new(HashMap::new()),
         }
@@ -222,6 +224,7 @@ impl SampleListState {
     pub(super) fn reset_view(&mut self) {
         self.view_controller = ui::VirtualListController::default();
         self.follow_selection.clear();
+        self.prepared_window = ui::VirtualListWindow::default();
     }
 
     pub(super) fn bump_content_revision(&mut self) {

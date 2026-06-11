@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::native_app::app::{NativeAppState, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::{
-    FileColumnDragFeedback, VisibleSampleList, VisibleSampleQuery,
+    FileColumnDragFeedback, VisibleSampleList, VisibleSampleQuery, VisibleSampleWindowPolicy,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
@@ -20,7 +20,19 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
 }
 
 impl<'a> SampleBrowserViewModel<'a> {
-    pub(in crate::native_app) fn from_app_state(state: &'a mut NativeAppState) -> Self {
+    pub(in crate::native_app) fn prepare_visible_sample_window(state: &mut NativeAppState) {
+        state
+            .library
+            .folder_browser
+            .prepare_visible_sample_window(VisibleSampleWindowPolicy {
+                tags_by_file: &state.metadata.tags_by_file,
+                viewport_rows: SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+                overscan_rows: SAMPLE_BROWSER_OVERSCAN_ROWS,
+                guard_rows: SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+            });
+    }
+
+    pub(in crate::native_app) fn from_app_state(state: &'a NativeAppState) -> Self {
         let file_drag_active = state.library.folder_browser.file_drag_active();
         let extracted_file_drag_active = state.library.folder_browser.extracted_file_drag_active();
         let hovered_folder_drop_target = state
@@ -35,9 +47,6 @@ impl<'a> SampleBrowserViewModel<'a> {
             .visible_samples(VisibleSampleQuery {
                 tags_by_file: &state.metadata.tags_by_file,
                 cached_sample_paths: &state.waveform.cache.cached_sample_paths,
-                viewport_rows: SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
-                overscan_rows: SAMPLE_BROWSER_OVERSCAN_ROWS,
-                guard_rows: SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
             });
 
         Self {

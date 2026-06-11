@@ -53,6 +53,7 @@ fn metadata_tag_library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
 }
 
 fn sample_workspace_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+    SampleBrowserViewModel::prepare_visible_sample_window(state);
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
     let sample_browser_model = SampleBrowserViewModel::from_app_state(state);

@@ -26,6 +26,7 @@ pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 58.0;
 pub(in crate::native_app) fn sample_browser_from_state(
     state: &mut NativeAppState,
 ) -> ui::View<GuiMessage> {
+    SampleBrowserViewModel::prepare_visible_sample_window(state);
     sample_browser(SampleBrowserViewModel::from_app_state(state))
 }
 

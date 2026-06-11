@@ -7,6 +7,11 @@ use super::{FileColumn, FileEntry, FileRenameView, FolderBrowserState};
 pub(in crate::native_app) struct VisibleSampleQuery<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) cached_sample_paths: &'a HashSet<String>,
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::native_app) struct VisibleSampleWindowPolicy<'a> {
+    pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) viewport_rows: usize,
     pub(in crate::native_app) overscan_rows: usize,
     pub(in crate::native_app) guard_rows: usize,
@@ -35,16 +40,23 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
 }
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn prepare_visible_sample_window(
+        &mut self,
+        policy: VisibleSampleWindowPolicy<'_>,
+    ) -> ui::VirtualListWindow {
+        self.follow_selected_file_view_matching_tags(
+            policy.viewport_rows,
+            policy.overscan_rows,
+            policy.guard_rows,
+            policy.tags_by_file,
+        )
+    }
+
     pub(in crate::native_app) fn visible_samples<'a>(
-        &'a mut self,
+        &'a self,
         query: VisibleSampleQuery<'a>,
     ) -> VisibleSampleList<'a> {
-        let window = self.follow_selected_file_view_matching_tags(
-            query.viewport_rows,
-            query.overscan_rows,
-            query.guard_rows,
-            query.tags_by_file,
-        );
+        let window = self.sample_list.prepared_window;
         let total_count = window.total_items;
         let rows = (window.window_start..window.window_end)
             .filter_map(|index| self.visible_sample_row(index, query))

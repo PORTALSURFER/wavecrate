@@ -20,7 +20,8 @@ impl FolderBrowserState {
         row_height: f32,
     ) {
         let total_items = self.selected_audio_files().len();
-        self.sample_list
+        self.sample_list.prepared_window = self
+            .sample_list
             .view_controller
             .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
@@ -32,7 +33,8 @@ impl FolderBrowserState {
         self.sample_list
             .view_controller
             .set_total_items(change.window.total_items);
-        self.sample_list
+        self.sample_list.prepared_window = self
+            .sample_list
             .view_controller
             .set_viewport_start(change.window.viewport_start);
     }
@@ -54,9 +56,12 @@ impl FolderBrowserState {
             |file, key| file.id.as_str() == key.as_str(),
         )
         .with_context_row();
-        self.sample_list
+        let window = self
+            .sample_list
             .view_controller
-            .configure_slice_focus_changed_optional(&mut self.sample_list.follow_selection, focus)
+            .configure_slice_focus_changed_optional(&mut self.sample_list.follow_selection, focus);
+        self.sample_list.prepared_window = window;
+        window
     }
 
     pub(in crate::native_app) fn follow_selected_file_view_matching_tags(
@@ -80,7 +85,9 @@ impl FolderBrowserState {
                 .view_controller
                 .configure_projection(projection);
             self.sample_list.view_controller.clear_focus();
-            return self.sample_list.view_controller.resolve();
+            let window = self.sample_list.view_controller.resolve();
+            self.sample_list.prepared_window = window;
+            return window;
         }
 
         let projection =
@@ -90,12 +97,15 @@ impl FolderBrowserState {
             selected_file,
             self.selected_audio_file_index_matching_tags(tags_by_file),
         );
-        self.sample_list
+        let window = self
+            .sample_list
             .view_controller
             .configure_projection_and_focus_changed_optional(
                 &mut self.sample_list.follow_selection,
                 projection,
                 focus,
-            )
+            );
+        self.sample_list.prepared_window = window;
+        window
     }
 }
