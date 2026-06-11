@@ -17,6 +17,8 @@ use identity::{
 };
 #[cfg(test)]
 use prune::prune_waveform_cache_dir;
+#[cfg(test)]
+use read::{CacheReadStatus, read_cached_waveform_file_outcome};
 pub(in crate::native_app) use read::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
 };
@@ -51,10 +53,19 @@ pub(super) fn load_cached_waveform_file(
 ) -> Option<WaveformFile> {
     let identity = CacheIdentity::for_path(&path).ok()?;
     if let Some(cached) = read_cached_waveform_file(&path, &identity) {
-        return cached.into_waveform_file(path, audio_bytes, identity);
+        let file = cached.into_waveform_file(path.clone(), audio_bytes, identity);
+        if file.is_none() {
+            log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
+        }
+        return file;
     }
-    read_cached_waveform_file_v2(&path, &identity)
-        .and_then(|cached| cached.into_waveform_file(path, audio_bytes, identity))
+    read_cached_waveform_file_v2(&path, &identity).and_then(|cached| {
+        let file = cached.into_waveform_file(path.clone(), audio_bytes, identity);
+        if file.is_none() {
+            log_stale_cache_entry(&path, CACHE_FORMAT_VERSION_V2);
+        }
+        file
+    })
 }
 
 pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
@@ -65,7 +76,10 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     if let Some(cached) = read_cached_waveform_file(&path, &identity)
         && cached.playback_cache.is_some()
     {
-        let file = cached.into_playback_ready_waveform_file(path.clone(), identity)?;
+        let Some(file) = cached.into_playback_ready_waveform_file(path.clone(), identity) else {
+            log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
+            return None;
+        };
         mark_cached_waveform_file_playback_ready(&path);
         log_slow_cache_phase(
             "browser.sample_cache.load_playback_ready",
@@ -77,7 +91,10 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     if let Some(cached_v2) = read_cached_waveform_file_v2(&path, &identity)
         && cached_v2.playback_samples.is_some()
     {
-        let file = cached_v2.into_playback_ready_waveform_file(path.clone(), identity)?;
+        let Some(file) = cached_v2.into_playback_ready_waveform_file(path.clone(), identity) else {
+            log_stale_cache_entry(&path, CACHE_FORMAT_VERSION_V2);
+            return None;
+        };
         log_slow_cache_phase(
             "browser.sample_cache.load_v2_playback_ready",
             &path,
@@ -90,7 +107,10 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     let cached = read_cached_waveform_file(&path, &identity)?;
 
     let audio_bytes: Arc<[u8]> = Arc::from(fs::read(&path).ok()?);
-    let mut file = cached.into_waveform_file(path.clone(), audio_bytes, identity)?;
+    let Some(mut file) = cached.into_waveform_file(path.clone(), audio_bytes, identity) else {
+        log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
+        return None;
+    };
     if file.playback_samples.is_none()
         && super::is_wav_path(&path)
         && let Ok(samples) = super::wav_decode::read_wav_playback_samples(&file.audio_bytes)
@@ -115,6 +135,16 @@ fn log_slow_cache_phase(event: &'static str, path: &Path, started_at: Instant) {
         elapsed_ms = elapsed.as_secs_f64() * 1000.0,
         path = %path.display(),
         "Slow waveform cache phase"
+    );
+}
+
+fn log_stale_cache_entry(path: &Path, format_version: u32) {
+    tracing::warn!(
+        target: "wavecrate::debug::sample_cache",
+        event = "browser.sample_cache.read_stale",
+        source_path = %path.display(),
+        cache_format_version = format_version,
+        "Waveform cache entry did not match the current source identity"
     );
 }
 
@@ -358,6 +388,42 @@ mod tests {
         fs::write(&path, [1_u8, 2, 3, 4, 5]).expect("modify sample");
 
         assert!(load_cached_waveform_file(path, Arc::from([1_u8, 2, 3, 4, 5])).is_none());
+    }
+
+    #[test]
+    fn waveform_cache_read_hit_can_still_be_rejected_as_stale_identity() {
+        let _guard = waveform_cache_test_guard();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("stale.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let file = waveform_file_from_mono_samples(
+            path.clone(),
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+        let original_identity = CacheIdentity::for_path(&path).expect("original identity");
+        let original_cache_path =
+            cache_path_for_identity(&path, &original_identity).expect("original cache path");
+        store_cached_waveform_file(&file);
+        let stale_cache_bytes = fs::read(&original_cache_path).expect("read original cache");
+
+        fs::write(&path, [1_u8, 2, 3, 4, 5]).expect("modify sample");
+        let changed_identity = CacheIdentity::for_path(&path).expect("changed identity");
+        let changed_cache_path =
+            cache_path_for_identity(&path, &changed_identity).expect("changed cache path");
+        fs::create_dir_all(changed_cache_path.parent().expect("cache dir")).expect("cache dir");
+        fs::write(&changed_cache_path, stale_cache_bytes).expect("write stale cache");
+
+        let outcome = read_cached_waveform_file_outcome(&path, &changed_identity);
+
+        assert_eq!(outcome.status(), CacheReadStatus::Hit);
+        assert!(
+            load_cached_waveform_file(path, Arc::from([1_u8, 2, 3, 4, 5])).is_none(),
+            "a deserializable cache entry with stale identity must not load"
+        );
     }
 
     #[test]
