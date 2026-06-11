@@ -1,31 +1,5 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
-// Keep this crate-boundary allowance narrow while migration projection and
-// runtime surfaces are still being decomposed across the active cleanup lane.
-#![allow(clippy::type_complexity)]
-#![allow(
-    clippy::cloned_ref_to_slice_refs,
-    clippy::cmp_owned,
-    clippy::collapsible_if,
-    clippy::double_ended_iterator_last,
-    clippy::field_reassign_with_default,
-    clippy::identity_op,
-    clippy::if_same_then_else,
-    clippy::items_after_test_module,
-    clippy::large_enum_variant,
-    clippy::manual_clamp,
-    clippy::manual_is_multiple_of,
-    clippy::manual_unwrap_or_default,
-    clippy::needless_range_loop,
-    clippy::needless_return,
-    clippy::ptr_arg,
-    clippy::question_mark,
-    clippy::result_large_err,
-    clippy::single_match,
-    clippy::too_many_arguments,
-    clippy::unnecessary_get_then_check,
-    clippy::unnecessary_literal_unwrap
-)]
 
 //! Library exports for reuse in benchmarks and tests.
 extern crate alloc;

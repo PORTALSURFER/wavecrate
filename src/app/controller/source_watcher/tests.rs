@@ -85,8 +85,10 @@ fn drain_ready_sources_waits_for_debounce() {
 
 #[test]
 fn drain_ready_sources_honors_scan_in_progress() {
-    let mut state = SourceWatcherState::default();
-    state.scan_in_progress = true;
+    let mut state = SourceWatcherState {
+        scan_in_progress: true,
+        ..Default::default()
+    };
     let source_id = SourceId::from_string("a");
     let start = Instant::now();
     state.update_pending_watch(

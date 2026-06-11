@@ -1,4 +1,7 @@
 //! Source list and folder-pane projection DTOs.
+// These DTO constructors mirror Radiant tree-row contracts during the native UI
+// migration. Keep the argument-shape exception at the DTO owner.
+#![allow(clippy::too_many_arguments)]
 
 use radiant::gui::feedback;
 use radiant::gui::list;

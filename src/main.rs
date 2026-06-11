@@ -1,6 +1,5 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
-#![allow(clippy::too_many_arguments)]
 
 //! Wavecrate application entry point.
 #![cfg_attr(

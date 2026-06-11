@@ -83,19 +83,14 @@ impl AppController {
 
         if !source_hydration_async_enabled() {
             self.handle_source_hydrated_message(run_source_hydration(job));
-            return;
+        } else {
+            #[cfg(not(test))]
+            self.runtime.jobs.spawn_one_shot_job(
+                true,
+                move || run_source_hydration(job),
+                JobMessage::SourceHydrated,
+            );
         }
-
-        #[cfg(test)]
-        {
-            return;
-        }
-        #[cfg(not(test))]
-        self.runtime.jobs.spawn_one_shot_job(
-            true,
-            move || run_source_hydration(job),
-            JobMessage::SourceHydrated,
-        );
     }
 
     pub(crate) fn handle_source_hydrated_message(&mut self, message: SourceHydrationResult) {

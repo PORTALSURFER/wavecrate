@@ -1,6 +1,15 @@
 //! Controller logic shared by the active UI runtime.
 //! This module now delegates responsibilities into focused submodules to
 //! keep files small and behavior easy to reason about.
+// Legacy controller transactions and background-job messages still expose
+// compatibility-era shapes while the native app migrates toward smaller domain
+// commands. Keep these exceptions local to the owning controller surface.
+#![allow(
+    clippy::large_enum_variant,
+    clippy::result_large_err,
+    clippy::too_many_arguments,
+    clippy::type_complexity
+)]
 
 /// Shared controller-level formatting helpers.
 mod formatting;

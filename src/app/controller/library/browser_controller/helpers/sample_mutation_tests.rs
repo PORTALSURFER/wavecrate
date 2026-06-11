@@ -614,15 +614,12 @@ fn sample_auto_rename_cancel_stops_after_partial_completion() {
     });
 
     loop {
-        match rx
+        if let JobMessage::FileOps(FileOpMessage::Progress { completed: 1, .. }) = rx
             .recv_timeout(WORKER_PROGRESS_TIMEOUT)
             .expect("wait for first progress")
         {
-            JobMessage::FileOps(FileOpMessage::Progress { completed: 1, .. }) => {
-                cancel.store(true, Ordering::Relaxed);
-                break;
-            }
-            _ => {}
+            cancel.store(true, Ordering::Relaxed);
+            break;
         }
     }
 

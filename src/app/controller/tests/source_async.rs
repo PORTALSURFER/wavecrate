@@ -498,12 +498,11 @@ fn startup_active_source_hydration_defers_follow_up_work_after_first_paint() {
             .is_some()
     );
     assert!(
-        controller
+        !controller
             .ui_cache
             .browser
             .features
-            .get(&sources[1].id)
-            .is_none()
+            .contains_key(&sources[1].id)
     );
 }
 

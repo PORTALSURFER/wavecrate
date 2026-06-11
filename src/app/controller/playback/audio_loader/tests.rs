@@ -52,7 +52,7 @@ fn test_job_with_root(
 
 fn generated_audio_sample(frame: usize) -> f32 {
     let base = (((frame * 17) % 193) as f32 / 96.0) - 1.0;
-    let accent = if frame % 1024 == 0 {
+    let accent = if frame.is_multiple_of(1024) {
         1.0
     } else if frame % 1024 == 128 {
         -1.0

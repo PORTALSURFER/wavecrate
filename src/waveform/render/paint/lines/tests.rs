@@ -183,7 +183,7 @@ fn paint_split_line_image_fills_both_channel_bands() {
     );
 
     let stride = image.size[0];
-    let top_band = image.pixels[1 * stride + 2];
+    let top_band = image.pixels[stride + 2];
     let bottom_band = image.pixels[9 * stride + 2];
     assert!(
         top_band.a() > 0,
@@ -226,7 +226,7 @@ fn transient_glow_brightens_existing_pixels_only() {
     );
 
     let stride = glowed.size[0];
-    let glow_idx = 1 * stride + 16;
+    let glow_idx = stride + 16;
     let glow_plain = plain.pixels[glow_idx];
     let glow_glowed = glowed.pixels[glow_idx];
     assert!(

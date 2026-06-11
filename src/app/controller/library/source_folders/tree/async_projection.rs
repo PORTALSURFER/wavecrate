@@ -206,18 +206,14 @@ impl AppController {
         };
         if !folder_projection_async_enabled() {
             self.handle_folder_projected_message(run_folder_projection(job));
-            return;
+        } else {
+            #[cfg(not(test))]
+            self.runtime.jobs.spawn_one_shot_job(
+                true,
+                move || run_folder_projection(job),
+                JobMessage::FolderProjected,
+            );
         }
-        #[cfg(test)]
-        {
-            return;
-        }
-        #[cfg(not(test))]
-        self.runtime.jobs.spawn_one_shot_job(
-            true,
-            move || run_folder_projection(job),
-            JobMessage::FolderProjected,
-        );
     }
 
     fn loaded_folder_projection_paths(&mut self) -> Vec<PathBuf> {

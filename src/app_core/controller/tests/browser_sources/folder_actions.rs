@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[test]
 fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
@@ -80,10 +81,10 @@ fn focus_folder_row_action_replaces_folder_selection() {
         panic!("failed to create folder fixture: {err}");
     }
     let sample_path = source_root.join(folder_path.join("clip.wav"));
-    if let Some(parent) = sample_path.parent() {
-        if let Err(err) = std::fs::create_dir_all(parent) {
-            panic!("failed to create sample fixture directory: {err}");
-        }
+    if let Some(parent) = sample_path.parent()
+        && let Err(err) = std::fs::create_dir_all(parent)
+    {
+        panic!("failed to create sample fixture directory: {err}");
     }
     browser_test_write_wav(&sample_path, &[0.1, -0.1]);
 
@@ -323,7 +324,7 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
             .folders
             .rows
             .iter()
-            .all(|row| row.path != PathBuf::from("drums/empty"))
+            .all(|row| row.path.as_path() != Path::new("drums/empty"))
     );
 
     controller.apply_ui_action(NativeUiAction::ToggleShowAllFolders);
@@ -336,7 +337,7 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
             .folders
             .rows
             .iter()
-            .any(|row| row.path == PathBuf::from("drums/empty"))
+            .any(|row| row.path.as_path() == Path::new("drums/empty"))
     );
 }
 
@@ -368,7 +369,7 @@ fn toggle_folder_flattened_view_action_updates_folder_scope_mode() {
         .folders
         .rows
         .iter()
-        .position(|row| row.path == PathBuf::from("drums"))
+        .position(|row| row.path.as_path() == Path::new("drums"))
         .expect("failed to locate folder row");
     controller.replace_folder_selection(row_index);
 

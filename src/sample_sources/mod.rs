@@ -9,12 +9,10 @@
 pub mod config;
 /// Scan tracking state to avoid duplicate work.
 pub mod scan_state {
-    //! Scan-state types owned by `wavecrate-scan`.
     pub use wavecrate_scan::sample_sources::scan_state::ScanTracker;
 }
 /// Source scanning logic.
 pub mod scanner {
-    //! Scanner types and entrypoints owned by `wavecrate-scan`.
     pub use wavecrate_scan::sample_sources::scanner::{
         ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample, hard_rescan,
         scan_in_background, scan_once, scan_with_progress, schedule_deep_hash_scan, sync_paths,
@@ -24,7 +22,6 @@ pub mod scanner {
 
 /// Per-source database helpers.
 pub mod db {
-    //! Source-database types and helpers owned by `wavecrate-library`.
     pub use wavecrate_library::sample_sources::db::{
         DB_FILE_NAME, LEGACY_DB_FILE_NAME, META_DEFERRED_MAINTENANCE_REVISION,
         META_DEFERRED_MAINTENANCE_SCHEMA, META_LAST_SCAN_COMPLETED_AT,
@@ -42,7 +39,6 @@ pub mod db {
 
 /// Global library database helpers.
 pub mod library {
-    //! Global library-database types and helpers owned by `wavecrate-library`.
     pub use wavecrate_library::sample_sources::library::{
         LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, load, lookup_source_id_for_root,
         open_connection, save,

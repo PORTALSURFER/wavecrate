@@ -35,8 +35,10 @@ fn count_node(parent: &NativeAutomationNodeSnapshot, id: &str) -> usize {
 
 #[test]
 fn automation_snapshot_exposes_semantic_shell_nodes_from_wavecrate_fixture() {
-    let mut model = NativeAppModel::default();
-    model.title = String::from("Wavecrate");
+    let mut model = NativeAppModel {
+        title: String::from("Wavecrate"),
+        ..Default::default()
+    };
     model.status.center = String::from("rows: 3 | selected: 1 | anchor: 1 | search: kick");
     model.sources.rows.push(NativeSourceRowModel::new(
         "Primary source",

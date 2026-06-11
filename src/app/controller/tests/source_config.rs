@@ -11,8 +11,10 @@ fn config_with_two_sources() -> (tempfile::TempDir, crate::sample_sources::confi
     std::fs::create_dir_all(&source_b_root).expect("create source-b root");
     let source_a = SampleSource::new(source_a_root);
     let source_b = SampleSource::new(source_b_root);
-    let mut cfg = crate::sample_sources::config::AppConfig::default();
-    cfg.sources = vec![source_a, source_b];
+    let cfg = crate::sample_sources::config::AppConfig {
+        sources: vec![source_a, source_b],
+        ..Default::default()
+    };
     (dir, cfg)
 }
 

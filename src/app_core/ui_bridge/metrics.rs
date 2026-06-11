@@ -266,35 +266,6 @@ pub(super) fn trace_waveform_flush(duration: Duration, emitted_actions: u64) {
 /// No-op waveform flush tracer for non-profiling builds.
 pub(super) fn trace_waveform_flush(_duration: Duration, _emitted_actions: u64) {}
 
-#[cfg(test)]
-mod tests {
-    use super::{trace_action_call, trace_pull_model_call, trace_pull_motion_call};
-
-    fn assert_monotonic_increase(mut trace_call: impl FnMut() -> u64) {
-        let first = trace_call();
-        let second = trace_call();
-        let third = trace_call();
-
-        assert!(second > first);
-        assert!(third > second);
-    }
-
-    #[test]
-    fn pull_model_call_trace_is_monotonic() {
-        assert_monotonic_increase(trace_pull_model_call);
-    }
-
-    #[test]
-    fn pull_motion_call_trace_is_monotonic() {
-        assert_monotonic_increase(trace_pull_motion_call);
-    }
-
-    #[test]
-    fn action_call_trace_is_monotonic() {
-        assert_monotonic_increase(trace_action_call);
-    }
-}
-
 #[cfg(feature = "native-bridge-metrics")]
 #[inline(always)]
 /// Track whether waveform image refresh work ran or was skipped as overlay-only.
@@ -356,3 +327,32 @@ pub(super) fn trace_projection_key_assertion(stale: bool) {
 #[inline(always)]
 /// No-op projection-key snapshot assertion tracer for non-profiling builds.
 pub(super) fn trace_projection_key_assertion(_stale: bool) {}
+
+#[cfg(test)]
+mod tests {
+    use super::{trace_action_call, trace_pull_model_call, trace_pull_motion_call};
+
+    fn assert_monotonic_increase(mut trace_call: impl FnMut() -> u64) {
+        let first = trace_call();
+        let second = trace_call();
+        let third = trace_call();
+
+        assert!(second > first);
+        assert!(third > second);
+    }
+
+    #[test]
+    fn pull_model_call_trace_is_monotonic() {
+        assert_monotonic_increase(trace_pull_model_call);
+    }
+
+    #[test]
+    fn pull_motion_call_trace_is_monotonic() {
+        assert_monotonic_increase(trace_pull_motion_call);
+    }
+
+    #[test]
+    fn action_call_trace_is_monotonic() {
+        assert_monotonic_increase(trace_action_call);
+    }
+}

@@ -3,7 +3,6 @@
 use super::*;
 use crate::app::state::{BrowserDuplicateCleanupState, SampleBrowserTab};
 use crate::app::view_model;
-use std::path::PathBuf;
 
 impl AppController {
     /// Return whether browser duplicate cleanup is currently active.
@@ -214,7 +213,7 @@ impl AppController {
         Ok(())
     }
 
-    fn refocus_duplicate_cleanup_anchor(&mut self, anchor_path: &PathBuf) {
+    fn refocus_duplicate_cleanup_anchor(&mut self, anchor_path: &Path) {
         if let Some(row) = self.visible_row_for_path(anchor_path) {
             self.focus_browser_row_only(row);
         }

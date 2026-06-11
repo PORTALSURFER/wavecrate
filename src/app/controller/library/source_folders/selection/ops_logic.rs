@@ -123,9 +123,10 @@ mod tests {
     use super::*;
 
     fn model_with_available(paths: &[&str]) -> FolderBrowserModel {
-        let mut model = FolderBrowserModel::default();
-        model.available = paths.iter().map(PathBuf::from).collect();
-        model
+        FolderBrowserModel {
+            available: paths.iter().map(PathBuf::from).collect(),
+            ..Default::default()
+        }
     }
 
     #[test]

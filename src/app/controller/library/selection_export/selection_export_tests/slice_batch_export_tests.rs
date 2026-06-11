@@ -239,8 +239,8 @@ fn save_waveform_slices_to_browser_action_persists_keep1_on_each_entry() {
     let exported: Vec<_> = rows
         .iter()
         .filter(|row| {
-            row.relative_path == PathBuf::from("clip_slice001.wav")
-                || row.relative_path == PathBuf::from("clip_slice002.wav")
+            row.relative_path.as_path() == Path::new("clip_slice001.wav")
+                || row.relative_path.as_path() == Path::new("clip_slice002.wav")
         })
         .collect();
     assert_eq!(exported.len(), 2);
@@ -294,8 +294,8 @@ fn save_waveform_slices_to_browser_with_keep2_persists_keep2_on_each_entry() {
     let exported: Vec<_> = rows
         .iter()
         .filter(|row| {
-            row.relative_path == PathBuf::from("clip_slice001.wav")
-                || row.relative_path == PathBuf::from("clip_slice002.wav")
+            row.relative_path.as_path() == Path::new("clip_slice001.wav")
+                || row.relative_path.as_path() == Path::new("clip_slice002.wav")
         })
         .collect();
     assert_eq!(exported.len(), 2);

@@ -139,22 +139,6 @@ fn should_emit_finalize_debug_event(outcome: &str) -> bool {
     outcome != "success"
 }
 
-#[cfg(test)]
-mod tests {
-    use super::should_emit_finalize_debug_event;
-
-    #[test]
-    fn finalize_success_debug_event_is_suppressed() {
-        assert!(!should_emit_finalize_debug_event("success"));
-    }
-
-    #[test]
-    fn finalize_error_debug_event_is_kept() {
-        assert!(should_emit_finalize_debug_event("error"));
-        assert!(should_emit_finalize_debug_event("deferred"));
-    }
-}
-
 /// Finalize one immediate job outcome using the shared finalization context.
 pub(crate) fn finalize_immediate_job(
     context: &mut FinalizeJobContext<'_>,
@@ -201,5 +185,21 @@ pub(crate) fn open_connection_with_retry<'a>(
             }
             Err(last_err.unwrap_or_else(|| "Failed to open source DB".to_string()))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_emit_finalize_debug_event;
+
+    #[test]
+    fn finalize_success_debug_event_is_suppressed() {
+        assert!(!should_emit_finalize_debug_event("success"));
+    }
+
+    #[test]
+    fn finalize_error_debug_event_is_kept() {
+        assert!(should_emit_finalize_debug_event("error"));
+        assert!(should_emit_finalize_debug_event("deferred"));
     }
 }

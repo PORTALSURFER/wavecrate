@@ -191,7 +191,7 @@ fn save_waveform_selection_to_browser_action_persists_keep1_tag() {
         .unwrap();
     let exported = rows
         .iter()
-        .find(|row| row.relative_path == PathBuf::from("clip_selection_001.wav"))
+        .find(|row| row.relative_path.as_path() == Path::new("clip_selection_001.wav"))
         .expect("exported clip should be registered");
     assert_eq!(exported.tag, Rating::KEEP_1);
 }
@@ -233,7 +233,7 @@ fn save_waveform_selection_to_browser_with_keep2_persists_keep2_tag() {
         .unwrap();
     let exported = rows
         .iter()
-        .find(|row| row.relative_path == PathBuf::from("clip_selection_001.wav"))
+        .find(|row| row.relative_path.as_path() == Path::new("clip_selection_001.wav"))
         .expect("exported clip should be registered");
     assert_eq!(exported.tag, Rating::new(2));
 }

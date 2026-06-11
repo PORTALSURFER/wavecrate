@@ -8,8 +8,9 @@ use crate::native_app::sample_library::folder_browser::FolderBrowserMessage;
 use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
-    TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryFieldProjection,
-    TagEntryRowItem, metadata_tag_category_id_for_display, tag_field_content_width, tag_pill_width,
+    TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryFieldInput,
+    TagEntryFieldProjection, TagEntryRowItem, metadata_tag_category_id_for_display,
+    tag_field_content_width, tag_pill_width,
 };
 
 #[cfg(test)]
@@ -29,48 +30,60 @@ const METADATA_HEADER_TRAILING_HEIGHT: f32 = 20.0;
 const METADATA_HEADER_RESIZE_HANDLE_WIDTH: f32 = 26.0;
 const METADATA_HEADER_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
 
+struct TagEditorFieldParts<'a> {
+    draft: &'a str,
+    tokens: &'a [String],
+    pending_category_tag: Option<&'a str>,
+    input_placeholder: &'a str,
+    completion_suffix: Option<&'a str>,
+    tags: &'a [String],
+    display_categories: &'a [MetadataTagDisplayCategory],
+    selected_tag: Option<&'a str>,
+    content_width: f32,
+}
+
+impl<'a> TagEditorFieldParts<'a> {
+    fn from_model(model: &'a TagEditorViewModel, content_width: f32) -> Self {
+        Self {
+            draft: model.draft.as_str(),
+            tokens: model.tokens.as_slice(),
+            pending_category_tag: model.pending_category_tag.as_deref(),
+            input_placeholder: model.input_placeholder.as_str(),
+            completion_suffix: model.completion_suffix.as_deref(),
+            tags: model.tags.as_slice(),
+            display_categories: model.display_categories.as_slice(),
+            selected_tag: model.selected_tag.as_deref(),
+            content_width,
+        }
+    }
+
+    fn projection_input(&self) -> TagEntryFieldInput<'_> {
+        TagEntryFieldInput {
+            draft: self.draft,
+            tokens: self.tokens,
+            pending_category_tag: self.pending_category_tag,
+            placeholder: self.input_placeholder,
+            completion_suffix: self.completion_suffix,
+            tags: self.tags,
+            display_categories: self.display_categories,
+            content_width: self.content_width,
+        }
+    }
+}
+
 pub(super) fn tag_editor_section(
     model: &TagEditorViewModel,
     sidebar_width: f32,
     panel_height: f32,
 ) -> ui::View<GuiMessage> {
     let content_width = tag_field_content_width(sidebar_width);
-    let field_height = tag_field_height(
-        model.draft.as_str(),
-        model.tokens.as_slice(),
-        model.pending_category_tag.as_deref(),
-        model.input_placeholder.as_str(),
-        model.completion_suffix.as_deref(),
-        model.tags.as_slice(),
-        model.display_categories.as_slice(),
-        content_width,
-    );
-    metadata_section(
-        model.draft.as_str(),
-        model.tokens.as_slice(),
-        model.pending_category_tag.as_deref(),
-        model.input_placeholder.as_str(),
-        model.completion_suffix.as_deref(),
-        model.tags.as_slice(),
-        model.display_categories.as_slice(),
-        model.selected_tag.as_deref(),
-        content_width,
-        field_height,
-        panel_height,
-        model.has_selected_file,
-    )
+    let field = TagEditorFieldParts::from_model(model, content_width);
+    let field_height = tag_field_height(&field);
+    metadata_section(&field, field_height, panel_height, model.has_selected_file)
 }
 
 fn metadata_section(
-    tag_draft: &str,
-    tag_tokens: &[String],
-    tag_pending_category_tag: Option<&str>,
-    tag_input_placeholder: &str,
-    tag_completion_suffix: Option<&str>,
-    tags: &[String],
-    tag_display_categories: &[MetadataTagDisplayCategory],
-    selected_metadata_tag: Option<&str>,
-    tag_field_content_width: f32,
+    field: &TagEditorFieldParts<'_>,
     tag_field_height: f32,
     panel_height: f32,
     has_selected_file: bool,
@@ -80,48 +93,17 @@ fn metadata_section(
     }
 
     metadata_sidebar_panel(
-        tag_entry_field(
-            tag_draft,
-            tag_tokens,
-            tag_pending_category_tag,
-            tag_input_placeholder,
-            tag_completion_suffix,
-            tags,
-            tag_display_categories,
-            selected_metadata_tag,
-            tag_field_height,
-            tag_field_content_width,
-        )
-        .key("metadata-tag-entry-field")
-        .fill_width()
-        .height(tag_field_height),
-        Some(tags.len()),
+        tag_entry_field(field, tag_field_height)
+            .key("metadata-tag-entry-field")
+            .fill_width()
+            .height(tag_field_height),
+        Some(field.tags.len()),
         panel_height,
     )
 }
 
-fn tag_entry_field(
-    tag_draft: &str,
-    tag_tokens: &[String],
-    tag_pending_category_tag: Option<&str>,
-    tag_input_placeholder: &str,
-    tag_completion_suffix: Option<&str>,
-    tags: &[String],
-    tag_display_categories: &[MetadataTagDisplayCategory],
-    selected_metadata_tag: Option<&str>,
-    height: f32,
-    content_width: f32,
-) -> ui::View<GuiMessage> {
-    let projection = TagEntryFieldProjection::new(
-        tag_draft,
-        tag_tokens,
-        tag_pending_category_tag,
-        tag_input_placeholder,
-        tag_completion_suffix,
-        tags,
-        tag_display_categories,
-        content_width,
-    );
+fn tag_entry_field(field: &TagEditorFieldParts<'_>, height: f32) -> ui::View<GuiMessage> {
+    let projection = TagEntryFieldProjection::from_input(field.projection_input());
     let content = ui::column(
         projection
             .rows
@@ -130,11 +112,11 @@ fn tag_entry_field(
             .map(|(row_index, row)| {
                 tag_entry_row(
                     row,
-                    tag_display_categories,
-                    tag_draft,
-                    tag_input_placeholder,
-                    tag_completion_suffix,
-                    selected_metadata_tag,
+                    field.display_categories,
+                    field.draft,
+                    field.input_placeholder,
+                    field.completion_suffix,
+                    field.selected_tag,
                     row_index,
                 )
             })
@@ -155,28 +137,10 @@ fn tag_entry_field(
     }
 }
 
-pub(in crate::native_app) fn tag_field_height(
-    tag_draft: &str,
-    tag_tokens: &[String],
-    tag_pending_category_tag: Option<&str>,
-    tag_input_placeholder: &str,
-    tag_completion_suffix: Option<&str>,
-    tags: &[String],
-    tag_display_categories: &[MetadataTagDisplayCategory],
-    content_width: f32,
-) -> f32 {
-    TagEntryFieldProjection::new(
-        tag_draft,
-        tag_tokens,
-        tag_pending_category_tag,
-        tag_input_placeholder,
-        tag_completion_suffix,
-        tags,
-        tag_display_categories,
-        content_width,
-    )
-    .layout
-    .field_height
+fn tag_field_height(field: &TagEditorFieldParts<'_>) -> f32 {
+    TagEntryFieldProjection::from_input(field.projection_input())
+        .layout
+        .field_height
 }
 
 pub(in crate::native_app) fn metadata_tag_completion_bottom_inset(panel_height: f32) -> f32 {

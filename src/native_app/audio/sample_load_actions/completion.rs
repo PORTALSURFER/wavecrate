@@ -15,7 +15,7 @@ pub(super) enum SampleLoadCompletion {
     },
     Loaded {
         path: String,
-        waveform: WaveformState,
+        waveform: Box<WaveformState>,
         autoplay: bool,
     },
     Failed {
@@ -37,7 +37,7 @@ impl SampleLoadCompletion {
         match load.result {
             Ok(waveform) => Self::Loaded {
                 path: load.path,
-                waveform,
+                waveform: Box::new(waveform),
                 autoplay: load.autoplay,
             },
             Err(error) => Self::Failed { label, error },
@@ -83,7 +83,7 @@ impl NativeAppState {
                 path,
                 waveform,
                 autoplay,
-            } => self.finish_loaded_sample_load(path, waveform, autoplay, started_at),
+            } => self.finish_loaded_sample_load(path, *waveform, autoplay, started_at),
         }
     }
 

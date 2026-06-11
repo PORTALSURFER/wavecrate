@@ -27,7 +27,7 @@ pub(super) fn ensure_sorted_stage_for_filter_only(
 
 pub(super) fn maybe_sort_visible_by_playback_age(
     controller: &mut AppController,
-    visible: &mut Vec<usize>,
+    visible: &mut [usize],
     sort_mode: SampleBrowserSort,
 ) {
     if matches!(

@@ -91,6 +91,17 @@ fn log_status_entry(tone: StatusTone, entry: &str) {
     }
 }
 
+/// Return the status badge prefix text for a status tone.
+fn status_prefix(tone: StatusTone) -> &'static str {
+    match tone {
+        StatusTone::Idle => "Idle",
+        StatusTone::Busy => "Working",
+        StatusTone::Info => "Info",
+        StatusTone::Warning => "Warning",
+        StatusTone::Error => "Error",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,16 +168,5 @@ mod tests {
             "File operation failed: disk full"
         );
         assert_eq!(controller.ui.status.status_tone, StatusTone::Error);
-    }
-}
-
-/// Return the status badge prefix text for a status tone.
-fn status_prefix(tone: StatusTone) -> &'static str {
-    match tone {
-        StatusTone::Idle => "Idle",
-        StatusTone::Busy => "Working",
-        StatusTone::Info => "Info",
-        StatusTone::Warning => "Warning",
-        StatusTone::Error => "Error",
     }
 }

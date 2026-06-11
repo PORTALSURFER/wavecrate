@@ -50,16 +50,16 @@ impl AppController {
         self.commit_added_source(source, started_at)
     }
 
-    fn source_for_add_root(&mut self, normalized: &PathBuf) -> SampleSource {
+    fn source_for_add_root(&mut self, normalized: &Path) -> SampleSource {
         match crate::sample_sources::library::lookup_source_id_for_root(normalized) {
-            Ok(Some(id)) => SampleSource::new_with_id(id, normalized.clone()),
-            Ok(None) => SampleSource::new(normalized.clone()),
+            Ok(Some(id)) => SampleSource::new_with_id(id, normalized.to_path_buf()),
+            Ok(None) => SampleSource::new(normalized.to_path_buf()),
             Err(err) => {
                 self.set_status(
                     format!("Could not check library history (continuing): {err}"),
                     StatusTone::Warning,
                 );
-                SampleSource::new(normalized.clone())
+                SampleSource::new(normalized.to_path_buf())
             }
         }
     }

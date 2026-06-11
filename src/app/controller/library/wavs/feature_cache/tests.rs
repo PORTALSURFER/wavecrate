@@ -111,12 +111,11 @@ fn stale_browser_feature_cache_refresh_is_dropped() {
     ));
 
     assert!(
-        controller
+        !controller
             .ui_cache
             .browser
             .features
-            .get(&source.id)
-            .is_none()
+            .contains_key(&source.id)
     );
     assert!(controller.cached_feature_status_for_entry(0).is_none());
 }

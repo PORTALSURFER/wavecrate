@@ -171,7 +171,7 @@ impl AppController {
         );
         match self
             .drag_drop()
-            .start_external_drag(&[success.absolute_path.clone()])
+            .start_external_drag(std::slice::from_ref(&success.absolute_path))
         {
             Ok(()) => {
                 let label = format!(

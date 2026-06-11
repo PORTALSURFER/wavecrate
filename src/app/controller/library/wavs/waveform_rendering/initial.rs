@@ -26,7 +26,7 @@ pub(crate) fn prepare_initial_waveform_visual(
         .saturating_mul(WAVEFORM_RENDER_SUPERSAMPLE_X)
         .min(MAX_TEXTURE_WIDTH) as usize;
     let upper_width = total_frames.min(MAX_TEXTURE_WIDTH as usize);
-    let lower_bound = width.max(1).min(MAX_TEXTURE_WIDTH) as usize;
+    let lower_bound = width.clamp(1, MAX_TEXTURE_WIDTH) as usize;
     let max_texture_width = upper_width.max(lower_bound) as u32;
     let raw_texture_width = target.min(upper_width).max(lower_bound) as u32;
     let effective_width = reuse::stabilized_texture_width(

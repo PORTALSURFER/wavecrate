@@ -1,3 +1,7 @@
+// Map projection fallback builders still mirror the host-facing panel model
+// shape while the map surface is being split into smaller projection objects.
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 use crate::app_core::app_api::state::MapSimilarityPrepStatus;
 use std::{path::Path, sync::Arc};

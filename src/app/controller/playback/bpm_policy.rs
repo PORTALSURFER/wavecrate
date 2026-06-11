@@ -70,9 +70,7 @@ fn selection_meets_bpm_min(controller: &AppController, range: SelectionRange) ->
 
 /// Compute the BPM-snapped minimum selection length (seconds) when snap is enabled.
 pub(crate) fn bpm_min_selection_seconds(controller: &AppController) -> Option<f32> {
-    let Some(step) = waveform_bpm_snap_step(controller) else {
-        return None;
-    };
+    let step = waveform_bpm_snap_step(controller)?;
     let duration = controller.loaded_audio_duration_seconds()?;
     if !duration.is_finite() || duration <= 0.0 {
         return None;

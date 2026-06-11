@@ -1,4 +1,7 @@
 //! Source/folder sidebar projection helpers.
+// Source projection rows still mirror the retained sidebar model shape during
+// migration; keep the constructor exception beside that projection owner.
+#![allow(clippy::too_many_arguments)]
 
 use super::*;
 use crate::app_core::app_api::state::{FolderBrowserUiState, FolderPaneId};

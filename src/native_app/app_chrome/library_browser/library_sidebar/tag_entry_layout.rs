@@ -30,35 +30,38 @@ pub(super) struct TagEntryFieldProjection {
     pub(super) layout: ui::FlowFieldLayout,
 }
 
+pub(super) struct TagEntryFieldInput<'a> {
+    pub(super) draft: &'a str,
+    pub(super) tokens: &'a [String],
+    pub(super) pending_category_tag: Option<&'a str>,
+    pub(super) placeholder: &'a str,
+    pub(super) completion_suffix: Option<&'a str>,
+    pub(super) tags: &'a [String],
+    pub(super) display_categories: &'a [MetadataTagDisplayCategory],
+    pub(super) content_width: f32,
+}
+
 impl TagEntryFieldProjection {
-    pub(super) fn new(
-        tag_draft: &str,
-        tag_tokens: &[String],
-        pending_category_tag: Option<&str>,
-        input_placeholder: &str,
-        completion_suffix: Option<&str>,
-        tags: &[String],
-        tag_display_categories: &[MetadataTagDisplayCategory],
-        content_width: f32,
-    ) -> Self {
-        let visible_tags = visible_metadata_tags(tags, tag_tokens, tag_display_categories);
-        let input_width = if pending_category_tag.is_some() {
-            tag_input_width_with_completion(tag_draft, completion_suffix)
+    pub(super) fn from_input(input: TagEntryFieldInput<'_>) -> Self {
+        let visible_tags =
+            visible_metadata_tags(input.tags, input.tokens, input.display_categories);
+        let input_width = if input.pending_category_tag.is_some() {
+            tag_input_width_with_completion(input.draft, input.completion_suffix)
         } else {
             tag_input_width_with_completion_or_placeholder(
-                tag_draft,
-                completion_suffix,
-                input_placeholder,
+                input.draft,
+                input.completion_suffix,
+                input.placeholder,
             )
         };
         let rows = tag_field_rows(
             &visible_tags,
-            tag_display_categories,
-            pending_category_tag,
+            input.display_categories,
+            input.pending_category_tag,
             input_width,
-            content_width,
+            input.content_width,
         );
-        let layout = tag_field_layout(rows.len(), content_width);
+        let layout = tag_field_layout(rows.len(), input.content_width);
         Self { rows, layout }
     }
 }
@@ -279,16 +282,16 @@ mod tests {
             },
         ];
 
-        let projection = TagEntryFieldProjection::new(
-            "",
-            &tokens,
-            None,
-            "add tag",
-            None,
-            &tags,
-            &categories,
-            420.0,
-        );
+        let projection = TagEntryFieldProjection::from_input(TagEntryFieldInput {
+            draft: "",
+            tokens: &tokens,
+            pending_category_tag: None,
+            placeholder: "add tag",
+            completion_suffix: None,
+            tags: &tags,
+            display_categories: &categories,
+            content_width: 420.0,
+        });
 
         assert!(
             projection

@@ -69,16 +69,16 @@ fn build_signal_summary_level(
     cancelled: &impl Fn() -> bool,
 ) -> Result<Arc<[GpuSignalSummaryBucket]>, String> {
     match input.previous {
-        Some(previous) => merge_signal_summary_level_with_progress(
+        Some(previous) => merge_signal_summary_level_with_progress(MergeSignalSummaryLevelInput {
             previous,
-            input.frames,
-            input.band_count,
-            input.bucket_frames,
             start,
             end,
+            frames: input.frames,
+            band_count: input.band_count,
+            bucket_frames: input.bucket_frames,
             progress,
             cancelled,
-        ),
+        }),
         None => build_signal_summary_base_level_with_progress(
             input.samples,
             input.frames,
@@ -132,33 +132,51 @@ fn signal_summary_bucket(value: f32) -> GpuSignalSummaryBucket {
     }
 }
 
-fn merge_signal_summary_level_with_progress(
-    previous: &[GpuSignalSummaryBucket],
+struct MergeSignalSummaryLevelInput<'a, Progress, Cancelled>
+where
+    Progress: Fn(f32),
+    Cancelled: Fn() -> bool,
+{
+    previous: &'a [GpuSignalSummaryBucket],
     frames: usize,
     band_count: usize,
     bucket_frames: usize,
     start: f32,
     end: f32,
-    progress: &impl Fn(f32),
-    cancelled: &impl Fn() -> bool,
-) -> Result<Arc<[GpuSignalSummaryBucket]>, String> {
-    let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
-    let previous_bucket_count = previous.len() / band_count.max(1);
-    let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
+    progress: &'a Progress,
+    cancelled: &'a Cancelled,
+}
+
+fn merge_signal_summary_level_with_progress<Progress, Cancelled>(
+    input: MergeSignalSummaryLevelInput<'_, Progress, Cancelled>,
+) -> Result<Arc<[GpuSignalSummaryBucket]>, String>
+where
+    Progress: Fn(f32),
+    Cancelled: Fn() -> bool,
+{
+    let bucket_count = input.frames.div_ceil(input.bucket_frames.max(1)).max(1);
+    let previous_bucket_count = input.previous.len() / input.band_count.max(1);
+    let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(input.band_count));
     for bucket in 0..bucket_count {
-        if cancelled() {
+        if (input.cancelled)() {
             return Err(String::from("cancelled"));
         }
         push_merged_bucket_bands(
-            previous,
+            input.previous,
             previous_bucket_count,
-            band_count,
+            input.band_count,
             bucket,
             &mut buckets,
         );
-        super::report_phase_progress_throttled(start, end, bucket + 1, bucket_count, progress);
+        super::report_phase_progress_throttled(
+            input.start,
+            input.end,
+            bucket + 1,
+            bucket_count,
+            input.progress,
+        );
     }
-    progress(end);
+    (input.progress)(input.end);
     Ok(buckets.into())
 }
 
