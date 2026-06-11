@@ -110,3 +110,126 @@ impl FolderBrowserState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashSet, fs, path::PathBuf};
+
+    use wavecrate::sample_sources::SampleCollection;
+
+    use super::super::super::{FolderBrowserState, path_id};
+
+    #[test]
+    fn selected_file_collection_candidates_report_membership_for_explicit_selection() {
+        let Fixture {
+            root,
+            mut browser,
+            kick,
+            snare,
+            hat,
+            first,
+            second: _,
+        } = fixture();
+        browser.set_file_collection_state(&kick, first);
+
+        browser.selection.selected_file = Some(path_id(&kick));
+        browser.selection.selected_file_ids =
+            HashSet::from([path_id(&kick), path_id(&snare), path_id(&hat)]);
+        browser.selection.selected_file_ids_explicit = true;
+
+        assert_eq!(
+            browser.selected_file_collection_candidates(first),
+            vec![
+                candidate(&hat, false),
+                candidate(&kick, true),
+                candidate(&snare, false),
+            ]
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn context_file_collection_candidate_uses_visible_file_membership() {
+        let Fixture {
+            root,
+            mut browser,
+            kick,
+            snare,
+            hat: _,
+            first,
+            second,
+        } = fixture();
+        browser.set_file_collection_state(&kick, first);
+        browser.set_file_collection_state(&kick, second);
+
+        assert_eq!(
+            browser.context_file_collection_candidate(&kick, second),
+            Some(candidate(&kick, true))
+        );
+        assert_eq!(
+            browser.context_file_collection_candidate(&snare, second),
+            Some(candidate(&snare, false))
+        );
+        assert_eq!(
+            browser.active_collection_for_context_file(&kick),
+            None,
+            "context collection lookup should require collection focus"
+        );
+
+        browser.selection.selected_collection = Some(second);
+        assert_eq!(
+            browser.active_collection_for_context_file(&kick),
+            Some(second)
+        );
+        assert_eq!(browser.active_collection_for_context_file(&snare), None);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    struct Fixture {
+        root: PathBuf,
+        browser: FolderBrowserState,
+        kick: PathBuf,
+        snare: PathBuf,
+        hat: PathBuf,
+        first: SampleCollection,
+        second: SampleCollection,
+    }
+
+    fn fixture() -> Fixture {
+        let root = temp_source_root("wavecrate-collection-assignment");
+        let kick = root.join("kick.wav");
+        let snare = root.join("snare.wav");
+        let hat = root.join("hat.wav");
+        fs::write(&kick, []).expect("write kick sample");
+        fs::write(&snare, []).expect("write snare sample");
+        fs::write(&hat, []).expect("write hat sample");
+        Fixture {
+            browser: FolderBrowserState::from_root(root.clone()),
+            root,
+            kick,
+            snare,
+            hat,
+            first: SampleCollection::new(0).expect("collection 0"),
+            second: SampleCollection::new(1).expect("collection 1"),
+        }
+    }
+
+    fn candidate(path: &std::path::Path, assigned: bool) -> super::SelectedFileCollectionCandidate {
+        super::SelectedFileCollectionCandidate {
+            path: PathBuf::from(path_id(path)),
+            assigned,
+        }
+    }
+
+    fn temp_source_root(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create temp root");
+        root
+    }
+}
