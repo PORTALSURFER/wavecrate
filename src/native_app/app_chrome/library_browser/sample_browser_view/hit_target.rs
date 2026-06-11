@@ -3,7 +3,7 @@ use radiant::layout::LayoutOutput;
 use radiant::prelude as ui;
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
-use radiant::widgets::InteractiveRowWidget;
+use radiant::widgets::{InteractiveRowWidget, PointerModifiers};
 
 use crate::native_app::app::GuiMessage;
 
@@ -43,12 +43,17 @@ impl SampleFileHitTarget {
             .custom_paint_hit_target()
             .widget();
         let actions = ui::InteractiveRowActions::new()
-            .activate_or_double_with_modifiers_secondary_drag_key(
+            .primary_with_modifiers_key(path.clone(), |path, modifiers| {
+                GuiMessage::SelectSampleWithModifiers { path, modifiers }
+            })
+            .double_key(path.clone(), |path| GuiMessage::SelectSampleWithModifiers {
                 path,
-                |path, modifiers| GuiMessage::SelectSampleWithModifiers { path, modifiers },
-                |path, position| GuiMessage::OpenSampleContextMenu { path, position },
-                |path, drag| GuiMessage::DragSampleFile { path, drag },
-            );
+                modifiers: PointerModifiers::default(),
+            })
+            .secondary_key(path.clone(), |path, position| {
+                GuiMessage::OpenSampleContextMenu { path, position }
+            })
+            .drag_key(path, |path, drag| GuiMessage::DragSampleFile { path, drag });
         Self {
             row,
             actions,

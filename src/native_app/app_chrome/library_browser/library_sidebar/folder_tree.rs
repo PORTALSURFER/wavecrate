@@ -142,23 +142,30 @@ fn folder_row_actions(
     drop_candidate: bool,
     drop_target_active: bool,
 ) -> ui::InteractiveRowActions<GuiMessage> {
-    ui::InteractiveRowActions::new().activate_or_double_secondary_drag_drop_target_key(
-        id,
-        |id| GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id)),
-        |id, position| {
+    ui::InteractiveRowActions::new()
+        .primary_key(id.clone(), |id| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id))
+        })
+        .double_key(id.clone(), |id| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id))
+        })
+        .secondary_key(id.clone(), |id, position| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::OpenFolderContextMenu(id, position))
-        },
-        |id, drag| GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag)),
-        |id| GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id)),
-        move |id, position| {
+        })
+        .drag_key(id.clone(), |id, drag| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag))
+        })
+        .drop_key(id.clone(), |id| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id))
+        })
+        .hover_drop_key(id, move |id, position| {
             GuiMessage::FolderBrowser(folder_hover_drop_message(
                 id,
                 position,
                 drop_candidate,
                 drop_target_active,
             ))
-        },
-    )
+        })
 }
 
 fn folder_hover_drop_message(
