@@ -95,6 +95,19 @@ function Get-OptionalEnvDouble {
   return $parsed
 }
 
+function Get-ValidationContract {
+  $contractPath = Join-Path $rootDir "scripts\internal\data\validation_contract.json"
+  if (-not (Test-Path -LiteralPath $contractPath)) {
+    throw "[perf_guard] ERROR: shared validation contract is missing at $contractPath."
+  }
+
+  try {
+    return (Get-Content -Path $contractPath -Raw | ConvertFrom-Json)
+  } catch {
+    throw "[perf_guard] ERROR: failed to parse shared validation contract: $($_.Exception.Message)"
+  }
+}
+
 function Get-BoolEnvFlag {
   param(
     [Parameter(Mandatory = $true)]
@@ -322,25 +335,13 @@ if (-not [string]::IsNullOrWhiteSpace($reportDir)) {
   New-Item -ItemType Directory -Path (Join-Path $rootDir $reportDir) -Force | Out-Null
 }
 
-$scenarioConfigs = @(
-  @{ Key = "browser_filter_churn_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_FILTER_CHURN"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_FILTER_CHURN"; FailDefault = $null },
-  @{ Key = "browser_query_churn_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_QUERY_CHURN"; WarnDefault = 12000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_QUERY_CHURN"; FailDefault = $null },
-  @{ Key = "browser_sort_toggle_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_SORT_CHURN"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_SORT_CHURN"; FailDefault = $null },
-  @{ Key = "hover_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_HOVER"; WarnDefault = 8000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_HOVER"; FailDefault = $null },
-  @{ Key = "wheel_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_WHEEL"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_WHEEL"; FailDefault = 30000 },
-  @{ Key = "browser_focus_preview_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_FOCUS_PREVIEW"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_FOCUS_PREVIEW"; FailDefault = $null },
-  @{ Key = "browser_focus_commit_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_FOCUS_COMMIT"; WarnDefault = 16000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_FOCUS_COMMIT"; FailDefault = 100000 },
-  @{ Key = "map_pan_proxy_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_MAP_PAN_PROXY"; WarnDefault = 12000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_MAP_PAN_PROXY"; FailDefault = 4000 },
-  @{ Key = "waveform_interaction_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_WAVEFORM"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM"; FailDefault = $null },
-  @{ Key = "waveform_pan_zoom_adjacent_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_WAVEFORM_ADJACENT"; WarnDefault = 12000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM_ADJACENT"; FailDefault = $null },
-  @{ Key = "volume_drag_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_VOLUME"; WarnDefault = 8000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_VOLUME"; FailDefault = $null },
-  @{ Key = "idle_cursor_motion_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_IDLE_CURSOR"; WarnDefault = 8000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_IDLE_CURSOR"; FailDefault = $null }
-)
-
-$warnJankRatio = Get-EnvDouble -Name "WAVECRATE_PERF_WARN_FRAME_JANK_RATIO" -Default 0.10
-$warnMissedPresentRatio = Get-EnvDouble -Name "WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO" -Default 0.05
-$failJankRatio = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO"
-$failMissedPresentRatio = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO"
+$validationContract = Get-ValidationContract
+$scenarioConfigs = @($validationContract.perf.scenarios)
+$frameQualityConfig = $validationContract.perf.frame_quality
+$warnJankRatio = Get-EnvDouble -Name ([string]$frameQualityConfig.warn_jank_env) -Default ([double]$frameQualityConfig.warn_jank_default)
+$warnMissedPresentRatio = Get-EnvDouble -Name ([string]$frameQualityConfig.warn_missed_present_env) -Default ([double]$frameQualityConfig.warn_missed_present_default)
+$failJankRatio = Get-OptionalEnvDouble -Name ([string]$frameQualityConfig.fail_jank_env)
+$failMissedPresentRatio = Get-OptionalEnvDouble -Name ([string]$frameQualityConfig.fail_missed_present_env)
 
 $reportPaths = New-Object System.Collections.Generic.List[string]
 $startupLogPaths = New-Object System.Collections.Generic.List[string]
@@ -436,7 +437,7 @@ try {
   $failed = $false
 
   foreach ($config in $scenarioConfigs) {
-    $scenarioKey = $config.Key
+    $scenarioKey = [string]$config.key
     $samples = @(Get-ScenarioSamples -GuiReports $guiReports -ScenarioKey $scenarioKey)
     if ($samples.Count -eq 0) {
       Write-Warning "[perf_guard] skipping scenario '$scenarioKey' because no runs provided it"
@@ -457,10 +458,10 @@ try {
     $missedPresentCount = Get-MedianInt -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "missed_present_proxy_count") })
     $missedPresentRatio = Get-Median -Values ($samples | ForEach-Object { [double](Get-RequiredPropertyValue -Object $_ -Key "missed_present_proxy_ratio") })
 
-    $warnLimit = Get-EnvInt -Name $config.WarnEnv -Default $config.WarnDefault
-    $failLimit = Get-OptionalEnvInt -Name $config.FailEnv
-    if ($null -eq $failLimit -and $null -ne $config.FailDefault) {
-      $failLimit = [int]$config.FailDefault
+    $warnLimit = Get-EnvInt -Name ([string]$config.warn_env) -Default ([int]$config.warn_default)
+    $failLimit = Get-OptionalEnvInt -Name ([string]$config.fail_env)
+    if ($null -eq $failLimit -and $null -ne $config.fail_default) {
+      $failLimit = [int]$config.fail_default
     }
 
     $status = "(warn>$warnLimit" + "us"

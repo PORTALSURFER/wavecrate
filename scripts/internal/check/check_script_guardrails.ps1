@@ -12,6 +12,7 @@ PowerShell scripts, including lightweight fixture checks.
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 $scriptsDir = Join-Path $rootDir "scripts"
+$validationContractPath = Join-Path $scriptsDir "internal/data/validation_contract.json"
 $failures = 0
 
 $psRunner = Get-Command pwsh -ErrorAction SilentlyContinue
@@ -217,6 +218,20 @@ function Get-Inventory {
   }
 }
 
+function Get-ValidationContract {
+  if (-not (Test-Path -LiteralPath $validationContractPath)) {
+    Add-Failure "shared validation contract is missing"
+    return $null
+  }
+
+  try {
+    return (Get-Content -Path $validationContractPath -Raw | ConvertFrom-Json)
+  } catch {
+    Add-Failure "shared validation contract is not valid JSON: $($_.Exception.Message)"
+    return $null
+  }
+}
+
 function Add-InventoryPath {
   param(
     [System.Collections.Generic.HashSet[string]]$Set,
@@ -357,26 +372,10 @@ function Assert-PowerShellDispatcherWindowsTargets {
 
 Push-Location $rootDir
 try {
-  $scriptsToParse = @(
-    (Join-Path $scriptsDir "agent.ps1"),
-    (Join-Path $scriptsDir "ci.ps1"),
-    (Join-Path $scriptsDir "check.ps1"),
-    (Join-Path $scriptsDir "run.ps1"),
-    (Join-Path $scriptsDir "internal/run/latest_log.ps1"),
-    (Join-Path $scriptsDir "internal/run/bug_bundle.ps1"),
-    (Join-Path $scriptsDir "internal/agent/run_agent_request.ps1"),
-    (Join-Path $scriptsDir "internal/agent/run_agent_ci_checks.ps1"),
-    (Join-Path $scriptsDir "internal/agent/run_agent_preflight.ps1"),
-    (Join-Path $scriptsDir "internal/ci/devcheck.ps1"),
-    (Join-Path $scriptsDir "internal/ci/ci_agent.ps1"),
-    (Join-Path $scriptsDir "internal/ci/ci_quick.ps1"),
-    (Join-Path $scriptsDir "internal/ci/ci_local.ps1"),
-    (Join-Path $scriptsDir "internal/check/audit_cleanup_hotspots.ps1"),
-    (Join-Path $scriptsDir "internal/check/check_native_app_boundary.ps1"),
-    (Join-Path $scriptsDir "internal/check/check_wavecrate_facades.ps1"),
-    (Join-Path $scriptsDir "internal/check/check_docs_index.ps1"),
-    (Join-Path $scriptsDir "internal/check/report_file_size_budget_allowlist.ps1")
-  )
+  $validationContract = Get-ValidationContract
+  $scriptsToParse = @($validationContract.script_guardrails.parse_powershell | ForEach-Object {
+      Join-Path $rootDir ([string]$_)
+    })
   foreach ($scriptPath in $scriptsToParse) {
     Assert-ScriptParses -Path $scriptPath
   }
@@ -388,22 +387,10 @@ try {
   Assert-DispatcherInventory -Inventory $inventory
   Assert-PowerShellDispatcherWindowsTargets -Inventory $inventory
 
-  $devcheckPs = Get-Content -Path (Join-Path $scriptsDir "internal/ci/devcheck.ps1") -Raw
-  $devcheckSh = Get-Content -Path (Join-Path $scriptsDir "internal/ci/devcheck.sh") -Raw
-  foreach ($script in @(
-      @{ Label = "PowerShell"; Text = $devcheckPs },
-      @{ Label = "Bash"; Text = $devcheckSh }
-    )) {
-    Assert-TextContains -Label "devcheck $($script.Label) checks Radiant standalone example" -Text $script.Text -Fragment "--example generic_native --no-default-features"
-  }
-
-  $ciAgentPs = Get-Content -Path (Join-Path $scriptsDir "internal/ci/ci_agent.ps1") -Raw
-  $ciAgentSh = Get-Content -Path (Join-Path $scriptsDir "internal/ci/ci_agent.sh") -Raw
-  foreach ($script in @(
-      @{ Label = "PowerShell"; Text = $ciAgentPs },
-      @{ Label = "Bash"; Text = $ciAgentSh }
-    )) {
-    Assert-TextContains -Label "ci agent $($script.Label) runs Radiant standalone no-default tests" -Text $script.Text -Fragment "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+  foreach ($requiredFragment in @($validationContract.script_guardrails.required_fragments)) {
+    $path = Join-Path $rootDir ([string]$requiredFragment.path)
+    $text = Get-Content -Path $path -Raw
+    Assert-TextContains -Label ([string]$requiredFragment.label) -Text $text -Fragment ([string]$requiredFragment.fragment)
   }
 
   Invoke-ExpectExitCode -Label "agent request --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "agent.ps1") -Arguments @("request", "-Help")

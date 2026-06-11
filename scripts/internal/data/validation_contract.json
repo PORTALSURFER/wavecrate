@@ -1,0 +1,160 @@
+{
+  "script_guardrails": {
+    "parse_powershell": [
+      "scripts/agent.ps1",
+      "scripts/ci.ps1",
+      "scripts/check.ps1",
+      "scripts/run.ps1",
+      "scripts/internal/run/latest_log.ps1",
+      "scripts/internal/run/bug_bundle.ps1",
+      "scripts/internal/agent/run_agent_request.ps1",
+      "scripts/internal/agent/run_agent_ci_checks.ps1",
+      "scripts/internal/agent/run_agent_preflight.ps1",
+      "scripts/internal/ci/devcheck.ps1",
+      "scripts/internal/ci/ci_agent.ps1",
+      "scripts/internal/ci/ci_quick.ps1",
+      "scripts/internal/ci/ci_local.ps1",
+      "scripts/internal/check/audit_cleanup_hotspots.ps1",
+      "scripts/internal/check/check_native_app_boundary.ps1",
+      "scripts/internal/check/check_wavecrate_facades.ps1",
+      "scripts/internal/check/check_docs_index.ps1",
+      "scripts/internal/check/report_file_size_budget_allowlist.ps1"
+    ],
+    "syntax_bash": [
+      "scripts/agent.sh",
+      "scripts/internal/agent/run_agent_ci_checks.sh",
+      "scripts/internal/agent/run_agent_preflight.sh",
+      "scripts/ci.sh",
+      "scripts/internal/agent/install_agent_preflight_hooks.sh",
+      "scripts/internal/check/check_file_size_budget.sh",
+      "scripts/internal/check/check_docs_index.sh",
+      "scripts/internal/check/audit_cleanup_hotspots.sh",
+      "scripts/internal/check/check_rust_taste_invariants.sh",
+      "scripts/internal/check/check_rust_private_docs.sh",
+      "scripts/internal/check/check_native_app_boundary.sh",
+      "scripts/internal/check/check_rust_dead_deps_advisory.sh",
+      "scripts/internal/perf/run_perf_guard.sh",
+      "scripts/internal/perf/calibrate_startup_thresholds.sh",
+      "scripts/internal/perf/run_perf_wheel_stability.sh",
+      "scripts/run.sh"
+    ],
+    "required_fragments": [
+      {
+        "label": "PowerShell devcheck checks Radiant standalone example",
+        "path": "scripts/internal/ci/devcheck.ps1",
+        "fragment": "--example generic_native --no-default-features"
+      },
+      {
+        "label": "Bash devcheck checks Radiant standalone example",
+        "path": "scripts/internal/ci/devcheck.sh",
+        "fragment": "--example generic_native --no-default-features"
+      },
+      {
+        "label": "PowerShell ci agent runs Radiant standalone no-default tests",
+        "path": "scripts/internal/ci/ci_agent.ps1",
+        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+      },
+      {
+        "label": "Bash ci agent runs Radiant standalone no-default tests",
+        "path": "scripts/internal/ci/ci_agent.sh",
+        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+      }
+    ]
+  },
+  "perf": {
+    "frame_quality": {
+      "warn_jank_env": "WAVECRATE_PERF_WARN_FRAME_JANK_RATIO",
+      "warn_jank_default": 0.10,
+      "warn_missed_present_env": "WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO",
+      "warn_missed_present_default": 0.05,
+      "fail_jank_env": "WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO",
+      "fail_missed_present_env": "WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO"
+    },
+    "scenarios": [
+      {
+        "key": "browser_filter_churn_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_FILTER_CHURN",
+        "warn_default": 10000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_FILTER_CHURN",
+        "fail_default": null
+      },
+      {
+        "key": "browser_query_churn_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_QUERY_CHURN",
+        "warn_default": 12000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_QUERY_CHURN",
+        "fail_default": null
+      },
+      {
+        "key": "browser_sort_toggle_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_SORT_CHURN",
+        "warn_default": 10000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_SORT_CHURN",
+        "fail_default": null
+      },
+      {
+        "key": "hover_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_HOVER",
+        "warn_default": 8000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_HOVER",
+        "fail_default": null
+      },
+      {
+        "key": "wheel_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_WHEEL",
+        "warn_default": 10000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_WHEEL",
+        "fail_default": 30000
+      },
+      {
+        "key": "browser_focus_preview_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_FOCUS_PREVIEW",
+        "warn_default": 10000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_FOCUS_PREVIEW",
+        "fail_default": null
+      },
+      {
+        "key": "browser_focus_commit_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_FOCUS_COMMIT",
+        "warn_default": 16000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_FOCUS_COMMIT",
+        "fail_default": 100000
+      },
+      {
+        "key": "map_pan_proxy_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_MAP_PAN_PROXY",
+        "warn_default": 12000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_MAP_PAN_PROXY",
+        "fail_default": 4000
+      },
+      {
+        "key": "waveform_interaction_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_WAVEFORM",
+        "warn_default": 10000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM",
+        "fail_default": null
+      },
+      {
+        "key": "waveform_pan_zoom_adjacent_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_WAVEFORM_ADJACENT",
+        "warn_default": 12000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM_ADJACENT",
+        "fail_default": null
+      },
+      {
+        "key": "volume_drag_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_VOLUME",
+        "warn_default": 8000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_VOLUME",
+        "fail_default": null
+      },
+      {
+        "key": "idle_cursor_motion_latency",
+        "warn_env": "WAVECRATE_PERF_WARN_P95_US_IDLE_CURSOR",
+        "warn_default": 8000,
+        "fail_env": "WAVECRATE_PERF_FAIL_P95_US_IDLE_CURSOR",
+        "fail_default": null
+      }
+    ]
+  }
+}

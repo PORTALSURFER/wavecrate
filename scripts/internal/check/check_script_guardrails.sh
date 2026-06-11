@@ -13,6 +13,35 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 
 failures=0
+VALIDATION_CONTRACT_PATH="$ROOT_DIR/scripts/internal/data/validation_contract.json"
+
+read_validation_contract_entries() {
+  local key_path="$1"
+  python3 - "$VALIDATION_CONTRACT_PATH" "$key_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+contract = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+value = contract
+for key in sys.argv[2].split("."):
+    value = value[key]
+for item in value:
+    print(item)
+PY
+}
+
+read_required_fragment_entries() {
+  python3 - "$VALIDATION_CONTRACT_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+contract = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for item in contract["script_guardrails"]["required_fragments"]:
+    print(f"{item['label']}\t{item['path']}\t{item['fragment']}")
+PY
+}
 
 run_expect_exit_code() {
   local label="$1"
@@ -417,61 +446,15 @@ EOF
     HEAD
 }
 
-run_expect_exit_code \
-  "bash -n scripts/agent.sh request" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/agent.sh request
-
-run_expect_exit_code \
-  "bash -n scripts/internal/agent/run_agent_ci_checks.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/agent/run_agent_ci_checks.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/agent/run_agent_preflight.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/agent/run_agent_preflight.sh
-
-run_expect_exit_code \
-  "bash -n scripts/ci.sh smoke" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/ci.sh smoke
-
-run_expect_exit_code \
-  "bash -n scripts/ci.sh agent" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/ci.sh agent
-
-run_expect_exit_code \
-  "bash -n scripts/ci.sh quick" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/ci.sh quick
-
-run_expect_exit_code \
-  "bash -n scripts/internal/agent/install_agent_preflight_hooks.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/agent/install_agent_preflight_hooks.sh
+while IFS= read -r script_path; do
+  run_expect_exit_code \
+    "bash -n $script_path" \
+    0 \
+    "$ROOT_DIR" \
+    bash \
+    -n \
+    "$script_path"
+done < <(read_validation_contract_entries "script_guardrails.syntax_bash")
 
 run_expect_exit_code \
   "run_agent_request --help" \
@@ -487,25 +470,9 @@ run_expect_exit_code \
   scripts/ci.sh smoke \
   --help
 
-assert_file_contains \
-  "PowerShell devcheck checks Radiant standalone example" \
-  "scripts/internal/ci/devcheck.ps1" \
-  "--example generic_native --no-default-features"
-
-assert_file_contains \
-  "Bash devcheck checks Radiant standalone example" \
-  "scripts/internal/ci/devcheck.sh" \
-  "--example generic_native --no-default-features"
-
-assert_file_contains \
-  "PowerShell ci agent runs Radiant standalone no-default tests" \
-  "scripts/internal/ci/ci_agent.ps1" \
-  "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
-
-assert_file_contains \
-  "Bash ci agent runs Radiant standalone no-default tests" \
-  "scripts/internal/ci/ci_agent.sh" \
-  "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+while IFS=$'\t' read -r label path fragment; do
+  assert_file_contains "$label" "$path" "$fragment"
+done < <(read_required_fragment_entries)
 
 run_expect_exit_code \
   "ci_agent --help" \
@@ -527,94 +494,6 @@ run_expect_exit_code \
   "$ROOT_DIR" \
   scripts/internal/agent/run_agent_preflight.sh \
   --help
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/check_file_size_budget.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/check_file_size_budget.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/check_docs_index.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/check_docs_index.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/audit_cleanup_hotspots.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/audit_cleanup_hotspots.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/check_rust_taste_invariants.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/check_rust_taste_invariants.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/check_rust_private_docs.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/check_rust_private_docs.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/check_native_app_boundary.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/check_native_app_boundary.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/check/check_rust_dead_deps_advisory.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/check/check_rust_dead_deps_advisory.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/perf/run_perf_guard.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/perf/run_perf_guard.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/perf/calibrate_startup_thresholds.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/perf/calibrate_startup_thresholds.sh
-
-run_expect_exit_code \
-  "bash -n scripts/internal/perf/run_perf_wheel_stability.sh" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/internal/perf/run_perf_wheel_stability.sh
-
-run_expect_exit_code \
-  "bash -n scripts/run.sh sandbox" \
-  0 \
-  "$ROOT_DIR" \
-  bash \
-  -n \
-  scripts/run.sh sandbox
 
 run_file_size_budget_fixture
 run_cleanup_audit_fixture

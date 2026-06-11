@@ -157,16 +157,25 @@ if [ "$RUNS" -gt 1 ]; then
 fi
 
 echo "[perf_guard] parsing benchmark reports (${RUNS} run(s)); canonical report: $OUT_PATH"
-python3 - "${REPORT_PATHS[@]}" <<'PY'
+python3 - "$ROOT_DIR/scripts/internal/data/validation_contract.json" "${REPORT_PATHS[@]}" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 from statistics import median
 
-report_paths = [Path(arg) for arg in sys.argv[1:]]
+contract_path = Path(sys.argv[1])
+report_paths = [Path(arg) for arg in sys.argv[2:]]
 if not report_paths:
     print("[perf_guard] ERROR: no benchmark reports supplied", file=sys.stderr)
+    sys.exit(1)
+try:
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(
+        f"[perf_guard] ERROR: failed to parse shared validation contract {contract_path}: {exc}",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 gui_reports = []
@@ -209,92 +218,7 @@ if controller_projection_samples:
         "(diagnostic, legacy controller path)"
     )
 
-scenarios = [
-    (
-        "browser_filter_churn_latency",
-        "WAVECRATE_PERF_WARN_P95_US_FILTER_CHURN",
-        10_000,
-        "WAVECRATE_PERF_FAIL_P95_US_FILTER_CHURN",
-        None,
-    ),
-    (
-        "browser_query_churn_latency",
-        "WAVECRATE_PERF_WARN_P95_US_QUERY_CHURN",
-        12_000,
-        "WAVECRATE_PERF_FAIL_P95_US_QUERY_CHURN",
-        None,
-    ),
-    (
-        "browser_sort_toggle_latency",
-        "WAVECRATE_PERF_WARN_P95_US_SORT_CHURN",
-        10_000,
-        "WAVECRATE_PERF_FAIL_P95_US_SORT_CHURN",
-        None,
-    ),
-    (
-        "hover_latency",
-        "WAVECRATE_PERF_WARN_P95_US_HOVER",
-        8_000,
-        "WAVECRATE_PERF_FAIL_P95_US_HOVER",
-        None,
-    ),
-    (
-        "wheel_latency",
-        "WAVECRATE_PERF_WARN_P95_US_WHEEL",
-        10_000,
-        "WAVECRATE_PERF_FAIL_P95_US_WHEEL",
-        30_000,
-    ),
-    (
-        "browser_focus_preview_latency",
-        "WAVECRATE_PERF_WARN_P95_US_FOCUS_PREVIEW",
-        10_000,
-        "WAVECRATE_PERF_FAIL_P95_US_FOCUS_PREVIEW",
-        None,
-    ),
-    (
-        "browser_focus_commit_latency",
-        "WAVECRATE_PERF_WARN_P95_US_FOCUS_COMMIT",
-        16_000,
-        "WAVECRATE_PERF_FAIL_P95_US_FOCUS_COMMIT",
-        100_000,
-    ),
-    (
-        "map_pan_proxy_latency",
-        "WAVECRATE_PERF_WARN_P95_US_MAP_PAN_PROXY",
-        12_000,
-        "WAVECRATE_PERF_FAIL_P95_US_MAP_PAN_PROXY",
-        4_000,
-    ),
-    (
-        "waveform_interaction_latency",
-        "WAVECRATE_PERF_WARN_P95_US_WAVEFORM",
-        10_000,
-        "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM",
-        None,
-    ),
-    (
-        "waveform_pan_zoom_adjacent_latency",
-        "WAVECRATE_PERF_WARN_P95_US_WAVEFORM_ADJACENT",
-        12_000,
-        "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM_ADJACENT",
-        None,
-    ),
-    (
-        "volume_drag_latency",
-        "WAVECRATE_PERF_WARN_P95_US_VOLUME",
-        8_000,
-        "WAVECRATE_PERF_FAIL_P95_US_VOLUME",
-        None,
-    ),
-    (
-        "idle_cursor_motion_latency",
-        "WAVECRATE_PERF_WARN_P95_US_IDLE_CURSOR",
-        8_000,
-        "WAVECRATE_PERF_FAIL_P95_US_IDLE_CURSOR",
-        None,
-    ),
-]
+scenarios = contract["perf"]["scenarios"]
 
 stage_names = (
     "input_stage",
@@ -307,20 +231,34 @@ warned = False
 failed = False
 contributors = []
 jank_contributors = []
-warn_jank_ratio = float(os.getenv("WAVECRATE_PERF_WARN_FRAME_JANK_RATIO", "0.10"))
-warn_missed_present_ratio = float(
-    os.getenv("WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO", "0.05")
+frame_quality = contract["perf"]["frame_quality"]
+warn_jank_ratio = float(
+    os.getenv(
+        frame_quality["warn_jank_env"],
+        str(frame_quality["warn_jank_default"]),
+    )
 )
-fail_jank_ratio_raw = os.getenv("WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO")
+warn_missed_present_ratio = float(
+    os.getenv(
+        frame_quality["warn_missed_present_env"],
+        str(frame_quality["warn_missed_present_default"]),
+    )
+)
+fail_jank_ratio_raw = os.getenv(frame_quality["fail_jank_env"])
 fail_jank_ratio = float(fail_jank_ratio_raw) if fail_jank_ratio_raw is not None else None
-fail_missed_present_ratio_raw = os.getenv("WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO")
+fail_missed_present_ratio_raw = os.getenv(frame_quality["fail_missed_present_env"])
 fail_missed_present_ratio = (
     float(fail_missed_present_ratio_raw)
     if fail_missed_present_ratio_raw is not None
     else None
 )
 
-for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in scenarios:
+for scenario in scenarios:
+    key = scenario["key"]
+    warn_env_name = scenario["warn_env"]
+    warn_default_limit = int(scenario["warn_default"])
+    fail_env_name = scenario["fail_env"]
+    fail_default_limit = scenario["fail_default"]
     run_summaries = []
     for index, gui in enumerate(gui_reports, start=1):
         summary = gui.get(key)
