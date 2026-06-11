@@ -9,9 +9,8 @@ use super::{
     path_helpers::{file_label, folder_label, path_id},
     scan_types::{
         FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-        FolderScanResult,
+        FolderScanResult, FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
     },
-    verify_types::{FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot},
 };
 use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 

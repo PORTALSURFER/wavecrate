@@ -94,8 +94,7 @@ mod scan_types;
 mod source_types;
 use source_types::RemovedSource;
 
-mod verify_types;
-use verify_types::{FolderVerifyRequest, FolderVerifyResult};
+use scan_types::{FolderVerifyRequest, FolderVerifyResult};
 
 pub(in crate::native_app) mod commands {
     pub(in crate::native_app) use super::messages::FolderBrowserMessage;
@@ -120,12 +119,11 @@ pub(in crate::native_app) mod projection {
 pub(in crate::native_app) mod scan {
     pub(in crate::native_app) use super::scan_types::{
         FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-        FolderScanResult,
+        FolderScanResult, FolderVerifyResult,
     };
     pub(in crate::native_app) use super::scanning::{
         scan_source_with_progress, verify_direct_folder,
     };
-    pub(in crate::native_app) use super::verify_types::FolderVerifyResult;
 }
 
 #[cfg(test)]

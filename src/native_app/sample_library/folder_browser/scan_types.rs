@@ -52,3 +52,27 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) file_count: usize,
     pub(in crate::native_app) folder_count: usize,
 }
+
+/// Request for verifying that a selected folder still matches its cached child state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderVerifyRequest {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) folder_path: PathBuf,
+    pub(in crate::native_app) cached_child_ids: Vec<String>,
+    pub(in crate::native_app) cached_file_signatures: Vec<(String, u64)>,
+}
+
+/// Fresh filesystem snapshot used to detect drift in a cached folder view.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderVerifySnapshot {
+    pub(in crate::native_app) child_paths: Vec<PathBuf>,
+    pub(in crate::native_app) files: Vec<FileEntry>,
+}
+
+/// Result of a folder verification pass, with a snapshot only when drift was found.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderVerifyResult {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) folder_path: PathBuf,
+    pub(in crate::native_app) snapshot: Option<FolderVerifySnapshot>,
+}
