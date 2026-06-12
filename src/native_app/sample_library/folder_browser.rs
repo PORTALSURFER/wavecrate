@@ -43,6 +43,8 @@ use visible_samples::SampleListState;
 
 mod file_rename_workflow;
 
+mod file_move_conflicts;
+mod file_move_execution;
 mod file_move_transaction;
 
 mod file_columns;
