@@ -1,17 +1,14 @@
 use std::{collections::HashSet, path::PathBuf};
 
-use crate::native_app::{
-    app::GuiMessage,
-    sample_library::folder_browser::{
-        FolderBrowserState,
-        scan::{
-            self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress,
-            FolderScanRequest, FolderScanResult,
-        },
-    },
+use crate::native_app::sample_library::folder_browser::{
+    FolderBrowserState,
+    scan::{FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest, FolderScanResult},
 };
 
-const DISCOVERY_BATCH_SIZE: usize = 64;
+#[cfg(test)]
+#[path = "source_scan_workflow/tests.rs"]
+/// Source-scan workflow state tests split out from the runtime module.
+mod tests;
 
 pub(in crate::native_app) struct SourceScanWorkflow {
     progress: Option<FolderScanProgress>,
@@ -50,58 +47,6 @@ pub(in crate::native_app) enum SourceScanFinish {
     Stale {
         label: String,
     },
-}
-
-pub(in crate::native_app) fn run_folder_scan_worker(
-    request: FolderScanRequest,
-    sender: std::sync::mpsc::Sender<GuiMessage>,
-) -> FolderScanResult {
-    let discovery_sender = sender.clone();
-    let mut pending_discoveries = Vec::with_capacity(DISCOVERY_BATCH_SIZE);
-    let task_id = request.task_id;
-    let source_id = request.source_id.clone();
-    let result = scan::scan_source_with_progress(
-        request,
-        |progress| {
-            let _ = sender.send(GuiMessage::FolderScanProgress(progress));
-        },
-        |event| {
-            pending_discoveries.push(event);
-            if pending_discoveries.len() >= DISCOVERY_BATCH_SIZE {
-                send_discovery_batch(
-                    &discovery_sender,
-                    task_id,
-                    source_id.clone(),
-                    &mut pending_discoveries,
-                );
-            }
-        },
-    );
-    if !pending_discoveries.is_empty() {
-        send_discovery_batch(
-            &discovery_sender,
-            task_id,
-            source_id,
-            &mut pending_discoveries,
-        );
-    }
-    result
-}
-
-fn send_discovery_batch(
-    sender: &std::sync::mpsc::Sender<GuiMessage>,
-    task_id: u64,
-    source_id: String,
-    pending_discoveries: &mut Vec<FolderScanDiscovery>,
-) {
-    let events = std::mem::take(pending_discoveries);
-    let _ = sender.send(GuiMessage::FolderScanDiscoveryBatch(
-        FolderScanDiscoveryBatch {
-            task_id,
-            source_id,
-            events,
-        },
-    ));
 }
 
 impl SourceScanWorkflow {
@@ -268,100 +213,5 @@ impl SourceScanWorkflow {
         source_id: &str,
     ) -> bool {
         self.pending_refreshes.contains(source_id)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::native_app::sample_library::folder_browser::scan::{
-        FolderScanProgress, FolderScanRequest, scan_source_with_progress,
-    };
-    use std::fs;
-
-    fn temp_dir_with_wav() -> tempfile::TempDir {
-        let root = tempfile::tempdir().expect("source root");
-        fs::write(root.path().join("sample.wav"), [0_u8; 8]).expect("write sample");
-        root
-    }
-
-    #[test]
-    fn stale_progress_is_ignored() {
-        let root = temp_dir_with_wav();
-        let mut browser = FolderBrowserState::load_default();
-        let mut workflow = SourceScanWorkflow::new();
-        let request = workflow
-            .begin_add_source_path(&mut browser, root.path().to_path_buf(), 7)
-            .expect("scan request");
-        workflow.start_scan(&request);
-
-        let stale = FolderScanProgress {
-            task_id: request.task_id + 1,
-            source_id: request.source_id.clone(),
-            label: request.label.clone(),
-            phase: String::from("Scanning"),
-            completed: 1,
-            total: 1,
-            detail: String::new(),
-        };
-
-        assert!(!workflow.apply_progress(&browser, stale));
-        assert_eq!(
-            workflow.progress().expect("queued progress").phase,
-            "Queued"
-        );
-    }
-
-    #[test]
-    fn stale_finish_keeps_active_scan_owner() {
-        let root = temp_dir_with_wav();
-        let mut browser = FolderBrowserState::load_default();
-        let mut workflow = SourceScanWorkflow::new();
-        let request = workflow
-            .begin_add_source_path(&mut browser, root.path().to_path_buf(), 11)
-            .expect("scan request");
-        workflow.start_scan(&request);
-        let stale_result = scan_source_with_progress(
-            FolderScanRequest {
-                task_id: request.task_id + 1,
-                source_id: request.source_id.clone(),
-                label: request.label.clone(),
-                root: request.root.clone(),
-            },
-            |_| {},
-            |_| {},
-        );
-
-        assert!(matches!(
-            workflow.finish_scan(&mut browser, stale_result),
-            SourceScanFinish::Stale { .. }
-        ));
-        assert!(workflow.active());
-    }
-
-    #[test]
-    fn pending_refresh_waits_for_active_scan() {
-        let root = temp_dir_with_wav();
-        let mut browser = FolderBrowserState::load_default();
-        let mut workflow = SourceScanWorkflow::new();
-        let request = workflow
-            .begin_add_source_path(&mut browser, root.path().to_path_buf(), 21)
-            .expect("scan request");
-        let source_id = request.source_id.clone();
-        workflow.start_scan(&request);
-
-        let plan = workflow.plan_filesystem_change(&mut browser, source_id.clone(), &[], true);
-
-        assert!(matches!(
-            plan,
-            SourceFilesystemChangePlan::DeferredAlreadyRunning { .. }
-        ));
-        assert_eq!(workflow.next_pending_refresh_if_idle(), None);
-        let result = scan_source_with_progress(request, |_| {}, |_| {});
-        assert!(matches!(
-            workflow.finish_scan(&mut browser, result),
-            SourceScanFinish::Applied { .. }
-        ));
-        assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
     }
 }
