@@ -12,7 +12,7 @@ const WAVEFORM_SEEK_COMMIT_DEBOUNCE: Duration = Duration::from_millis(24);
 
 pub(crate) fn seek_to(controller: &mut AppController, position: f64) {
     let looped = controller.ui.waveform.loop_enabled;
-    record_play_start(controller, position);
+    record_play_start_preserving_view(controller, position);
     if let Err(err) = controller.play_audio(looped, Some(position)) {
         controller.set_status(err, StatusTone::Error);
     }
@@ -29,7 +29,6 @@ pub(crate) fn seek_waveform_nanos(controller: &mut AppController, position_nanos
     super::selection::cancel_click_armed_selection_drag(controller);
     clear_selection_for_outside_waveform_seek(controller, normalized);
     seek_to(controller, normalized);
-    controller.set_waveform_cursor(normalized as f32);
     controller.focus_waveform_context();
 }
 
@@ -38,13 +37,12 @@ pub(crate) fn queue_waveform_seek_nanos(controller: &mut AppController, position
     let clamped = position_nanos.min(1_000_000_000);
     super::selection::cancel_click_armed_selection_drag(controller);
     clear_selection_for_outside_waveform_seek(controller, normalized64_from_nanos(clamped));
-    controller.set_waveform_cursor_nanos(clamped);
+    set_waveform_seek_cursor_preserving_view(controller, clamped);
     if should_commit_waveform_seek_immediately(controller) {
         controller.runtime.waveform.pending_seek_nanos = None;
         controller.runtime.waveform.pending_seek_not_before = None;
         let normalized = normalized64_from_nanos(clamped);
         seek_to(controller, normalized);
-        controller.set_waveform_cursor(normalized as f32);
         controller.focus_waveform_context();
         return;
     }
@@ -103,7 +101,16 @@ pub(crate) fn flush_pending_waveform_seek_commit(controller: &mut AppController)
     };
     let normalized = normalized64_from_nanos(position_nanos);
     seek_to(controller, normalized);
-    controller.set_waveform_cursor(normalized as f32);
+    controller.focus_waveform_context();
+}
+
+fn set_waveform_seek_cursor_preserving_view(controller: &mut AppController, position_nanos: u32) {
+    if !controller.waveform_ready() {
+        return;
+    }
+    let normalized = normalized64_from_nanos(position_nanos) as f32;
+    controller.ui.waveform.cursor = Some(normalized);
+    controller.ui.waveform.cursor_last_navigation_at = Some(Instant::now());
     controller.focus_waveform_context();
 }
 

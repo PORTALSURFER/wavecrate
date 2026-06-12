@@ -18,6 +18,7 @@ use snapping::snap_to_transient;
 /// visible selection yet. BPM/transient snapping is deferred to follow-up drag
 /// updates and resize gestures once the pointer actually moves.
 pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32) {
+    controller.selection_state.skip_next_playback_adjust = false;
     controller.selection_state.bpm_scale_beats = None;
     controller.begin_selection_undo("Selection");
     controller.selection_state.range.arm_new(position);
@@ -44,6 +45,7 @@ pub(crate) fn start_selection_edge_drag(
     if !controller.selection_state.range.begin_edge_drag(edge) {
         return false;
     }
+    controller.selection_state.skip_next_playback_adjust = false;
     controller.begin_selection_undo("Selection");
     controller.selection_state.bpm_scale_beats = if bpm_scale {
         smart_scale_target_beats(controller)
@@ -122,6 +124,9 @@ pub(crate) fn finish_selection_drag(controller: &mut AppController) {
         }
     }
     controller.commit_selection_undo();
+    if std::mem::take(&mut controller.selection_state.skip_next_playback_adjust) {
+        return;
+    }
     adjust_playback_after_selection_change(controller);
 }
 
@@ -147,10 +152,16 @@ pub(crate) fn finish_edit_selection_drag(controller: &mut AppController) {
 }
 
 pub(crate) fn set_selection_range(controller: &mut AppController, range: SelectionRange) {
+    let had_pending_loop_retarget = controller.audio.pending_loop_retarget.is_some();
     controller.audio.clear_pending_loop_retarget();
     controller.selection_state.range.set_range(Some(range));
     controller.apply_selection(Some(range));
 
+    if had_pending_loop_retarget {
+        controller.selection_state.skip_next_playback_adjust = true;
+        return;
+    }
+    controller.selection_state.skip_next_playback_adjust = false;
     if is_playing(controller) && controller.selection_state.range.is_dragging() {
         return;
     }
@@ -182,6 +193,7 @@ pub(crate) fn is_edit_selection_dragging(controller: &AppController) -> bool {
 
 pub(crate) fn clear_selection(controller: &mut AppController) {
     controller.audio.clear_pending_loop_retarget();
+    controller.selection_state.skip_next_playback_adjust = false;
     let before = controller
         .selection_state
         .range

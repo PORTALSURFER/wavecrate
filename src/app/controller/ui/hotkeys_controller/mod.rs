@@ -148,6 +148,7 @@ mod tests {
         );
         assert_eq!(controller.ui.waveform.last_start_marker, Some(0.0));
 
+        controller.ui.waveform.playhead.position = 0.37;
         controller.handle_hotkey(
             action_for(|action| {
                 matches!(
