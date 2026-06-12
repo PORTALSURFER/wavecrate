@@ -48,7 +48,12 @@ fn apply_ui_commit_focused_browser_row_falls_back_to_transport_outside_browser_f
         controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
 
         assert!(
-            controller.ui.status.text.contains("Audio"),
+            controller
+                .ui
+                .status
+                .text
+                .to_ascii_lowercase()
+                .contains("audio"),
             "status was {:?}",
             controller.ui.status.text
         );

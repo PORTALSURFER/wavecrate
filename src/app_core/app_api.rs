@@ -9,12 +9,11 @@
 //!
 //! | Export group | Current consumers | Why it still crosses | Target owner | Removal condition | Follow-up |
 //! | --- | --- | --- | --- | --- | --- |
-//! | Controller runtime | `app_core::controller`, ui-projection helpers, GUI fixtures | `AppController` still owns mature browser, source, audio, waveform, map, and config behavior used by app-core runtime shims | Split Wavecrate runtime/domain services under `app_core`, with native UI depending on those contracts | Runtime dispatch, projection, and fixture construction no longer require `crate::app::controller` | `OPT-525` |
-//! | Retained projection caches | `app_core::controller`, `app_core::ui_projection`, `app_core::ui_bridge` | Projection caches live with the controller state they memoize | App-core projection/cache modules with app-core-owned keys and row DTOs | Projection cache storage moves out of `AppController` | `OPT-525` |
-//! | Controller dirty graph state | `app_core::controller`, `app_core::actions`, `app_core::ui_bridge` | Bridge invalidation still consumes legacy derived-node IDs and dirty reasons | App-core invalidation graph | Reducers and frame preparation own dirty-node contracts without legacy state names | `OPT-525` |
-//! | Browser/source/map/audio state DTOs | `app_core::state`, `app_core::ui_projection`, `app_core::controller`, app-core tests | Projection models are still sourced from legacy `UiState` and nested browser/source/audio state structs | App-core state DTO modules and focused test builders | App-core projections/tests construct owned DTOs without importing `app_api::state` | `OPT-538` |
-//! | Browser catalog/test fixtures | `app_core::actions::catalog`, ui-projection tests | Catalog samples and projection assertions still use legacy browser facet payloads | Domain-organized action catalog fixtures | Catalog fixtures are split by action domain with app-core-owned fixture builders | `OPT-539` |
-//! | View-model label helper | `app_core::view_model` | Sample label formatting remains implemented in the legacy view-model helper | App-core/browser display-name helper | Display-name formatting is moved beside app-core browser DTOs | `OPT-525` |
+//! | Controller runtime | `app_core::controller`, ui-projection helpers, GUI fixtures | `AppController` still owns mature browser, source, audio, waveform, map, and config behavior used by app-core runtime shims | Split Wavecrate runtime/domain services under `app_core`, with native UI depending on those contracts | Runtime dispatch, projection, and fixture construction no longer require `crate::app::controller` | `OPT-672` |
+//! | Retained projection caches | `app_core::controller`, `app_core::ui_projection`, `app_core::ui_bridge` | Projection caches live with the controller state they memoize | App-core projection/cache modules with app-core-owned keys and row DTOs | Projection cache storage moves out of `AppController` | `OPT-672` |
+//! | Controller dirty graph state | `app_core::controller`, `app_core::actions`, `app_core::ui_bridge` | Bridge invalidation still consumes legacy derived-node IDs and dirty reasons | App-core invalidation graph | Reducers and frame preparation own dirty-node contracts without legacy state names | `OPT-673` |
+//! | Browser/source/map/audio state DTOs | `app_core::state`, `app_core::ui_projection`, `app_core::controller`, app-core tests | Projection models are still sourced from legacy `UiState` and nested browser/source/audio state structs | App-core state DTO modules and focused test builders | App-core projections/tests construct owned DTOs without importing `app_api::state` | `OPT-676` |
+//! | Browser catalog/test fixtures | `app_core::actions::catalog`, ui-projection tests | Catalog samples and projection assertions still use legacy browser facet payloads | Domain-organized action catalog fixtures | Catalog fixtures are split by action domain with app-core-owned fixture builders | `OPT-673` |
 pub(crate) mod controller {
     //! Controller runtime exports.
     //!
@@ -69,7 +68,7 @@ pub(crate) mod state {
 
     /// Active audio picker target shown in options flows.
     pub(crate) use crate::app::state::AudioPickerTarget;
-    /// Progress task DTOs still used by projection tests while OPT-538 replaces legacy state usage.
+    /// Progress task DTOs still used by projection tests while OPT-676 replaces legacy state usage.
     #[cfg(test)]
     pub(crate) use crate::app::state::ProgressTaskKind;
     /// Audio option and active-device DTOs used by options-panel projection tests.
@@ -101,22 +100,11 @@ pub(crate) mod state {
     pub(crate) use crate::app::state::{
         MapBounds, MapPoint, MapQueryBounds, MapRenderMode, MapSimilarityPrepStatus,
     };
-    /// Browser fixture-only DTOs used by projection tests while OPT-538 replaces legacy state usage.
+    /// Browser fixture-only DTOs used by projection tests while OPT-676 replaces legacy state usage.
     #[cfg(test)]
     pub(crate) use crate::app::state::{SampleBrowserIndex, SimilarQuery};
     /// Progress and update DTOs used by app-model status projections.
     pub(crate) use crate::app::state::{StatusTone, UpdateStatus};
     /// Full UI state and waveform DTOs still projected from the legacy controller.
     pub(crate) use crate::app::state::{UiState, WaveformSliceBatchProfile};
-}
-
-pub(crate) mod view_model {
-    //! Legacy view-model helpers that still back app-core display DTOs.
-    //!
-    //! `sample_display_label` is consumed only through `app_core::view_model`.
-    //! Move it beside browser display-name DTOs once the browser projection no
-    //! longer depends on the legacy app view-model module.
-
-    /// Legacy sample display-label helper.
-    pub(crate) use crate::app::view_model::sample_display_label;
 }

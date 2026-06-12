@@ -189,8 +189,8 @@ fn duplicate_cleanup_projects_active_browser_state_and_row_badges() {
         .expect("keep entry")
         .relative_path
         .clone();
-    let anchor_label = crate::app::view_model::sample_display_label(&anchor_path);
-    let keep_label = crate::app::view_model::sample_display_label(&keep_path);
+    let anchor_label = crate::app_core::view_model::sample_display_label(&anchor_path);
+    let keep_label = crate::app_core::view_model::sample_display_label(&keep_path);
     controller.focus_browser_row_only(0);
     controller.ui.browser.duplicate_cleanup = Some(BrowserDuplicateCleanupState::new(
         source_id,
