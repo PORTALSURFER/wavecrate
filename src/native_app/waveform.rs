@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 
 use radiant::prelude as ui;
-use std::sync::Arc;
 
 use crate::native_app::ui::ids as widget_ids;
 
@@ -28,9 +27,11 @@ pub(super) use types::{
 mod interaction;
 use interaction::{WaveformDrag, edit_preview_for_selection};
 
+mod state;
 mod state_extraction;
 mod state_file;
 mod state_interaction;
+pub(in crate::native_app) use state::WaveformState;
 mod state_loading;
 mod state_marked_ranges;
 mod state_playback;
@@ -72,24 +73,6 @@ mod edit_fade_paint;
 mod selection_paint;
 
 pub(super) type WaveformViewport = ui::IndexViewport;
-
-#[derive(Clone, Debug)]
-pub(super) struct WaveformState {
-    file: Arc<WaveformFile>,
-    viewport: WaveformViewport,
-    zoom_anchor_ratio: f32,
-    playing: bool,
-    playhead_ratio: Option<f32>,
-    play_mark_ratio: Option<f32>,
-    edit_mark_ratio: Option<f32>,
-    play_selection: Option<wavecrate::selection::SelectionRange>,
-    edit_selection: Option<wavecrate::selection::SelectionRange>,
-    marked_play_ranges: Vec<wavecrate::selection::SelectionRange>,
-    extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
-    play_selection_flash_frames: u8,
-    active_drag: Option<WaveformDrag>,
-    pending_playback_start: Option<f32>,
-}
 
 #[cfg(test)]
 mod tests;
