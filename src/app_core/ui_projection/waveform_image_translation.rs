@@ -1,7 +1,7 @@
 //! Shared waveform-image translation helpers for ui-projection paths.
 
-use crate::ui_primitives::types::ImageRgba;
 use crate::waveform::WaveformImage;
+use radiant::gui::types::ImageRgba;
 use std::sync::Arc;
 
 /// Convert a rendered waveform image into the native immutable RGBA payload.

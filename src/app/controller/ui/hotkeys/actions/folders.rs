@@ -1,7 +1,7 @@
 use super::super::types::{HotkeyAction, HotkeyGesture, HotkeyScope};
 use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
-use crate::ui_primitives::input::KeyCode as Key;
+use radiant::gui::input::KeyCode as Key;
 
 const SOURCE_FOLDERS: HotkeyScope = HotkeyScope::Focus(FocusContext::SourceFolders);
 

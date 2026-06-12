@@ -7,8 +7,8 @@ mod progress_cache;
 use super::wakeup;
 use crate::app::controller::jobs::JobMessageSender;
 use crate::sample_sources::SourceId;
-use crate::ui_primitives::repaint::{RepaintSignal, SharedRepaintSignal};
 use progress_cache::ProgressCache;
+use radiant::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 #[cfg(not(test))]
 use std::collections::HashSet;
 #[cfg(not(test))]

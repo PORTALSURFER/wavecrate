@@ -179,7 +179,7 @@ pub struct AppController {
     /// Cached UI projection payload for the currently rendered waveform image.
     pub(crate) projected_waveform_image_signature: Option<u64>,
     /// Cached UI projection payload for the currently rendered waveform image.
-    pub(crate) projected_waveform_image: Option<Arc<crate::ui_primitives::types::ImageRgba>>,
+    pub(crate) projected_waveform_image: Option<Arc<radiant::gui::types::ImageRgba>>,
     /// Selected source associated with the retained browser row projection cache.
     pub(crate) projected_browser_rows_source_id: Option<SourceId>,
     /// Static browser-row projection fields keyed by absolute entry index.

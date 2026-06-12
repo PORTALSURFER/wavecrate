@@ -11,7 +11,7 @@ use crate::app::controller::jobs::{
 use crate::app::controller::test_support::write_test_wav;
 use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleSoundType, SampleSource, SourceDatabase};
-use crate::ui_primitives::repaint::SharedRepaintSignal;
+use radiant::gui::repaint::SharedRepaintSignal;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{

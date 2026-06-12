@@ -1,8 +1,8 @@
 use super::*;
 use crate::app::controller::state::runtime::WaveformRefreshReason;
 use crate::app::state::WaveformView;
-use crate::ui_primitives::types::ImageRgba;
 use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformImage, WaveformRenderer};
+use radiant::gui::types::ImageRgba;
 use std::sync::Arc;
 
 mod apply_state;

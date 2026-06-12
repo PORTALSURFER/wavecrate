@@ -44,12 +44,6 @@ pub mod native_runtime;
 pub mod sample_sources;
 /// Selection math utilities.
 pub mod selection;
-/// Backend-agnostic GUI façade for the `radiant`-based UI stack.
-///
-/// This crate exposes GUI declarations (`radiant` APIs) to application code while
-/// keeping widget behavior, layout policy, input semantics, and rendering inside
-/// the `radiant` crate.
-pub mod ui_primitives;
 /// Optional SQLite extension loader.
 pub use wavecrate_library::sqlite_ext;
 /// Update check + installer helper utilities.

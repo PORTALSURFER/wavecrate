@@ -39,17 +39,27 @@ const WAVECRATE_FACADE_BUDGETS: &[FacadeBudget] = &[
 ];
 
 #[test]
-fn gui_module_stays_a_pure_radiant_reexport_boundary() {
+fn wavecrate_does_not_reintroduce_local_radiant_gui_prelude() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let source = fs::read_to_string(format!("{manifest_dir}/src/ui_primitives/mod.rs"))
-        .expect("src/ui_primitives/mod.rs should be readable");
+    let prelude_path = Path::new(manifest_dir).join("src/ui_primitives/mod.rs");
+    assert!(
+        !prelude_path.exists(),
+        "Wavecrate should not maintain a local Radiant GUI prelude; import radiant::prelude or explicit radiant::gui subsystems instead"
+    );
 
-    for forbidden in ["pub trait ", "impl ", "fn ", "struct ", "enum ", "const "] {
-        assert!(
-            !source.contains(forbidden),
-            "src/ui_primitives should stay a pure Radiant re-export boundary; found `{forbidden}`"
-        );
-    }
+    let source_root = Path::new(manifest_dir).join("src");
+    let mut offenders = Vec::new();
+    collect_matching_source_lines(
+        &source_root,
+        Path::new(manifest_dir),
+        &mut offenders,
+        |line| line.contains("crate::ui_primitives") || line.contains("ui_primitives::"),
+    );
+    assert!(
+        offenders.is_empty(),
+        "Wavecrate code should import Radiant directly instead of using a local ui_primitives facade:\n{}",
+        offenders.join("\n")
+    );
 }
 
 #[test]
@@ -169,35 +179,7 @@ fn cross_crate_public_wildcard_reexports_are_explicitly_audited() {
     let mut actual = BTreeSet::new();
     collect_cross_crate_public_wildcard_reexports(&source_root, &manifest_dir, &mut actual);
 
-    let expected: BTreeSet<String> = [
-        "src/ui_primitives/mod.rs:radiant::gui::automation::*",
-        "src/ui_primitives/mod.rs:radiant::gui::badge::*",
-        "src/ui_primitives/mod.rs:radiant::gui::chrome::*",
-        "src/ui_primitives/mod.rs:radiant::gui::feedback::*",
-        "src/ui_primitives/mod.rs:radiant::gui::fingerprint::*",
-        "src/ui_primitives/mod.rs:radiant::gui::focus::*",
-        "src/ui_primitives/mod.rs:radiant::gui::form::*",
-        "src/ui_primitives/mod.rs:radiant::gui::frame::*",
-        "src/ui_primitives/mod.rs:radiant::gui::input::*",
-        "src/ui_primitives/mod.rs:radiant::gui::invalidation::*",
-        "src/ui_primitives/mod.rs:radiant::gui::layout_core::*",
-        "src/ui_primitives/mod.rs:radiant::gui::list::*",
-        "src/ui_primitives/mod.rs:radiant::gui::paint::*",
-        "src/ui_primitives/mod.rs:radiant::gui::panel::*",
-        "src/ui_primitives/mod.rs:radiant::gui::range::*",
-        "src/ui_primitives/mod.rs:radiant::gui::repaint::*",
-        "src/ui_primitives/mod.rs:radiant::gui::retained::*",
-        "src/ui_primitives/mod.rs:radiant::gui::selection::*",
-        "src/ui_primitives/mod.rs:radiant::gui::shortcuts::*",
-        "src/ui_primitives/mod.rs:radiant::gui::snapshot::*",
-        "src/ui_primitives/mod.rs:radiant::gui::svg::*",
-        "src/ui_primitives/mod.rs:radiant::gui::text_layout::*",
-        "src/ui_primitives/mod.rs:radiant::gui::types::*",
-        "src/ui_primitives/mod.rs:radiant::gui::visualization::*",
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect();
+    let expected: BTreeSet<String> = BTreeSet::new();
 
     assert_eq!(
         actual, expected,
@@ -304,6 +286,17 @@ fn collect_matching_lines(
         }
         previous_line_was_cfg_test = cfg_test_line;
     }
+}
+
+fn collect_matching_source_lines(
+    dir: &Path,
+    manifest_dir: &Path,
+    offenders: &mut Vec<String>,
+    matches_line: impl Copy + Fn(&str) -> bool,
+) {
+    for_rust_source_file(dir, &mut |path| {
+        collect_matching_lines(path, manifest_dir, offenders, matches_line);
+    });
 }
 
 fn read_source(path: &Path) -> String {

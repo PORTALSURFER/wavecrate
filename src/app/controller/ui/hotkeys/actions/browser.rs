@@ -1,7 +1,7 @@
 use super::super::types::{HotkeyAction, HotkeyGesture, HotkeyScope, KeyPress};
 use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
-use crate::ui_primitives::input::KeyCode as Key;
+use radiant::gui::input::KeyCode as Key;
 
 const SAMPLE_BROWSER: HotkeyScope = HotkeyScope::Focus(FocusContext::SampleBrowser);
 

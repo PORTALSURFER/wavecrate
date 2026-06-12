@@ -2,7 +2,7 @@ use crate::app::controller::jobs::JobMessageSender;
 use crate::app::controller::library::analysis_jobs::pool::progress_cache::ProgressCache;
 use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 use crate::sample_sources::SourceId;
-use crate::ui_primitives::repaint::SharedRepaintSignal;
+use radiant::gui::repaint::SharedRepaintSignal;
 use std::collections::HashSet;
 use std::sync::{
     Arc, RwLock,

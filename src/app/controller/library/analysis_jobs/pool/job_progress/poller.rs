@@ -5,7 +5,7 @@ use super::wakeup::ProgressPollerWakeup;
 use super::{HEARTBEAT_INTERVAL, SOURCE_REFRESH_INTERVAL, STALE_CLEANUP_INTERVAL};
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
-use crate::ui_primitives::repaint::SharedRepaintSignal;
+use radiant::gui::repaint::SharedRepaintSignal;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;

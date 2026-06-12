@@ -14,9 +14,9 @@ use crate::{
         GuiTestModeConfig, canonical_gui_test_fixture_tag, gui_test_fixture_uses_isolated_startup,
         gui_test_fixture_uses_live_profile,
     },
-    ui_primitives::repaint::RepaintSignal,
     waveform::WaveformRenderer,
 };
+use radiant::gui::repaint::RepaintSignal;
 use std::sync::Arc;
 use tempfile::TempDir;
 

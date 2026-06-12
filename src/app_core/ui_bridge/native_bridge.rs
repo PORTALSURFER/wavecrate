@@ -46,10 +46,7 @@ impl NativeAppBridge for WavecrateUiBridge {
     }
 
     /// Install runtime repaint signal for async job completion wakeups.
-    fn install_repaint_signal(
-        &mut self,
-        signal: Arc<dyn crate::ui_primitives::repaint::RepaintSignal>,
-    ) {
+    fn install_repaint_signal(&mut self, signal: Arc<dyn radiant::gui::repaint::RepaintSignal>) {
         self.controller.set_repaint_signal(signal);
     }
 

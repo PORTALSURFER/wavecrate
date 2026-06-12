@@ -26,7 +26,7 @@ mod tests {
     use crate::app::controller::library::analysis_jobs::types::{
         AnalysisJobMessage, AnalysisProgress,
     };
-    use crate::ui_primitives::repaint::SharedRepaintSignal;
+    use radiant::gui::repaint::SharedRepaintSignal;
     use std::sync::{Arc, RwLock};
     use std::time::Duration;
     use tempfile::TempDir;

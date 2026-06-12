@@ -2,7 +2,7 @@ use super::source_discovery::ProgressSourceDb;
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
-use crate::ui_primitives::repaint::SharedRepaintSignal;
+use radiant::gui::repaint::SharedRepaintSignal;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

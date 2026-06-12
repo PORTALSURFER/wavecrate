@@ -1,5 +1,5 @@
 use super::types::KeyPress;
-use crate::ui_primitives::input::KeyCode;
+use radiant::gui::input::KeyCode;
 
 /// Render a keypress in a user-friendly format (e.g. "Ctrl + G").
 pub(crate) fn format_keypress(press: &KeyPress) -> String {

@@ -1,6 +1,6 @@
 use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
-use crate::ui_primitives::input::KeyCode;
+use radiant::gui::input::KeyCode;
 
 /// Identifies the section that owns a hotkey binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
