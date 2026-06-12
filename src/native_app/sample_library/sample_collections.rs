@@ -1,51 +1,15 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+mod command;
+mod persistence;
+mod state_application;
+mod status;
+mod transaction;
 
 use radiant::prelude as ui;
-use wavecrate::sample_sources::{SampleCollection, SourceDatabase};
+use wavecrate::sample_sources::SampleCollection;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
-use crate::native_app::transaction_history::TransactionContext;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct CollectionUpdate {
-    root: PathBuf,
-    relative_path: PathBuf,
-    absolute_path: PathBuf,
-    collection: SampleCollection,
-    operation: CollectionOperation,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CollectionOperation {
-    Add,
-    Remove,
-}
-
-impl CollectionOperation {
-    fn inverted(self) -> Self {
-        match self {
-            Self::Add => Self::Remove,
-            Self::Remove => Self::Add,
-        }
-    }
-}
-
-impl CollectionUpdate {
-    fn inverted(mut self) -> Self {
-        self.operation = self.operation.inverted();
-        self
-    }
-}
-
-#[derive(Default)]
-struct CollectionUpdateCounts {
-    added: usize,
-    removed: usize,
-}
+use command::{CollectionCommand, CollectionSourcePath, CollectionUpdate};
 
 impl NativeAppState {
     pub(in crate::native_app) fn assign_selected_collection(
@@ -73,8 +37,7 @@ impl NativeAppState {
             .folder_browser
             .context_file_collection_candidate(&menu.path, collection)
             .and_then(|candidate| {
-                collection_update_for_candidate(
-                    self,
+                self.collection_update_for_candidate(
                     candidate,
                     collection,
                     CollectionCommand::Remove,
@@ -110,8 +73,7 @@ impl NativeAppState {
             .selected_file_collection_candidates(collection)
             .into_iter()
             .filter_map(|candidate| {
-                collection_update_for_candidate(
-                    self,
+                self.collection_update_for_candidate(
                     candidate,
                     collection,
                     CollectionCommand::Toggle,
@@ -129,9 +91,30 @@ impl NativeAppState {
             .drag_file_collection_candidates(collection)
             .into_iter()
             .filter_map(|candidate| {
-                collection_update_for_candidate(self, candidate, collection, CollectionCommand::Add)
+                self.collection_update_for_candidate(candidate, collection, CollectionCommand::Add)
             })
             .collect()
+    }
+
+    fn collection_update_for_candidate(
+        &self,
+        candidate: crate::native_app::sample_library::folder_browser::view_contract::SelectedFileCollectionCandidate,
+        collection: SampleCollection,
+        command: CollectionCommand,
+    ) -> Option<CollectionUpdate> {
+        let (root, relative_path) = self
+            .library
+            .folder_browser
+            .source_relative_file_path(&candidate.path)?;
+        command::plan_collection_update(
+            candidate,
+            CollectionSourcePath {
+                root,
+                relative_path,
+            },
+            collection,
+            command,
+        )
     }
 
     fn apply_collection_updates(
@@ -141,14 +124,9 @@ impl NativeAppState {
         trigger: &'static str,
         command: CollectionCommand,
     ) {
-        let started_at = Instant::now();
+        let started_at = std::time::Instant::now();
         if updates.is_empty() {
-            self.ui.status.sample = match command {
-                CollectionCommand::Add | CollectionCommand::Toggle => {
-                    String::from("Select a sample to add to a collection")
-                }
-                CollectionCommand::Remove => String::from("Select a collection sample to remove"),
-            };
+            self.ui.status.sample = status::empty_collection_status(command);
             emit_gui_action(
                 command.action_name(),
                 Some("browser"),
@@ -160,7 +138,7 @@ impl NativeAppState {
             return;
         }
 
-        let counts = match self.apply_collection_update_states(&updates) {
+        let counts = match state_application::apply_collection_update_states(self, &updates) {
             Ok(counts) => counts,
             Err(error) => {
                 self.ui.status.sample = format!("Collection update failed: {error}");
@@ -176,8 +154,7 @@ impl NativeAppState {
             }
         };
 
-        self.ui.status.sample =
-            collection_status(collection, counts.added, counts.removed, command);
+        self.ui.status.sample = status::collection_status(collection, counts, command);
         emit_gui_action(
             command.action_name(),
             Some("browser"),
@@ -186,225 +163,8 @@ impl NativeAppState {
             started_at,
             None,
         );
-        if counts.added > 0 || counts.removed > 0 {
-            self.register_collection_transaction(collection, command, updates);
+        if counts.changed() {
+            transaction::register_collection_transaction(self, collection, command, updates);
         }
     }
-
-    fn register_collection_transaction(
-        &mut self,
-        collection: SampleCollection,
-        command: CollectionCommand,
-        updates: Vec<CollectionUpdate>,
-    ) {
-        let hotkey =
-            crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey(
-                collection,
-            );
-        let label = match command {
-            CollectionCommand::Add => format!("Add to Collection {hotkey}"),
-            CollectionCommand::Remove => format!("Remove from Collection {hotkey}"),
-            CollectionCommand::Toggle => format!("Toggle Collection {hotkey}"),
-        };
-        let undo_updates = updates
-            .iter()
-            .cloned()
-            .map(CollectionUpdate::inverted)
-            .collect::<Vec<_>>();
-        let redo_updates = updates;
-        self.begin_transaction(label);
-        self.register_transaction_action(
-            "Apply collection changes",
-            move |transaction| {
-                transaction
-                    .apply_collection_update_states(&undo_updates)
-                    .map(|_| ())
-            },
-            move |transaction| {
-                transaction
-                    .apply_collection_update_states(&redo_updates)
-                    .map(|_| ())
-            },
-        );
-        self.commit_transaction();
-    }
-
-    fn apply_collection_update_states(
-        &mut self,
-        updates: &[CollectionUpdate],
-    ) -> Result<CollectionUpdateCounts, String> {
-        let mut counts = CollectionUpdateCounts::default();
-        for (root, source_updates) in group_updates_by_source(updates.to_vec()) {
-            persist_collection_updates(&root, &source_updates)?;
-            for update in source_updates {
-                match update.operation {
-                    CollectionOperation::Add => {
-                        if self
-                            .library
-                            .folder_browser
-                            .set_file_collection_state(&update.absolute_path, update.collection)
-                        {
-                            counts.added += 1;
-                        }
-                    }
-                    CollectionOperation::Remove => {
-                        if self
-                            .library
-                            .folder_browser
-                            .remove_file_collection_state(&update.absolute_path, update.collection)
-                        {
-                            counts.removed += 1;
-                        }
-                    }
-                }
-            }
-        }
-        Ok(counts)
-    }
-}
-
-impl TransactionContext<'_> {
-    fn apply_collection_update_states(
-        &mut self,
-        updates: &[CollectionUpdate],
-    ) -> Result<CollectionUpdateCounts, String> {
-        self.state.apply_collection_update_states(updates)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CollectionCommand {
-    Add,
-    Remove,
-    Toggle,
-}
-
-impl CollectionCommand {
-    fn action_name(self) -> &'static str {
-        match self {
-            Self::Add => "browser.collection.assign",
-            Self::Remove => "browser.collection.remove",
-            Self::Toggle => "browser.collection.toggle",
-        }
-    }
-}
-
-fn collection_update_for_candidate(
-    state: &NativeAppState,
-    candidate: crate::native_app::sample_library::folder_browser::view_contract::SelectedFileCollectionCandidate,
-    collection: SampleCollection,
-    command: CollectionCommand,
-) -> Option<CollectionUpdate> {
-    let operation = match command {
-        CollectionCommand::Add => {
-            if candidate.assigned {
-                return None;
-            }
-            CollectionOperation::Add
-        }
-        CollectionCommand::Remove => {
-            if !candidate.assigned {
-                return None;
-            }
-            CollectionOperation::Remove
-        }
-        CollectionCommand::Toggle => {
-            if candidate.assigned {
-                CollectionOperation::Remove
-            } else {
-                CollectionOperation::Add
-            }
-        }
-    };
-    let (root, relative_path) = state
-        .library
-        .folder_browser
-        .source_relative_file_path(&candidate.path)?;
-    Some(CollectionUpdate {
-        root,
-        relative_path,
-        absolute_path: candidate.path,
-        collection,
-        operation,
-    })
-}
-
-fn group_updates_by_source(
-    updates: Vec<CollectionUpdate>,
-) -> BTreeMap<PathBuf, Vec<CollectionUpdate>> {
-    let mut by_source: BTreeMap<PathBuf, Vec<CollectionUpdate>> = BTreeMap::new();
-    for update in updates {
-        by_source
-            .entry(update.root.clone())
-            .or_default()
-            .push(update);
-    }
-    by_source
-}
-
-fn persist_collection_updates(root: &Path, updates: &[CollectionUpdate]) -> Result<(), String> {
-    let db = SourceDatabase::open_for_user_metadata_write(root).map_err(|err| err.to_string())?;
-    let mut batch = db.write_batch().map_err(|err| err.to_string())?;
-    for update in updates {
-        let (file_size, modified_ns) = file_metadata(&update.absolute_path)?;
-        batch
-            .upsert_file(&update.relative_path, file_size, modified_ns)
-            .map_err(|err| err.to_string())?;
-        match update.operation {
-            CollectionOperation::Add => batch
-                .add_collection(&update.relative_path, update.collection)
-                .map_err(|err| err.to_string())?,
-            CollectionOperation::Remove => batch
-                .remove_collection(&update.relative_path, update.collection)
-                .map_err(|err| err.to_string())?,
-        }
-    }
-    batch.commit().map_err(|err| err.to_string())
-}
-
-fn collection_status(
-    collection: SampleCollection,
-    added: usize,
-    removed: usize,
-    command: CollectionCommand,
-) -> String {
-    let hotkey =
-        crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey(
-            collection,
-        );
-    match command {
-        CollectionCommand::Add => format!(
-            "Added {added} sample{} to Collection {hotkey}",
-            if added == 1 { "" } else { "s" }
-        ),
-        CollectionCommand::Remove => format!(
-            "Removed {removed} sample{} from Collection {hotkey}",
-            if removed == 1 { "" } else { "s" }
-        ),
-        CollectionCommand::Toggle => match (added, removed) {
-            (0, removed) => format!(
-                "Removed {removed} sample{} from Collection {hotkey}",
-                if removed == 1 { "" } else { "s" }
-            ),
-            (added, 0) => format!(
-                "Added {added} sample{} to Collection {hotkey}",
-                if added == 1 { "" } else { "s" }
-            ),
-            (added, removed) => {
-                format!("Collection {hotkey}: added {added}, removed {removed}")
-            }
-        },
-    }
-}
-
-fn file_metadata(path: &Path) -> Result<(u64, i64), String> {
-    let metadata = std::fs::metadata(path)
-        .map_err(|err| format!("Failed to read {}: {err}", path.display()))?;
-    let modified_ns = metadata
-        .modified()
-        .map_err(|err| format!("Missing modified time for {}: {err}", path.display()))?
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .map_err(|_| String::from("File modified time is before epoch"))?
-        .as_nanos() as i64;
-    Ok((metadata.len(), modified_ns))
 }
