@@ -1,0 +1,94 @@
+use std::time::Instant;
+
+use crate::native_app::app::{
+    AppSettingsTab, AudioSettingsDropdown, NativeAppState, emit_gui_action,
+};
+
+impl NativeAppState {
+    pub(in crate::native_app) fn toggle_audio_settings(&mut self) {
+        let started_at = Instant::now();
+        if self.ui.settings.ui.audio_settings_open
+            && self.ui.settings.ui.app_settings_tab == AppSettingsTab::AudioEngine
+        {
+            self.close_audio_settings_window();
+        } else {
+            self.open_settings_window(AppSettingsTab::AudioEngine);
+        }
+        emit_gui_action(
+            "audio.settings.toggle",
+            Some("top_bar"),
+            None,
+            if self.ui.settings.ui.audio_settings_open {
+                "opened"
+            } else {
+                "closed"
+            },
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn open_general_settings(&mut self) {
+        let started_at = Instant::now();
+        self.open_settings_window(AppSettingsTab::General);
+        emit_gui_action(
+            "settings.general.open",
+            Some("top_bar"),
+            None,
+            "opened",
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn select_settings_tab(&mut self, tab: AppSettingsTab) {
+        let started_at = Instant::now();
+        self.ui.settings.ui.app_settings_tab = tab;
+        self.close_audio_settings_dropdowns();
+        emit_gui_action(
+            "settings.tab.select",
+            Some("settings"),
+            Some(tab.analytics_label()),
+            "selected",
+            started_at,
+            None,
+        );
+    }
+
+    fn open_settings_window(&mut self, tab: AppSettingsTab) {
+        self.refresh_audio_options();
+        self.ui.settings.ui.audio_settings_open = true;
+        self.ui.settings.ui.app_settings_tab = tab;
+        self.close_audio_settings_dropdowns();
+        self.audio.settings_error = None;
+    }
+
+    pub(in crate::native_app) fn close_audio_settings_window(&mut self) {
+        self.ui.settings.ui.audio_settings_open = false;
+        self.close_audio_settings_dropdowns();
+    }
+
+    pub(in crate::native_app) fn audio_settings_dropdown_open(&self) -> bool {
+        self.ui.settings.ui.audio_settings_dropdown.any_open()
+    }
+
+    pub(in crate::native_app) fn close_audio_settings_dropdowns(&mut self) {
+        self.ui.settings.ui.audio_settings_dropdown.close();
+    }
+
+    pub(in crate::native_app) fn toggle_audio_settings_dropdown(
+        &mut self,
+        dropdown: AudioSettingsDropdown,
+    ) {
+        self.ui.settings.ui.audio_settings_dropdown.toggle(dropdown);
+    }
+}
+
+impl AppSettingsTab {
+    fn analytics_label(self) -> &'static str {
+        match self {
+            Self::General => "general",
+            Self::AudioEngine => "audio_engine",
+        }
+    }
+}

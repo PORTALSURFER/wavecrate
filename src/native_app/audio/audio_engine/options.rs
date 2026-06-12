@@ -1,7 +1,6 @@
-use super::{
-    NativeAppState, available_devices, available_hosts, format_sample_rate_label,
-    supported_sample_rates,
-};
+use wavecrate::audio::{available_devices, available_hosts, supported_sample_rates};
+
+use crate::native_app::app::{NativeAppState, format_sample_rate_label};
 use radiant::prelude as ui;
 
 impl NativeAppState {
