@@ -262,7 +262,13 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
             Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
         }
-        NativeUiAction::CheckForUpdates
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::CheckForUpdates
+            | crate::app_core::actions::NativeHistoryUpdateAction::OpenUpdateLink
+            | crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate
+            | crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
+        )
+        | NativeUiAction::CheckForUpdates
         | NativeUiAction::OpenUpdateLink
         | NativeUiAction::InstallUpdate
         | NativeUiAction::DismissUpdate

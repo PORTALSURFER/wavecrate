@@ -57,6 +57,34 @@ macro_rules! build_action_mapping {
     (@match HandleEscape {}) => {
         NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::HandleEscape)
     };
+    (@match Undo {}) => {
+        NativeUiAction::HistoryAndUpdate(crate::app_core::actions::NativeHistoryUpdateAction::Undo)
+            | NativeUiAction::Undo
+    };
+    (@match Redo {}) => {
+        NativeUiAction::HistoryAndUpdate(crate::app_core::actions::NativeHistoryUpdateAction::Redo)
+            | NativeUiAction::Redo
+    };
+    (@match CheckForUpdates {}) => {
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::CheckForUpdates,
+        ) | NativeUiAction::CheckForUpdates
+    };
+    (@match OpenUpdateLink {}) => {
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::OpenUpdateLink,
+        ) | NativeUiAction::OpenUpdateLink
+    };
+    (@match InstallUpdate {}) => {
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate,
+        ) | NativeUiAction::InstallUpdate
+    };
+    (@match DismissUpdate {}) => {
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
+        ) | NativeUiAction::DismissUpdate
+    };
     (@match $kind:ident {}) => {
         NativeUiAction::$kind
     };

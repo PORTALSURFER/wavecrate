@@ -5,7 +5,7 @@
 //! their upgrade rules so migration behavior stays separate from active action
 //! ownership.
 
-use super::UiAction;
+use super::{HistoryUpdateAction, UiAction};
 use serde::{Deserialize, Serialize};
 
 /// Supported legacy action inputs retained for runtime and artifact readers.
@@ -73,6 +73,20 @@ impl UiAction {
             }
             UiAction::SetWaveformCursor { position_milli } => {
                 CompatibilityAction::SetWaveformCursor { position_milli }.upgrade()
+            }
+            UiAction::Undo => UiAction::HistoryAndUpdate(HistoryUpdateAction::Undo),
+            UiAction::Redo => UiAction::HistoryAndUpdate(HistoryUpdateAction::Redo),
+            UiAction::CheckForUpdates => {
+                UiAction::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates)
+            }
+            UiAction::OpenUpdateLink => {
+                UiAction::HistoryAndUpdate(HistoryUpdateAction::OpenUpdateLink)
+            }
+            UiAction::InstallUpdate => {
+                UiAction::HistoryAndUpdate(HistoryUpdateAction::InstallUpdate)
+            }
+            UiAction::DismissUpdate => {
+                UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate)
             }
             action => action,
         }

@@ -107,14 +107,20 @@ fn apply_transport_ui_action(
         NativeUiAction::Transport(
             crate::app_core::actions::NativeTransportAction::HandleEscape,
         ) => controller.handle_escape(),
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::Undo,
+        )
+        | NativeUiAction::Undo => controller.undo(),
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::Redo,
+        )
+        | NativeUiAction::Redo => controller.redo(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
         NativeUiAction::SetVolume { value_milli } => {
             controller.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
         }
         NativeUiAction::CommitVolumeSetting => controller.commit_volume_setting(),
-        NativeUiAction::Undo => controller.undo(),
-        NativeUiAction::Redo => controller.redo(),
         action => return Err(action),
     }
     Ok(())

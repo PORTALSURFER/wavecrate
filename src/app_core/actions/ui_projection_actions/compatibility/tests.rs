@@ -69,3 +69,15 @@ fn ui_action_boundary_normalizes_retained_compatibility_variants() {
         UiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromStart)
     );
 }
+
+#[test]
+fn flat_history_update_inputs_upgrade_to_domain_action() {
+    assert_eq!(
+        UiAction::CheckForUpdates.upgrade_compatibility(),
+        UiAction::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates)
+    );
+    assert_eq!(
+        UiAction::Undo.upgrade_compatibility(),
+        UiAction::HistoryAndUpdate(HistoryUpdateAction::Undo)
+    );
+}

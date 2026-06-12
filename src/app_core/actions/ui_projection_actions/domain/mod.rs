@@ -58,6 +58,7 @@ impl UiAction {
             UiAction::Transport(crate::app_core::actions::NativeTransportAction::HandleEscape) => {
                 UiActionDomain::Transport
             }
+            UiAction::HistoryAndUpdate(_) => UiActionDomain::HistoryAndUpdates,
             // Focus and shell-surface actions.
             UiAction::FocusBrowserPanel => UiActionDomain::Shell,
             UiAction::FocusSourcesPanel => UiActionDomain::Shell,
@@ -265,7 +266,7 @@ impl UiAction {
             UiAction::ZoomWaveform { .. } => UiActionDomain::Waveform,
             UiAction::ZoomWaveformToSelection => UiActionDomain::Waveform,
             UiAction::ZoomWaveformFull => UiActionDomain::Waveform,
-            // Global history and update actions.
+            // Retained flat compatibility inputs for history and update actions.
             UiAction::Undo => UiActionDomain::HistoryAndUpdates,
             UiAction::Redo => UiActionDomain::HistoryAndUpdates,
             UiAction::CheckForUpdates => UiActionDomain::HistoryAndUpdates,

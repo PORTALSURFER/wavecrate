@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 mod browser;
 mod compatibility;
 mod domain;
+mod history_update;
 #[cfg(test)]
 mod precision_eq;
 mod transport;
@@ -20,6 +21,7 @@ pub use self::compatibility::{
     CompatibilityAction, CompatibilityPolicy, upgrade_compatibility_action,
 };
 pub use self::domain::UiActionDomain;
+pub use self::history_update::HistoryUpdateAction;
 pub use self::transport::TransportAction;
 
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
@@ -34,6 +36,7 @@ pub enum UiAction {
     },
 
     Transport(TransportAction),
+    HistoryAndUpdate(HistoryUpdateAction),
 
     // Focus and shell-surface actions.
     FocusBrowserPanel,
@@ -475,7 +478,7 @@ pub enum UiAction {
     ZoomWaveformToSelection,
     ZoomWaveformFull,
 
-    // Global history and update actions.
+    // Retained compatibility inputs for legacy flat history and update payloads.
     Undo,
     Redo,
     CheckForUpdates,

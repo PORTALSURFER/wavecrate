@@ -84,6 +84,9 @@ pub type NativeCompatibilityPolicy = self::ui_projection_actions::CompatibilityP
 /// UI runtime transport action payload.
 pub type NativeTransportAction = self::ui_projection_actions::TransportAction;
 
+/// UI runtime history and update action payload.
+pub type NativeHistoryUpdateAction = self::ui_projection_actions::HistoryUpdateAction;
+
 /// Upgrade a retained compatibility input into the current UI action contract.
 pub use self::ui_projection_actions::upgrade_compatibility_action;
 

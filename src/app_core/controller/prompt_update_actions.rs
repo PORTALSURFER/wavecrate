@@ -29,10 +29,22 @@ pub(super) fn apply_prompt_and_update_ui_action(
             controller.ui.hotkeys.overlay_visible = false;
             controller.open_feedback_issue_prompt();
         }
-        NativeUiAction::CheckForUpdates => controller.check_for_updates_now(),
-        NativeUiAction::OpenUpdateLink => controller.open_update_link(),
-        NativeUiAction::InstallUpdate => controller.install_update_and_exit(),
-        NativeUiAction::DismissUpdate => controller.dismiss_update_notification(),
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::CheckForUpdates,
+        )
+        | NativeUiAction::CheckForUpdates => controller.check_for_updates_now(),
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::OpenUpdateLink,
+        )
+        | NativeUiAction::OpenUpdateLink => controller.open_update_link(),
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate,
+        )
+        | NativeUiAction::InstallUpdate => controller.install_update_and_exit(),
+        NativeUiAction::HistoryAndUpdate(
+            crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
+        )
+        | NativeUiAction::DismissUpdate => controller.dismiss_update_notification(),
         action => return Err(action),
     }
     Ok(())
