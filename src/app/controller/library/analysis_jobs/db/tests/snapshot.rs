@@ -243,7 +243,7 @@ fn seed_stale_analyze_snapshot(fixture: &SnapshotFixture) {
 }
 
 fn read_snapshot_row(root: &Path) -> Option<(i64, i64, i64, i64)> {
-    let conn = open_source_db(root).unwrap();
+    let conn = open_source_db_ui_read(root).unwrap();
     conn.query_row(
         "SELECT pending, running, done, failed
          FROM analysis_job_progress_snapshots
@@ -255,7 +255,7 @@ fn read_snapshot_row(root: &Path) -> Option<(i64, i64, i64, i64)> {
 }
 
 fn read_metadata_value(root: &Path, key: &str) -> Option<String> {
-    let conn = open_source_db(root).unwrap();
+    let conn = open_source_db_ui_read(root).unwrap();
     conn.query_row(
         "SELECT value FROM metadata WHERE key = ?1",
         params![key],
