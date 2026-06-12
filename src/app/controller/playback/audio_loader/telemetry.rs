@@ -1,4 +1,4 @@
-use super::is_stale_request;
+use super::latest::is_stale_request;
 use crate::hotpath_telemetry;
 use crate::sample_sources::SourceId;
 use std::path::Path;
