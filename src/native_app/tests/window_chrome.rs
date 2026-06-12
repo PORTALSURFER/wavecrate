@@ -8,7 +8,7 @@ fn waveform_rect(runtime: &NativeRuntimeForTests) -> Rect {
     *runtime
         .layout()
         .rects
-        .get(&crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        .get(&crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
         .expect("full app shell should lay out waveform widget")
 }
 

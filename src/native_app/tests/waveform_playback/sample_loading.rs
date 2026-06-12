@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn sample_selection_loads_selected_file_into_waveform() {
-    let mut state = crate::native_app::test_support::NativeAppStateFixture::default()
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
         .with_synthetic_waveform()
         .with_sample_status("")
         .build();
@@ -14,7 +14,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path.clone(),
             modifiers: Default::default(),
         },
@@ -39,16 +39,18 @@ fn sample_selection_loads_selected_file_into_waveform() {
         .active()
         .expect("sample load queued");
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
-            ticket,
-            output: crate::native_app::test_support::SampleLoadResult {
-                path: sample_path.clone(),
-                result: crate::native_app::test_support::WaveformState::load_path(
-                    sample_path.clone().into(),
-                ),
-                autoplay: true,
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            ui::TaskCompletion {
+                ticket,
+                output: crate::native_app::test_support::state::SampleLoadResult {
+                    path: sample_path.clone(),
+                    result: crate::native_app::test_support::state::WaveformState::load_path(
+                        sample_path.clone().into(),
+                    ),
+                    autoplay: true,
+                },
             },
-        }),
+        ),
         &mut context,
     );
 
@@ -69,7 +71,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path.clone(),
             modifiers: Default::default(),
         },
@@ -100,20 +102,22 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let loaded = crate::native_app::test_support::WaveformState::load_path(sample_path.clone())
-        .expect("sample loads");
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("sample loads");
     state.remember_waveform(&loaded);
-    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     state.waveform.load.label = Some(String::from("previous.wav"));
     state.waveform.load.progress = 0.42;
     state.waveform.load.target_progress = 0.84;
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),
             modifiers: Default::default(),
         },
@@ -161,16 +165,17 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
 
-    let cached = crate::native_app::test_support::WaveformState::load_path(cached_path.clone())
-        .expect("sample loads");
+    let cached =
+        crate::native_app::test_support::state::WaveformState::load_path(cached_path.clone())
+            .expect("sample loads");
     state.remember_waveform(&cached);
 
     state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(current_path)
+        crate::native_app::test_support::state::WaveformState::load_path(current_path)
             .expect("current sample loads");
     state.waveform.current.start_playback(0.25);
     state.audio.current_playback_span = Some((0.25, 1.0));
@@ -203,8 +208,8 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
 #[test]
 fn keyboard_and_mouse_uncached_selection_use_same_fast_debounce() {
     assert_eq!(
-        crate::native_app::test_support::KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
-        crate::native_app::test_support::UNCACHED_SAMPLE_LOAD_DEBOUNCE,
+        crate::native_app::test_support::waveform::KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
+        crate::native_app::test_support::waveform::UNCACHED_SAMPLE_LOAD_DEBOUNCE,
         "keyboard navigation should not wait longer than mouse selection before audition loading"
     );
 }
@@ -239,7 +244,7 @@ fn frame_queues_audio_output_warm_up_before_explicit_playback() {
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::Frame,
+        crate::native_app::test_support::state::GuiMessage::Frame,
         &mut context,
     );
 
@@ -256,7 +261,7 @@ fn wav_load_reports_playback_ready_before_waveform_summary_completion() {
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let playback_ready = std::cell::Cell::new(false);
 
-    let waveform = crate::native_app::test_support::WaveformState::load_path_with_progress_cancel_and_playback_ready(
+    let waveform = crate::native_app::test_support::state::WaveformState::load_path_with_progress_cancel_and_playback_ready(
         sample_path.clone(),
         |progress| {
             if progress >= 0.62 {
@@ -294,7 +299,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     let mut state = gui_state_for_span_tests();
     state.audio.player = Some(player);
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state
@@ -303,7 +308,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         .select_file(sample_path_string.clone());
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),
             modifiers: Default::default(),
         },
@@ -323,21 +328,25 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     let samples = std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]);
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
-            ticket,
-            output: crate::native_app::test_support::SamplePlaybackReady {
-                path: sample_path_string.clone(),
-                audio: crate::native_app::waveform::WaveformPlaybackReady {
-                    path: sample_path.clone(),
-                    audio_bytes: std::sync::Arc::from(fs::read(&sample_path).expect("read wav")),
-                    playback_samples: samples,
-                    sample_rate: 48_000,
-                    channels: 1,
-                    frames: 4,
+        crate::native_app::test_support::state::GuiMessage::SamplePlaybackReady(
+            ui::TaskCompletion {
+                ticket,
+                output: crate::native_app::test_support::state::SamplePlaybackReady {
+                    path: sample_path_string.clone(),
+                    audio: crate::native_app::waveform::WaveformPlaybackReady {
+                        path: sample_path.clone(),
+                        audio_bytes: std::sync::Arc::from(
+                            fs::read(&sample_path).expect("read wav"),
+                        ),
+                        playback_samples: samples,
+                        sample_rate: 48_000,
+                        channels: 1,
+                        frames: 4,
+                    },
+                    autoplay: true,
                 },
-                autoplay: true,
             },
-        }),
+        ),
         &mut context,
     );
 
@@ -352,16 +361,18 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
-            ticket,
-            output: crate::native_app::test_support::SampleLoadResult {
-                path: sample_path_string.clone(),
-                result: crate::native_app::test_support::WaveformState::load_path(
-                    sample_path.clone(),
-                ),
-                autoplay: true,
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            ui::TaskCompletion {
+                ticket,
+                output: crate::native_app::test_support::state::SampleLoadResult {
+                    path: sample_path_string.clone(),
+                    result: crate::native_app::test_support::state::WaveformState::load_path(
+                        sample_path.clone(),
+                    ),
+                    autoplay: true,
+                },
             },
-        }),
+        ),
         &mut context,
     );
 
@@ -382,7 +393,7 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state
@@ -391,7 +402,7 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         .select_file(first_path_string.clone());
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: first_path_string.clone(),
             modifiers: Default::default(),
         },
@@ -406,21 +417,23 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
     state.library.folder_browser.select_file(second_path_string);
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
-            ticket,
-            output: crate::native_app::test_support::SamplePlaybackReady {
-                path: first_path_string.clone(),
-                audio: crate::native_app::waveform::WaveformPlaybackReady {
-                    path: first_path,
-                    audio_bytes: std::sync::Arc::from(Vec::<u8>::new()),
-                    playback_samples: std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]),
-                    sample_rate: 48_000,
-                    channels: 1,
-                    frames: 4,
+        crate::native_app::test_support::state::GuiMessage::SamplePlaybackReady(
+            ui::TaskCompletion {
+                ticket,
+                output: crate::native_app::test_support::state::SamplePlaybackReady {
+                    path: first_path_string.clone(),
+                    audio: crate::native_app::waveform::WaveformPlaybackReady {
+                        path: first_path,
+                        audio_bytes: std::sync::Arc::from(Vec::<u8>::new()),
+                        playback_samples: std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]),
+                        sample_rate: 48_000,
+                        channels: 1,
+                        frames: 4,
+                    },
+                    autoplay: true,
                 },
-                autoplay: true,
             },
-        }),
+        ),
         &mut context,
     );
 

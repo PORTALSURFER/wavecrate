@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn sample_browser_frame_paints_column_and_file_text() {
-    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let expected_stem = state
         .library
@@ -11,7 +11,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
         .first()
         .map(|file| file.stem.clone())
         .expect("default assets include an audio sample");
-    let frame = crate::native_app::test_support::sample_browser(&mut state)
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let texts = frame.paint_plan.text_label_strings();
 
@@ -27,7 +27,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
 
 #[test]
 fn sample_browser_column_drag_paints_drop_marker() {
-    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     state.library.folder_browser.apply_message(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
@@ -42,7 +42,7 @@ fn sample_browser_column_drag_paints_drop_marker() {
         ),
     );
 
-    let frame = crate::native_app::test_support::sample_browser(&mut state)
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
 
     assert!(frame.paint_plan.fill_rects().any(|fill| {
@@ -54,7 +54,7 @@ fn sample_browser_column_drag_paints_drop_marker() {
 
 #[test]
 fn sample_browser_header_paints_hover_affordance() {
-    let state = crate::native_app::test_support::NativeAppState::load_default()
+    let state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
@@ -92,17 +92,17 @@ fn sample_browser_header_paints_hover_affordance() {
 
 #[test]
 fn full_gui_column_drag_paints_pointer_preview() {
-    let state = crate::native_app::test_support::NativeAppState::load_default()
+    let state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
 
-    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::started(Point::new(600.0, 320.0)),
         ),
     ));
-    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragFileColumn(
             String::from("rating"),
             radiant::widgets::DragHandleMessage::moved(Point::new(620.0, 320.0)),

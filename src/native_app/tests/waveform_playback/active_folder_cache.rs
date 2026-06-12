@@ -12,14 +12,15 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let sample_path_string = sample_path.display().to_string();
 
-    let waveform = crate::native_app::test_support::WaveformState::load_path(sample_path.clone())
-        .expect("cache sample");
+    let waveform =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     assert!(
@@ -32,8 +33,8 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::FolderBrowser(
-            crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 folder.display().to_string(),
             ),
         ),
@@ -78,14 +79,14 @@ fn folder_activation_delays_active_folder_cache_warm() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::FolderBrowser(
-            crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 folder.display().to_string(),
             ),
         ),
@@ -128,13 +129,13 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::FolderBrowser(
-            crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 first_folder.display().to_string(),
             ),
         ),
@@ -147,7 +148,9 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         .active()
         .expect("first folder warm delay");
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::ActiveFolderCacheWarmReady(first_ticket),
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(
+            first_ticket,
+        ),
         &mut context,
     );
     assert!(
@@ -160,8 +163,8 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
     );
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::FolderBrowser(
-            crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 second_folder.display().to_string(),
             ),
         ),
@@ -231,7 +234,7 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.refresh_persisted_waveform_cache_indicators();
@@ -271,14 +274,14 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.refresh_persisted_waveform_cache_indicators();
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),
             modifiers: Default::default(),
         },
@@ -326,7 +329,7 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
 
     let mut restarted_state = gui_state_for_span_tests();
     restarted_state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     restarted_state.refresh_persisted_waveform_cache_indicators();
@@ -351,15 +354,16 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let sample_path = sample_path.display().to_string();
 
-    let _waveform =
-        crate::native_app::test_support::WaveformState::load_path(sample_path.clone().into())
-            .expect("load sample");
+    let _waveform = crate::native_app::test_support::state::WaveformState::load_path(
+        sample_path.clone().into(),
+    )
+    .expect("load sample");
 
     wait_for_playback_ready_cache(&sample_path);
 
     let mut restarted_state = gui_state_for_span_tests();
     restarted_state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     restarted_state.refresh_persisted_waveform_cache_indicators();

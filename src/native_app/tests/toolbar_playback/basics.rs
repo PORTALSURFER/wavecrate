@@ -3,36 +3,34 @@ use super::*;
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
     for icon in [
-        crate::native_app::test_support::ToolbarIcon::FocusLoaded,
-        crate::native_app::test_support::ToolbarIcon::Loop,
-        crate::native_app::test_support::ToolbarIcon::Random,
-        crate::native_app::test_support::ToolbarIcon::Play,
-        crate::native_app::test_support::ToolbarIcon::Stop,
+        crate::native_app::test_support::toolbar::ToolbarIcon::FocusLoaded,
+        crate::native_app::test_support::toolbar::ToolbarIcon::Loop,
+        crate::native_app::test_support::toolbar::ToolbarIcon::Random,
+        crate::native_app::test_support::toolbar::ToolbarIcon::Play,
+        crate::native_app::test_support::toolbar::ToolbarIcon::Stop,
     ] {
         assert_eq!(
-            crate::native_app::test_support::toolbar_icon_color(true, false),
+            crate::native_app::test_support::toolbar::toolbar_icon_color(true, false),
             radiant::prelude::Rgba8::new(238, 238, 238, 255)
         );
         assert_eq!(
-            crate::native_app::test_support::toolbar_icon_color(true, true),
+            crate::native_app::test_support::toolbar::toolbar_icon_color(true, true),
             radiant::prelude::Rgba8::new(255, 160, 82, 255)
         );
         assert_eq!(
-            crate::native_app::test_support::toolbar_icon_color(false, false),
+            crate::native_app::test_support::toolbar::toolbar_icon_color(false, false),
             radiant::prelude::Rgba8::new(145, 145, 145, 255)
         );
         let mut primitives = Vec::new();
-        crate::native_app::test_support::toolbar_icon_glyph(icon, true, false).append_paint(
-            &mut primitives,
-            101,
-            Rect::from_size(28.0, 24.0),
-        );
+        crate::native_app::test_support::toolbar::toolbar_icon_glyph(icon, true, false)
+            .append_paint(&mut primitives, 101, Rect::from_size(28.0, 24.0));
         assert!(
             primitives.iter().any(|primitive| primitive.svg().is_some()),
             "toolbar icon cache should produce a retained Radiant SVG"
         );
-        let frame = crate::native_app::test_support::toolbar_icon_button(101, icon, true, false)
-            .view_frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
+        let frame =
+            crate::native_app::test_support::toolbar::toolbar_icon_button(101, icon, true, false)
+                .view_frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
         assert!(
             frame.paint_plan.svgs().next().is_some(),
             "toolbar icon should paint as a retained Radiant SVG"
@@ -44,20 +42,20 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
 fn toolbar_icon_button_routes_messages_through_radiant_builder() {
     for (icon, message) in [
         (
-            crate::native_app::test_support::ToolbarIcon::FocusLoaded,
-            crate::native_app::test_support::GuiMessage::FocusLoadedFile,
+            crate::native_app::test_support::toolbar::ToolbarIcon::FocusLoaded,
+            crate::native_app::test_support::state::GuiMessage::FocusLoadedFile,
         ),
         (
-            crate::native_app::test_support::ToolbarIcon::Loop,
-            crate::native_app::test_support::GuiMessage::ToggleLoopPlayback,
+            crate::native_app::test_support::toolbar::ToolbarIcon::Loop,
+            crate::native_app::test_support::state::GuiMessage::ToggleLoopPlayback,
         ),
         (
-            crate::native_app::test_support::ToolbarIcon::Random,
-            crate::native_app::test_support::GuiMessage::PlayRandomSampleRange,
+            crate::native_app::test_support::toolbar::ToolbarIcon::Random,
+            crate::native_app::test_support::state::GuiMessage::PlayRandomSampleRange,
         ),
     ] {
         assert_eq!(
-            crate::native_app::test_support::toolbar_icon_button(101, icon, true, false)
+            crate::native_app::test_support::toolbar::toolbar_icon_button(101, icon, true, false)
                 .view_dispatch_widget_output(
                     101,
                     radiant::widgets::WidgetOutput::typed(
@@ -93,7 +91,8 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.playing);
 
     state.audio.loop_playback = true;
-    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     state.waveform.current.start_playback(0.25);
 
     let loaded = MainToolbarViewModel::from_app_state(&state);

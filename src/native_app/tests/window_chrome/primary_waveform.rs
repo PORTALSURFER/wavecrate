@@ -10,15 +10,15 @@ fn full_app_scene_routes_primary_waveform_selection_drag() {
 
     assert_eq!(
         runtime.dispatch_event(Event::primary_press(press)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::primary_release(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_eq!(
@@ -40,7 +40,7 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
 
     assert_eq!(
         runtime.dispatch_event(Event::primary_press(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert!(
         runtime.repaint_requested(),
@@ -49,7 +49,7 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
     let _ = runtime.take_repaint_requested();
     assert_eq!(
         runtime.dispatch_event(Event::primary_release(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert!(
         runtime.repaint_requested(),
@@ -109,11 +109,11 @@ fn full_app_scene_primary_waveform_click_starts_audio_playback() {
 
     assert_eq!(
         runtime.dispatch_event(Event::primary_press(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::primary_release(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     let state = runtime.bridge().state();
@@ -144,15 +144,15 @@ fn native_pointer_shell_routes_primary_waveform_click_to_play_mark() {
 
     assert_eq!(
         harness.cursor_moved_physical(PhysicalPosition::new(point.x as f64, point.y as f64)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_pressed(MouseButton::Left),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_released(MouseButton::Left),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_ratio_near(
@@ -196,19 +196,19 @@ fn native_pointer_shell_routes_primary_waveform_selection_drag() {
 
     assert_eq!(
         harness.cursor_moved_logical(press),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_pressed(MouseButton::Left),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.cursor_moved_logical(drag),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_released(MouseButton::Left),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_eq!(

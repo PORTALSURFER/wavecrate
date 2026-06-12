@@ -8,25 +8,27 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID)
+        .first_svg_rect_for_widget(
+            crate::native_app::test_support::toolbar::TOOLBAR_FOCUS_LOADED_ID,
+        )
         .expect("focus-loaded toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID),
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_FOCUS_LOADED_ID),
         "focus-loaded button must be the topmost hit target at its painted icon"
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID)
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_FOCUS_LOADED_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
             .contains_visible_fill_polygon_for_widget(
-                crate::native_app::test_support::TOOLBAR_FOCUS_LOADED_ID
+                crate::native_app::test_support::toolbar::TOOLBAR_FOCUS_LOADED_ID
             ),
         "hovering the focus-loaded button should paint a visible accent overlay"
     );
@@ -46,11 +48,11 @@ fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
     write_test_wav_i16(&loaded, &[0, 1024, -1024, 512]);
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(loaded.clone())
+        crate::native_app::test_support::state::WaveformState::load_path(loaded.clone())
             .expect("load sample");
     state
         .library

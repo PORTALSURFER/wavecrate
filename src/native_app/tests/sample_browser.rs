@@ -13,8 +13,8 @@ fn sample_hit_target(
     drag_active: bool,
     drag_source: bool,
     cached: bool,
-) -> crate::native_app::test_support::SampleFileHitTarget {
-    crate::native_app::test_support::SampleFileHitTarget::new(
+) -> crate::native_app::test_support::sample_browser::SampleFileHitTarget {
+    crate::native_app::test_support::sample_browser::SampleFileHitTarget::new(
         String::from("sample.wav"),
         selected,
         drag_active,

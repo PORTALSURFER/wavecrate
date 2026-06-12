@@ -11,11 +11,11 @@ fn sample_row_selection_still_works_in_similarity_mode() {
     fs::write(&anchor, []).expect("write anchor");
     fs::write(&near, []).expect("write near");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.library.folder_browser.apply_message(
-        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ),
     );
@@ -50,25 +50,26 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
     let anchor = drums.join("anchor.wav");
     fs::write(&anchor, []).expect("write anchor");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.library.folder_browser.apply_message(
-        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
         ),
     );
 
-    let inactive_frame = crate::native_app::test_support::sample_browser(&mut state)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+    let inactive_frame =
+        crate::native_app::test_support::sample_browser::sample_browser(&mut state)
+            .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     assert!(!inactive_frame.paint_plan.contains_text("Sim"));
 
     state.library.folder_browser.apply_message(
-        crate::native_app::test_support::FolderBrowserMessage::ToggleSimilarityAnchor(
+        crate::native_app::test_support::state::FolderBrowserMessage::ToggleSimilarityAnchor(
             anchor.display().to_string(),
         ),
     );
-    let active_frame = crate::native_app::test_support::sample_browser(&mut state)
+    let active_frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     assert!(active_frame.paint_plan.contains_text("Sim"));
 }

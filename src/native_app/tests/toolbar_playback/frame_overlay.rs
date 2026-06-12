@@ -59,7 +59,7 @@ fn scene_frame_clock_queues_gui_frame_message() {
     let mut state = gui_state_for_span_tests();
     state.ui.startup.source_scan_pending = true;
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .update_with(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
@@ -70,7 +70,7 @@ fn scene_frame_clock_queues_gui_frame_message() {
     assert!(runtime.bridge_mut().queue_animation_frame());
     assert_eq!(
         runtime.bridge_mut().take_runtime_messages(),
-        vec![crate::native_app::test_support::GuiMessage::Frame]
+        vec![crate::native_app::test_support::state::GuiMessage::Frame]
     );
 }
 
@@ -79,7 +79,7 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .update_with(|state, message, _context| {
             if message == GuiMessage::Frame {
                 state.advance_frame();
@@ -97,7 +97,7 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
     assert!(runtime.bridge_mut().queue_animation_frame());
     let command = runtime
         .bridge_mut()
-        .update(crate::native_app::test_support::GuiMessage::Frame);
+        .update(crate::native_app::test_support::state::GuiMessage::Frame);
 
     assert!(command.requests_paint_only());
 }
@@ -108,7 +108,7 @@ fn scene_installs_playback_cursor_transient_overlay() {
     state.waveform.current.start_playback(0.25);
     let theme = radiant::theme::ThemeTokens::default();
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .update_with(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
@@ -130,7 +130,7 @@ fn scene_installs_playback_cursor_transient_overlay() {
             .iter()
             .filter_map(|primitive| primitive.fill_rect())
             .any(|fill| {
-                fill.widget_id == crate::native_app::test_support::WAVEFORM_WIDGET_ID
+                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
                     && fill.color.r == 71
                     && fill.color.g == 220
                     && fill.color.b == 255
@@ -162,7 +162,7 @@ fn playback_cursor_paints_as_transient_overlay() {
     assert!(
         !frame
             .paint_plan
-            .fill_rects_for_widget(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+            .fill_rects_for_widget(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
             .any(|fill| { fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255 }),
         "live playback cursor should not be baked into the cached surface"
     );
@@ -182,7 +182,7 @@ fn playback_cursor_paints_as_transient_overlay() {
             .iter()
             .filter_map(|primitive| primitive.fill_rect())
             .any(|fill| {
-                fill.widget_id == crate::native_app::test_support::WAVEFORM_WIDGET_ID
+                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
                     && fill.color.r == 71
                     && fill.color.g == 220
                     && fill.color.b == 255

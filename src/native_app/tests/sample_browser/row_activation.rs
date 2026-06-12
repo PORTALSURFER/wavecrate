@@ -28,9 +28,9 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         .expect("sample row should activate after a frame refresh");
 
     assert_eq!(
-        output.typed_cloned::<crate::native_app::test_support::GuiMessage>(),
+        output.typed_cloned::<crate::native_app::test_support::state::GuiMessage>(),
         Some(
-            crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+            crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
                 path: String::from("sample.wav"),
                 modifiers: PointerModifiers {
                     command: true,

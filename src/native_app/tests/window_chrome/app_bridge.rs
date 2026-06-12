@@ -6,7 +6,7 @@ fn app_bridge_scene_routes_primary_waveform_selection_drag() {
     let messages = Rc::new(RefCell::new(Vec::new()));
     let captured_messages = Rc::clone(&messages);
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .update_with(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
             state.apply_message(message, context);
@@ -16,33 +16,33 @@ fn app_bridge_scene_routes_primary_waveform_selection_drag() {
     let rect = *runtime
         .layout()
         .rects
-        .get(&crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        .get(&crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
         .expect("app bridge should lay out waveform widget");
     let press = Point::new(rect.min.x + rect.width() * 0.25, rect.center().y);
     let drag = Point::new(rect.min.x + rect.width() * 0.75, rect.center().y);
 
     assert_eq!(
         runtime.widget_at(press),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::primary_press(press)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::primary_release(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     let messages = messages.borrow();
     assert!(
         messages.iter().any(|message| matches!(
             message,
-            crate::native_app::test_support::GuiMessage::Waveform(
+            crate::native_app::test_support::state::GuiMessage::Waveform(
                 WaveformInteraction::BeginSelection {
                     kind: WaveformSelectionKind::Play,
                     ..
@@ -54,7 +54,7 @@ fn app_bridge_scene_routes_primary_waveform_selection_drag() {
     assert!(
         messages.iter().any(|message| matches!(
             message,
-            crate::native_app::test_support::GuiMessage::Waveform(
+            crate::native_app::test_support::state::GuiMessage::Waveform(
                 WaveformInteraction::FinishSelection { .. }
             )
         )),
@@ -72,11 +72,11 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state.library.folder_browser.apply_message(
-        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ),
     );
@@ -85,7 +85,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
     let waveform_loading_label = Rc::new(RefCell::new(None));
     let captured_waveform_loading_label = Rc::clone(&waveform_loading_label);
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .reducer(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
             state.apply_message(message, context);
@@ -96,7 +96,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
     let rect = *runtime
         .layout()
         .rects
-        .get(&crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        .get(&crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
         .expect("app bridge should lay out waveform widget");
 
     runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, Some(rect.center()), None));
@@ -108,7 +108,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
     assert!(
         messages.iter().any(|message| matches!(
             message,
-            crate::native_app::test_support::GuiMessage::WaveformFileDrop(_)
+            crate::native_app::test_support::state::GuiMessage::WaveformFileDrop(_)
         )),
         "{messages:?}"
     );
@@ -126,18 +126,18 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
     write_test_wav_i16(&source, &[0, 100, -100]);
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state.library.folder_browser.apply_message(
-        crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
         ),
     );
     let waveform_loading_label = Rc::new(RefCell::new(None));
     let captured_waveform_loading_label = Rc::clone(&waveform_loading_label);
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .reducer(move |state, message, context| {
             state.apply_message(message, context);
             *captured_waveform_loading_label.borrow_mut() = state.waveform.load.label.clone();
@@ -161,7 +161,7 @@ fn app_bridge_scene_preserves_waveform_drag_during_playback_frame_refresh() {
     let messages = Rc::new(RefCell::new(Vec::new()));
     let captured_messages = Rc::clone(&messages);
     let bridge = radiant::app(state)
-        .view(crate::native_app::test_support::view)
+        .view(crate::native_app::test_support::state::view)
         .update_with(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
             state.apply_message(message, context);
@@ -171,14 +171,14 @@ fn app_bridge_scene_preserves_waveform_drag_during_playback_frame_refresh() {
     let rect = *runtime
         .layout()
         .rects
-        .get(&crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        .get(&crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
         .expect("app bridge should lay out waveform widget");
     let press = Point::new(rect.min.x + rect.width() * 0.25, rect.center().y);
     let drag = Point::new(rect.min.x + rect.width() * 0.75, rect.center().y);
 
     assert_eq!(
         runtime.dispatch_event(Event::primary_press(press)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert!(
         runtime
@@ -190,18 +190,18 @@ fn app_bridge_scene_preserves_waveform_drag_during_playback_frame_refresh() {
     runtime.drain_runtime_messages();
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::primary_release(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     let messages = messages.borrow();
     assert!(
         messages.iter().any(|message| matches!(
             message,
-            crate::native_app::test_support::GuiMessage::Waveform(
+            crate::native_app::test_support::state::GuiMessage::Waveform(
                 WaveformInteraction::FinishSelection { .. }
             )
         )),

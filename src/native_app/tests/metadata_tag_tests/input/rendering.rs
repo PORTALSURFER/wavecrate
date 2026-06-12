@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_options() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let completion_options = vec![
         crate::native_app::metadata::MetadataTagCompletionOption {
             tag: String::from("kick"),
@@ -63,7 +63,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
 fn folder_browser_metadata_category_completion_renders_above_tag_input() {
     let (mut baseline_state, _baseline_source_root, _baseline_selected_file) =
         native_app_state_with_temp_sample("baseline-tag-target.wav");
-    let baseline_frame = crate::native_app::test_support::view(&mut baseline_state)
+    let baseline_frame = crate::native_app::test_support::state::view(&mut baseline_state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let baseline_tag_input =
         metadata_tag_text_input(&baseline_frame).expect("baseline tag input should paint");
@@ -71,12 +71,12 @@ fn folder_browser_metadata_category_completion_renders_above_tag_input() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("category-tag-target.wav");
     state.metadata.tag_input_mode =
-        crate::native_app::test_support::MetadataTagInputMode::Category {
+        crate::native_app::test_support::waveform::MetadataTagInputMode::Category {
             pending_tag: String::from("new-tag"),
         };
     state.metadata.tag_draft.clear();
 
-    let frame = crate::native_app::test_support::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");

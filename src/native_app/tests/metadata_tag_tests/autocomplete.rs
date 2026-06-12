@@ -271,7 +271,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     let selected_file = source_root.path().join("tag-target.wav");
     fs::write(&selected_file, []).expect("sample file");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state
@@ -382,7 +382,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(first_root.clone()),
             wavecrate::sample_sources::SampleSource::new(second_root.clone()),
         ]);

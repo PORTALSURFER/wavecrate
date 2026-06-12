@@ -40,7 +40,7 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
         .tags_by_file
         .insert(selected_file, vec![String::from("kick")]);
 
-    let frame = crate::native_app::test_support::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
         .paint_plan
@@ -62,7 +62,7 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
 
 #[test]
 fn metadata_section_keeps_configured_height_without_selected_file() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let frame =
         crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
             &browser,
@@ -94,12 +94,12 @@ fn metadata_section_collapses_to_header_only_height() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
     state.library.folder_browser.apply_message(
-        crate::native_app::test_support::FolderBrowserMessage::ResizeMetadataPanel(
+        crate::native_app::test_support::state::FolderBrowserMessage::ResizeMetadataPanel(
             radiant::widgets::DragHandleMessage::double_activate(Point::new(0.0, 200.0)),
         ),
     );
 
-    let frame = crate::native_app::test_support::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
         .paint_plan
@@ -116,7 +116,7 @@ fn metadata_section_collapses_to_header_only_height() {
 
 #[test]
 fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let completion_options = vec![super::super::super::metadata::MetadataTagCompletionOption {
         tag: String::from("Sound Type"),
         category: "Group",
@@ -157,7 +157,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
 
 #[test]
 fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = vec![
         String::from("test"),
         String::from("another"),
@@ -194,7 +194,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
 
 #[test]
 fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let short_tags = vec![String::from("kick")];
     let crowded_tags = vec![
         String::from("test"),
@@ -242,7 +242,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
 
 #[test]
 fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = vec![
         String::from("yay"),
         String::from("cool-tag"),

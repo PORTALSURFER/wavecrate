@@ -10,11 +10,11 @@ fn transaction_list_modal_blocks_waveform_interaction_behind_it() {
 
     assert_ne!(
         runtime.widget_at(point),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_ne!(
         runtime.dispatch_event(Event::primary_press(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_eq!(

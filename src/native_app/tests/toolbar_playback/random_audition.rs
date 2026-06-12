@@ -3,24 +3,25 @@ use super::*;
 #[test]
 fn random_toolbar_button_is_hit_target_for_loaded_sample() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID),
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID),
         "random button must be the topmost hit target for loaded samples"
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
     );
 }
 
@@ -31,7 +32,7 @@ fn random_toolbar_button_is_hit_target_for_unselected_browser_sample() {
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     assert!(!state.waveform.current.has_loaded_sample());
@@ -41,24 +42,24 @@ fn random_toolbar_button_is_hit_target_for_unselected_browser_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
             .contains_visible_fill_polygon_for_widget(
-                crate::native_app::test_support::TOOLBAR_RANDOM_ID
+                crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID
             ),
         "hovering random with an available browser sample should paint feedback"
     );
@@ -74,7 +75,7 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     assert!(!state.waveform.current.has_loaded_sample());
@@ -84,7 +85,7 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
 
     runtime.dispatch_primary_click(icon_rect.center());
@@ -101,7 +102,9 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     assert!(
         matches!(
             runtime.bridge().state().audio.pending_sample_playback,
-            Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { .. })
+            Some(
+                crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { .. }
+            )
         ),
         "random toolbar click should preserve random-audition intent while the browser sample loads"
     );
@@ -126,7 +129,7 @@ fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state
@@ -139,24 +142,24 @@ fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
     let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
-        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(point)),
-        Some(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        Some(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
     );
     let hovered_frame = runtime.frame(&theme);
     assert!(
         hovered_frame
             .paint_plan
             .contains_visible_fill_polygon_for_widget(
-                crate::native_app::test_support::TOOLBAR_RANDOM_ID
+                crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID
             ),
         "hovering random with a selected sample should paint feedback"
     );
@@ -171,7 +174,7 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     fs::write(&sample, []).expect("write sample");
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
     state
@@ -183,7 +186,7 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(crate::native_app::test_support::TOOLBAR_RANDOM_ID)
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
         .expect("random toolbar icon should paint");
 
     runtime.dispatch_primary_click(icon_rect.center());
@@ -191,7 +194,9 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     assert!(
         matches!(
             runtime.bridge().state().audio.pending_sample_playback,
-            Some(crate::native_app::test_support::PendingSamplePlayback::RandomAudition { .. })
+            Some(
+                crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { .. }
+            )
         ),
         "random toolbar click should preserve random-audition intent while the selected sample loads"
     );

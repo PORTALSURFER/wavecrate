@@ -47,7 +47,7 @@ fn transaction_list_modal_renders_registered_transactions() {
     state.begin_transaction("Open batch");
     state.register_transaction_action("First action", |_| Ok(()), |_| Ok(()));
 
-    let frame = crate::native_app::test_support::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&mut state)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Transactions"));

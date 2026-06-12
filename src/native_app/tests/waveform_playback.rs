@@ -62,7 +62,7 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state
@@ -70,7 +70,7 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
         .folder_browser
         .select_file(old_path.display().to_string());
     state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(old_path.clone())
+        crate::native_app::test_support::state::WaveformState::load_path(old_path.clone())
             .expect("sample loads");
     let loaded = state.waveform.current.clone();
     state.remember_waveform(&loaded);
@@ -138,13 +138,13 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::FolderBrowser(
-            crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 old_folder.display().to_string(),
             ),
         ),
@@ -155,14 +155,14 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         .folder_browser
         .select_file(old_path.display().to_string());
     state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(old_path.clone())
+        crate::native_app::test_support::state::WaveformState::load_path(old_path.clone())
             .expect("sample loads");
     let loaded = state.waveform.current.clone();
     state.remember_waveform(&loaded);
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::FolderBrowser(
-            crate::native_app::test_support::FolderBrowserMessage::ActivateFolder(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 old_folder.display().to_string(),
             ),
         ),
@@ -227,7 +227,7 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let first_file = first_path.display().to_string();
@@ -236,7 +236,7 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     state.metadata.tag_draft = String::from("ki");
     state.metadata.tag_tokens = vec![String::from("warm")];
     state.metadata.tag_input_mode =
-        crate::native_app::test_support::MetadataTagInputMode::Category {
+        crate::native_app::test_support::waveform::MetadataTagInputMode::Category {
             pending_tag: String::from("new-tag"),
         };
     state.metadata.tag_completion_cycle.select("ki", 2, 4);
@@ -255,7 +255,7 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     assert!(state.metadata.tag_tokens.is_empty());
     assert_eq!(
         state.metadata.tag_input_mode,
-        crate::native_app::test_support::MetadataTagInputMode::Tag
+        crate::native_app::test_support::waveform::MetadataTagInputMode::Tag
     );
     assert_eq!(state.metadata.tag_completion_cycle.query_key(), None);
     assert_eq!(state.metadata.tag_completion_cycle.stored_index(), 0);

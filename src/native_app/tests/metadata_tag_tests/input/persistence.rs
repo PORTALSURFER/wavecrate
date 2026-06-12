@@ -12,15 +12,15 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         source_root.path().to_path_buf(),
     );
     let source_id = source.id.as_str().to_string();
-    wavecrate::sample_sources::config::save(&crate::native_app::test_support::AppConfig {
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::config::AppConfig {
         sources: vec![source.clone()],
-        core: crate::native_app::test_support::AppSettingsCore::default(),
+        core: crate::native_app::test_support::config::AppSettingsCore::default(),
     })
     .expect("seed config");
     let selected_file = sample_path.display().to_string();
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[source]);
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
     state
         .library
         .folder_browser

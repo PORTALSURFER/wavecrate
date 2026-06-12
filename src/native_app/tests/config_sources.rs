@@ -6,20 +6,20 @@ fn default_gui_loads_persisted_sources_and_audio_output() {
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let source_id = wavecrate::sample_sources::SourceId::from_string("source_id::gui-test");
-    wavecrate::sample_sources::config::save(&crate::native_app::test_support::AppConfig {
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::config::AppConfig {
         sources: vec![wavecrate::sample_sources::SampleSource::new_with_id(
             source_id,
             source_root.path().to_path_buf(),
         )],
-        core: crate::native_app::test_support::AppSettingsCore {
-            audio_output: crate::native_app::test_support::AudioOutputConfig {
+        core: crate::native_app::test_support::config::AppSettingsCore {
+            audio_output: crate::native_app::test_support::audio::AudioOutputConfig {
                 host: Some(String::from("test-host")),
                 device: Some(String::from("Test Device")),
                 sample_rate: Some(48_000),
                 buffer_size: Some(256),
             },
             volume: 0.42,
-            ..crate::native_app::test_support::AppSettingsCore::default()
+            ..crate::native_app::test_support::config::AppSettingsCore::default()
         },
     })
     .expect("seed config");
@@ -53,16 +53,16 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
         wavecrate::sample_sources::SourceId::from_string("source_id::gui-cache-startup"),
         source_root.path().to_path_buf(),
     );
-    wavecrate::sample_sources::config::save(&crate::native_app::test_support::AppConfig {
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::config::AppConfig {
         sources: vec![source.clone()],
-        core: crate::native_app::test_support::AppSettingsCore::default(),
+        core: crate::native_app::test_support::config::AppSettingsCore::default(),
     })
     .expect("seed config");
-    crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[source])
+    crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source])
         .save_source_scan_cache()
         .expect("persist source scan cache");
 
-    let _waveform = crate::native_app::test_support::WaveformState::load_path(sample_path)
+    let _waveform = crate::native_app::test_support::state::WaveformState::load_path(sample_path)
         .expect("persist waveform cache");
 
     let state = NativeAppState::load_default().expect("default state loads persisted cache");
@@ -96,12 +96,12 @@ fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
         wavecrate::sample_sources::SourceId::from_string("source_id::gui-cache-no-startup-scan"),
         source_root.path().to_path_buf(),
     );
-    wavecrate::sample_sources::config::save(&crate::native_app::test_support::AppConfig {
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::config::AppConfig {
         sources: vec![source.clone()],
-        core: crate::native_app::test_support::AppSettingsCore::default(),
+        core: crate::native_app::test_support::config::AppSettingsCore::default(),
     })
     .expect("seed config");
-    crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[source])
+    crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source])
         .save_source_scan_cache()
         .expect("persist source scan cache");
     let mut state = NativeAppState::load_default().expect("default state loads persisted cache");
@@ -137,7 +137,7 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let mut state = gui_state_for_span_tests();
-    state.audio.output_config = crate::native_app::test_support::AudioOutputConfig {
+    state.audio.output_config = crate::native_app::test_support::audio::AudioOutputConfig {
         host: Some(String::from("wasapi")),
         device: Some(String::from("Interface")),
         sample_rate: Some(96_000),
@@ -186,9 +186,9 @@ fn default_gui_removes_context_source_from_app_config() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    state.ui.browser_interaction.context_menu =
-        Some(crate::native_app::test_support::BrowserContextMenu {
-            kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
+    state.ui.browser_interaction.context_menu = Some(
+        crate::native_app::test_support::context_menu::BrowserContextMenu {
+            kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Source,
             path: source_root.path().to_path_buf(),
             source_id: Some(source_root.path().to_string_lossy().to_string()),
             source_removable: true,
@@ -196,7 +196,8 @@ fn default_gui_removes_context_source_from_app_config() {
             collection: None,
             anchor: Point::new(12.0, 24.0),
             title: String::from("source root"),
-        });
+        },
+    );
 
     state.remove_context_source();
 
@@ -225,9 +226,9 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    state.ui.browser_interaction.context_menu =
-        Some(crate::native_app::test_support::BrowserContextMenu {
-            kind: crate::native_app::test_support::BrowserContextTargetKind::Source,
+    state.ui.browser_interaction.context_menu = Some(
+        crate::native_app::test_support::context_menu::BrowserContextMenu {
+            kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Source,
             path: source_root.path().to_path_buf(),
             source_id: Some(source_id.clone()),
             source_removable: true,
@@ -235,7 +236,8 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
             collection: None,
             anchor: Point::new(12.0, 24.0),
             title: String::from("source root"),
-        });
+        },
+    );
     let visible_before = state.library.folder_browser.selected_audio_files().len();
     let mut context = ui::UpdateContext::default();
 
@@ -285,7 +287,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SourceFilesystemChanged {
+        crate::native_app::test_support::state::GuiMessage::SourceFilesystemChanged {
             source_id: source_id.clone(),
             paths: Vec::new(),
             overflowed: true,
@@ -334,7 +336,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
     state.refresh_source_after_filesystem_change(source_id.clone(), Vec::new(), true, &mut context);
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SourceFilesystemChanged {
+        crate::native_app::test_support::state::GuiMessage::SourceFilesystemChanged {
             source_id: source_id.clone(),
             paths: Vec::new(),
             overflowed: true,

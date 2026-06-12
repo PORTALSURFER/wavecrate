@@ -12,8 +12,16 @@ fn shared_dense_row_palette() -> radiant::prelude::DenseRowPalette {
 
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
-    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    for name in ["alpha.wav", "beta.wav", "gamma.wav"] {
+        std::fs::write(source_root.path().join(name), []).expect("sample file");
+    }
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
     let expected_names = state
         .library
         .folder_browser
@@ -21,7 +29,7 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    let frame = crate::native_app::test_support::sample_browser(&mut state)
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let mut row_tops = frame
         .paint_plan
@@ -39,7 +47,9 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
     assert!(row_tops.len() >= 2, "{row_tops:?}");
     assert!(
         row_tops.windows(2).all(|pair| {
-            ((pair[1] - pair[0]) - crate::native_app::test_support::SAMPLE_BROWSER_ROW_HEIGHT).abs()
+            ((pair[1] - pair[0])
+                - crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT)
+                .abs()
                 < 0.5
         }),
         "{row_tops:?}"
@@ -48,7 +58,7 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
 
 #[test]
 fn sample_browser_projection_window_matches_rendered_row_order() {
-    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let projection_names = {
         prepare_sample_browser_view(&mut state);
@@ -72,7 +82,7 @@ fn sample_browser_projection_window_matches_rendered_row_order() {
             .map(|row| row.file.stem.clone())
             .collect::<Vec<_>>()
     };
-    let frame = crate::native_app::test_support::sample_browser(&mut state)
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let rendered_positions = projection_names
         .iter()
@@ -95,11 +105,11 @@ fn sample_browser_projection_window_matches_rendered_row_order() {
 #[test]
 fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
     assert_eq!(
-        crate::native_app::test_support::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
         2
     );
     assert_eq!(
-        crate::native_app::test_support::SAMPLE_BROWSER_ROW_HEIGHT,
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT,
         22.0
     );
 }
@@ -157,7 +167,7 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
 
 #[test]
 fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
-    let mut state = crate::native_app::test_support::NativeAppState::load_default()
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let expected_names = state
         .library
@@ -166,7 +176,7 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    let frame = crate::native_app::test_support::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(1517.0, 758.0));
     let sample_texts = frame
         .paint_plan

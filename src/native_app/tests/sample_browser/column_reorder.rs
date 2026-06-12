@@ -8,13 +8,13 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     let initial_frame = runtime.frame_with_default_theme();
     let initial_extension_x = first_row_extension_x(&initial_frame);
 
-    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
             radiant::widgets::DragHandleMessage::started(Point::new(0.0, 0.0)),
         ),
     ));
-    runtime.dispatch_message(crate::native_app::test_support::GuiMessage::FolderBrowser(
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::ResizeFileColumn(
             String::from("name"),
             radiant::widgets::DragHandleMessage::moved(Point::new(120.0, 0.0)),
@@ -57,7 +57,7 @@ fn first_row_extension_x(frame: &SurfaceFrame) -> f32 {
 
 #[test]
 fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
-    let state = crate::native_app::test_support::NativeAppState::load_default()
+    let state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
@@ -157,7 +157,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
 
 #[test]
 fn full_gui_column_drag_marker_uses_header_local_coordinates() {
-    let state = crate::native_app::test_support::NativeAppState::load_default()
+    let state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rating_header_id = radiant::widgets::stable_widget_id(

@@ -49,7 +49,7 @@ fn waveform_signal_surface_plan(
     edit_selection: Option<wavecrate::selection::SelectionRange>,
 ) -> SurfacePaintPlan {
     let view = waveform_signal_surface_view(file, viewport, edit_selection)
-        .id(crate::native_app::test_support::WAVEFORM_SIGNAL_WIDGET_ID)
+        .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
         .size(200.0, 80.0);
     let surface = view.into_surface();
     let bounds = Rect::from_size(200.0, 80.0);

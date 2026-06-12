@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) struct WaveformPlaybackScenario {
     pub(super) state: NativeAppState,
-    context: ui::UpdateContext<crate::native_app::test_support::GuiMessage>,
+    context: ui::UpdateContext<crate::native_app::test_support::state::GuiMessage>,
     _source_root: Option<tempfile::TempDir>,
     selected_file: Option<String>,
 }
@@ -23,7 +23,7 @@ impl WaveformPlaybackScenario {
         state.audio.player = Some(player);
         let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
         state.waveform.current =
-            crate::native_app::test_support::WaveformState::load_path(sample_path.into())
+            crate::native_app::test_support::state::WaveformState::load_path(sample_path.into())
                 .expect("test sample loads");
         Some(Self {
             state,
@@ -55,7 +55,8 @@ impl WaveformPlaybackScenario {
     }
 
     pub(super) fn with_unloaded_waveform(mut self) -> Self {
-        self.state.waveform.current = crate::native_app::test_support::WaveformState::empty();
+        self.state.waveform.current =
+            crate::native_app::test_support::state::WaveformState::empty();
         self
     }
 
@@ -119,23 +120,25 @@ impl WaveformPlaybackScenario {
             .active()
             .expect("sample load queued");
         self.state.apply_message(
-            crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
-                ticket,
-                output: crate::native_app::test_support::SampleLoadResult {
-                    path: selected_file.clone(),
-                    result: crate::native_app::test_support::WaveformState::load_path(
-                        PathBuf::from(&selected_file),
-                    ),
-                    autoplay,
+            crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+                ui::TaskCompletion {
+                    ticket,
+                    output: crate::native_app::test_support::state::SampleLoadResult {
+                        path: selected_file.clone(),
+                        result: crate::native_app::test_support::state::WaveformState::load_path(
+                            PathBuf::from(&selected_file),
+                        ),
+                        autoplay,
+                    },
                 },
-            }),
+            ),
             &mut self.context,
         );
     }
 
     fn apply_waveform(&mut self, interaction: WaveformInteraction) {
         self.state.apply_message(
-            crate::native_app::test_support::GuiMessage::Waveform(interaction),
+            crate::native_app::test_support::state::GuiMessage::Waveform(interaction),
             &mut self.context,
         );
     }

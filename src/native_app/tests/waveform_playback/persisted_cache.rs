@@ -14,16 +14,17 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
         .map(|name| name.to_string_lossy().to_string())
         .expect("sample file name");
 
-    let waveform =
-        crate::native_app::test_support::WaveformState::load_path(sample_path.clone().into())
-            .expect("cache sample");
+    let waveform = crate::native_app::test_support::state::WaveformState::load_path(
+        sample_path.clone().into(),
+    )
+    .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&sample_path);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.refresh_persisted_waveform_cache_indicators();
@@ -39,7 +40,7 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path.clone(),
             modifiers: Default::default(),
         },
@@ -83,14 +84,15 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     let sample_path_string = sample_path.display().to_string();
     let sample_path = PathBuf::from(&sample_path_string);
 
-    let waveform = crate::native_app::test_support::WaveformState::load_path(sample_path.clone())
-        .expect("cache sample");
+    let waveform =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.refresh_persisted_waveform_cache_indicators();
@@ -113,7 +115,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SelectSampleWithModifiers {
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),
             modifiers: Default::default(),
         },
@@ -137,12 +139,12 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         .active()
         .expect("persisted cache load queued");
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
             ticket,
-            output: crate::native_app::test_support::SampleLoadResult {
+            output: crate::native_app::test_support::state::SampleLoadResult {
                 path: sample_path_string,
                 result:
-                    crate::native_app::test_support::WaveformState::load_persisted_playback_cache(
+                    crate::native_app::test_support::state::WaveformState::load_persisted_playback_cache(
                         sample_path.clone(),
                     ),
                 autoplay: false,

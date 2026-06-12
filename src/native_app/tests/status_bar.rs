@@ -1,6 +1,6 @@
 use super::gui_state_for_span_tests;
 use crate::native_app::app_chrome::view_models::status_bar::StatusBarViewModel;
-use crate::native_app::test_support::NativeAppState;
+use crate::native_app::test_support::state::NativeAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
@@ -14,7 +14,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
     let sample_path = source_root.path().join("selected-count.wav");
     std::fs::write(&sample_path, []).expect("sample file");
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let empty_frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(
@@ -40,7 +40,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
 fn bottom_status_progress_bar_paints_without_text_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.set_folder_progress_for_tests(
-        crate::native_app::test_support::FolderScanProgress {
+        crate::native_app::test_support::state::FolderScanProgress {
             task_id: 7,
             source_id: String::from("assets"),
             label: String::from("Assets"),
@@ -65,14 +65,15 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
 #[test]
 fn bottom_status_bar_reports_normalization_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.background.normalization_progress =
-        Some(crate::native_app::test_support::NormalizationProgress {
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
             task_id: 9,
             label: String::from("2 samples"),
             completed: 1,
             total: 2,
             detail: String::from("snare.wav"),
-        });
+        },
+    );
     let frame = crate::native_app::app_chrome::status_bar::bottom_status_bar(
         StatusBarViewModel::from_app_state(&state),
     )
@@ -105,7 +106,7 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.progress_tick = 0.5;
     state.library.set_folder_progress_for_tests(
-        crate::native_app::test_support::FolderScanProgress {
+        crate::native_app::test_support::state::FolderScanProgress {
             task_id: 7,
             source_id: String::from("assets"),
             label: String::from("Assets"),
@@ -129,7 +130,7 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
 
 #[test]
 fn job_details_popover_reports_active_scan_progress() {
-    let progress = crate::native_app::test_support::FolderScanProgress {
+    let progress = crate::native_app::test_support::state::FolderScanProgress {
         task_id: 7,
         source_id: String::from("assets"),
         label: String::from("Assets"),
@@ -152,7 +153,7 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.status.sample = String::from("Ready");
     state.library.set_folder_progress_for_tests(
-        crate::native_app::test_support::FolderScanProgress {
+        crate::native_app::test_support::state::FolderScanProgress {
             task_id: 7,
             source_id: String::from("assets"),
             label: String::from("Assets"),
@@ -162,14 +163,15 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
             detail: String::from("kick.wav"),
         },
     );
-    state.background.normalization_progress =
-        Some(crate::native_app::test_support::NormalizationProgress {
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
             task_id: 9,
             label: String::from("2 samples"),
             completed: 1,
             total: 2,
             detail: String::from("snare.wav"),
-        });
+        },
+    );
 
     let model = StatusBarViewModel::from_app_state(&state);
 

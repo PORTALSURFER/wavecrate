@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn default_window_title_marks_alpha_build() {
     assert_eq!(
-        crate::native_app::test_support::DEFAULT_WINDOW_TITLE,
+        crate::native_app::test_support::shell::DEFAULT_WINDOW_TITLE,
         "Wavecrate - alpha"
     );
 }
@@ -12,7 +12,7 @@ fn default_window_title_marks_alpha_build() {
 fn audio_settings_popover_opens_as_centered_floating_window() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.audio.settings_error = None;
-    let frame = crate::native_app::test_support::audio_settings_popover(&state)
+    let frame = crate::native_app::test_support::settings::audio_settings_popover(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 380.0));
     assert!(frame.paint_plan.contains_text("Settings"));
     assert!(frame.paint_plan.contains_text("Audio Engine"));
@@ -36,7 +36,7 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
 fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.settings.ui.audio_settings_open = true;
-    let frame = crate::native_app::test_support::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&mut state)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
         .paint_plan
@@ -49,7 +49,7 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
 
     assert!(
         audio_panel_fills.iter().all(|rect| rect.height()
-            <= crate::native_app::test_support::AUDIO_SETTINGS_POPUP_HEIGHT + 1.0),
+            <= crate::native_app::test_support::settings::AUDIO_SETTINGS_POPUP_HEIGHT + 1.0),
         "{audio_panel_fills:?}"
     );
 }
@@ -61,7 +61,7 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
     let mut context = ui::UpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
+        crate::native_app::test_support::state::GuiMessage::Waveform(
             WaveformInteraction::BeginSelection {
                 kind: WaveformSelectionKind::Play,
                 visible_ratio: 0.45,
@@ -70,7 +70,7 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
+        crate::native_app::test_support::state::GuiMessage::Waveform(
             WaveformInteraction::UpdateSelection {
                 visible_ratio: 0.65,
             },
@@ -78,7 +78,7 @@ fn audio_settings_window_does_not_block_waveform_selection_messages() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::Waveform(
+        crate::native_app::test_support::state::GuiMessage::Waveform(
             WaveformInteraction::FinishSelection {
                 visible_ratio: 0.65,
             },

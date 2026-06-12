@@ -9,7 +9,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let files = state.library.folder_browser.selected_audio_files();
@@ -21,7 +21,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::NavigateBrowser {
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
         },
@@ -55,7 +55,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         .expect("deferred navigation load ticket");
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::NavigateBrowser {
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
         },
@@ -76,7 +76,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     assert!(state.background.sample_load_task.active().is_none());
 
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::DeferredSampleLoad {
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
             ticket: stale_ticket,
             path: second,
             autoplay: true,
@@ -115,18 +115,20 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.library.folder_browser.select_file(first);
-    let loaded = crate::native_app::test_support::WaveformState::load_path(second_path.clone())
-        .expect("sample loads");
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path(second_path.clone())
+            .expect("sample loads");
     state.remember_waveform(&loaded);
-    state.waveform.current = crate::native_app::test_support::WaveformState::synthetic_for_tests();
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::NavigateBrowser {
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
         },
@@ -170,22 +172,23 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
     let first = first_path.display().to_string();
     let second = second_path.display().to_string();
 
-    let waveform = crate::native_app::test_support::WaveformState::load_path(second_path.clone())
-        .expect("cache sample");
+    let waveform =
+        crate::native_app::test_support::state::WaveformState::load_path(second_path.clone())
+            .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&second);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     state.library.folder_browser.select_file(first);
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::NavigateBrowser {
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
         },
@@ -219,7 +222,7 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
         .active()
         .expect("deferred persisted cache load");
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::DeferredSampleLoad {
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
             ticket: deferred_ticket,
             path: second,
             autoplay: true,
@@ -251,7 +254,7 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     let mut state = gui_state_for_span_tests();
     state.audio.player = Some(player);
     state.library.folder_browser =
-        crate::native_app::test_support::FolderBrowserState::from_sample_sources(&[
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
     let files = state.library.folder_browser.selected_audio_files();
@@ -260,12 +263,12 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     let second = files[1].id.clone();
     state.library.folder_browser.select_file(first);
     state.waveform.current =
-        crate::native_app::test_support::WaveformState::load_path(PathBuf::from(&second))
+        crate::native_app::test_support::state::WaveformState::load_path(PathBuf::from(&second))
             .expect("sample loads");
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::NavigateBrowser {
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
         },

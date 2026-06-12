@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let theme = radiant::theme::ThemeTokens::default();
     let frame =
@@ -31,7 +31,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
 
 #[test]
 fn folder_browser_metadata_tags_grow_combined_entry_field() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let small_tags = vec![String::from("kick")];
     let larger_tags = vec![
         String::from("kick"),
@@ -88,7 +88,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
 
 #[test]
 fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
-    let browser = crate::native_app::test_support::FolderBrowserState::load_default();
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = (0..24)
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();

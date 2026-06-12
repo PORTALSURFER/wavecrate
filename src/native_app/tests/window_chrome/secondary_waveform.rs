@@ -10,15 +10,15 @@ fn full_app_scene_routes_secondary_waveform_edit_selection_drag() {
 
     assert_eq!(
         runtime.dispatch_event(Event::secondary_press(press)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         runtime.dispatch_event(Event::secondary_release(drag)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_eq!(
@@ -36,7 +36,7 @@ fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
 
     assert_eq!(
         runtime.dispatch_event(Event::secondary_press(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert!(
         runtime.repaint_requested(),
@@ -45,7 +45,7 @@ fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
     let _ = runtime.take_repaint_requested();
     assert_eq!(
         runtime.dispatch_event(Event::secondary_release(point)),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert!(
         runtime.repaint_requested(),
@@ -71,15 +71,15 @@ fn native_pointer_shell_routes_secondary_waveform_click_to_edit_mark() {
 
     assert_eq!(
         harness.cursor_moved_logical(point),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_pressed(MouseButton::Right),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_released(MouseButton::Right),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_ratio_near(
@@ -114,19 +114,19 @@ fn native_pointer_shell_routes_secondary_waveform_edit_selection_drag() {
 
     assert_eq!(
         harness.cursor_moved_logical(press),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_pressed(MouseButton::Right),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.cursor_moved_logical(drag),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_released(MouseButton::Right),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_eq!(
@@ -152,21 +152,21 @@ fn native_pointer_shell_preserves_waveform_drag_after_playback_frame_refresh() {
 
     assert_eq!(
         harness.cursor_moved_logical(press),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_pressed(MouseButton::Left),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     harness.runtime.bridge_mut().queue_animation_frame();
     harness.runtime.drain_runtime_messages();
     assert_eq!(
         harness.cursor_moved_logical(drag),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
     assert_eq!(
         harness.mouse_released(MouseButton::Left),
-        Some(crate::native_app::test_support::WAVEFORM_WIDGET_ID)
+        Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
     assert_eq!(

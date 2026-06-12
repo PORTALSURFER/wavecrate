@@ -13,7 +13,8 @@ fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
     let path = root.join("quiet.wav");
     write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
 
-    crate::native_app::test_support::normalize_wav_file_in_place(&path).expect("normalize wav");
+    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+        .expect("normalize wav");
 
     let samples = read_test_wav_f32(&path);
     let peak = samples
@@ -36,7 +37,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::GuiMessage::NormalizeSelectedSamples,
+        crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
         &mut context,
     );
 
