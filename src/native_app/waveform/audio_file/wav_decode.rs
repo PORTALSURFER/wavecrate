@@ -4,6 +4,7 @@ use super::{
     WaveformFile, WaveformPlaybackReady, downmix_to_mono_with_progress_and_cancel,
     report_phase_progress_throttled,
 };
+use crate::native_app::waveform::audio_file::diagnostics::log_audio_load_timing;
 
 pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
     path: PathBuf,
@@ -19,7 +20,7 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
     let channels = usize::from(spec.channels).max(1);
     let sample_started_at = Instant::now();
     let samples = read_wav_samples_with_progress(&mut reader, spec, channels, progress, cancelled)?;
-    super::log_audio_load_timing(
+    log_audio_load_timing(
         "browser.audio_file.wav.read_samples",
         &path,
         sample_started_at.elapsed(),
@@ -48,7 +49,7 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
         progress,
         cancelled,
     )?;
-    super::log_audio_load_timing(
+    log_audio_load_timing(
         "browser.audio_file.wav.downmix",
         &path,
         downmix_started_at.elapsed(),
@@ -65,7 +66,7 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
         mono_samples,
         progress,
     );
-    super::log_audio_load_timing(
+    log_audio_load_timing(
         "browser.audio_file.wav.waveform_summary",
         &file.path,
         waveform_started_at.elapsed(),
