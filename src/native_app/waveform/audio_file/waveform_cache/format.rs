@@ -5,15 +5,15 @@ use std::{
     sync::Arc,
 };
 
-use super::{
-    CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION_V2,
-    identity::{
-        CacheIdentity, cache_path_for_identity, playback_sidecar_path, playback_sidecar_valid,
-    },
+use super::identity::{
+    CacheIdentity, cache_path_for_identity, playback_sidecar_path, playback_sidecar_valid,
 };
 use crate::native_app::waveform::audio_file::{
     PersistedPlaybackCacheFile, WaveformFile, content_revision_for_audio_bytes,
 };
+
+pub(super) const CACHE_FORMAT_VERSION: u32 = 3;
+pub(super) const CACHE_FORMAT_VERSION_V2: u32 = 2;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct CachedWaveformFile {

@@ -7,13 +7,14 @@ use std::{
 use serde::de::DeserializeOwned;
 
 use super::{
-    CACHE_FORMAT_VERSION_V2,
-    format::{CachedWaveformFile, CachedWaveformFileV2},
+    diagnostics::log_slow_cache_phase,
+    format::{
+        CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION_V2, CachedWaveformFile, CachedWaveformFileV2,
+    },
     identity::{
         CacheIdentity, cache_path_for_identity, cache_path_for_identity_with_version,
         playback_ready_marker_path,
     },
-    log_slow_cache_phase,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,7 +144,7 @@ pub(super) fn read_cached_waveform_file(
     identity: &CacheIdentity,
 ) -> Option<CachedWaveformFile> {
     let outcome = read_cached_waveform_file_outcome(path, identity);
-    outcome.log_if_unusable(path, super::CACHE_FORMAT_VERSION);
+    outcome.log_if_unusable(path, CACHE_FORMAT_VERSION);
     outcome.into_hit()
 }
 

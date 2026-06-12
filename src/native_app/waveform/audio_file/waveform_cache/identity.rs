@@ -6,7 +6,7 @@ use std::{
     time::SystemTime,
 };
 
-use super::CACHE_FORMAT_VERSION;
+use super::format::CACHE_FORMAT_VERSION;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct CacheIdentity {
