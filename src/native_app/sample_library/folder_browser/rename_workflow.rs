@@ -2,12 +2,18 @@ use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::{fs, path::PathBuf};
 
 use super::{
-    FolderBrowserState, FolderEntry, FolderRenameEdit, FolderRenameKind, RenameCommitResult,
-    RenameTargetView,
+    FileRenameEdit, FolderBrowserState, FolderEntry, FolderRenameEdit, FolderRenameKind,
+    RenameCommitResult, RenameTargetView,
     path_helpers::{
         folder_label, next_available_folder_name, path_id, rename_input_id, valid_folder_name,
     },
 };
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct BrowserRenameState {
+    pub(super) folder: Option<FolderRenameEdit>,
+    pub(super) file: Option<FileRenameEdit>,
+}
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn rename_active(&self) -> bool {

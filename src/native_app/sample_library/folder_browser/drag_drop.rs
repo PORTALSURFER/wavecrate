@@ -1,10 +1,41 @@
 use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
 use std::path::{Path, PathBuf};
 
-use super::{
-    FolderBrowserDrag, FolderBrowserDropTarget, FolderBrowserState, FolderDragPreview,
-    FolderDropResult, path_helpers::file_label,
-};
+use super::path_helpers::file_label;
+use super::{FolderBrowserDrag, FolderBrowserState, FolderDragPreview, FolderDropResult};
+use wavecrate::sample_sources::SampleCollection;
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserDragDropState {
+    pub(super) drag: Option<FolderBrowserDrag>,
+    pub(super) drag_pointer: Option<Point>,
+    pub(super) drop_target: ui::ExclusiveOpen<FolderBrowserDropTarget>,
+    pub(super) pending_file_move_conflicts: Option<super::FileMoveConflictBatch>,
+    pub(super) revision: ui::RevisionCounter,
+}
+
+impl BrowserDragDropState {
+    pub(super) fn new() -> Self {
+        Self {
+            drag: None,
+            drag_pointer: None,
+            drop_target: ui::ExclusiveOpen::new(),
+            pending_file_move_conflicts: None,
+            revision: ui::RevisionCounter::default(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn revision(&self) -> u64 {
+        self.revision.get()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum FolderBrowserDropTarget {
+    Folder(String),
+    Collection(SampleCollection),
+}
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn begin_file_drag(&mut self, file_id: String, position: Point) {

@@ -11,6 +11,21 @@ use super::{
 };
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
+#[derive(Clone, Debug)]
+pub(super) struct BrowserSourceState {
+    pub(super) selected_source: String,
+    pub(super) sources: Vec<SourceEntry>,
+}
+
+impl BrowserSourceState {
+    pub(super) fn new(sources: Vec<SourceEntry>, selected_source: String) -> Self {
+        Self {
+            selected_source,
+            sources,
+        }
+    }
+}
+
 impl FolderBrowserState {
     pub(in crate::native_app) fn sources(&self) -> &[SourceEntry] {
         self.source.sources.as_slice()

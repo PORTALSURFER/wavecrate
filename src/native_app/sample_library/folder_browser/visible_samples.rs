@@ -5,7 +5,10 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use super::{FileColumn, FileEntry, FileRenameView, FolderBrowserState};
+use super::{
+    FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityBrowserState,
+    default_file_columns,
+};
 
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct VisibleSampleQuery<'a> {
@@ -41,6 +44,49 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) similarity_strength: Option<f32>,
     pub(in crate::native_app) collection_colors: Vec<ui::Rgba8>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct SampleListState {
+    pub(super) file_columns: Vec<FileColumn>,
+    pub(super) file_sort: ui::DetailsSort,
+    pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
+    pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
+    pub(super) similarity: Option<SimilarityBrowserState>,
+    pub(super) view_controller: ui::VirtualListController,
+    pub(super) follow_selection: ui::VirtualListFollowState<String>,
+    pub(super) prepared_window: ui::VirtualListWindow,
+    pub(super) content_revision: u64,
+    pub(super) projection_cache: VisibleSampleProjectionCache,
+}
+
+impl SampleListState {
+    pub(super) fn new() -> Self {
+        Self {
+            file_columns: default_file_columns(),
+            file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            file_column_resize: None,
+            file_column_reorder: None,
+            similarity: None,
+            view_controller: ui::VirtualListController::default(),
+            follow_selection: ui::VirtualListFollowState::default(),
+            prepared_window: ui::VirtualListWindow::default(),
+            content_revision: 0,
+            projection_cache: VisibleSampleProjectionCache::default(),
+        }
+    }
+
+    pub(super) fn reset_view(&mut self) {
+        self.view_controller = ui::VirtualListController::default();
+        self.follow_selection.clear();
+        self.prepared_window = ui::VirtualListWindow::default();
+    }
+
+    pub(super) fn bump_content_revision(&mut self) {
+        self.content_revision = self.content_revision.saturating_add(1);
+        self.projection_cache
+            .invalidate_for_content_revision(self.content_revision);
+    }
 }
 
 #[derive(Clone, Debug, Default)]

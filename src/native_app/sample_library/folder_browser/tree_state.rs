@@ -2,6 +2,27 @@ use super::{
     FolderBrowserDropTarget, FolderBrowserState, FolderEntry, FolderVerifyRequest, VisibleFolder,
     path_helpers::path_id,
 };
+use radiant::prelude as ui;
+use std::collections::HashSet;
+
+#[derive(Clone, Debug)]
+pub(super) struct FolderTreeState {
+    pub(super) folders: Vec<FolderEntry>,
+    pub(super) expanded_folders: HashSet<String>,
+    pub(super) view_controller: ui::VirtualListController,
+    pub(super) follow_selection: ui::VirtualListFollowState<String>,
+}
+
+impl FolderTreeState {
+    pub(super) fn new(root_folder: FolderEntry, root_id: String) -> Self {
+        Self {
+            folders: vec![root_folder],
+            expanded_folders: [root_id].into_iter().collect(),
+            view_controller: ui::VirtualListController::default(),
+            follow_selection: ui::VirtualListFollowState::default(),
+        }
+    }
+}
 
 impl FolderBrowserState {
     pub(super) fn selected_folder(&self) -> Option<&FolderEntry> {

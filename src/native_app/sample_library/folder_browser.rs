@@ -14,7 +14,7 @@ const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 10.0;
 
 mod collections;
-use collections::{CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, SampleCollectionConfig};
+use collections::{CollectionPanelState, DEFAULT_COLLECTIONS_PANEL_HEIGHT};
 
 mod path_helpers;
 use path_helpers::{folder_label, path_id, rewrite_path_id};
@@ -23,6 +23,7 @@ mod folder_entry;
 use folder_entry::FolderEntry;
 
 mod drag_drop;
+use drag_drop::{BrowserDragDropState, FolderBrowserDropTarget};
 mod drag_drop_move;
 mod drag_drop_relocation;
 
@@ -33,9 +34,12 @@ mod file_selection;
 mod file_selection_model;
 
 mod selection_state;
+use selection_state::BrowserSelectionState;
 
 mod file_view_window;
+mod sample_queries;
 mod visible_samples;
+use visible_samples::SampleListState;
 
 mod file_rename_workflow;
 
@@ -46,17 +50,21 @@ mod file_columns;
 mod file_model;
 use file_model::{FileEntry, plural};
 
+mod filesystem_refresh;
+
 mod scanning;
 use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
 
 mod source_scan_cache;
 
 mod panel_state;
-use panel_state::DEFAULT_FILTER_PANEL_HEIGHT;
+use panel_state::{BrowserFilterState, BrowserPanelLayoutState};
 mod source_management;
+use source_management::BrowserSourceState;
 
 mod rename_tree;
 mod rename_workflow;
+use rename_workflow::BrowserRenameState;
 
 mod state_types;
 use state_types::{
@@ -65,10 +73,10 @@ use state_types::{
 };
 
 mod state;
-use state::FolderBrowserDropTarget;
 pub(in crate::native_app) use state::FolderBrowserState;
 
 mod tree_state;
+use tree_state::FolderTreeState;
 
 mod tree_view_window;
 

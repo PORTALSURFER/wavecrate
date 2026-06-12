@@ -15,5 +15,20 @@ pub(in crate::native_app) use model::{
     CollectionRenameView, SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
 };
 
+#[derive(Clone, Debug)]
+pub(super) struct CollectionPanelState {
+    pub(super) collections: Vec<SampleCollectionConfig>,
+    pub(super) rename_edit: Option<CollectionRenameEdit>,
+}
+
+impl CollectionPanelState {
+    pub(super) fn new() -> Self {
+        Self {
+            collections: default_collections(),
+            rename_edit: None,
+        }
+    }
+}
+
 #[cfg(test)]
 pub(super) use layout::{COLLAPSED_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT};

@@ -1,7 +1,7 @@
 use radiant::{prelude as ui, widgets::TextInputMessageKind};
 use std::collections::{HashMap, HashSet};
 
-use super::FolderBrowserState;
+use super::{DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState};
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
 const FILTER_PANEL_HEADER_HEIGHT: f32 = 20.0;
@@ -14,9 +14,33 @@ pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 76.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
 const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
+const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 148.0;
 pub(in crate::native_app) const COLLAPSED_METADATA_PANEL_HEIGHT: f32 =
     METADATA_PANEL_PADDING * 2.0 + METADATA_PANEL_TITLE_HEIGHT;
 const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct BrowserFilterState {
+    pub(super) name_filter: String,
+    pub(super) tag_filter: String,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserPanelLayoutState {
+    pub(super) collections: ui::PanelResizeState,
+    pub(super) filter: ui::PanelResizeState,
+    pub(super) metadata: ui::PanelResizeState,
+}
+
+impl BrowserPanelLayoutState {
+    pub(super) fn new() -> Self {
+        Self {
+            collections: ui::PanelResizeState::new(DEFAULT_COLLECTIONS_PANEL_HEIGHT),
+            filter: ui::PanelResizeState::new(DEFAULT_FILTER_PANEL_HEIGHT),
+            metadata: ui::PanelResizeState::new(DEFAULT_METADATA_PANEL_HEIGHT),
+        }
+    }
+}
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn filter_panel_height(&self) -> f32 {
