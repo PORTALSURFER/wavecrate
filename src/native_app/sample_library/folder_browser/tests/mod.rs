@@ -15,12 +15,29 @@ use radiant::{
 use std::{fs, path::PathBuf};
 use wavecrate::sample_sources::SampleCollection;
 
+mod collection_activation;
+mod collection_escape;
+mod collection_rename;
+mod cross_source_focus;
 mod delete;
-mod drag_drop;
-mod navigation;
-mod rename;
-mod scanning;
+mod drop_target_chrome;
+mod external_drag;
+mod file_columns;
+mod file_drag_hover;
+mod file_filters;
+mod file_keyboard_selection;
+mod file_mouse_selection;
+mod file_move_drag_drop;
+mod file_rename;
+mod file_scroll_follow;
+mod file_selection_queries;
+mod filesystem_refresh;
+mod folder_drag_drop;
+mod folder_editing;
+mod folder_tree;
+mod panel_layout;
 mod source_management;
+mod source_scanning;
 
 fn temp_source_root(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!(

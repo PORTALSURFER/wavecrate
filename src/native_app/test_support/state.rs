@@ -1,5 +1,15 @@
-pub(in crate::native_app) use crate::native_app::app::*;
+pub(in crate::native_app) use crate::native_app::app::{
+    AppSettingsTab, AudioAppState, AudioSettingsDropdown, BackgroundTaskState, ChromeUiState,
+    DEFAULT_VOLUME, GuiMessage, LibraryAppState, MetadataAppState, MetadataMessage, NativeAppState,
+    NativeFileDropHover, NormalizationProgress, PendingSamplePlayback, SampleLoadResult,
+    SamplePlaybackReady, SettingsAppState, StartupState, StatusState, UiAppState, WaveformAppState,
+    default_gui_shortcuts, format_sample_rate_label, view,
+};
 use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
+pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
+    FolderBrowserState, commands::FolderBrowserMessage, scan::FolderScanProgress,
+};
+pub(in crate::native_app) use crate::native_app::waveform::{WaveformInteraction, WaveformState};
 use wavecrate::sample_sources::config::AppSettingsCore;
 
 pub(in crate::native_app) struct NativeAppStateFixture {
