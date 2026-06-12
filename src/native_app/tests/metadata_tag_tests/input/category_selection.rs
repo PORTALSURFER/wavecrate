@@ -205,6 +205,35 @@ fn metadata_tag_category_keyboard_navigation_continues_from_hover_selection() {
 }
 
 #[test]
+/// Hovering a category completion row by category id should select the same row as its label.
+fn metadata_tag_category_hover_accepts_category_id() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+
+    state.apply_message(
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        hover_metadata_tag_completion(String::from("prefix")),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("Prefix")
+    );
+}
+
+#[test]
 fn metadata_tag_category_cancel_aborts_pending_tag_entry() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());

@@ -214,3 +214,36 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     );
     assert!(state.metadata.tag_draft.is_empty());
 }
+
+#[test]
+/// Completion options should expose a deduplicated sorted catalog with dictionary categories.
+fn metadata_tag_completion_options_deduplicate_and_preserve_dictionary_categories() {
+    let (mut state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+    state.metadata.tag_draft = String::from("ki");
+    state.metadata.tags_by_file.insert(
+        String::from("known-a"),
+        vec![String::from("kick"), String::from("kicker")],
+    );
+    state.metadata.tags_by_file.insert(
+        String::from("known-b"),
+        vec![String::from("kick"), String::from("kind")],
+    );
+    state
+        .metadata
+        .tag_dictionary
+        .insert(String::from("kicker"), String::from("character"));
+
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .into_iter()
+            .map(|option| (option.tag, option.category))
+            .collect::<Vec<_>>(),
+        vec![
+            (String::from("kick"), "Sound Type"),
+            (String::from("kicker"), "Character"),
+            (String::from("kind"), "Character"),
+        ]
+    );
+}
