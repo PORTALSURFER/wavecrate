@@ -240,10 +240,11 @@ fn remove_stale_paths_removes_symlink_without_touching_target() {
     fs::create_dir_all(&outside_dir).unwrap();
     fs::write(outside_dir.join("keep.txt"), "keep").unwrap();
 
-    let link_path = install_dir.join("stale-link");
+    let install_root = ValidatedInstallRoot::new(&install_dir).unwrap();
+    let link_path = install_root.child_path("stale-link").unwrap();
     symlink(&outside_dir, &link_path).unwrap();
 
-    let failures = remove_stale_paths(std::slice::from_ref(&link_path), &install_dir).unwrap();
+    let failures = remove_stale_paths(std::slice::from_ref(&link_path), &install_root).unwrap();
 
     assert!(failures.is_empty());
     assert!(!link_path.exists());

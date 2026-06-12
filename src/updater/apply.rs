@@ -17,12 +17,15 @@ use super::{
     github,
 };
 
-mod helpers;
+mod archive_root;
+mod manifest_diff;
+mod relaunch;
+mod stale_removal;
 
-use helpers::{
-    collect_stale_files, load_installed_manifest, relaunch_app, remove_stale_paths,
-    validate_root_dir,
-};
+use archive_root::validate_root_dir;
+use manifest_diff::{collect_stale_files, load_installed_manifest};
+use relaunch::relaunch_app;
+use stale_removal::remove_stale_paths;
 
 #[cfg(test)]
 mod tests;
@@ -257,7 +260,7 @@ fn apply_files_and_dirs(
 
     transaction.commit()?;
 
-    let stale_removal_failures = remove_stale_paths(&stale_files, install_root.path())?;
+    let stale_removal_failures = remove_stale_paths(&stale_files, &install_root)?;
 
     Ok((copied, replaced_dirs, stale_removal_failures))
 }
