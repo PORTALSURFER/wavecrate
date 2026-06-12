@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::state::AudioPickerTarget;
 use crate::app_core::test_fixtures as projection_fixtures;
 
 #[test]
