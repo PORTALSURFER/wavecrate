@@ -4,7 +4,7 @@ use super::report_progress;
 use crate::app::controller::jobs::{
     FileOpMessage, FolderEntryMove, FolderMoveRequest, FolderMoveResult,
 };
-use crate::sample_sources::{SourceDatabase, WavEntry};
+use crate::sample_sources::{SampleCollection, SourceDatabase, WavEntry};
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc,
@@ -19,12 +19,18 @@ struct PreparedFolderMove {
     absolute_new: PathBuf,
 }
 
+/// Source DB row plus metadata that is not carried by `WavEntry`.
+struct FolderMoveEntry {
+    entry: WavEntry,
+    collection: Option<SampleCollection>,
+}
+
 /// Prepared folder move transaction with explicit filesystem and database stages.
 struct FolderMoveTransaction {
     request: FolderMoveRequest,
     prepared: PreparedFolderMove,
     db: SourceDatabase,
-    entries: Vec<WavEntry>,
+    entries: Vec<FolderMoveEntry>,
     moved: Vec<FolderEntryMove>,
 }
 
@@ -181,22 +187,36 @@ fn load_folder_entries(
     db: &SourceDatabase,
     request: &FolderMoveRequest,
     prepared: &PreparedFolderMove,
-) -> Result<Vec<WavEntry>, FolderMoveResult> {
-    db.list_files()
-        .map(|entries| {
-            entries
-                .into_iter()
-                .filter(|entry| entry.relative_path.starts_with(&request.folder))
-                .collect::<Vec<_>>()
-        })
-        .map_err(|err| {
-            error_result(
-                request,
-                prepared.new_relative.clone(),
-                format!("Failed to list folder entries: {err}"),
-                false,
-            )
-        })
+) -> Result<Vec<FolderMoveEntry>, FolderMoveResult> {
+    let entries = db.list_files().map_err(|err| {
+        error_result(
+            request,
+            prepared.new_relative.clone(),
+            format!("Failed to list folder entries: {err}"),
+            false,
+        )
+    })?;
+    let mut folder_entries = Vec::new();
+    for entry in entries
+        .into_iter()
+        .filter(|entry| entry.relative_path.starts_with(&request.folder))
+    {
+        let collection = db
+            .collection_for_path(&entry.relative_path)
+            .map_err(|err| {
+                error_result(
+                    request,
+                    prepared.new_relative.clone(),
+                    format!(
+                        "Failed to read collection for {}: {err}",
+                        entry.relative_path.display()
+                    ),
+                    false,
+                )
+            })?;
+        folder_entries.push(FolderMoveEntry { entry, collection });
+    }
+    Ok(folder_entries)
 }
 
 /// Rename the folder on disk before the DB rewrite phase begins.
@@ -219,7 +239,7 @@ fn rewrite_folder_entries(
     db: &SourceDatabase,
     request: &FolderMoveRequest,
     prepared: &PreparedFolderMove,
-    entries: &[WavEntry],
+    entries: &[FolderMoveEntry],
 ) -> Result<Vec<FolderEntryMove>, FolderMoveResult> {
     if entries.is_empty() {
         return Ok(Vec::new());
@@ -250,8 +270,9 @@ fn rewrite_entry(
     batch: &mut crate::sample_sources::db::SourceWriteBatch<'_>,
     request: &FolderMoveRequest,
     prepared: &PreparedFolderMove,
-    entry: &WavEntry,
+    moved_entry: &FolderMoveEntry,
 ) -> Result<FolderEntryMove, FolderMoveResult> {
+    let entry = &moved_entry.entry;
     let suffix = entry
         .relative_path
         .strip_prefix(&request.folder)
@@ -327,6 +348,24 @@ fn rewrite_entry(
                 )
             })?;
     }
+    batch
+        .replace_tags_for_path(&updated_path, &entry.normal_tags)
+        .map_err(|err| {
+            rollback_and_error_result(
+                request,
+                prepared,
+                format!("Failed to copy normal tags: {err}"),
+            )
+        })?;
+    batch
+        .set_collection(&updated_path, moved_entry.collection)
+        .map_err(|err| {
+            rollback_and_error_result(
+                request,
+                prepared,
+                format!("Failed to copy collection: {err}"),
+            )
+        })?;
     Ok(FolderEntryMove {
         old_relative: entry.relative_path.clone(),
         new_relative: updated_path,
@@ -339,7 +378,7 @@ fn rewrite_entry(
         sound_type: entry.sound_type,
         user_tag: entry.user_tag.clone(),
         normal_tags: entry.normal_tags.clone(),
-        collection: None,
+        collection: moved_entry.collection,
     })
 }
 

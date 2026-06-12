@@ -3,7 +3,7 @@ use super::support::{
     Must, folder_move_request, folder_move_test_guard, setup_folder_move_fixture,
 };
 use crate::sample_sources::db::DB_FILE_NAME;
-use crate::sample_sources::{Rating, SourceDatabase};
+use crate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::Duration;
@@ -19,6 +19,12 @@ fn folder_move_updates_db_entries() {
 
     assert!(result.errors.is_empty());
     assert_eq!(result.moved.len(), 1);
+    let moved = result.moved.first().must();
+    assert_eq!(
+        moved.normal_tags,
+        vec![String::from("Bright"), String::from("Riser FX")]
+    );
+    assert_eq!(moved.collection, Some(SampleCollection::new(1).must()));
     assert!(source_root.join("dest/old/one.wav").is_file());
 
     let db = SourceDatabase::open(&source_root).must();
@@ -39,6 +45,14 @@ fn folder_move_updates_db_entries() {
         db.last_played_at_for_path(Path::new("dest/old/one.wav"))
             .must(),
         Some(42)
+    );
+    assert_eq!(
+        db.tag_labels_for_path(Path::new("dest/old/one.wav")).must(),
+        vec![String::from("Bright"), String::from("Riser FX")]
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("dest/old/one.wav")).must(),
+        Some(SampleCollection::new(1).must())
     );
 }
 
@@ -163,6 +177,8 @@ fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
             || err.contains("Failed to copy loop marker")
             || err.contains("Failed to copy keep lock")
             || err.contains("Failed to copy playback age")
+            || err.contains("Failed to copy normal tags")
+            || err.contains("Failed to copy collection")
             || err.contains("Failed to save folder move")
     }));
     assert!(source_root.join("old/one.wav").is_file());

@@ -1,7 +1,7 @@
 use super::super::super::super::file_metadata;
 use crate::app::controller::jobs::FolderMoveRequest;
 use crate::app::controller::test_support::write_test_wav;
-use crate::sample_sources::{Rating, SampleSource, SourceDatabase};
+use crate::sample_sources::{Rating, SampleCollection, SampleSource, SourceDatabase};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use tempfile::tempdir;
@@ -69,6 +69,18 @@ pub(super) fn setup_folder_move_fixture() -> (tempfile::TempDir, SampleSource, P
     batch.set_locked(Path::new("old/one.wav"), true).must();
     batch
         .set_last_played_at(Path::new("old/one.wav"), 42)
+        .must();
+    batch
+        .replace_tags_for_path(
+            Path::new("old/one.wav"),
+            &[String::from("Riser FX"), String::from("Bright")],
+        )
+        .must();
+    batch
+        .set_collection(
+            Path::new("old/one.wav"),
+            Some(SampleCollection::new(1).must()),
+        )
         .must();
     batch.commit().must();
     (temp, source, source_root)
