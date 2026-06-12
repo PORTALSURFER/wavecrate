@@ -1,13 +1,13 @@
 use super::{
     FALLBACK_KEYRING_KEY, IssueTokenStore, IssueTokenStoreError, KEYRING_KEY, KEYRING_SERVICE,
-    keyring_disabled,
+    fallback_policy,
 };
 use base64::Engine as _;
 
 impl IssueTokenStore {
     /// Read the primary issue token from the OS keyring when keyring access is enabled.
     pub(super) fn try_keyring_get(&self) -> Result<Option<String>, IssueTokenStoreError> {
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Ok(None);
         }
         let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
@@ -21,7 +21,7 @@ impl IssueTokenStore {
 
     /// Persist the primary issue token in the OS keyring.
     pub(super) fn try_keyring_set(&self, token: &str) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Err(IssueTokenStoreError::Unavailable("keyring disabled".into()));
         }
         let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
@@ -33,7 +33,7 @@ impl IssueTokenStore {
 
     /// Remove the primary issue token from the OS keyring.
     pub(super) fn try_keyring_delete(&self) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Ok(());
         }
         let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
@@ -52,7 +52,7 @@ impl IssueTokenStore {
     pub(super) fn try_keyring_fallback_key_get(
         &self,
     ) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Ok(None);
         }
         let entry = self.fallback_key_entry()?;
@@ -80,7 +80,7 @@ impl IssueTokenStore {
         &self,
         key: &[u8; 32],
     ) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Err(IssueTokenStoreError::Unavailable("keyring disabled".into()));
         }
         let entry = self.fallback_key_entry()?;
@@ -92,7 +92,7 @@ impl IssueTokenStore {
 
     /// Remove the fallback encryption key from the OS keyring.
     pub(super) fn try_keyring_fallback_key_delete(&self) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Ok(());
         }
         let entry = self.fallback_key_entry()?;

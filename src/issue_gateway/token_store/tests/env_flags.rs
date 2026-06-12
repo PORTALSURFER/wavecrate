@@ -9,32 +9,32 @@ fn strict_env_var_truthy_only_accepts_one_and_true() {
     unsafe {
         std::env::remove_var(STRICT_ENV);
     }
-    assert!(!env_var_truthy(STRICT_ENV));
+    assert!(!fallback_policy::env_var_truthy(STRICT_ENV));
 
     unsafe {
         std::env::set_var(STRICT_ENV, "1");
     }
-    assert!(env_var_truthy(STRICT_ENV));
+    assert!(fallback_policy::env_var_truthy(STRICT_ENV));
 
     unsafe {
         std::env::set_var(STRICT_ENV, "TrUe");
     }
-    assert!(env_var_truthy(STRICT_ENV));
+    assert!(fallback_policy::env_var_truthy(STRICT_ENV));
 
     unsafe {
         std::env::set_var(STRICT_ENV, "on");
     }
-    assert!(!env_var_truthy(STRICT_ENV));
+    assert!(!fallback_policy::env_var_truthy(STRICT_ENV));
 
     unsafe {
         std::env::set_var(STRICT_ENV, "yes");
     }
-    assert!(!env_var_truthy(STRICT_ENV));
+    assert!(!fallback_policy::env_var_truthy(STRICT_ENV));
 
     unsafe {
         std::env::set_var(STRICT_ENV, "true ");
     }
-    assert!(!env_var_truthy(STRICT_ENV));
+    assert!(!fallback_policy::env_var_truthy(STRICT_ENV));
 
     unsafe {
         std::env::remove_var(STRICT_ENV);

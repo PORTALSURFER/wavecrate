@@ -48,7 +48,7 @@ fn clear_env_key() {
 }
 
 fn reset_cache() {
-    *lock_fallback_key_cache() = None;
+    *fallback_key::lock_fallback_key_cache() = None;
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn fallback_key_cache_recovers_after_poison() {
     let store = IssueTokenStore::new().unwrap();
 
     let _ = std::panic::catch_unwind(|| {
-        let _guard = fallback_key_cache()
+        let _guard = fallback_key::fallback_key_cache()
             .lock()
             .expect("poison fallback key cache");
         panic!("poison fallback key cache");
@@ -294,14 +294,14 @@ fn fallback_get_migrates_legacy_key_file() {
     let _guard = app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
     let store = IssueTokenStore::new().unwrap();
 
-    let legacy_key_bytes = random_bytes(32).unwrap();
+    let legacy_key_bytes = crypto::random_bytes(32).unwrap();
     let mut legacy_key = [0u8; 32];
     legacy_key.copy_from_slice(&legacy_key_bytes);
-    write_private_file(&store.legacy_fallback_key_path(), &legacy_key_bytes).unwrap();
+    file_io::write_private_file(&store.legacy_fallback_key_path(), &legacy_key_bytes).unwrap();
     let legacy_payload = store
         .encrypt_fallback_payload(&legacy_key, b"tok_legacy")
         .unwrap();
-    write_private_file(&store.fallback_token_path(), &legacy_payload).unwrap();
+    file_io::write_private_file(&store.fallback_token_path(), &legacy_payload).unwrap();
 
     // Should successfully read using the file-based key
     assert_eq!(store.fallback_get().unwrap().as_deref(), Some("tok_legacy"));
@@ -339,6 +339,35 @@ fn fallback_requires_env_key_without_keyring() {
 }
 
 #[test]
+fn malformed_env_fallback_key_is_rejected() {
+    enable_mock_keyring();
+    let _env_guard = env_lock();
+    reset_cache();
+    unsafe {
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
+        std::env::set_var(FALLBACK_KEY_ENV_VAR, "not-hex");
+    }
+    allow_fallback();
+    let base = tempdir().unwrap();
+    let _guard = app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
+    let store = IssueTokenStore::new().unwrap();
+
+    let err = store.set("tok_file_fallback").unwrap_err();
+    match err {
+        IssueTokenStoreError::Decode(message) => {
+            assert!(message.contains(FALLBACK_KEY_ENV_VAR));
+        }
+        other => panic!("expected decode error, got {other:?}"),
+    }
+
+    unsafe {
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
+    }
+    disallow_fallback();
+    clear_env_key();
+}
+
+#[test]
 fn fallback_works_with_env_key() {
     enable_mock_keyring();
     let _env_guard = env_lock();
@@ -369,6 +398,36 @@ fn fallback_works_with_env_key() {
 }
 
 #[test]
+fn delete_removes_fallback_payload_and_clears_key_cache() {
+    enable_mock_keyring();
+    let _env_guard = env_lock();
+    reset_cache();
+    unsafe {
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
+    }
+    allow_fallback();
+    set_env_key();
+    let base = tempdir().unwrap();
+    let _guard = app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
+    let store = IssueTokenStore::new().unwrap();
+
+    store.set("tok_abcdefghijklmnopqrstuvwxyz").unwrap();
+    assert!(store.fallback_token_path().exists());
+    assert!(store.cached_fallback_key().is_some());
+
+    store.delete().unwrap();
+
+    assert!(!store.fallback_token_path().exists());
+    assert!(store.cached_fallback_key().is_none());
+
+    unsafe {
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
+    }
+    disallow_fallback();
+    clear_env_key();
+}
+
+#[test]
 fn fallback_warns_when_active() {
     enable_mock_keyring();
     let _env_guard = env_lock();
@@ -377,13 +436,13 @@ fn fallback_warns_when_active() {
     }
     allow_fallback();
     set_env_key();
-    FALLBACK_WARNING_EMITTED.store(false, Ordering::SeqCst);
+    fallback_policy::reset_fallback_warning_for_tests();
     let base = tempdir().unwrap();
     let _guard = app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
     let store = IssueTokenStore::new().unwrap();
 
     store.set("tok_abcdefghijklmnopqrstuvwxyz").unwrap();
-    assert!(FALLBACK_WARNING_EMITTED.load(Ordering::SeqCst));
+    assert!(fallback_policy::fallback_warning_emitted_for_tests());
 
     unsafe {
         std::env::remove_var("WAVECRATE_DISABLE_KEYRING");

@@ -1,7 +1,6 @@
-use super::fallback_key::lock_fallback_key_cache;
 use super::{
-    FALLBACK_ALLOW_ENV, IssueTokenStore, IssueTokenStoreError, MAX_FALLBACK_TOKEN_BYTES, decrypt,
-    encrypt, fallback_allowed, random_bytes, warn_fallback_active, write_private_file,
+    FALLBACK_ALLOW_ENV, IssueTokenStore, IssueTokenStoreError, MAX_FALLBACK_TOKEN_BYTES, crypto,
+    fallback_key, fallback_policy, file_io,
 };
 use std::path::PathBuf;
 
@@ -18,7 +17,7 @@ impl IssueTokenStore {
 
     /// Read and decrypt the fallback token payload when fallback storage is enabled.
     pub(super) fn fallback_get(&self) -> Result<Option<String>, IssueTokenStoreError> {
-        if !fallback_allowed() {
+        if !fallback_policy::fallback_allowed() {
             return Err(IssueTokenStoreError::Unavailable(format!(
                 "Fallback storage disabled; set {FALLBACK_ALLOW_ENV}=1 to allow encrypted file storage."
             )));
@@ -33,14 +32,14 @@ impl IssueTokenStore {
                 "fallback token file exceeds {MAX_FALLBACK_TOKEN_BYTES} bytes"
             )));
         }
-        warn_fallback_active();
+        fallback_policy::warn_fallback_active();
         let key = self.ensure_fallback_key()?;
         let data = std::fs::read(token_path)?;
         if data.len() < 12 {
             return Err(IssueTokenStoreError::Decode("token file too short".into()));
         }
         let (nonce, ciphertext) = data.split_at(12);
-        let plaintext = match decrypt(&key, nonce, ciphertext) {
+        let plaintext = match crypto::decrypt(&key, nonce, ciphertext) {
             Ok(plaintext) => plaintext,
             Err(err) => {
                 tracing::warn!(
@@ -57,15 +56,15 @@ impl IssueTokenStore {
 
     /// Encrypt and store the fallback token payload when fallback storage is enabled.
     pub(super) fn fallback_set(&self, token: &str) -> Result<(), IssueTokenStoreError> {
-        if !fallback_allowed() {
+        if !fallback_policy::fallback_allowed() {
             return Err(IssueTokenStoreError::Unavailable(format!(
                 "Fallback storage disabled; set {FALLBACK_ALLOW_ENV}=1 to allow encrypted file storage."
             )));
         }
-        warn_fallback_active();
+        fallback_policy::warn_fallback_active();
         let key = self.ensure_fallback_key()?;
         let payload = self.encrypt_fallback_payload(&key, token.as_bytes())?;
-        write_private_file(&self.fallback_token_path(), &payload)?;
+        file_io::write_private_file(&self.fallback_token_path(), &payload)?;
         Ok(())
     }
 
@@ -73,12 +72,12 @@ impl IssueTokenStore {
     pub(super) fn fallback_delete(&self) -> Result<(), IssueTokenStoreError> {
         #[cfg(target_os = "windows")]
         {
-            clear_windows_readonly(self.fallback_token_path().as_path());
+            file_io::clear_windows_readonly(self.fallback_token_path().as_path());
         }
         let _ = std::fs::remove_file(self.fallback_token_path());
         let _ = std::fs::remove_file(self.legacy_fallback_key_path());
         let _ = self.try_keyring_fallback_key_delete();
-        *lock_fallback_key_cache() = None;
+        *fallback_key::lock_fallback_key_cache() = None;
         Ok(())
     }
 
@@ -88,24 +87,11 @@ impl IssueTokenStore {
         key: &[u8; 32],
         plaintext: &[u8],
     ) -> Result<Vec<u8>, IssueTokenStoreError> {
-        let nonce = random_bytes(12)?;
-        let ciphertext = encrypt(key, &nonce, plaintext)?;
+        let nonce = crypto::random_bytes(12)?;
+        let ciphertext = crypto::encrypt(key, &nonce, plaintext)?;
         let mut payload = Vec::with_capacity(nonce.len() + ciphertext.len());
         payload.extend_from_slice(&nonce);
         payload.extend_from_slice(&ciphertext);
         Ok(payload)
     }
-}
-
-#[cfg(target_os = "windows")]
-/// Clear readonly attributes so the fallback token file can be replaced.
-fn clear_windows_readonly(path: &std::path::Path) {
-    use std::os::windows::ffi::OsStrExt;
-    use windows::{
-        Win32::Storage::FileSystem::{FILE_ATTRIBUTE_NORMAL, SetFileAttributesW},
-        core::PCWSTR,
-    };
-    let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
-    wide.push(0);
-    let _ = unsafe { SetFileAttributesW(PCWSTR(wide.as_ptr()), FILE_ATTRIBUTE_NORMAL) };
 }

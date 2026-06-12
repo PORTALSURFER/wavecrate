@@ -1,8 +1,7 @@
-use super::{
-    FALLBACK_KEY_CACHE, FALLBACK_KEY_ENV_VAR, IssueTokenStore, IssueTokenStoreError, decode_hex,
-    keyring_disabled, random_bytes,
-};
-use std::sync::Mutex;
+use super::{FALLBACK_KEY_ENV_VAR, IssueTokenStore, IssueTokenStoreError, crypto, fallback_policy};
+use std::sync::{Mutex, OnceLock};
+
+static FALLBACK_KEY_CACHE: OnceLock<Mutex<Option<[u8; 32]>>> = OnceLock::new();
 
 impl IssueTokenStore {
     /// Resolve a 32-byte fallback encryption key from cache/env/keyring/legacy file.
@@ -22,7 +21,7 @@ impl IssueTokenStore {
             return Ok(key);
         }
 
-        if !keyring_disabled()
+        if !fallback_policy::keyring_disabled()
             && let Some(key) = self.get_key_from_file()?
         {
             self.try_keyring_fallback_key_set(&key)?;
@@ -31,11 +30,11 @@ impl IssueTokenStore {
             return Ok(key);
         }
 
-        let key_bytes = random_bytes(32)?;
+        let key_bytes = crypto::random_bytes(32)?;
         let mut key = [0u8; 32];
         key.copy_from_slice(&key_bytes);
 
-        if keyring_disabled() {
+        if fallback_policy::keyring_disabled() {
             return Err(IssueTokenStoreError::Unavailable(format!(
                 "Keyring unavailable; set {FALLBACK_KEY_ENV_VAR} to enable fallback token storage."
             )));
@@ -60,7 +59,7 @@ impl IssueTokenStore {
     pub(super) fn get_key_from_env(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
         match std::env::var(FALLBACK_KEY_ENV_VAR) {
             Ok(hex_key) => {
-                let bytes = decode_hex(&hex_key).map_err(|e| {
+                let bytes = crypto::decode_hex(&hex_key).map_err(|e| {
                     IssueTokenStoreError::Decode(format!(
                         "Invalid hex in {}: {}",
                         FALLBACK_KEY_ENV_VAR, e
