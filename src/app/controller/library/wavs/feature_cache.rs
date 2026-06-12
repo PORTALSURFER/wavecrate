@@ -75,7 +75,8 @@ impl AppController {
     ) {
         if !self
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .as_ref()
             .is_some_and(|pending| {
                 pending.request_id == message.request_id
@@ -85,7 +86,7 @@ impl AppController {
         {
             return;
         }
-        self.runtime.pending_browser_feature_cache_refresh = None;
+        self.runtime.browser.pending_feature_cache_refresh = None;
         if self.current_browser_feature_cache_key() != Some(message.key)
             || self.selected_source_id().as_ref() != Some(&message.source_id)
         {
@@ -180,7 +181,8 @@ impl AppController {
         }
         if self
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .as_ref()
             .is_some_and(|pending| pending.source_id == source.id && pending.key == key)
         {
@@ -195,7 +197,7 @@ impl AppController {
             .map(|cache| cache.rows.clone())
             .unwrap_or_else(|| Arc::from([]));
         let request_id = self.runtime.jobs.next_feature_cache_request_id();
-        self.runtime.pending_browser_feature_cache_refresh =
+        self.runtime.browser.pending_feature_cache_refresh =
             Some(PendingBrowserFeatureCacheRefresh {
                 request_id,
                 source_id: source.id.clone(),
@@ -228,13 +230,13 @@ impl AppController {
     #[cfg(test)]
     /// Clear one pending browser feature-cache refresh for focused regression tests.
     pub(crate) fn clear_pending_browser_feature_cache_refresh_for_tests(&mut self) {
-        self.runtime.pending_browser_feature_cache_refresh = None;
+        self.runtime.browser.pending_feature_cache_refresh = None;
     }
 
     #[cfg(test)]
     /// Return whether one browser feature-cache refresh is currently queued.
     pub(crate) fn has_pending_browser_feature_cache_refresh_for_tests(&self) -> bool {
-        self.runtime.pending_browser_feature_cache_refresh.is_some()
+        self.runtime.browser.pending_feature_cache_refresh.is_some()
     }
 }
 

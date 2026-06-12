@@ -109,7 +109,7 @@ impl AppController {
         if request.entries.is_empty() {
             return Ok(false);
         }
-        self.runtime.active_retained_delete_resolution =
+        self.runtime.recovery.active_retained_delete_resolution =
             Some(ActiveRetainedDeleteResolution::from_request(&request));
         self.ui.sources.folders.delete_recovery.in_progress = true;
         self.show_status_progress(
@@ -176,7 +176,7 @@ impl AppController {
         &mut self,
         result: RetainedDeleteResolutionResult,
     ) {
-        self.runtime.active_retained_delete_resolution = None;
+        self.runtime.recovery.active_retained_delete_resolution = None;
         let affected_sources: HashSet<SourceId> = result.affected_sources.iter().cloned().collect();
         let recovery_errors = self.apply_folder_delete_recovery_state(result.recovery_report);
         for source_id in &result.scan_sources {
@@ -232,6 +232,7 @@ impl AppController {
         relative_path: &Path,
     ) -> Option<&RetainedDeleteBusyEntry> {
         self.runtime
+            .recovery
             .active_retained_delete_resolution
             .as_ref()?
             .entries

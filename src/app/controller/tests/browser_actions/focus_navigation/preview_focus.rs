@@ -300,7 +300,7 @@ fn native_focus_browser_row_clears_selection_and_queues_async_preview() {
         Some(1)
     );
     assert!(controller.audio.pending_age_update.is_some());
-    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.similarity.pending_refresh.is_none());
 }
 
 #[test]

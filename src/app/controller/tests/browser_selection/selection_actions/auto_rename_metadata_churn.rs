@@ -447,15 +447,17 @@ fn multi_step_auto_rename_stays_stable_under_metadata_and_maintenance_churn() {
     );
     controller
         .runtime
-        .deferred_startup_source_db_maintenance_jobs =
+        .startup
+        .deferred_source_db_maintenance_jobs =
         vec![crate::app::controller::jobs::SourceDbMaintenanceJob {
             source_id: source.id.clone(),
             source_root: source.root.clone(),
         }];
     controller
         .runtime
-        .deferred_startup_source_db_maintenance_armed = true;
-    controller.runtime.startup_frame_prepare_count = 1;
+        .startup
+        .deferred_source_db_maintenance_armed = true;
+    controller.runtime.startup.frame_prepare_count = 1;
     controller.begin_pending_file_mutation(&source.id, [PathBuf::from("raw_hat.wav")]);
     controller.flush_deferred_startup_source_db_maintenance();
 

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 impl AppController {
     /// Mark one or more projection revision groups dirty for frame-time draining.
     pub(crate) fn mark_projection_revision_dirty(&mut self, bits: u16) {
-        self.runtime.projection_revision_dirty.0 |= bits;
+        self.runtime.projection.revision_dirty.0 |= bits;
     }
 
     /// Mark status projection revisions dirty.
@@ -79,11 +79,11 @@ impl AppController {
     /// This centralizes revision bumps so UI projection keys depend on
     /// scalar revisions instead of container hashing.
     pub(crate) fn refresh_projection_revision_bus(&mut self) -> bool {
-        let dirty = self.runtime.projection_revision_dirty.0;
+        let dirty = self.runtime.projection.revision_dirty.0;
         if dirty == ProjectionRevisionDirtyMask::NONE {
             return false;
         }
-        self.runtime.projection_revision_dirty.0 = ProjectionRevisionDirtyMask::NONE;
+        self.runtime.projection.revision_dirty.0 = ProjectionRevisionDirtyMask::NONE;
         let revisions = &mut self.ui.projection_revisions;
         if (dirty & ProjectionRevisionDirtyMask::STATUS) != 0 {
             UiProjectionRevisions::bump(&mut revisions.status);

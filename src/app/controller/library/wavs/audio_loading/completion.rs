@@ -221,7 +221,7 @@ impl AppController {
     /// Publish one staged audio load once waveform visuals for the same decode are ready.
     pub(crate) fn finalize_staged_audio_handoff(&mut self, cache_token: u64) {
         let started_at = stage_timer();
-        if self.runtime.pending_waveform_render.is_some() {
+        if self.runtime.waveform.pending_render.is_some() {
             return;
         }
         let Some(staged) = self.runtime.jobs.staged_audio_handoff() else {

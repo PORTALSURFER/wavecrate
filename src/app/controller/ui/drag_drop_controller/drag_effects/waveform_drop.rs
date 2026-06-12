@@ -140,8 +140,14 @@ impl DragDropController<'_> {
             }
         };
         #[cfg(test)]
-        if self.runtime.fail_next_waveform_copy_registration {
-            self.runtime.fail_next_waveform_copy_registration = false;
+        if self
+            .runtime
+            .test_faults
+            .fail_next_waveform_copy_registration
+        {
+            self.runtime
+                .test_faults
+                .fail_next_waveform_copy_registration = false;
             self.set_status(
                 registration_failure_status(
                     "Failed to register copy: Injected waveform copy registration failure"

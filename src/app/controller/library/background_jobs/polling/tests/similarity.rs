@@ -16,7 +16,7 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
     ]);
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     controller.sample_view.wav.selected_wav = Some(PathBuf::from("one.wav"));
-    controller.runtime.pending_focused_similarity_query = Some(
+    controller.runtime.similarity.pending_focused_query = Some(
         crate::app::controller::state::runtime::PendingFocusedSimilarityQuery {
             request_id: 7,
             source_id: source.id.clone(),
@@ -41,7 +41,8 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
     assert!(
         controller
             .runtime
-            .pending_focused_similarity_query
+            .similarity
+            .pending_focused_query
             .is_some()
     );
     assert!(controller.ui.browser.search.focused_similarity.is_none());
@@ -63,7 +64,8 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
     assert!(
         controller
             .runtime
-            .pending_focused_similarity_query
+            .similarity
+            .pending_focused_query
             .is_none()
     );
     let highlight = controller
@@ -100,7 +102,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
         .current_browser_feature_cache_snapshot()
         .expect("browser snapshot")
         .key;
-    controller.runtime.pending_loaded_similarity_query = Some(
+    controller.runtime.similarity.pending_loaded_query = Some(
         crate::app::controller::state::runtime::PendingLoadedSimilarityQuery {
             request_id: 7,
             source_id: source.id.clone(),
@@ -135,7 +137,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
         },
     ));
 
-    assert!(controller.runtime.pending_loaded_similarity_query.is_some());
+    assert!(controller.runtime.similarity.pending_loaded_query.is_some());
     assert!(controller.ui.browser.search.similar_query.is_none());
 
     controller.apply_background_job_message_for_tests(JobMessage::LoadedSimilarityQueryBuilt(
@@ -164,7 +166,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
         },
     ));
 
-    assert!(controller.runtime.pending_loaded_similarity_query.is_none());
+    assert!(controller.runtime.similarity.pending_loaded_query.is_none());
     let query = controller
         .ui
         .browser
@@ -174,5 +176,5 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
         .expect("similarity query");
     assert_eq!(query.indices, vec![0, 1]);
     assert_eq!(query.anchor_index, Some(0));
-    assert!(controller.runtime.loaded_similarity_query_cache.is_some());
+    assert!(controller.runtime.similarity.loaded_query_cache.is_some());
 }

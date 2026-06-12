@@ -84,7 +84,7 @@ fn focus_history_hidden_target_stays_preview_only() {
     controller.focus_browser_row(2);
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
-    controller.runtime.pending_similarity_refresh = None;
+    controller.runtime.similarity.pending_refresh = None;
 
     controller.set_browser_search("c");
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
@@ -97,7 +97,7 @@ fn focus_history_hidden_target_stays_preview_only() {
     );
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.runtime.jobs.pending_playback.is_none());
-    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.similarity.pending_refresh.is_none());
     assert_eq!(controller.ui.browser.selection.selected_visible, None);
     assert_eq!(
         controller.ui.browser.selection.selection_anchor_visible,

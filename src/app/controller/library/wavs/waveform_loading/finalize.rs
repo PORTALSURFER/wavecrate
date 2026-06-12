@@ -237,8 +237,8 @@ impl AppController {
     pub(crate) fn clear_loaded_audio_and_waveform_visuals(&mut self) {
         self.sample_view.wav.loaded_audio = None;
         self.sample_view.waveform.decoded = None;
-        self.runtime.pending_waveform_render = None;
-        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.waveform.pending_render = None;
+        self.runtime.waveform.pending_transient_compute = None;
         self.runtime.jobs.set_staged_audio_handoff(None);
         self.runtime.jobs.invalidate_waveform_render_requests();
         self.runtime.jobs.invalidate_waveform_transient_requests();

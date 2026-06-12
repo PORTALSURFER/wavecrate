@@ -49,6 +49,7 @@ impl BrowserController<'_> {
         let Some(ctx) = contexts.iter().find(|ctx| {
             self.controller
                 .runtime
+                .recovery
                 .active_retained_delete_resolution
                 .as_ref()
                 .is_some_and(|active| {

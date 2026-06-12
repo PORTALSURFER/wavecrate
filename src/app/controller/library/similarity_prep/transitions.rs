@@ -28,7 +28,7 @@ fn matches_similarity_stage(
 impl AppController {
     pub(crate) fn handle_similarity_scan_finished(&mut self, source_id: &SourceId) {
         if !matches_similarity_stage(
-            &self.runtime.similarity_prep,
+            &self.runtime.similarity.prep,
             source_id,
             SimilarityPrepStage::AwaitScan,
         ) {
@@ -37,7 +37,7 @@ impl AppController {
         if let Some(source) = self.find_source_by_id(source_id) {
             let store = DbSimilarityPrepStore;
             let scan_completed_at = store.read_scan_timestamp(&source);
-            let transition = if let Some(state) = self.runtime.similarity_prep.as_mut() {
+            let transition = if let Some(state) = self.runtime.similarity.prep.as_mut() {
                 state::apply_scan_finished(state, scan_completed_at)
             } else {
                 return;
@@ -60,7 +60,7 @@ impl AppController {
             return;
         }
         let (source_id, umap_version) = {
-            let Some(state) = self.runtime.similarity_prep.as_mut() else {
+            let Some(state) = self.runtime.similarity.prep.as_mut() else {
                 return;
             };
             let Some(request) = state::start_finalize_if_ready(state) else {
@@ -73,7 +73,7 @@ impl AppController {
     }
 
     pub(crate) fn handle_similarity_prep_result(&mut self, result: jobs::SimilarityPrepResult) {
-        let state = self.runtime.similarity_prep.take();
+        let state = self.runtime.similarity.prep.take();
         if state.as_ref().map(|s| &s.source_id) != Some(&result.source_id) {
             return;
         }
@@ -106,14 +106,15 @@ impl AppController {
     pub(crate) fn cancel_similarity_prep(&mut self, source_id: &SourceId) {
         let matches = self
             .runtime
-            .similarity_prep
+            .similarity
+            .prep
             .as_ref()
             .is_some_and(|state| &state.source_id == source_id);
         if !matches {
             return;
         }
-        clear_similarity_prep_state(&mut self.runtime.similarity_prep);
-        self.runtime.similarity_prep_last_error = None;
+        clear_similarity_prep_state(&mut self.runtime.similarity.prep);
+        self.runtime.similarity.prep_last_error = None;
         self.restore_similarity_prep_duration_cap();
         self.restore_similarity_prep_fast_mode();
         self.restore_similarity_prep_full_analysis();

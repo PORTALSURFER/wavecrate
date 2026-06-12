@@ -6,7 +6,7 @@ use crate::sample_sources::scanner::ScanMode;
 
 impl AppController {
     pub(crate) fn show_similarity_prep_start(&mut self, source: &SampleSource, skip_scan: bool) {
-        self.runtime.similarity_prep_last_error = None;
+        self.runtime.similarity.prep_last_error = None;
         self.set_status_message(StatusMessage::PreparingSimilarity {
             source: source.root.display().to_string(),
         });
@@ -25,7 +25,7 @@ impl AppController {
     }
 
     pub(crate) fn show_similarity_prep_ready(&mut self, outcome: &jobs::SimilarityPrepOutcome) {
-        self.runtime.similarity_prep_last_error = None;
+        self.runtime.similarity.prep_last_error = None;
         self.ui.map.bounds = None;
         self.ui.map.cached_bounds_source_id = None;
         self.ui.map.cached_bounds_umap_version = None;
@@ -46,7 +46,7 @@ impl AppController {
     }
 
     pub(crate) fn show_similarity_prep_failed(&mut self, err: String) {
-        self.runtime.similarity_prep_last_error = Some(err.clone());
+        self.runtime.similarity.prep_last_error = Some(err.clone());
         self.refresh_selected_source_similarity_prep_status();
         self.set_status_message(StatusMessage::SimilarityPrepFailed { err });
     }

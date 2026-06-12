@@ -7,13 +7,14 @@ fn queue_waveform_seek_milli_clamps_input() {
     queue_waveform_seek_nanos(&mut controller, 1_500_000_000);
 
     assert_eq!(
-        controller.runtime.pending_waveform_seek_nanos,
+        controller.runtime.waveform.pending_seek_nanos,
         Some(1_000_000_000)
     );
     assert!(
         controller
             .runtime
-            .pending_waveform_seek_not_before
+            .waveform
+            .pending_seek_not_before
             .is_some()
     );
 }
@@ -22,13 +23,13 @@ fn queue_waveform_seek_milli_clamps_input() {
 fn flush_pending_waveform_seek_commit_waits_for_deadline() {
     let (mut controller, _source) = test_support::dummy_controller();
     queue_waveform_seek_nanos(&mut controller, 500_000_000);
-    controller.runtime.pending_waveform_seek_not_before =
+    controller.runtime.waveform.pending_seek_not_before =
         Some(Instant::now() + Duration::from_millis(50));
 
     flush_pending_waveform_seek_commit(&mut controller);
 
     assert_eq!(
-        controller.runtime.pending_waveform_seek_nanos,
+        controller.runtime.waveform.pending_seek_nanos,
         Some(500_000_000)
     );
 }
@@ -46,7 +47,7 @@ fn queue_waveform_seek_milli_clears_selection_when_target_is_outside_span() {
     assert!(controller.selection_state.range.range().is_none());
     assert!(controller.ui.waveform.selection.is_none());
     assert_eq!(
-        controller.runtime.pending_waveform_seek_nanos,
+        controller.runtime.waveform.pending_seek_nanos,
         Some(750_000_000)
     );
     assert_eq!(controller.ui.waveform.cursor, Some(0.75));
@@ -66,7 +67,7 @@ fn queue_waveform_seek_nanos_cancels_click_armed_selection_drag() {
     assert!(!controller.selection_state.range.is_dragging());
     assert!(controller.selection_state.pending_undo.is_none());
     assert_eq!(
-        controller.runtime.pending_waveform_seek_nanos,
+        controller.runtime.waveform.pending_seek_nanos,
         Some(750_000_000)
     );
     assert_eq!(controller.ui.waveform.cursor, Some(0.75));
@@ -104,7 +105,7 @@ fn queue_waveform_seek_milli_preserves_selection_when_target_is_inside_span() {
     assert_eq!(controller.selection_state.range.range(), Some(selection));
     assert_eq!(controller.ui.waveform.selection, Some(selection));
     assert_eq!(
-        controller.runtime.pending_waveform_seek_nanos,
+        controller.runtime.waveform.pending_seek_nanos,
         Some(300_000_000)
     );
     assert_eq!(controller.ui.waveform.cursor, Some(0.3));

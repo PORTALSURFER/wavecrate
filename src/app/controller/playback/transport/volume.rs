@@ -13,29 +13,48 @@ pub(crate) fn set_volume_live(controller: &mut AppController, volume: f32) {
     if previous_milli == current_milli {
         return;
     }
-    if controller.runtime.last_persisted_volume_milli == Some(current_milli) {
-        controller.runtime.volume_persist_dirty = false;
-        controller.runtime.volume_persist_deadline = None;
+    if controller
+        .runtime
+        .config_persistence
+        .last_persisted_volume_milli
+        == Some(current_milli)
+    {
+        controller.runtime.config_persistence.volume_persist_dirty = false;
+        controller
+            .runtime
+            .config_persistence
+            .volume_persist_deadline = None;
         return;
     }
-    controller.runtime.volume_persist_dirty = true;
-    controller.runtime.volume_persist_deadline = Some(Instant::now() + VOLUME_PERSIST_DEBOUNCE);
+    controller.runtime.config_persistence.volume_persist_dirty = true;
+    controller
+        .runtime
+        .config_persistence
+        .volume_persist_deadline = Some(Instant::now() + VOLUME_PERSIST_DEBOUNCE);
 }
 
 /// Persist a dirty volume setting immediately.
 pub(crate) fn commit_volume_setting(controller: &mut AppController) {
-    if !controller.runtime.volume_persist_dirty {
+    if !controller.runtime.config_persistence.volume_persist_dirty {
         return;
     }
     let current_milli = volume_to_milli(controller.ui.volume);
-    if controller.runtime.last_persisted_volume_milli == Some(current_milli) {
-        controller.runtime.volume_persist_dirty = false;
-        controller.runtime.volume_persist_deadline = None;
+    if controller
+        .runtime
+        .config_persistence
+        .last_persisted_volume_milli
+        == Some(current_milli)
+    {
+        controller.runtime.config_persistence.volume_persist_dirty = false;
+        controller
+            .runtime
+            .config_persistence
+            .volume_persist_deadline = None;
         return;
     }
     let request_id = controller.runtime.jobs.next_config_persist_request_id();
     let volume = controller.ui.volume.clamp(0.0, 1.0);
-    controller.runtime.pending_config_persist = Some(
+    controller.runtime.config_persistence.pending_config_persist = Some(
         crate::app::controller::state::runtime::PendingConfigPersist {
             request_id,
             volume,
@@ -65,10 +84,14 @@ pub(crate) fn commit_volume_setting(controller: &mut AppController) {
 
 /// Flush deferred volume persistence once the debounce deadline elapses.
 pub(crate) fn flush_pending_volume_setting(controller: &mut AppController) {
-    if !controller.runtime.volume_persist_dirty {
+    if !controller.runtime.config_persistence.volume_persist_dirty {
         return;
     }
-    let Some(deadline) = controller.runtime.volume_persist_deadline else {
+    let Some(deadline) = controller
+        .runtime
+        .config_persistence
+        .volume_persist_deadline
+    else {
         return;
     };
     if Instant::now() >= deadline {

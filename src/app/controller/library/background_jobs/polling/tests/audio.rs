@@ -248,7 +248,7 @@ fn audio_visual_message_queues_one_follow_loaded_similarity_refresh() {
         },
         decode_audio_outcome(&controller, &source, relative_path),
     );
-    assert!(controller.runtime.pending_loaded_similarity_query.is_none());
+    assert!(controller.runtime.similarity.pending_loaded_query.is_none());
 
     let staged = controller
         .runtime
@@ -272,7 +272,8 @@ fn audio_visual_message_queues_one_follow_loaded_similarity_refresh() {
 
     let pending = controller
         .runtime
-        .pending_loaded_similarity_query
+        .similarity
+        .pending_loaded_query
         .as_ref()
         .expect("follow-loaded similarity query should be queued");
     assert_eq!(pending.request_id, 1);
@@ -339,7 +340,7 @@ fn waveform_transients_computed_message_routes_to_loaded_waveform_state() {
         .as_ref()
         .expect("decoded waveform")
         .cache_token;
-    controller.runtime.pending_waveform_transient_compute = Some(PendingWaveformTransientCompute {
+    controller.runtime.waveform.pending_transient_compute = Some(PendingWaveformTransientCompute {
         request_id: 17,
         cache_token,
         queued_at: Instant::now(),
@@ -359,7 +360,8 @@ fn waveform_transients_computed_message_routes_to_loaded_waveform_state() {
     assert!(
         controller
             .runtime
-            .pending_waveform_transient_compute
+            .waveform
+            .pending_transient_compute
             .is_none()
     );
     assert_eq!(controller.ui.waveform.transients.as_ref(), &[0.15, 0.55]);

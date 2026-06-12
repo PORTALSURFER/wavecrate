@@ -65,11 +65,12 @@ fn queue_waveform_seek_milli_starts_immediately_when_stopped_with_loaded_audio()
 
     queue_waveform_seek_nanos(&mut controller, 500_000_000);
 
-    assert!(controller.runtime.pending_waveform_seek_nanos.is_none());
+    assert!(controller.runtime.waveform.pending_seek_nanos.is_none());
     assert!(
         controller
             .runtime
-            .pending_waveform_seek_not_before
+            .waveform
+            .pending_seek_not_before
             .is_none()
     );
     assert!(controller.is_playing());
@@ -101,13 +102,14 @@ fn queue_waveform_seek_milli_still_defers_commit_while_playing() {
     queue_waveform_seek_nanos(&mut controller, 750_000_000);
 
     assert_eq!(
-        controller.runtime.pending_waveform_seek_nanos,
+        controller.runtime.waveform.pending_seek_nanos,
         Some(750_000_000)
     );
     assert!(
         controller
             .runtime
-            .pending_waveform_seek_not_before
+            .waveform
+            .pending_seek_not_before
             .is_some()
     );
     assert_eq!(controller.ui.waveform.cursor, Some(0.75));
@@ -181,7 +183,7 @@ fn deferred_waveform_seek_commit_preserves_panned_view_when_playing() {
     assert!(controller.play_audio(false, None).is_ok());
 
     queue_waveform_seek_nanos(&mut controller, 750_000_000);
-    controller.runtime.pending_waveform_seek_not_before =
+    controller.runtime.waveform.pending_seek_not_before =
         Some(Instant::now() - Duration::from_millis(1));
 
     flush_pending_waveform_seek_commit(&mut controller);

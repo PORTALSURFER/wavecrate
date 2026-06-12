@@ -19,7 +19,8 @@ fn apply_waveform_image_without_transients_queues_deferred_compute() {
     assert_eq!(controller.ui.waveform.transient_cache_token, None);
     let pending = controller
         .runtime
-        .pending_waveform_transient_compute
+        .waveform
+        .pending_transient_compute
         .as_ref()
         .expect("pending transient compute");
     assert_eq!(pending.request_id, 1);
@@ -92,7 +93,7 @@ fn async_waveform_render_apply_discards_deep_zoom_stale_view_identity() {
         view_end_bits: controller.ui.waveform.view.end.to_bits(),
         transient_visual_token: None,
     };
-    controller.runtime.pending_waveform_render = Some(PendingWaveformRender {
+    controller.runtime.waveform.pending_render = Some(PendingWaveformRender {
         request_id: 3,
         key: stale_key,
         queued_at: Instant::now(),

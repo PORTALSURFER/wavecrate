@@ -26,7 +26,8 @@ fn browser_row_is_queued_or_loaded(
         .is_some_and(|pending| pending.relative_path == relative_path)
         || controller
             .runtime
-            .browser_selection_transition
+            .browser
+            .selection_transition
             .as_ref()
             .is_some_and(|transition| {
                 transition.relative_path == relative_path && transition.load_in_flight()

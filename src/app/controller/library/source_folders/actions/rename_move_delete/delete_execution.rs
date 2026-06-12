@@ -76,7 +76,7 @@ impl AppController {
         }
         #[cfg(test)]
         {
-            if self.runtime.fail_next_folder_delete_db {
+            if self.runtime.test_faults.fail_next_folder_delete_db {
                 let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
                 let staged = delete_recovery::stage_folder_for_delete(
                     absolute,
@@ -90,10 +90,10 @@ impl AppController {
                     &staging_root,
                     "Injected folder delete DB failure",
                 )?;
-                self.runtime.fail_next_folder_delete_db = false;
+                self.runtime.test_faults.fail_next_folder_delete_db = false;
                 return Ok(true);
             }
-            if self.runtime.fail_after_folder_delete_stage {
+            if self.runtime.test_faults.fail_after_folder_delete_stage {
                 let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
                 delete_recovery::stage_folder_for_delete(
                     absolute,
@@ -101,10 +101,10 @@ impl AppController {
                     target_path,
                     entries,
                 )?;
-                self.runtime.fail_after_folder_delete_stage = false;
+                self.runtime.test_faults.fail_after_folder_delete_stage = false;
                 return Ok(true);
             }
-            if self.runtime.fail_after_folder_delete_db_commit {
+            if self.runtime.test_faults.fail_after_folder_delete_db_commit {
                 let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
                 let staged = delete_recovery::stage_folder_for_delete(
                     absolute,
@@ -126,7 +126,7 @@ impl AppController {
                     .commit()
                     .map_err(|err| format!("Failed to save folder delete: {err}"))?;
                 delete_recovery::mark_delete_retained(&staging_root, &staged.id)?;
-                self.runtime.fail_after_folder_delete_db_commit = false;
+                self.runtime.test_faults.fail_after_folder_delete_db_commit = false;
                 return Ok(true);
             }
             Ok(false)

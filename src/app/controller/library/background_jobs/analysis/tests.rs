@@ -159,7 +159,8 @@ fn enqueue_finished_keeps_selected_source_feature_cache_and_queues_refresh() {
     assert!(
         controller
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .as_ref()
             .is_some_and(|pending| pending.source_id == source.id)
     );
@@ -232,7 +233,8 @@ fn durations_updated_keeps_selected_source_feature_cache_and_queues_refresh() {
     assert!(
         controller
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .as_ref()
             .is_some_and(|pending| pending.source_id == source_id)
     );

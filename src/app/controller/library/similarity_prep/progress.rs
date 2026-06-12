@@ -17,7 +17,7 @@ impl AppController {
 
     /// Handles refresh similarity prep progress with store.
     fn refresh_similarity_prep_progress_with_store(&mut self, store: &impl SimilarityPrepStore) {
-        let Some(state) = self.runtime.similarity_prep.as_ref() else {
+        let Some(state) = self.runtime.similarity.prep.as_ref() else {
             return;
         };
         let source_id = state.source_id.clone();

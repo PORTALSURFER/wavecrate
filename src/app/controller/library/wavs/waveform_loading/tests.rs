@@ -105,6 +105,7 @@ fn loaded_duration_metadata_write_is_deferred_until_flush() {
 
     controller
         .runtime
+        .browser
         .pending_loaded_duration_metadata_not_before =
         Some(Instant::now() - Duration::from_millis(1));
     controller.flush_pending_loaded_duration_metadata_write();
@@ -158,6 +159,7 @@ fn loaded_duration_metadata_flush_respects_deadline() {
     assert!(loaded.is_ok(), "waveform load failed: {loaded:?}");
     controller
         .runtime
+        .browser
         .pending_loaded_duration_metadata_not_before =
         Some(Instant::now() + Duration::from_secs(60));
 
@@ -182,6 +184,7 @@ fn loaded_duration_metadata_flush_defers_during_same_source_file_op() {
     assert!(loaded.is_ok(), "waveform load failed: {loaded:?}");
     controller
         .runtime
+        .browser
         .pending_loaded_duration_metadata_not_before =
         Some(Instant::now() - Duration::from_millis(1));
 
@@ -194,6 +197,7 @@ fn loaded_duration_metadata_flush_defers_during_same_source_file_op() {
     controller.finish_pending_file_mutation(&source.id, [PathBuf::from("quiet.wav")]);
     controller
         .runtime
+        .browser
         .pending_loaded_duration_metadata_not_before =
         Some(Instant::now() - Duration::from_millis(1));
     controller.flush_pending_loaded_duration_metadata_write();

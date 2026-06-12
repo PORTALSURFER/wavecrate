@@ -22,18 +22,21 @@ pub(super) fn open_cached_source_db<'a>(
         .ok_or_else(|| "Source not found".to_string())?;
     if !controller
         .runtime
-        .map_query_connections
+        .map
+        .query_connections
         .contains_key(&source_id)
     {
         let conn = analysis_jobs::open_source_db_ui_read(&source_root)?;
         controller
             .runtime
-            .map_query_connections
+            .map
+            .query_connections
             .insert(source_id.clone(), conn);
     }
     controller
         .runtime
-        .map_query_connections
+        .map
+        .query_connections
         .get_mut(&source_id)
         .ok_or_else(|| "Map query connection missing after open".to_string())
 }

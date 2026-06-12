@@ -156,6 +156,7 @@ impl AppController {
         }
         let last_sync = self
             .runtime
+            .source_sync
             .auto_sync_last_by_source
             .get(&source.id)
             .copied();
@@ -163,6 +164,7 @@ impl AppController {
             return;
         }
         self.runtime
+            .source_sync
             .auto_sync_last_by_source
             .insert(source.id.clone(), now);
         self.request_scan_for_source_with_paths(&source, mode, ScanKind::Auto, paths);

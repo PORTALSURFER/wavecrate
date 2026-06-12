@@ -363,7 +363,7 @@ fn auto_unchanged_scan_does_not_backfill_analysis() {
 fn unchanged_scan_finishes_similarity_prep_with_explicit_bootstrap_enqueue() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
-    controller.runtime.similarity_prep = Some(SimilarityPrepState {
+    controller.runtime.similarity.prep = Some(SimilarityPrepState {
         source_id: source.id.clone(),
         stage: SimilarityPrepStage::AwaitScan,
         umap_version: "v1".to_string(),
@@ -385,7 +385,8 @@ fn unchanged_scan_finishes_similarity_prep_with_explicit_bootstrap_enqueue() {
 
     let prep = controller
         .runtime
-        .similarity_prep
+        .similarity
+        .prep
         .as_ref()
         .expect("similarity prep");
     assert!(matches!(
@@ -410,7 +411,7 @@ fn unchanged_scan_finishes_similarity_prep_with_explicit_bootstrap_enqueue() {
 fn canceled_scan_clears_similarity_prep_and_reports_warning_for_selected_source() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
-    controller.runtime.similarity_prep = Some(SimilarityPrepState {
+    controller.runtime.similarity.prep = Some(SimilarityPrepState {
         source_id: source.id.clone(),
         stage: SimilarityPrepStage::AwaitScan,
         umap_version: "v1".to_string(),
@@ -431,7 +432,7 @@ fn canceled_scan_clears_similarity_prep_and_reports_warning_for_selected_source(
     );
 
     assert_eq!(controller.ui.status.text, "Quick sync canceled");
-    assert!(controller.runtime.similarity_prep.is_none());
+    assert!(controller.runtime.similarity.prep.is_none());
     assert_eq!(controller.ui.progress.task, None);
     assert!(!controller.ui.progress.visible);
 }
@@ -440,7 +441,7 @@ fn canceled_scan_clears_similarity_prep_and_reports_warning_for_selected_source(
 fn failed_scan_clears_similarity_prep_and_reports_error_for_selected_source() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
-    controller.runtime.similarity_prep = Some(SimilarityPrepState {
+    controller.runtime.similarity.prep = Some(SimilarityPrepState {
         source_id: source.id.clone(),
         stage: SimilarityPrepStage::AwaitScan,
         umap_version: "v1".to_string(),
@@ -460,7 +461,7 @@ fn failed_scan_clears_similarity_prep_and_reports_error_for_selected_source() {
     );
 
     assert!(controller.ui.status.text.starts_with("Hard sync failed: "));
-    assert!(controller.runtime.similarity_prep.is_none());
+    assert!(controller.runtime.similarity.prep.is_none());
 }
 
 #[test]

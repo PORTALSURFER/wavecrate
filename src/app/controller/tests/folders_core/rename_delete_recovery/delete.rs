@@ -171,7 +171,7 @@ fn deleting_folder_rolls_back_on_db_failure() -> Result<(), String> {
     {
         controller.focus_folder_row(index);
     }
-    controller.runtime.fail_next_folder_delete_db = true;
+    controller.runtime.test_faults.fail_next_folder_delete_db = true;
 
     controller.delete_focused_folder();
 

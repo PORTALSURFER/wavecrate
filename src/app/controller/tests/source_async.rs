@@ -494,7 +494,8 @@ fn startup_active_source_hydration_defers_follow_up_work_after_first_paint() {
     assert!(
         controller
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .is_some()
     );
     assert!(
@@ -573,15 +574,17 @@ fn startup_source_db_maintenance_defers_same_source_during_file_op() {
     let source = sources[0].clone();
     controller
         .runtime
-        .deferred_startup_source_db_maintenance_jobs =
+        .startup
+        .deferred_source_db_maintenance_jobs =
         vec![crate::app::controller::jobs::SourceDbMaintenanceJob {
             source_id: source.id.clone(),
             source_root: source.root.clone(),
         }];
     controller
         .runtime
-        .deferred_startup_source_db_maintenance_armed = true;
-    controller.runtime.startup_frame_prepare_count = 1;
+        .startup
+        .deferred_source_db_maintenance_armed = true;
+    controller.runtime.startup.frame_prepare_count = 1;
 
     controller.begin_pending_file_mutation(&source.id, [PathBuf::from("alpha.wav")]);
     controller.flush_deferred_startup_source_db_maintenance();
@@ -591,7 +594,8 @@ fn startup_source_db_maintenance_defers_same_source_during_file_op() {
     assert_eq!(
         controller
             .runtime
-            .deferred_startup_source_db_maintenance_jobs
+            .startup
+            .deferred_source_db_maintenance_jobs
             .iter()
             .map(|job| job.source_id.clone())
             .collect::<Vec<_>>(),
@@ -609,7 +613,8 @@ fn startup_source_db_maintenance_allows_other_sources_during_file_op() {
     let (mut controller, sources) = build_controller_with_sources(&["source-a", "source-b"]);
     controller
         .runtime
-        .deferred_startup_source_db_maintenance_jobs = sources
+        .startup
+        .deferred_source_db_maintenance_jobs = sources
         .iter()
         .map(
             |source| crate::app::controller::jobs::SourceDbMaintenanceJob {
@@ -620,8 +625,9 @@ fn startup_source_db_maintenance_allows_other_sources_during_file_op() {
         .collect();
     controller
         .runtime
-        .deferred_startup_source_db_maintenance_armed = true;
-    controller.runtime.startup_frame_prepare_count = 1;
+        .startup
+        .deferred_source_db_maintenance_armed = true;
+    controller.runtime.startup.frame_prepare_count = 1;
 
     controller.begin_pending_file_mutation(&sources[0].id, [PathBuf::from("alpha.wav")]);
     controller.flush_deferred_startup_source_db_maintenance();
@@ -630,7 +636,8 @@ fn startup_source_db_maintenance_allows_other_sources_during_file_op() {
     assert_eq!(
         controller
             .runtime
-            .deferred_startup_source_db_maintenance_jobs
+            .startup
+            .deferred_source_db_maintenance_jobs
             .iter()
             .map(|job| job.source_id.clone())
             .collect::<Vec<_>>(),

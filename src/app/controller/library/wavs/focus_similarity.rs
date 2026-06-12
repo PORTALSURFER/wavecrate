@@ -11,9 +11,9 @@ impl AppController {
 
     /// Clear near-duplicate highlights for the focused sample.
     pub(crate) fn clear_focused_similarity_highlight(&mut self) {
-        self.runtime.pending_similarity_refresh = None;
-        self.runtime.pending_similarity_refresh_not_before = None;
-        self.runtime.pending_focused_similarity_query = None;
+        self.runtime.similarity.pending_refresh = None;
+        self.runtime.similarity.pending_refresh_not_before = None;
+        self.runtime.similarity.pending_focused_query = None;
         self.ui.browser.search.focused_similarity = None;
     }
 
@@ -24,14 +24,14 @@ impl AppController {
         relative_path: PathBuf,
         anchor_index: Option<usize>,
     ) {
-        self.runtime.pending_similarity_refresh = Some(
+        self.runtime.similarity.pending_refresh = Some(
             crate::app::controller::state::runtime::PendingFocusedSimilarityRefresh {
                 sample_id,
                 relative_path,
                 anchor_index,
             },
         );
-        self.runtime.pending_similarity_refresh_not_before =
+        self.runtime.similarity.pending_refresh_not_before =
             Some(Instant::now() + FOCUSED_SIMILARITY_REFRESH_DEBOUNCE);
     }
 
@@ -39,13 +39,14 @@ impl AppController {
     pub(crate) fn flush_pending_focused_similarity_highlight_refresh(&mut self) {
         if self
             .runtime
-            .pending_similarity_refresh_not_before
+            .similarity
+            .pending_refresh_not_before
             .is_some_and(|deadline| Instant::now() < deadline)
         {
             return;
         }
-        self.runtime.pending_similarity_refresh_not_before = None;
-        let Some(pending) = self.runtime.pending_similarity_refresh.take() else {
+        self.runtime.similarity.pending_refresh_not_before = None;
+        let Some(pending) = self.runtime.similarity.pending_refresh.take() else {
             return;
         };
         if self.sample_view.wav.selected_wav.as_deref() != Some(pending.relative_path.as_path()) {
@@ -56,13 +57,13 @@ impl AppController {
 
     /// Return true when a focused-similarity refresh is queued.
     pub(crate) fn has_pending_focused_similarity_highlight_refresh(&self) -> bool {
-        self.runtime.pending_similarity_refresh.is_some()
-            || self.runtime.pending_focused_similarity_query.is_some()
+        self.runtime.similarity.pending_refresh.is_some()
+            || self.runtime.similarity.pending_focused_query.is_some()
     }
 
     /// Apply one async focused-similarity result if it still matches the active selection.
     pub(crate) fn handle_focused_similarity_loaded(&mut self, result: FocusedSimilarityResult) {
-        let Some(pending) = self.runtime.pending_focused_similarity_query.as_ref() else {
+        let Some(pending) = self.runtime.similarity.pending_focused_query.as_ref() else {
             return;
         };
         if pending.request_id != result.request_id
@@ -71,7 +72,7 @@ impl AppController {
         {
             return;
         }
-        self.runtime.pending_focused_similarity_query = None;
+        self.runtime.similarity.pending_focused_query = None;
         if self.sample_view.wav.selected_wav.as_deref() != Some(result.relative_path.as_path()) {
             return;
         }

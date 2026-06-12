@@ -127,7 +127,7 @@ impl AppController {
 
     /// Return whether a waveform image render is still in flight.
     pub(crate) fn waveform_render_in_progress_for_projection(&self) -> bool {
-        self.runtime.pending_waveform_render.is_some()
+        self.runtime.waveform.pending_render.is_some()
     }
 }
 

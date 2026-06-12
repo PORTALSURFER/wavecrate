@@ -88,10 +88,11 @@ impl AppController {
         let signature = if image.size[0] == 0 || image.size[1] == 0 {
             None
         } else {
-            let signature = self.runtime.next_waveform_image_signature;
-            self.runtime.next_waveform_image_signature = self
+            let signature = self.runtime.waveform.next_image_signature;
+            self.runtime.waveform.next_image_signature = self
                 .runtime
-                .next_waveform_image_signature
+                .waveform
+                .next_image_signature
                 .wrapping_add(1)
                 .max(1);
             Some(signature)
@@ -119,10 +120,11 @@ impl AppController {
     ) {
         let signature = image.as_ref().and_then(|image| {
             (image.size[0] > 0 && image.size[1] > 0).then(|| {
-                let signature = self.runtime.next_waveform_image_signature;
-                self.runtime.next_waveform_image_signature = self
+                let signature = self.runtime.waveform.next_image_signature;
+                self.runtime.waveform.next_image_signature = self
                     .runtime
-                    .next_waveform_image_signature
+                    .waveform
+                    .next_image_signature
                     .wrapping_add(1)
                     .max(1);
                 signature

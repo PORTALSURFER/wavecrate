@@ -318,7 +318,7 @@ impl AppController {
         self.wav_entries.clear();
         self.clear_all_folder_projection_state();
         self.sample_view.wav.selected_wav = None;
-        self.runtime.pending_similarity_filter_rebuild = None;
+        self.runtime.similarity.pending_filter_rebuild = None;
         self.clear_focused_similarity_highlight();
         self.ui.browser = SampleBrowserState::default();
         self.ui.sources.folders = FolderBrowserUiState::default();

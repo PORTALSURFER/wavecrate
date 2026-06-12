@@ -111,7 +111,10 @@ fn waveform_sample_drop_removes_copy_when_registration_fails() {
     )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    controller.runtime.fail_next_waveform_copy_registration = true;
+    controller
+        .runtime
+        .test_faults
+        .fail_next_waveform_copy_registration = true;
 
     controller.ui.drag.payload = Some(DragPayload::Sample {
         source_id: source.id.clone(),

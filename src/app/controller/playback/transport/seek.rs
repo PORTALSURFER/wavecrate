@@ -40,16 +40,16 @@ pub(crate) fn queue_waveform_seek_nanos(controller: &mut AppController, position
     clear_selection_for_outside_waveform_seek(controller, normalized64_from_nanos(clamped));
     controller.set_waveform_cursor_nanos(clamped);
     if should_commit_waveform_seek_immediately(controller) {
-        controller.runtime.pending_waveform_seek_nanos = None;
-        controller.runtime.pending_waveform_seek_not_before = None;
+        controller.runtime.waveform.pending_seek_nanos = None;
+        controller.runtime.waveform.pending_seek_not_before = None;
         let normalized = normalized64_from_nanos(clamped);
         seek_to(controller, normalized);
         controller.set_waveform_cursor(normalized as f32);
         controller.focus_waveform_context();
         return;
     }
-    controller.runtime.pending_waveform_seek_nanos = Some(clamped);
-    controller.runtime.pending_waveform_seek_not_before =
+    controller.runtime.waveform.pending_seek_nanos = Some(clamped);
+    controller.runtime.waveform.pending_seek_not_before =
         Some(Instant::now() + WAVEFORM_SEEK_COMMIT_DEBOUNCE);
 }
 
@@ -91,13 +91,14 @@ fn record_play_start_with_view_policy(
 pub(crate) fn flush_pending_waveform_seek_commit(controller: &mut AppController) {
     if controller
         .runtime
-        .pending_waveform_seek_not_before
+        .waveform
+        .pending_seek_not_before
         .is_some_and(|deadline| Instant::now() < deadline)
     {
         return;
     }
-    controller.runtime.pending_waveform_seek_not_before = None;
-    let Some(position_nanos) = controller.runtime.pending_waveform_seek_nanos.take() else {
+    controller.runtime.waveform.pending_seek_not_before = None;
+    let Some(position_nanos) = controller.runtime.waveform.pending_seek_nanos.take() else {
         return;
     };
     let normalized = normalized64_from_nanos(position_nanos);

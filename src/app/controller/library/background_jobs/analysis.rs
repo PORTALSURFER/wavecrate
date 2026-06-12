@@ -141,7 +141,8 @@ fn analysis_progress_route_context(controller: &AppController) -> AnalysisProgre
         current_source_id: controller.current_source().map(|source| source.id.clone()),
         similarity_prep_source_id: controller
             .runtime
-            .similarity_prep
+            .similarity
+            .prep
             .as_ref()
             .map(|state| state.source_id.clone()),
     }
@@ -249,7 +250,7 @@ fn cache_for_selected_source<'a>(
     controller: &'a mut AppController,
     source_id: &SourceId,
 ) -> &'a mut crate::app::controller::state::runtime::AnalysisProgressUiCache {
-    let cache = &mut controller.runtime.analysis_progress_ui;
+    let cache = &mut controller.runtime.browser.analysis_progress_ui;
     if cache.source_id.as_ref() != Some(source_id) {
         *cache = crate::app::controller::state::runtime::AnalysisProgressUiCache {
             source_id: Some(source_id.clone()),

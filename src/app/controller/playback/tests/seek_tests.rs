@@ -24,16 +24,17 @@ fn queue_waveform_seek_milli_defers_commit_until_deadline() {
 fn flush_pending_waveform_seek_commit_clears_queue_after_deadline() {
     let (mut controller, _source) = test_support::dummy_controller();
     controller.queue_waveform_seek_milli(750);
-    controller.runtime.pending_waveform_seek_not_before =
+    controller.runtime.waveform.pending_seek_not_before =
         Some(Instant::now() - Duration::from_millis(1));
 
     controller.flush_pending_waveform_seek_commit();
 
-    assert!(controller.runtime.pending_waveform_seek_nanos.is_none());
+    assert!(controller.runtime.waveform.pending_seek_nanos.is_none());
     assert!(
         controller
             .runtime
-            .pending_waveform_seek_not_before
+            .waveform
+            .pending_seek_not_before
             .is_none()
     );
 }

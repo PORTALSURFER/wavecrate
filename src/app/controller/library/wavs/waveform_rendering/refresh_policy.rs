@@ -48,33 +48,34 @@ impl AppController {
     /// Request a waveform refresh with an explicit reason used for coalesced batching.
     pub(super) fn refresh_waveform_image_with_reason(&mut self, reason: WaveformRefreshReason) {
         if self.runtime.waveform_refresh_batch_active() {
-            self.runtime.waveform_refresh_pending = true;
-            self.runtime.waveform_refresh_pending_reason = Some(merge_waveform_refresh_reason(
-                self.runtime.waveform_refresh_pending_reason,
+            self.runtime.waveform.refresh_pending = true;
+            self.runtime.waveform.refresh_pending_reason = Some(merge_waveform_refresh_reason(
+                self.runtime.waveform.refresh_pending_reason,
                 reason,
             ));
             return;
         }
-        self.runtime.waveform_refresh_pending = false;
-        self.runtime.waveform_refresh_pending_reason = None;
+        self.runtime.waveform.refresh_pending = false;
+        self.runtime.waveform.refresh_pending_reason = None;
         self.refresh_waveform_image_now();
     }
 
     /// Flush a queued waveform image refresh once batching has completed.
     pub(crate) fn flush_pending_waveform_image_refresh(&mut self) {
-        if self.runtime.waveform_refresh_batch_active() || !self.runtime.waveform_refresh_pending {
+        if self.runtime.waveform_refresh_batch_active() || !self.runtime.waveform.refresh_pending {
             return;
         }
         let reason = self
             .runtime
-            .waveform_refresh_pending_reason
+            .waveform
+            .refresh_pending_reason
             .unwrap_or(WaveformRefreshReason::View);
         self.refresh_waveform_image_with_reason(reason);
     }
 
     /// Return true when a waveform-image refresh is queued.
     pub(crate) fn has_pending_waveform_image_refresh(&self) -> bool {
-        self.runtime.waveform_refresh_pending
+        self.runtime.waveform.refresh_pending
     }
 }
 
@@ -95,7 +96,7 @@ mod tests {
 
         assert!(controller.has_pending_waveform_image_refresh());
         assert_eq!(
-            controller.runtime.waveform_refresh_pending_reason,
+            controller.runtime.waveform.refresh_pending_reason,
             Some(WaveformRefreshReason::Data)
         );
     }

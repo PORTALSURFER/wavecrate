@@ -23,7 +23,7 @@ pub(crate) fn queue_focused_similarity_highlight_refresh(
         return;
     };
     let request_id = controller.runtime.jobs.next_similarity_request_id();
-    controller.runtime.pending_focused_similarity_query = Some(PendingFocusedSimilarityQuery {
+    controller.runtime.similarity.pending_focused_query = Some(PendingFocusedSimilarityQuery {
         request_id,
         source_id: source.id.clone(),
         relative_path: pending.relative_path.clone(),
@@ -87,10 +87,10 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
         snapshot.entry_paths.as_ref(),
     );
     if let Some(query) = loaded::cached_loaded_similarity_query(
-        controller.runtime.loaded_similarity_query_cache.as_ref(),
+        controller.runtime.similarity.loaded_query_cache.as_ref(),
         &request,
     ) {
-        controller.runtime.pending_loaded_similarity_query = None;
+        controller.runtime.similarity.pending_loaded_query = None;
         controller.ui.browser.search.search_busy = false;
         controller.clear_progress_task(ProgressTaskKind::Search);
         controller.ui.browser.search.similar_query = Some(query);
@@ -102,7 +102,7 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
         return Ok(());
     }
     let request_id = controller.runtime.jobs.next_similarity_request_id();
-    controller.runtime.pending_loaded_similarity_query = Some(PendingLoadedSimilarityQuery {
+    controller.runtime.similarity.pending_loaded_query = Some(PendingLoadedSimilarityQuery {
         request_id,
         source_id: source.id.clone(),
         relative_path: loaded_relative_path.clone(),

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 pub(crate) fn apply_similarity_query(controller: &mut AppController, query: SimilarQuery) {
     cancel_pending_similarity_filter_rebuild(controller);
-    controller.runtime.pending_loaded_similarity_query = None;
+    controller.runtime.similarity.pending_loaded_query = None;
     controller.ui.browser.search.similar_query = Some(query);
     controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
     controller.ui.browser.search.similarity_sort_follow_loaded = false;
@@ -23,7 +23,7 @@ pub(crate) fn apply_similarity_query(controller: &mut AppController, query: Simi
 
 pub(crate) fn clear_similar_filter(controller: &mut AppController) {
     cancel_pending_similarity_filter_rebuild(controller);
-    controller.runtime.pending_loaded_similarity_query = None;
+    controller.runtime.similarity.pending_loaded_query = None;
     if controller.ui.browser.search.similar_query.take().is_some() {
         controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
         controller.ui.browser.search.similarity_sort_follow_loaded = false;
@@ -33,7 +33,7 @@ pub(crate) fn clear_similar_filter(controller: &mut AppController) {
 
 pub(crate) fn disable_similarity_sort(controller: &mut AppController) {
     cancel_pending_similarity_filter_rebuild(controller);
-    controller.runtime.pending_loaded_similarity_query = None;
+    controller.runtime.similarity.pending_loaded_query = None;
     controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.search.similarity_sort_follow_loaded = false;
     controller.ui.browser.search.similar_query = None;
@@ -41,7 +41,7 @@ pub(crate) fn disable_similarity_sort(controller: &mut AppController) {
 }
 
 pub(crate) fn cancel_pending_similarity_filter_rebuild(controller: &mut AppController) {
-    controller.runtime.pending_similarity_filter_rebuild = None;
+    controller.runtime.similarity.pending_filter_rebuild = None;
 }
 
 pub(crate) fn schedule_similarity_filter_rebuild_after_delete(
@@ -79,7 +79,7 @@ pub(crate) fn schedule_similarity_filter_rebuild_after_delete_with_state(
     let next_anchor_path = next_similarity_anchor_after_delete(controller, &query, deleted_paths);
     clear_manual_similarity_filter_state_without_rebuild(controller);
     if let Some(anchor_relative_path) = next_anchor_path {
-        controller.runtime.pending_similarity_filter_rebuild = Some(
+        controller.runtime.similarity.pending_filter_rebuild = Some(
             crate::app::controller::state::runtime::PendingSimilarityFilterRebuild {
                 source_id: selected_source_id,
                 anchor_relative_path,
@@ -89,7 +89,7 @@ pub(crate) fn schedule_similarity_filter_rebuild_after_delete_with_state(
 }
 
 pub(crate) fn apply_pending_similarity_filter_rebuild(controller: &mut AppController) {
-    let Some(pending) = controller.runtime.pending_similarity_filter_rebuild.clone() else {
+    let Some(pending) = controller.runtime.similarity.pending_filter_rebuild.clone() else {
         return;
     };
     if controller.selected_source_id().as_ref() != Some(&pending.source_id) {
@@ -118,7 +118,7 @@ pub(crate) fn apply_pending_similarity_filter_rebuild(controller: &mut AppContro
 }
 
 fn clear_manual_similarity_filter_state_without_rebuild(controller: &mut AppController) {
-    controller.runtime.pending_loaded_similarity_query = None;
+    controller.runtime.similarity.pending_loaded_query = None;
     controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.search.similarity_sort_follow_loaded = false;
     controller.ui.browser.search.similar_query = None;

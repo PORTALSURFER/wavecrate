@@ -87,8 +87,8 @@ impl AppController {
         self.runtime
             .jobs
             .set_pending_playback(pending_playback.clone());
-        self.runtime.pending_waveform_render = None;
-        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.waveform.pending_render = None;
+        self.runtime.waveform.pending_transient_compute = None;
         self.runtime.jobs.invalidate_waveform_render_requests();
         self.runtime.jobs.invalidate_waveform_transient_requests();
         self.ui.waveform.loading = Some(relative_path.to_path_buf());

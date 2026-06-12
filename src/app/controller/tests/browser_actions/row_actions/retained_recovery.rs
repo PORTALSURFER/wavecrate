@@ -29,7 +29,10 @@ fn delete_actions_warn_when_retained_recovery_is_processing_selected_rows() {
     std::fs::create_dir_all(source.root.join("busy")).unwrap();
     write_test_wav(&source.root.join("busy/one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("busy/two.wav"), &[0.0, 0.1]);
-    controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
+    controller
+        .runtime
+        .recovery
+        .active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
         entries: vec![RetainedDeleteBusyEntry {
             mode: RetainedDeleteResolutionMode::Restore,
             source_id: source.id.clone(),
@@ -65,7 +68,10 @@ fn normalize_actions_warn_when_retained_recovery_is_processing_selected_rows() {
     std::fs::create_dir_all(source.root.join("busy")).unwrap();
     write_test_wav(&source.root.join("busy/one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("busy/two.wav"), &[0.0, 0.1]);
-    controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
+    controller
+        .runtime
+        .recovery
+        .active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
         entries: vec![RetainedDeleteBusyEntry {
             mode: RetainedDeleteResolutionMode::Restore,
             source_id: source.id.clone(),

@@ -102,13 +102,14 @@ impl AppController {
         let key = request.key();
         if self
             .runtime
-            .pending_waveform_render
+            .waveform
+            .pending_render
             .as_ref()
             .is_some_and(|pending| pending.key == key)
         {
             return;
         }
-        self.runtime.pending_waveform_render = Some(PendingWaveformRender {
+        self.runtime.waveform.pending_render = Some(PendingWaveformRender {
             request_id,
             key,
             queued_at: Instant::now(),
@@ -219,7 +220,7 @@ impl AppController {
         self.ui.waveform.waveform_image_signature = None;
         self.projected_waveform_image_signature = None;
         self.projected_waveform_image = None;
-        self.runtime.pending_waveform_render = None;
+        self.runtime.waveform.pending_render = None;
         self.mark_waveform_projection_dirty();
         self.mark_derived_source_dirty(DerivedNodeId::StatusState, DirtyReason::StatusAction);
     }

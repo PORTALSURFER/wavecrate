@@ -173,7 +173,8 @@ impl AppController {
             self.ui.browser.search.latest_applied_search_request_id = message.request_id;
             self.ui.browser.search.search_busy = false;
             self.runtime
-                .pending_browser_search_metadata_delta_paths
+                .browser
+                .pending_search_metadata_delta_paths
                 .clear();
             self.clear_progress_task(ProgressTaskKind::Search);
             let pending_pane = self

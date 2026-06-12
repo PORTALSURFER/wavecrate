@@ -44,7 +44,8 @@ impl AppController {
     /// Return true when one browser-selection commit still needs frame-time dispatch.
     pub(crate) fn has_pending_browser_focus_commit(&self) -> bool {
         self.runtime
-            .browser_selection_transition
+            .browser
+            .selection_transition
             .as_ref()
             .is_some_and(BrowserSelectionTransition::commit_flush_pending)
     }
@@ -135,7 +136,8 @@ impl AppController {
     pub(crate) fn flush_pending_browser_focus_commit(&mut self) {
         let candidate_is_current = self
             .runtime
-            .browser_selection_transition
+            .browser
+            .selection_transition
             .as_ref()
             .is_some_and(|transition| self.browser_selection_transition_is_current(transition));
         self.reduce_browser_selection_transition(|machine| {
@@ -209,7 +211,8 @@ impl AppController {
     fn sync_browser_commit_focus_pending(&mut self) {
         self.ui.browser.selection.commit_focus_pending = self
             .runtime
-            .browser_selection_transition
+            .browser
+            .selection_transition
             .as_ref()
             .is_some_and(BrowserSelectionTransition::preview_pending);
     }
@@ -218,7 +221,7 @@ impl AppController {
         &mut self,
         reduce: impl FnOnce(BrowserSelectionTransitionMachine) -> BrowserSelectionTransitionOutcome,
     ) {
-        let current = self.runtime.browser_selection_transition.take();
+        let current = self.runtime.browser.selection_transition.take();
         let outcome = reduce(BrowserSelectionTransitionMachine::new(current));
         self.apply_browser_selection_transition_outcome(outcome);
     }
@@ -227,7 +230,7 @@ impl AppController {
         &mut self,
         outcome: BrowserSelectionTransitionOutcome,
     ) {
-        self.runtime.browser_selection_transition = outcome.transition;
+        self.runtime.browser.selection_transition = outcome.transition;
         self.sync_browser_commit_focus_pending();
         for effect in outcome.effects {
             match effect {

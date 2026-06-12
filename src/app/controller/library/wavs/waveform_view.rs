@@ -29,8 +29,8 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     if let Some(player) = controller.audio.player.as_ref() {
         player.borrow_mut().stop();
     }
-    controller.runtime.pending_waveform_render = None;
-    controller.runtime.pending_waveform_transient_compute = None;
+    controller.runtime.waveform.pending_render = None;
+    controller.runtime.waveform.pending_transient_compute = None;
     controller
         .runtime
         .jobs
@@ -42,7 +42,7 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.runtime.jobs.set_pending_audio(None);
     controller.runtime.jobs.set_staged_audio_handoff(None);
     controller.runtime.jobs.set_pending_playback(None);
-    controller.runtime.browser_selection_transition = None;
+    controller.runtime.browser.selection_transition = None;
     controller.ui.browser.selection.commit_focus_pending = false;
     controller.mark_waveform_projection_dirty();
 }

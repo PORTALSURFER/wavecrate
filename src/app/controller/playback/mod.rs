@@ -150,7 +150,7 @@ impl AppController {
 
     /// Return true when a deferred volume-setting persistence write is queued.
     pub(crate) fn has_pending_volume_setting_flush(&self) -> bool {
-        self.runtime.volume_persist_dirty
+        self.runtime.config_persistence.volume_persist_dirty
     }
 
     /// Flush a pending deferred waveform seek commit if due.
@@ -160,13 +160,13 @@ impl AppController {
 
     /// Return true when a deferred waveform-seek commit is queued.
     pub(crate) fn has_pending_waveform_seek_commit(&self) -> bool {
-        self.runtime.pending_waveform_seek_nanos.is_some()
+        self.runtime.waveform.pending_seek_nanos.is_some()
     }
 
     #[cfg(test)]
     /// Expose queued deferred waveform seek target for controller/runtime tests.
     pub(crate) fn pending_waveform_seek_nanos_for_test(&self) -> Option<u32> {
-        self.runtime.pending_waveform_seek_nanos
+        self.runtime.waveform.pending_seek_nanos
     }
 
     /// Toggle between play and pause.

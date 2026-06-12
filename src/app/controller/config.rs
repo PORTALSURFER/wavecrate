@@ -46,22 +46,23 @@ impl AppController {
                 },
             )
             .collect::<Vec<_>>();
-        self.runtime.deferred_startup_source_db_maintenance_jobs = jobs;
-        self.runtime.deferred_startup_source_db_maintenance_armed = !self
+        self.runtime.startup.deferred_source_db_maintenance_jobs = jobs;
+        self.runtime.startup.deferred_source_db_maintenance_armed = !self
             .runtime
-            .deferred_startup_source_db_maintenance_jobs
+            .startup
+            .deferred_source_db_maintenance_jobs
             .is_empty();
-        self.runtime.startup_frame_prepare_count = 0;
+        self.runtime.startup.frame_prepare_count = 0;
     }
 
     /// Launch deferred startup source-db maintenance after the first prepared frame.
     pub(crate) fn flush_deferred_startup_source_db_maintenance(&mut self) {
-        if !self.runtime.deferred_startup_source_db_maintenance_armed {
+        if !self.runtime.startup.deferred_source_db_maintenance_armed {
             return;
         }
-        self.runtime.startup_frame_prepare_count =
-            self.runtime.startup_frame_prepare_count.saturating_add(1);
-        if self.runtime.startup_frame_prepare_count < 2 {
+        self.runtime.startup.frame_prepare_count =
+            self.runtime.startup.frame_prepare_count.saturating_add(1);
+        if self.runtime.startup.frame_prepare_count < 2 {
             return;
         }
         if self.runtime.jobs.source_db_maintenance_in_progress() {
@@ -69,7 +70,7 @@ impl AppController {
         }
         let mut ready = Vec::new();
         let mut deferred = Vec::new();
-        for job in std::mem::take(&mut self.runtime.deferred_startup_source_db_maintenance_jobs) {
+        for job in std::mem::take(&mut self.runtime.startup.deferred_source_db_maintenance_jobs) {
             if self.source_has_pending_file_mutations(&job.source_id) {
                 deferred.push(job);
             } else {
@@ -78,17 +79,18 @@ impl AppController {
         }
         // Browser file ops own the source write lane briefly; maintenance is
         // recoverable and can wait for the same source while other sources run.
-        self.runtime.deferred_startup_source_db_maintenance_jobs = deferred;
-        self.runtime.deferred_startup_source_db_maintenance_armed = !self
+        self.runtime.startup.deferred_source_db_maintenance_jobs = deferred;
+        self.runtime.startup.deferred_source_db_maintenance_armed = !self
             .runtime
-            .deferred_startup_source_db_maintenance_jobs
+            .startup
+            .deferred_source_db_maintenance_jobs
             .is_empty();
         self.runtime.jobs.begin_source_db_maintenance(ready);
     }
 
     /// Return true when startup-deferred source-db maintenance is armed.
     pub(crate) fn has_pending_startup_source_db_maintenance(&self) -> bool {
-        self.runtime.deferred_startup_source_db_maintenance_armed
+        self.runtime.startup.deferred_source_db_maintenance_armed
     }
 
     /// Clear probed audio option state and arm a refresh after the first presented frame.
@@ -103,21 +105,22 @@ impl AppController {
         self.ui.audio.input_sample_rates.clear();
         self.ui.audio.input_channel_count = 0;
         self.ui.audio.input_warning = None;
-        self.runtime.deferred_startup_audio_refresh.armed = true;
-        self.runtime.deferred_startup_audio_refresh.prepare_count = 0;
+        self.runtime.startup.deferred_audio_refresh.armed = true;
+        self.runtime.startup.deferred_audio_refresh.prepare_count = 0;
     }
 
     /// Run the deferred startup audio refresh after first paint reaches the screen.
     pub(crate) fn flush_deferred_startup_audio_refresh(&mut self) {
-        if !self.runtime.deferred_startup_audio_refresh.armed {
+        if !self.runtime.startup.deferred_audio_refresh.armed {
             return;
         }
-        self.runtime.deferred_startup_audio_refresh.prepare_count = self
+        self.runtime.startup.deferred_audio_refresh.prepare_count = self
             .runtime
-            .deferred_startup_audio_refresh
+            .startup
+            .deferred_audio_refresh
             .prepare_count
             .saturating_add(1);
-        if self.runtime.deferred_startup_audio_refresh.prepare_count < 2 {
+        if self.runtime.startup.deferred_audio_refresh.prepare_count < 2 {
             return;
         }
         self.ensure_startup_audio_refresh();
@@ -125,16 +128,16 @@ impl AppController {
 
     /// Return true when startup audio probing is still pending.
     pub(crate) fn has_pending_startup_audio_refresh(&self) -> bool {
-        self.runtime.deferred_startup_audio_refresh.armed
+        self.runtime.startup.deferred_audio_refresh.armed
     }
 
     /// Complete the deferred startup audio probe immediately when settings are opened early.
     pub(crate) fn ensure_startup_audio_refresh(&mut self) {
-        if !self.runtime.deferred_startup_audio_refresh.armed {
+        if !self.runtime.startup.deferred_audio_refresh.armed {
             return;
         }
-        self.runtime.deferred_startup_audio_refresh.armed = false;
-        self.runtime.deferred_startup_audio_refresh.prepare_count = 0;
+        self.runtime.startup.deferred_audio_refresh.armed = false;
+        self.runtime.startup.deferred_audio_refresh.prepare_count = 0;
         self.perform_startup_audio_refresh();
     }
 

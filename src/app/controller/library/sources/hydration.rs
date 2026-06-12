@@ -120,7 +120,7 @@ impl AppController {
         self.clear_browser_projection_for_source_loading();
         self.wav_entries.clear();
         self.sample_view.wav.selected_wav = None;
-        self.runtime.pending_similarity_filter_rebuild = None;
+        self.runtime.similarity.pending_filter_rebuild = None;
         self.clear_focused_similarity_highlight();
         self.clear_waveform_view();
         self.clear_folder_projection_state(self.active_folder_pane());
@@ -180,7 +180,7 @@ impl AppController {
     /// Return whether startup should stop after page-0 hydration and defer heavier follow-up work.
     fn defer_startup_source_follow_up_work(&self, kind: SourceHydrationKind) -> bool {
         kind == SourceHydrationKind::ActiveSelection
-            && self.runtime.deferred_startup_source_db_maintenance_armed
-            && self.runtime.startup_frame_prepare_count == 0
+            && self.runtime.startup.deferred_source_db_maintenance_armed
+            && self.runtime.startup.frame_prepare_count == 0
     }
 }

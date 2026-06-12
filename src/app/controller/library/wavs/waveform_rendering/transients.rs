@@ -12,14 +12,15 @@ impl AppController {
         }
         if self
             .runtime
-            .pending_waveform_transient_compute
+            .waveform
+            .pending_transient_compute
             .as_ref()
             .is_some_and(|pending| pending.cache_token == decoded.cache_token)
         {
             return;
         }
         let request_id = self.runtime.jobs.next_waveform_transient_request_id();
-        self.runtime.pending_waveform_transient_compute = Some(PendingWaveformTransientCompute {
+        self.runtime.waveform.pending_transient_compute = Some(PendingWaveformTransientCompute {
             request_id,
             cache_token: decoded.cache_token,
             queued_at: Instant::now(),

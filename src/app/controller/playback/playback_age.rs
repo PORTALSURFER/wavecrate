@@ -68,8 +68,8 @@ impl AppController {
         if !should_defer {
             return;
         }
-        self.runtime.pending_age_update_commit = self.audio.pending_age_update.take();
-        self.runtime.pending_age_update_commit_not_before =
+        self.runtime.browser.pending_age_update_commit = self.audio.pending_age_update.take();
+        self.runtime.browser.pending_age_update_commit_not_before =
             Some(Instant::now() + DEFERRED_PLAYBACK_AGE_COMMIT_DELAY);
     }
 
@@ -77,13 +77,14 @@ impl AppController {
     pub(crate) fn flush_pending_age_update_commit(&mut self) {
         if self
             .runtime
+            .browser
             .pending_age_update_commit_not_before
             .is_some_and(|deadline| Instant::now() < deadline)
         {
             return;
         }
-        self.runtime.pending_age_update_commit_not_before = None;
-        let Some(update) = self.runtime.pending_age_update_commit.take() else {
+        self.runtime.browser.pending_age_update_commit_not_before = None;
+        let Some(update) = self.runtime.browser.pending_age_update_commit.take() else {
             return;
         };
         self.commit_pending_age_update_value(update);
@@ -91,7 +92,7 @@ impl AppController {
 
     /// Return true when deferred playback-age persistence is queued.
     pub(crate) fn has_pending_age_update_commit(&self) -> bool {
-        self.runtime.pending_age_update_commit.is_some()
+        self.runtime.browser.pending_age_update_commit.is_some()
     }
 
     /// Commit any pending playback age update to the database and refresh the UI.

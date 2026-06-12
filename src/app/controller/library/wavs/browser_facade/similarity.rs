@@ -27,7 +27,7 @@ impl AppController {
         &mut self,
         result: LoadedSimilarityQueryResult,
     ) {
-        let Some(pending) = self.runtime.pending_loaded_similarity_query.as_ref() else {
+        let Some(pending) = self.runtime.similarity.pending_loaded_query.as_ref() else {
             return;
         };
         if pending.request_id != result.request_id
@@ -37,7 +37,7 @@ impl AppController {
         {
             return;
         }
-        self.runtime.pending_loaded_similarity_query = None;
+        self.runtime.similarity.pending_loaded_query = None;
         let still_loaded = self
             .sample_view
             .wav
@@ -61,7 +61,7 @@ impl AppController {
         }
         match result.result {
             Ok(data) => {
-                self.runtime.loaded_similarity_query_cache = Some(
+                self.runtime.similarity.loaded_query_cache = Some(
                     crate::app::controller::library::wavs::similar::build_loaded_similarity_query_cache(
                         &data,
                     ),

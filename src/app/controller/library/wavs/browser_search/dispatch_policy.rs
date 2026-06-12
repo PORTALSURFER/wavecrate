@@ -52,7 +52,8 @@ impl AppController {
         self.ui.browser.search.latest_applied_search_request_id =
             self.ui.browser.search.latest_search_request_id;
         self.runtime
-            .pending_browser_search_metadata_delta_paths
+            .browser
+            .pending_search_metadata_delta_paths
             .clear();
     }
 
@@ -112,12 +113,14 @@ impl AppController {
         }
         if !metadata_delta_paths.is_empty() {
             self.runtime
-                .pending_browser_search_metadata_delta_paths
+                .browser
+                .pending_search_metadata_delta_paths
                 .extend(metadata_delta_paths);
         }
         let metadata_delta_paths = self
             .runtime
-            .pending_browser_search_metadata_delta_paths
+            .browser
+            .pending_search_metadata_delta_paths
             .iter()
             .cloned()
             .collect();

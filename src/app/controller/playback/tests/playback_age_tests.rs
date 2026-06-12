@@ -18,10 +18,22 @@ fn deferred_pending_age_update_commit_waits_for_deadline() {
     });
 
     controller.defer_pending_age_update_commit_if_path_changes(Path::new("two.wav"));
-    assert!(controller.runtime.pending_age_update_commit.is_some());
+    assert!(
+        controller
+            .runtime
+            .browser
+            .pending_age_update_commit
+            .is_some()
+    );
 
     controller.flush_pending_age_update_commit();
-    assert!(controller.runtime.pending_age_update_commit.is_some());
+    assert!(
+        controller
+            .runtime
+            .browser
+            .pending_age_update_commit
+            .is_some()
+    );
 }
 
 /// Expired deferred playback-age commits should persist the queued timestamp and clear the queue.
@@ -53,8 +65,10 @@ fn flush_pending_age_update_commit_persists_last_played_after_deadline() {
         .expect("playback age update should be queued");
 
     controller.defer_pending_age_update_commit_if_path_changes(Path::new("two.wav"));
-    controller.runtime.pending_age_update_commit_not_before =
-        Some(Instant::now() - Duration::from_millis(1));
+    controller
+        .runtime
+        .browser
+        .pending_age_update_commit_not_before = Some(Instant::now() - Duration::from_millis(1));
 
     controller.flush_pending_age_update_commit();
 
@@ -62,6 +76,7 @@ fn flush_pending_age_update_commit_persists_last_played_after_deadline() {
     assert!(
         controller
             .runtime
+            .browser
             .pending_age_update_commit_not_before
             .is_none()
     );

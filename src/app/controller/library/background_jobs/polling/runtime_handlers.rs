@@ -16,23 +16,28 @@ use tracing::{info, warn};
 impl AppController {
     /// Apply one deferred configuration persistence completion.
     pub(super) fn handle_config_persist_finished_message(&mut self, message: ConfigPersistResult) {
-        let Some(pending) = self.runtime.pending_config_persist.as_ref() else {
+        let Some(pending) = self
+            .runtime
+            .config_persistence
+            .pending_config_persist
+            .as_ref()
+        else {
             return;
         };
         if pending.request_id != message.request_id {
             return;
         }
-        self.runtime.pending_config_persist = None;
+        self.runtime.config_persistence.pending_config_persist = None;
         match (message.job, message.result) {
             (ConfigPersistJob::SaveVolume { volume, .. }, Ok(())) => {
-                self.runtime.volume_persist_dirty = false;
-                self.runtime.volume_persist_deadline = None;
-                self.runtime.last_persisted_volume_milli =
+                self.runtime.config_persistence.volume_persist_dirty = false;
+                self.runtime.config_persistence.volume_persist_deadline = None;
+                self.runtime.config_persistence.last_persisted_volume_milli =
                     Some(((volume.clamp(0.0, 1.0) * 1000.0).round() as u16).min(1000));
             }
             (ConfigPersistJob::SaveVolume { .. }, Err(err)) => {
                 warn!(error = %err, "volume persistence failed");
-                self.runtime.volume_persist_deadline =
+                self.runtime.config_persistence.volume_persist_deadline =
                     Some(std::time::Instant::now() + std::time::Duration::from_millis(120));
                 self.set_status(format!("Failed to save volume: {err}"), StatusTone::Error);
             }
@@ -41,18 +46,18 @@ impl AppController {
 
     /// Apply one latest-only waveform image render completion.
     pub(super) fn handle_waveform_rendered_message(&mut self, message: WaveformRenderResult) {
-        let Some(pending) = self.runtime.pending_waveform_render.as_ref() else {
+        let Some(pending) = self.runtime.waveform.pending_render.as_ref() else {
             return;
         };
         if pending.request_id != message.request_id || pending.key != message.key {
             return;
         }
         if !self.waveform_render_key_matches_current_view(message.key) {
-            self.runtime.pending_waveform_render = None;
+            self.runtime.waveform.pending_render = None;
             self.refresh_waveform_image();
             return;
         }
-        self.runtime.pending_waveform_render = None;
+        self.runtime.waveform.pending_render = None;
         match message.result {
             Ok(visual) => {
                 self.store_prepared_waveform_image(
@@ -78,13 +83,13 @@ impl AppController {
         &mut self,
         message: WaveformTransientResult,
     ) {
-        let Some(pending) = self.runtime.pending_waveform_transient_compute.as_ref() else {
+        let Some(pending) = self.runtime.waveform.pending_transient_compute.as_ref() else {
             return;
         };
         if pending.request_id != message.request_id || pending.cache_token != message.cache_token {
             return;
         }
-        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.waveform.pending_transient_compute = None;
         let decoded_matches = self
             .sample_view
             .waveform
@@ -231,9 +236,10 @@ impl AppController {
         }
         if !deferred.is_empty() {
             self.runtime
-                .deferred_startup_source_db_maintenance_jobs
+                .startup
+                .deferred_source_db_maintenance_jobs
                 .extend(deferred);
-            self.runtime.deferred_startup_source_db_maintenance_armed = true;
+            self.runtime.startup.deferred_source_db_maintenance_armed = true;
         }
         if failed > 0 {
             let suffix = if failed == 1 { "" } else { "s" };

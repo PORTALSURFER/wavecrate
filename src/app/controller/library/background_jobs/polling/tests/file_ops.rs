@@ -65,7 +65,10 @@ fn retained_delete_resolution_result_clears_busy_scope_and_progress() {
         1,
         false,
     );
-    controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
+    controller
+        .runtime
+        .recovery
+        .active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
         entries: Vec::new(),
     });
     let (tx, rx) = channel();
@@ -94,6 +97,7 @@ fn retained_delete_resolution_result_clears_busy_scope_and_progress() {
     assert!(
         controller
             .runtime
+            .recovery
             .active_retained_delete_resolution
             .is_none()
     );

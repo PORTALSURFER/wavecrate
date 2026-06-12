@@ -28,7 +28,10 @@ fn deleting_folder_warns_when_retained_recovery_is_processing_the_folder() -> Re
         .position(|row| row.path == PathBuf::from("gone"))
         .unwrap();
     controller.focus_folder_row(focus_row);
-    controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
+    controller
+        .runtime
+        .recovery
+        .active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
         entries: vec![RetainedDeleteBusyEntry {
             mode: RetainedDeleteResolutionMode::Restore,
             source_id: source.id.clone(),
@@ -77,7 +80,10 @@ fn applying_pending_folder_rename_warns_when_retained_recovery_is_processing_the
         focus_requested: true,
         select_all_on_focus_requested: true,
     });
-    controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
+    controller
+        .runtime
+        .recovery
+        .active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
         entries: vec![RetainedDeleteBusyEntry {
             mode: RetainedDeleteResolutionMode::Restore,
             source_id: source.id.clone(),

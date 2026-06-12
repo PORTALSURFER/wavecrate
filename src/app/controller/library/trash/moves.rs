@@ -63,7 +63,7 @@ impl AppController {
 
         #[cfg(test)]
         {
-            let cancel_after = self.runtime.progress_cancel_after;
+            let cancel_after = self.runtime.test_faults.progress_cancel_after;
             let finished = run_trash_move_task_with_progress(
                 sources,
                 trash_root,

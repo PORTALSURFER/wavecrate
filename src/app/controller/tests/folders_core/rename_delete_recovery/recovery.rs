@@ -25,7 +25,10 @@ fn staged_delete_recovery_restores_after_crash() -> Result<(), String> {
     {
         controller.focus_folder_row(index);
     }
-    controller.runtime.fail_after_folder_delete_stage = true;
+    controller
+        .runtime
+        .test_faults
+        .fail_after_folder_delete_stage = true;
 
     controller.delete_focused_folder();
 
@@ -69,7 +72,10 @@ fn staged_delete_recovery_retains_deleted_folder_after_db_commit_crash() -> Resu
     {
         controller.focus_folder_row(index);
     }
-    controller.runtime.fail_after_folder_delete_db_commit = true;
+    controller
+        .runtime
+        .test_faults
+        .fail_after_folder_delete_db_commit = true;
 
     controller.delete_focused_folder();
 

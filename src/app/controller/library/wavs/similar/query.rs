@@ -43,13 +43,13 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
     let request =
         loaded::loaded_audio_request(&loaded_audio, snapshot.key, snapshot.entry_paths.as_ref());
     if let Some(query) = loaded::cached_loaded_similarity_query(
-        controller.runtime.loaded_similarity_query_cache.as_ref(),
+        controller.runtime.similarity.loaded_query_cache.as_ref(),
         &request,
     ) {
         return Ok(query);
     }
     let data = loaded::build_loaded_similarity_query_data_with_cache(&conn, &request)?;
-    controller.runtime.loaded_similarity_query_cache =
+    controller.runtime.similarity.loaded_query_cache =
         Some(loaded::build_loaded_similarity_query_cache(&data));
     Ok(data.query)
 }
@@ -221,7 +221,7 @@ mod tests {
             scores: vec![1.0],
             anchor_index: Some(0),
         };
-        controller.runtime.loaded_similarity_query_cache = Some(
+        controller.runtime.similarity.loaded_query_cache = Some(
             crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
                 sample_id,
                 query: expected.clone(),

@@ -15,7 +15,8 @@ fn rebuild_browser_lists_queues_feature_cache_refresh() {
     assert!(
         controller
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .is_some()
     );
 }
@@ -32,7 +33,8 @@ fn browser_feature_cache_refresh_updates_row_metadata() {
     controller.queue_feature_cache_refresh_for_browser();
     let pending = controller
         .runtime
-        .pending_browser_feature_cache_refresh
+        .browser
+        .pending_feature_cache_refresh
         .clone()
         .expect("pending feature cache refresh");
     let before = controller.ui.projection_revisions.browser_row_metadata;
@@ -82,7 +84,8 @@ fn stale_browser_feature_cache_refresh_is_dropped() {
     controller.queue_feature_cache_refresh_for_browser();
     let pending = controller
         .runtime
-        .pending_browser_feature_cache_refresh
+        .browser
+        .pending_feature_cache_refresh
         .clone()
         .expect("pending feature cache refresh");
 
@@ -154,7 +157,8 @@ fn browser_feature_cache_refresh_requeues_when_key_changes_without_length_change
 
     let pending = controller
         .runtime
-        .pending_browser_feature_cache_refresh
+        .browser
+        .pending_feature_cache_refresh
         .clone()
         .expect("pending reordered feature cache refresh");
     assert_ne!(pending.key, original_key);
@@ -212,14 +216,16 @@ fn reordered_same_length_snapshot_hides_stale_cached_feature_rows() {
     assert!(
         controller
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .is_some()
     );
     assert!(controller.cached_feature_status_for_entry(0).is_none());
 
     let pending = controller
         .runtime
-        .pending_browser_feature_cache_refresh
+        .browser
+        .pending_feature_cache_refresh
         .clone()
         .expect("pending reordered feature cache refresh");
     controller.apply_background_job_message_for_tests(JobMessage::BrowserFeatureCacheRefreshed(
@@ -281,7 +287,8 @@ fn feature_cache_refresh_snapshot_does_not_fault_wav_pages() {
     assert!(
         controller
             .runtime
-            .pending_browser_feature_cache_refresh
+            .browser
+            .pending_feature_cache_refresh
             .is_some()
     );
 }

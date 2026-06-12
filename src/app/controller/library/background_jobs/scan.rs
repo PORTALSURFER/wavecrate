@@ -70,7 +70,8 @@ fn handle_successful_scan(
     let scan_changed = !changed_samples.is_empty();
     let similarity_prep_active = controller
         .runtime
-        .similarity_prep
+        .similarity
+        .prep
         .as_ref()
         .is_some_and(|state| state.source_id == *source_id);
 

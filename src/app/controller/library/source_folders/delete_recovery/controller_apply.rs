@@ -25,10 +25,10 @@ use tracing::warn;
 impl AppController {
     /// Start background recovery for staged folder deletes after the UI is ready.
     pub(crate) fn start_folder_delete_recovery_if_needed(&mut self) {
-        if self.runtime.delete_recovery_started || self.library.sources.is_empty() {
+        if self.runtime.recovery.delete_recovery_started || self.library.sources.is_empty() {
             return;
         }
-        self.runtime.delete_recovery_started = true;
+        self.runtime.recovery.delete_recovery_started = true;
         self.ui.sources.folders.delete_recovery.in_progress = true;
         self.ui.sources.folders.delete_recovery.entries.clear();
         self.ui

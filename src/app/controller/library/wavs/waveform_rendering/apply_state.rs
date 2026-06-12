@@ -38,7 +38,7 @@ impl AppController {
         // identical to the previous render.
         self.sample_view.waveform.render_meta = None;
         self.sample_view.waveform.decoded = Some(decoded);
-        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.waveform.pending_transient_compute = None;
 
         // Reset view to show full waveform when loading new audio
         self.ui.waveform.view = WaveformView {

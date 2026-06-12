@@ -58,9 +58,9 @@ fn commit_focus_debounces_similarity_refresh_flush() {
 
     controller.prepare_ui_frame(false);
 
-    assert!(controller.runtime.pending_similarity_refresh.is_some());
+    assert!(controller.runtime.similarity.pending_refresh.is_some());
     controller.flush_pending_focused_similarity_highlight_refresh();
-    assert!(controller.runtime.pending_similarity_refresh.is_some());
+    assert!(controller.runtime.similarity.pending_refresh.is_some());
 }
 
 #[test]
@@ -105,16 +105,17 @@ fn commit_focus_flush_queues_async_similarity_query_without_immediate_highlight(
         PathBuf::from("one.wav"),
         Some(0),
     );
-    controller.runtime.pending_similarity_refresh_not_before =
+    controller.runtime.similarity.pending_refresh_not_before =
         Some(Instant::now() - Duration::from_millis(1));
 
     controller.flush_pending_focused_similarity_highlight_refresh();
 
-    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.similarity.pending_refresh.is_none());
     assert!(
         controller
             .runtime
-            .pending_focused_similarity_query
+            .similarity
+            .pending_focused_query
             .is_some()
     );
     assert!(controller.ui.browser.search.focused_similarity.is_none());
@@ -130,7 +131,7 @@ fn commit_focus_after_preview_same_row_applies_commit_side_effects() {
     controller.focus_browser_row_only(1);
 
     assert!(controller.history.focus_history.entries.is_empty());
-    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.similarity.pending_refresh.is_none());
     assert!(controller.ui.browser.selection.commit_focus_pending);
 
     assert!(controller.commit_focused_browser_row());
@@ -144,10 +145,11 @@ fn commit_focus_after_preview_same_row_applies_commit_side_effects() {
         .expect("focused history entry");
     assert_eq!(focused.relative_path, Path::new("two.wav"));
     assert!(
-        controller.runtime.pending_similarity_refresh.is_some()
+        controller.runtime.similarity.pending_refresh.is_some()
             || controller
                 .runtime
-                .pending_focused_similarity_query
+                .similarity
+                .pending_focused_query
                 .is_some()
     );
     assert!(!controller.ui.browser.selection.commit_focus_pending);
@@ -176,14 +178,14 @@ fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
     assert!(controller.ui.waveform.loading.is_none());
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.runtime.jobs.pending_playback.is_none());
-    assert!(controller.runtime.browser_selection_transition.is_some());
+    assert!(controller.runtime.browser.selection_transition.is_some());
     assert!(controller.history.focus_history.entries.is_empty());
-    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.similarity.pending_refresh.is_none());
 
     controller.prepare_ui_frame(false);
 
     assert!(
-        controller.runtime.browser_selection_transition.is_some()
+        controller.runtime.browser.selection_transition.is_some()
             || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"))
     );
     assert_audio_dispatch_reached_target(&controller, Path::new("two.wav"));
@@ -195,7 +197,7 @@ fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
             .back()
             .is_some_and(|entry| entry.relative_path == Path::new("two.wav"))
     );
-    assert!(controller.runtime.pending_similarity_refresh.is_some());
+    assert!(controller.runtime.similarity.pending_refresh.is_some());
 }
 
 #[test]
@@ -227,7 +229,7 @@ fn stale_commit_focus_loading_is_dropped_when_focus_changes_before_prepare() {
     assert!(controller.runtime.jobs.pending_playback.is_none());
     assert!(controller.ui.waveform.loading.is_none());
     assert!(controller.history.focus_history.entries.is_empty());
-    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.similarity.pending_refresh.is_none());
 }
 
 #[test]

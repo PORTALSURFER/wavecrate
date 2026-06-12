@@ -70,7 +70,7 @@ fn controller_with_similarity_prep_source() -> (AppController, tempfile::TempDir
     let source = SampleSource::new(root);
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     controller.library.sources.push(source.clone());
-    controller.runtime.similarity_prep =
+    controller.runtime.similarity.prep =
         Some(state::build_initial_state(state::SimilarityPrepInit {
             source_id: source.id,
             umap_version: "test-umap".to_string(),
@@ -91,7 +91,8 @@ fn embedding_progress_error_keeps_similarity_prep_waiting() {
     assert_eq!(
         controller
             .runtime
-            .similarity_prep
+            .similarity
+            .prep
             .as_ref()
             .map(|state| state.stage),
         Some(SimilarityPrepStage::AwaitEmbeddings)

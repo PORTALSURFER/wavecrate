@@ -8,8 +8,8 @@ use crate::app::controller::ui::status_message::StatusMessage;
 impl AppController {
     /// Run similarity prep for the selected source using current settings.
     pub fn prepare_similarity_for_selected_source(&mut self) {
-        let force_full_analysis = self.runtime.similarity_prep_force_full_analysis_next;
-        self.runtime.similarity_prep_force_full_analysis_next = false;
+        let force_full_analysis = self.runtime.similarity.prep_force_full_analysis_next;
+        self.runtime.similarity.prep_force_full_analysis_next = false;
         self.prepare_similarity_for_selected_source_with_options(force_full_analysis);
     }
 
@@ -18,18 +18,18 @@ impl AppController {
         &mut self,
         force_full_analysis: bool,
     ) {
-        self.runtime.similarity_prep_last_error = None;
+        self.runtime.similarity.prep_last_error = None;
 
         // Cooldown to prevent rapid repeated attempts (e.g., from map view every frame)
         const SIMILARITY_PREP_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5);
-        if let Some(last_attempt) = self.runtime.similarity_prep_last_attempt
+        if let Some(last_attempt) = self.runtime.similarity.prep_last_attempt
             && last_attempt.elapsed() < SIMILARITY_PREP_COOLDOWN
         {
             return; // Too soon, skip
         }
-        self.runtime.similarity_prep_last_attempt = Some(std::time::Instant::now());
+        self.runtime.similarity.prep_last_attempt = Some(std::time::Instant::now());
 
-        if self.runtime.similarity_prep.is_some() {
+        if self.runtime.similarity.prep.is_some() {
             self.refresh_similarity_prep_progress();
             self.set_status_message(StatusMessage::SimilarityPrepAlreadyRunning);
             return;
@@ -55,7 +55,7 @@ impl AppController {
             self.ui.map.umap_version.clone(),
             force_full_analysis,
         );
-        self.runtime.similarity_prep = Some(plan.state);
+        self.runtime.similarity.prep = Some(plan.state);
         self.apply_similarity_prep_duration_cap();
         self.apply_similarity_prep_fast_mode();
         self.apply_similarity_prep_full_analysis(force_full_analysis);
@@ -76,17 +76,17 @@ impl AppController {
 
     /// Toggle forcing a full analysis on the next similarity prep run.
     pub fn set_similarity_prep_force_full_analysis_next(&mut self, enabled: bool) {
-        self.runtime.similarity_prep_force_full_analysis_next = enabled;
+        self.runtime.similarity.prep_force_full_analysis_next = enabled;
     }
 
     /// Return whether the next similarity prep will force full analysis.
     pub fn similarity_prep_force_full_analysis_next(&self) -> bool {
-        self.runtime.similarity_prep_force_full_analysis_next
+        self.runtime.similarity.prep_force_full_analysis_next
     }
 
     /// Return true when similarity prep or related jobs are running.
     pub fn similarity_prep_in_progress(&self) -> bool {
-        self.runtime.similarity_prep.is_some()
+        self.runtime.similarity.prep.is_some()
             || self.runtime.jobs.scan_in_progress()
             || self.runtime.jobs.umap_build_in_progress()
             || self.runtime.jobs.umap_cluster_build_in_progress()
@@ -94,20 +94,21 @@ impl AppController {
 
     /// Return true if the last similarity prep run recorded an error.
     pub fn similarity_prep_has_error(&self) -> bool {
-        self.runtime.similarity_prep_last_error.is_some()
+        self.runtime.similarity.prep_last_error.is_some()
     }
 
     /// Return true if similarity prep is in the finalizing stage.
     pub fn similarity_prep_is_finalizing(&self) -> bool {
         self.runtime
-            .similarity_prep
+            .similarity
+            .prep
             .as_ref()
             .is_some_and(|state| state.stage == SimilarityPrepStage::Finalizing)
     }
 
     /// Return a debug summary of the current similarity prep state.
     pub fn similarity_prep_debug_snapshot(&self) -> String {
-        let Some(state) = self.runtime.similarity_prep.as_ref() else {
+        let Some(state) = self.runtime.similarity.prep.as_ref() else {
             return "similarity_prep=idle".to_string();
         };
         let mut out = format!(
