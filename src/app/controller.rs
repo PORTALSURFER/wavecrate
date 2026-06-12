@@ -45,7 +45,7 @@ use crate::{
     app::state::UiState,
     app::view_model,
     audio::AudioPlayer,
-    sample_sources::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry},
+    sample_sources::{SampleSource, SourceId, WavEntry},
     selection::SelectionRange,
     waveform::WaveformRenderer,
 };
