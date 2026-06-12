@@ -145,6 +145,26 @@ fn production_app_core_legacy_crossings_go_through_app_api() {
 }
 
 #[test]
+fn app_api_state_dto_inventory_points_at_active_followup() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!("{manifest_dir}/src/app_core/app_api.rs"))
+        .expect("src/app_core/app_api.rs should be readable");
+
+    assert!(
+        !source.contains("OPT-676"),
+        "app_api state DTO cleanup must not point at OPT-676; that issue now tracks completed browser tag-sidebar projection work"
+    );
+    assert!(
+        source.contains("Browser/source/map/audio state DTOs") && source.contains("| `OPT-677` |"),
+        "app_api migration inventory should map remaining legacy state DTO exports to OPT-677"
+    );
+    assert!(
+        source.contains("while OPT-677 replaces legacy state usage"),
+        "test-only legacy state DTO exports should mention the active OPT-677 follow-up"
+    );
+}
+
+#[test]
 fn production_native_app_modules_do_not_import_test_support_facade() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let native_app_root = manifest_dir.join("src/native_app");
