@@ -1,4 +1,7 @@
-use super::{PlaybackCommand, PlaybackMode, log_slow_playback_phase};
+use super::{
+    diagnostics::log_slow_playback_phase,
+    intent::{PlaybackCommand, PlaybackMode},
+};
 use crate::native_app::app::WaveformState;
 use std::time::Instant;
 use wavecrate::audio::{AudioPlayer, ResolvedOutput, edit_fade_range_from_selection};

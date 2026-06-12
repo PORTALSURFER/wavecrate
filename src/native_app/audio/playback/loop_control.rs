@@ -1,7 +1,8 @@
-use super::{
-    AudioPlayer, Instant, NativeAppState, emit_gui_action,
-    span::{loop_retarget_offset_for_selection, playback_span_matches_selection},
-};
+use std::time::Instant;
+
+use super::span::{loop_retarget_offset_for_selection, playback_span_matches_selection};
+use crate::native_app::app::{NativeAppState, emit_gui_action};
+use wavecrate::audio::AudioPlayer;
 
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {

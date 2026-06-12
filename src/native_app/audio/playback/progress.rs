@@ -1,4 +1,7 @@
-use super::{Instant, NativeAppState, PLAYBACK_START_ACTIVE_SOURCE_GRACE, emit_gui_action};
+use std::time::Instant;
+
+use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
+use crate::native_app::app::{NativeAppState, emit_gui_action};
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
     gui::types::{Rect, Rgba8},
