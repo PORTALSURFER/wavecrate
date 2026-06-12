@@ -1,9 +1,15 @@
 use super::super::*;
-use crate::app::state::StatusTone;
+use crate::app::state::{SampleBrowserTab, StatusTone};
 use crate::sample_sources::{SampleSoundType, SampleSource};
 use std::path::PathBuf;
 
 impl AppController {
+    /// Toggle the browser-local metadata sidebar inside the list tab.
+    pub(crate) fn toggle_browser_tag_sidebar(&mut self) {
+        let is_list_tab = matches!(self.ui.browser.active_tab, SampleBrowserTab::List);
+        self.ui.browser.tag_sidebar_open = is_list_tab && !self.ui.browser.tag_sidebar_open;
+    }
+
     /// Toggle whether sidebar metadata edits should auto-rename edited samples.
     pub(crate) fn toggle_browser_tag_sidebar_auto_rename(&mut self) {
         self.ui.browser.tag_sidebar_auto_rename = !self.ui.browser.tag_sidebar_auto_rename;
