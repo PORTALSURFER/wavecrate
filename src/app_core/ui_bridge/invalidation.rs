@@ -1,6 +1,6 @@
-use crate::app_core::actions::NativeUiAction;
 #[cfg(test)]
 use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
+use crate::app_core::actions::{NativeOptionsAction, NativeUiAction};
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 
 /// Return whether an action requires unconditional projection-cache invalidation.
@@ -40,8 +40,8 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::ZoomWaveform { .. }
             | NativeUiAction::ZoomWaveformToSelection
             | NativeUiAction::ZoomWaveformFull
-            | NativeUiAction::SetVolume { .. }
-            | NativeUiAction::CommitVolumeSetting
+            | NativeUiAction::Options(NativeOptionsAction::SetVolume { .. })
+            | NativeUiAction::Options(NativeOptionsAction::CommitVolumeSetting)
     )
 }
 
@@ -255,8 +255,8 @@ pub(super) fn classify_dirty_source(
             crate::app_core::actions::NativeTransportAction::ToggleTransport,
         )
         | NativeUiAction::ToggleLoopPlayback
-        | NativeUiAction::SetVolume { .. }
-        | NativeUiAction::CommitVolumeSetting => {
+        | NativeUiAction::Options(NativeOptionsAction::SetVolume { .. })
+        | NativeUiAction::Options(NativeOptionsAction::CommitVolumeSetting) => {
             Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
         }
         NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
@@ -272,14 +272,14 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::OpenUpdateLink
         | NativeUiAction::InstallUpdate
         | NativeUiAction::DismissUpdate
-        | NativeUiAction::OpenOptionsMenu
-        | NativeUiAction::CloseOptionsPanel
-        | NativeUiAction::PickTrashFolder
-        | NativeUiAction::OpenTrashFolder
-        | NativeUiAction::SetInputMonitoringEnabled { .. }
-        | NativeUiAction::SetAdvanceAfterRatingEnabled { .. }
-        | NativeUiAction::SetDestructiveYoloMode { .. }
-        | NativeUiAction::SetInvertWaveformScroll { .. }
+        | NativeUiAction::Options(NativeOptionsAction::OpenOptionsMenu)
+        | NativeUiAction::Options(NativeOptionsAction::CloseOptionsPanel)
+        | NativeUiAction::Options(NativeOptionsAction::PickTrashFolder)
+        | NativeUiAction::Options(NativeOptionsAction::OpenTrashFolder)
+        | NativeUiAction::Options(NativeOptionsAction::SetInputMonitoringEnabled { .. })
+        | NativeUiAction::Options(NativeOptionsAction::SetAdvanceAfterRatingEnabled { .. })
+        | NativeUiAction::Options(NativeOptionsAction::SetDestructiveYoloMode { .. })
+        | NativeUiAction::Options(NativeOptionsAction::SetInvertWaveformScroll { .. })
         | NativeUiAction::ConfirmPrompt
         | NativeUiAction::CancelPrompt
         | NativeUiAction::CancelProgress

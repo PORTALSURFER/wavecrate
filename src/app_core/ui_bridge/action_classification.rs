@@ -1,6 +1,6 @@
-use crate::app_core::actions::NativeUiAction;
 #[cfg(test)]
 use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
+use crate::app_core::actions::{NativeOptionsAction, NativeUiAction};
 
 /// Interaction classes tracked by UI bridge profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,7 +92,8 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
-        NativeUiAction::SetVolume { .. } | NativeUiAction::CommitVolumeSetting => {
+        NativeUiAction::Options(NativeOptionsAction::SetVolume { .. })
+        | NativeUiAction::Options(NativeOptionsAction::CommitVolumeSetting) => {
             Some(InteractionActionClass::Volume)
         }
         _ => None,
@@ -173,8 +174,8 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::ConfirmFolderCreate
             | NativeUiAction::CancelFolderCreate
             | NativeUiAction::StartFolderRename
-            | NativeUiAction::OpenOptionsMenu
-            | NativeUiAction::CloseOptionsPanel
+            | NativeUiAction::Options(NativeOptionsAction::OpenOptionsMenu)
+            | NativeUiAction::Options(NativeOptionsAction::CloseOptionsPanel)
             | NativeUiAction::SetPromptInput { .. }
             | NativeUiAction::ToggleBrowserDuplicateCleanupMode
             | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }

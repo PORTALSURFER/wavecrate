@@ -87,7 +87,10 @@ mod tests {
                 NativeUiActionDomain::Transport,
                 GuiActionKind::ToggleTransport,
             ),
-            (NativeUiActionDomain::Shell, GuiActionKind::OpenOptionsMenu),
+            (
+                NativeUiActionDomain::Options,
+                GuiActionKind::OpenOptionsMenu,
+            ),
             (
                 NativeUiActionDomain::SourcesAndFolders,
                 GuiActionKind::FocusSourceRow,

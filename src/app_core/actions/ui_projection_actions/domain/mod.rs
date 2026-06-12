@@ -4,7 +4,7 @@
 //! invalidation, and tests can migrate by domain without treating the root
 //! action enum as one undifferentiated API.
 
-use super::UiAction;
+use super::{OptionsAction, UiAction};
 
 /// Stable domain family for a Wavecrate UI action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -68,24 +68,26 @@ impl UiAction {
             UiAction::FocusBrowserSearch => UiActionDomain::Shell,
             UiAction::BlurBrowserSearch => UiActionDomain::Shell,
             UiAction::OpenAddSourceDialog => UiActionDomain::Shell,
-            UiAction::OpenOptionsMenu => UiActionDomain::Shell,
-            UiAction::CloseOptionsPanel => UiActionDomain::Shell,
-            UiAction::PickTrashFolder => UiActionDomain::Shell,
-            UiAction::OpenTrashFolder => UiActionDomain::Shell,
-            UiAction::EditDefaultIdentifier => UiActionDomain::Shell,
-            UiAction::ShowOptionsOverview => UiActionDomain::Shell,
-            UiAction::OpenAudioOutputHostPicker => UiActionDomain::Shell,
-            UiAction::OpenAudioOutputDevicePicker => UiActionDomain::Shell,
-            UiAction::OpenAudioOutputSampleRatePicker => UiActionDomain::Shell,
-            UiAction::OpenAudioInputHostPicker => UiActionDomain::Shell,
-            UiAction::OpenAudioInputDevicePicker => UiActionDomain::Shell,
-            UiAction::OpenAudioInputSampleRatePicker => UiActionDomain::Shell,
-            UiAction::SetAudioOutputHost { .. } => UiActionDomain::Shell,
-            UiAction::SetAudioOutputDevice { .. } => UiActionDomain::Shell,
-            UiAction::SetAudioOutputSampleRate { .. } => UiActionDomain::Shell,
-            UiAction::SetAudioInputHost { .. } => UiActionDomain::Shell,
-            UiAction::SetAudioInputDevice { .. } => UiActionDomain::Shell,
-            UiAction::SetAudioInputSampleRate { .. } => UiActionDomain::Shell,
+            UiAction::Options(OptionsAction::OpenOptionsMenu)
+            | UiAction::Options(OptionsAction::CloseOptionsPanel)
+            | UiAction::Options(OptionsAction::PickTrashFolder)
+            | UiAction::Options(OptionsAction::OpenTrashFolder)
+            | UiAction::Options(OptionsAction::EditDefaultIdentifier)
+            | UiAction::Options(OptionsAction::ShowOptionsOverview)
+            | UiAction::Options(OptionsAction::OpenAudioOutputHostPicker)
+            | UiAction::Options(OptionsAction::OpenAudioOutputDevicePicker)
+            | UiAction::Options(OptionsAction::OpenAudioOutputSampleRatePicker)
+            | UiAction::Options(OptionsAction::OpenAudioInputHostPicker)
+            | UiAction::Options(OptionsAction::OpenAudioInputDevicePicker)
+            | UiAction::Options(OptionsAction::OpenAudioInputSampleRatePicker)
+            | UiAction::Options(OptionsAction::SetAudioOutputHost { .. })
+            | UiAction::Options(OptionsAction::SetAudioOutputDevice { .. })
+            | UiAction::Options(OptionsAction::SetAudioOutputSampleRate { .. })
+            | UiAction::Options(OptionsAction::SetAudioInputHost { .. })
+            | UiAction::Options(OptionsAction::SetAudioInputDevice { .. })
+            | UiAction::Options(OptionsAction::SetAudioInputSampleRate { .. }) => {
+                UiActionDomain::Options
+            }
             UiAction::FocusFolderSearch => UiActionDomain::Shell,
             UiAction::SetFolderSearch { .. } => UiActionDomain::Shell,
             UiAction::ToggleShowAllFolders => UiActionDomain::Shell,
@@ -207,10 +209,18 @@ impl UiAction {
             UiAction::OpenFeedbackIssuePrompt => UiActionDomain::PromptsAndEdits,
             UiAction::MoveTrashedSamplesToFolder => UiActionDomain::PromptsAndEdits,
             // Options and persistent interaction toggles.
-            UiAction::SetInputMonitoringEnabled { .. } => UiActionDomain::Options,
-            UiAction::SetAdvanceAfterRatingEnabled { .. } => UiActionDomain::Options,
-            UiAction::SetDestructiveYoloMode { .. } => UiActionDomain::Options,
-            UiAction::SetInvertWaveformScroll { .. } => UiActionDomain::Options,
+            UiAction::Options(OptionsAction::SetInputMonitoringEnabled { .. }) => {
+                UiActionDomain::Options
+            }
+            UiAction::Options(OptionsAction::SetAdvanceAfterRatingEnabled { .. }) => {
+                UiActionDomain::Options
+            }
+            UiAction::Options(OptionsAction::SetDestructiveYoloMode { .. }) => {
+                UiActionDomain::Options
+            }
+            UiAction::Options(OptionsAction::SetInvertWaveformScroll { .. }) => {
+                UiActionDomain::Options
+            }
             UiAction::ToggleLoopPlayback => UiActionDomain::Options,
             UiAction::ToggleLoopLock => UiActionDomain::Options,
             UiAction::SetWaveformChannelView { .. } => UiActionDomain::Options,
@@ -224,8 +234,8 @@ impl UiAction {
             UiAction::ToggleTransientMarkers => UiActionDomain::Options,
             UiAction::ToggleBpmSnap => UiActionDomain::Options,
             UiAction::SetSliceModeEnabled { .. } => UiActionDomain::Options,
-            UiAction::SetVolume { .. } => UiActionDomain::Options,
-            UiAction::CommitVolumeSetting => UiActionDomain::Options,
+            UiAction::Options(OptionsAction::SetVolume { .. }) => UiActionDomain::Options,
+            UiAction::Options(OptionsAction::CommitVolumeSetting) => UiActionDomain::Options,
             // Waveform transport, edit, and gesture actions.
             UiAction::SeekWaveformPrecise { .. } => UiActionDomain::Waveform,
             UiAction::SetWaveformCursorPrecise { .. } => UiActionDomain::Waveform,

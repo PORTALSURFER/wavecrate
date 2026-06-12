@@ -85,6 +85,78 @@ macro_rules! build_action_mapping {
             crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
         ) | NativeUiAction::DismissUpdate
     };
+    (@match OpenOptionsMenu {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenOptionsMenu)
+    };
+    (@match CloseOptionsPanel {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::CloseOptionsPanel)
+    };
+    (@match EditDefaultIdentifier {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::EditDefaultIdentifier)
+    };
+    (@match ShowOptionsOverview {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ShowOptionsOverview)
+    };
+    (@match PickTrashFolder {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::PickTrashFolder)
+    };
+    (@match OpenTrashFolder {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenTrashFolder)
+    };
+    (@match OpenAudioOutputHostPicker {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenAudioOutputHostPicker)
+    };
+    (@match OpenAudioOutputDevicePicker {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenAudioOutputDevicePicker)
+    };
+    (@match OpenAudioOutputSampleRatePicker {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenAudioOutputSampleRatePicker)
+    };
+    (@match OpenAudioInputHostPicker {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenAudioInputHostPicker)
+    };
+    (@match OpenAudioInputDevicePicker {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenAudioInputDevicePicker)
+    };
+    (@match OpenAudioInputSampleRatePicker {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenAudioInputSampleRatePicker)
+    };
+    (@match SetAudioOutputHost { host_id }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAudioOutputHost { host_id: _ })
+    };
+    (@match SetAudioOutputDevice { device_name }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAudioOutputDevice { device_name: _ })
+    };
+    (@match SetAudioOutputSampleRate { sample_rate }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAudioOutputSampleRate { sample_rate: _ })
+    };
+    (@match SetAudioInputHost { host_id }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAudioInputHost { host_id: _ })
+    };
+    (@match SetAudioInputDevice { device_name }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAudioInputDevice { device_name: _ })
+    };
+    (@match SetAudioInputSampleRate { sample_rate }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAudioInputSampleRate { sample_rate: _ })
+    };
+    (@match SetInputMonitoringEnabled { enabled }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetInputMonitoringEnabled { enabled: _ })
+    };
+    (@match SetAdvanceAfterRatingEnabled { enabled }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetAdvanceAfterRatingEnabled { enabled: _ })
+    };
+    (@match SetDestructiveYoloMode { enabled }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetDestructiveYoloMode { enabled: _ })
+    };
+    (@match SetInvertWaveformScroll { enabled }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetInvertWaveformScroll { enabled: _ })
+    };
+    (@match SetVolume { value_milli }) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetVolume { value_milli: _ })
+    };
+    (@match CommitVolumeSetting {}) => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::CommitVolumeSetting)
+    };
     (@match $kind:ident {}) => {
         NativeUiAction::$kind
     };

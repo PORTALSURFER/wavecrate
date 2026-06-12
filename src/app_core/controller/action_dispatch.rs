@@ -117,10 +117,14 @@ fn apply_transport_ui_action(
         | NativeUiAction::Redo => controller.redo(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
-        NativeUiAction::SetVolume { value_milli } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetVolume {
+            value_milli,
+        }) => {
             controller.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
         }
-        NativeUiAction::CommitVolumeSetting => controller.commit_volume_setting(),
+        NativeUiAction::Options(
+            crate::app_core::actions::NativeOptionsAction::CommitVolumeSetting,
+        ) => controller.commit_volume_setting(),
         action => return Err(action),
     }
     Ok(())

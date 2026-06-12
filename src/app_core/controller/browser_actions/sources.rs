@@ -1,7 +1,7 @@
 //! Source-row and global options routing for UI browser actions.
 
 use super::super::AppController;
-use crate::app_core::actions::NativeUiAction;
+use crate::app_core::actions::{NativeOptionsAction, NativeUiAction};
 use crate::app_core::state::{AudioPickerTarget, FolderPaneId};
 
 /// Try to dispatch source-row and options-panel UI actions.
@@ -58,67 +58,80 @@ pub(super) fn apply_source_and_options_ui_action(
         NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
         NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
-        NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
-        NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
-        NativeUiAction::EditDefaultIdentifier => controller.start_default_identifier_prompt(),
-        NativeUiAction::ShowOptionsOverview => controller.show_audio_options_overview(),
-        NativeUiAction::PickTrashFolder => controller.pick_trash_folder(),
-        NativeUiAction::OpenTrashFolder => controller.open_trash_folder(),
-        NativeUiAction::OpenAudioOutputHostPicker => {
+        NativeUiAction::Options(options) => return apply_options_action(controller, options),
+        action => return Err(action),
+    }
+    Ok(())
+}
+
+fn apply_options_action(
+    controller: &mut AppController,
+    action: NativeOptionsAction,
+) -> Result<(), NativeUiAction> {
+    match action {
+        NativeOptionsAction::OpenOptionsMenu => controller.open_options_panel(),
+        NativeOptionsAction::CloseOptionsPanel => controller.close_options_panel(),
+        NativeOptionsAction::EditDefaultIdentifier => controller.start_default_identifier_prompt(),
+        NativeOptionsAction::ShowOptionsOverview => controller.show_audio_options_overview(),
+        NativeOptionsAction::PickTrashFolder => controller.pick_trash_folder(),
+        NativeOptionsAction::OpenTrashFolder => controller.open_trash_folder(),
+        NativeOptionsAction::OpenAudioOutputHostPicker => {
             controller.open_audio_picker(AudioPickerTarget::OutputHost)
         }
-        NativeUiAction::OpenAudioOutputDevicePicker => {
+        NativeOptionsAction::OpenAudioOutputDevicePicker => {
             controller.open_audio_picker(AudioPickerTarget::OutputDevice)
         }
-        NativeUiAction::OpenAudioOutputSampleRatePicker => {
+        NativeOptionsAction::OpenAudioOutputSampleRatePicker => {
             controller.open_audio_picker(AudioPickerTarget::OutputSampleRate)
         }
-        NativeUiAction::OpenAudioInputHostPicker => {
+        NativeOptionsAction::OpenAudioInputHostPicker => {
             controller.open_audio_picker(AudioPickerTarget::InputHost)
         }
-        NativeUiAction::OpenAudioInputDevicePicker => {
+        NativeOptionsAction::OpenAudioInputDevicePicker => {
             controller.open_audio_picker(AudioPickerTarget::InputDevice)
         }
-        NativeUiAction::OpenAudioInputSampleRatePicker => {
+        NativeOptionsAction::OpenAudioInputSampleRatePicker => {
             controller.open_audio_picker(AudioPickerTarget::InputSampleRate)
         }
-        NativeUiAction::SetAudioOutputHost { host_id } => {
+        NativeOptionsAction::SetAudioOutputHost { host_id } => {
             controller.set_audio_host(host_id);
             controller.show_audio_options_overview();
         }
-        NativeUiAction::SetAudioOutputDevice { device_name } => {
+        NativeOptionsAction::SetAudioOutputDevice { device_name } => {
             controller.set_audio_device(device_name);
             controller.show_audio_options_overview();
         }
-        NativeUiAction::SetAudioOutputSampleRate { sample_rate } => {
+        NativeOptionsAction::SetAudioOutputSampleRate { sample_rate } => {
             controller.set_audio_sample_rate(sample_rate);
             controller.show_audio_options_overview();
         }
-        NativeUiAction::SetAudioInputHost { host_id } => {
+        NativeOptionsAction::SetAudioInputHost { host_id } => {
             controller.set_audio_input_host(host_id);
             controller.show_audio_options_overview();
         }
-        NativeUiAction::SetAudioInputDevice { device_name } => {
+        NativeOptionsAction::SetAudioInputDevice { device_name } => {
             controller.set_audio_input_device(device_name);
             controller.show_audio_options_overview();
         }
-        NativeUiAction::SetAudioInputSampleRate { sample_rate } => {
+        NativeOptionsAction::SetAudioInputSampleRate { sample_rate } => {
             controller.set_audio_input_sample_rate(sample_rate);
             controller.show_audio_options_overview();
         }
-        NativeUiAction::SetInputMonitoringEnabled { enabled } => {
+        NativeOptionsAction::SetInputMonitoringEnabled { enabled } => {
             controller.set_input_monitoring_enabled(enabled)
         }
-        NativeUiAction::SetAdvanceAfterRatingEnabled { enabled } => {
+        NativeOptionsAction::SetAdvanceAfterRatingEnabled { enabled } => {
             controller.set_advance_after_rating(enabled)
         }
-        NativeUiAction::SetDestructiveYoloMode { enabled } => {
+        NativeOptionsAction::SetDestructiveYoloMode { enabled } => {
             controller.set_destructive_yolo_mode(enabled)
         }
-        NativeUiAction::SetInvertWaveformScroll { enabled } => {
+        NativeOptionsAction::SetInvertWaveformScroll { enabled } => {
             controller.set_invert_waveform_scroll(enabled)
         }
-        action => return Err(action),
+        NativeOptionsAction::SetVolume { .. } | NativeOptionsAction::CommitVolumeSetting => {
+            return Err(NativeUiAction::Options(action));
+        }
     }
     Ok(())
 }

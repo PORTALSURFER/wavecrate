@@ -12,16 +12,16 @@ mod browser;
 mod compatibility;
 mod domain;
 mod history_update;
+mod options;
 #[cfg(test)]
 mod precision_eq;
 mod transport;
 
 pub use self::browser::BrowserTagTarget;
-pub use self::compatibility::{
-    CompatibilityAction, CompatibilityPolicy, upgrade_compatibility_action,
-};
+pub use self::compatibility::upgrade_compatibility_action;
 pub use self::domain::UiActionDomain;
 pub use self::history_update::HistoryUpdateAction;
+pub use self::options::OptionsAction;
 pub use self::transport::TransportAction;
 
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
@@ -47,36 +47,6 @@ pub enum UiAction {
     FocusBrowserSearch,
     BlurBrowserSearch,
     OpenAddSourceDialog,
-    OpenOptionsMenu,
-    CloseOptionsPanel,
-    PickTrashFolder,
-    OpenTrashFolder,
-    EditDefaultIdentifier,
-    ShowOptionsOverview,
-    OpenAudioOutputHostPicker,
-    OpenAudioOutputDevicePicker,
-    OpenAudioOutputSampleRatePicker,
-    OpenAudioInputHostPicker,
-    OpenAudioInputDevicePicker,
-    OpenAudioInputSampleRatePicker,
-    SetAudioOutputHost {
-        host_id: Option<String>,
-    },
-    SetAudioOutputDevice {
-        device_name: Option<String>,
-    },
-    SetAudioOutputSampleRate {
-        sample_rate: Option<u32>,
-    },
-    SetAudioInputHost {
-        host_id: Option<String>,
-    },
-    SetAudioInputDevice {
-        device_name: Option<String>,
-    },
-    SetAudioInputSampleRate {
-        sample_rate: Option<u32>,
-    },
     FocusFolderSearch,
     SetFolderSearch {
         query: String,
@@ -302,18 +272,6 @@ pub enum UiAction {
     MoveTrashedSamplesToFolder,
 
     // Options and persistent interaction toggles.
-    SetInputMonitoringEnabled {
-        enabled: bool,
-    },
-    SetAdvanceAfterRatingEnabled {
-        enabled: bool,
-    },
-    SetDestructiveYoloMode {
-        enabled: bool,
-    },
-    SetInvertWaveformScroll {
-        enabled: bool,
-    },
     ToggleLoopPlayback,
     ToggleLoopLock,
     SetWaveformChannelView {
@@ -345,10 +303,6 @@ pub enum UiAction {
     SetSliceModeEnabled {
         enabled: bool,
     },
-    SetVolume {
-        value_milli: u16,
-    },
-    CommitVolumeSetting,
 
     // Waveform transport, edit, and gesture actions.
     SeekWaveformPrecise {
@@ -485,4 +439,7 @@ pub enum UiAction {
     OpenUpdateLink,
     InstallUpdate,
     DismissUpdate,
+
+    #[serde(untagged)]
+    Options(OptionsAction),
 }

@@ -14,7 +14,7 @@ fn representative_actions_identify_their_primary_domains() {
     let cases = [
         (GuiActionKind::SelectColumn, UiActionDomain::ColumnTriage),
         (GuiActionKind::ToggleTransport, UiActionDomain::Transport),
-        (GuiActionKind::OpenOptionsMenu, UiActionDomain::Shell),
+        (GuiActionKind::OpenOptionsMenu, UiActionDomain::Options),
         (
             GuiActionKind::FocusSourceRow,
             UiActionDomain::SourcesAndFolders,

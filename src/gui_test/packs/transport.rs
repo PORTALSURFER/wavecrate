@@ -74,7 +74,9 @@ pub(super) fn transport_volume_slider_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetVolume { value_milli: 750 },
+                action: NativeUiAction::Options(
+                    crate::app_core::actions::NativeOptionsAction::SetVolume { value_milli: 750 },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::ActionRecorded {

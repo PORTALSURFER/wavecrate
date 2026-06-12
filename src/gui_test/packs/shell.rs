@@ -15,7 +15,9 @@ pub(super) fn options_open_close_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::OpenOptionsMenu,
+                action: NativeUiAction::Options(
+                    crate::app_core::actions::NativeOptionsAction::OpenOptionsMenu,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {
@@ -23,7 +25,9 @@ pub(super) fn options_open_close_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::CloseOptionsPanel,
+                action: NativeUiAction::Options(
+                    crate::app_core::actions::NativeOptionsAction::CloseOptionsPanel,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeAbsent {

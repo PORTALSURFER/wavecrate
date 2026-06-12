@@ -2,6 +2,7 @@ use super::*;
 use crate::app::controller::{
     startup_audio_refresh_count_for_tests, with_stubbed_startup_audio_refresh_for_tests,
 };
+use crate::app_core::actions::NativeOptionsAction;
 use crate::app_core::controller::UiFramePreparationPlan;
 
 #[test]
@@ -179,12 +180,14 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
         },
         Case {
             label: "options panel group",
-            action: NativeUiAction::OpenOptionsMenu,
+            action: NativeUiAction::Options(NativeOptionsAction::OpenOptionsMenu),
             expected: Expected::OptionsPanelOpen(true),
         },
         Case {
             label: "options toggle group",
-            action: NativeUiAction::SetInputMonitoringEnabled { enabled: false },
+            action: NativeUiAction::Options(NativeOptionsAction::SetInputMonitoringEnabled {
+                enabled: false,
+            }),
             expected: Expected::InputMonitoring(false),
         },
         Case {
