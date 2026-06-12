@@ -295,6 +295,37 @@ fn browser_projection_sidebar_projects_mixed_normal_tag_state() {
 }
 
 #[test]
+fn browser_projection_sidebar_falls_back_to_entry_tags_when_db_has_no_labels() {
+    let mut first = browser_projection_test_entry("first.wav");
+    first.normal_tags = vec![String::from("Texture")];
+    let mut second = browser_projection_test_entry("second.wav");
+    second.normal_tags = vec![String::from("Texture"), String::from("Bright")];
+    let (mut controller, _source) = browser_projection_controller_with_source(vec![first, second]);
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.selection.selected_paths = vec![
+        std::path::PathBuf::from("first.wav"),
+        std::path::PathBuf::from("second.wav"),
+    ];
+    controller.mark_browser_selected_paths_changed();
+
+    let projected = project_browser_panel_frame_model(&mut controller);
+
+    let accepted = projected
+        .tag_sidebar
+        .accepted_pills
+        .iter()
+        .map(|pill| (pill.label.as_str(), pill.state))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        accepted,
+        vec![
+            ("Texture", BrowserTagState::On),
+            ("Bright", BrowserTagState::Mixed),
+        ]
+    );
+}
+
+#[test]
 fn browser_projection_sidebar_projects_accepted_tags_separately_from_suggestions() {
     let mut first = browser_projection_test_entry("first.wav");
     first.normal_tags = vec![

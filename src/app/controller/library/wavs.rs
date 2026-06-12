@@ -17,6 +17,7 @@ pub(crate) mod browser_search_worker;
 /// High-level browser selection/focus facade methods on `AppController`.
 mod browser_selection_facade;
 /// Shared browser tag-sidebar target snapshots for mutation and projection.
+mod browser_tag_sidebar_metadata;
 mod browser_tag_sidebar_targets;
 mod browser_viewport;
 mod duplicate_cleanup;

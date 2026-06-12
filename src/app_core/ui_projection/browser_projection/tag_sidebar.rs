@@ -1,5 +1,5 @@
 use super::*;
-use crate::sample_sources::{WavEntry, db::SourceTagUsage};
+use crate::sample_sources::WavEntry;
 
 /// Project the browser tag sidebar from current target selection and metadata.
 ///
@@ -34,19 +34,34 @@ pub(crate) fn project_browser_tag_sidebar_model(
             bool_tag_state(&target_entries, |entry| !entry.looped),
         ),
     ];
-    let (accepted_pills, option_pills, create_pill) = if let Some(source) =
-        controller.current_source()
-    {
-        let target_paths = sidebar_targets.resolve_paths(controller);
-        let accepted_pills =
-            project_accepted_normal_tags(controller, &source, &target_paths, &target_entries)
-                .unwrap_or_else(|_| project_accepted_normal_tags_from_entries(&target_entries));
-        let (option_pills, create_pill) =
-            project_normal_tag_candidates(controller, &source, &target_paths).unwrap_or_default();
-        (accepted_pills, option_pills, create_pill)
-    } else {
-        (Vec::new(), Vec::new(), None)
-    };
+    let (accepted_pills, option_pills, create_pill) =
+        if let Some(source) = controller.current_source() {
+            let target_paths = sidebar_targets.resolve_paths(controller);
+            let tag_sidebar_input = controller.ui.browser.tag_sidebar_input.clone();
+            let metadata = controller.browser_tag_sidebar_metadata_snapshot(
+                &source,
+                &target_paths,
+                &target_entries,
+                &tag_sidebar_input,
+            );
+            let accepted_pills =
+                project_accepted_normal_tags_from_label_sets(&metadata.accepted_label_sets);
+            let option_pills = metadata
+                .candidate_tags
+                .into_iter()
+                .map(|candidate| pill_model(&candidate.label, &candidate.label, candidate.state))
+                .collect();
+            let create_pill = metadata.create_label.map(|display_label| {
+                pill_model(
+                    &display_label,
+                    &format!("Create \"{display_label}\""),
+                    BrowserTagState::Off,
+                )
+            });
+            (accepted_pills, option_pills, create_pill)
+        } else {
+            (Vec::new(), Vec::new(), None)
+        };
     BrowserTagSidebarModel {
         // The tag editor is now rendered in the left library sidebar. Keep the
         // existing projection payload for mutation/input compatibility without
@@ -85,43 +100,6 @@ fn bool_tag_state(entries: &[WavEntry], predicate: impl Fn(&WavEntry) -> bool) -
         count if count == entries.len() => BrowserTagState::On,
         _ => BrowserTagState::Mixed,
     }
-}
-
-fn project_accepted_normal_tags(
-    controller: &mut AppController,
-    source: &crate::sample_sources::SampleSource,
-    paths: &[std::path::PathBuf],
-    fallback_entries: &[WavEntry],
-) -> Result<Vec<BrowserTagPillModel>, String> {
-    if paths.is_empty() {
-        return Ok(Vec::new());
-    }
-    let labels_by_path = {
-        let db = controller
-            .database_for(source)
-            .map_err(|err| err.to_string())?;
-        paths
-            .iter()
-            .map(|path| db.tag_labels_for_path(path).map_err(|err| err.to_string()))
-            .collect::<Result<Vec<_>, _>>()?
-    };
-    if labels_by_path.iter().all(Vec::is_empty) && !fallback_entries.is_empty() {
-        return Ok(project_accepted_normal_tags_from_entries(fallback_entries));
-    }
-    Ok(project_accepted_normal_tags_from_label_sets(
-        &labels_by_path,
-    ))
-}
-
-fn project_accepted_normal_tags_from_entries(entries: &[WavEntry]) -> Vec<BrowserTagPillModel> {
-    if entries.is_empty() {
-        return Vec::new();
-    }
-    let label_sets = entries
-        .iter()
-        .map(|entry| entry.normal_tags.clone())
-        .collect::<Vec<_>>();
-    project_accepted_normal_tags_from_label_sets(&label_sets)
 }
 
 fn project_accepted_normal_tags_from_label_sets(
@@ -164,57 +142,6 @@ fn project_accepted_normal_tags_from_label_sets(
         .collect()
 }
 
-fn project_normal_tag_candidates(
-    controller: &mut AppController,
-    source: &crate::sample_sources::SampleSource,
-    paths: &[std::path::PathBuf],
-) -> Result<(Vec<BrowserTagPillModel>, Option<BrowserTagPillModel>), String> {
-    let input = controller.ui.browser.tag_sidebar_input.clone();
-    let normalized_input = normalize_tag_input(&input);
-    let usages = {
-        let db = controller
-            .database_for(source)
-            .map_err(|err| err.to_string())?;
-        if normalized_input.is_empty() {
-            db.most_used_tags(18).map_err(|err| err.to_string())?
-        } else {
-            db.search_tags(&input, 18).map_err(|err| err.to_string())?
-        }
-    };
-    let mut pills = Vec::new();
-    for usage in usages.into_iter().filter(normal_tag_visible) {
-        let state =
-            controller.normal_tag_state_for_source(source, paths, &usage.tag.display_label)?;
-        pills.push(pill_model(
-            &usage.tag.display_label,
-            &usage.tag.display_label,
-            state,
-        ));
-    }
-    let create_pill = if normalized_input.is_empty() || !pills.is_empty() {
-        None
-    } else {
-        let display_label = display_tag_input(&input);
-        Some(pill_model(
-            &display_label,
-            &format!("Create \"{display_label}\""),
-            BrowserTagState::Off,
-        ))
-    };
-    Ok((pills, create_pill))
-}
-
-fn normal_tag_visible(usage: &SourceTagUsage) -> bool {
-    !matches!(
-        usage.tag.normalized_text.as_str(),
-        "loop" | "looped" | "one-shot" | "one shot" | "oneshot"
-    )
-}
-
-fn normalize_tag_input(input: &str) -> String {
-    display_tag_input(input).to_ascii_lowercase()
-}
-
 fn display_tag_input(input: &str) -> String {
     input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -228,19 +155,6 @@ mod tests {
             .iter()
             .map(|pill| (pill.label.as_str(), pill.state))
             .collect()
-    }
-
-    #[test]
-    fn tag_input_display_normalization_collapses_whitespace() {
-        assert_eq!(
-            display_tag_input("  Deep\tKick \n Tight  "),
-            "Deep Kick Tight"
-        );
-        assert_eq!(
-            normalize_tag_input("  Deep\tKick \n Tight  "),
-            "deep kick tight"
-        );
-        assert_eq!(display_tag_input(" \t\n "), "");
     }
 
     #[test]
