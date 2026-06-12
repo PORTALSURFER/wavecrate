@@ -18,6 +18,19 @@ pub(crate) struct SliceUpdateResult {
     pub(crate) new_index: Option<usize>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SliceDeleteResult {
+    pub(crate) slices: Vec<SelectionRange>,
+    pub(crate) removed: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SliceMergeResult {
+    pub(crate) slices: Vec<SelectionRange>,
+    pub(crate) selected_indices: Vec<usize>,
+    pub(crate) merged: SelectionRange,
+}
+
 pub(crate) fn apply_painted_slice(
     slices: &[SelectionRange],
     range: SelectionRange,
@@ -126,6 +139,67 @@ pub(crate) fn snap_slice_paint_position(
         return snapped;
     }
     position
+}
+
+pub(crate) fn normalized_selected_indices(indices: &[usize]) -> Vec<usize> {
+    let mut normalized = indices.to_vec();
+    normalized.sort_unstable();
+    normalized.dedup();
+    normalized
+}
+
+pub(crate) fn delete_slices(
+    slices: &[SelectionRange],
+    selected_indices: &[usize],
+) -> SliceDeleteResult {
+    let selected_indices = normalized_selected_indices(selected_indices);
+    let mut updated = slices.to_vec();
+    let mut removed = 0usize;
+    for index in selected_indices.into_iter().rev() {
+        if index < updated.len() {
+            updated.remove(index);
+            removed += 1;
+        }
+    }
+    SliceDeleteResult {
+        slices: updated,
+        removed,
+    }
+}
+
+pub(crate) fn merge_selected_slices(
+    slices: &[SelectionRange],
+    selected_indices: &[usize],
+) -> Option<SliceMergeResult> {
+    let selected_indices = normalized_selected_indices(selected_indices);
+    let mut min_start: f32 = 1.0;
+    let mut max_end: f32 = 0.0;
+    for &index in &selected_indices {
+        if let Some(slice) = slices.get(index) {
+            min_start = min_start.min(slice.start());
+            max_end = max_end.max(slice.end());
+        }
+    }
+    if max_end <= min_start {
+        return None;
+    }
+    let merged = SelectionRange::new(min_start, max_end);
+    let mut updated = slices
+        .iter()
+        .copied()
+        .filter(|slice| !ranges_overlap(*slice, merged))
+        .collect::<Vec<_>>();
+    updated.push(merged);
+    updated.sort_by(|a, b| a.start().partial_cmp(&b.start()).unwrap_or(Ordering::Equal));
+    let merged_index = updated
+        .iter()
+        .position(|slice| *slice == merged)
+        .unwrap_or(0);
+    Some(SliceMergeResult {
+        slices: updated,
+        selected_indices: vec![merged_index],
+        merged,
+    })
 }
 
 pub(crate) fn ranges_overlap(a: SelectionRange, b: SelectionRange) -> bool {
