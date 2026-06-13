@@ -1,0 +1,88 @@
+use crate::native_app::test_support::state::{
+    FolderBrowserMessage, GuiMessage, NativeAppState, default_gui_shortcuts,
+};
+use radiant::prelude as ui;
+
+#[test]
+fn escape_shortcut_routes_to_stop_playback() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(resolution.action, Some(GuiMessage::StopPlayback));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn loop_shortcut_routes_to_loop_toggle() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::L));
+
+    assert_eq!(resolution.action, Some(GuiMessage::ToggleLoopPlayback));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::ToggleSelectedSampleAndAdvance)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn x_shortcut_is_consumed_while_renaming() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let sample_path = state
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .first()
+        .expect("default assets include an audio sample")
+        .id
+        .clone();
+    state.library.folder_browser.select_file(sample_path);
+    state
+        .library
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+#[test]
+fn backspace_shortcut_routes_to_delete_selected_item() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Backspace));
+
+    assert_eq!(resolution.action, Some(GuiMessage::DeleteSelectedItem));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn escape_shortcut_exits_collection_focus_before_stopping_playback() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::ExitCollectionFocus
+        ))
+    );
+    assert!(resolution.handled);
+}
