@@ -34,6 +34,7 @@ impl UiAction {
     pub fn domain(&self) -> UiActionDomain {
         match self {
             UiAction::Transport(_) => UiActionDomain::Transport,
+            UiAction::ColumnTriage(_) => UiActionDomain::ColumnTriage,
             UiAction::HistoryAndUpdate(_) => UiActionDomain::HistoryAndUpdates,
             UiAction::Shell(_) => UiActionDomain::Shell,
             UiAction::SourcesAndFolders(_) => UiActionDomain::SourcesAndFolders,

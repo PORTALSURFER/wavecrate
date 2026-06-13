@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::app_core::actions::{
-    GuiSurface, NativeCompatibilityAction, NativeUiAction, action_catalog_entry,
+    GuiSurface, NativeColumnTriageAction, NativeUiAction, action_catalog_entry,
 };
 use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use tracing::error;
@@ -16,6 +16,7 @@ pub(super) fn apply_ui_action(controller: &mut AppController, action: NativeUiAc
     let started_at = Instant::now();
     let action_id = ui_action_id(&action);
     let pane = ui_action_pane(&action);
+    let action = action.upgrade_compatibility();
     controller.begin_waveform_refresh_batch();
     let action = match apply_transport_ui_action(controller, action) {
         Ok(()) => {
@@ -76,10 +77,10 @@ fn apply_transport_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::Compatibility(NativeCompatibilityAction::SelectColumn { index }) => {
+        NativeUiAction::ColumnTriage(NativeColumnTriageAction::SelectColumn { index }) => {
             controller.select_column_by_index(index)
         }
-        NativeUiAction::Compatibility(NativeCompatibilityAction::MoveColumn { delta }) => {
+        NativeUiAction::ColumnTriage(NativeColumnTriageAction::MoveColumn { delta }) => {
             controller.move_selection_column(delta as isize)
         }
         NativeUiAction::Transport(

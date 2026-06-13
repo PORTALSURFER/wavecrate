@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 mod browser;
+mod column_triage;
 mod compatibility;
 mod domain;
 mod history_update;
@@ -20,6 +21,7 @@ mod transport;
 mod waveform;
 
 pub use self::browser::{BrowserAction, BrowserTagTarget};
+pub use self::column_triage::ColumnTriageAction;
 pub use self::compatibility::{CompatibilityAction, upgrade_compatibility_action};
 pub use self::domain::UiActionDomain;
 pub use self::history_update::HistoryUpdateAction;
@@ -33,6 +35,7 @@ pub use self::waveform::WaveformAction;
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UiAction {
+    ColumnTriage(ColumnTriageAction),
     Transport(TransportAction),
     HistoryAndUpdate(HistoryUpdateAction),
     #[serde(untagged)]
@@ -53,10 +56,10 @@ pub enum UiAction {
 
 #[allow(non_upper_case_globals)]
 impl UiAction {
-    pub const Undo: Self = Self::Compatibility(CompatibilityAction::Undo);
-    pub const Redo: Self = Self::Compatibility(CompatibilityAction::Redo);
-    pub const CheckForUpdates: Self = Self::Compatibility(CompatibilityAction::CheckForUpdates);
-    pub const OpenUpdateLink: Self = Self::Compatibility(CompatibilityAction::OpenUpdateLink);
-    pub const InstallUpdate: Self = Self::Compatibility(CompatibilityAction::InstallUpdate);
-    pub const DismissUpdate: Self = Self::Compatibility(CompatibilityAction::DismissUpdate);
+    pub const Undo: Self = Self::HistoryAndUpdate(HistoryUpdateAction::Undo);
+    pub const Redo: Self = Self::HistoryAndUpdate(HistoryUpdateAction::Redo);
+    pub const CheckForUpdates: Self = Self::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates);
+    pub const OpenUpdateLink: Self = Self::HistoryAndUpdate(HistoryUpdateAction::OpenUpdateLink);
+    pub const InstallUpdate: Self = Self::HistoryAndUpdate(HistoryUpdateAction::InstallUpdate);
+    pub const DismissUpdate: Self = Self::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate);
 }

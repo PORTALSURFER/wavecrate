@@ -25,20 +25,39 @@ fn waveform_milli_inputs_upgrade_to_precise_actions() {
 }
 
 #[test]
-fn column_inputs_remain_review_compatibility_inputs() {
+fn column_inputs_upgrade_to_current_column_triage_actions() {
     let select = CompatibilityAction::SelectColumn { index: 2 };
-    assert_eq!(select.clone().policy(), CompatibilityPolicy::Review);
+    assert_eq!(select.clone().policy(), CompatibilityPolicy::DurableUpgrade);
     assert_eq!(
         upgrade_compatibility_action(select),
-        UiAction::Compatibility(CompatibilityAction::SelectColumn { index: 2 })
+        UiAction::ColumnTriage(ColumnTriageAction::SelectColumn { index: 2 })
     );
 
     let move_column = CompatibilityAction::MoveColumn { delta: -1 };
-    assert_eq!(move_column.clone().policy(), CompatibilityPolicy::Review);
+    assert_eq!(
+        move_column.clone().policy(),
+        CompatibilityPolicy::DurableUpgrade
+    );
     assert_eq!(
         upgrade_compatibility_action(move_column),
-        UiAction::Compatibility(CompatibilityAction::MoveColumn { delta: -1 })
+        UiAction::ColumnTriage(ColumnTriageAction::MoveColumn { delta: -1 })
     );
+}
+
+#[test]
+fn current_column_catalog_samples_use_column_triage_actions() {
+    assert!(matches!(
+        crate::app_core::actions::representative_action_for_kind(
+            crate::app_core::actions::GuiActionKind::SelectColumn
+        ),
+        UiAction::ColumnTriage(ColumnTriageAction::SelectColumn { index: 1 })
+    ));
+    assert!(matches!(
+        crate::app_core::actions::representative_action_for_kind(
+            crate::app_core::actions::GuiActionKind::MoveColumn
+        ),
+        UiAction::ColumnTriage(ColumnTriageAction::MoveColumn { delta: 1 })
+    ));
 }
 
 #[test]
@@ -95,7 +114,10 @@ fn flat_history_update_inputs_are_adapter_owned() {
     let parsed: UiAction =
         serde_json::from_value(serde_json::json!("DismissUpdate")).expect("parse flat update");
 
-    assert_eq!(parsed, UiAction::DismissUpdate);
+    assert_eq!(
+        parsed,
+        UiAction::Compatibility(CompatibilityAction::DismissUpdate)
+    );
     assert_eq!(
         parsed.upgrade_compatibility(),
         UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate)

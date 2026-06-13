@@ -1,7 +1,7 @@
 use super::super::{
-    NativeBrowserAction, NativeCompatibilityAction, NativeHistoryUpdateAction, NativeOptionsAction,
-    NativePromptEditAction, NativeShellAction, NativeSourcesFoldersAction, NativeTransportAction,
-    NativeUiAction, NativeWaveformAction,
+    NativeBrowserAction, NativeColumnTriageAction, NativeCompatibilityAction,
+    NativeHistoryUpdateAction, NativeOptionsAction, NativePromptEditAction, NativeShellAction,
+    NativeSourcesFoldersAction, NativeTransportAction, NativeUiAction, NativeWaveformAction,
 };
 use super::data::gui_action_rows;
 use super::{GuiActionKind, GuiActionKind as Kind};
@@ -24,6 +24,7 @@ macro_rules! build_representative_action_mapping {
 /// Return the payload-free kind for one concrete UI action.
 pub fn action_kind(action: &NativeUiAction) -> GuiActionKind {
     match action {
+        NativeUiAction::ColumnTriage(action) => column_triage_action_kind(action),
         NativeUiAction::Transport(action) => transport_action_kind(action),
         NativeUiAction::HistoryAndUpdate(action) => history_update_action_kind(action),
         NativeUiAction::Shell(action) => shell_action_kind(action),
@@ -33,6 +34,13 @@ pub fn action_kind(action: &NativeUiAction) -> GuiActionKind {
         NativeUiAction::Options(action) => options_action_kind(action),
         NativeUiAction::Waveform(action) => waveform_action_kind(action),
         NativeUiAction::Compatibility(action) => compatibility_action_kind(action),
+    }
+}
+
+fn column_triage_action_kind(action: &NativeColumnTriageAction) -> GuiActionKind {
+    match action {
+        NativeColumnTriageAction::SelectColumn { .. } => Kind::SelectColumn,
+        NativeColumnTriageAction::MoveColumn { .. } => Kind::MoveColumn,
     }
 }
 

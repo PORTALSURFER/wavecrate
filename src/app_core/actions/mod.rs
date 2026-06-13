@@ -78,6 +78,9 @@ pub type NativeUiActionDomain = self::ui_projection_actions::UiActionDomain;
 /// UI runtime retained compatibility action payload.
 pub type NativeCompatibilityAction = self::ui_projection_actions::CompatibilityAction;
 
+/// UI runtime current column triage action payload.
+pub type NativeColumnTriageAction = self::ui_projection_actions::ColumnTriageAction;
+
 /// UI runtime browser action payload.
 pub type NativeBrowserAction = self::ui_projection_actions::BrowserAction;
 

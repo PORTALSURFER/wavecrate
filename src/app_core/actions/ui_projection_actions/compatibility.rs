@@ -5,7 +5,7 @@
 //! their upgrade rules so migration behavior stays separate from active action
 //! ownership.
 
-use super::{HistoryUpdateAction, UiAction, WaveformAction};
+use super::{ColumnTriageAction, HistoryUpdateAction, UiAction, WaveformAction};
 use serde::{Deserialize, Serialize};
 
 /// Supported legacy action inputs retained for runtime and artifact readers.
@@ -57,8 +57,12 @@ impl CompatibilityAction {
             Self::OpenUpdateLink => UiAction::HistoryAndUpdate(HistoryUpdateAction::OpenUpdateLink),
             Self::InstallUpdate => UiAction::HistoryAndUpdate(HistoryUpdateAction::InstallUpdate),
             Self::DismissUpdate => UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate),
-            Self::SelectColumn { index } => UiAction::Compatibility(Self::SelectColumn { index }),
-            Self::MoveColumn { delta } => UiAction::Compatibility(Self::MoveColumn { delta }),
+            Self::SelectColumn { index } => {
+                UiAction::ColumnTriage(ColumnTriageAction::SelectColumn { index })
+            }
+            Self::MoveColumn { delta } => {
+                UiAction::ColumnTriage(ColumnTriageAction::MoveColumn { delta })
+            }
             Self::SeekWaveform { position_milli } => {
                 UiAction::Waveform(WaveformAction::SeekWaveformPrecise {
                     position_nanos: milli_to_nanos(position_milli),
@@ -84,7 +88,9 @@ impl CompatibilityAction {
             | Self::DismissUpdate
             | Self::SeekWaveform { .. }
             | Self::SetWaveformCursor { .. } => CompatibilityPolicy::DurableUpgrade,
-            Self::SelectColumn { .. } | Self::MoveColumn { .. } => CompatibilityPolicy::Review,
+            Self::SelectColumn { .. } | Self::MoveColumn { .. } => {
+                CompatibilityPolicy::DurableUpgrade
+            }
         }
     }
 }
@@ -102,8 +108,6 @@ impl UiAction {
 /// Compatibility support policy for a retained legacy input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CompatibilityPolicy {
-    /// Keep parsing for now, but move callers to a domain-owned replacement.
-    Review,
     /// Keep parsing and upgrade to a current action at the adapter boundary.
     DurableUpgrade,
 }
