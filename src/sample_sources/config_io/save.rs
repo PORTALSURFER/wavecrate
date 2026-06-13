@@ -1,5 +1,3 @@
-#![allow(clippy::result_large_err)]
-
 use std::io::Write;
 use std::path::Path;
 
@@ -37,7 +35,7 @@ pub(super) fn save_settings_to_path(
 ) -> Result<(), ConfigError> {
     let data = toml::to_string_pretty(settings).map_err(|source| ConfigError::SerializeToml {
         path: path.to_path_buf(),
-        source,
+        source: Box::new(source),
     })?;
     atomic_write(path, data.as_bytes())
 }

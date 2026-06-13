@@ -1,5 +1,3 @@
-#![allow(clippy::result_large_err)]
-
 use std::path::{Path, PathBuf};
 
 use crate::app_dirs;
@@ -46,6 +44,18 @@ pub(super) fn migrate_legacy_config(
     Ok(LegacyMigration { settings, library })
 }
 
+/// Complete the final legacy-migration phase after settings already exist.
+///
+/// Migration writes library data and TOML settings before moving the legacy JSON
+/// aside. If that final backup step fails, the next startup must retry the
+/// backup instead of treating the remaining JSON as active configuration.
+pub(super) fn backup_remaining_legacy_file(path: &Path) -> Result<(), ConfigError> {
+    if path.exists() {
+        backup_legacy_file(path)?;
+    }
+    Ok(())
+}
+
 fn backup_legacy_file(path: &Path) -> Result<(), ConfigError> {
     let backup_path = path.with_extension("json.bak");
     if backup_path.exists() {
@@ -69,6 +79,6 @@ fn load_legacy_from(path: &Path) -> Result<AppConfig, ConfigError> {
     })?;
     serde_json::from_slice(&bytes).map_err(|source| ConfigError::ParseJson {
         path: path.to_path_buf(),
-        source,
+        source: Box::new(source),
     })
 }

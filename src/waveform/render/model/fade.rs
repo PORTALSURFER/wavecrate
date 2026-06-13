@@ -26,7 +26,7 @@ pub(super) fn line_render_samples<'a>(
 }
 
 pub(super) fn apply_fade_to_column_model(
-    columns: &mut Vec<(f32, f32)>,
+    columns: &mut [(f32, f32)],
     view_start: f32,
     view_end: f32,
     edit_fade: Option<crate::selection::SelectionRange>,

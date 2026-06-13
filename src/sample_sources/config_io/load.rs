@@ -1,5 +1,3 @@
-#![allow(clippy::result_large_err)]
-
 use std::path::{Path, PathBuf};
 
 use serde::de::Error as SerdeDeError;
@@ -8,7 +6,7 @@ use crate::app_dirs;
 
 use super::super::config_types::{AppConfig, AppSettings, ConfigError};
 use super::CONFIG_FILE_NAME;
-use super::legacy::{legacy_config_path, migrate_legacy_config};
+use super::legacy::{backup_remaining_legacy_file, legacy_config_path, migrate_legacy_config};
 use super::map_app_dir_error;
 use super::save::save_settings_to_path;
 
@@ -26,6 +24,7 @@ pub fn load_or_default() -> Result<AppConfig, ConfigError> {
     let settings_path = config_path()?;
     let legacy_path = legacy_config_path()?;
     let (mut settings, legacy_library) = if settings_path.exists() {
+        backup_remaining_legacy_file(&legacy_path)?;
         (load_settings_from(&settings_path)?, None)
     } else {
         let migration = migrate_legacy_config(&legacy_path, &settings_path)?;
@@ -55,12 +54,12 @@ pub(super) fn load_settings_from(path: &Path) -> Result<AppSettings, ConfigError
     })?;
     let text = String::from_utf8(bytes).map_err(|source| ConfigError::ParseToml {
         path: path.to_path_buf(),
-        source: SerdeDeError::custom(source),
+        source: Box::new(SerdeDeError::custom(source)),
     })?;
     let mut value: toml::Value =
         toml::from_str(&text).map_err(|source| ConfigError::ParseToml {
             path: path.to_path_buf(),
-            source,
+            source: Box::new(source),
         })?;
     if let Some(root) = value.as_table_mut()
         && let Some(core) = root.get("core").and_then(|core| core.as_table()).cloned()
@@ -74,7 +73,7 @@ pub(super) fn load_settings_from(path: &Path) -> Result<AppSettings, ConfigError
         .try_into()
         .map_err(|source| ConfigError::ParseToml {
             path: path.to_path_buf(),
-            source,
+            source: Box::new(source),
         })
         .map(AppSettings::normalized)
 }

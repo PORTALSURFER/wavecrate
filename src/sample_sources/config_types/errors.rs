@@ -35,7 +35,7 @@ pub enum ConfigError {
         /// TOML file path.
         path: PathBuf,
         /// TOML parse error.
-        source: toml::de::Error,
+        source: Box<toml::de::Error>,
     },
     /// Failed to parse legacy JSON config.
     #[error("Invalid legacy config at {path}: {source}")]
@@ -43,7 +43,7 @@ pub enum ConfigError {
         /// JSON file path.
         path: PathBuf,
         /// JSON parse error.
-        source: serde_json::Error,
+        source: Box<serde_json::Error>,
     },
     /// Failed to serialize config to TOML.
     #[error("Failed to serialize config to TOML at {path}: {source}")]
@@ -51,7 +51,7 @@ pub enum ConfigError {
         /// TOML file path.
         path: PathBuf,
         /// TOML serialization error.
-        source: toml::ser::Error,
+        source: Box<toml::ser::Error>,
     },
     /// Failed to migrate legacy config.
     #[error("Failed to migrate legacy config from {path}: {source}")]
@@ -82,5 +82,11 @@ pub enum ConfigError {
     },
     /// Library database error.
     #[error("Library database error: {0}")]
-    Library(#[from] crate::sample_sources::library::LibraryError),
+    Library(Box<crate::sample_sources::library::LibraryError>),
+}
+
+impl From<crate::sample_sources::library::LibraryError> for ConfigError {
+    fn from(source: crate::sample_sources::library::LibraryError) -> Self {
+        Self::Library(Box::new(source))
+    }
 }
