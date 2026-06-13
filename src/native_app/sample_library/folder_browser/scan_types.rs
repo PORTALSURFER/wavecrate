@@ -69,10 +69,17 @@ pub(in crate::native_app) struct FolderVerifySnapshot {
     pub(in crate::native_app) files: Vec<FileEntry>,
 }
 
-/// Result of a folder verification pass, with a snapshot only when drift was found.
+/// Result of a folder verification pass.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum FolderVerifyOutcome {
+    Unchanged,
+    Missing,
+    Changed(FolderVerifySnapshot),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderVerifyResult {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) folder_path: PathBuf,
-    pub(in crate::native_app) snapshot: Option<FolderVerifySnapshot>,
+    pub(in crate::native_app) outcome: FolderVerifyOutcome,
 }

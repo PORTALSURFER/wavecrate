@@ -5,7 +5,7 @@ use std::{
 use wavecrate::sample_sources::Rating;
 
 use super::{
-    FolderBrowserState, FolderVerifyResult,
+    FolderBrowserState, FolderVerifyOutcome, FolderVerifyResult,
     path_helpers::path_id,
     scanning::{file_entry, load_folder_at_path, upsert_file, upsert_folder},
 };
@@ -72,12 +72,17 @@ impl FolderBrowserState {
         else {
             return false;
         };
-        let Some(snapshot) = result.snapshot else {
-            let changed = self.remove_missing_path_from_source(source_index, &result.folder_path);
-            if changed {
-                self.after_source_tree_changed(&result.source_id);
+        let snapshot = match result.outcome {
+            FolderVerifyOutcome::Unchanged => return false,
+            FolderVerifyOutcome::Missing => {
+                let changed =
+                    self.remove_missing_path_from_source(source_index, &result.folder_path);
+                if changed {
+                    self.after_source_tree_changed(&result.source_id);
+                }
+                return changed;
             }
-            return changed;
+            FolderVerifyOutcome::Changed(snapshot) => snapshot,
         };
         let folder_id = path_id(&result.folder_path);
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {

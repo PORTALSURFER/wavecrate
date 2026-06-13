@@ -105,7 +105,7 @@ mod scan_types;
 mod source_types;
 use source_types::RemovedSource;
 
-use scan_types::{FolderVerifyRequest, FolderVerifyResult};
+use scan_types::{FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult};
 
 pub(in crate::native_app) mod commands {
     pub(in crate::native_app) use super::messages::FolderBrowserMessage;

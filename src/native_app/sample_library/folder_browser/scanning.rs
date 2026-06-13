@@ -9,7 +9,8 @@ use super::{
     path_helpers::{file_label, folder_label, path_id},
     scan_types::{
         FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-        FolderScanResult, FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
+        FolderScanResult, FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult,
+        FolderVerifySnapshot,
     },
 };
 use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
@@ -46,12 +47,21 @@ pub(super) fn placeholder_folder(root: &Path) -> FolderEntry {
 pub(in crate::native_app) fn verify_direct_folder(
     request: FolderVerifyRequest,
 ) -> FolderVerifyResult {
-    let snapshot = read_direct_folder_snapshot(&request.folder_path);
-    let snapshot = snapshot.filter(|snapshot| direct_folder_changed(&request, snapshot));
+    let outcome = match read_direct_folder_snapshot(&request.folder_path) {
+        DirectFolderSnapshot::Missing => FolderVerifyOutcome::Missing,
+        DirectFolderSnapshot::Unavailable => FolderVerifyOutcome::Unchanged,
+        DirectFolderSnapshot::Available(snapshot) => {
+            if direct_folder_changed(&request, &snapshot) {
+                FolderVerifyOutcome::Changed(snapshot)
+            } else {
+                FolderVerifyOutcome::Unchanged
+            }
+        }
+    };
     FolderVerifyResult {
         source_id: request.source_id,
         folder_path: request.folder_path,
-        snapshot,
+        outcome,
     }
 }
 
@@ -119,7 +129,7 @@ fn load_folder(
     source_root: &Path,
     ratings: &SourceMetadataMap,
 ) -> Option<FolderEntry> {
-    let entries = read_sorted_entries(path);
+    let entries = read_sorted_entries(path)?;
     let children = entries
         .iter()
         .filter(|entry| entry.is_dir())
@@ -138,11 +148,19 @@ fn load_folder(
     })
 }
 
-fn read_direct_folder_snapshot(path: &Path) -> Option<FolderVerifySnapshot> {
-    let entries = read_sorted_entries(path);
-    if entries.is_empty() && !path.is_dir() {
-        return None;
+enum DirectFolderSnapshot {
+    Available(FolderVerifySnapshot),
+    Missing,
+    Unavailable,
+}
+
+fn read_direct_folder_snapshot(path: &Path) -> DirectFolderSnapshot {
+    if !path.is_dir() {
+        return DirectFolderSnapshot::Missing;
     }
+    let Some(entries) = read_sorted_entries(path) else {
+        return DirectFolderSnapshot::Unavailable;
+    };
     let child_paths = entries
         .iter()
         .filter(|entry| entry.is_dir())
@@ -153,7 +171,7 @@ fn read_direct_folder_snapshot(path: &Path) -> Option<FolderVerifySnapshot> {
         .filter(|entry| entry.is_file())
         .map(file_entry)
         .collect::<Vec<_>>();
-    Some(FolderVerifySnapshot { child_paths, files })
+    DirectFolderSnapshot::Available(FolderVerifySnapshot { child_paths, files })
 }
 
 fn direct_folder_changed(request: &FolderVerifyRequest, snapshot: &FolderVerifySnapshot) -> bool {
@@ -269,7 +287,7 @@ where
     P: FnMut(FolderScanProgress),
     D: FnMut(FolderScanDiscovery),
 {
-    let entries = read_sorted_entries(path);
+    let entries = read_sorted_entries(path)?;
     let parent_id = path_id(path);
     let children = entries
         .iter()
@@ -307,10 +325,8 @@ fn rated_file_entry(path: &PathBuf, source_root: &Path, ratings: &SourceMetadata
     file_entry_with_metadata(path, rating, locked, collections)
 }
 
-fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {
-    let Ok(read_dir) = fs::read_dir(path) else {
-        return Vec::new();
-    };
+fn read_sorted_entries(path: &Path) -> Option<Vec<PathBuf>> {
+    let read_dir = fs::read_dir(path).ok()?;
     let mut entries = read_dir
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -320,5 +336,5 @@ fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {
             .to_ascii_lowercase()
             .cmp(&file_label(b).to_ascii_lowercase())
     });
-    entries
+    Some(entries)
 }

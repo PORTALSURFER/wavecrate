@@ -104,6 +104,37 @@ fn direct_folder_verify_patches_visible_folder_without_dropping_nested_cache() {
 }
 
 #[test]
+fn direct_folder_verify_keeps_unchanged_selected_folder_visible() {
+    let root = temp_source_root("wavecrate-gui-direct-folder-verify-unchanged");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    fs::create_dir_all(&kicks).expect("create nested folder");
+    fs::write(kicks.join("deep.wav"), [0_u8; 8]).expect("write nested sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    let request = browser
+        .selected_folder_verify_request()
+        .expect("selected child folder should be verifiable");
+    let result = verify_direct_folder(request);
+
+    assert!(
+        !browser.apply_direct_folder_verify_result(result),
+        "unchanged folder verification should not mutate the tree"
+    );
+    assert!(
+        browser.find_folder(&path_id(&drums)).is_some(),
+        "unchanged selected folder should remain visible after click-triggered verification"
+    );
+    assert!(
+        browser.find_folder(&path_id(&kicks)).is_some(),
+        "unchanged selected folder should keep its cached child folders"
+    );
+    assert_eq!(browser.selected_folder_path(), Some(drums.clone()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn direct_folder_verify_prunes_deleted_visible_file() {
     let root = temp_source_root("wavecrate-gui-direct-folder-verify-prune-file");
     let drums = root.join("drums");
