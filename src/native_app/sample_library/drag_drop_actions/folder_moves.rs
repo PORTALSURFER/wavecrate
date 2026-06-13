@@ -3,7 +3,7 @@ use std::{path::PathBuf, time::Instant};
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    FileMoveConflictResolution, GuiMessage, NativeAppState, emit_gui_action,
+    FileMoveConflictResolutionRequest, GuiMessage, NativeAppState, emit_gui_action,
 };
 
 impl NativeAppState {
@@ -51,13 +51,16 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn resolve_file_move_conflict(
         &mut self,
-        resolution: FileMoveConflictResolution,
+        request: FileMoveConflictResolutionRequest,
     ) {
         let started_at = Instant::now();
+        self.ui
+            .browser_interaction
+            .file_move_conflict_apply_to_remaining = false;
         match self
             .library
             .folder_browser
-            .resolve_next_file_move_conflict(resolution)
+            .resolve_next_file_move_conflict(request)
         {
             Ok(result) => {
                 self.apply_moved_sample_paths(&result.moved_paths);
@@ -92,6 +95,9 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn cancel_file_move_conflicts(&mut self) {
+        self.ui
+            .browser_interaction
+            .file_move_conflict_apply_to_remaining = false;
         if let Some(status) = self.library.folder_browser.cancel_file_move_conflicts() {
             self.ui.status.sample = status;
         }

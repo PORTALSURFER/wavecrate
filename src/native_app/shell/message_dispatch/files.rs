@@ -19,8 +19,13 @@ impl NativeAppState {
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
-            GuiMessage::ResolveFileMoveConflict(resolution) => {
-                self.resolve_file_move_conflict(resolution);
+            GuiMessage::SetFileMoveConflictApplyToRemaining(apply_to_remaining) => {
+                self.ui
+                    .browser_interaction
+                    .file_move_conflict_apply_to_remaining = apply_to_remaining;
+            }
+            GuiMessage::ResolveFileMoveConflict(request) => {
+                self.resolve_file_move_conflict(request);
             }
             GuiMessage::CancelFileMoveConflicts => self.cancel_file_move_conflicts(),
             GuiMessage::CopyContextPath => self.copy_context_path(context),

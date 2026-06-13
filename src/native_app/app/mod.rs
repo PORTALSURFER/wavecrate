@@ -35,7 +35,7 @@ pub(super) use crate::native_app::audio::sample_load_actions::{
 pub(super) use crate::native_app::sample_library::file_actions::sample_path_label;
 pub(super) use crate::native_app::sample_library::folder_browser::FolderBrowserState;
 pub(super) use crate::native_app::sample_library::folder_browser::commands::{
-    FileMoveConflictResolution, FolderBrowserMessage,
+    FileMoveConflictResolution, FileMoveConflictResolutionRequest, FolderBrowserMessage,
 };
 pub(super) use crate::native_app::sample_library::folder_browser::scan::FolderScanProgress;
 pub(super) use crate::native_app::shell::emit_gui_action;

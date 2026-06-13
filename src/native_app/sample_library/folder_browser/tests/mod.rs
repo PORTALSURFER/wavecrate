@@ -1,6 +1,8 @@
 use super::commands::FolderBrowserMessage;
 use super::{FolderBrowserState, path_id};
-use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolution;
+use crate::native_app::sample_library::folder_browser::commands::{
+    FileMoveConflictResolution, FileMoveConflictResolutionRequest,
+};
 use crate::native_app::sample_library::folder_browser::scan::{
     FolderScanDiscoveryBatch, scan_source_with_progress,
 };

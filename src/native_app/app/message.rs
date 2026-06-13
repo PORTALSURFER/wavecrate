@@ -11,7 +11,7 @@ use crate::native_app::app::{
 };
 use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
-use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolution;
+use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolutionRequest;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::scan::{
     FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
@@ -85,7 +85,8 @@ pub(in crate::native_app) enum GuiMessage {
     RemoveContextSampleFromCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
-    ResolveFileMoveConflict(FileMoveConflictResolution),
+    SetFileMoveConflictApplyToRemaining(bool),
+    ResolveFileMoveConflict(FileMoveConflictResolutionRequest),
     CancelFileMoveConflicts,
     CopyContextPath,
     OpenContextTarget,

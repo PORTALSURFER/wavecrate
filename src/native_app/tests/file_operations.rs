@@ -47,6 +47,11 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
     assert!(frame.paint_plan.contains_text("File Move Conflict"));
     assert!(frame.paint_plan.contains_text("Conflict 1 of 1"));
     assert!(frame.paint_plan.contains_text("kick.wav"));
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Apply to all remaining conflicts")
+    );
     assert!(frame.paint_plan.contains_text("Overwrite"));
     assert!(frame.paint_plan.contains_text("Rename"));
     assert!(frame.paint_plan.contains_text("Skip"));

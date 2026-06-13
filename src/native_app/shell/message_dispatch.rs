@@ -67,6 +67,7 @@ impl NativeAppState {
             | GuiMessage::RemoveContextSampleFromCollection
             | GuiMessage::NormalizeSelectedSamples
             | GuiMessage::CopySelectedFiles
+            | GuiMessage::SetFileMoveConflictApplyToRemaining(_)
             | GuiMessage::ResolveFileMoveConflict(_)
             | GuiMessage::CancelFileMoveConflicts
             | GuiMessage::CopyContextPath

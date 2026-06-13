@@ -1,5 +1,7 @@
 use crate::native_app::{
-    app::{FileMoveConflictResolution, GuiMessage, NativeAppState},
+    app::{
+        FileMoveConflictResolution, FileMoveConflictResolutionRequest, GuiMessage, NativeAppState,
+    },
     transaction_history::{TRANSACTION_LIST_MODAL_ID, TransactionListItem, TransactionListState},
 };
 use radiant::prelude as ui;
@@ -60,6 +62,10 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
         "Conflict {} of {}",
         conflict.current_number, conflict.total_count
     );
+    let apply_to_remaining = state
+        .ui
+        .browser_interaction
+        .file_move_conflict_apply_to_remaining;
     let content = ui::column([
         ui::text_line(summary, 22.0).fill_width(),
         ui::text_line(conflict.file_name, 24.0).fill_width(),
@@ -69,23 +75,42 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
         )
         .fill_width(),
         ui::row([
+            ui::checkbox(apply_to_remaining)
+                .message(GuiMessage::SetFileMoveConflictApplyToRemaining)
+                .width(20.0)
+                .height(20.0),
+            ui::text_line("Apply to all remaining conflicts", 20.0).fill_width(),
+        ])
+        .spacing(6.0)
+        .fill_width()
+        .height(22.0),
+        ui::row([
             ui::button("Overwrite")
                 .danger()
                 .message(GuiMessage::ResolveFileMoveConflict(
-                    FileMoveConflictResolution::Overwrite,
+                    FileMoveConflictResolutionRequest::new(
+                        FileMoveConflictResolution::Overwrite,
+                        apply_to_remaining,
+                    ),
                 ))
                 .width(92.0)
                 .height(24.0),
             ui::button("Rename")
                 .primary()
                 .message(GuiMessage::ResolveFileMoveConflict(
-                    FileMoveConflictResolution::Rename,
+                    FileMoveConflictResolutionRequest::new(
+                        FileMoveConflictResolution::Rename,
+                        apply_to_remaining,
+                    ),
                 ))
                 .width(78.0)
                 .height(24.0),
             ui::button("Skip")
                 .message(GuiMessage::ResolveFileMoveConflict(
-                    FileMoveConflictResolution::Skip,
+                    FileMoveConflictResolutionRequest::new(
+                        FileMoveConflictResolution::Skip,
+                        apply_to_remaining,
+                    ),
                 ))
                 .width(64.0)
                 .height(24.0),
@@ -105,7 +130,7 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
                 .padding(8.0)
                 .spacing(6.0)
                 .title_height(24.0),
-            ui::Vector2::new(430.0, 180.0),
+            ui::Vector2::new(430.0, 210.0),
         )
         .horizontal(ui::LayerHorizontalAnchor::Center)
         .vertical(ui::LayerVerticalAnchor::Center),

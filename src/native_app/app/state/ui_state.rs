@@ -94,6 +94,7 @@ pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
+    pub(in crate::native_app) file_move_conflict_apply_to_remaining: bool,
 }
 
 pub(in crate::native_app) struct StartupState {

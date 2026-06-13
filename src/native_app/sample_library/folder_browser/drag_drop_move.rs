@@ -114,6 +114,7 @@ impl FolderBrowserState {
                 current_index: 0,
                 resolved_count: 0,
                 skipped_count: 0,
+                batch_policy: None,
             });
         }
         let status = file_move_status(completed.len(), self.pending_file_move_conflict_count());

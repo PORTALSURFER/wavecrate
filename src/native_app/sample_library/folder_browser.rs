@@ -93,7 +93,8 @@ use messages::FolderBrowserMessage;
 
 mod move_types;
 use move_types::{
-    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution, FileMoveConflictView,
+    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution,
+    FileMoveConflictResolutionRequest, FileMoveConflictView,
 };
 
 mod rename_types;
@@ -108,7 +109,9 @@ use scan_types::{FolderVerifyRequest, FolderVerifyResult};
 
 pub(in crate::native_app) mod commands {
     pub(in crate::native_app) use super::messages::FolderBrowserMessage;
-    pub(in crate::native_app) use super::move_types::FileMoveConflictResolution;
+    pub(in crate::native_app) use super::move_types::{
+        FileMoveConflictResolution, FileMoveConflictResolutionRequest,
+    };
     pub(in crate::native_app) use super::rename_types::{FileRenameView, RenamePathRemap};
 }
 
