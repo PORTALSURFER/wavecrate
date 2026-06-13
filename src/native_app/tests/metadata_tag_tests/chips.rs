@@ -4,22 +4,21 @@ use super::super::*;
 fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
-    let frame =
-        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
-            &browser,
-            260.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            &[],
-            None,
-        )
-        .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let frame = crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        &[],
+        None,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Filter"));
     assert!(frame.paint_plan.contains_text("Tags"));
@@ -45,22 +44,21 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
     let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = vec![String::from("hat")];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame =
-        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
-            &browser,
-            260.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            &[],
-            Some("hat"),
-        )
-        .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
+    let frame = crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        &[],
+        Some("hat"),
+    )
+    .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     let tag_text = frame
         .paint_plan
@@ -200,22 +198,21 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
         },
     ];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame =
-        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
-            &browser,
-            600.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            categories.as_slice(),
-            None,
-        )
-        .view_frame_at_size(Vector2::new(600.0, 620.0), &theme);
+    let frame = crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+        &browser,
+        600.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        categories.as_slice(),
+        None,
+    )
+    .view_frame_at_size(Vector2::new(600.0, 620.0), &theme);
 
     let loop_rect = frame
         .paint_plan

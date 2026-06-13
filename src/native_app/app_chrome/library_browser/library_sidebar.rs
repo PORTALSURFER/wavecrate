@@ -21,10 +21,6 @@ use source_section::source_selector;
 use tag_editor::tag_editor_section;
 
 pub(in crate::native_app) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
-#[cfg(test)]
-pub(in crate::native_app) use tag_editor::{
-    METADATA_SIDEBAR_PANEL_ID, METADATA_TAG_INPUT_ID, METADATA_TAG_LIBRARY_TOGGLE_ID,
-};
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 #[cfg(test)]
 pub(in crate::native_app) use test_support::library_sidebar_view;

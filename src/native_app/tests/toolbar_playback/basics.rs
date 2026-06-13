@@ -70,7 +70,7 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
 #[test]
 fn main_toolbar_does_not_paint_empty_spacer_border() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let frame = main_toolbar(MainToolbarViewModel::from_app_state(&state))
+    let frame = crate::native_app::test_support::toolbar::main_toolbar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
 
     assert!(
@@ -85,7 +85,7 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
 fn main_toolbar_view_model_projects_playback_state() {
     let mut state = NativeAppState::load_default().expect("default state loads");
 
-    let empty = MainToolbarViewModel::from_app_state(&state);
+    let empty = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(empty.random_available, state.random_playback_available());
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
@@ -95,7 +95,7 @@ fn main_toolbar_view_model_projects_playback_state() {
         crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     state.waveform.current.start_playback(0.25);
 
-    let loaded = MainToolbarViewModel::from_app_state(&state);
+    let loaded = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(loaded.random_available, state.random_playback_available());
     assert!(loaded.loop_playback);
     assert!(loaded.playing);

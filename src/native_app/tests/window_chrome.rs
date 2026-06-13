@@ -1,5 +1,4 @@
 use super::*;
-use crate::native_app::app_chrome::waveform_panel::waveform_loading_visual;
 use radiant::runtime::{NativeFileDrop, RuntimeBridge, SurfaceRuntime};
 use std::{cell::RefCell, rc::Rc};
 use winit::{dpi::PhysicalPosition, event::MouseButton};

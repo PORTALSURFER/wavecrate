@@ -2,8 +2,9 @@ use super::*;
 
 #[test]
 fn waveform_loading_visual_paints_full_height_gray_fill_without_chrome() {
-    let frame = waveform_loading_visual("kick.wav", 0.25)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 172.0));
+    let frame =
+        crate::native_app::test_support::waveform::waveform_loading_visual("kick.wav", 0.25)
+            .view_frame_at_size_with_default_theme(Vector2::new(720.0, 172.0));
 
     let fill_rects = frame.paint_plan.fill_rects().collect::<Vec<_>>();
 

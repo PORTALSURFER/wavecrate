@@ -1,7 +1,4 @@
 use super::*;
-use crate::native_app::app_chrome::view_models::sample_browser::{
-    SampleBrowserViewModel, SampleBrowserViewProjection, prepare_sample_browser_view,
-};
 
 fn shared_dense_row_palette() -> radiant::prelude::DenseRowPalette {
     radiant::prelude::dense_row_palette_from_style(
@@ -29,7 +26,7 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    prepare_sample_browser_view(&mut state);
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
     let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let mut row_tops = frame
@@ -62,28 +59,16 @@ fn sample_browser_projection_window_matches_rendered_row_order() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let projection_names = {
-        prepare_sample_browser_view(&mut state);
-        let state = &state;
-        let model = SampleBrowserViewModel::from_projection(
-            SampleBrowserViewProjection::from_prepared_app_state(state),
-        );
-        assert_eq!(
-            model.visible_samples.window.total_items,
-            model.visible_samples.total_count
-        );
-        assert_eq!(
-            model.visible_samples.rows.len(),
-            model.visible_samples.window.window_len()
-        );
-        model
-            .visible_samples
-            .rows
-            .iter()
-            .take(4)
-            .map(|row| row.file.stem.clone())
-            .collect::<Vec<_>>()
+        crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+        let projection =
+            crate::native_app::test_support::sample_browser::sample_browser_window_projection(
+                &state, 4,
+            );
+        assert_eq!(projection.total_items, projection.total_count);
+        assert_eq!(projection.visible_rows, projection.window_len);
+        projection.first_stems
     };
-    prepare_sample_browser_view(&mut state);
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
     let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let rendered_positions = projection_names

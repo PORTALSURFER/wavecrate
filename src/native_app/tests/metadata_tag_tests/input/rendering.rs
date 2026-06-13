@@ -16,22 +16,21 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
         },
     ];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame =
-        crate::native_app::app_chrome::library_browser::library_sidebar::library_sidebar_view(
-            &browser,
-            260.0,
-            true,
-            "ki",
-            &[String::from("kick")],
-            None,
-            "add tag",
-            Some("ck"),
-            completion_options.as_slice(),
-            &[String::from("warm")],
-            &[],
-            None,
-        )
-        .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
+    let frame = crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+        &browser,
+        260.0,
+        true,
+        "ki",
+        &[String::from("kick")],
+        None,
+        "add tag",
+        Some("ck"),
+        completion_options.as_slice(),
+        &[String::from("warm")],
+        &[],
+        None,
+    )
+    .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(frame.paint_plan.contains_text("kick"));
     let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");
