@@ -10,8 +10,7 @@ pub(super) fn apply_folder_ui_action(
 ) -> Result<(), NativeUiAction> {
     match action {
         NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel) => {
-            controller
-                .focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders)
+            controller.focus_context_from_ui(crate::app_core::state::FocusContext::SourceFolders)
         }
         NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderSearch) => {
             controller.focus_folder_search();

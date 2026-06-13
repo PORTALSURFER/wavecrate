@@ -119,7 +119,7 @@ fn apply_ui_waveform_option_actions_update_waveform_state() {
     assert!(controller.ui.waveform.selected_slices.is_empty());
     assert_eq!(
         controller.ui.waveform.slice_review,
-        crate::app::state::WaveformSliceReviewState::default()
+        WaveformSliceReviewState::default()
     );
 }
 
@@ -144,19 +144,17 @@ fn handle_escape_exits_slice_review_before_clearing_slice_batch() {
 fn duplicate_preview_actions_focus_audition_and_toggle_exemption() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let range = crate::selection::SelectionRange::new(0.1, 0.2);
-    controller.ui.waveform.slice_batch_profile =
-        crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats;
+    controller.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::ExactDuplicateBeats;
     controller.ui.waveform.slices = vec![range];
-    controller.ui.waveform.duplicate_cleanup =
-        Some(crate::app::state::WaveformDuplicateCleanupState {
-            group_count: 1,
-            previews: vec![crate::app::state::WaveformDuplicateCleanupPreview {
-                range,
-                group_id: 0,
-                exempted: false,
-                represented_window_count: 1,
-            }],
-        });
+    controller.ui.waveform.duplicate_cleanup = Some(WaveformDuplicateCleanupState {
+        group_count: 1,
+        previews: vec![WaveformDuplicateCleanupPreview {
+            range,
+            group_id: 0,
+            exempted: false,
+            represented_window_count: 1,
+        }],
+    });
     controller.ui.waveform.slice_batch_beat_count = 1;
 
     controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
@@ -260,7 +258,7 @@ fn audio_picker_actions_update_picker_state_and_return_to_overview() {
     ));
     assert_eq!(
         controller.ui.options_panel.active_audio_picker,
-        Some(crate::app::state::AudioPickerTarget::OutputSampleRate)
+        Some(AudioPickerTarget::OutputSampleRate)
     );
 
     controller.settings.audio_output.sample_rate = Some(48_000);
@@ -277,7 +275,7 @@ fn audio_picker_actions_update_picker_state_and_return_to_overview() {
     ));
     assert_eq!(
         controller.ui.options_panel.active_audio_picker,
-        Some(crate::app::state::AudioPickerTarget::InputSampleRate)
+        Some(AudioPickerTarget::InputSampleRate)
     );
 
     controller.apply_ui_action(NativeUiAction::Options(

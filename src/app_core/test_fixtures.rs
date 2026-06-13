@@ -5,11 +5,10 @@
 
 use std::path::PathBuf;
 
-use crate::app_core::app_api::state::{
+use crate::app_core::state::{
     ActiveAudioOutput, AudioDeviceView, AudioHostView, BrowserDuplicateCleanupState,
-    ProgressTaskKind, SampleBrowserIndex, SimilarQuery, VisibleRows,
+    ProgressTaskKind, SampleBrowserIndex, SimilarQuery, TriageFlagColumn, VisibleRows,
 };
-use crate::app_core::state::TriageFlagColumn;
 use crate::sample_sources::SourceId;
 
 /// Build an all-rows browser viewport fixture.

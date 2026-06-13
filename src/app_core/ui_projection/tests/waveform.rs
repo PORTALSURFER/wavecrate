@@ -1,5 +1,4 @@
 use super::*;
-use crate::app::state::WaveformSliceBatchProfile;
 
 /// Live transport progress should override stale UI playhead snapshots during motion pulls.
 #[test]
@@ -256,7 +255,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     assert!(projected.loop_lock_enabled);
 
     ui.waveform.loop_enabled = true;
-    ui.compare_anchor = Some(crate::app::state::CompareAnchorState {
+    ui.compare_anchor = Some(CompareAnchorState {
         source_id: crate::sample_sources::SourceId::new(),
         relative_path: std::path::PathBuf::from("anchor.wav"),
         label: String::from("anchor.wav"),

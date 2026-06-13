@@ -1,8 +1,6 @@
 use super::super::super::AppController;
 use crate::app_core::actions::{NativeFolderPaneIdModel as FolderPaneIdModel, NativeUiAction};
-use crate::app_core::app_api::state::{
-    DragSource, DragTarget, FolderBrowserUiState, FolderPaneId, UiPoint,
-};
+use crate::app_core::state::{DragSource, DragTarget, FolderBrowserUiState, FolderPaneId, UiPoint};
 
 pub(super) fn apply_drag_action(
     controller: &mut AppController,

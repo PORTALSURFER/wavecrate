@@ -108,7 +108,7 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
         BrowserSearch(&'static str),
         BrowserSearchFocused(bool),
         BrowserRatingFilter(Vec<i8>),
-        BrowserPlaybackAgeFilter(Vec<crate::app::state::PlaybackAgeFilterChip>),
+        BrowserPlaybackAgeFilter(Vec<PlaybackAgeFilterChip>),
         RandomNavigationMode(bool),
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
@@ -173,8 +173,8 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
                 },
             ),
             expected: Expected::BrowserPlaybackAgeFilter(vec![
-                crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
-                crate::app::state::PlaybackAgeFilterChip::OlderThanMonth,
+                PlaybackAgeFilterChip::NeverPlayed,
+                PlaybackAgeFilterChip::OlderThanMonth,
             ]),
         },
         Case {

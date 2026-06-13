@@ -217,7 +217,7 @@ mod overlay_tree_actions {
     fn tree_actions_require_non_root_focus_for_destructive_actions() {
         let mut ui = UiState::default();
         let source_id = crate::sample_sources::SourceId::from_string("test-source");
-        ui.sources.rows.push(crate::app::state::SourceRowView {
+        ui.sources.rows.push(SourceRowView {
             id: source_id.clone(),
             name: String::from("Test Source"),
             path: String::from("source"),

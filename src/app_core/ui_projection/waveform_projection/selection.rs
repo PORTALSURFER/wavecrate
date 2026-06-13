@@ -1,6 +1,6 @@
 use super::units::normalized64_to_nanos;
 use super::*;
-use crate::app_core::app_api::state::WaveformSliceBatchProfile;
+use crate::app_core::state::WaveformSliceBatchProfile;
 
 /// Project edit-selection bounds into normalized milli-space.
 pub(in crate::app_core::ui_projection) fn project_waveform_edit_selection_milli(

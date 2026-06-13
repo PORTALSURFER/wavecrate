@@ -132,7 +132,7 @@ fn apply_ui_waveform_clean_duplicates_routes_to_controller_behavior() {
 #[test]
 fn apply_ui_waveform_view_center_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
+    controller.ui.waveform.view = WaveformView {
         start: 0.2,
         end: 0.4,
     };
@@ -151,7 +151,7 @@ fn apply_ui_waveform_view_center_routes_to_controller_behavior() {
 #[test]
 fn apply_ui_waveform_view_center_uses_precise_nanos_when_available() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
+    controller.ui.waveform.view = WaveformView {
         start: 0.5,
         end: 0.500_000_2,
     };

@@ -49,17 +49,12 @@ fn projection_cache_key_changes_when_audio_picker_and_option_lists_change() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     controller.ui.options_panel.open = true;
     let first = build_projection_cache_key(&controller);
-    controller.ui.options_panel.active_audio_picker =
-        Some(crate::app::state::AudioPickerTarget::OutputHost);
-    controller
-        .ui
-        .audio
-        .hosts
-        .push(crate::app::state::AudioHostView {
-            id: String::from("asio"),
-            label: String::from("ASIO"),
-            is_default: true,
-        });
+    controller.ui.options_panel.active_audio_picker = Some(AudioPickerTarget::OutputHost);
+    controller.ui.audio.hosts.push(AudioHostView {
+        id: String::from("asio"),
+        label: String::from("ASIO"),
+        is_default: true,
+    });
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }

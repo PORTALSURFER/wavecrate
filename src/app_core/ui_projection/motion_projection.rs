@@ -1,7 +1,7 @@
 use super::{selected_column_index, status_bar_right_text, waveform_projection};
 use crate::app_core::actions::{NativeMotionModel as MotionModel, NativeNormalizedRangeModel};
-use crate::app_core::app_api::state::WaveformSliceBatchProfile;
 use crate::app_core::controller::AppController;
+use crate::app_core::state::WaveformSliceBatchProfile;
 use crate::app_core::state::{SampleBrowserTab, browser_playback_age_filter_chips};
 
 /// Project motion-only model fields used by animation-phase redraws.

@@ -25,7 +25,7 @@ fn browser_actions_require_focus_or_selection() {
     assert!(projected.random_navigation_enabled);
     assert!(!projected.duplicate_cleanup_active);
 
-    ui.browser.duplicate_cleanup = Some(crate::app::state::BrowserDuplicateCleanupState::new(
+    ui.browser.duplicate_cleanup = Some(BrowserDuplicateCleanupState::new(
         crate::sample_sources::SourceId::from_string("source"),
         String::from("sample-id"),
         std::path::PathBuf::from("anchor.wav"),
@@ -144,10 +144,9 @@ fn confirm_prompt_projects_folder_delete_prompt() {
 #[test]
 fn confirm_prompt_projects_default_identifier_prompt() {
     let mut ui = UiState::default();
-    ui.options_panel.pending_prompt =
-        Some(crate::app::state::OptionsPanelPrompt::DefaultIdentifier {
-            value: String::from("portal"),
-        });
+    ui.options_panel.pending_prompt = Some(OptionsPanelPrompt::DefaultIdentifier {
+        value: String::from("portal"),
+    });
 
     let projected = project_confirm_prompt_model(&ui);
 
@@ -202,12 +201,12 @@ fn progress_overlay_projection_preserves_cancel_state() {
 #[test]
 fn drag_overlay_projection_includes_pointer_anchor_for_active_drag() {
     let mut ui = UiState::default();
-    ui.drag.payload = Some(crate::app::state::DragPayload::Sample {
+    ui.drag.payload = Some(DragPayload::Sample {
         source_id: crate::sample_sources::SourceId::from_string("source"),
         relative_path: std::path::PathBuf::from("kick.wav"),
     });
     ui.drag.label = String::from("kick");
-    ui.drag.position = Some(crate::app::state::UiPoint::new(24.4, 96.7));
+    ui.drag.position = Some(UiPoint::new(24.4, 96.7));
 
     let projected = project_drag_overlay_model(&ui);
 
@@ -221,7 +220,7 @@ fn drag_overlay_projection_includes_pointer_anchor_for_active_drag() {
 #[test]
 fn drag_overlay_projection_clears_pointer_anchor_without_active_drag() {
     let mut ui = UiState::default();
-    ui.drag.position = Some(crate::app::state::UiPoint::new(24.4, 96.7));
+    ui.drag.position = Some(UiPoint::new(24.4, 96.7));
 
     let projected = project_drag_overlay_model(&ui);
 

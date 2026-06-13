@@ -87,7 +87,7 @@ fn update_projection_exposes_status_and_action_hint_labels() {
 fn projection_distinguishes_source_loading_from_browser_filtering() {
     let mut ui = UiState::default();
     let source_id = crate::sample_sources::SourceId::from_string("loading-source");
-    ui.sources.rows.push(crate::app::state::SourceRowView {
+    ui.sources.rows.push(SourceRowView {
         id: source_id.clone(),
         name: String::from("Loading Source"),
         path: String::from("C:/loading"),

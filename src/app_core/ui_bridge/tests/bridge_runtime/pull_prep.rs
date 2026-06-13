@@ -51,7 +51,7 @@ fn retained_controller_mutations_arm_local_model_pull_fast_path() {
     let mut bridge = test_bridge(16);
 
     bridge.mutate_controller_retained(|controller| {
-        controller.set_browser_filter(crate::app::state::TriageFlagFilter::Keep)
+        controller.set_browser_filter(TriageFlagFilter::Keep)
     });
 
     assert_eq!(

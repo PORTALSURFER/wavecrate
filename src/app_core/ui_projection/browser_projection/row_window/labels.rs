@@ -1,4 +1,4 @@
-use crate::app_core::app_api::state::BrowserDuplicateCleanupState;
+use crate::app_core::state::BrowserDuplicateCleanupState;
 
 /// Resolve one inline browser metadata label for the sample lane.
 ///

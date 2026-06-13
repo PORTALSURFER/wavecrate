@@ -3,7 +3,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use super::*;
-use crate::app_core::app_api::state::MapSimilarityPrepStatus;
+use crate::app_core::state::MapSimilarityPrepStatus;
 use std::{path::Path, sync::Arc};
 
 /// Resolve the projected ui-projection render mode and its label.

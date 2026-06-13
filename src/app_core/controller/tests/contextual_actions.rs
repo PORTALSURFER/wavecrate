@@ -1,5 +1,4 @@
 use super::*;
-use crate::app::state::{IssueTokenStatus, ProgressOverlayState, ProgressTaskKind, SimilarQuery};
 use crate::app_core::controller::build_named_gui_fixture_controller;
 use std::path::Path;
 

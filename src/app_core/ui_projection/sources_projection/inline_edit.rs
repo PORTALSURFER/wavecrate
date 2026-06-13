@@ -4,7 +4,7 @@ use super::folder_name_validation::{
     folder_create_validation_error, folder_rename_validation_error,
 };
 use super::*;
-use crate::app_core::app_api::state::InlineFolderEdit;
+use crate::app_core::state::InlineFolderEdit;
 
 pub(super) fn inline_folder_draft_location(
     folder_ui: &FolderBrowserUiState,

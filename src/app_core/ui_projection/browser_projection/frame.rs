@@ -20,11 +20,11 @@ pub(crate) fn project_browser_panel_frame_model(
     let marked_filter_active = controller.ui.browser.search.marked_only;
     let tag_named_filter_active = !matches!(
         controller.ui.browser.search.tag_named_filter,
-        crate::app_core::app_api::state::TagNamedFilter::All
+        TagNamedFilter::All
     );
     let tag_named_filter_negated = matches!(
         controller.ui.browser.search.tag_named_filter,
-        crate::app_core::app_api::state::TagNamedFilter::NotTagNamed
+        TagNamedFilter::NotTagNamed
     );
     let sidebar_filters = controller.ui.browser.search.sidebar_filters.clone();
     let search_placeholder = Some(super::browser_search_placeholder(

@@ -12,7 +12,7 @@
 //! | Controller runtime | `app_core::controller`, ui-projection helpers, GUI fixtures | `AppController` still owns mature browser, source, audio, waveform, map, and config behavior used by app-core runtime shims | Split Wavecrate runtime/domain services under `app_core`, with native UI depending on those contracts | Runtime dispatch, projection, and fixture construction no longer require `crate::app::controller` | `OPT-672` |
 //! | Retained projection caches | `app_core::controller`, `app_core::ui_projection`, `app_core::ui_bridge` | Projection caches live with the controller state they memoize | App-core projection/cache modules with app-core-owned keys and row DTOs | Projection cache storage moves out of `AppController` | `OPT-672` |
 //! | Controller dirty graph state | `app_core::controller`, `app_core::ui_bridge` runtime/tests | Runtime projection and tests still inspect the retained controller dirty graph | App-core invalidation graph | Frame preparation owns dirty-node contracts without legacy state names | `OPT-673` |
-//! | Browser/source/map/audio state DTOs | `app_core::state`, `app_core::ui_projection`, `app_core::controller`, app-core tests | Projection models are still sourced from legacy `UiState` and nested browser/source/audio state structs | App-core state DTO modules and focused test builders | App-core projections/tests construct owned DTOs without importing `app_api::state` | `OPT-677` |
+//! | Browser/source/map/audio state DTOs | `app_core::state` | Projection models are still sourced from legacy `UiState` and nested browser/source/audio state structs | App-core state DTO modules and focused test builders | App-core projections/tests construct owned DTOs without importing `app_api::state`; compatibility aliases remain only behind `app_core::state` | `OPT-709` |
 //! | Browser catalog/test fixtures | `app_core::actions::catalog`, ui-projection tests | Catalog samples and projection assertions still use legacy browser facet payloads | Domain-organized action catalog fixtures | Catalog fixtures are split by action domain with app-core-owned fixture builders | `OPT-673` |
 pub(crate) mod controller {
     //! Controller runtime exports.
@@ -65,7 +65,7 @@ pub(crate) mod state {
     //! still cross because `UiState` is projected from the legacy controller.
     //! Their intended owner is app-core state/projection modules. Remove each
     //! export when the matching app-core projection or test fixture uses an
-    //! app-core-owned DTO or builder instead of `app_api::state`.
+    //! app-core-owned DTO or builder replaces the matching compatibility alias.
 
     /// Active audio picker target shown in options flows.
     pub(crate) use crate::app::state::AudioPickerTarget;
@@ -80,8 +80,14 @@ pub(crate) mod state {
         BrowserBpmFacet, BrowserDuplicateCleanupState, BrowserSidebarFilterFacet,
         BrowserSidebarFilterOption, BrowserSidebarFilterState, PlaybackAgeBucket,
         PlaybackAgeFilterChip, SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab,
-        TagNamedFilter, TriageFlagColumn, TriageFlagFilter, VisibleRows,
+        SourceRowView, TagNamedFilter, TriageFlagColumn, TriageFlagFilter, VisibleRows,
         browser_playback_age_filter_chips,
+    };
+    /// Full UI state and waveform DTOs still projected from the legacy controller.
+    #[cfg(test)]
+    pub(crate) use crate::app::state::{
+        CompareAnchorState, WaveformDuplicateCleanupPreview, WaveformDuplicateCleanupState,
+        WaveformSliceReviewState, WaveformView,
     };
     /// Destructive-edit and options prompt DTOs used by prompt surfaces.
     pub(crate) use crate::app::state::{
@@ -97,6 +103,9 @@ pub(crate) mod state {
         FolderDeleteRecoveryEntry, FolderDeleteRecoveryStatus, FolderFileScopeMode, FolderPaneId,
         FolderRowView, InlineFolderEdit, InlineFolderEditKind, RetainedFolderDeleteEntry,
     };
+    /// Progress and update DTOs used by app-model status projections.
+    #[cfg(test)]
+    pub(crate) use crate::app::state::{IssueTokenStatus, ProgressOverlayState};
     /// Map projection DTOs used by map labels and map projection caches.
     pub(crate) use crate::app::state::{
         MapBounds, MapPoint, MapQueryBounds, MapRenderMode, MapSimilarityPrepStatus,
@@ -104,7 +113,7 @@ pub(crate) mod state {
     /// Browser fixture-only DTOs used by projection tests while OPT-677 replaces legacy state usage.
     #[cfg(test)]
     pub(crate) use crate::app::state::{SampleBrowserIndex, SimilarQuery};
-    /// Progress and update DTOs used by app-model status projections.
+    /// Status and update DTOs used by app-model status projections.
     pub(crate) use crate::app::state::{StatusTone, UpdateStatus};
     /// Full UI state and waveform DTOs still projected from the legacy controller.
     pub(crate) use crate::app::state::{UiState, WaveformSliceBatchProfile};

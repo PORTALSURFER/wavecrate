@@ -71,7 +71,7 @@ fn async_waveform_image_arrival_is_projection_only_dirty_work() {
     .expect("waveform fixture");
     let _sandbox_guards = bundle.sandbox_guards;
     let mut bridge = WavecrateUiBridge::from_fixture_controller(bundle.controller);
-    bridge.controller.ui.waveform.view = crate::app::state::WaveformView {
+    bridge.controller.ui.waveform.view = WaveformView {
         start: 0.0,
         end: 0.5,
     };

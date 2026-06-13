@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::state::FolderPaneId;
+use crate::app_core::state::FolderPaneId;
 
 #[test]
 /// Reloading by source-row action uses the visible single active source list.

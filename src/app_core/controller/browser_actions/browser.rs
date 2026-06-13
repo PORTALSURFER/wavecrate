@@ -11,7 +11,7 @@ mod tagging;
 
 use super::super::AppController;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::state::FocusContext;
+use crate::app_core::state::FocusContext;
 use crate::app_core::state::StatusTone;
 
 /// Try to dispatch browser-list UI actions.

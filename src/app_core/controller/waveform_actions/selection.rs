@@ -3,7 +3,7 @@
 use super::super::AppController;
 use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::state::{DragSource, DragTarget, FolderPaneId, UiPoint};
+use crate::app_core::state::{DragSource, DragTarget, FolderPaneId, UiPoint};
 
 /// Try to dispatch waveform selection and edit-selection UI actions.
 pub(super) fn apply_waveform_selection_action(

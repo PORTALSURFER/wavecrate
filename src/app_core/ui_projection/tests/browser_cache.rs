@@ -15,7 +15,7 @@ fn browser_row_cache_persists_when_visible_revision_changes() {
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
-            playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: String::new(),
             missing: false,
             looped: false,
@@ -47,7 +47,7 @@ fn browser_row_cache_clears_when_selected_source_changes() {
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
-            playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: String::new(),
             missing: false,
             looped: false,
@@ -148,7 +148,7 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
-            playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: String::new(),
             missing: false,
             looped: false,
@@ -195,7 +195,7 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
-            playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: String::new(),
             missing: false,
             looped: false,
@@ -248,7 +248,7 @@ fn cached_browser_row_rebuilds_when_stored_mark_state_is_stale() {
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
-            playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: String::new(),
             missing: false,
             looped: false,
@@ -294,7 +294,7 @@ fn cached_browser_row_rebuilds_when_stored_playback_age_bucket_is_stale() {
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
-            playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: String::new(),
             missing: false,
             looped: false,
@@ -312,7 +312,7 @@ fn cached_browser_row_rebuilds_when_stored_playback_age_bucket_is_stale() {
 
     assert_eq!(
         cached.0.playback_age_bucket,
-        crate::app::state::PlaybackAgeBucket::OlderThanMonth
+        PlaybackAgeBucket::OlderThanMonth
     );
 }
 
@@ -331,7 +331,7 @@ fn browser_row_cache_evicts_one_lru_entry_at_capacity() {
                 row_label: format!("Cached {index}"),
                 column_index: 1,
                 rating_level: 0,
-                playback_age_bucket: crate::app::state::PlaybackAgeBucket::Fresh,
+                playback_age_bucket: PlaybackAgeBucket::Fresh,
                 bucket_label: String::new(),
                 missing: false,
                 looped: false,

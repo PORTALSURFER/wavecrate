@@ -75,8 +75,8 @@ fn apply_ui_inverted_browser_playback_age_filter_toggles_off_when_reclicked() {
             .copied()
             .collect::<Vec<_>>(),
         vec![
-            crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
-            crate::app::state::PlaybackAgeFilterChip::OlderThanMonth,
+            PlaybackAgeFilterChip::NeverPlayed,
+            PlaybackAgeFilterChip::OlderThanMonth,
         ]
     );
 

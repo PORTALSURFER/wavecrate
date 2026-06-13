@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::state::MapSimilarityPrepStatus;
+use crate::app_core::state::MapSimilarityPrepStatus;
 use std::path::PathBuf;
 
 fn add_selected_source(controller: &mut AppController) {

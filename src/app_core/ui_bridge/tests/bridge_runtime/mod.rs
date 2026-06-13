@@ -1,6 +1,8 @@
 use super::*;
-use crate::app::state::BrowserDuplicateCleanupState;
-use crate::app_core::state::{InlineFolderEdit, InlineFolderEditKind};
+use crate::app_core::state::{
+    BrowserDuplicateCleanupState, FolderFileScopeMode, FolderRowView, InlineFolderEdit,
+    InlineFolderEditKind,
+};
 
 mod dirty_graph;
 mod gui_test;
@@ -89,7 +91,7 @@ mod projection_folder_edits {
             .sources
             .folders
             .rows
-            .push(crate::app::state::FolderRowView {
+            .push(FolderRowView {
                 path: PathBuf::new(),
                 name: String::from("Root"),
                 depth: 0,
@@ -99,7 +101,7 @@ mod projection_folder_edits {
                 negated: false,
                 hotkey: None,
                 is_root: true,
-                file_scope_mode: Some(crate::app::state::FolderFileScopeMode::AllDescendants),
+                file_scope_mode: Some(FolderFileScopeMode::AllDescendants),
             });
 
         let initial = bridge.project_model();
@@ -145,7 +147,7 @@ mod projection_folder_edits {
             .sources
             .folders
             .rows
-            .push(crate::app::state::FolderRowView {
+            .push(FolderRowView {
                 path: PathBuf::new(),
                 name: String::from("Root"),
                 depth: 0,
@@ -155,7 +157,7 @@ mod projection_folder_edits {
                 negated: false,
                 hotkey: None,
                 is_root: true,
-                file_scope_mode: Some(crate::app::state::FolderFileScopeMode::AllDescendants),
+                file_scope_mode: Some(FolderFileScopeMode::AllDescendants),
             });
 
         let initial = bridge.project_model();
@@ -191,7 +193,7 @@ mod projection_folder_edits {
             .sources
             .folders
             .rows
-            .push(crate::app::state::FolderRowView {
+            .push(FolderRowView {
                 path: PathBuf::new(),
                 name: String::from("Root"),
                 depth: 0,
@@ -201,7 +203,7 @@ mod projection_folder_edits {
                 negated: false,
                 hotkey: None,
                 is_root: true,
-                file_scope_mode: Some(crate::app::state::FolderFileScopeMode::AllDescendants),
+                file_scope_mode: Some(FolderFileScopeMode::AllDescendants),
             });
         bridge
             .controller
@@ -209,7 +211,7 @@ mod projection_folder_edits {
             .sources
             .folders
             .rows
-            .push(crate::app::state::FolderRowView {
+            .push(FolderRowView {
                 path: PathBuf::from("drums"),
                 name: String::from("drums"),
                 depth: 1,

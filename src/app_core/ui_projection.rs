@@ -33,18 +33,18 @@ use crate::app_core::actions::{
     NativeWaveformPanelModel as WaveformPanelModel, native_folder_row_model as folder_row_model,
 };
 use crate::app_core::app_api::controller::supports_wav_destructive_edits;
-use crate::app_core::app_api::state::DragPayload;
-use crate::app_core::app_api::state::FocusContext;
-use crate::app_core::app_api::state::UiPoint;
 #[cfg(test)]
 use crate::app_core::state::{
-    DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
-    FolderDeleteRecoveryEntry, FolderDeleteRecoveryStatus, FolderRowView, InlineFolderEdit,
+    BrowserDuplicateCleanupState, CompareAnchorState, DestructiveEditPrompt,
+    DestructiveSelectionEdit, FolderDeleteRecoveryAction, FolderDeleteRecoveryEntry,
+    FolderDeleteRecoveryStatus, FolderRowView, InlineFolderEdit, OptionsPanelPrompt, SourceRowView,
+    WaveformSliceBatchProfile,
 };
 use crate::app_core::state::{
-    DragTarget, FolderActionPrompt, InlineFolderEditKind, MapBounds, MapPoint, MapQueryBounds,
-    MapRenderMode, PlaybackAgeBucket, PlaybackAgeFilterChip, SampleBrowserActionPrompt,
-    SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+    DragPayload, DragTarget, FocusContext, FolderActionPrompt, InlineFolderEditKind, MapBounds,
+    MapPoint, MapQueryBounds, MapRenderMode, PlaybackAgeBucket, PlaybackAgeFilterChip,
+    SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TagNamedFilter,
+    TriageFlagColumn, UiPoint, UiState, UpdateStatus,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};

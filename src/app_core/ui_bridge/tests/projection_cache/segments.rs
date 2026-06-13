@@ -118,13 +118,13 @@ fn projection_segment_browser_frame_copies_active_playback_age_filters() {
         .browser
         .search
         .playback_age_filter
-        .insert(crate::app::state::PlaybackAgeFilterChip::NeverPlayed);
+        .insert(PlaybackAgeFilterChip::NeverPlayed);
     controller
         .ui
         .browser
         .search
         .playback_age_filter
-        .insert(crate::app::state::PlaybackAgeFilterChip::OlderThanWeek);
+        .insert(PlaybackAgeFilterChip::OlderThanWeek);
     controller.mark_browser_search_projection_revision_dirty();
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);

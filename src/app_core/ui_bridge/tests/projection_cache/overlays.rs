@@ -251,8 +251,7 @@ fn projection_audio_engine_dirty_refreshes_retained_chip_and_panel_state() {
 
     controller.ui.audio.output_runtime_error = Some(String::from("USB disconnected"));
     controller.ui.options_panel.open = true;
-    controller.ui.options_panel.active_audio_picker =
-        Some(crate::app::state::AudioPickerTarget::OutputHost);
+    controller.ui.options_panel.active_audio_picker = Some(AudioPickerTarget::OutputHost);
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
