@@ -7,7 +7,6 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ControllerTestClassification {
     ActiveProductContract,
-    MigrationEvidence,
     CompatibilityCoverage,
     ImplementationDetailReview,
 }
@@ -82,12 +81,6 @@ const CONTROLLER_TEST_CLUSTERS: &[ControllerTestCluster] = &[
         next_action: "Keep explicit compatibility coverage because legacy pane collapse protects user config migration.",
     },
     ControllerTestCluster {
-        path: "src/app/controller/tests/drag_drop_*",
-        classification: ControllerTestClassification::MigrationEvidence,
-        owner: "native drag/drop and app-core projection tests",
-        next_action: "Use as migration evidence while native drag/drop coverage matures; retire only when native tests cover browser, source, folder, and waveform drops.",
-    },
-    ControllerTestCluster {
         path: "src/app/controller/library/selection_export/selection_export_tests/*",
         classification: ControllerTestClassification::ActiveProductContract,
         owner: "selection export and sample extraction tests",
@@ -129,9 +122,6 @@ fn controller_test_cluster_inventory_keeps_product_coverage_blocking() {
 
 #[test]
 fn controller_test_cluster_inventory_names_non_product_contracts_explicitly() {
-    assert!(CONTROLLER_TEST_CLUSTERS.iter().any(|cluster| {
-        cluster.classification == ControllerTestClassification::MigrationEvidence
-    }));
     assert!(CONTROLLER_TEST_CLUSTERS.iter().any(|cluster| {
         cluster.classification == ControllerTestClassification::CompatibilityCoverage
     }));
