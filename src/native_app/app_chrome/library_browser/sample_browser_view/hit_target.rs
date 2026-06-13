@@ -27,7 +27,6 @@ impl SampleFileHitTarget {
     ) -> Self {
         let row = ui::interactive_row()
             .tracked_drag_source(drag_active, drag_source)
-            .clear_hover_on_sync()
             .activation_modifiers()
             .custom_paint_hit_target()
             .widget();

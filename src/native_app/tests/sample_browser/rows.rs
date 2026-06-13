@@ -153,6 +153,55 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
 }
 
 #[test]
+fn full_gui_sample_row_hover_survives_surface_refresh() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let kick = source_root.path().join("kick.wav");
+    let snare = source_root.path().join("snare.wav");
+    fs::write(&kick, []).expect("write kick");
+    fs::write(&snare, []).expect("write snare");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame_with_default_theme();
+    let snare_target = text_center(&frame, "snare");
+    assert!(
+        runtime
+            .dispatch_event(Event::pointer_move(snare_target))
+            .is_some(),
+        "sample row should receive pointer hover"
+    );
+    let hovered_widget = runtime.hovered_widget();
+    assert!(hovered_widget.is_some(), "sample row should own hover");
+
+    runtime.refresh();
+
+    assert_eq!(
+        runtime.hovered_widget(),
+        hovered_widget,
+        "surface refresh should preserve the current sample-row hover owner"
+    );
+    let refreshed_frame = runtime.frame_with_default_theme();
+    let hover_fill = shared_dense_row_palette()
+        .hovered
+        .expect("dense-row hover fill");
+    assert!(
+        refreshed_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == hover_fill),
+        "hovered sample row should keep its visible hover fill after refresh"
+    );
+}
+
+#[test]
 fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");

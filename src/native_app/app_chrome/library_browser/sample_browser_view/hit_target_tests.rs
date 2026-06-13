@@ -165,8 +165,8 @@ fn active_drag_rows_request_pointer_moves() {
 }
 
 #[test]
-/// Verifies stale hover state is not retained across widget refreshes.
-fn hover_state_clears_on_retained_widget_refresh() {
+/// Verifies retained refreshes keep hover for the current row owner.
+fn hover_state_survives_retained_widget_refresh() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = sample_hit_target(false, false, false, false);
     previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
@@ -176,13 +176,13 @@ fn hover_state_clears_on_retained_widget_refresh() {
     refreshed.synchronize_from_previous(&previous);
 
     assert!(
-        !is_hovered(&refreshed),
-        "sample row hover paint must not stick after retained projections"
+        is_hovered(&refreshed),
+        "sample row hover paint must survive retained projections for the current hover owner"
     );
     let plan = refreshed.paint_plan_with_defaults(bounds);
     assert!(
-        !paints_hover_fill(&plan),
-        "refreshed rows should not paint stale hover highlights"
+        paints_hover_fill(&plan),
+        "refreshed current-hover rows should keep painting hover highlights"
     );
 }
 
@@ -242,8 +242,8 @@ fn double_activation_uses_normal_sample_activation() {
 }
 
 #[test]
-/// Verifies retained pressed state survives without carrying stale hover.
-fn pressed_state_survives_retained_widget_refresh_without_hover() {
+/// Verifies retained pressed and hover state survive a row refresh.
+fn pressed_and_hover_state_survive_retained_widget_refresh() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = sample_hit_target(false, false, false, false);
     previous.handle_input(bounds, WidgetInput::primary_press(Point::new(34.0, 8.0)));
@@ -253,7 +253,7 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
     let mut refreshed = sample_hit_target(false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
-    assert!(!is_hovered(&refreshed));
+    assert!(is_hovered(&refreshed));
     assert!(is_pressed(&refreshed));
 }
 
