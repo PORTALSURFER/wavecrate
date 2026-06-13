@@ -110,6 +110,50 @@ fn source_scan_discoveries_populate_selected_tree_before_finish() {
 }
 
 #[test]
+fn selected_source_refresh_preserves_clicked_nested_folder() {
+    let root = temp_source_root("wavecrate-gui-source-refresh-preserve-selection");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    let empty = drums.join("empty");
+    fs::create_dir_all(&kicks).expect("create nested folder");
+    fs::create_dir_all(&empty).expect("create empty sibling");
+    fs::write(kicks.join("kick.wav"), [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let drums_id = path_id(&drums);
+    let kicks_id = path_id(&kicks);
+    let empty_id = path_id(&empty);
+
+    let request = browser
+        .begin_selected_source_scan(101)
+        .expect("selected source refresh should queue");
+    browser.activate_folder(drums_id.clone());
+    browser.activate_folder(kicks_id.clone());
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+
+    assert!(browser.apply_scan_finished(result));
+    let visible = browser.visible_folders();
+
+    assert_eq!(browser.selected_folder_path(), Some(kicks.clone()));
+    assert!(
+        visible
+            .iter()
+            .any(|folder| folder.id == kicks_id && folder.selected),
+        "refresh finish should keep the clicked folder visible and selected"
+    );
+    assert!(
+        browser.tree.expanded_folders.contains(&drums_id),
+        "refresh finish should keep selected-folder ancestors expanded"
+    );
+    assert!(
+        visible
+            .iter()
+            .any(|folder| folder.id == empty_id && !folder.has_children),
+        "empty sibling folders should remain visible without bogus disclosure state"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn source_scan_loads_deep_folders_before_click_verification() {
     let root = temp_source_root("wavecrate-gui-source-scan-deep-folders");
     let deep = root

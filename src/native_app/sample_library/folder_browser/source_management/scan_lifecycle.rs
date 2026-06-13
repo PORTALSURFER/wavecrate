@@ -3,7 +3,7 @@ use std::path::PathBuf;
 #[cfg(test)]
 use super::super::scan_types::FolderScanDiscovery;
 use super::super::{
-    FolderBrowserState, SourceEntry,
+    FolderBrowserState, FolderEntry, SourceEntry,
     path_helpers::{folder_label, path_id},
     scan_types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
     scanning::{merge_scan_discovery, placeholder_folder},
@@ -110,23 +110,29 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
-        let Some(source) = self
+        let Some(source_index) = self
             .source
             .sources
-            .iter_mut()
-            .find(|source| source.id == result.source_id)
+            .iter()
+            .position(|source| source.id == result.source_id)
         else {
             return false;
         };
-        if source.loading_task != Some(result.task_id) {
+        if self.source.sources[source_index].loading_task != Some(result.task_id) {
             return false;
         }
-        let source_id = source.id.clone();
+        let source_id = self.source.sources[source_index].id.clone();
         let should_select = self.source.selected_source == source_id;
-        source.loading_task = None;
-        source.root_folder = Some(result.folder.clone());
+        let refreshing_selected_loaded_source =
+            should_select && self.source.sources[source_index].root_folder.is_some();
+        self.source.sources[source_index].loading_task = None;
+        self.source.sources[source_index].root_folder = Some(result.folder.clone());
         if should_select {
-            self.select_loaded_source(source_id, result.folder);
+            if refreshing_selected_loaded_source {
+                self.refresh_selected_source_tree(source_id, result.folder);
+            } else {
+                self.select_loaded_source(source_id, result.folder);
+            }
         } else {
             self.bump_file_content_revision();
         }
@@ -173,5 +179,63 @@ impl FolderBrowserState {
             self.bump_file_content_revision();
         }
         changed
+    }
+}
+
+impl FolderBrowserState {
+    fn refresh_selected_source_tree(&mut self, source_id: String, root_folder: FolderEntry) {
+        self.source.selected_source = source_id;
+        self.tree.folders = vec![root_folder];
+        self.retain_tree_state_after_selected_source_refresh();
+        self.reset_tree_view();
+        self.bump_file_content_revision();
+        self.prewarm_selected_source_audio_projection_cache();
+    }
+
+    fn retain_tree_state_after_selected_source_refresh(&mut self) {
+        let root_id = self
+            .tree
+            .folders
+            .first()
+            .map(|folder| folder.id.clone())
+            .unwrap_or_default();
+        if root_id.is_empty() {
+            return;
+        }
+
+        let still_available = self
+            .tree
+            .expanded_folders
+            .iter()
+            .filter(|id| self.find_folder(id).is_some())
+            .cloned()
+            .collect();
+        self.tree.expanded_folders = still_available;
+        self.tree.expanded_folders.insert(root_id.clone());
+
+        if self.find_folder(&self.selection.selected_folder).is_some() {
+            self.expand_selected_folder_ancestors();
+            let visible_ids = self
+                .selected_audio_files()
+                .into_iter()
+                .map(|file| file.id.clone())
+                .collect();
+            self.selection.retain_visible_files(&visible_ids);
+            return;
+        }
+
+        self.selection.select_folder_after_tree_changed(root_id);
+    }
+
+    fn expand_selected_folder_ancestors(&mut self) {
+        let selected = std::path::PathBuf::from(&self.selection.selected_folder);
+        let mut cursor = selected.parent();
+        while let Some(parent) = cursor {
+            let id = path_id(parent);
+            if self.find_folder(&id).is_some() {
+                self.tree.expanded_folders.insert(id);
+            }
+            cursor = parent.parent();
+        }
     }
 }
