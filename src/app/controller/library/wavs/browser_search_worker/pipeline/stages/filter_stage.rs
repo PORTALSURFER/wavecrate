@@ -1,8 +1,15 @@
 //! Retained filter-stage caches for worker-side browser search composition.
 
-use super::super::folders::{filter_accepts_tag, folder_accepts_for_job, folder_accepts_index};
+mod acceptance;
+mod cache_key;
+mod playback_age_token;
+mod storage;
+
+use self::acceptance::entry_accepted_by_job;
+use self::cache_key::{filter_stage_hash, filter_stage_required};
+use self::storage::{reuse_cached_stage, store_filter_stage};
+use super::super::folders::{folder_accepts_for_job, folder_accepts_index};
 use super::super::*;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 /// One retained worker filter stage aligned to source-order browser rows.
@@ -41,23 +48,8 @@ pub(in super::super) fn filtered_stage_for_job(
     }
 
     let filter_hash = filter_stage_hash(cache, job, has_folder_filters);
-    if let Some(index) = cache.filter_stage_cache.iter().position(|cached| {
-        cached.source_id == source_id
-            && cached.revision == cache.revision
-            && cached.filter_hash == filter_hash
-            && cached.accepts.len() == entries_len
-    }) {
-        let cached = cache.filter_stage_cache.remove(index);
-        cache.filter_stage_cache.insert(0, cached);
-        return Some(
-            cache
-                .filter_stage_cache
-                .first()
-                .map(|cached| WorkerFilteredStage {
-                    accepts: Arc::clone(&cached.accepts),
-                    rows: Arc::clone(&cached.rows),
-                }),
-        );
+    if let Some(stage) = reuse_cached_stage(cache, source_id, entries_len, filter_hash) {
+        return Some(Some(stage));
     }
 
     let Some(entries) = cache.entries.as_ref() else {
@@ -77,22 +69,8 @@ pub(in super::super) fn filtered_stage_for_job(
             .contains(Path::new(entry.relative_path.as_ref()));
         let relative_path = Path::new(entry.relative_path.as_ref());
         let bpm = job.sidebar_bpm_values.get(relative_path).copied().flatten();
-        let accepted = filter_accepts_tag(
-            job.filter,
-            &job.rating_filter,
-            &job.playback_age_filter,
-            job.marked_only,
-            marked,
-            job.tag_named_filter,
-            entry.tag_named,
-            entry.tag,
-            entry.locked,
-            entry.last_played_at,
-            job.playback_age_now_unix_secs,
-            &job.sidebar_filters,
-            relative_path,
-            bpm,
-        ) && folder_accepts_index(folder_accepts.as_ref(), index);
+        let accepted = entry_accepted_by_job(job, entry, relative_path, marked, bpm)
+            && folder_accepts_index(folder_accepts.as_ref(), index);
         accepts.push(accepted);
         if accepted {
             rows.push(index);
@@ -102,137 +80,13 @@ pub(in super::super) fn filtered_stage_for_job(
         return None;
     }
 
-    cache.filter_stage_cache.insert(
-        0,
-        WorkerFilterStageCacheEntry {
-            source_id: source_id.to_string(),
-            revision: cache.revision,
-            filter_hash,
-            accepts: Arc::from(accepts),
-            rows: Arc::from(rows),
-        },
-    );
-    cache
-        .filter_stage_cache
-        .truncate(cache.max_cached_filter_stages);
-    Some(
-        cache
-            .filter_stage_cache
-            .first()
-            .map(|cached| WorkerFilteredStage {
-                accepts: Arc::clone(&cached.accepts),
-                rows: Arc::clone(&cached.rows),
-            }),
-    )
-}
-
-fn filter_stage_required(job: &SearchJob, has_folder_filters: bool) -> bool {
-    has_folder_filters
-        || job.filter != TriageFlagFilter::All
-        || !job.rating_filter.is_empty()
-        || !job.playback_age_filter.is_empty()
-        || !job.sidebar_filters.is_empty()
-        || job.marked_only
-        || job.tag_named_filter != crate::app::state::TagNamedFilter::All
-}
-
-fn filter_stage_hash(
-    cache: &mut SearchWorkerCache,
-    job: &SearchJob,
-    has_folder_filters: bool,
-) -> u64 {
-    hash_value(&(
-        filter_key(job.filter),
-        hash_value(&job.rating_filter),
-        hash_value(&job.playback_age_filter),
-        playback_age_filter_cache_token(
-            cache,
-            &job.playback_age_filter,
-            job.playback_age_now_unix_secs,
-        ),
-        job.marked_only,
-        job.marked_only.then_some(hash_value(&job.marked_paths)),
-        job.tag_named_filter,
-        hash_value(&job.sidebar_filters),
-        job.sidebar_filters
-            .needs_bpm_metadata()
-            .then(|| sidebar_bpm_hash_for_job(job)),
-        has_folder_filters.then_some(super::super::folder_filter_hash_for_job(job)),
-    ))
-}
-
-/// Hash worker-side BPM lookup values for active sidebar BPM filters.
-fn sidebar_bpm_hash_for_job(job: &SearchJob) -> u64 {
-    hash_value(
-        &job.sidebar_bpm_values
-            .iter()
-            .map(|(path, bpm)| (path, bpm.map(f32::to_bits)))
-            .collect::<Vec<_>>(),
-    )
-}
-
-fn filter_key(filter: TriageFlagFilter) -> u8 {
-    match filter {
-        TriageFlagFilter::All => 0,
-        TriageFlagFilter::Keep => 1,
-        TriageFlagFilter::Trash => 2,
-        TriageFlagFilter::Untagged => 3,
-    }
-}
-
-fn playback_age_filter_cache_token(
-    cache: &mut SearchWorkerCache,
-    filters: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
-    now_unix_secs: i64,
-) -> Option<i64> {
-    if filters.is_empty() {
-        return None;
-    }
-    let filter_hash = hash_value(filters);
-    if let Some(cached) = cache
-        .playback_age_token_caches
-        .iter()
-        .copied()
-        .find(|cached| cached.revision == cache.revision && cached.filter_hash == filter_hash)
-        && cached.token.is_none_or(|token| now_unix_secs < token)
-    {
-        return cached.token;
-    }
-
-    let token = cache
-        .entries
-        .as_ref()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            crate::app::state::next_playback_age_filter_change_unix_secs(
-                filters,
-                entry.last_played_at,
-                now_unix_secs,
-            )
-        })
-        .min();
-    let cache_entry = WorkerPlaybackAgeTokenCache {
-        revision: cache.revision,
+    Some(store_filter_stage(
+        cache,
+        source_id,
         filter_hash,
-        token,
-    };
-    if let Some(index) = cache
-        .playback_age_token_caches
-        .iter()
-        .position(|cached| cached.revision == cache.revision && cached.filter_hash == filter_hash)
-    {
-        cache.playback_age_token_caches[index] = cache_entry;
-    } else {
-        cache.playback_age_token_caches.push(cache_entry);
-    }
-    token
-}
-
-fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+        accepts,
+        rows,
+    ))
 }
 
 #[cfg(test)]
@@ -241,31 +95,6 @@ mod tests {
     use crate::sample_sources::SourceId;
     use std::collections::BTreeSet;
     use std::path::PathBuf;
-
-    #[test]
-    fn playback_age_filter_token_reuses_cached_boundary() {
-        let mut cache = SearchWorkerCache {
-            revision: 7,
-            entries: Some(vec![CompactSearchEntry {
-                display_label: "aging".into(),
-                relative_path: "aging.wav".into(),
-                tag: Rating::NEUTRAL,
-                locked: false,
-                last_played_at: Some(100),
-                tag_named: false,
-            }]),
-            ..SearchWorkerCache::default()
-        };
-        let filters = BTreeSet::from([crate::app::state::PlaybackAgeFilterChip::OlderThanWeek]);
-        let before =
-            playback_age_filter_cache_token(&mut cache, &filters, 100 + (7 * 24 * 60 * 60) - 2);
-        let again =
-            playback_age_filter_cache_token(&mut cache, &filters, 100 + (7 * 24 * 60 * 60) - 1);
-
-        assert_eq!(before, Some(100 + (7 * 24 * 60 * 60)));
-        assert_eq!(again, before);
-        assert_eq!(cache.playback_age_token_caches.len(), 1);
-    }
 
     #[test]
     fn filtered_stage_cache_reuses_matching_filter_shape() {
