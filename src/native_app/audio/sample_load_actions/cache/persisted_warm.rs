@@ -2,7 +2,6 @@ use radiant::prelude as ui;
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
-    sync::Arc,
     time::Instant,
 };
 
@@ -26,36 +25,25 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
-        let ticket = self.waveform.cache.warm_task.begin();
-        let results = Arc::clone(&self.waveform.cache.warm_results);
-        context.spawn(
-            "gui-waveform-cache-warm",
-            move || {
-                let result = warm_persisted_waveform_cache(paths);
-                if let Ok(mut results) = results.lock() {
-                    results.insert(ticket, result);
-                }
-                ticket
-            },
-            GuiMessage::WaveformCacheWarmFinished,
-        );
+        context
+            .business()
+            .background("gui-waveform-cache-warm")
+            .latest(&mut self.waveform.cache.warm_task)
+            .run(
+                move |_| warm_persisted_waveform_cache(paths),
+                GuiMessage::WaveformCacheWarmFinished,
+            );
     }
 
-    pub(in crate::native_app) fn finish_waveform_cache_warm(&mut self, ticket: ui::TaskTicket) {
+    pub(in crate::native_app) fn finish_waveform_cache_warm(
+        &mut self,
+        completion: ui::TaskCompletion<WaveformCacheWarmResult>,
+    ) {
         let started_at = Instant::now();
-        let result = self
-            .waveform
-            .cache
-            .warm_results
-            .lock()
-            .ok()
-            .and_then(|mut results| results.remove(&ticket));
-        if !self.waveform.cache.warm_task.finish(ticket) {
+        if !self.waveform.cache.warm_task.finish(completion.ticket) {
             return;
         }
-        if let Some(result) = result {
-            self.apply_waveform_cache_warm_result(result);
-        }
+        self.apply_waveform_cache_warm_result(completion.output);
         log_slow_cache_phase(
             "browser.sample_cache.warm_finish",
             Path::new("waveform-cache-warm"),

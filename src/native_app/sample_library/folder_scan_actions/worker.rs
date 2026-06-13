@@ -33,9 +33,8 @@ impl NativeAppState {
             None,
         );
         let sender = self.background.worker_sender.clone();
-        context.spawn(
-            "gui-folder-scan",
-            move || run_folder_scan_worker(request, sender),
+        context.business().background("gui-folder-scan").run(
+            move |_| run_folder_scan_worker(request, sender),
             GuiMessage::FolderScanFinished,
         );
     }

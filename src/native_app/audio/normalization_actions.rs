@@ -51,11 +51,13 @@ impl NativeAppState {
             detail: String::from("Queued"),
         });
         self.ui.status.sample = format!("Normalizing {label}");
-        context.spawn(
-            "gui-normalize-selected-samples",
-            move || run_normalization_worker(request),
-            GuiMessage::NormalizationFinished,
-        );
+        context
+            .business()
+            .background("gui-normalize-selected-samples")
+            .run(
+                move |_| run_normalization_worker(request),
+                GuiMessage::NormalizationFinished,
+            );
         emit_gui_action(
             "browser.normalize_selected_samples",
             Some("browser"),

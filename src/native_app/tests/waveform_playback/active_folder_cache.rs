@@ -200,10 +200,10 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
 
     assert!(!crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path));
 
-    let token = ui::CancellationToken::new();
+    let worker_context = ui::BusinessWorkContext::default();
     let loaded = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
         vec![sample_path.clone()],
-        &token,
+        &worker_context,
     );
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
 

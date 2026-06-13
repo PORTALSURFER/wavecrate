@@ -30,7 +30,7 @@ impl SampleLoadWorker {
     pub(super) fn run(
         self,
         ticket: ui::TaskTicket,
-        token: ui::CancellationToken,
+        context: ui::BusinessWorkContext,
     ) -> SampleLoadResult {
         log_sample_load_timing(
             "browser.sample_load.worker.queue_wait",
@@ -38,7 +38,7 @@ impl SampleLoadWorker {
             self.request.queue_wait(Instant::now()),
             true,
         );
-        if token.is_cancelled() {
+        if context.is_cancelled() {
             let autoplay = self.request.autoplay();
             return SampleLoadResult {
                 path: self.request.into_path(),
@@ -48,7 +48,7 @@ impl SampleLoadWorker {
         }
 
         let progress_reporter = Self::progress_reporter(ticket, &self.sender);
-        let result = self.load(ticket, &token, &progress_reporter);
+        let result = self.load(ticket, &context, &progress_reporter);
         let autoplay = self.request.autoplay();
         SampleLoadResult {
             path: self.request.path().to_owned(),
@@ -60,7 +60,7 @@ impl SampleLoadWorker {
     fn load(
         &self,
         ticket: ui::TaskTicket,
-        token: &ui::CancellationToken,
+        context: &ui::BusinessWorkContext,
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         match self.request.strategy() {
@@ -74,11 +74,11 @@ impl SampleLoadWorker {
                 if result.is_ok() {
                     result
                 } else {
-                    self.load_decoded_sample(ticket, token, progress_reporter)
+                    self.load_decoded_sample(ticket, context, progress_reporter)
                 }
             }
             SampleLoadStrategy::Decode => {
-                self.load_decoded_sample(ticket, token, progress_reporter)
+                self.load_decoded_sample(ticket, context, progress_reporter)
             }
         }
     }
@@ -95,7 +95,7 @@ impl SampleLoadWorker {
     fn load_decoded_sample(
         &self,
         ticket: ui::TaskTicket,
-        token: &ui::CancellationToken,
+        context: &ui::BusinessWorkContext,
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         let phase_started_at = Instant::now();
@@ -107,9 +107,9 @@ impl SampleLoadWorker {
             |progress| {
                 progress_reporter.borrow_mut().report(progress);
             },
-            || token.is_cancelled(),
+            || context.is_cancelled(),
             |audio| {
-                if autoplay && !token.is_cancelled() {
+                if autoplay && !context.is_cancelled() {
                     let _ =
                         ready_sender.send(GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
                             ticket,

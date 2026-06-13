@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, WaveformCacheIndicatorRefreshResult},
@@ -44,38 +44,29 @@ impl NativeAppState {
                     .insert(path.display().to_string());
             }
         }
-        let ticket = self.waveform.cache.indicator_refresh_task.begin();
-        let results = Arc::clone(&self.waveform.cache.indicator_refresh_results);
-        context.spawn(
-            "gui-waveform-cache-indicators",
-            move || {
-                let result = probe_persisted_waveform_cache_indicators(paths);
-                if let Ok(mut results) = results.lock() {
-                    results.insert(ticket, result);
-                }
-                ticket
-            },
-            GuiMessage::WaveformCacheIndicatorRefreshFinished,
-        );
+        context
+            .business()
+            .background("gui-waveform-cache-indicators")
+            .latest(&mut self.waveform.cache.indicator_refresh_task)
+            .run(
+                move |_| probe_persisted_waveform_cache_indicators(paths),
+                GuiMessage::WaveformCacheIndicatorRefreshFinished,
+            );
     }
 
     pub(in crate::native_app) fn finish_waveform_cache_indicator_refresh(
         &mut self,
-        ticket: ui::TaskTicket,
+        completion: ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>,
     ) {
-        let result = self
+        if !self
             .waveform
             .cache
-            .indicator_refresh_results
-            .lock()
-            .ok()
-            .and_then(|mut results| results.remove(&ticket));
-        if !self.waveform.cache.indicator_refresh_task.finish(ticket) {
+            .indicator_refresh_task
+            .finish(completion.ticket)
+        {
             return;
         }
-        if let Some(result) = result {
-            self.apply_waveform_cache_indicator_refresh_result(result);
-        }
+        self.apply_waveform_cache_indicator_refresh_result(completion.output);
     }
 
     fn apply_waveform_cache_indicator_refresh_result(

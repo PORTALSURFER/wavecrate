@@ -25,12 +25,12 @@ pub(in crate::native_app) fn warm_persisted_waveform_cache(
 
 pub(in crate::native_app) fn warm_active_folder_waveform_cache(
     paths: Vec<PathBuf>,
-    token: &ui::CancellationToken,
+    context: &ui::BusinessWorkContext,
 ) -> Vec<(PathBuf, Arc<WaveformFile>)> {
     paths
         .into_iter()
         .filter_map(|path| {
-            if token.is_cancelled() {
+            if context.is_cancelled() {
                 return None;
             }
             if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
@@ -39,7 +39,7 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
             let waveform = WaveformState::load_path_with_progress_and_cancel(
                 path.clone(),
                 |_| {},
-                || token.is_cancelled(),
+                || context.is_cancelled(),
             )
             .ok()?;
             Some((path, waveform.file()))

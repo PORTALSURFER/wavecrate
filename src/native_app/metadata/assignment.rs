@@ -60,11 +60,13 @@ impl NativeAppState {
                 tags: added,
                 assigned: true,
             };
-            context.spawn(
-                "gui-metadata-tag-persist",
-                move || persist_metadata_tag_assignment(request),
-                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
-            );
+            context
+                .business()
+                .background("gui-metadata-tag-persist")
+                .run(
+                    move |_| persist_metadata_tag_assignment(request),
+                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+                );
         }
     }
 
@@ -137,11 +139,13 @@ impl NativeAppState {
             tags: vec![tag],
             assigned: false,
         };
-        context.spawn(
-            "gui-metadata-tag-persist",
-            move || persist_metadata_tag_assignment(request),
-            |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
-        );
+        context
+            .business()
+            .background("gui-metadata-tag-persist")
+            .run(
+                move |_| persist_metadata_tag_assignment(request),
+                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+            );
     }
 
     pub(in crate::native_app) fn finish_metadata_tag_persist(

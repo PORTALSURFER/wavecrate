@@ -32,11 +32,11 @@ impl NativeAppState {
             }
             GuiMessage::SamplePlaybackReady(result) => self.finish_sample_playback_ready(result),
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
-            GuiMessage::WaveformCacheIndicatorRefreshFinished(ticket) => {
-                self.finish_waveform_cache_indicator_refresh(ticket)
+            GuiMessage::WaveformCacheIndicatorRefreshFinished(result) => {
+                self.finish_waveform_cache_indicator_refresh(result)
             }
-            GuiMessage::WaveformCacheWarmFinished(ticket) => {
-                self.finish_waveform_cache_warm(ticket)
+            GuiMessage::WaveformCacheWarmFinished(result) => {
+                self.finish_waveform_cache_warm(result)
             }
             GuiMessage::ActiveFolderCacheWarmReady(ticket) => {
                 self.start_active_folder_cache_warm_after_delay(ticket, context);

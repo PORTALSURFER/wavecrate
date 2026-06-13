@@ -24,8 +24,11 @@ impl NativeAppState {
         );
     }
 
-    pub(in crate::native_app) fn finish_startup_folder_verify(&mut self, ticket: ui::TaskTicket) {
-        self.finish_folder_verify_with_action(ticket, "folder_browser.startup_verify");
+    pub(in crate::native_app) fn finish_startup_folder_verify(
+        &mut self,
+        completion: ui::TaskCompletion<scan::FolderVerifyResult>,
+    ) {
+        self.finish_folder_verify_with_action(completion, "folder_browser.startup_verify");
     }
 
     pub(in crate::native_app) fn queue_selected_folder_verify_after_activation(
@@ -40,8 +43,11 @@ impl NativeAppState {
         );
     }
 
-    pub(in crate::native_app) fn finish_folder_verify(&mut self, ticket: ui::TaskTicket) {
-        self.finish_folder_verify_with_action(ticket, "folder_browser.selected_folder_verify");
+    pub(in crate::native_app) fn finish_folder_verify(
+        &mut self,
+        completion: ui::TaskCompletion<scan::FolderVerifyResult>,
+    ) {
+        self.finish_folder_verify_with_action(completion, "folder_browser.selected_folder_verify");
     }
 
     fn queue_selected_folder_verify(
@@ -49,26 +55,20 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
         action: &'static str,
         task_name: &'static str,
-        finished: impl FnOnce(ui::TaskTicket) -> GuiMessage + Send + 'static,
+        finished: impl FnOnce(ui::TaskCompletion<scan::FolderVerifyResult>) -> GuiMessage
+        + Send
+        + 'static,
     ) {
         let Some(request) = self.library.folder_browser.selected_folder_verify_request() else {
             return;
         };
         let source_id = request.source_id.clone();
         let started_at = Instant::now();
-        let ticket = self.background.folder_verify_task.begin();
-        let results = self.background.folder_verify_results.clone();
-        context.spawn(
-            task_name,
-            move || {
-                let result = scan::verify_direct_folder(request);
-                if let Ok(mut results) = results.lock() {
-                    results.insert(ticket, result);
-                }
-                ticket
-            },
-            finished,
-        );
+        let verify = context
+            .business()
+            .background(task_name)
+            .latest(&mut self.background.folder_verify_task);
+        verify.run(move |_| scan::verify_direct_folder(request), finished);
         emit_gui_action(
             action,
             Some("folder_browser"),
@@ -79,25 +79,20 @@ impl NativeAppState {
         );
     }
 
-    fn finish_folder_verify_with_action(&mut self, ticket: ui::TaskTicket, action: &'static str) {
+    fn finish_folder_verify_with_action(
+        &mut self,
+        completion: ui::TaskCompletion<scan::FolderVerifyResult>,
+        action: &'static str,
+    ) {
         let started_at = Instant::now();
-        let result = self
-            .background
-            .folder_verify_results
-            .lock()
-            .ok()
-            .and_then(|mut results| results.remove(&ticket));
-        if !self.background.folder_verify_task.finish(ticket) {
+        if !self.background.folder_verify_task.finish(completion.ticket) {
             return;
         }
-        let Some(result) = result else {
-            return;
-        };
-        let source_id = result.source_id.clone();
+        let source_id = completion.output.source_id.clone();
         let changed = self
             .library
             .folder_browser
-            .apply_direct_folder_verify_result(result);
+            .apply_direct_folder_verify_result(completion.output);
         if changed {
             self.refresh_persisted_metadata_tags_for_source(&source_id);
             self.persist_user_configuration(action, started_at);

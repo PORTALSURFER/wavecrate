@@ -174,11 +174,13 @@ impl NativeAppState {
             format!("Deleted tag {tag} from {removed_count} assignment(s)")
         };
         if !requests.is_empty() {
-            context.spawn(
-                "gui-metadata-tag-delete-persist",
-                move || persist_metadata_tag_deletions(requests),
-                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
-            );
+            context
+                .business()
+                .background("gui-metadata-tag-delete-persist")
+                .run(
+                    move |_| persist_metadata_tag_deletions(requests),
+                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+                );
         }
     }
 }

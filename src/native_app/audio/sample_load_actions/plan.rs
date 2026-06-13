@@ -138,11 +138,18 @@ impl NativeAppState {
     ) {
         let sender = self.background.worker_sender.clone();
         let request = SampleLoadRequest::new(path, autoplay, priority, strategy);
-        self.background.sample_load_cancel = Some(context.spawn_cancellable_latest_with_priority(
-            &mut self.background.sample_load_task,
-            "gui-sample-load",
-            request.priority(),
-            move |ticket, token| SampleLoadWorker::new(request, sender).run(ticket, token),
+        let load = match request.priority() {
+            ui::TaskPriority::Interactive => context.business().interactive("gui-sample-load"),
+            ui::TaskPriority::Background => context.business().background("gui-sample-load"),
+            ui::TaskPriority::Idle => context.business().idle("gui-sample-load"),
+        }
+        .cancellable()
+        .latest(&mut self.background.sample_load_task);
+        let ticket = load.ticket();
+        self.background.sample_load_cancel = Some(load.run(
+            move |worker_context| {
+                SampleLoadWorker::new(request, sender).run(ticket, worker_context)
+            },
             GuiMessage::SampleLoadFinished,
         ));
     }

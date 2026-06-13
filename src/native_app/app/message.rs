@@ -8,13 +8,14 @@ use wavecrate::sample_sources::SampleCollection;
 use crate::native_app::app::{
     ActiveFolderCacheWarmResult, AppSettingsTab, AudioOpenTaskCompletion, NormalizationProgress,
     NormalizationResult, SampleLoadResult, SamplePlaybackReady,
+    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolutionRequest;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::scan::{
-    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult,
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderVerifyResult,
 };
 use crate::native_app::waveform::WaveformInteraction;
 
@@ -37,8 +38,8 @@ pub(in crate::native_app) enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
-    StartupFolderVerifyFinished(ui::TaskTicket),
-    SelectedFolderVerifyFinished(ui::TaskTicket),
+    StartupFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
+    SelectedFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
     SourceFilesystemChanged {
         source_id: String,
         paths: Vec<PathBuf>,
@@ -69,8 +70,8 @@ pub(in crate::native_app) enum GuiMessage {
     SampleLoadProgress(ui::TaskTicket, f32),
     SamplePlaybackReady(ui::TaskCompletion<SamplePlaybackReady>),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
-    WaveformCacheIndicatorRefreshFinished(ui::TaskTicket),
-    WaveformCacheWarmFinished(ui::TaskTicket),
+    WaveformCacheIndicatorRefreshFinished(ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>),
+    WaveformCacheWarmFinished(ui::TaskCompletion<WaveformCacheWarmResult>),
     ActiveFolderCacheWarmReady(ui::TaskTicket),
     ActiveFolderCacheWarmFinished(ui::TaskCompletion<ActiveFolderCacheWarmResult>),
     AudioPlayerOpenFinished(AudioOpenTaskCompletion),

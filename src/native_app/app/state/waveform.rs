@@ -1,14 +1,11 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     path::PathBuf,
-    sync::{Arc, Mutex},
 };
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::{
-    WaveformCacheEntry, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
-};
+use crate::native_app::app::WaveformCacheEntry;
 use crate::native_app::waveform::WaveformState;
 
 pub(in crate::native_app) struct WaveformAppState {
@@ -48,12 +45,8 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) order: VecDeque<PathBuf>,
     pub(in crate::native_app) bytes: usize,
     pub(in crate::native_app) indicator_refresh_task: ui::LatestTask,
-    pub(in crate::native_app) indicator_refresh_results:
-        Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheIndicatorRefreshResult>>>,
     pub(in crate::native_app) warm_pending: VecDeque<PathBuf>,
     pub(in crate::native_app) warm_task: ui::LatestTask,
-    pub(in crate::native_app) warm_results:
-        Arc<Mutex<HashMap<ui::TaskTicket, WaveformCacheWarmResult>>>,
     pub(in crate::native_app) active_folder_warm_delay_task: ui::LatestTask,
     pub(in crate::native_app) active_folder_warm_task: ui::LatestTask,
     pub(in crate::native_app) active_folder_warm_cancel: Option<ui::CancellationToken>,
@@ -69,10 +62,8 @@ impl Default for WaveformCacheState {
             order: Default::default(),
             bytes: 0,
             indicator_refresh_task: ui::LatestTask::new(),
-            indicator_refresh_results: Default::default(),
             warm_pending: Default::default(),
             warm_task: ui::LatestTask::new(),
-            warm_results: Default::default(),
             active_folder_warm_delay_task: ui::LatestTask::new(),
             active_folder_warm_task: ui::LatestTask::new(),
             active_folder_warm_cancel: None,

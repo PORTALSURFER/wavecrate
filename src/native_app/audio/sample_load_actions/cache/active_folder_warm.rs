@@ -88,21 +88,28 @@ impl NativeAppState {
             self.waveform.cache.active_folder_warm_folder_id = None;
             return;
         }
-        self.waveform.cache.active_folder_warm_cancel =
-            Some(context.spawn_cancellable_latest_with_priority(
-                &mut self.waveform.cache.active_folder_warm_task,
-                "gui-active-folder-cache-warm",
-                active_folder_cache_warm_priority(),
-                move |_ticket, token| {
-                    let loaded = warm_active_folder_waveform_cache(paths, &token);
-                    ActiveFolderCacheWarmResult {
-                        folder_id,
-                        loaded,
-                        cancelled: token.is_cancelled(),
-                    }
-                },
-                GuiMessage::ActiveFolderCacheWarmFinished,
-            ));
+        let warm = match active_folder_cache_warm_priority() {
+            ui::TaskPriority::Interactive => context
+                .business()
+                .interactive("gui-active-folder-cache-warm"),
+            ui::TaskPriority::Background => context
+                .business()
+                .background("gui-active-folder-cache-warm"),
+            ui::TaskPriority::Idle => context.business().idle("gui-active-folder-cache-warm"),
+        }
+        .cancellable()
+        .latest(&mut self.waveform.cache.active_folder_warm_task);
+        self.waveform.cache.active_folder_warm_cancel = Some(warm.run(
+            move |worker_context| {
+                let loaded = warm_active_folder_waveform_cache(paths, &worker_context);
+                ActiveFolderCacheWarmResult {
+                    folder_id,
+                    loaded,
+                    cancelled: worker_context.is_cancelled(),
+                }
+            },
+            GuiMessage::ActiveFolderCacheWarmFinished,
+        ));
     }
 
     pub(in crate::native_app) fn finish_active_folder_cache_warm(
