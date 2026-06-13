@@ -27,11 +27,13 @@ fn on_action_queues_waveform_cursor_preview_actions() {
 fn on_action_applies_waveform_edit_preview_actions_immediately() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::SetWaveformEditSelectionRange {
-        start_micros: 120_000,
-        end_micros: 640_000,
-        preserve_view_edge: false,
-    });
+    bridge.on_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange {
+            start_micros: 120_000,
+            end_micros: 640_000,
+            preserve_view_edge: false,
+        },
+    ));
 
     assert!(!bridge.pending_waveform_actions.has_pending());
     assert!(bridge.controller.ui.waveform.edit_selection.is_some());
@@ -139,7 +141,9 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
 fn flush_pending_waveform_actions_reuses_derived_snapshot_for_view_updates() {
     let mut bridge = test_bridge(16);
 
-    assert!(bridge.enqueue_waveform_action(&NativeUiAction::ZoomWaveformFull));
+    assert!(bridge.enqueue_waveform_action(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull
+    )));
     bridge.flush_pending_waveform_actions();
 
     assert!(
@@ -159,11 +163,13 @@ fn flush_pending_waveform_actions_reuses_derived_snapshot_for_view_updates() {
 fn assert_pending_zoom_flush_before_immediate_action(action: NativeUiAction) {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::ZoomWaveform {
-        zoom_in: true,
-        steps: 1,
-        anchor_ratio_micros: Some(400_000),
-    });
+    bridge.on_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 1,
+            anchor_ratio_micros: Some(400_000),
+        },
+    ));
     assert!(bridge.pending_waveform_actions.has_pending());
 
     bridge.on_action(action);
@@ -182,26 +188,28 @@ fn assert_pending_zoom_flush_before_immediate_action(action: NativeUiAction) {
 
 #[test]
 fn immediate_edit_selection_flushes_pending_zoom_without_downgrading_model_pull() {
-    assert_pending_zoom_flush_before_immediate_action(
-        NativeUiAction::SetWaveformEditSelectionRange {
+    assert_pending_zoom_flush_before_immediate_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange {
             start_micros: 120_000,
             end_micros: 640_000,
             preserve_view_edge: false,
         },
-    );
+    ));
 }
 
 #[test]
 fn immediate_fade_handle_drag_flushes_pending_zoom_without_downgrading_model_pull() {
-    assert_pending_zoom_flush_before_immediate_action(NativeUiAction::SetWaveformEditFadeInEnd {
-        position_micros: 300_000,
-    });
+    assert_pending_zoom_flush_before_immediate_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd {
+            position_micros: 300_000,
+        },
+    ));
 }
 
 #[test]
 fn immediate_selection_export_drag_flushes_pending_zoom_without_downgrading_model_pull() {
-    assert_pending_zoom_flush_before_immediate_action(
-        NativeUiAction::UpdateWaveformSelectionDrag {
+    assert_pending_zoom_flush_before_immediate_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::UpdateWaveformSelectionDrag {
             pointer_x: 320,
             pointer_y: 240,
             hovered_folder_pane: None,
@@ -211,12 +219,12 @@ fn immediate_selection_export_drag_flushes_pending_zoom_without_downgrading_mode
             shift_down: false,
             alt_down: false,
         },
-    );
+    ));
 }
 
 #[test]
 fn finish_range_action_flushes_pending_zoom_without_downgrading_model_pull() {
-    assert_pending_zoom_flush_before_immediate_action(
-        NativeUiAction::FinishWaveformSelectionRangeDrag,
-    );
+    assert_pending_zoom_flush_before_immediate_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag,
+    ));
 }

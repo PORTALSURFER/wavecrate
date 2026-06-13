@@ -36,7 +36,9 @@ mod projection_browser_viewport {
         let initial = bridge.project_model();
         assert_eq!(initial.browser.view_start_row, 0);
 
-        bridge.on_action(NativeUiAction::SetBrowserViewStart { visible_row: 1 });
+        bridge.on_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { visible_row: 1 },
+        ));
 
         let updated = bridge.project_model();
         assert_eq!(updated.browser.view_start_row, 1);
@@ -51,11 +53,15 @@ mod projection_browser_viewport {
         bridge.controller.ui.browser.viewport.visible =
             crate::app_core::state::VisibleRows::All { total: 40 };
 
-        bridge.on_action(NativeUiAction::SetBrowserViewStart { visible_row: 7 });
+        bridge.on_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { visible_row: 7 },
+        ));
         let scrolled = bridge.project_model();
         assert_eq!(scrolled.browser.view_start_row, 7);
 
-        bridge.on_action(NativeUiAction::FocusBrowserRow { visible_row: 18 });
+        bridge.on_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row: 18 },
+        ));
         let refocused = bridge.project_model();
         assert_eq!(refocused.browser.view_start_row, 7);
     }
@@ -105,9 +111,11 @@ mod projection_folder_edits {
             .expect("folder create draft should be projected");
         assert_eq!(initial_draft.input.value.as_deref(), Some(""));
 
-        bridge.on_action(NativeUiAction::SetFolderCreateInput {
-            value: String::from("drums"),
-        });
+        bridge.on_action(NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::SetFolderCreateInput {
+                value: String::from("drums"),
+            },
+        ));
 
         let updated = bridge.project_model();
         let updated_draft = updated
@@ -159,7 +167,9 @@ mod projection_folder_edits {
                 .any(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
         );
 
-        bridge.on_action(NativeUiAction::CancelFolderCreate);
+        bridge.on_action(NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::CancelFolderCreate,
+        ));
 
         let updated = bridge.project_model();
         assert!(
@@ -213,7 +223,9 @@ mod projection_folder_edits {
             });
         bridge.controller.ui.sources.folders.focused = Some(1);
 
-        bridge.on_action(NativeUiAction::StartFolderRename);
+        bridge.on_action(NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename,
+        ));
 
         let updated = bridge.project_model();
         let draft = updated

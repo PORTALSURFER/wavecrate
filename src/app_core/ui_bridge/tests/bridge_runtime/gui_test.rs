@@ -20,7 +20,9 @@ fn latest_artifact_trace_value(action: NativeUiAction) -> serde_json::Value {
 
 #[test]
 fn live_gui_artifact_marks_handled_actions_as_handled() {
-    let artifact = latest_artifact_trace_value(NativeUiAction::FocusBrowserSearch);
+    let artifact = latest_artifact_trace_value(NativeUiAction::Shell(
+        crate::app_core::actions::NativeShellAction::FocusBrowserSearch,
+    ));
     let trace = artifact["action_trace"]
         .as_array()
         .expect("action trace array");
@@ -31,11 +33,13 @@ fn live_gui_artifact_marks_handled_actions_as_handled() {
 
 #[test]
 fn live_gui_artifact_marks_unhandled_actions_as_unhandled() {
-    let artifact = latest_artifact_trace_value(NativeUiAction::BeginWaveformSelectionShift {
-        pointer_micros: 200_000,
-        start_micros: 100_000,
-        end_micros: 300_000,
-    });
+    let artifact = latest_artifact_trace_value(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionShift {
+            pointer_micros: 200_000,
+            start_micros: 100_000,
+            end_micros: 300_000,
+        },
+    ));
     let trace = artifact["action_trace"]
         .as_array()
         .expect("action trace array");

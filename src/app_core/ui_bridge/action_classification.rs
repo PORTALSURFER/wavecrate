@@ -20,14 +20,14 @@ pub(super) fn classify_action_interaction(
     action: &NativeUiAction,
 ) -> Option<InteractionActionClass> {
     match action {
-        NativeUiAction::MoveBrowserFocus { .. } | NativeUiAction::SetBrowserViewStart { .. } => {
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { .. }) | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { .. }) => {
             Some(InteractionActionClass::Wheel)
         }
-        NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserTab { map: true }) | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::FocusMapSample { .. }) => {
             Some(InteractionActionClass::MapPanProxy)
         }
-        NativeUiAction::SeekWaveformPrecise { .. }
-        | NativeUiAction::SetWaveformCursorPrecise { .. }
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { .. })
         | NativeUiAction::Transport(
             crate::app_core::actions::NativeTransportAction::PlayFromWaveformCursor,
         )
@@ -36,62 +36,62 @@ pub(super) fn classify_action_interaction(
         )
         | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
         | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
-        | NativeUiAction::BeginWaveformCircularSlide { .. }
-        | NativeUiAction::UpdateWaveformCircularSlide { .. }
-        | NativeUiAction::FinishWaveformCircularSlide
-        | NativeUiAction::SetWaveformViewCenter { .. }
-        | NativeUiAction::BeginWaveformSelectionAt { .. }
-        | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
-        | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::SetWaveformSelectionRangePrecise { .. }
-        | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
-        | NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
-        | NativeUiAction::SetWaveformEditSelectionRange { .. }
-        | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
-        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-        | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
-        | NativeUiAction::SetWaveformEditFadeInCurve { .. }
-        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
-        | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
-        | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
-        | NativeUiAction::FinishWaveformEditFadeDrag
-        | NativeUiAction::StartWaveformSelectionDrag { .. }
-        | NativeUiAction::UpdateWaveformSelectionDrag { .. }
-        | NativeUiAction::FinishWaveformSelectionDrag
-        | NativeUiAction::FinishWaveformSelectionRangeDrag
-        | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
-        | NativeUiAction::FinishWaveformEditSelectionDrag
-        | NativeUiAction::ClearWaveformEditSelection
-        | NativeUiAction::ClearWaveformSelections
-        | NativeUiAction::SetWaveformBpmValue { .. }
-        | NativeUiAction::AdjustWaveformBpm { .. }
-        | NativeUiAction::ClearWaveformSelection
-        | NativeUiAction::CropWaveformSelection
-        | NativeUiAction::CropWaveformSelectionToNewSample
-        | NativeUiAction::TrimWaveformSelection
-        | NativeUiAction::ReverseWaveformSelection
-        | NativeUiAction::FadeWaveformSelectionLeftToRight
-        | NativeUiAction::FadeWaveformSelectionRightToLeft
-        | NativeUiAction::MuteWaveformSelection
-        | NativeUiAction::DeleteSelectedSliceMarkers
-        | NativeUiAction::DetectWaveformSilenceSlices
-        | NativeUiAction::DetectWaveformExactDuplicateSlices
-        | NativeUiAction::CleanWaveformExactDuplicateSlices
-        | NativeUiAction::ToggleWaveformSliceSelection { .. }
-        | NativeUiAction::AuditionWaveformDuplicateSlice { .. }
-        | NativeUiAction::ToggleWaveformDuplicateSliceExemption { .. }
-        | NativeUiAction::MoveWaveformSliceFocus { .. }
-        | NativeUiAction::ToggleFocusedWaveformSliceExportMark
-        | NativeUiAction::AlignWaveformStartToMarker
-        | NativeUiAction::DeleteLoadedWaveformSample
-        | NativeUiAction::SlideWaveformSelection { .. }
-        | NativeUiAction::CommitWaveformEditFades
-        | NativeUiAction::ToggleTransientMarkers
-        | NativeUiAction::ToggleBpmSnap
-        | NativeUiAction::SetRelativeBpmGridEnabled { .. }
-        | NativeUiAction::ZoomWaveform { .. }
-        | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAtPrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangePrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScalePrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRangePrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInMuteStart { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInCurve { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutStart { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutMuteEnd { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::StartWaveformSelectionDrag { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformSelectionDrag { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionSmartScaleDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditSelectionDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections)
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetWaveformBpmValue { .. })
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::AdjustWaveformBpm { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelection)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CropWaveformSelection)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CropWaveformSelectionToNewSample)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::TrimWaveformSelection)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ReverseWaveformSelection)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::FadeWaveformSelectionLeftToRight)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::FadeWaveformSelectionRightToLeft)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::MuteWaveformSelection)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::DeleteSelectedSliceMarkers)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::DetectWaveformSilenceSlices)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::DetectWaveformExactDuplicateSlices)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::CleanWaveformExactDuplicateSlices)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformSliceSelection { .. })
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::AuditionWaveformDuplicateSlice { .. })
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformDuplicateSliceExemption { .. })
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::MoveWaveformSliceFocus { .. })
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleFocusedWaveformSliceExportMark)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::AlignWaveformStartToMarker)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::DeleteLoadedWaveformSample)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::SlideWaveformSelection { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::CommitWaveformEditFades)
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleTransientMarkers)
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleBpmSnap)
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetRelativeBpmGridEnabled { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveform { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformToSelection)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull) => Some(InteractionActionClass::Waveform),
         NativeUiAction::Options(NativeOptionsAction::SetVolume { .. })
         | NativeUiAction::Options(NativeOptionsAction::CommitVolumeSetting) => {
             Some(InteractionActionClass::Volume)
@@ -107,34 +107,34 @@ pub(super) fn classify_action_interaction(
 pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> bool {
     matches!(
         action,
-        NativeUiAction::BeginWaveformCircularSlide { .. }
-            | NativeUiAction::UpdateWaveformCircularSlide { .. }
-            | NativeUiAction::FinishWaveformCircularSlide
-            | NativeUiAction::BeginWaveformSelectionAt { .. }
-            | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
-            | NativeUiAction::SetWaveformEditSelectionRange { .. }
-            | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
-            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-            | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
-            | NativeUiAction::SetWaveformEditFadeInCurve { .. }
-            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
-            | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
-            | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
-            | NativeUiAction::FinishWaveformEditFadeDrag
-            | NativeUiAction::StartWaveformSelectionDrag { .. }
-            | NativeUiAction::UpdateWaveformSelectionDrag { .. }
-            | NativeUiAction::FinishWaveformSelectionDrag
-            | NativeUiAction::FinishWaveformSelectionRangeDrag
-            | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
-            | NativeUiAction::FinishWaveformEditSelectionDrag
-            | NativeUiAction::ToggleWaveformSliceSelection { .. }
-            | NativeUiAction::AuditionWaveformDuplicateSlice { .. }
-            | NativeUiAction::ToggleWaveformDuplicateSliceExemption { .. }
-            | NativeUiAction::MoveWaveformSliceFocus { .. }
-            | NativeUiAction::ToggleFocusedWaveformSliceExportMark
-            | NativeUiAction::DetectWaveformExactDuplicateSlices
-            | NativeUiAction::ClearWaveformEditSelection
-            | NativeUiAction::ClearWaveformSelections
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAtPrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRangePrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInMuteStart { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInCurve { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutStart { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutMuteEnd { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::StartWaveformSelectionDrag { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformSelectionDrag { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionSmartScaleDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditSelectionDrag)
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformSliceSelection { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::AuditionWaveformDuplicateSlice { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformDuplicateSliceExemption { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::MoveWaveformSliceFocus { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleFocusedWaveformSliceExportMark)
+            | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::DetectWaveformExactDuplicateSlices)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections)
     )
 }
 
@@ -147,45 +147,45 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
 pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
     matches!(
         action,
-        NativeUiAction::MoveBrowserFocus { .. }
-            | NativeUiAction::SetBrowserViewStart { .. }
-            | NativeUiAction::FocusBrowserPanel
-            | NativeUiAction::FocusSourcesPanel
-            | NativeUiAction::FocusWaveformPanel
-            | NativeUiAction::FocusFolderPanel
-            | NativeUiAction::FocusBrowserSearch
-            | NativeUiAction::BlurBrowserSearch
-            | NativeUiAction::FocusFolderSearch
-            | NativeUiAction::SetFolderSearch { .. }
-            | NativeUiAction::ToggleShowAllFolders
-            | NativeUiAction::ToggleFolderFlattenedView
-            | NativeUiAction::FocusFolderRow { .. }
-            | NativeUiAction::ActivateFolderRow { .. }
-            | NativeUiAction::ToggleFolderRowExpanded { .. }
-            | NativeUiAction::ExpandFocusedFolder
-            | NativeUiAction::CollapseFocusedFolder
-            | NativeUiAction::ToggleFocusedFolderSelection
-            | NativeUiAction::MoveFolderFocus { .. }
-            | NativeUiAction::StartNewFolder
-            | NativeUiAction::StartNewFolderAtFolderRow { .. }
-            | NativeUiAction::StartNewFolderAtRoot
-            | NativeUiAction::FocusFolderCreateInput
-            | NativeUiAction::SetFolderCreateInput { .. }
-            | NativeUiAction::ConfirmFolderCreate
-            | NativeUiAction::CancelFolderCreate
-            | NativeUiAction::StartFolderRename
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { .. })
+            | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { .. })
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusSourcesPanel)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusWaveformPanel)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderSearch)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::SetFolderSearch { .. })
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::ToggleShowAllFolders)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::ToggleFolderFlattenedView)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderRow { .. })
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { .. })
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ToggleFolderRowExpanded { .. })
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ExpandFocusedFolder)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::CollapseFocusedFolder)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ToggleFocusedFolderSelection)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::MoveFolderFocus { .. })
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolder)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolderAtFolderRow { .. })
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolderAtRoot)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderCreateInput)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::SetFolderCreateInput { .. })
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ConfirmFolderCreate)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::CancelFolderCreate)
+            | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename)
             | NativeUiAction::Options(NativeOptionsAction::OpenOptionsMenu)
             | NativeUiAction::Options(NativeOptionsAction::CloseOptionsPanel)
-            | NativeUiAction::SetPromptInput { .. }
-            | NativeUiAction::ToggleBrowserDuplicateCleanupMode
-            | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }
-            | NativeUiAction::ToggleWaveformSliceSelection { .. }
-            | NativeUiAction::ToggleWaveformDuplicateSliceExemption { .. }
-            | NativeUiAction::MoveWaveformSliceFocus { .. }
-            | NativeUiAction::ToggleFocusedWaveformSliceExportMark
-            | NativeUiAction::DetectWaveformExactDuplicateSlices
-            | NativeUiAction::ClearWaveformEditSelection
-            | NativeUiAction::ClearWaveformSelections
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::SetPromptInput { .. })
+            | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupMode)
+            | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupKeep { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformSliceSelection { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformDuplicateSliceExemption { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::MoveWaveformSliceFocus { .. })
+            | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleFocusedWaveformSliceExportMark)
+            | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::DetectWaveformExactDuplicateSlices)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections)
     )
 }
 

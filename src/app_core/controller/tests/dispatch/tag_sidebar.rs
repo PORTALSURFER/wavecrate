@@ -5,9 +5,11 @@ fn apply_ui_toggle_browser_sidebar_normal_tag_assigns_and_removes_candidate() {
     let (mut controller, source) = controller_with_source_entries(vec![wav_entry("one.wav")]);
     controller.focus_browser_row_only(0);
 
-    controller.apply_ui_action(NativeUiAction::ToggleBrowserSidebarNormalTag {
-        label: String::from("Texture"),
-    });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag {
+            label: String::from("Texture"),
+        },
+    ));
 
     assert_eq!(
         tag_labels(
@@ -20,9 +22,11 @@ fn apply_ui_toggle_browser_sidebar_normal_tag_assigns_and_removes_candidate() {
         vec!["Texture"]
     );
 
-    controller.apply_ui_action(NativeUiAction::ToggleBrowserSidebarNormalTag {
-        label: String::from("Texture"),
-    });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag {
+            label: String::from("Texture"),
+        },
+    ));
 
     assert!(
         controller
@@ -38,11 +42,15 @@ fn apply_ui_toggle_browser_sidebar_normal_tag_assigns_and_removes_candidate() {
 fn apply_ui_commit_browser_tag_sidebar_input_creates_normal_tag() {
     let (mut controller, source) = controller_with_source_entries(vec![wav_entry("one.wav")]);
     controller.focus_browser_row_only(0);
-    controller.apply_ui_action(NativeUiAction::SetBrowserTagSidebarInput {
-        value: String::from("  Vinyl   Crackle "),
-    });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput {
+            value: String::from("  Vinyl   Crackle "),
+        },
+    ));
 
-    controller.apply_ui_action(NativeUiAction::CommitBrowserTagSidebarInput);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::CommitBrowserTagSidebarInput,
+    ));
 
     assert_eq!(
         tag_labels(
@@ -61,11 +69,15 @@ fn apply_ui_commit_browser_tag_sidebar_input_creates_normal_tag() {
 fn apply_ui_commit_browser_tag_sidebar_input_tokenizes_comma_separated_tags() {
     let (mut controller, source) = controller_with_source_entries(vec![wav_entry("one.wav")]);
     controller.focus_browser_row_only(0);
-    controller.apply_ui_action(NativeUiAction::SetBrowserTagSidebarInput {
-        value: String::from("kick, hard, one shot"),
-    });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput {
+            value: String::from("kick, hard, one shot"),
+        },
+    ));
 
-    controller.apply_ui_action(NativeUiAction::CommitBrowserTagSidebarInput);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::CommitBrowserTagSidebarInput,
+    ));
 
     let mut labels = tag_labels(
         controller

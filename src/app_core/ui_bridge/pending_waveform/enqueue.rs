@@ -5,7 +5,7 @@ impl PendingWaveformActions {
     /// Queue a coalescable waveform action and return true when absorbed.
     pub(in crate::app_core::ui_bridge) fn enqueue(&mut self, action: &NativeUiAction) -> bool {
         match action {
-            NativeUiAction::SeekWaveformPrecise { position_nanos } => {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { position_nanos }) => {
                 self.seek_nanos = Some(*position_nanos);
                 true
             }
@@ -15,7 +15,7 @@ impl PendingWaveformActions {
                 self.seek_nanos = Some(u32::from((*position_milli).min(1000)) * 1_000_000);
                 true
             }
-            NativeUiAction::SetWaveformCursorPrecise { position_nanos } => {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { position_nanos }) => {
                 self.cursor_nanos = Some(*position_nanos);
                 true
             }
@@ -25,12 +25,12 @@ impl PendingWaveformActions {
                 self.cursor_nanos = Some(u32::from((*position_milli).min(1000)) * 1_000_000);
                 true
             }
-            NativeUiAction::SetWaveformSelectionRange {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
                 start_micros,
                 end_micros,
                 snap_override,
                 preserve_view_edge,
-            } => {
+            }) => {
                 self.note_selection_action();
                 self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_range_nanos = None;
@@ -40,12 +40,12 @@ impl PendingWaveformActions {
                 self.clear_selection = false;
                 true
             }
-            NativeUiAction::SetWaveformSelectionRangePrecise {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangePrecise {
                 start_nanos,
                 end_nanos,
                 snap_override,
                 preserve_view_edge,
-            } => {
+            }) => {
                 self.note_selection_action();
                 let start = (*start_nanos).min(1_000_000_000);
                 let end = (*end_nanos).min(1_000_000_000);
@@ -57,10 +57,10 @@ impl PendingWaveformActions {
                 self.clear_selection = false;
                 true
             }
-            NativeUiAction::SetWaveformSelectionRangeSmartScale {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale {
                 start_micros,
                 end_micros,
-            } => {
+            }) => {
                 self.note_selection_action();
                 self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_range_nanos = None;
@@ -70,10 +70,10 @@ impl PendingWaveformActions {
                 self.clear_selection = false;
                 true
             }
-            NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScalePrecise {
                 start_nanos,
                 end_nanos,
-            } => {
+            }) => {
                 self.note_selection_action();
                 let start = (*start_nanos).min(1_000_000_000);
                 let end = (*end_nanos).min(1_000_000_000);
@@ -85,7 +85,7 @@ impl PendingWaveformActions {
                 self.clear_selection = false;
                 true
             }
-            NativeUiAction::ClearWaveformSelection => {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelection) => {
                 self.note_selection_action();
                 self.selection_range_micros = None;
                 self.selection_range_nanos = None;
@@ -95,20 +95,20 @@ impl PendingWaveformActions {
                 self.clear_selection = true;
                 true
             }
-            NativeUiAction::SetWaveformViewCenter {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter {
                 center_micros,
                 center_nanos,
-            } => {
+            }) => {
                 self.note_view_center_action();
                 self.view_center_micros = Some((*center_micros).min(1_000_000));
                 self.view_center_nanos = center_nanos.map(|nanos| nanos.min(1_000_000_000));
                 true
             }
-            NativeUiAction::ZoomWaveform {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
                 zoom_in,
                 steps,
                 anchor_ratio_micros,
-            } => {
+            }) => {
                 if self.zoom_full || self.zoom_to_selection {
                     return true;
                 }
@@ -126,7 +126,7 @@ impl PendingWaveformActions {
                 };
                 true
             }
-            NativeUiAction::ZoomWaveformToSelection => {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformToSelection) => {
                 self.note_zoom_action();
                 self.zoom_steps_delta = 0;
                 self.zoom_anchor_ratio_micros = None;
@@ -134,7 +134,7 @@ impl PendingWaveformActions {
                 self.zoom_full = false;
                 true
             }
-            NativeUiAction::ZoomWaveformFull => {
+            NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull) => {
                 self.note_zoom_action();
                 self.zoom_steps_delta = 0;
                 self.zoom_anchor_ratio_micros = None;

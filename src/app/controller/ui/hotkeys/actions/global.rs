@@ -37,7 +37,9 @@ pub(super) const TOGGLE_OVERLAY: HotkeyAction = HotkeyAction {
     label: "Show hotkeys",
     gesture: HotkeyGesture::with_command(Key::Slash),
     scope: GLOBAL,
-    action: NativeUiAction::ToggleHotkeyOverlay,
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::ToggleHotkeyOverlay,
+    ),
 };
 pub(super) const COPY_STATUS_LOG: HotkeyAction = HotkeyAction {
     id: "copy-status-log",
@@ -52,42 +54,46 @@ pub(super) const COPY_STATUS_LOG: HotkeyAction = HotkeyAction {
         chord: None,
     },
     scope: GLOBAL,
-    action: NativeUiAction::CopyStatusLog,
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::CopyStatusLog,
+    ),
 };
 pub(super) const OPEN_FEEDBACK_ISSUE_PROMPT: HotkeyAction = HotkeyAction {
     id: "submit-github-issue",
     label: "Submit GitHub issue",
     gesture: HotkeyGesture::with_shift(Key::F1),
     scope: GLOBAL,
-    action: NativeUiAction::OpenFeedbackIssuePrompt,
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::OpenFeedbackIssuePrompt,
+    ),
 };
 pub(super) const FOCUS_WAVEFORM: HotkeyAction = HotkeyAction {
     id: "focus-waveform",
     label: "Focus waveform",
     gesture: HotkeyGesture::with_chord(KeyPress::new(Key::G), KeyPress::new(Key::W)),
     scope: GLOBAL,
-    action: NativeUiAction::FocusWaveformPanel,
+    action: NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusWaveformPanel),
 };
 pub(super) const FOCUS_BROWSER_SAMPLES: HotkeyAction = HotkeyAction {
     id: "focus-browser",
     label: "Focus source samples",
     gesture: HotkeyGesture::with_chord(KeyPress::new(Key::G), KeyPress::new(Key::B)),
     scope: GLOBAL,
-    action: NativeUiAction::FocusBrowserPanel,
+    action: NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel),
 };
 pub(super) const FOCUS_FOLDER_TREE: HotkeyAction = HotkeyAction {
     id: "focus-folder-tree",
     label: "Focus folder tree",
     gesture: HotkeyGesture::with_chord(KeyPress::new(Key::G), KeyPress::new(Key::T)),
     scope: GLOBAL,
-    action: NativeUiAction::FocusFolderPanel,
+    action: NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel),
 };
 pub(super) const FOCUS_SOURCES_LIST: HotkeyAction = HotkeyAction {
     id: "focus-sources-list",
     label: "Focus sources list",
     gesture: HotkeyGesture::with_chord(KeyPress::new(Key::G), KeyPress::new(Key::S)),
     scope: GLOBAL,
-    action: NativeUiAction::FocusSourcesPanel,
+    action: NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusSourcesPanel),
 };
 pub(super) const PLAY_FROM_START: HotkeyAction = HotkeyAction {
     id: "play-from-start",
@@ -121,53 +127,65 @@ pub(super) const TOGGLE_LOOP: HotkeyAction = HotkeyAction {
     label: "Toggle loop",
     gesture: HotkeyGesture::new(Key::L),
     scope: GLOBAL,
-    action: NativeUiAction::ToggleLoopPlayback,
+    action: NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,
+    ),
 };
 pub(super) const TOGGLE_LOOP_LOCK: HotkeyAction = HotkeyAction {
     id: "toggle-loop-lock",
     label: "Cycle locked loop",
     gesture: HotkeyGesture::with_shift(Key::L),
     scope: GLOBAL,
-    action: NativeUiAction::ToggleLoopLock,
+    action: NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleLoopLock),
 };
 pub(super) const DECREMENT_RATING_SELECTED: HotkeyAction = HotkeyAction {
     id: "rate-decrement",
     label: "Decrement rating",
     gesture: HotkeyGesture::new(Key::OpenBracket),
     scope: GLOBAL,
-    action: NativeUiAction::AdjustSelectedBrowserRating { delta: -1 },
+    action: NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { delta: -1 },
+    ),
 };
 pub(super) const INCREMENT_RATING_SELECTED: HotkeyAction = HotkeyAction {
     id: "rate-increment",
     label: "Increment rating",
     gesture: HotkeyGesture::new(Key::CloseBracket),
     scope: GLOBAL,
-    action: NativeUiAction::AdjustSelectedBrowserRating { delta: 1 },
+    action: NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { delta: 1 },
+    ),
 };
 pub(super) const TAG_NEUTRAL_SELECTED: HotkeyAction = HotkeyAction {
     id: "tag-neutral",
     label: "Neutral sample(s)",
     gesture: HotkeyGesture::new(Key::Quote),
     scope: GLOBAL,
-    action: NativeUiAction::TagBrowserSelection {
-        target: NativeBrowserTagTarget::Neutral,
-    },
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::TagBrowserSelection {
+            target: NativeBrowserTagTarget::Neutral,
+        },
+    ),
 };
 pub(super) const TAG_KEEP_SELECTED: HotkeyAction = HotkeyAction {
     id: "tag-keep",
     label: "Keep sample(s)",
     gesture: HotkeyGesture::new(Key::Num5),
     scope: GLOBAL,
-    action: NativeUiAction::TagBrowserSelection {
-        target: NativeBrowserTagTarget::Keep,
-    },
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::TagBrowserSelection {
+            target: NativeBrowserTagTarget::Keep,
+        },
+    ),
 };
 pub(super) const TAG_TRASH_SELECTED: HotkeyAction = HotkeyAction {
     id: "tag-trash",
     label: "Trash sample(s)",
     gesture: HotkeyGesture::new(Key::Num1),
     scope: GLOBAL,
-    action: NativeUiAction::TagBrowserSelection {
-        target: NativeBrowserTagTarget::Trash,
-    },
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::TagBrowserSelection {
+            target: NativeBrowserTagTarget::Trash,
+        },
+    ),
 };

@@ -240,7 +240,9 @@ fn waveform_selection_native_save_exports_selection_clip() {
         .unwrap();
     controller.ui.waveform.selection = Some(SelectionRange::new(0.25, 0.75));
 
-    controller.apply_ui_action(NativeUiAction::SaveWaveformSelectionToBrowser);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::SaveWaveformSelectionToBrowser,
+    ));
 
     assert_eq!(controller.ui.status.status_tone, StatusTone::Busy);
     pump_background_jobs_until(&mut controller, |controller| {
@@ -289,7 +291,9 @@ fn waveform_selection_native_save_with_keep2_exports_selection_clip() {
         .unwrap();
     controller.ui.waveform.selection = Some(SelectionRange::new(0.25, 0.75));
 
-    controller.apply_ui_action(NativeUiAction::SaveWaveformSelectionToBrowserWithKeep2);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::SaveWaveformSelectionToBrowserWithKeep2,
+    ));
 
     assert_eq!(controller.ui.status.status_tone, StatusTone::Busy);
     pump_background_jobs_until(&mut controller, |controller| {

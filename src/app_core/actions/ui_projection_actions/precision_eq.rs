@@ -1,4 +1,4 @@
-use super::UiAction;
+use super::{UiAction, WaveformAction};
 
 impl PartialEq for UiAction {
     fn eq(&self, other: &Self) -> bool {
@@ -10,7 +10,10 @@ impl PartialEq for UiAction {
 impl Eq for UiAction {}
 
 fn waveform_precision_equivalent(left: &UiAction, right: &UiAction) -> bool {
-    use UiAction::*;
+    let (UiAction::Waveform(left), UiAction::Waveform(right)) = (left, right) else {
+        return false;
+    };
+    use WaveformAction::*;
 
     match (left, right) {
         (

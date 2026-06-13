@@ -14,9 +14,11 @@ pub(super) fn browser_search_and_commit_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetBrowserSearch {
-                    query: String::from("snare"),
-                },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::SetBrowserSearch {
+                        query: String::from("snare"),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeValueContains {
@@ -25,7 +27,11 @@ pub(super) fn browser_search_and_commit_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::FocusBrowserRow { visible_row: 0 },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::FocusBrowserRow {
+                        visible_row: 0,
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeSelected {
@@ -34,7 +40,9 @@ pub(super) fn browser_search_and_commit_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::CommitFocusedBrowserRow,
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeSelected {
@@ -65,10 +73,16 @@ pub(super) fn browser_focus_transition_stability_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::FocusBrowserRow { visible_row: 1 },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::FocusBrowserRow {
+                        visible_row: 1,
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::MoveBrowserFocus { delta: 1 },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::ActionRecorded {
@@ -95,7 +109,9 @@ pub(super) fn browser_focus_transition_stability_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::CommitFocusedBrowserRow,
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::ActionRecorded {
@@ -147,9 +163,11 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetBrowserTagSidebarInput {
-                    value: String::from("deep"),
-                },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput {
+                        value: String::from("deep"),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataEquals {
@@ -164,9 +182,11 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ToggleBrowserSidebarNormalTag {
-                    label: String::from("Deep Kick"),
-                },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag {
+                        label: String::from("Deep Kick"),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {
@@ -174,9 +194,11 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetBrowserTagSidebarInput {
-                    value: String::from("vinyl crackle"),
-                },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput {
+                        value: String::from("vinyl crackle"),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {
@@ -184,7 +206,9 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::CommitBrowserTagSidebarInput,
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::CommitBrowserTagSidebarInput,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataEquals {
@@ -199,7 +223,11 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::FocusBrowserRow { visible_row: 1 },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::FocusBrowserRow {
+                        visible_row: 1,
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {
@@ -207,9 +235,11 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ToggleBrowserSidebarNormalTag {
-                    label: String::from("Vinyl Crackle"),
-                },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag {
+                        label: String::from("Vinyl Crackle"),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {

@@ -12,9 +12,11 @@ fn ui_waveform_selection_begin_does_not_snap_to_visible_playhead() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.95;
 
-    controller.apply_ui_action(NativeUiAction::BeginWaveformSelectionAt {
-        anchor_micros: 300_000,
-    });
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt {
+            anchor_micros: 300_000,
+        },
+    ));
 
     assert!((controller.ui.waveform.view.start - 0.2).abs() < 1.0e-6);
     assert!((controller.ui.waveform.view.end - 0.4).abs() < 1.0e-6);
@@ -31,12 +33,14 @@ fn ui_waveform_selection_update_does_not_snap_to_visible_playhead() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.95;
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
-        start_micros: 300_000,
-        end_micros: 350_000,
-        snap_override: false,
-        preserve_view_edge: false,
-    });
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+            start_micros: 300_000,
+            end_micros: 350_000,
+            snap_override: false,
+            preserve_view_edge: false,
+        },
+    ));
 
     assert!((controller.ui.waveform.view.start - 0.2).abs() < 1.0e-6);
     assert!((controller.ui.waveform.view.end - 0.4).abs() < 1.0e-6);

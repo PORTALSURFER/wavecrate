@@ -7,20 +7,32 @@ pub(super) fn apply_edit_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
-        NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),
-        NativeUiAction::CancelBrowserRename => controller.cancel_browser_rename(),
-        NativeUiAction::AutoRenameBrowserSelection { visible_row } => {
-            controller.auto_rename_browser_selection_action(visible_row)
-        }
-        NativeUiAction::TagBrowserSelection { target } => {
-            controller.tag_selected_browser_target(target.into())
-        }
-        NativeUiAction::NormalizeFocusedBrowserSample => normalize_focused_sample(controller),
-        NativeUiAction::DeleteBrowserSelection => {
-            controller.delete_active_browser_selection_action()
-        }
-        NativeUiAction::MoveTrashedSamplesToFolder => controller.move_all_trashed_to_folder(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
+        ) => controller.start_browser_rename(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::ConfirmBrowserRename,
+        ) => controller.apply_pending_browser_rename(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CancelBrowserRename,
+        ) => controller.cancel_browser_rename(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::AutoRenameBrowserSelection {
+                visible_row,
+            },
+        ) => controller.auto_rename_browser_selection_action(visible_row),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::TagBrowserSelection { target },
+        ) => controller.tag_selected_browser_target(target.into()),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::NormalizeFocusedBrowserSample,
+        ) => normalize_focused_sample(controller),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::DeleteBrowserSelection,
+        ) => controller.delete_active_browser_selection_action(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::MoveTrashedSamplesToFolder,
+        ) => controller.move_all_trashed_to_folder(),
         action => return Err(action),
     }
     Ok(())

@@ -14,12 +14,16 @@ pub(super) fn prompt_confirm_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetPromptInput {
-                    value: String::from("kick_smoke.wav"),
-                },
+                action: NativeUiAction::PromptsAndEdits(
+                    crate::app_core::actions::NativePromptEditAction::SetPromptInput {
+                        value: String::from("kick_smoke.wav"),
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ConfirmPrompt,
+                action: NativeUiAction::PromptsAndEdits(
+                    crate::app_core::actions::NativePromptEditAction::ConfirmPrompt,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeAbsent {
@@ -41,7 +45,9 @@ pub(super) fn prompt_cancel_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::CancelPrompt,
+                action: NativeUiAction::PromptsAndEdits(
+                    crate::app_core::actions::NativePromptEditAction::CancelPrompt,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeAbsent {

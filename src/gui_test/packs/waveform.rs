@@ -29,15 +29,19 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveformFull,
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull,
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetWaveformSelectionRange {
-                    start_micros: 180_000,
-                    end_micros: 420_000,
-                    snap_override: true,
-                    preserve_view_edge: false,
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+                        start_micros: 180_000,
+                        end_micros: 420_000,
+                        snap_override: true,
+                        preserve_view_edge: false,
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataContains {
@@ -47,31 +51,39 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveform {
-                    zoom_in: true,
-                    steps: 2,
-                    anchor_ratio_micros: Some(200_000),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                        zoom_in: true,
+                        steps: 2,
+                        anchor_ratio_micros: Some(200_000),
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveform {
-                    zoom_in: true,
-                    steps: 2,
-                    anchor_ratio_micros: Some(800_000),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                        zoom_in: true,
+                        steps: 2,
+                        anchor_ratio_micros: Some(800_000),
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveform {
-                    zoom_in: true,
-                    steps: 2,
-                    anchor_ratio_micros: Some(500_000),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                        zoom_in: true,
+                        steps: 2,
+                        anchor_ratio_micros: Some(500_000),
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetWaveformViewCenter {
-                    center_micros: 500_000,
-                    center_nanos: Some(500_000_050),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter {
+                        center_micros: 500_000,
+                        center_nanos: Some(500_000_050),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataContains {
@@ -81,12 +93,14 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetWaveformSelectionRange {
-                    start_micros: 500_180,
-                    end_micros: 500_420,
-                    snap_override: true,
-                    preserve_view_edge: false,
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+                        start_micros: 500_180,
+                        end_micros: 500_420,
+                        snap_override: true,
+                        preserve_view_edge: false,
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataContains {
@@ -96,24 +110,30 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveform {
-                    zoom_in: true,
-                    steps: 3,
-                    anchor_ratio_micros: Some(100_000),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                        zoom_in: true,
+                        steps: 3,
+                        anchor_ratio_micros: Some(100_000),
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveform {
-                    zoom_in: false,
-                    steps: 1,
-                    anchor_ratio_micros: Some(900_000),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                        zoom_in: false,
+                        steps: 1,
+                        anchor_ratio_micros: Some(900_000),
+                    },
+                ),
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetWaveformViewCenter {
-                    center_micros: 500_300,
-                    center_nanos: Some(500_300_000),
-                },
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter {
+                        center_micros: 500_300,
+                        center_nanos: Some(500_300_000),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataContains {
@@ -136,7 +156,9 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::ZoomWaveformFull,
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull,
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeMetadataContains {

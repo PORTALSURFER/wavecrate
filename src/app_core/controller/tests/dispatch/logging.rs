@@ -85,9 +85,13 @@ fn default_action_debug_log_suppresses_browser_view_start_scroll_bursts() {
 
     let captured = capture_debug_logs(|| {
         for visible_row in 0..32 {
-            controller.apply_ui_action(NativeUiAction::SetBrowserViewStart { visible_row });
+            controller.apply_ui_action(NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { visible_row },
+            ));
         }
-        controller.apply_ui_action(NativeUiAction::FocusBrowserSearch);
+        controller.apply_ui_action(NativeUiAction::Shell(
+            crate::app_core::actions::NativeShellAction::FocusBrowserSearch,
+        ));
     });
 
     assert!(

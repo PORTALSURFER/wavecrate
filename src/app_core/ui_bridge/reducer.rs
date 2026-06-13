@@ -35,9 +35,15 @@ fn additional_dirty_sources_for_action(
         return &[];
     }
     match action {
-        NativeUiAction::AdjustSelectedBrowserRating { .. }
-        | NativeUiAction::TagBrowserSelection { .. }
-        | NativeUiAction::ToggleBrowserSampleMark => &[(
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { .. },
+        )
+        | NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::TagBrowserSelection { .. },
+        )
+        | NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
+        ) => &[(
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformViewAction,
         )],

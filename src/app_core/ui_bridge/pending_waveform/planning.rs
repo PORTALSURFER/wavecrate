@@ -33,57 +33,66 @@ impl PendingWaveformActions {
     /// Build the highest-priority zoom action for this pending batch, if any.
     pub(in crate::app_core::ui_bridge) fn zoom_action(&self) -> Option<NativeUiAction> {
         if self.zoom_full {
-            return Some(NativeUiAction::ZoomWaveformFull);
+            return Some(NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull,
+            ));
         }
         if self.zoom_to_selection {
-            return Some(NativeUiAction::ZoomWaveformToSelection);
+            return Some(NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::ZoomWaveformToSelection,
+            ));
         }
         if self.zoom_steps_delta == 0 {
             return None;
         }
         let zoom_in = self.zoom_steps_delta.is_positive();
         let steps = self.zoom_steps_delta.unsigned_abs().min(u16::from(u8::MAX)) as u8;
-        Some(NativeUiAction::ZoomWaveform {
-            zoom_in,
-            steps,
-            anchor_ratio_micros: self.zoom_anchor_ratio_micros,
-        })
+        Some(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                zoom_in,
+                steps,
+                anchor_ratio_micros: self.zoom_anchor_ratio_micros,
+            },
+        ))
     }
 
     /// Build the highest-priority selection action for this pending batch, if any.
     pub(in crate::app_core::ui_bridge) fn selection_action(&self) -> Option<NativeUiAction> {
         if let Some((start_nanos, end_nanos)) = self.selection_range_nanos {
             return Some(if self.selection_smart_scale {
-                NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise {
+                NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScalePrecise {
                     start_nanos,
                     end_nanos,
-                }
+                })
             } else {
-                NativeUiAction::SetWaveformSelectionRangePrecise {
+                NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangePrecise {
                     start_nanos,
                     end_nanos,
                     snap_override: self.selection_snap_override,
                     preserve_view_edge: self.selection_preserve_view_edge,
-                }
+                })
             });
         }
         if let Some((start_micros, end_micros)) = self.selection_range_micros {
             return Some(if self.selection_smart_scale {
-                NativeUiAction::SetWaveformSelectionRangeSmartScale {
+                NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale {
                     start_micros,
                     end_micros,
-                }
+                })
             } else {
-                NativeUiAction::SetWaveformSelectionRange {
-                    start_micros,
-                    end_micros,
-                    snap_override: self.selection_snap_override,
-                    preserve_view_edge: self.selection_preserve_view_edge,
-                }
+                NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+                        start_micros,
+                        end_micros,
+                        snap_override: self.selection_snap_override,
+                        preserve_view_edge: self.selection_preserve_view_edge,
+                    },
+                )
             });
         }
-        self.clear_selection
-            .then_some(NativeUiAction::ClearWaveformSelection)
+        self.clear_selection.then_some(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ClearWaveformSelection,
+        ))
     }
 
     /// Return true when queued actions mutate waveform static rendering content.

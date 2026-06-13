@@ -9,10 +9,12 @@ pub(super) fn apply_map_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::SetBrowserTab { map } => controller.set_browser_tab(map),
-        NativeUiAction::FocusMapSample { sample_id } => {
-            controller.focus_map_sample_and_preview(&sample_id)
-        }
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserTab {
+            map,
+        }) => controller.set_browser_tab(map),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusMapSample { sample_id },
+        ) => controller.focus_map_sample_and_preview(&sample_id),
         action => return Err(action),
     }
     Ok(())

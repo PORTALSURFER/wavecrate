@@ -256,7 +256,9 @@ fn native_focus_browser_row_clears_selection_and_queues_async_preview() {
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
 
-    controller.apply_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 1 });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row: 1 },
+    ));
 
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
@@ -319,7 +321,9 @@ fn native_move_browser_focus_queues_async_preview_playback() {
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
 
-    controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+    ));
 
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
@@ -372,7 +376,9 @@ fn native_move_browser_focus_preserves_multi_selection_membership() {
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
 
-    controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+    ));
 
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
@@ -399,7 +405,9 @@ fn native_move_browser_focus_uses_random_mode_pool_without_repeating_current_row
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
 
-    controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+    ));
 
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),

@@ -125,8 +125,12 @@ fn apply_transport_ui_action(
         | NativeUiAction::Compatibility(
             crate::app_core::actions::NativeCompatibilityAction::Redo,
         ) => controller.redo(),
-        NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
-        NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
+        NativeUiAction::Options(
+            crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,
+        ) => controller.toggle_loop(),
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleLoopLock) => {
+            controller.toggle_loop_lock()
+        }
         NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetVolume {
             value_milli,
         }) => {

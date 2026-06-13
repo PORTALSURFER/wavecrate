@@ -78,14 +78,29 @@ pub type NativeUiActionDomain = self::ui_projection_actions::UiActionDomain;
 /// UI runtime retained compatibility action payload.
 pub type NativeCompatibilityAction = self::ui_projection_actions::CompatibilityAction;
 
+/// UI runtime browser action payload.
+pub type NativeBrowserAction = self::ui_projection_actions::BrowserAction;
+
 /// UI runtime transport action payload.
 pub type NativeTransportAction = self::ui_projection_actions::TransportAction;
 
 /// UI runtime history and update action payload.
 pub type NativeHistoryUpdateAction = self::ui_projection_actions::HistoryUpdateAction;
 
+/// UI runtime prompt and edit action payload.
+pub type NativePromptEditAction = self::ui_projection_actions::PromptEditAction;
+
+/// UI runtime shell action payload.
+pub type NativeShellAction = self::ui_projection_actions::ShellAction;
+
+/// UI runtime sources and folders action payload.
+pub type NativeSourcesFoldersAction = self::ui_projection_actions::SourcesFoldersAction;
+
 /// UI runtime options and audio-settings action payload.
 pub type NativeOptionsAction = self::ui_projection_actions::OptionsAction;
+
+/// UI runtime waveform action payload.
+pub type NativeWaveformAction = self::ui_projection_actions::WaveformAction;
 
 /// Upgrade a retained compatibility input into the current UI action contract.
 pub use self::ui_projection_actions::upgrade_compatibility_action;

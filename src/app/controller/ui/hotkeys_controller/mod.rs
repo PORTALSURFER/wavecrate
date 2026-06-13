@@ -108,7 +108,9 @@ mod tests {
         let action = action_for(|action| {
             matches!(
                 action,
-                crate::app_core::actions::NativeUiAction::CropWaveformSelection
+                crate::app_core::actions::NativeUiAction::PromptsAndEdits(
+                    crate::app_core::actions::NativePromptEditAction::CropWaveformSelection
+                )
             )
         });
 
@@ -176,7 +178,9 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::FocusLoadedSampleInBrowser
+                    crate::app_core::actions::NativeUiAction::Shell(
+                        crate::app_core::actions::NativeShellAction::FocusLoadedSampleInBrowser
+                    )
                 )
             }),
             FocusContext::SampleBrowser,
@@ -201,7 +205,7 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::SetCompareAnchorFromFocusedBrowserSample
+                    crate::app_core::actions::NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetCompareAnchorFromFocusedBrowserSample)
                 )
             }),
             FocusContext::SampleBrowser,
@@ -271,7 +275,7 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::ToggleFocusedBrowserRowSelection
+                    crate::app_core::actions::NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleFocusedBrowserRowSelection)
                 )
             }),
             FocusContext::None,
@@ -292,7 +296,11 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    crate::app_core::actions::NativeUiAction::MoveBrowserFocus { delta: 1 }
+                    crate::app_core::actions::NativeUiAction::Browser(
+                        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus {
+                            delta: 1
+                        }
+                    )
                 )
             }),
             FocusContext::SampleBrowser,
@@ -311,7 +319,9 @@ mod tests {
         let action = action_for(|action| {
             matches!(
                 action,
-                crate::app_core::actions::NativeUiAction::ToggleFindSimilarFocusedSample
+                crate::app_core::actions::NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::ToggleFindSimilarFocusedSample
+                )
             )
         });
         let mut hotkey_bundle =

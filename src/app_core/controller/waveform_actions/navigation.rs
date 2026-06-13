@@ -10,49 +10,72 @@ pub(super) fn apply_waveform_navigation_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::SeekWaveformPrecise { position_nanos } => {
-            controller.queue_waveform_seek_nanos(position_nanos)
-        }
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { position_nanos },
+        ) => controller.queue_waveform_seek_nanos(position_nanos),
         NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform {
             position_milli,
         }) => controller.queue_waveform_seek_milli(position_milli),
-        NativeUiAction::SetWaveformCursorPrecise { position_nanos } => {
-            controller.set_waveform_cursor_nanos(position_nanos)
-        }
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+                position_nanos,
+            },
+        ) => controller.set_waveform_cursor_nanos(position_nanos),
         NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor {
             position_milli,
         }) => controller.set_waveform_cursor_milli(position_milli),
-        NativeUiAction::BeginWaveformCircularSlide { anchor_micros } => {
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide {
+                anchor_micros,
+            },
+        ) => {
             if let Err(err) =
                 controller.start_waveform_circular_slide(normalize_waveform_micros(anchor_micros))
             {
                 controller.set_status(err, StatusTone::Error);
             }
         }
-        NativeUiAction::UpdateWaveformCircularSlide { position_micros } => {
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide {
+                position_micros,
+            },
+        ) => {
             controller.update_waveform_circular_slide(normalize_waveform_micros(position_micros));
         }
-        NativeUiAction::FinishWaveformCircularSlide => {
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide,
+        ) => {
             if let Err(err) = controller.finish_waveform_circular_slide() {
                 controller.set_status(err, StatusTone::Error);
             }
         }
-        NativeUiAction::SetWaveformViewCenter {
-            center_micros,
-            center_nanos,
-        } => controller.scroll_waveform_view_with_focus(center_micros, center_nanos),
-        NativeUiAction::ZoomWaveform {
-            zoom_in,
-            steps,
-            anchor_ratio_micros,
-        } => {
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos,
+            },
+        ) => controller.scroll_waveform_view_with_focus(center_micros, center_nanos),
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
+                zoom_in,
+                steps,
+                anchor_ratio_micros,
+            },
+        ) => {
             controller.zoom_waveform_steps_from_ui_with_anchor(zoom_in, steps, anchor_ratio_micros)
         }
-        NativeUiAction::ZoomWaveformToSelection => {
-            controller.zoom_waveform_to_selection_with_focus()
-        }
-        NativeUiAction::ZoomWaveformFull => controller.zoom_waveform_full_with_focus(),
-        NativeUiAction::SlideWaveformSelection { delta, fine } => {
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ZoomWaveformToSelection,
+        ) => controller.zoom_waveform_to_selection_with_focus(),
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull,
+        ) => controller.zoom_waveform_full_with_focus(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::SlideWaveformSelection {
+                delta,
+                fine,
+            },
+        ) => {
             if fine {
                 controller.nudge_selection_range(delta.into(), true);
             } else {

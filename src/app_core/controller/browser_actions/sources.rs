@@ -10,54 +10,76 @@ pub(super) fn apply_source_and_options_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::FocusSourcesPanel => controller.focus_sources_list(),
-        NativeUiAction::FocusSourceRow { index } => {
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusSourcesPanel) => {
+            controller.focus_sources_list()
+        }
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::FocusSourceRow { index },
+        ) => {
             controller.select_source_by_index_in_pane(resolve_source_pane(controller), index);
             controller.focus_sources_context();
         }
-        NativeUiAction::SelectSourceRow { index } => {
-            controller.select_source_by_index_in_pane(resolve_source_pane(controller), index)
-        }
-        NativeUiAction::MoveSourceFocus { delta } => {
-            controller.nudge_source_selection(delta as isize)
-        }
-        NativeUiAction::ReloadFocusedSourceRow => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::SelectSourceRow { index },
+        ) => controller.select_source_by_index_in_pane(resolve_source_pane(controller), index),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::MoveSourceFocus { delta },
+        ) => controller.nudge_source_selection(delta as isize),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ReloadFocusedSourceRow,
+        ) => {
             if let Some(source_id) = controller.folder_pane_source(controller.active_folder_pane())
             {
                 controller.request_quick_sync_for_source(&source_id);
             }
         }
-        NativeUiAction::HardSyncFocusedSourceRow => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::HardSyncFocusedSourceRow,
+        ) => {
             if let Some(source_id) = controller.folder_pane_source(controller.active_folder_pane())
             {
                 controller.request_hard_sync_for_source(&source_id);
             }
         }
-        NativeUiAction::OpenFocusedSourceFolder => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::OpenFocusedSourceFolder,
+        ) => {
             if let Some(index) = selected_source_index(controller) {
                 controller.open_source_folder(index);
             }
         }
-        NativeUiAction::RemoveFocusedSourceRow => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::RemoveFocusedSourceRow,
+        ) => {
             if let Some(index) = selected_source_index(controller) {
                 controller.remove_source(index);
             }
         }
-        NativeUiAction::ReloadSourceRow { index } => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ReloadSourceRow { index },
+        ) => {
             controller.select_source_by_index_in_pane(resolve_source_pane(controller), index);
             if let Some(source_id) = controller.source_id_for_index(index) {
                 controller.request_quick_sync_for_source(&source_id);
             }
         }
-        NativeUiAction::HardSyncSourceRow { index } => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::HardSyncSourceRow { index },
+        ) => {
             controller.select_source_by_index_in_pane(resolve_source_pane(controller), index);
             if let Some(source_id) = controller.source_id_for_index(index) {
                 controller.request_hard_sync_for_source(&source_id);
             }
         }
-        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
-        NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
-        NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::OpenSourceFolderRow { index },
+        ) => controller.open_source_folder(index),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::RemoveSourceRow { index },
+        ) => controller.remove_source(index),
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::OpenAddSourceDialog) => {
+            controller.add_source_via_dialog()
+        }
         NativeUiAction::Options(options) => return apply_options_action(controller, options),
         action => return Err(action),
     }
@@ -129,7 +151,21 @@ fn apply_options_action(
         NativeOptionsAction::SetInvertWaveformScroll { enabled } => {
             controller.set_invert_waveform_scroll(enabled)
         }
-        NativeOptionsAction::SetVolume { .. } | NativeOptionsAction::CommitVolumeSetting => {
+        NativeOptionsAction::ToggleLoopPlayback
+        | NativeOptionsAction::ToggleLoopLock
+        | NativeOptionsAction::SetWaveformChannelView { .. }
+        | NativeOptionsAction::SetNormalizedAuditionEnabled { .. }
+        | NativeOptionsAction::SetBpmSnapEnabled { .. }
+        | NativeOptionsAction::SetRelativeBpmGridEnabled { .. }
+        | NativeOptionsAction::AdjustWaveformBpm { .. }
+        | NativeOptionsAction::SetWaveformBpmValue { .. }
+        | NativeOptionsAction::SetTransientSnapEnabled { .. }
+        | NativeOptionsAction::SetTransientMarkersEnabled { .. }
+        | NativeOptionsAction::ToggleTransientMarkers
+        | NativeOptionsAction::ToggleBpmSnap
+        | NativeOptionsAction::SetSliceModeEnabled { .. }
+        | NativeOptionsAction::SetVolume { .. }
+        | NativeOptionsAction::CommitVolumeSetting => {
             return Err(NativeUiAction::Options(action));
         }
     }

@@ -113,11 +113,13 @@ fn scenario_runner_accepts_root_presence_assertion() {
 fn dispatch_action_bundle_rejects_runtime_internal_actions() {
     let err = dispatch_action_bundle(
         &deterministic_test_config("waveform"),
-        crate::app_core::actions::NativeUiAction::BeginWaveformSelectionShift {
-            pointer_micros: 200_000,
-            start_micros: 100_000,
-            end_micros: 300_000,
-        },
+        crate::app_core::actions::NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionShift {
+                pointer_micros: 200_000,
+                start_micros: 100_000,
+                end_micros: 300_000,
+            },
+        ),
     )
     .expect_err("internal dispatch should be rejected");
     assert!(err.contains("begin_waveform_selection_shift"));
@@ -131,11 +133,13 @@ fn scenario_runner_rejects_runtime_internal_actions() {
         name: String::from("reject-runtime-internal"),
         fixture_tag: String::from("waveform"),
         steps: vec![GuiScenarioStep::DispatchAction {
-            action: crate::app_core::actions::NativeUiAction::BeginWaveformEditSelectionShift {
-                pointer_micros: 200_000,
-                start_micros: 100_000,
-                end_micros: 300_000,
-            },
+            action: crate::app_core::actions::NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::BeginWaveformEditSelectionShift {
+                    pointer_micros: 200_000,
+                    start_micros: 100_000,
+                    end_micros: 300_000,
+                },
+            ),
         }],
     };
     let err = run_scenario(&deterministic_test_config("waveform"), &scenario)

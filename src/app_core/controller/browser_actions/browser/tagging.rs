@@ -7,20 +7,28 @@ pub(super) fn apply_tagging_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::ToggleBrowserTagSidebar => controller.toggle_browser_tag_sidebar(),
-        NativeUiAction::ToggleBrowserTagSidebarAutoRename => {
-            controller.toggle_browser_tag_sidebar_auto_rename()
-        }
-        NativeUiAction::FocusBrowserTagSidebarInput => {}
-        NativeUiAction::SetBrowserTagSidebarInput { value } => {
-            controller.set_browser_tag_sidebar_input(value)
-        }
-        NativeUiAction::CommitBrowserTagSidebarInput => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebar,
+        ) => controller.toggle_browser_tag_sidebar(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebarAutoRename,
+        ) => controller.toggle_browser_tag_sidebar_auto_rename(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusBrowserTagSidebarInput,
+        ) => {}
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput { value },
+        ) => controller.set_browser_tag_sidebar_input(value),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CommitBrowserTagSidebarInput,
+        ) => {
             if let Err(err) = controller.commit_browser_tag_sidebar_input() {
                 controller.set_status(format!("Could not apply tag: {err}"), StatusTone::Error);
             }
         }
-        NativeUiAction::SetBrowserSidebarLooped { looped } => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserSidebarLooped { looped },
+        ) => {
             if let Err(err) = controller.apply_browser_tag_sidebar_looped(looped) {
                 controller.set_status(
                     format!("Could not update playback type: {err}"),
@@ -28,7 +36,9 @@ pub(super) fn apply_tagging_action(
                 );
             }
         }
-        NativeUiAction::ToggleBrowserSidebarNormalTag { label } => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag { label },
+        ) => {
             apply_normal_tag_toggle(controller, &label);
         }
         action => return Err(action),

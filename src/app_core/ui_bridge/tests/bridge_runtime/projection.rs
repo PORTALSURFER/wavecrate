@@ -161,7 +161,9 @@ fn random_navigation_toggle_updates_projected_browser_actions_immediately() {
     let initial = bridge.project_model();
     assert!(!initial.browser_actions.random_navigation_enabled);
 
-    bridge.on_action(NativeUiAction::ToggleRandomNavigationMode);
+    bridge.on_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleRandomNavigationMode,
+    ));
 
     let updated = bridge.project_model();
     assert!(updated.browser_actions.random_navigation_enabled);
@@ -241,7 +243,9 @@ fn toggle_loop_playback_refreshes_loaded_sample_loop_badge_immediately() {
     let initial = bridge.project_model();
     assert_eq!(browser_row_bucket_label(&initial, "kick_one"), None);
 
-    bridge.on_action(NativeUiAction::ToggleLoopPlayback);
+    bridge.on_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,
+    ));
 
     let enabled = bridge.project_model();
     let enabled_label = browser_row_bucket_label(&enabled, "kick_one")
@@ -251,7 +255,9 @@ fn toggle_loop_playback_refreshes_loaded_sample_loop_badge_immediately() {
         "expected LOOP in projected badge, got {enabled_label:?}"
     );
 
-    bridge.on_action(NativeUiAction::ToggleLoopPlayback);
+    bridge.on_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,
+    ));
 
     let disabled = bridge.project_model();
     let disabled_label = browser_row_bucket_label(&disabled, "kick_one");
@@ -278,7 +284,9 @@ fn toggle_loop_playback_refreshes_loaded_sample_bpm_and_loop_badges_immediately(
     controller.ui.waveform.bpm_input = String::from("128");
     let mut bridge = crate::app_core::ui_bridge::new_ui_bridge_with_controller(controller);
 
-    bridge.on_action(NativeUiAction::ToggleLoopPlayback);
+    bridge.on_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,
+    ));
 
     let projected = bridge.project_model();
     assert_eq!(

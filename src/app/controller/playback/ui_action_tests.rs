@@ -40,12 +40,14 @@ fn ui_waveform_selection_update_retargets_loop_playback_after_cycle() {
     };
     controller.ui.waveform.playhead.position = 0.3;
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
-        start_micros: 200_000,
-        end_micros: 600_000,
-        snap_override: false,
-        preserve_view_edge: false,
-    });
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+            start_micros: 200_000,
+            end_micros: 600_000,
+            snap_override: false,
+            preserve_view_edge: false,
+        },
+    ));
 
     let pending = controller
         .audio
@@ -120,10 +122,12 @@ fn fine_slide_ui_action_bypasses_slice_review_navigation() {
         vec![SelectionRange::new(0.1, 0.2), SelectionRange::new(0.3, 0.4)];
     controller.start_slice_review();
 
-    controller.apply_ui_action(NativeUiAction::SlideWaveformSelection {
-        delta: 1,
-        fine: true,
-    });
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::SlideWaveformSelection {
+            delta: 1,
+            fine: true,
+        },
+    ));
 
     let moved = controller
         .ui
@@ -134,6 +138,8 @@ fn fine_slide_ui_action_bypasses_slice_review_navigation() {
     assert!((moved.end() - 0.625).abs() < 1.0e-6);
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
 
-    controller.apply_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::MoveWaveformSliceFocus { delta: 1 },
+    ));
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
 }

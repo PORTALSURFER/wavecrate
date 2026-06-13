@@ -7,39 +7,39 @@ use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> bool {
     !matches!(
         action,
-        NativeUiAction::SeekWaveformPrecise { .. }
-            | NativeUiAction::SetWaveformCursorPrecise { .. }
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { .. })
             | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
             | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
-            | NativeUiAction::BeginWaveformCircularSlide { .. }
-            | NativeUiAction::UpdateWaveformCircularSlide { .. }
-            | NativeUiAction::FinishWaveformCircularSlide
-            | NativeUiAction::SetWaveformViewCenter { .. }
-            | NativeUiAction::BeginWaveformSelectionAt { .. }
-            | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
-            | NativeUiAction::SetWaveformSelectionRange { .. }
-            | NativeUiAction::SetWaveformSelectionRangePrecise { .. }
-            | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
-            | NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
-            | NativeUiAction::SetWaveformEditSelectionRange { .. }
-            | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
-            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-            | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
-            | NativeUiAction::SetWaveformEditFadeInCurve { .. }
-            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
-            | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
-            | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
-            | NativeUiAction::FinishWaveformEditFadeDrag
-            | NativeUiAction::FinishWaveformSelectionRangeDrag
-            | NativeUiAction::FinishWaveformEditSelectionDrag
-            | NativeUiAction::ClearWaveformSelection
-            | NativeUiAction::ClearWaveformEditSelection
-            | NativeUiAction::ClearWaveformSelections
-            | NativeUiAction::SetWaveformBpmValue { .. }
-            | NativeUiAction::AdjustWaveformBpm { .. }
-            | NativeUiAction::ZoomWaveform { .. }
-            | NativeUiAction::ZoomWaveformToSelection
-            | NativeUiAction::ZoomWaveformFull
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAtPrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangePrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScalePrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRangePrecise { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInMuteStart { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInCurve { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutStart { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutMuteEnd { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditSelectionDrag)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelection)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections)
+            | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetWaveformBpmValue { .. })
+            | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::AdjustWaveformBpm { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveform { .. })
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformToSelection)
+            | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull)
             | NativeUiAction::Options(NativeOptionsAction::SetVolume { .. })
             | NativeUiAction::Options(NativeOptionsAction::CommitVolumeSetting)
     )
@@ -61,54 +61,138 @@ pub(super) const BROAD_DIRTY_SOURCES: [DerivedNodeId; 4] = [
 pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> bool {
     matches!(
         action,
-        NativeUiAction::MoveBrowserFocus { .. }
-            | NativeUiAction::SetBrowserViewStart { .. }
-            | NativeUiAction::FocusSourcesPanel
-            | NativeUiAction::FocusFolderPanel
-            | NativeUiAction::FocusFolderSearch
-            | NativeUiAction::SetFolderSearch { .. }
-            | NativeUiAction::ToggleShowAllFolders
-            | NativeUiAction::ToggleFolderFlattenedView
-            | NativeUiAction::FocusFolderRow { .. }
-            | NativeUiAction::ActivateFolderRow { .. }
-            | NativeUiAction::ToggleFolderRowExpanded { .. }
-            | NativeUiAction::ExpandFocusedFolder
-            | NativeUiAction::CollapseFocusedFolder
-            | NativeUiAction::ToggleFocusedFolderSelection
-            | NativeUiAction::MoveFolderFocus { .. }
-            | NativeUiAction::FocusBrowserRow { .. }
-            | NativeUiAction::AdjustSelectedBrowserRating { .. }
-            | NativeUiAction::ToggleBrowserRowSelection { .. }
-            | NativeUiAction::StartBrowserSampleDrag { .. }
-            | NativeUiAction::UpdateBrowserSampleDrag { .. }
-            | NativeUiAction::FinishBrowserSampleDrag
-            | NativeUiAction::ExtendBrowserSelectionToRow { .. }
-            | NativeUiAction::AddRangeBrowserSelection { .. }
-            | NativeUiAction::ExtendBrowserSelectionFromFocus { .. }
-            | NativeUiAction::AddRangeBrowserSelectionFromFocus { .. }
-            | NativeUiAction::ToggleFocusedBrowserRowSelection
-            | NativeUiAction::SelectAllBrowserRows
-            | NativeUiAction::SetBrowserSearch { .. }
-            | NativeUiAction::ToggleBrowserRatingFilter { .. }
-            | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
-            | NativeUiAction::AutoRenameBrowserSelection { .. }
-            | NativeUiAction::TagBrowserSelection { .. }
-            | NativeUiAction::ToggleBrowserSampleMark
-            | NativeUiAction::ToggleBrowserMarkedFilter
-            | NativeUiAction::ToggleBrowserTagNamedFilter { .. }
-            | NativeUiAction::ToggleBrowserTagSidebar
-            | NativeUiAction::ToggleBrowserTagSidebarAutoRename
-            | NativeUiAction::ToggleBrowserDuplicateCleanupMode
-            | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }
-            | NativeUiAction::FocusBrowserPanel
-            | NativeUiAction::FocusBrowserSearch
-            | NativeUiAction::BlurBrowserSearch
-            | NativeUiAction::FocusBrowserTagSidebarInput
-            | NativeUiAction::SetBrowserTagSidebarInput { .. }
-            | NativeUiAction::CommitBrowserTagSidebarInput
-            | NativeUiAction::SetBrowserSidebarLooped { .. }
-            | NativeUiAction::ToggleBrowserSidebarNormalTag { .. }
-            | NativeUiAction::FocusLoadedSampleInBrowser
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { .. }
+        ) | NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { .. }
+        ) | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusSourcesPanel)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel)
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderSearch)
+            | NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::SetFolderSearch { .. }
+            )
+            | NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::ToggleShowAllFolders
+            )
+            | NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::ToggleFolderFlattenedView
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderRow { .. }
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { .. }
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::ToggleFolderRowExpanded { .. }
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::ExpandFocusedFolder
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::CollapseFocusedFolder
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::ToggleFocusedFolderSelection
+            )
+            | NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::MoveFolderFocus { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserRowSelection { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::StartBrowserSampleDrag { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::UpdateBrowserSampleDrag { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::FinishBrowserSampleDrag
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ExtendBrowserSelectionToRow { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::AddRangeBrowserSelection { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ExtendBrowserSelectionFromFocus { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::AddRangeBrowserSelectionFromFocus { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleFocusedBrowserRowSelection
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SelectAllBrowserRows
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SetBrowserSearch { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserRatingFilter { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserPlaybackAgeFilter { .. }
+            )
+            | NativeUiAction::PromptsAndEdits(
+                crate::app_core::actions::NativePromptEditAction::AutoRenameBrowserSelection { .. }
+            )
+            | NativeUiAction::PromptsAndEdits(
+                crate::app_core::actions::NativePromptEditAction::TagBrowserSelection { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagNamedFilter { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebar
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebarAutoRename
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupMode
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupKeep { .. }
+            )
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel)
+            | NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::FocusBrowserSearch
+            )
+            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch)
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::FocusBrowserTagSidebarInput
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::CommitBrowserTagSidebarInput
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SetBrowserSidebarLooped { .. }
+            )
+            | NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag { .. }
+            )
+            | NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::FocusLoadedSampleInBrowser
+            )
     )
 }
 
@@ -117,123 +201,123 @@ pub(super) fn classify_dirty_source(
     action: &NativeUiAction,
 ) -> Option<(DerivedNodeId, DirtyReason)> {
     match action {
-        NativeUiAction::SeekWaveformPrecise { .. }
-        | NativeUiAction::SetWaveformCursorPrecise { .. }
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { .. })
         | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
         | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
-        | NativeUiAction::BeginWaveformSelectionAt { .. }
-        | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
-        | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::SetWaveformSelectionRangePrecise { .. }
-        | NativeUiAction::SetWaveformEditSelectionRange { .. }
-        | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
-        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-        | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
-        | NativeUiAction::SetWaveformEditFadeInCurve { .. }
-        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
-        | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
-        | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
-        | NativeUiAction::FinishWaveformEditFadeDrag
-        | NativeUiAction::FinishWaveformSelectionRangeDrag
-        | NativeUiAction::FinishWaveformEditSelectionDrag
-        | NativeUiAction::ClearWaveformSelection
-        | NativeUiAction::ClearWaveformEditSelection => Some((
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAtPrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangePrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRangePrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInMuteStart { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInCurve { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutStart { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutMuteEnd { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditSelectionDrag)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelection)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection) => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         )),
-        NativeUiAction::ClearWaveformSelections => Some((
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections) => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         )),
-        NativeUiAction::ZoomWaveform { .. }
-        | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull
-        | NativeUiAction::SetWaveformViewCenter { .. }
-        | NativeUiAction::BeginWaveformCircularSlide { .. }
-        | NativeUiAction::UpdateWaveformCircularSlide { .. }
-        | NativeUiAction::FinishWaveformCircularSlide
-        | NativeUiAction::SetWaveformBpmValue { .. }
-        | NativeUiAction::AdjustWaveformBpm { .. }
-        | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
-        | NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
-        | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
-        | NativeUiAction::CommitWaveformEditFades
-        | NativeUiAction::CropWaveformSelection
-        | NativeUiAction::CropWaveformSelectionToNewSample
-        | NativeUiAction::TrimWaveformSelection => Some((
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveform { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformToSelection)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::ZoomWaveformFull)
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide)
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetWaveformBpmValue { .. })
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::AdjustWaveformBpm { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScalePrecise { .. })
+        | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionSmartScaleDrag)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::CommitWaveformEditFades)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CropWaveformSelection)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CropWaveformSelectionToNewSample)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::TrimWaveformSelection) => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformViewAction,
         )),
-        NativeUiAction::MoveBrowserFocus { .. }
-        | NativeUiAction::SetBrowserViewStart { .. }
-        | NativeUiAction::FocusSourcesPanel
-        | NativeUiAction::FocusFolderPanel
-        | NativeUiAction::FocusFolderSearch
-        | NativeUiAction::SetFolderSearch { .. }
-        | NativeUiAction::ToggleShowAllFolders
-        | NativeUiAction::ToggleFolderFlattenedView
-        | NativeUiAction::FocusFolderRow { .. }
-        | NativeUiAction::ActivateFolderRow { .. }
-        | NativeUiAction::ToggleFolderRowExpanded { .. }
-        | NativeUiAction::ExpandFocusedFolder
-        | NativeUiAction::CollapseFocusedFolder
-        | NativeUiAction::ToggleFocusedFolderSelection
-        | NativeUiAction::MoveFolderFocus { .. }
-        | NativeUiAction::FocusBrowserRow { .. }
-        | NativeUiAction::AdjustSelectedBrowserRating { .. }
-        | NativeUiAction::CommitFocusedBrowserRow
-        | NativeUiAction::ToggleBrowserRowSelection { .. }
-        | NativeUiAction::StartBrowserSampleDrag { .. }
-        | NativeUiAction::UpdateBrowserSampleDrag { .. }
-        | NativeUiAction::FinishBrowserSampleDrag
-        | NativeUiAction::ExtendBrowserSelectionToRow { .. }
-        | NativeUiAction::AddRangeBrowserSelection { .. }
-        | NativeUiAction::ExtendBrowserSelectionFromFocus { .. }
-        | NativeUiAction::AddRangeBrowserSelectionFromFocus { .. }
-        | NativeUiAction::ToggleFocusedBrowserRowSelection
-        | NativeUiAction::SelectAllBrowserRows
-        | NativeUiAction::SetBrowserSearch { .. }
-        | NativeUiAction::ToggleBrowserRatingFilter { .. }
-        | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
-        | NativeUiAction::ToggleBrowserSampleMark
-        | NativeUiAction::ToggleBrowserMarkedFilter
-        | NativeUiAction::ToggleBrowserTagNamedFilter { .. }
-        | NativeUiAction::ToggleBrowserTagSidebar
-        | NativeUiAction::ToggleBrowserTagSidebarAutoRename
-        | NativeUiAction::FocusBrowserPanel
-        | NativeUiAction::FocusBrowserSearch
-        | NativeUiAction::BlurBrowserSearch
-        | NativeUiAction::FocusBrowserTagSidebarInput
-        | NativeUiAction::SetBrowserTagSidebarInput { .. }
-        | NativeUiAction::CommitBrowserTagSidebarInput
-        | NativeUiAction::SetBrowserSidebarLooped { .. }
-        | NativeUiAction::ToggleBrowserSidebarNormalTag { .. }
-        | NativeUiAction::FocusLoadedSampleInBrowser
-        | NativeUiAction::ToggleBrowserDuplicateCleanupMode
-        | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }
-        | NativeUiAction::ConfirmBrowserDuplicateCleanup
-        | NativeUiAction::StartBrowserRename
-        | NativeUiAction::ConfirmBrowserRename
-        | NativeUiAction::CancelBrowserRename
-        | NativeUiAction::AutoRenameBrowserSelection { .. }
-        | NativeUiAction::TagBrowserSelection { .. }
-        | NativeUiAction::DeleteBrowserSelection
-        | NativeUiAction::StartNewFolder
-        | NativeUiAction::StartNewFolderAtFolderRow { .. }
-        | NativeUiAction::StartNewFolderAtRoot
-        | NativeUiAction::FocusFolderCreateInput
-        | NativeUiAction::SetFolderCreateInput { .. }
-        | NativeUiAction::ConfirmFolderCreate
-        | NativeUiAction::CancelFolderCreate
-        | NativeUiAction::StartFolderRename
-        | NativeUiAction::DeleteFocusedFolder
-        | NativeUiAction::RestoreRetainedFolderDeletes
-        | NativeUiAction::PurgeRetainedFolderDeletes
-        | NativeUiAction::ClearFolderDeleteRecoveryLog
-        | NativeUiAction::SetBrowserTab { map: false } => {
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { .. })
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusSourcesPanel)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderSearch)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::SetFolderSearch { .. })
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::ToggleShowAllFolders)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::ToggleFolderFlattenedView)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderRow { .. })
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { .. })
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ToggleFolderRowExpanded { .. })
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ExpandFocusedFolder)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::CollapseFocusedFolder)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ToggleFocusedFolderSelection)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::MoveFolderFocus { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserRowSelection { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::StartBrowserSampleDrag { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::UpdateBrowserSampleDrag { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::FinishBrowserSampleDrag)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ExtendBrowserSelectionToRow { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::AddRangeBrowserSelection { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ExtendBrowserSelectionFromFocus { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::AddRangeBrowserSelectionFromFocus { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleFocusedBrowserRowSelection)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SelectAllBrowserRows)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserSearch { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserRatingFilter { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserPlaybackAgeFilter { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagNamedFilter { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebar)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebarAutoRename)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch)
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::FocusBrowserTagSidebarInput)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserTagSidebarInput { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::CommitBrowserTagSidebarInput)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserSidebarLooped { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserSidebarNormalTag { .. })
+        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusLoadedSampleInBrowser)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupMode)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupKeep { .. })
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::ConfirmBrowserDuplicateCleanup)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::StartBrowserRename)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ConfirmBrowserRename)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CancelBrowserRename)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::AutoRenameBrowserSelection { .. })
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::TagBrowserSelection { .. })
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::DeleteBrowserSelection)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolder)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolderAtFolderRow { .. })
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolderAtRoot)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderCreateInput)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::SetFolderCreateInput { .. })
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ConfirmFolderCreate)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::CancelFolderCreate)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::DeleteFocusedFolder)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::RestoreRetainedFolderDeletes)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::PurgeRetainedFolderDeletes)
+        | NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::ClearFolderDeleteRecoveryLog)
+        | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserTab { map: false }) => {
             Some((DerivedNodeId::BrowserState, DirtyReason::BrowserAction))
         }
-        NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetBrowserTab { map: true }) | NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::FocusMapSample { .. }) => {
             Some((DerivedNodeId::MapState, DirtyReason::MapAction))
         }
         NativeUiAction::Transport(
@@ -254,12 +338,12 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::Transport(
             crate::app_core::actions::NativeTransportAction::ToggleTransport,
         )
-        | NativeUiAction::ToggleLoopPlayback
+        | NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback)
         | NativeUiAction::Options(NativeOptionsAction::SetVolume { .. })
         | NativeUiAction::Options(NativeOptionsAction::CommitVolumeSetting) => {
             Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
         }
-        NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
+        NativeUiAction::Browser(crate::app_core::actions::NativeBrowserAction::SetCompareAnchorFromFocusedBrowserSample) => {
             Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
         }
         NativeUiAction::HistoryAndUpdate(
@@ -282,10 +366,10 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::Options(NativeOptionsAction::SetAdvanceAfterRatingEnabled { .. })
         | NativeUiAction::Options(NativeOptionsAction::SetDestructiveYoloMode { .. })
         | NativeUiAction::Options(NativeOptionsAction::SetInvertWaveformScroll { .. })
-        | NativeUiAction::ConfirmPrompt
-        | NativeUiAction::CancelPrompt
-        | NativeUiAction::CancelProgress
-        | NativeUiAction::SetPromptInput { .. } => {
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ConfirmPrompt)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CancelPrompt)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::CancelProgress)
+        | NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::SetPromptInput { .. }) => {
             Some((DerivedNodeId::StatusState, DirtyReason::StatusAction))
         }
         _ => None,

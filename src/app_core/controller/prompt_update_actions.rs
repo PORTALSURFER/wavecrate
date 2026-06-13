@@ -9,23 +9,43 @@ pub(super) fn apply_prompt_and_update_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::SetPromptInput { value } => controller.set_active_prompt_input(value),
-        NativeUiAction::SetFolderCreateInput { value } => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::SetPromptInput { value },
+        ) => controller.set_active_prompt_input(value),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::SetFolderCreateInput { value },
+        ) => {
             controller.set_inline_folder_edit_input(value);
         }
-        NativeUiAction::ConfirmPrompt => controller.confirm_active_prompt_action(),
-        NativeUiAction::ConfirmFolderCreate => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::ConfirmPrompt,
+        ) => controller.confirm_active_prompt_action(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ConfirmFolderCreate,
+        ) => {
             controller.apply_active_inline_folder_edit();
         }
-        NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
-        NativeUiAction::CancelFolderCreate => controller.cancel_inline_folder_edit(),
-        NativeUiAction::CancelProgress => controller.request_progress_cancel(),
-        NativeUiAction::CopySelectionToClipboard => controller.copy_selection_to_clipboard(),
-        NativeUiAction::ToggleHotkeyOverlay => {
-            controller.ui.hotkeys.overlay_visible = !controller.ui.hotkeys.overlay_visible
-        }
-        NativeUiAction::CopyStatusLog => controller.copy_status_log_to_clipboard(),
-        NativeUiAction::OpenFeedbackIssuePrompt => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CancelPrompt,
+        ) => controller.cancel_active_prompt_action(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::CancelFolderCreate,
+        ) => controller.cancel_inline_folder_edit(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CancelProgress,
+        ) => controller.request_progress_cancel(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CopySelectionToClipboard,
+        ) => controller.copy_selection_to_clipboard(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::ToggleHotkeyOverlay,
+        ) => controller.ui.hotkeys.overlay_visible = !controller.ui.hotkeys.overlay_visible,
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CopyStatusLog,
+        ) => controller.copy_status_log_to_clipboard(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::OpenFeedbackIssuePrompt,
+        ) => {
             controller.ui.hotkeys.overlay_visible = false;
             controller.open_feedback_issue_prompt();
         }

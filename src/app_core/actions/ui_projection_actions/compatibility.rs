@@ -5,7 +5,7 @@
 //! their upgrade rules so migration behavior stays separate from active action
 //! ownership.
 
-use super::{HistoryUpdateAction, UiAction};
+use super::{HistoryUpdateAction, UiAction, WaveformAction};
 use serde::{Deserialize, Serialize};
 
 /// Supported legacy action inputs retained for runtime and artifact readers.
@@ -59,12 +59,16 @@ impl CompatibilityAction {
             Self::DismissUpdate => UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate),
             Self::SelectColumn { index } => UiAction::Compatibility(Self::SelectColumn { index }),
             Self::MoveColumn { delta } => UiAction::Compatibility(Self::MoveColumn { delta }),
-            Self::SeekWaveform { position_milli } => UiAction::SeekWaveformPrecise {
-                position_nanos: milli_to_nanos(position_milli),
-            },
-            Self::SetWaveformCursor { position_milli } => UiAction::SetWaveformCursorPrecise {
-                position_nanos: milli_to_nanos(position_milli),
-            },
+            Self::SeekWaveform { position_milli } => {
+                UiAction::Waveform(WaveformAction::SeekWaveformPrecise {
+                    position_nanos: milli_to_nanos(position_milli),
+                })
+            }
+            Self::SetWaveformCursor { position_milli } => {
+                UiAction::Waveform(WaveformAction::SetWaveformCursorPrecise {
+                    position_nanos: milli_to_nanos(position_milli),
+                })
+            }
         }
     }
 

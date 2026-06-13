@@ -245,7 +245,9 @@ fn f_hotkey_focuses_loaded_sample_in_browser() {
         .find(|action| {
             matches!(
                 action.action,
-                crate::app_core::actions::NativeUiAction::FocusLoadedSampleInBrowser
+                crate::app_core::actions::NativeUiAction::Shell(
+                    crate::app_core::actions::NativeShellAction::FocusLoadedSampleInBrowser
+                )
             )
         })
         .expect("missing focus loaded sample hotkey");

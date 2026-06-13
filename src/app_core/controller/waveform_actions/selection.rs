@@ -11,86 +11,86 @@ pub(super) fn apply_waveform_selection_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::BeginWaveformSelectionAt { anchor_micros } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt { anchor_micros }) => {
             controller.start_selection_drag(normalize_waveform_micros(anchor_micros));
             controller.focus_waveform_context();
         }
-        NativeUiAction::BeginWaveformSelectionAtPrecise { anchor_nanos } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAtPrecise { anchor_nanos }) => {
             controller.start_selection_drag_nanos(anchor_nanos);
             controller.focus_waveform_context();
         }
-        NativeUiAction::SetWaveformSelectionRange {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
             snap_override,
             preserve_view_edge,
-        } => controller.set_waveform_selection_range_micros_with_drag_policy(
+        }) => controller.set_waveform_selection_range_micros_with_drag_policy(
             start_micros,
             end_micros,
             snap_override,
             preserve_view_edge,
         ),
-        NativeUiAction::SetWaveformSelectionRangePrecise {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangePrecise {
             start_nanos,
             end_nanos,
             snap_override,
             preserve_view_edge,
-        } => controller.set_waveform_selection_range_nanos_with_drag_policy(
+        }) => controller.set_waveform_selection_range_nanos_with_drag_policy(
             start_nanos,
             end_nanos,
             snap_override,
             preserve_view_edge,
         ),
-        NativeUiAction::SetWaveformSelectionRangeSmartScale {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale {
             start_micros,
             end_micros,
-        } => controller.set_waveform_selection_range_micros_smart_scale(start_micros, end_micros),
-        NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise {
+        }) => controller.set_waveform_selection_range_micros_smart_scale(start_micros, end_micros),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScalePrecise {
             start_nanos,
             end_nanos,
-        } => controller.set_waveform_selection_range_nanos_smart_scale(start_nanos, end_nanos),
-        NativeUiAction::SetWaveformEditSelectionRange {
+        }) => controller.set_waveform_selection_range_nanos_smart_scale(start_nanos, end_nanos),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange {
             start_micros,
             end_micros,
             preserve_view_edge,
-        } => controller.set_waveform_edit_selection_range_micros_with_edge_policy(
+        }) => controller.set_waveform_edit_selection_range_micros_with_edge_policy(
             start_micros,
             end_micros,
             preserve_view_edge,
         ),
-        NativeUiAction::SetWaveformEditSelectionRangePrecise {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRangePrecise {
             start_nanos,
             end_nanos,
             preserve_view_edge,
-        } => controller.set_waveform_edit_selection_range_nanos_with_edge_policy(
+        }) => controller.set_waveform_edit_selection_range_nanos_with_edge_policy(
             start_nanos,
             end_nanos,
             preserve_view_edge,
         ),
-        NativeUiAction::SetWaveformEditFadeInEnd { position_micros } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd { position_micros }) => {
             controller.set_waveform_edit_fade_in_end_micros(position_micros)
         }
-        NativeUiAction::SetWaveformEditFadeInMuteStart { position_micros } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInMuteStart { position_micros }) => {
             controller.set_waveform_edit_fade_in_mute_start_micros(position_micros)
         }
-        NativeUiAction::SetWaveformEditFadeInCurve { curve_milli } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInCurve { curve_milli }) => {
             controller.set_waveform_edit_fade_in_curve_milli(curve_milli)
         }
-        NativeUiAction::SetWaveformEditFadeOutStart { position_micros } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutStart { position_micros }) => {
             controller.set_waveform_edit_fade_out_start_micros(position_micros)
         }
-        NativeUiAction::SetWaveformEditFadeOutMuteEnd { position_micros } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutMuteEnd { position_micros }) => {
             controller.set_waveform_edit_fade_out_mute_end_micros(position_micros)
         }
-        NativeUiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve { curve_milli }) => {
             controller.set_waveform_edit_fade_out_curve_milli(curve_milli)
         }
-        NativeUiAction::FinishWaveformEditFadeDrag => controller.finish_waveform_edit_fade_drag(),
-        NativeUiAction::StartWaveformSelectionDrag {
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag) => controller.finish_waveform_edit_fade_drag(),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::StartWaveformSelectionDrag {
             pointer_x,
             pointer_y,
-        } => start_waveform_selection_drag(controller, pointer_x, pointer_y),
-        NativeUiAction::UpdateWaveformSelectionDrag {
+        }) => start_waveform_selection_drag(controller, pointer_x, pointer_y),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformSelectionDrag {
             pointer_x,
             pointer_y,
             hovered_folder_pane,
@@ -99,7 +99,7 @@ pub(super) fn apply_waveform_selection_action(
             over_browser_list,
             shift_down,
             alt_down,
-        } => controller.update_active_drag(
+        }) => controller.update_active_drag(
             native_drag_point(pointer_x, pointer_y),
             DragSource::Browser,
             if let Some(pane) = hovered_folder_pane.or(over_folder_panel) {
@@ -116,10 +116,10 @@ pub(super) fn apply_waveform_selection_action(
             shift_down,
             alt_down,
         ),
-        NativeUiAction::FinishWaveformSelectionDrag => controller.finish_active_drag(),
-        NativeUiAction::FinishWaveformSelectionRangeDrag => controller.finish_selection_drag(),
-        NativeUiAction::FinishWaveformSelectionSmartScaleDrag => controller.finish_selection_drag(),
-        NativeUiAction::FinishWaveformEditSelectionDrag => controller.finish_edit_selection_drag(),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionDrag) => controller.finish_active_drag(),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag) => controller.finish_selection_drag(),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionSmartScaleDrag) => controller.finish_selection_drag(),
+        NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformEditSelectionDrag) => controller.finish_edit_selection_drag(),
         action => return Err(action),
     }
     Ok(())

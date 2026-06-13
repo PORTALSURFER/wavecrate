@@ -6,17 +6,21 @@ fn waveform_milli_inputs_upgrade_to_precise_actions() {
         upgrade_compatibility_action(CompatibilityAction::SeekWaveform {
             position_milli: 420,
         }),
-        UiAction::SeekWaveformPrecise {
-            position_nanos: 420_000_000,
-        }
+        UiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+                position_nanos: 420_000_000,
+            }
+        )
     );
     assert_eq!(
         upgrade_compatibility_action(CompatibilityAction::SetWaveformCursor {
             position_milli: 1_200,
         }),
-        UiAction::SetWaveformCursorPrecise {
-            position_nanos: 1_000_000_000,
-        }
+        UiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+                position_nanos: 1_000_000_000,
+            }
+        )
     );
 }
 
@@ -45,9 +49,11 @@ fn legacy_json_payloads_parse_in_adapter() {
 
     assert_eq!(
         action.upgrade(),
-        UiAction::SeekWaveformPrecise {
-            position_nanos: 333_000_000,
-        }
+        UiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+                position_nanos: 333_000_000,
+            }
+        )
     );
 }
 
@@ -58,9 +64,11 @@ fn ui_action_boundary_normalizes_retained_compatibility_variants() {
             position_milli: 250,
         })
         .upgrade_compatibility(),
-        UiAction::SeekWaveformPrecise {
-            position_nanos: 250_000_000,
-        }
+        UiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+                position_nanos: 250_000_000,
+            }
+        )
     );
 
     assert_eq!(
@@ -109,6 +117,28 @@ fn flat_history_update_inputs_are_adapter_owned() {
         assert!(
             !root_source.contains(variant),
             "compatibility-only variant leaked back into UiAction: {variant:?}"
+        );
+    }
+}
+
+#[test]
+fn active_domain_variants_are_not_root_owned() {
+    let root_source = include_str!("../../ui_projection_actions.rs");
+    for variant in [
+        "\n    FocusBrowserPanel,\n",
+        "\n    SetFolderSearch {\n",
+        "\n    FocusSourceRow {\n",
+        "\n    MoveBrowserFocus {\n",
+        "\n    SetPromptInput {\n",
+        "\n    ToggleLoopPlayback,\n",
+        "\n    SetWaveformChannelView {\n",
+        "\n    SeekWaveformPrecise {\n",
+        "\n    SetWaveformSelectionRange {\n",
+        "\n    ZoomWaveformFull,\n",
+    ] {
+        assert!(
+            !root_source.contains(variant),
+            "domain-owned variant leaked back into root UiAction: {variant:?}"
         );
     }
 }

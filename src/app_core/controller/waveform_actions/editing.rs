@@ -10,75 +10,109 @@ pub(super) fn apply_waveform_edit_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::SaveWaveformSelectionToBrowser => controller
-            .save_waveform_selection_or_slices_to_browser_action_with_tag(
-                true,
-                Some(crate::sample_sources::Rating::KEEP_1),
-            ),
-        NativeUiAction::SaveWaveformSelectionToBrowserWithKeep2 => controller
-            .save_waveform_selection_or_slices_to_browser_action_with_tag(
-                true,
-                Some(crate::sample_sources::Rating::new(2)),
-            ),
-        NativeUiAction::CommitWaveformEditFades => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SaveWaveformSelectionToBrowser,
+        ) => controller.save_waveform_selection_or_slices_to_browser_action_with_tag(
+            true,
+            Some(crate::sample_sources::Rating::KEEP_1),
+        ),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SaveWaveformSelectionToBrowserWithKeep2,
+        ) => controller.save_waveform_selection_or_slices_to_browser_action_with_tag(
+            true,
+            Some(crate::sample_sources::Rating::new(2)),
+        ),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CommitWaveformEditFades,
+        ) => {
             let _ = controller.request_destructive_selection_edit(
                 DestructiveSelectionEdit::CommitEditSelectionFades,
             );
         }
-        NativeUiAction::DetectWaveformSilenceSlices => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::DetectWaveformSilenceSlices,
+        ) => {
             controller.detect_waveform_silence_slices_action();
         }
-        NativeUiAction::DetectWaveformExactDuplicateSlices => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::DetectWaveformExactDuplicateSlices,
+        ) => {
             controller.detect_waveform_exact_duplicate_slices_action();
         }
-        NativeUiAction::CleanWaveformExactDuplicateSlices => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CleanWaveformExactDuplicateSlices,
+        ) => {
             let _ = controller.request_destructive_selection_edit(
                 DestructiveSelectionEdit::CleanExactDuplicateBeats,
             );
         }
-        NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
-        NativeUiAction::ClearWaveformEditSelection => {
-            controller.clear_waveform_edit_selection_with_focus()
-        }
-        NativeUiAction::ClearWaveformSelections => controller.clear_waveform_marks_with_focus(),
-        NativeUiAction::NormalizeWaveformSelectionOrSample => {
-            controller.normalize_waveform_selection_or_sample_action()
-        }
-        NativeUiAction::CropWaveformSelection => {
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ClearWaveformSelection,
+        ) => controller.clear_waveform_selection_with_focus(),
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection,
+        ) => controller.clear_waveform_edit_selection_with_focus(),
+        NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections,
+        ) => controller.clear_waveform_marks_with_focus(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::NormalizeWaveformSelectionOrSample,
+        ) => controller.normalize_waveform_selection_or_sample_action(),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CropWaveformSelection,
+        ) => {
             let _ = controller
                 .request_destructive_selection_edit(DestructiveSelectionEdit::CropSelection);
         }
-        NativeUiAction::CropWaveformSelectionToNewSample => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::CropWaveformSelectionToNewSample,
+        ) => {
             if let Err(err) = controller.crop_waveform_selection_to_new_sample() {
                 controller.set_status(err, StatusTone::Error);
             }
         }
-        NativeUiAction::TrimWaveformSelection => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::TrimWaveformSelection,
+        ) => {
             let _ = controller
                 .request_destructive_selection_edit(DestructiveSelectionEdit::TrimSelection);
         }
-        NativeUiAction::ReverseWaveformSelection => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::ReverseWaveformSelection,
+        ) => {
             let _ = controller
                 .request_destructive_selection_edit(DestructiveSelectionEdit::ReverseSelection);
         }
-        NativeUiAction::FadeWaveformSelectionLeftToRight => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::FadeWaveformSelectionLeftToRight,
+        ) => {
             let _ = controller
                 .request_destructive_selection_edit(DestructiveSelectionEdit::FadeLeftToRight);
         }
-        NativeUiAction::FadeWaveformSelectionRightToLeft => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::FadeWaveformSelectionRightToLeft,
+        ) => {
             let _ = controller
                 .request_destructive_selection_edit(DestructiveSelectionEdit::FadeRightToLeft);
         }
-        NativeUiAction::MuteWaveformSelection => handle_waveform_mute_action(controller),
-        NativeUiAction::DeleteSelectedSliceMarkers => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::MuteWaveformSelection,
+        ) => handle_waveform_mute_action(controller),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::DeleteSelectedSliceMarkers,
+        ) => {
             handle_delete_selected_slice_markers(controller);
         }
-        NativeUiAction::AlignWaveformStartToMarker => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::AlignWaveformStartToMarker,
+        ) => {
             if let Err(err) = controller.align_waveform_start_to_last_marker() {
                 controller.set_status(err, StatusTone::Error);
             }
         }
-        NativeUiAction::DeleteLoadedWaveformSample => {
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::DeleteLoadedWaveformSample,
+        ) => {
             if let Err(err) = controller.delete_loaded_sample_and_navigate() {
                 controller.set_status(err, StatusTone::Error);
             }

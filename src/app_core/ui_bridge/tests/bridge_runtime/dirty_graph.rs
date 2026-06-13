@@ -52,7 +52,9 @@ fn mark_dirty_for_waveform_click_play_marks_transport_state_dirty() {
 fn mark_dirty_for_browser_focus_action_stays_targeted() {
     let mut bridge = test_bridge(16);
 
-    bridge.mark_dirty_for_action(&NativeUiAction::MoveBrowserFocus { delta: 1 });
+    bridge.mark_dirty_for_action(&NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+    ));
 
     assert!(
         bridge
@@ -85,10 +87,14 @@ fn mark_dirty_for_browser_focus_action_stays_targeted() {
 #[test]
 fn mark_dirty_for_tree_actions_stays_targeted() {
     let actions = [
-        NativeUiAction::SetFolderSearch {
-            query: String::from("drums"),
-        },
-        NativeUiAction::ActivateFolderRow { index: 0 },
+        NativeUiAction::Shell(
+            crate::app_core::actions::NativeShellAction::SetFolderSearch {
+                query: String::from("drums"),
+            },
+        ),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { index: 0 },
+        ),
     ];
 
     for action in actions {
@@ -132,11 +138,17 @@ fn mark_dirty_for_tree_actions_stays_targeted() {
 #[test]
 fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
     let actions = [
-        NativeUiAction::ToggleBrowserSampleMark,
-        NativeUiAction::AdjustSelectedBrowserRating { delta: 1 },
-        NativeUiAction::TagBrowserSelection {
-            target: crate::app_core::actions::NativeBrowserTagTarget::Keep,
-        },
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
+        ),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { delta: 1 },
+        ),
+        NativeUiAction::PromptsAndEdits(
+            crate::app_core::actions::NativePromptEditAction::TagBrowserSelection {
+                target: crate::app_core::actions::NativeBrowserTagTarget::Keep,
+            },
+        ),
     ];
 
     for action in actions {
@@ -187,7 +199,9 @@ fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
 fn mark_dirty_for_unclassified_action_keeps_broad_invalidation() {
     let mut bridge = test_bridge(16);
 
-    bridge.mark_dirty_for_action(&NativeUiAction::OpenSourceFolderRow { index: 0 });
+    bridge.mark_dirty_for_action(&NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::OpenSourceFolderRow { index: 0 },
+    ));
 
     assert!(
         bridge
@@ -236,9 +250,11 @@ fn flush_derived_updates_clears_nodes_and_invalidates_key() {
     let _ = bridge.projection_key_snapshot();
     assert!(bridge.projection_key_snapshot.is_some());
 
-    bridge.mark_dirty_for_action(&NativeUiAction::SetBrowserSearch {
-        query: String::from("kick"),
-    });
+    bridge.mark_dirty_for_action(&NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::SetBrowserSearch {
+            query: String::from("kick"),
+        },
+    ));
     bridge.flush_derived_updates_before_pull(false);
 
     assert!(!bridge.controller.has_dirty_derived_nodes());

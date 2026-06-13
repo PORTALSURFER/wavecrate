@@ -10,7 +10,7 @@ pub(super) fn apply_waveform_option_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::SetWaveformChannelView { stereo } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetWaveformChannelView { stereo }) => {
             let view = if stereo {
                 crate::waveform::WaveformChannelView::SplitStereo
             } else {
@@ -18,24 +18,24 @@ pub(super) fn apply_waveform_option_action(
             };
             controller.set_waveform_channel_view(view);
         }
-        NativeUiAction::SetNormalizedAuditionEnabled { enabled } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetNormalizedAuditionEnabled { enabled }) => {
             controller.set_normalized_audition_enabled(enabled)
         }
-        NativeUiAction::AdjustWaveformBpm { delta } => adjust_waveform_bpm(controller, delta),
-        NativeUiAction::SetWaveformBpmValue { value_tenths } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::AdjustWaveformBpm { delta }) => adjust_waveform_bpm(controller, delta),
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetWaveformBpmValue { value_tenths }) => {
             controller.set_bpm_value(f32::from(value_tenths) / 10.0);
         }
-        NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
-        NativeUiAction::SetRelativeBpmGridEnabled { enabled } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetBpmSnapEnabled { enabled }) => controller.set_bpm_snap_enabled(enabled),
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetRelativeBpmGridEnabled { enabled }) => {
             controller.set_relative_bpm_grid_enabled(enabled)
         }
-        NativeUiAction::SetTransientSnapEnabled { enabled } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetTransientSnapEnabled { enabled }) => {
             controller.set_transient_snap_enabled(enabled)
         }
-        NativeUiAction::SetTransientMarkersEnabled { enabled } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetTransientMarkersEnabled { enabled }) => {
             controller.set_transient_markers_enabled(enabled)
         }
-        NativeUiAction::SetSliceModeEnabled { enabled } => {
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetSliceModeEnabled { enabled }) => {
             if controller.loaded_waveform_slice_export_in_progress() {
                 controller.set_status(
                     "Wait for the current slice export to finish",
@@ -45,32 +45,32 @@ pub(super) fn apply_waveform_option_action(
             }
             controller.set_slice_mode_enabled(enabled)
         }
-        NativeUiAction::ToggleWaveformSliceSelection { index } => {
+        NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformSliceSelection { index }) => {
             controller.toggle_slice_selection(index);
             controller.focus_waveform_context();
         }
-        NativeUiAction::AuditionWaveformDuplicateSlice { index } => {
+        NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::AuditionWaveformDuplicateSlice { index }) => {
             controller.audition_duplicate_cleanup_preview(index);
         }
-        NativeUiAction::ToggleWaveformDuplicateSliceExemption { index } => {
+        NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleWaveformDuplicateSliceExemption { index }) => {
             if let Err(err) = controller.toggle_duplicate_cleanup_preview_exemption(index) {
                 controller.set_status(err, StatusTone::Info);
             }
             controller.focus_waveform_context();
         }
-        NativeUiAction::MoveWaveformSliceFocus { delta } => {
+        NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::MoveWaveformSliceFocus { delta }) => {
             if !controller.move_slice_review_focus(delta) {
                 controller.slide_selection_range(delta.into());
             }
         }
-        NativeUiAction::ToggleFocusedWaveformSliceExportMark => {
+        NativeUiAction::PromptsAndEdits(crate::app_core::actions::NativePromptEditAction::ToggleFocusedWaveformSliceExportMark) => {
             if let Err(err) = controller.toggle_focused_slice_export_mark() {
                 controller.set_status(err, StatusTone::Info);
             }
             controller.focus_waveform_context();
         }
-        NativeUiAction::ToggleBpmSnap => toggle_bpm_snap(controller),
-        NativeUiAction::ToggleTransientMarkers => toggle_transient_markers(controller),
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleBpmSnap) => toggle_bpm_snap(controller),
+        NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::ToggleTransientMarkers) => toggle_transient_markers(controller),
         action => return Err(action),
     }
     Ok(())

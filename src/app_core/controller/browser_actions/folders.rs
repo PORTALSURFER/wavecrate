@@ -9,60 +9,90 @@ pub(super) fn apply_folder_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::FocusFolderPanel => controller
-            .focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders),
-        NativeUiAction::FocusFolderSearch => {
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel) => {
+            controller
+                .focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders)
+        }
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderSearch) => {
             controller.focus_folder_search();
         }
-        NativeUiAction::SetFolderSearch { query } => {
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::SetFolderSearch {
+            query,
+        }) => {
             controller.set_folder_search(query);
         }
-        NativeUiAction::ToggleShowAllFolders => {
+        NativeUiAction::Shell(
+            crate::app_core::actions::NativeShellAction::ToggleShowAllFolders,
+        ) => {
             controller.toggle_show_all_folders();
         }
-        NativeUiAction::ToggleFolderFlattenedView => {
+        NativeUiAction::Shell(
+            crate::app_core::actions::NativeShellAction::ToggleFolderFlattenedView,
+        ) => {
             controller.toggle_folder_flattened_view();
         }
-        NativeUiAction::FocusFolderRow { index } => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderRow { index },
+        ) => {
             controller.replace_folder_selection(index);
         }
-        NativeUiAction::ActivateFolderRow { index } => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { index },
+        ) => {
             controller.activate_folder_row(index);
         }
-        NativeUiAction::ToggleFolderRowExpanded { index } => {
-            controller.toggle_folder_expanded(index)
-        }
-        NativeUiAction::ExpandFocusedFolder => controller.expand_focused_folder(),
-        NativeUiAction::CollapseFocusedFolder => controller.collapse_focused_folder(),
-        NativeUiAction::ToggleFocusedFolderSelection => {
-            controller.toggle_focused_folder_selection()
-        }
-        NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
-        NativeUiAction::StartNewFolder => controller.start_new_folder(),
-        NativeUiAction::StartNewFolderAtFolderRow { index } => {
-            controller.start_new_folder_at_folder_row(index)
-        }
-        NativeUiAction::StartNewFolderAtRoot => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ToggleFolderRowExpanded { index },
+        ) => controller.toggle_folder_expanded(index),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ExpandFocusedFolder,
+        ) => controller.expand_focused_folder(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::CollapseFocusedFolder,
+        ) => controller.collapse_focused_folder(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ToggleFocusedFolderSelection,
+        ) => controller.toggle_focused_folder_selection(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::MoveFolderFocus { delta },
+        ) => controller.nudge_folder_focus_action(delta),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolder,
+        ) => controller.start_new_folder(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolderAtFolderRow {
+                index,
+            },
+        ) => controller.start_new_folder_at_folder_row(index),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::StartNewFolderAtRoot,
+        ) => {
             if controller.current_source().is_none() {
                 controller.add_source_via_dialog();
             } else {
                 controller.start_new_folder_at_root();
             }
         }
-        NativeUiAction::FocusFolderCreateInput => controller.focus_inline_folder_edit_input(),
-        NativeUiAction::StartFolderRename => controller.start_folder_rename(),
-        NativeUiAction::DeleteFocusedFolder => {
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderCreateInput,
+        ) => controller.focus_inline_folder_edit_input(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename,
+        ) => controller.start_folder_rename(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::DeleteFocusedFolder,
+        ) => {
             controller.request_delete_focused_folder();
         }
-        NativeUiAction::RestoreRetainedFolderDeletes => {
-            controller.start_restore_retained_folder_deletes()
-        }
-        NativeUiAction::PurgeRetainedFolderDeletes => {
-            controller.start_purge_retained_folder_deletes()
-        }
-        NativeUiAction::ClearFolderDeleteRecoveryLog => {
-            controller.clear_folder_delete_recovery_log()
-        }
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::RestoreRetainedFolderDeletes,
+        ) => controller.start_restore_retained_folder_deletes(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::PurgeRetainedFolderDeletes,
+        ) => controller.start_purge_retained_folder_deletes(),
+        NativeUiAction::SourcesAndFolders(
+            crate::app_core::actions::NativeSourcesFoldersAction::ClearFolderDeleteRecoveryLog,
+        ) => controller.clear_folder_delete_recovery_log(),
         action => return Err(action),
     }
     Ok(())

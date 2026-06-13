@@ -1,0 +1,36 @@
+use serde::{Deserialize, Serialize};
+
+/// Source-list and folder-tree actions.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SourcesFoldersAction {
+    FocusSourceRow { index: usize },
+    SelectSourceRow { index: usize },
+    MoveSourceFocus { delta: i8 },
+    ReloadFocusedSourceRow,
+    HardSyncFocusedSourceRow,
+    OpenFocusedSourceFolder,
+    RemoveFocusedSourceRow,
+    ReloadSourceRow { index: usize },
+    HardSyncSourceRow { index: usize },
+    OpenSourceFolderRow { index: usize },
+    RemoveSourceRow { index: usize },
+    FocusFolderRow { index: usize },
+    ActivateFolderRow { index: usize },
+    ToggleFolderRowExpanded { index: usize },
+    ExpandFocusedFolder,
+    CollapseFocusedFolder,
+    ToggleFocusedFolderSelection,
+    MoveFolderFocus { delta: i8 },
+    StartNewFolder,
+    StartNewFolderAtFolderRow { index: usize },
+    StartNewFolderAtRoot,
+    FocusFolderCreateInput,
+    SetFolderCreateInput { value: String },
+    ConfirmFolderCreate,
+    CancelFolderCreate,
+    StartFolderRename,
+    DeleteFocusedFolder,
+    RestoreRetainedFolderDeletes,
+    PurgeRetainedFolderDeletes,
+    ClearFolderDeleteRecoveryLog,
+}

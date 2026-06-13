@@ -41,8 +41,12 @@ fn browser_focus_transition_preview_keeps_latest_waveform_target_visible() {
     write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
     seed_loaded_browser_focus(&mut controller, "one.wav");
 
-    controller.apply_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 1 });
-    controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row: 1 },
+    ));
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+    ));
 
     assert_eq!(
         controller.ui.browser.selection.last_focused_path.as_deref(),
@@ -92,9 +96,15 @@ fn browser_focus_transition_commit_keeps_browser_and_waveform_targets_aligned() 
     write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
     seed_loaded_browser_focus(&mut controller, "one.wav");
 
-    controller.apply_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 1 });
-    controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
-    controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row: 1 },
+    ));
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta: 1 },
+    ));
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+    ));
 
     assert!(controller.runtime.browser.selection_transition.is_some());
     controller.prepare_ui_frame(false);
@@ -135,9 +145,15 @@ fn browser_focus_transition_superseded_commit_clears_stale_loading_before_projec
     write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
     seed_loaded_browser_focus(&mut controller, "one.wav");
 
-    controller.apply_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 1 });
-    controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
-    controller.apply_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 0 });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row: 1 },
+    ));
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+    ));
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row: 0 },
+    ));
     controller.prepare_ui_frame(false);
 
     assert_eq!(

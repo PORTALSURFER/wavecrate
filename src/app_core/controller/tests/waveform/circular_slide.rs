@@ -8,16 +8,23 @@ fn apply_ui_waveform_circular_slide_rotates_sample_and_clears_drag_state() {
             .load_waveform_for_selection(&source, Path::new("kick_one.wav"))
             .unwrap();
 
-        controller.apply_ui_action(NativeUiAction::BeginWaveformCircularSlide {
-            anchor_micros: 500_000,
-        });
+        controller.apply_ui_action(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide {
+                anchor_micros: 500_000,
+            },
+        ));
         assert!(controller.is_waveform_circular_slide_active());
 
-        controller
-            .apply_ui_action(NativeUiAction::UpdateWaveformCircularSlide { position_micros: 0 });
+        controller.apply_ui_action(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide {
+                position_micros: 0,
+            },
+        ));
         assert!(controller.is_waveform_circular_slide_active());
 
-        controller.apply_ui_action(NativeUiAction::FinishWaveformCircularSlide);
+        controller.apply_ui_action(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide,
+        ));
 
         assert!(!controller.is_waveform_circular_slide_active());
         assert_eq!(read_test_wav_samples(&wav_path), vec![3.0, 4.0, 1.0, 2.0]);
@@ -32,10 +39,14 @@ fn apply_ui_waveform_circular_slide_no_op_finish_leaves_file_unchanged() {
             .load_waveform_for_selection(&source, Path::new("kick_one.wav"))
             .unwrap();
 
-        controller.apply_ui_action(NativeUiAction::BeginWaveformCircularSlide {
-            anchor_micros: 500_000,
-        });
-        controller.apply_ui_action(NativeUiAction::FinishWaveformCircularSlide);
+        controller.apply_ui_action(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide {
+                anchor_micros: 500_000,
+            },
+        ));
+        controller.apply_ui_action(NativeUiAction::Waveform(
+            crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide,
+        ));
 
         assert!(!controller.is_waveform_circular_slide_active());
         assert_eq!(read_test_wav_samples(&wav_path), vec![1.0, 2.0, 3.0, 4.0]);

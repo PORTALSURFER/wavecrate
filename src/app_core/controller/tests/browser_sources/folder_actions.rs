@@ -33,7 +33,9 @@ fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
         .expect("failed to locate folder row");
     controller.focus_folder_row(row_index);
 
-    controller.apply_ui_action(NativeUiAction::ToggleFocusedFolderSelection);
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::ToggleFocusedFolderSelection,
+    ));
 
     assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
     assert_eq!(
@@ -50,7 +52,9 @@ fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
         Some(folder_path.clone())
     );
 
-    controller.apply_ui_action(NativeUiAction::ToggleFocusedFolderSelection);
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::ToggleFocusedFolderSelection,
+    ));
 
     assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
     assert!(
@@ -112,7 +116,9 @@ fn focus_folder_row_action_replaces_folder_selection() {
         None => panic!("failed to locate folder row index"),
     };
 
-    controller.apply_ui_action(NativeUiAction::FocusFolderRow { index: row_index });
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::FocusFolderRow { index: row_index },
+    ));
 
     let selected = controller
         .folder_selection_for_filter()
@@ -163,7 +169,11 @@ fn activate_folder_row_action_selects_and_toggles_expansion() {
         .position(|row| row.path == folder_path)
         .expect("failed to relocate folder row index");
 
-    controller.apply_ui_action(NativeUiAction::ActivateFolderRow { index: row_index });
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow {
+            index: row_index,
+        },
+    ));
 
     let selected = controller
         .folder_selection_for_filter()
@@ -232,7 +242,11 @@ fn toggle_folder_row_expanded_action_toggles_expansion_immediately() {
         .iter()
         .position(|row| row.path == folder_path)
         .expect("failed to relocate collapsed folder row index");
-    controller.apply_ui_action(NativeUiAction::ToggleFolderRowExpanded { index: row_index });
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::ToggleFolderRowExpanded {
+            index: row_index,
+        },
+    ));
 
     assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
     assert!(
@@ -283,7 +297,9 @@ fn focus_folder_panel_preserves_existing_folder_selection() {
     let focused_before = controller.ui.sources.folders.focused;
     controller.ui.focus.context = FocusContext::Waveform;
 
-    controller.apply_ui_action(NativeUiAction::FocusFolderPanel);
+    controller.apply_ui_action(NativeUiAction::Shell(
+        crate::app_core::actions::NativeShellAction::FocusFolderPanel,
+    ));
 
     assert_eq!(
         controller
@@ -327,7 +343,9 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
             .all(|row| row.path.as_path() != Path::new("drums/empty"))
     );
 
-    controller.apply_ui_action(NativeUiAction::ToggleShowAllFolders);
+    controller.apply_ui_action(NativeUiAction::Shell(
+        crate::app_core::actions::NativeShellAction::ToggleShowAllFolders,
+    ));
 
     assert!(controller.ui.sources.folders.show_all_folders);
     assert!(
@@ -379,7 +397,9 @@ fn toggle_folder_flattened_view_action_updates_folder_scope_mode() {
     );
     assert!(!controller.ui.sources.folders.flattened_view);
 
-    controller.apply_ui_action(NativeUiAction::ToggleFolderFlattenedView);
+    controller.apply_ui_action(NativeUiAction::Shell(
+        crate::app_core::actions::NativeShellAction::ToggleFolderFlattenedView,
+    ));
 
     assert!(controller.ui.sources.folders.flattened_view);
     assert_eq!(
@@ -408,14 +428,18 @@ fn activate_root_folder_row_action_keeps_flattened_view_stable() {
     controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
 
-    controller.apply_ui_action(NativeUiAction::ActivateFolderRow { index: 0 });
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { index: 0 },
+    ));
     assert!(!controller.ui.sources.folders.flattened_view);
     assert_eq!(
         browser_visible_paths(&mut controller),
         vec![PathBuf::from("root.wav")]
     );
 
-    controller.apply_ui_action(NativeUiAction::ActivateFolderRow { index: 0 });
+    controller.apply_ui_action(NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::ActivateFolderRow { index: 0 },
+    ));
     assert!(!controller.ui.sources.folders.flattened_view);
     assert_eq!(
         browser_visible_paths(&mut controller),

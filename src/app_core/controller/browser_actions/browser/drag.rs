@@ -9,21 +9,25 @@ pub(super) fn apply_drag_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::StartBrowserSampleDrag {
-            visible_row,
-            pointer_x,
-            pointer_y,
-        } => controller
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::StartBrowserSampleDrag {
+                visible_row,
+                pointer_x,
+                pointer_y,
+            },
+        ) => controller
             .start_browser_sample_drag_action(visible_row, native_drag_point(pointer_x, pointer_y)),
-        NativeUiAction::UpdateBrowserSampleDrag {
-            pointer_x,
-            pointer_y,
-            hovered_folder_pane,
-            hovered_folder_row,
-            over_folder_panel,
-            shift_down,
-            alt_down,
-        } => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::UpdateBrowserSampleDrag {
+                pointer_x,
+                pointer_y,
+                hovered_folder_pane,
+                hovered_folder_row,
+                over_folder_panel,
+                shift_down,
+                alt_down,
+            },
+        ) => {
             let target = folder_drag_target(
                 controller,
                 hovered_folder_pane,
@@ -38,7 +42,9 @@ pub(super) fn apply_drag_action(
                 alt_down,
             );
         }
-        NativeUiAction::FinishBrowserSampleDrag => controller.finish_active_drag(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FinishBrowserSampleDrag,
+        ) => controller.finish_active_drag(),
         action => return Err(action),
     }
     Ok(())

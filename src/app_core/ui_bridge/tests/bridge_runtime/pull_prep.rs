@@ -34,7 +34,9 @@ fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {
 fn local_focus_actions_arm_local_model_pull_fast_path() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::FocusBrowserSearch);
+    bridge.on_action(NativeUiAction::Shell(
+        crate::app_core::actions::NativeShellAction::FocusBrowserSearch,
+    ));
 
     assert_eq!(
         bridge.pending_model_pull_preparation,
@@ -78,9 +80,11 @@ fn scheduling_local_fast_path_resets_previous_burst_count() {
 fn folder_search_actions_arm_local_model_pull_fast_path() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::SetFolderSearch {
-        query: String::from("drums"),
-    });
+    bridge.on_action(NativeUiAction::Shell(
+        crate::app_core::actions::NativeShellAction::SetFolderSearch {
+            query: String::from("drums"),
+        },
+    ));
 
     assert_eq!(
         bridge.pending_model_pull_preparation,
@@ -94,9 +98,11 @@ fn folder_search_actions_arm_local_model_pull_fast_path() {
 fn search_query_actions_stay_on_full_model_pull_preparation() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::SetBrowserSearch {
-        query: String::from("kick"),
-    });
+    bridge.on_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::SetBrowserSearch {
+            query: String::from("kick"),
+        },
+    ));
 
     assert_eq!(
         bridge.pending_model_pull_preparation,

@@ -7,13 +7,17 @@ fn apply_ui_waveform_selection_range_finish_commits_one_undo_step() {
     let after = crate::selection::SelectionRange::new(0.2, 0.7);
     controller.set_selection_range(before);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
-        start_micros: 200_000,
-        end_micros: 700_000,
-        snap_override: false,
-        preserve_view_edge: false,
-    });
-    controller.apply_ui_action(NativeUiAction::FinishWaveformSelectionRangeDrag);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+            start_micros: 200_000,
+            end_micros: 700_000,
+            snap_override: false,
+            preserve_view_edge: false,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag,
+    ));
 
     assert_eq!(controller.ui.waveform.selection, Some(after));
 
@@ -31,12 +35,16 @@ fn apply_ui_waveform_edit_selection_finish_commits_one_undo_step() {
     let after = crate::selection::SelectionRange::new(0.2, 0.7);
     controller.set_edit_selection_range(before);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformEditSelectionRange {
-        start_micros: 200_000,
-        end_micros: 700_000,
-        preserve_view_edge: false,
-    });
-    controller.apply_ui_action(NativeUiAction::FinishWaveformEditSelectionDrag);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange {
+            start_micros: 200_000,
+            end_micros: 700_000,
+            preserve_view_edge: false,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformEditSelectionDrag,
+    ));
 
     assert_eq!(controller.ui.waveform.edit_selection, Some(after));
 
@@ -53,8 +61,14 @@ fn apply_ui_waveform_edit_fade_finish_commits_one_undo_step() {
     let before = crate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
     controller.set_edit_selection_range(before);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformEditFadeOutCurve { curve_milli: 750 });
-    controller.apply_ui_action(NativeUiAction::FinishWaveformEditFadeDrag);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve {
+            curve_milli: 750,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag,
+    ));
 
     let updated = controller
         .ui
@@ -89,7 +103,9 @@ fn clear_waveform_edit_selection_is_undoable() {
     let selection = crate::selection::SelectionRange::new(0.2, 0.6);
     controller.set_edit_selection_range(selection);
 
-    controller.apply_ui_action(NativeUiAction::ClearWaveformEditSelection);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::ClearWaveformEditSelection,
+    ));
     assert!(controller.ui.waveform.edit_selection.is_none());
 
     controller.undo();
@@ -102,13 +118,17 @@ fn no_op_waveform_selection_range_drag_does_not_create_undo_entry() {
     let selection = crate::selection::SelectionRange::new(0.2, 0.6);
     controller.set_selection_range(selection);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
-        start_micros: 200_000,
-        end_micros: 600_000,
-        snap_override: false,
-        preserve_view_edge: false,
-    });
-    controller.apply_ui_action(NativeUiAction::FinishWaveformSelectionRangeDrag);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {
+            start_micros: 200_000,
+            end_micros: 600_000,
+            snap_override: false,
+            preserve_view_edge: false,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionRangeDrag,
+    ));
     controller.undo();
 
     assert_eq!(controller.ui.waveform.selection, Some(selection));
@@ -121,8 +141,14 @@ fn no_op_waveform_edit_fade_drag_does_not_create_undo_entry() {
     let selection = crate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
     controller.set_edit_selection_range(selection);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformEditFadeOutCurve { curve_milli: 200 });
-    controller.apply_ui_action(NativeUiAction::FinishWaveformEditFadeDrag);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve {
+            curve_milli: 200,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag,
+    ));
     controller.undo();
 
     assert_eq!(controller.ui.waveform.edit_selection, Some(selection));

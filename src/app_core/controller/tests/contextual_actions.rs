@@ -24,7 +24,9 @@ fn apply_ui_commit_focused_browser_row_uses_browser_commit_path_when_browser_has
     with_fixture_controller("browser", |controller| {
         controller.focus_browser_row_only(1);
 
-        controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+        controller.apply_ui_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+        ));
 
         assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
         assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
@@ -45,7 +47,9 @@ fn apply_ui_commit_focused_browser_row_falls_back_to_transport_outside_browser_f
     with_fixture_controller("browser", |controller| {
         controller.ui.focus.context = FocusContext::Waveform;
 
-        controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+        controller.apply_ui_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+        ));
 
         assert!(
             controller
@@ -66,7 +70,9 @@ fn apply_ui_commit_focused_browser_row_is_noop_for_hidden_browser_focus() {
         controller.focus_browser_row_only(1);
         controller.set_browser_search("kick");
 
-        controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+        controller.apply_ui_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+        ));
 
         assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
         assert_eq!(
@@ -93,7 +99,9 @@ fn apply_ui_toggle_find_similar_switches_map_to_list_before_clearing_query() {
             ..dummy_similar_query()
         });
 
-        controller.apply_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
+        controller.apply_ui_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleFindSimilarFocusedSample,
+        ));
 
         assert_eq!(controller.ui.browser.active_tab, SampleBrowserTab::List);
         assert!(controller.ui.browser.search.similar_query.is_none());
@@ -111,7 +119,9 @@ fn apply_ui_toggle_find_similar_clears_existing_query() {
             ..dummy_similar_query()
         });
 
-        controller.apply_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
+        controller.apply_ui_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleFindSimilarFocusedSample,
+        ));
 
         assert!(controller.ui.browser.search.similar_query.is_none());
     });
@@ -121,7 +131,9 @@ fn apply_ui_toggle_find_similar_clears_existing_query() {
 fn apply_ui_toggle_find_similar_without_focus_sets_status() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleFindSimilarFocusedSample,
+    ));
 
     assert!(
         controller
@@ -139,9 +151,11 @@ fn apply_ui_focus_map_sample_stages_selection_and_preview() {
     with_fixture_controller("map", |controller| {
         let sample_id = controller.ui.map.cached_points[0].sample_id.to_string();
 
-        controller.apply_ui_action(NativeUiAction::FocusMapSample {
-            sample_id: sample_id.clone(),
-        });
+        controller.apply_ui_action(NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusMapSample {
+                sample_id: sample_id.clone(),
+            },
+        ));
 
         assert_eq!(controller.ui.browser.active_tab, SampleBrowserTab::Map);
         assert_eq!(
@@ -165,12 +179,16 @@ fn apply_ui_cancel_progress_only_sets_cancel_flag_for_cancelable_tasks() {
     controller.ui.progress =
         ProgressOverlayState::new(ProgressTaskKind::SelectionExport, "Export", 2, true);
 
-    controller.apply_ui_action(NativeUiAction::CancelProgress);
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::CancelProgress,
+    ));
 
     assert!(controller.ui.progress.cancel_requested);
 
     controller.ui.progress = ProgressOverlayState::new(ProgressTaskKind::Scan, "Scan", 4, false);
-    controller.apply_ui_action(NativeUiAction::CancelProgress);
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::CancelProgress,
+    ));
 
     assert!(!controller.ui.progress.cancel_requested);
 }
@@ -179,7 +197,9 @@ fn apply_ui_cancel_progress_only_sets_cancel_flag_for_cancelable_tasks() {
 fn apply_ui_copy_selection_to_clipboard_uses_controller_clipboard_path() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_ui_action(NativeUiAction::CopySelectionToClipboard);
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::CopySelectionToClipboard,
+    ));
 
     assert_eq!(controller.ui.status.text, "Select a sample to copy");
 }
@@ -193,7 +213,9 @@ fn apply_ui_open_feedback_issue_prompt_closes_overlay_and_primes_issue_state() {
     controller.ui.feedback_issue.last_error = Some(String::from("stale error"));
     controller.ui.feedback_issue.last_success_url = Some(String::from("https://example.invalid"));
 
-    controller.apply_ui_action(NativeUiAction::OpenFeedbackIssuePrompt);
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::OpenFeedbackIssuePrompt,
+    ));
 
     assert!(!controller.ui.hotkeys.overlay_visible);
     assert!(controller.ui.feedback_issue.open);

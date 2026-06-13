@@ -25,9 +25,11 @@ pub(super) fn map_point_focus_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::FocusMapSample {
-                    sample_id: String::from("gui-map-source::kick_one.wav"),
-                },
+                action: NativeUiAction::Browser(
+                    crate::app_core::actions::NativeBrowserAction::FocusMapSample {
+                        sample_id: String::from("gui-map-source::kick_one.wav"),
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::ActionRecorded {

@@ -19,10 +19,12 @@ impl PendingWaveformActions {
                 self.view_center_micros.map(|center_micros| {
                     (
                         order,
-                        NativeUiAction::SetWaveformViewCenter {
-                            center_micros,
-                            center_nanos: self.view_center_nanos,
-                        },
+                        NativeUiAction::Waveform(
+                            crate::app_core::actions::NativeWaveformAction::SetWaveformViewCenter {
+                                center_micros,
+                                center_nanos: self.view_center_nanos,
+                            },
+                        ),
                     )
                 })
             }),
@@ -33,11 +35,19 @@ impl PendingWaveformActions {
             emitted_actions = emitted_actions.saturating_add(1);
         }
         if let Some(position_nanos) = self.deduped_cursor_nanos() {
-            emit(NativeUiAction::SetWaveformCursorPrecise { position_nanos });
+            emit(NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+                    position_nanos,
+                },
+            ));
             emitted_actions = emitted_actions.saturating_add(1);
         }
         if let Some(position_nanos) = self.seek_nanos {
-            emit(NativeUiAction::SeekWaveformPrecise { position_nanos });
+            emit(NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+                    position_nanos,
+                },
+            ));
             emitted_actions = emitted_actions.saturating_add(1);
         }
         emitted_actions

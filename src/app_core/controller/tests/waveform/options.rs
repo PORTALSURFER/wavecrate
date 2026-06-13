@@ -11,10 +11,12 @@ fn apply_ui_waveform_smart_scale_routes_to_controller_behavior() {
     controller.set_selection_range(crate::selection::SelectionRange::new(0.0, 0.25));
     controller.set_bpm_value(150.0);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRangeSmartScale {
-        start_micros: 0,
-        end_micros: 500_000,
-    });
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRangeSmartScale {
+            start_micros: 0,
+            end_micros: 500_000,
+        },
+    ));
 
     assert_eq!(
         controller.ui.waveform.selection,
@@ -24,7 +26,9 @@ fn apply_ui_waveform_smart_scale_routes_to_controller_behavior() {
     assert!((controller.settings.controls.bpm_value - 150.0).abs() < f32::EPSILON);
     assert!(controller.is_selection_dragging());
 
-    controller.apply_ui_action(NativeUiAction::FinishWaveformSelectionSmartScaleDrag);
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformSelectionSmartScaleDrag,
+    ));
 
     assert!(!controller.is_selection_dragging());
     assert!((controller.settings.controls.bpm_value - 120.0).abs() < 0.1);
@@ -35,36 +39,58 @@ fn apply_ui_waveform_smart_scale_routes_to_controller_behavior() {
 fn apply_ui_waveform_option_actions_update_waveform_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_ui_action(NativeUiAction::SetWaveformChannelView { stereo: true });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetWaveformChannelView { stereo: true },
+    ));
     assert_eq!(
         controller.ui.waveform.channel_view,
         WaveformChannelView::SplitStereo
     );
 
-    controller.apply_ui_action(NativeUiAction::SetNormalizedAuditionEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetNormalizedAuditionEnabled {
+            enabled: true,
+        },
+    ));
     assert!(controller.ui.waveform.normalized_audition_enabled);
 
     controller.ui.waveform.bpm_value = Some(120.0);
-    controller.apply_ui_action(NativeUiAction::AdjustWaveformBpm { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::AdjustWaveformBpm { delta: 1 },
+    ));
     assert_eq!(controller.ui.waveform.bpm_value, Some(121.0));
-    controller.apply_ui_action(NativeUiAction::SetWaveformBpmValue { value_tenths: 1275 });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetWaveformBpmValue { value_tenths: 1275 },
+    ));
     assert_eq!(controller.ui.waveform.bpm_value, Some(127.5));
 
-    controller.apply_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetBpmSnapEnabled { enabled: true },
+    ));
     assert!(controller.ui.waveform.bpm_snap_enabled);
 
-    controller.apply_ui_action(NativeUiAction::SetRelativeBpmGridEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetRelativeBpmGridEnabled { enabled: true },
+    ));
     assert!(controller.ui.waveform.relative_bpm_grid_enabled);
 
-    controller.apply_ui_action(NativeUiAction::SetTransientSnapEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetTransientSnapEnabled { enabled: true },
+    ));
     assert!(controller.ui.waveform.transient_snap_enabled);
 
-    controller.apply_ui_action(NativeUiAction::SetTransientMarkersEnabled { enabled: false });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetTransientMarkersEnabled {
+            enabled: false,
+        },
+    ));
     assert!(!controller.ui.waveform.transient_markers_enabled);
     assert!(!controller.ui.waveform.transient_snap_enabled);
 
     controller.ui.waveform.selected_slices = vec![0, 1];
-    controller.apply_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetSliceModeEnabled { enabled: true },
+    ));
     assert!(controller.ui.waveform.slice_mode_enabled);
 
     controller.ui.waveform.slices = vec![
@@ -72,15 +98,23 @@ fn apply_ui_waveform_option_actions_update_waveform_state() {
         crate::selection::SelectionRange::new(0.3, 0.4),
     ];
     controller.ui.waveform.selected_slices.clear();
-    controller.apply_ui_action(NativeUiAction::ToggleWaveformSliceSelection { index: 1 });
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::ToggleWaveformSliceSelection { index: 1 },
+    ));
     assert_eq!(controller.ui.waveform.selected_slices, vec![1]);
     controller.start_slice_review();
-    controller.apply_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::MoveWaveformSliceFocus { delta: 1 },
+    ));
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
-    controller.apply_ui_action(NativeUiAction::ToggleFocusedWaveformSliceExportMark);
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::ToggleFocusedWaveformSliceExportMark,
+    ));
     assert_eq!(controller.ui.waveform.slice_review.marked_indices, vec![1]);
 
-    controller.apply_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::SetSliceModeEnabled { enabled: false },
+    ));
     assert!(!controller.ui.waveform.slice_mode_enabled);
     assert!(controller.ui.waveform.selected_slices.is_empty());
     assert_eq!(
@@ -125,10 +159,18 @@ fn duplicate_preview_actions_focus_audition_and_toggle_exemption() {
         });
     controller.ui.waveform.slice_batch_beat_count = 1;
 
-    controller.apply_ui_action(NativeUiAction::AuditionWaveformDuplicateSlice { index: 0 });
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::AuditionWaveformDuplicateSlice {
+            index: 0,
+        },
+    ));
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
 
-    controller.apply_ui_action(NativeUiAction::ToggleWaveformDuplicateSliceExemption { index: 0 });
+    controller.apply_ui_action(NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::ToggleWaveformDuplicateSliceExemption {
+            index: 0,
+        },
+    ));
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 0);
     assert!(
         controller

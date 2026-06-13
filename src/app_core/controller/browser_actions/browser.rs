@@ -47,40 +47,68 @@ fn apply_focus_and_selection_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::FocusBrowserPanel => controller.focus_browser_list(),
-        NativeUiAction::FocusWaveformPanel => controller.focus_waveform(),
-        NativeUiAction::FocusLoadedSampleInBrowser => controller.focus_loaded_sample_in_browser(),
-        NativeUiAction::FocusBrowserSearch => controller.focus_browser_search(),
-        NativeUiAction::BlurBrowserSearch => controller.blur_browser_search(),
-        NativeUiAction::MoveBrowserFocus { delta } => controller.focus_browser_delta_action(delta),
-        NativeUiAction::SetBrowserViewStart { visible_row } => {
-            controller.set_browser_view_start_action(visible_row)
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel) => {
+            controller.focus_browser_list()
         }
-        NativeUiAction::FocusBrowserRow { visible_row } => {
-            controller.focus_browser_row_from_pointer_action(visible_row)
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusWaveformPanel) => {
+            controller.focus_waveform()
         }
-        NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
-            controller.set_compare_anchor_from_focused_browser_sample()
+        NativeUiAction::Shell(
+            crate::app_core::actions::NativeShellAction::FocusLoadedSampleInBrowser,
+        ) => controller.focus_loaded_sample_in_browser(),
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch) => {
+            controller.focus_browser_search()
         }
-        NativeUiAction::CommitFocusedBrowserRow => handle_commit_focused_browser_row(controller),
-        NativeUiAction::ExtendBrowserSelectionToRow { visible_row } => {
-            controller.extend_browser_selection_to_row(visible_row)
+        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch) => {
+            controller.blur_browser_search()
         }
-        NativeUiAction::AddRangeBrowserSelection { visible_row } => {
-            controller.add_range_browser_selection(visible_row)
-        }
-        NativeUiAction::ExtendBrowserSelectionFromFocus { delta } => {
-            controller.extend_browser_selection_from_focus_action(delta)
-        }
-        NativeUiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-            controller.add_range_browser_selection_from_focus_action(delta)
-        }
-        NativeUiAction::ToggleBrowserRowSelection { visible_row } => {
-            controller.toggle_browser_row_selection(visible_row)
-        }
-        NativeUiAction::ToggleFocusedBrowserRowSelection => controller.toggle_focused_selection(),
-        NativeUiAction::SelectAllBrowserRows => controller.select_all_browser_rows(),
-        NativeUiAction::SetBrowserSearch { query } => controller.set_browser_search(query),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta },
+        ) => controller.focus_browser_delta_action(delta),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserViewStart { visible_row },
+        ) => controller.set_browser_view_start_action(visible_row),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusBrowserRow { visible_row },
+        ) => controller.focus_browser_row_from_pointer_action(visible_row),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetCompareAnchorFromFocusedBrowserSample,
+        ) => controller.set_compare_anchor_from_focused_browser_sample(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::CommitFocusedBrowserRow,
+        ) => handle_commit_focused_browser_row(controller),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ExtendBrowserSelectionToRow {
+                visible_row,
+            },
+        ) => controller.extend_browser_selection_to_row(visible_row),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::AddRangeBrowserSelection { visible_row },
+        ) => controller.add_range_browser_selection(visible_row),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ExtendBrowserSelectionFromFocus {
+                delta,
+            },
+        ) => controller.extend_browser_selection_from_focus_action(delta),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::AddRangeBrowserSelectionFromFocus {
+                delta,
+            },
+        ) => controller.add_range_browser_selection_from_focus_action(delta),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserRowSelection {
+                visible_row,
+            },
+        ) => controller.toggle_browser_row_selection(visible_row),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleFocusedBrowserRowSelection,
+        ) => controller.toggle_focused_selection(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SelectAllBrowserRows,
+        ) => controller.select_all_browser_rows(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::SetBrowserSearch { query },
+        ) => controller.set_browser_search(query),
         action => return Err(action),
     }
     Ok(())
@@ -91,16 +119,26 @@ fn apply_history_and_cleanup_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
-        NativeUiAction::ToggleBrowserDuplicateCleanupMode => {
-            controller.toggle_browser_duplicate_cleanup_mode()
-        }
-        NativeUiAction::FocusPreviousBrowserHistory => controller.focus_previous_sample_history(),
-        NativeUiAction::FocusNextBrowserHistory => controller.focus_next_sample_history(),
-        NativeUiAction::ToggleFindSimilarFocusedSample => {
-            controller.toggle_find_similar_focused_sample()
-        }
-        NativeUiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleRandomNavigationMode,
+        ) => controller.toggle_random_navigation_mode(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupMode,
+        ) => controller.toggle_browser_duplicate_cleanup_mode(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusPreviousBrowserHistory,
+        ) => controller.focus_previous_sample_history(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::FocusNextBrowserHistory,
+        ) => controller.focus_next_sample_history(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleFindSimilarFocusedSample,
+        ) => controller.toggle_find_similar_focused_sample(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupKeep {
+                visible_row,
+            },
+        ) => {
             if let Err(err) =
                 controller.toggle_browser_duplicate_cleanup_keep_for_visible_row(visible_row)
             {
@@ -110,7 +148,9 @@ fn apply_history_and_cleanup_action(
                 );
             }
         }
-        NativeUiAction::ConfirmBrowserDuplicateCleanup => {
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::ConfirmBrowserDuplicateCleanup,
+        ) => {
             if let Err(err) = controller.confirm_browser_duplicate_cleanup() {
                 controller.set_status(
                     format!("Duplicate cleanup failed: {err}"),
@@ -118,11 +158,15 @@ fn apply_history_and_cleanup_action(
                 );
             }
         }
-        NativeUiAction::PlayRandomSample => controller.play_random_visible_sample(),
-        NativeUiAction::PlayPreviousRandomSample => controller.play_previous_random_sample(),
-        NativeUiAction::AdjustSelectedBrowserRating { delta } => {
-            controller.adjust_selected_rating(delta)
-        }
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::PlayRandomSample,
+        ) => controller.play_random_visible_sample(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::PlayPreviousRandomSample,
+        ) => controller.play_previous_random_sample(),
+        NativeUiAction::Browser(
+            crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { delta },
+        ) => controller.adjust_selected_rating(delta),
         action => return Err(action),
     }
     Ok(())

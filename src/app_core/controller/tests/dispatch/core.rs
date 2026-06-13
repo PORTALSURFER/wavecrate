@@ -89,9 +89,11 @@ fn apply_ui_seek_queues_deferred_seek_commit() {
 fn apply_ui_precise_seek_queues_exact_deferred_seek_commit() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_ui_action(NativeUiAction::SeekWaveformPrecise {
-        position_nanos: 420_123_456,
-    });
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 420_123_456,
+        },
+    ));
 
     assert_eq!(
         controller.pending_waveform_seek_nanos_for_test(),
@@ -128,38 +130,48 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
     let cases = [
         Case {
             label: "browser group",
-            action: NativeUiAction::SetBrowserSearch {
-                query: String::from("kicks"),
-            },
+            action: NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SetBrowserSearch {
+                    query: String::from("kicks"),
+                },
+            ),
             expected: Expected::BrowserSearch("kicks"),
         },
         Case {
             label: "browser blur group",
-            action: NativeUiAction::BlurBrowserSearch,
+            action: NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::BlurBrowserSearch,
+            ),
             expected: Expected::BrowserSearchFocused(false),
         },
         Case {
             label: "browser rating filter group",
-            action: NativeUiAction::ToggleBrowserRatingFilter {
-                level: 3,
-                invert: false,
-            },
+            action: NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserRatingFilter {
+                    level: 3,
+                    invert: false,
+                },
+            ),
             expected: Expected::BrowserRatingFilter(vec![3]),
         },
         Case {
             label: "browser rating invert group",
-            action: NativeUiAction::ToggleBrowserRatingFilter {
-                level: 4,
-                invert: true,
-            },
+            action: NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserRatingFilter {
+                    level: 4,
+                    invert: true,
+                },
+            ),
             expected: Expected::BrowserRatingFilter(vec![-3, -2, -1, 0, 1, 2, 3]),
         },
         Case {
             label: "browser playback-age invert group",
-            action: NativeUiAction::ToggleBrowserPlaybackAgeFilter {
-                bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
-                invert: true,
-            },
+            action: NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleBrowserPlaybackAgeFilter {
+                    bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
+                    invert: true,
+                },
+            ),
             expected: Expected::BrowserPlaybackAgeFilter(vec![
                 crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
                 crate::app::state::PlaybackAgeFilterChip::OlderThanMonth,
@@ -167,17 +179,23 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
         },
         Case {
             label: "browser random toggle group",
-            action: NativeUiAction::ToggleRandomNavigationMode,
+            action: NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::ToggleRandomNavigationMode,
+            ),
             expected: Expected::RandomNavigationMode(true),
         },
         Case {
             label: "map group",
-            action: NativeUiAction::SetBrowserTab { map: true },
+            action: NativeUiAction::Browser(
+                crate::app_core::actions::NativeBrowserAction::SetBrowserTab { map: true },
+            ),
             expected: Expected::MapTab(SampleBrowserTab::Map),
         },
         Case {
             label: "transport group",
-            action: NativeUiAction::ToggleLoopPlayback,
+            action: NativeUiAction::Options(
+                crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,
+            ),
             expected: Expected::LoopEnabled(true),
         },
         Case {
@@ -203,23 +221,29 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
         },
         Case {
             label: "waveform begin selection group",
-            action: NativeUiAction::BeginWaveformSelectionAt {
-                anchor_micros: 125_000,
-            },
+            action: NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt {
+                    anchor_micros: 125_000,
+                },
+            ),
             expected: Expected::SelectionRange(Some((200, 800))),
         },
         Case {
             label: "waveform edit group",
-            action: NativeUiAction::SetWaveformEditSelectionRange {
-                start_micros: 125_000,
-                end_micros: 625_000,
-                preserve_view_edge: false,
-            },
+            action: NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::SetWaveformEditSelectionRange {
+                    start_micros: 125_000,
+                    end_micros: 625_000,
+                    preserve_view_edge: false,
+                },
+            ),
             expected: Expected::EditSelectionRange(Some((125, 625))),
         },
         Case {
             label: "waveform clear both group",
-            action: NativeUiAction::ClearWaveformSelections,
+            action: NativeUiAction::Waveform(
+                crate::app_core::actions::NativeWaveformAction::ClearWaveformSelections,
+            ),
             expected: Expected::BothSelectionRangesCleared,
         },
         Case {
@@ -356,9 +380,11 @@ fn apply_ui_begin_waveform_selection_at_arms_drag_without_visible_selection() {
     controller.set_bpm_snap_enabled(true);
     controller.set_bpm_value(120.0);
 
-    controller.apply_ui_action(NativeUiAction::BeginWaveformSelectionAt {
-        anchor_micros: 5_000,
-    });
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt {
+            anchor_micros: 5_000,
+        },
+    ));
 
     assert!(controller.ui.waveform.selection.is_none());
     assert!(controller.is_selection_dragging());
@@ -368,11 +394,15 @@ fn apply_ui_begin_waveform_selection_at_arms_drag_without_visible_selection() {
 fn apply_ui_loop_lock_cycles_locked_loop_override() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_ui_action(NativeUiAction::ToggleLoopLock);
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::ToggleLoopLock,
+    ));
     assert!(controller.ui.waveform.loop_lock_enabled);
     assert!(controller.ui.waveform.loop_enabled);
 
-    controller.apply_ui_action(NativeUiAction::ToggleLoopLock);
+    controller.apply_ui_action(NativeUiAction::Options(
+        crate::app_core::actions::NativeOptionsAction::ToggleLoopLock,
+    ));
     assert!(controller.ui.waveform.loop_lock_enabled);
     assert!(!controller.ui.waveform.loop_enabled);
 }

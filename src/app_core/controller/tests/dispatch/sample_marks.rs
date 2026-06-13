@@ -51,7 +51,9 @@ fn apply_ui_toggle_browser_sample_mark_marks_focused_browser_row() {
     controller.rebuild_browser_lists();
     controller.focus_browser_row_only(0);
 
-    controller.apply_ui_action(NativeUiAction::ToggleBrowserSampleMark);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
+    ));
 
     assert!(controller.browser_sample_marked(&source.id, Path::new("marked.wav")));
     assert_eq!(
@@ -131,8 +133,12 @@ fn apply_ui_toggle_browser_sample_mark_advances_on_repeated_marks() {
     controller.rebuild_browser_lists();
     controller.focus_browser_row_only(0);
 
-    controller.apply_ui_action(NativeUiAction::ToggleBrowserSampleMark);
-    controller.apply_ui_action(NativeUiAction::ToggleBrowserSampleMark);
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
+    ));
+    controller.apply_ui_action(NativeUiAction::Browser(
+        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
+    ));
 
     assert!(controller.browser_sample_marked(&source.id, Path::new("first.wav")));
     assert!(controller.browser_sample_marked(&source.id, Path::new("second.wav")));

@@ -137,7 +137,9 @@ mod tests {
         assert!(global.iter().all(HotkeyAction::is_global));
         assert!(global.iter().any(|action| matches!(
             action.action,
-            crate::app_core::actions::NativeUiAction::FocusBrowserPanel
+            crate::app_core::actions::NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::FocusBrowserPanel
+            )
         )));
 
         let folder_focus = hotkeys::focused_actions(FocusContext::SourceFolders);
@@ -148,11 +150,15 @@ mod tests {
         )));
         assert!(folder_focus.iter().any(|action| matches!(
             action.action,
-            crate::app_core::actions::NativeUiAction::FocusFolderSearch
+            crate::app_core::actions::NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::FocusFolderSearch
+            )
         )));
         assert!(folder_focus.iter().all(|action| !matches!(
             action.action,
-            crate::app_core::actions::NativeUiAction::FocusBrowserPanel
+            crate::app_core::actions::NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::FocusBrowserPanel
+            )
         )));
     }
 
@@ -171,7 +177,12 @@ mod tests {
             KeyPress::new(KeyCode::W),
             FocusContext::SampleBrowser,
         );
-        assert_eq!(second.action, Some(NativeUiAction::FocusWaveformPanel));
+        assert_eq!(
+            second.action,
+            Some(NativeUiAction::Shell(
+                crate::app_core::actions::NativeShellAction::FocusWaveformPanel
+            ))
+        );
         assert!(second.handled);
         assert_eq!(second.pending_chord, None);
 
@@ -182,7 +193,9 @@ mod tests {
         );
         assert_eq!(
             browser_copy.action,
-            Some(NativeUiAction::CopySelectionToClipboard)
+            Some(NativeUiAction::PromptsAndEdits(
+                crate::app_core::actions::NativePromptEditAction::CopySelectionToClipboard
+            ))
         );
 
         let waveform_search =
@@ -196,13 +209,15 @@ mod tests {
         let source_focus = hotkeys::focused_actions(FocusContext::SourcesList);
         assert!(source_focus.iter().any(|action| matches!(
             action.action,
-            crate::app_core::actions::NativeUiAction::ReloadFocusedSourceRow
+            crate::app_core::actions::NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::ReloadFocusedSourceRow
+            )
         )));
         assert!(source_focus.iter().any(|action| {
             action.gesture == HotkeyGesture::new(KeyCode::D)
                 && matches!(
                     action.action,
-                    crate::app_core::actions::NativeUiAction::RemoveFocusedSourceRow
+                    crate::app_core::actions::NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::RemoveFocusedSourceRow)
                 )
         }));
     }
