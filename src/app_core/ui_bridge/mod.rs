@@ -39,7 +39,10 @@ pub(crate) use self::action_classification::{
     catalog_is_immediate_waveform_preview_action, catalog_uses_local_model_pull_fast_path,
 };
 #[cfg(test)]
-pub(crate) use self::invalidation::{catalog_dirty_source, catalog_prefers_targeted_invalidation};
+pub(crate) use self::invalidation::{
+    InvalidationReason, InvalidationSource, catalog_dirty_source,
+    catalog_prefers_targeted_invalidation,
+};
 #[cfg(test)]
 use self::projection_cache::build_waveform_projection_key;
 use self::{

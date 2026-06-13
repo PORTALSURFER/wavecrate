@@ -11,7 +11,7 @@
 //! | --- | --- | --- | --- | --- | --- |
 //! | Controller runtime | `app_core::controller`, ui-projection helpers, GUI fixtures | `AppController` still owns mature browser, source, audio, waveform, map, and config behavior used by app-core runtime shims | Split Wavecrate runtime/domain services under `app_core`, with native UI depending on those contracts | Runtime dispatch, projection, and fixture construction no longer require `crate::app::controller` | `OPT-672` |
 //! | Retained projection caches | `app_core::controller`, `app_core::ui_projection`, `app_core::ui_bridge` | Projection caches live with the controller state they memoize | App-core projection/cache modules with app-core-owned keys and row DTOs | Projection cache storage moves out of `AppController` | `OPT-672` |
-//! | Controller dirty graph state | `app_core::controller`, `app_core::actions`, `app_core::ui_bridge` | Bridge invalidation still consumes legacy derived-node IDs and dirty reasons | App-core invalidation graph | Reducers and frame preparation own dirty-node contracts without legacy state names | `OPT-673` |
+//! | Controller dirty graph state | `app_core::controller`, `app_core::ui_bridge` runtime/tests | Runtime projection and tests still inspect the retained controller dirty graph | App-core invalidation graph | Frame preparation owns dirty-node contracts without legacy state names | `OPT-673` |
 //! | Browser/source/map/audio state DTOs | `app_core::state`, `app_core::ui_projection`, `app_core::controller`, app-core tests | Projection models are still sourced from legacy `UiState` and nested browser/source/audio state structs | App-core state DTO modules and focused test builders | App-core projections/tests construct owned DTOs without importing `app_api::state` | `OPT-677` |
 //! | Browser catalog/test fixtures | `app_core::actions::catalog`, ui-projection tests | Catalog samples and projection assertions still use legacy browser facet payloads | Domain-organized action catalog fixtures | Catalog fixtures are split by action domain with app-core-owned fixture builders | `OPT-673` |
 pub(crate) mod controller {
@@ -52,7 +52,8 @@ pub(crate) mod controller_state {
     pub(crate) use crate::app::controller::state::runtime::AutoRenameBatchRowState;
     /// Legacy derived-state graph node identifiers.
     pub(crate) use crate::app::controller::state::runtime::DerivedNodeId;
-    /// Legacy derived-state dirty reason categories.
+    /// Legacy derived-state dirty reason categories used by compatibility tests.
+    #[cfg(test)]
     pub(crate) use crate::app::controller::state::runtime::DirtyReason;
 }
 

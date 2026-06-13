@@ -306,7 +306,7 @@ fn waveform_action_queue_keeps_latest_view_center() {
     )));
     assert_eq!(queue.view_center_micros, Some(700_000));
     assert_eq!(queue.view_center_nanos, Some(700_000_123));
-    assert_eq!(queue.dirty_reason(), DirtyReason::WaveformViewAction);
+    assert_eq!(queue.dirty_reason(), InvalidationReason::WaveformViewAction);
 }
 
 /// Zoom-to-selection and zoom-full should override discrete zoom deltas.
@@ -403,7 +403,7 @@ fn waveform_action_queue_keeps_smart_scale_selection_as_view_action() {
     )));
     assert_eq!(queue.selection_range_micros, Some((120_000, 640_000)));
     assert!(queue.selection_smart_scale);
-    assert_eq!(queue.dirty_reason(), DirtyReason::WaveformViewAction);
+    assert_eq!(queue.dirty_reason(), InvalidationReason::WaveformViewAction);
     assert!(queue.requires_full_model_pull());
     assert_eq!(
         queue.selection_action(),
@@ -489,7 +489,10 @@ fn waveform_queue_dirty_reason_matches_enqueued_actions() {
             position_milli: 400
         }
     )));
-    assert_eq!(queue.dirty_reason(), DirtyReason::WaveformOverlayAction);
+    assert_eq!(
+        queue.dirty_reason(),
+        InvalidationReason::WaveformOverlayAction
+    );
 
     assert!(queue.enqueue(&NativeUiAction::Waveform(
         crate::app_core::actions::NativeWaveformAction::ZoomWaveform {
@@ -498,17 +501,17 @@ fn waveform_queue_dirty_reason_matches_enqueued_actions() {
             anchor_ratio_micros: None,
         }
     )));
-    assert_eq!(queue.dirty_reason(), DirtyReason::WaveformViewAction);
+    assert_eq!(queue.dirty_reason(), InvalidationReason::WaveformViewAction);
 }
 
 /// Overlay-only dirty reasons should skip waveform image refresh work.
 #[test]
 fn waveform_render_inputs_refresh_policy_skips_overlay_only() {
     assert!(!waveform_render_inputs_require_refresh(Some(
-        DirtyReason::WaveformOverlayAction
+        InvalidationReason::WaveformOverlayAction
     )));
     assert!(waveform_render_inputs_require_refresh(Some(
-        DirtyReason::WaveformViewAction
+        InvalidationReason::WaveformViewAction
     )));
     assert!(waveform_render_inputs_require_refresh(None));
 }

@@ -10,8 +10,9 @@ use super::{
         InteractionActionClass, classify_action_interaction, uses_local_model_pull_fast_path,
     },
     invalidation::{
-        BROAD_DIRTY_SOURCES, action_prefers_targeted_invalidation,
-        action_requires_projection_cache_invalidation, classify_dirty_source,
+        BROAD_DIRTY_SOURCES, InvalidationReason, InvalidationSource,
+        action_prefers_targeted_invalidation, action_requires_projection_cache_invalidation,
+        classify_dirty_source,
     },
     metrics::{
         bridge_profiling_enabled, trace_action_call, trace_action_duration,
@@ -20,14 +21,13 @@ use super::{
     projection_cache::UiProjectionCacheKey,
 };
 use crate::app_core::actions::{NativeUiAction, NativeUiActionDomain};
-use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 use crate::app_core::controller::AppControllerUiRuntimeExt;
 use std::time::{Duration, Instant};
 use tracing::debug;
 
 fn additional_dirty_sources_for_action(
     action: &NativeUiAction,
-) -> &'static [(DerivedNodeId, DirtyReason)] {
+) -> &'static [(InvalidationSource, InvalidationReason)] {
     if !matches!(
         action.domain(),
         NativeUiActionDomain::Browser | NativeUiActionDomain::PromptsAndEdits
@@ -44,8 +44,8 @@ fn additional_dirty_sources_for_action(
         | NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
         ) => &[(
-            DerivedNodeId::WaveformState,
-            DirtyReason::WaveformViewAction,
+            InvalidationSource::Waveform,
+            InvalidationReason::WaveformViewAction,
         )],
         _ => &[],
     }
@@ -124,18 +124,22 @@ impl WavecrateUiBridge {
     pub(super) fn mark_dirty_for_action(&mut self, action: &NativeUiAction) {
         let mut has_targeted_source = false;
         if let Some((source, reason)) = classify_dirty_source(action) {
-            self.controller.mark_derived_source_dirty(source, reason);
+            self.controller
+                .mark_derived_source_dirty(source.legacy(), reason.legacy());
             has_targeted_source = true;
         }
         for (source, reason) in additional_dirty_sources_for_action(action) {
-            self.controller.mark_derived_source_dirty(*source, *reason);
+            self.controller
+                .mark_derived_source_dirty(source.legacy(), reason.legacy());
             has_targeted_source = true;
         }
         if action_requires_projection_cache_invalidation(action)
             && (!has_targeted_source || !action_prefers_targeted_invalidation(action))
         {
-            self.controller
-                .mark_derived_sources_dirty(&BROAD_DIRTY_SOURCES, DirtyReason::BroadInvalidation);
+            self.controller.mark_derived_sources_dirty(
+                &BROAD_DIRTY_SOURCES.map(InvalidationSource::legacy),
+                InvalidationReason::BroadInvalidation.legacy(),
+            );
         }
     }
 
@@ -186,8 +190,8 @@ impl WavecrateUiBridge {
                 self.projection_cache.invalidate_key_only();
                 if pending.requires_full_model_pull() {
                     self.controller.mark_derived_source_dirty(
-                        DerivedNodeId::WaveformState,
-                        pending.dirty_reason(),
+                        InvalidationSource::Waveform.legacy(),
+                        pending.dirty_reason().legacy(),
                     );
                     self.schedule_full_model_pull_preparation();
                 } else {

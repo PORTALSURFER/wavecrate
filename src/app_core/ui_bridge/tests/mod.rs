@@ -8,6 +8,7 @@ use crate::app_core::state::{
     TriageFlagColumn, TriageFlagFilter, UpdateStatus,
 };
 use crate::app_core::test_fixtures as projection_fixtures;
+use crate::app_core::ui_bridge::InvalidationReason;
 use crate::app_core::ui_bridge::invalidation::waveform_render_inputs_require_refresh;
 use crate::app_core::ui_bridge::projection_cache::{
     ProjectionSegment, UiProjectionCache, build_projection_cache_key, retained_segment_handler_plan,

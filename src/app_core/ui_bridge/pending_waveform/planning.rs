@@ -1,10 +1,10 @@
 use super::PendingWaveformActions;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::controller_state::DirtyReason;
+use crate::app_core::ui_bridge::invalidation::InvalidationReason;
 
 impl PendingWaveformActions {
     /// Return the derived-graph dirty reason represented by this pending batch.
-    pub(in crate::app_core::ui_bridge) fn dirty_reason(&self) -> DirtyReason {
+    pub(in crate::app_core::ui_bridge) fn dirty_reason(&self) -> InvalidationReason {
         if self.zoom_full
             || self.zoom_to_selection
             || self.zoom_steps_delta != 0
@@ -12,9 +12,9 @@ impl PendingWaveformActions {
             || self.view_center_nanos.is_some()
             || self.selection_smart_scale
         {
-            DirtyReason::WaveformViewAction
+            InvalidationReason::WaveformViewAction
         } else {
-            DirtyReason::WaveformOverlayAction
+            InvalidationReason::WaveformOverlayAction
         }
     }
 

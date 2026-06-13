@@ -20,6 +20,7 @@ use crate::app_core::{
     actions::{NativeAppModel, NativeMotionModel},
     app_api::controller_state::DerivedNodeId,
     controller::{AppControllerUiRuntimeExt, UiFramePreparationPlan},
+    ui_bridge::invalidation::InvalidationReason,
 };
 use std::{
     sync::Arc,
@@ -133,7 +134,9 @@ impl WavecrateUiBridge {
         for node in dirty_nodes {
             if node == DerivedNodeId::WaveformRenderInputs {
                 let should_refresh = super::invalidation::waveform_render_inputs_require_refresh(
-                    self.controller.derived_dirty_reason(node),
+                    self.controller
+                        .derived_dirty_reason(node)
+                        .map(InvalidationReason::from_legacy),
                 );
                 if should_refresh {
                     self.controller.refresh_waveform_image();

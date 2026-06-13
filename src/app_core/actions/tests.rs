@@ -2,9 +2,8 @@ use super::{
     GUI_ACTION_CATALOG, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass, GuiSurface,
     action_catalog_entry_by_id, action_kind, representative_action_for_kind,
 };
-use crate::app_core::app_api::controller_state::DerivedNodeId;
 use crate::app_core::ui_bridge::{
-    InteractionActionClass, catalog_dirty_source, catalog_interaction_class,
+    InteractionActionClass, InvalidationSource, catalog_dirty_source, catalog_interaction_class,
     catalog_is_immediate_waveform_preview_action, catalog_prefers_targeted_invalidation,
     catalog_uses_local_model_pull_fast_path,
 };
@@ -130,14 +129,14 @@ fn profiled_interaction_catalog_entries_match_expected_surfaces_and_dirty_source
                 assert_eq!(entry.surface, GuiSurface::Browser);
                 assert_eq!(
                     catalog_dirty_source(entry.kind).map(|(node, _)| node),
-                    Some(DerivedNodeId::BrowserState),
+                    Some(InvalidationSource::Browser),
                 );
             }
             InteractionActionClass::MapPanProxy => {
                 assert_eq!(entry.surface, GuiSurface::Map);
                 assert_eq!(
                     catalog_dirty_source(entry.kind).map(|(node, _)| node),
-                    Some(DerivedNodeId::MapState),
+                    Some(InvalidationSource::Map),
                 );
             }
             InteractionActionClass::Waveform => {
@@ -149,8 +148,8 @@ fn profiled_interaction_catalog_entries_match_expected_surfaces_and_dirty_source
                 assert!(
                     matches!(
                         catalog_dirty_source(entry.kind).map(|(node, _)| node),
-                        Some(DerivedNodeId::WaveformState)
-                            | Some(DerivedNodeId::TransportState)
+                        Some(InvalidationSource::Waveform)
+                            | Some(InvalidationSource::Transport)
                             | None
                     ),
                     "waveform-profiled action {} should keep waveform/transport/queued dirty semantics",
@@ -161,7 +160,7 @@ fn profiled_interaction_catalog_entries_match_expected_surfaces_and_dirty_source
                 assert_eq!(entry.surface, GuiSurface::Transport);
                 assert_eq!(
                     catalog_dirty_source(entry.kind).map(|(node, _)| node),
-                    Some(DerivedNodeId::TransportState),
+                    Some(InvalidationSource::Transport),
                 );
             }
         }
@@ -181,7 +180,7 @@ fn targeted_invalidation_catalog_entries_stay_on_sidebar_or_browser_surfaces() {
         );
         assert_eq!(
             catalog_dirty_source(entry.kind).map(|(node, _)| node),
-            Some(DerivedNodeId::BrowserState),
+            Some(InvalidationSource::Browser),
         );
     }
 }
@@ -194,7 +193,7 @@ fn immediate_waveform_preview_catalog_entries_stay_on_waveform_surface() {
         }
         assert_eq!(entry.surface, GuiSurface::Waveform);
         if let Some((node, _)) = catalog_dirty_source(entry.kind) {
-            assert_eq!(node, DerivedNodeId::WaveformState);
+            assert_eq!(node, InvalidationSource::Waveform);
         }
     }
 }
