@@ -8,8 +8,6 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
-const ACTIVE_SOURCE_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 245);
-const ACTIVE_SOURCE_MARKER_WIDTH: f32 = 3.0;
 
 pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMessage> {
     ui::column([
@@ -43,7 +41,6 @@ fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     sidebar_row_underlay(visual)
         .stable_input_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str())
         .selected(source.selected)
-        .leading_marker_if(source.selected, active_source_marker())
         .actions(
             ui::row_actions()
                 .primary_key(source.id.clone(), |source_id| {
@@ -64,20 +61,12 @@ fn source_row_content(label: String) -> ui::View<GuiMessage> {
     ui::text_line(label, 24.0).padding_x(8.0)
 }
 
-fn active_source_marker() -> ui::DenseRowMarkerStyle {
-    ui::DenseRowMarkerStyle::new(
-        ui::DenseRowMarkerParts::leading(ACTIVE_SOURCE_MARKER_WIDTH)
-            .edge_inset(4.0)
-            .vertical_inset(4.0),
-        ACTIVE_SOURCE_MARKER_COLOR,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
         sidebar_row_hover_fill_for_tests, sidebar_row_palette_for_tests,
+        sidebar_row_selected_fill_for_tests,
     };
     use crate::native_app::sample_library::folder_browser::{
         FolderBrowserState, model::SourceEntry,
@@ -132,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_source_row_paints_left_active_marker() {
+    fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
         let source = test_source("source-active");
         let state =
             FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
@@ -140,16 +129,22 @@ mod tests {
         let row = model.rows.first().expect("source row");
         let frame =
             source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, 24.0));
+        let selected_fill = sidebar_row_palette_for_tests()
+            .selected
+            .expect("source selected fill");
 
         assert!(
-            frame.paint_plan.fill_rects().any(|fill| {
-                fill.color == ACTIVE_SOURCE_MARKER_COLOR
-                    && fill.rect.width() == ACTIVE_SOURCE_MARKER_WIDTH
-                    && fill.rect.height() == 16.0
-                    && fill.rect.min.x == 4.0
-                    && fill.rect.min.y == 4.0
+            frame
+                .paint_plan
+                .fill_rects()
+                .any(|fill| fill.color == selected_fill),
+            "selected source should keep the orange selected highlight"
+        );
+        assert!(
+            !frame.paint_plan.fill_rects().any(|fill| {
+                fill.rect.width() <= 3.5 && fill.rect.min.x <= 4.5 && fill.rect.height() < 20.0
             }),
-            "selected source should paint a clear left active marker"
+            "selected source should not paint a separate left active marker"
         );
     }
 
@@ -170,7 +165,7 @@ mod tests {
             !frame
                 .paint_plan
                 .fill_rects()
-                .any(|fill| fill.color == ACTIVE_SOURCE_MARKER_COLOR),
+                .any(|fill| fill.color == sidebar_row_selected_fill_for_tests()),
             "inactive sources should stay visually quiet"
         );
     }

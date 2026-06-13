@@ -18,7 +18,6 @@ pub(super) fn sidebar_row_underlay(content: ui::View<GuiMessage>) -> SidebarRowU
         input_id: None,
         selected: false,
         active_target: false,
-        leading_marker: None,
     }
 }
 
@@ -28,7 +27,6 @@ pub(super) struct SidebarRowUnderlayBuilder {
     input_id: Option<WidgetId>,
     selected: bool,
     active_target: bool,
-    leading_marker: Option<ui::DenseRowMarkerStyle>,
 }
 
 impl SidebarRowUnderlayBuilder {
@@ -53,17 +51,6 @@ impl SidebarRowUnderlayBuilder {
         self
     }
 
-    pub(super) fn leading_marker_if(
-        mut self,
-        condition: bool,
-        marker: ui::DenseRowMarkerStyle,
-    ) -> Self {
-        if condition {
-            self.leading_marker = Some(marker);
-        }
-        self
-    }
-
     pub(super) fn actions(
         self,
         actions: ui::InteractiveRowActions<GuiMessage>,
@@ -74,14 +61,12 @@ impl SidebarRowUnderlayBuilder {
             input_id,
             selected,
             active_target,
-            leading_marker,
         } = self;
         let mut input = ui::custom_widget_direct(SidebarRowHitTarget {
             row: row.widget(),
             actions,
             selected,
             active_target,
-            leading_marker,
         });
         if let Some(input_id) = input_id {
             input = input.id(input_id);
@@ -96,7 +81,6 @@ struct SidebarRowHitTarget {
     actions: ui::InteractiveRowActions<GuiMessage>,
     selected: bool,
     active_target: bool,
-    leading_marker: Option<ui::DenseRowMarkerStyle>,
 }
 
 impl ui::EmbeddedInteractiveRowWidget for SidebarRowHitTarget {
@@ -121,7 +105,7 @@ impl ui::EmbeddedInteractiveRowWidget for SidebarRowHitTarget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        let mut chrome = self.row.dense_chrome_parts(
+        let chrome = self.row.dense_chrome_parts(
             ui::InteractiveRowVisualStateParts {
                 selected: self.selected,
                 active_target: self.active_target,
@@ -129,9 +113,6 @@ impl ui::EmbeddedInteractiveRowWidget for SidebarRowHitTarget {
             },
             sidebar_row_palette(theme, self.row.paints_interaction_fill()),
         );
-        if let Some(marker) = self.leading_marker {
-            chrome = chrome.leading_marker(marker);
-        }
         self.row.push_dense_chrome(primitives, bounds, chrome);
     }
 }
@@ -187,7 +168,6 @@ mod tests {
             actions: ui::row_actions(),
             selected,
             active_target,
-            leading_marker: None,
         }
     }
 
