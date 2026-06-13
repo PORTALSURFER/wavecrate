@@ -115,6 +115,28 @@ Radiant public API surface.
   - update fixtures with
     `cargo test -p wavecrate --lib update_shot_fixtures -- --ignored`
 
+### Sample navigation responsiveness
+
+Use this focused harness when changing sample selection, deferred loading,
+waveform cache promotion, decode scheduling, or stale sample-load completion
+handling:
+
+- `cargo test -p wavecrate rapid_navigation_harness --no-default-features`
+
+The harness exercises rapid keyboard navigation while sample-load business work
+is queued, verifies visible selection updates before completions, checks stale
+deferred/sample-load completions cannot overwrite the current selection, and
+asserts Radiant runtime diagnostics report no slow UI update handlers.
+
+Manual cold-cache smoke for large folders:
+
+1. Run Wavecrate against a source folder with many uncached audio files.
+2. Navigate quickly through the sample browser with keyboard arrows and mouse
+   selection while cache/decode work is still cold.
+3. Confirm row selection and status feedback move immediately.
+4. Confirm late loads from earlier selections do not steal playback, selection,
+   or visible error state from the current row.
+
 ### Radiant compatibility tests
 
 Use for generic Radiant behavior and compatibility coverage in the vendored

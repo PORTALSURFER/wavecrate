@@ -1,6 +1,196 @@
 use super::*;
 
 #[test]
+fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
+    let source_root = tempfile::tempdir().expect("source root");
+    for name in ["a.wav", "b.wav", "c.wav"] {
+        write_test_wav_i16(
+            &source_root.path().join(name),
+            &[0, 256, -256, 512, -512, 128],
+        );
+    }
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let files = state.library.folder_browser.selected_audio_files();
+    assert!(files.len() >= 3, "expected three visible samples");
+    let first = files[0].id.clone();
+    let second = files[1].id.clone();
+    let third = files[2].id.clone();
+    state.library.folder_browser.select_file(first);
+    let state = std::rc::Rc::new(std::cell::RefCell::new(state));
+    let state_for_view = std::rc::Rc::clone(&state);
+    let state_for_update = std::rc::Rc::clone(&state);
+    let bridge = ui::app(())
+        .view(move |()| {
+            let mut state = lock_navigation_harness_state(&state_for_view);
+            crate::native_app::test_support::state::view(&mut state)
+        })
+        .handle_message(move |(), message, context| {
+            lock_navigation_harness_state(&state_for_update).apply_message(message, context);
+        })
+        .into_bridge();
+    let mut runtime = radiant::runtime::SurfaceRuntime::new(bridge, ui::Vector2::new(900.0, 620.0));
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+    );
+    assert_eq!(
+        lock_navigation_harness_state(&state)
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned),
+        Some(second.clone()),
+        "navigation feedback must update before deferred business work completes"
+    );
+    assert!(
+        lock_navigation_harness_state(&state)
+            .background
+            .sample_load_task
+            .active()
+            .is_none(),
+        "first key repeat should not synchronously start decode work"
+    );
+    let stale_deferred_ticket = lock_navigation_harness_state(&state)
+        .background
+        .deferred_sample_load_task
+        .active()
+        .expect("first navigation queues deferred load");
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+        },
+    );
+    assert_eq!(
+        lock_navigation_harness_state(&state)
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned),
+        Some(third.clone()),
+        "rapid navigation should advance selection without waiting for the older load"
+    );
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
+            ticket: stale_deferred_ticket,
+            path: second.clone(),
+            autoplay: true,
+            check_cache: true,
+            scheduled_at: std::time::Instant::now(),
+        },
+    );
+    assert!(
+        lock_navigation_harness_state(&state)
+            .background
+            .sample_load_task
+            .active()
+            .is_none(),
+        "stale deferred navigation work must not start a sample-load worker"
+    );
+
+    let current_deferred_ticket = lock_navigation_harness_state(&state)
+        .background
+        .deferred_sample_load_task
+        .active()
+        .expect("current navigation keeps a deferred load");
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
+            ticket: current_deferred_ticket,
+            path: third.clone(),
+            autoplay: true,
+            check_cache: true,
+            scheduled_at: std::time::Instant::now(),
+        },
+    );
+    let stale_sample_load_ticket = lock_navigation_harness_state(&state)
+        .background
+        .sample_load_task
+        .active()
+        .expect("settled navigation queues sample-load business work");
+    let diagnostics_after_queue = runtime.runtime_diagnostics();
+    assert_eq!(
+        diagnostics_after_queue.ui.slow_update_handlers, 0,
+        "sample navigation updates should stay below Radiant's slow-handler threshold"
+    );
+    assert!(
+        diagnostics_after_queue
+            .business
+            .recent
+            .iter()
+            .any(|event| event.name == "gui-sample-load"),
+        "settled navigation should use Radiant BusinessRuntime for sample load work"
+    );
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: -1,
+            extend: false,
+        },
+    );
+    assert_eq!(
+        lock_navigation_harness_state(&state)
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned),
+        Some(second.clone()),
+        "new navigation should update immediately while the previous worker is pending"
+    );
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            ui::TaskCompletion {
+                ticket: stale_sample_load_ticket,
+                output: crate::native_app::test_support::state::SampleLoadResult {
+                    path: third,
+                    result: Err(String::from("synthetic slow decode finished late")),
+                    autoplay: true,
+                },
+            },
+        ),
+    );
+
+    assert_eq!(
+        lock_navigation_harness_state(&state)
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned),
+        Some(second.clone()),
+        "stale worker completion must not overwrite current navigation state"
+    );
+    assert!(
+        !lock_navigation_harness_state(&state)
+            .ui
+            .status
+            .sample
+            .contains("synthetic slow decode"),
+        "stale worker errors must not surface as current sample-load failures"
+    );
+    assert_eq!(
+        runtime.runtime_diagnostics().ui.slow_update_handlers,
+        0,
+        "stale completion handling should also stay off the slow UI path"
+    );
+}
+
+fn lock_navigation_harness_state(
+    state: &std::rc::Rc<std::cell::RefCell<NativeAppState>>,
+) -> std::cell::RefMut<'_, NativeAppState> {
+    state.borrow_mut()
+}
+
+#[test]
 fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     let source_root = tempfile::tempdir().expect("source root");
     for name in ["a.wav", "b.wav", "c.wav"] {
