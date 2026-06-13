@@ -80,6 +80,10 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
     })
 }
 
+fn prepare_sample_browser_view(state: &mut NativeAppState) {
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(state);
+}
+
 mod app_bridge;
 mod audio_settings;
 mod browser_labels;

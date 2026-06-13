@@ -4,7 +4,7 @@ use crate::native_app::app_chrome::settings::top_control_bar;
 use crate::native_app::app_chrome::status_bar::bottom_status_area;
 use radiant::prelude as ui;
 
-pub(in crate::native_app) fn shell(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn shell(state: &NativeAppState) -> ui::View<GuiMessage> {
     ui::column([
         top_control_bar(state),
         center_panel(state),

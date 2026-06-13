@@ -5,9 +5,7 @@ use crate::native_app::app::NativeAppState;
 use crate::native_app::app::{GuiMessage, MetadataMessage, SampleNameViewMode};
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 #[cfg(test)]
-use crate::native_app::app_chrome::view_models::sample_browser::{
-    SampleBrowserViewProjection, prepare_sample_browser_view,
-};
+use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewProjection;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
@@ -28,9 +26,8 @@ pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 58.0;
 
 #[cfg(test)]
 pub(in crate::native_app) fn sample_browser_from_state(
-    state: &mut NativeAppState,
+    state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
-    prepare_sample_browser_view(state);
     sample_browser(SampleBrowserViewModel::from_projection(
         SampleBrowserViewProjection::from_prepared_app_state(state),
     ))

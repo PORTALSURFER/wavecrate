@@ -29,7 +29,8 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
+    prepare_sample_browser_view(&mut state);
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let mut row_tops = frame
         .paint_plan
@@ -82,7 +83,8 @@ fn sample_browser_projection_window_matches_rendered_row_order() {
             .map(|row| row.file.stem.clone())
             .collect::<Vec<_>>()
     };
-    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
+    prepare_sample_browser_view(&mut state);
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let rendered_positions = projection_names
         .iter()

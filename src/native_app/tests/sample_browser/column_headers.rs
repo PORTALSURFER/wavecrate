@@ -11,7 +11,8 @@ fn sample_browser_frame_paints_column_and_file_text() {
         .first()
         .map(|file| file.stem.clone())
         .expect("default assets include an audio sample");
-    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
+    prepare_sample_browser_view(&mut state);
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let texts = frame.paint_plan.text_label_strings();
 
@@ -42,7 +43,8 @@ fn sample_browser_column_drag_paints_drop_marker() {
         ),
     );
 
-    let frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
+    prepare_sample_browser_view(&mut state);
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
 
     assert!(frame.paint_plan.fill_rects().any(|fill| {

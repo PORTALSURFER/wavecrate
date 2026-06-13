@@ -41,6 +41,10 @@ fn text_center(frame: &SurfaceFrame, label: &str) -> Point {
         .unwrap_or_else(|| panic!("{label} should paint"))
 }
 
+fn prepare_sample_browser_view(state: &mut crate::native_app::test_support::state::NativeAppState) {
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(state);
+}
+
 mod column_headers;
 mod column_reorder;
 mod drag_drop;

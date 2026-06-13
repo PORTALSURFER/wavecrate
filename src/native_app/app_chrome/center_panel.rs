@@ -10,25 +10,23 @@ use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::toolbar::main_toolbar;
 use crate::native_app::app_chrome::view_models::{
     library_sidebar::LibrarySidebarViewModel,
-    sample_browser::{
-        SampleBrowserViewModel, SampleBrowserViewProjection, prepare_sample_browser_view,
-    },
+    sample_browser::{SampleBrowserViewModel, SampleBrowserViewProjection},
     toolbar::MainToolbarViewModel,
     waveform_panel::WaveformPanelViewModel,
 };
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 
-pub(in crate::native_app) fn center_panel(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn center_panel(state: &NativeAppState) -> ui::View<GuiMessage> {
     center_panel_row(state)
         .fill()
         .overlays(active_center_panel_overlays(state))
 }
 
-fn center_panel_row(state: &mut NativeAppState) -> ui::View<GuiMessage> {
+fn center_panel_row(state: &NativeAppState) -> ui::View<GuiMessage> {
     ui::row(center_panel_panes(state))
 }
 
-fn center_panel_panes(state: &mut NativeAppState) -> ui::Children<GuiMessage> {
+fn center_panel_panes(state: &NativeAppState) -> ui::Children<GuiMessage> {
     ui::children()
         .push(library_pane(state))
         .push_if(metadata_tag_library_pane_visible(state), || {
@@ -56,8 +54,7 @@ fn metadata_tag_library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
     metadata_tag_library::panel(state)
 }
 
-fn sample_workspace_pane(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    prepare_sample_browser_view(state);
+fn sample_workspace_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
     let sample_browser_model = SampleBrowserViewModel::from_projection(

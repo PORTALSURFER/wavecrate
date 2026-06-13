@@ -59,9 +59,9 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
         ),
     );
 
-    let inactive_frame =
-        crate::native_app::test_support::sample_browser::sample_browser(&mut state)
-            .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+    prepare_sample_browser_view(&mut state);
+    let inactive_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     assert!(!inactive_frame.paint_plan.contains_text("Sim"));
 
     state.library.folder_browser.apply_message(
@@ -69,7 +69,8 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
             anchor.display().to_string(),
         ),
     );
-    let active_frame = crate::native_app::test_support::sample_browser::sample_browser(&mut state)
+    prepare_sample_browser_view(&mut state);
+    let active_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     assert!(active_frame.paint_plan.contains_text("Sim"));
 }
