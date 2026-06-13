@@ -82,8 +82,6 @@ impl FolderBrowserState {
         if !self.is_expanded(&id) {
             self.tree.expanded_folders.insert(id.clone());
             self.select_folder(id);
-        } else if self.selection.selected_folder == id {
-            self.tree.expanded_folders.remove(&id);
         } else {
             self.select_folder(id);
         }
