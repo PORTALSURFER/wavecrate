@@ -108,6 +108,44 @@ fn source_scan_discoveries_populate_selected_tree_before_finish() {
     assert!(progress_events.iter().all(|progress| progress.total == 0));
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn source_scan_loads_deep_folders_before_click_verification() {
+    let root = temp_source_root("wavecrate-gui-source-scan-deep-folders");
+    let deep = root
+        .join("level-1")
+        .join("level-2")
+        .join("level-3")
+        .join("level-4")
+        .join("level-5");
+    fs::create_dir_all(&deep).expect("create deep folder");
+
+    let browser = FolderBrowserState::from_root(root.clone());
+
+    assert!(
+        browser.find_folder(&path_id(&deep)).is_some(),
+        "source scans should represent deep on-disk folders before a click-time refresh runs"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn source_scan_loads_all_sibling_folders_before_click_verification() {
+    let root = temp_source_root("wavecrate-gui-source-scan-many-siblings");
+    for index in 0..96 {
+        fs::create_dir_all(root.join(format!("folder-{index:03}"))).expect("create sibling");
+    }
+    let late_sibling = root.join("folder-095");
+
+    let browser = FolderBrowserState::from_root(root.clone());
+
+    assert!(
+        browser.find_folder(&path_id(&late_sibling)).is_some(),
+        "source scans should not drop on-disk sibling folders beyond an arbitrary projection cap"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn batched_scan_discoveries_clone_selected_tree_once_per_batch() {
     let root = temp_source_root("wavecrate-gui-source-batch");

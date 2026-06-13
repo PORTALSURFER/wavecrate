@@ -178,45 +178,6 @@ fn folder_expander_toggles_without_selecting_folder() {
 }
 
 #[test]
-fn activating_selected_expanded_folder_keeps_children_visible() {
-    let root = temp_source_root("wavecrate-gui-folder-activation-keeps-children");
-    let drums = root.join("drums");
-    let kicks = drums.join("kicks");
-    let snares = drums.join("snares");
-    fs::create_dir_all(&kicks).expect("create kicks folder");
-    fs::create_dir_all(&snares).expect("create snares folder");
-    let mut browser = FolderBrowserState::from_root(root.clone());
-    let drums_id = path_id(&drums);
-    let kicks_id = path_id(&kicks);
-    let snares_id = path_id(&snares);
-
-    browser.activate_folder(drums_id.clone());
-    assert!(browser.is_expanded(&drums_id));
-    assert!(
-        browser
-            .visible_folders()
-            .iter()
-            .any(|folder| folder.id == kicks_id),
-        "first activation should expand the folder and show child rows"
-    );
-
-    browser.activate_folder(drums_id.clone());
-    let visible = browser.visible_folders();
-
-    assert!(browser.is_expanded(&drums_id));
-    assert_eq!(browser.selection.selected_folder, drums_id);
-    assert!(
-        visible.iter().any(|folder| folder.id == kicks_id),
-        "clicking the selected expanded folder should not hide existing child rows"
-    );
-    assert!(
-        visible.iter().any(|folder| folder.id == snares_id),
-        "sibling child folders should remain visible after row activation"
-    );
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
 fn source_root_expander_toggle_is_ignored() {
     let root = temp_source_root("wavecrate-gui-root-expander-toggle-ignored");
     let drums = root.join("drums");

@@ -20,16 +20,13 @@ pub(super) use discovery_merge::{merge_scan_discovery, upsert_file, upsert_folde
 pub(super) use file_entry_metadata::file_entry;
 use file_entry_metadata::file_entry_with_metadata;
 
-const MAX_SCAN_DEPTH: usize = 3;
-const MAX_CHILD_FOLDERS: usize = 80;
-
 pub(super) fn default_root_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets")
 }
 
 pub(super) fn load_root_folder(root: PathBuf) -> FolderEntry {
     let ratings = source_rating_map(&root);
-    load_folder(&root, 0, &root, &ratings).unwrap_or_else(|| FolderEntry {
+    load_folder(&root, &root, &ratings).unwrap_or_else(|| FolderEntry {
         id: path_id(&root),
         name: folder_label(&root),
         children: Vec::new(),
@@ -76,7 +73,7 @@ pub(in crate::native_app) fn scan_source_with_progress(
         discovered: &mut discovered,
     };
     scan.report_initial();
-    let folder = load_folder_with_progress(&request.root, 0, &mut scan)
+    let folder = load_folder_with_progress(&request.root, &mut scan)
         .unwrap_or_else(|| placeholder_folder(&request.root));
     let file_count = scan.counter.files;
     let folder_count = scan.counter.folders;
@@ -119,19 +116,14 @@ fn source_rating_map(root: &Path) -> SourceMetadataMap {
 
 fn load_folder(
     path: &Path,
-    depth: usize,
     source_root: &Path,
     ratings: &SourceMetadataMap,
 ) -> Option<FolderEntry> {
-    if depth > MAX_SCAN_DEPTH {
-        return None;
-    }
     let entries = read_sorted_entries(path);
     let children = entries
         .iter()
         .filter(|entry| entry.is_dir())
-        .take(MAX_CHILD_FOLDERS)
-        .filter_map(|entry| load_folder(entry, depth + 1, source_root, ratings))
+        .filter_map(|entry| load_folder(entry, source_root, ratings))
         .collect::<Vec<_>>();
     let files = entries
         .iter()
@@ -183,7 +175,7 @@ fn direct_folder_changed(request: &FolderVerifyRequest, snapshot: &FolderVerifyS
 
 pub(super) fn load_folder_at_path(path: &Path, source_root: &Path) -> Option<FolderEntry> {
     let ratings = source_rating_map(source_root);
-    load_folder(path, 0, source_root, &ratings)
+    load_folder(path, source_root, &ratings)
 }
 
 struct ScanProgressCounter {
@@ -271,25 +263,20 @@ where
 
 fn load_folder_with_progress<P, D>(
     path: &Path,
-    depth: usize,
     scan: &mut ScanProgressContext<'_, P, D>,
 ) -> Option<FolderEntry>
 where
     P: FnMut(FolderScanProgress),
     D: FnMut(FolderScanDiscovery),
 {
-    if depth > MAX_SCAN_DEPTH {
-        return None;
-    }
     let entries = read_sorted_entries(path);
     let parent_id = path_id(path);
     let children = entries
         .iter()
         .filter(|entry| entry.is_dir())
-        .take(MAX_CHILD_FOLDERS)
         .filter_map(|entry| {
             scan.record_folder(entry, &parent_id);
-            let child = load_folder_with_progress(entry, depth + 1, scan)?;
+            let child = load_folder_with_progress(entry, scan)?;
             scan.record_completed_folder(&parent_id, child.clone());
             Some(child)
         })
