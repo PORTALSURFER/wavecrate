@@ -47,6 +47,23 @@ pub enum IssueTokenStoreError {
     /// Failed to resolve app directories.
     #[error("App dir error: {0}")]
     AppDir(#[from] crate::app_dirs::AppDirError),
+    /// One or more token-store cleanup operations failed.
+    #[error("Token cleanup failed: {failures:?}")]
+    Cleanup {
+        /// Individual cleanup failures that left artifacts behind.
+        failures: Vec<TokenCleanupFailure>,
+    },
+}
+
+/// A stale token-store artifact that could not be cleaned up.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenCleanupFailure {
+    /// Artifact category, such as `fallback token` or `legacy fallback key`.
+    pub artifact: &'static str,
+    /// Filesystem path for file-backed artifacts.
+    pub path: Option<PathBuf>,
+    /// Backend failure message.
+    pub message: String,
 }
 
 /// Stores the issue token in the OS keyring with an opt-in encrypted file fallback.
@@ -106,7 +123,7 @@ impl IssueTokenStore {
                 for _ in 0..5 {
                     match self.try_keyring_get() {
                         Ok(Some(stored)) if stored == token => {
-                            let _ = self.fallback_delete();
+                            self.fallback_delete()?;
                             return Ok(());
                         }
                         Ok(Some(stored)) => {
@@ -158,9 +175,41 @@ impl IssueTokenStore {
 
     /// Remove the token from all storage backends.
     pub fn delete(&self) -> Result<(), IssueTokenStoreError> {
-        let _ = self.try_keyring_delete();
-        let _ = self.fallback_delete();
+        let mut failures = Vec::new();
+        if let Err(err) = self.try_keyring_delete() {
+            failures.push(TokenCleanupFailure {
+                artifact: "primary keyring token",
+                path: None,
+                message: err.to_string(),
+            });
+        }
+        if let Err(err) = self.fallback_delete() {
+            failures.extend(err.into_cleanup_failures());
+        }
+        cleanup_result(failures)
+    }
+}
+
+impl IssueTokenStoreError {
+    fn into_cleanup_failures(self) -> Vec<TokenCleanupFailure> {
+        match self {
+            IssueTokenStoreError::Cleanup { failures } => failures,
+            other => vec![TokenCleanupFailure {
+                artifact: "token cleanup",
+                path: None,
+                message: other.to_string(),
+            }],
+        }
+    }
+}
+
+pub(super) fn cleanup_result(
+    failures: Vec<TokenCleanupFailure>,
+) -> Result<(), IssueTokenStoreError> {
+    if failures.is_empty() {
         Ok(())
+    } else {
+        Err(IssueTokenStoreError::Cleanup { failures })
     }
 }
 

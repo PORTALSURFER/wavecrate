@@ -38,8 +38,10 @@ impl IssueTokenStore {
         }
         let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
             .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))?;
-        let _ = entry.delete_credential();
-        Ok(())
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(err) => Err(IssueTokenStoreError::Unavailable(err.to_string())),
+        }
     }
 
     /// Open the keyring entry used to persist the fallback encryption key.
@@ -96,7 +98,9 @@ impl IssueTokenStore {
             return Ok(());
         }
         let entry = self.fallback_key_entry()?;
-        let _ = entry.delete_credential();
-        Ok(())
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(err) => Err(IssueTokenStoreError::Unavailable(err.to_string())),
+        }
     }
 }

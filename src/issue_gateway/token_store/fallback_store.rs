@@ -1,8 +1,8 @@
 use super::{
-    FALLBACK_ALLOW_ENV, IssueTokenStore, IssueTokenStoreError, MAX_FALLBACK_TOKEN_BYTES, crypto,
-    fallback_key, fallback_policy, file_io,
+    FALLBACK_ALLOW_ENV, IssueTokenStore, IssueTokenStoreError, MAX_FALLBACK_TOKEN_BYTES,
+    cleanup_result, crypto, fallback_key, fallback_policy, file_io,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 impl IssueTokenStore {
     /// Return the encrypted fallback token payload path under the per-user secrets dir.
@@ -45,7 +45,7 @@ impl IssueTokenStore {
                 tracing::warn!(
                     "Fallback token payload failed to decrypt; clearing fallback storage: {err}"
                 );
-                let _ = self.fallback_delete();
+                self.fallback_delete()?;
                 return Ok(None);
             }
         };
@@ -74,11 +74,26 @@ impl IssueTokenStore {
         {
             file_io::clear_windows_readonly(self.fallback_token_path().as_path());
         }
-        let _ = std::fs::remove_file(self.fallback_token_path());
-        let _ = std::fs::remove_file(self.legacy_fallback_key_path());
-        let _ = self.try_keyring_fallback_key_delete();
+        let mut failures = Vec::new();
+        remove_optional_file(
+            self.fallback_token_path().as_path(),
+            "fallback token",
+            &mut failures,
+        );
+        remove_optional_file(
+            self.legacy_fallback_key_path().as_path(),
+            "legacy fallback key",
+            &mut failures,
+        );
+        if let Err(err) = self.try_keyring_fallback_key_delete() {
+            failures.push(super::TokenCleanupFailure {
+                artifact: "fallback keyring key",
+                path: None,
+                message: err.to_string(),
+            });
+        }
         *fallback_key::lock_fallback_key_cache() = None;
-        Ok(())
+        cleanup_result(failures)
     }
 
     /// Build nonce-prefixed encrypted payload bytes suitable for fallback token persistence.
@@ -93,5 +108,21 @@ impl IssueTokenStore {
         payload.extend_from_slice(&nonce);
         payload.extend_from_slice(&ciphertext);
         Ok(payload)
+    }
+}
+
+pub(super) fn remove_optional_file(
+    path: &Path,
+    artifact: &'static str,
+    failures: &mut Vec<super::TokenCleanupFailure>,
+) {
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => failures.push(super::TokenCleanupFailure {
+            artifact,
+            path: Some(path.to_path_buf()),
+            message: err.to_string(),
+        }),
     }
 }

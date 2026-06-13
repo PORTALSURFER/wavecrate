@@ -1,4 +1,7 @@
-use super::{FALLBACK_KEY_ENV_VAR, IssueTokenStore, IssueTokenStoreError, crypto, fallback_policy};
+use super::{
+    FALLBACK_KEY_ENV_VAR, IssueTokenStore, IssueTokenStoreError, cleanup_result, crypto,
+    fallback_policy, fallback_store,
+};
 use std::sync::{Mutex, OnceLock};
 
 static FALLBACK_KEY_CACHE: OnceLock<Mutex<Option<[u8; 32]>>> = OnceLock::new();
@@ -11,7 +14,7 @@ impl IssueTokenStore {
         }
 
         if let Some(key) = self.get_key_from_env()? {
-            let _ = std::fs::remove_file(self.legacy_fallback_key_path());
+            self.remove_legacy_fallback_key_file()?;
             self.cache_fallback_key(key);
             return Ok(key);
         }
@@ -25,7 +28,7 @@ impl IssueTokenStore {
             && let Some(key) = self.get_key_from_file()?
         {
             self.try_keyring_fallback_key_set(&key)?;
-            let _ = std::fs::remove_file(self.legacy_fallback_key_path());
+            self.remove_legacy_fallback_key_file()?;
             self.cache_fallback_key(key);
             return Ok(key);
         }
@@ -43,6 +46,17 @@ impl IssueTokenStore {
         self.try_keyring_fallback_key_set(&key)?;
         self.cache_fallback_key(key);
         Ok(key)
+    }
+
+    /// Remove the legacy fallback key file after env/keyring migration paths supersede it.
+    pub(super) fn remove_legacy_fallback_key_file(&self) -> Result<(), IssueTokenStoreError> {
+        let mut failures = Vec::new();
+        fallback_store::remove_optional_file(
+            self.legacy_fallback_key_path().as_path(),
+            "legacy fallback key",
+            &mut failures,
+        );
+        cleanup_result(failures)
     }
 
     /// Return the currently cached fallback key, if one has been resolved in-process.
@@ -93,9 +107,10 @@ impl IssueTokenStore {
         let bytes = std::fs::read(&key_path)?;
         if bytes.len() != 32 {
             tracing::warn!(
-                "Fallback key file {} is corrupt (wrong size), ignoring.",
+                "Fallback key file {} is corrupt (wrong size), removing.",
                 key_path.display()
             );
+            self.remove_legacy_fallback_key_file()?;
             return Ok(None);
         }
         let mut key = [0u8; 32];
