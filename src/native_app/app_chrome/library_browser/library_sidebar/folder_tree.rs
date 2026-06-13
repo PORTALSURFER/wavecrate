@@ -16,6 +16,12 @@ const FOLDER_TREE_HIGHLIGHTED_LABEL: ui::Rgba8 = ui::Rgba8 {
     b: 224,
     a: 255,
 };
+const FOLDER_TREE_EMPTY_LABEL: ui::Rgba8 = ui::Rgba8 {
+    r: 142,
+    g: 148,
+    b: 156,
+    a: 255,
+};
 
 pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
     ui::column([
@@ -89,7 +95,7 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
         .hoverable();
     }
 
-    ui::tree_row(folder.name.clone())
+    let row = ui::tree_row(folder.name.clone())
         .depth(folder.depth)
         .expanded(folder.expanded)
         .has_children(folder.has_children && !folder.is_source_root)
@@ -100,8 +106,15 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
         .guide_style(folder_tree_guide_style())
         .palette(folder_tree_palette())
         .drop_target_outline(folder_tree_drop_target_outline())
-        .highlighted_label_color(FOLDER_TREE_HIGHLIGHTED_LABEL)
-        .row_key(format!("folder-row-{id}"))
+        .highlighted_label_color(FOLDER_TREE_HIGHLIGHTED_LABEL);
+
+    let row = if let Some(label_color) = folder_tree_label_color(folder) {
+        row.label_color(label_color)
+    } else {
+        row
+    };
+
+    row.row_key(format!("folder-row-{id}"))
         .hit_key(format!("folder-row-hit-{id}-{drag_revision}"))
         .on_toggle({
             let id = id.clone();
@@ -160,6 +173,10 @@ fn folder_hover_drop_message(
     }
 }
 
+fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba8> {
+    folder.empty.then_some(FOLDER_TREE_EMPTY_LABEL)
+}
+
 fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropState {
     ui::TreeRowDragDropState {
         drag_active: folder.drag_active,
@@ -215,5 +232,42 @@ mod tests {
         assert_eq!(palette.hovered, expected.hovered);
         assert_eq!(palette.candidate_hovered, expected.candidate_hovered);
         assert_eq!(palette.selected, expected.selected);
+    }
+
+    #[test]
+    fn empty_folder_rows_use_subdued_idle_label_color() {
+        let folder = visible_folder_for_tests(true);
+
+        assert_eq!(
+            folder_tree_label_color(&folder),
+            Some(FOLDER_TREE_EMPTY_LABEL)
+        );
+    }
+
+    #[test]
+    fn non_empty_folder_rows_use_default_idle_label_color() {
+        let folder = visible_folder_for_tests(false);
+
+        assert_eq!(folder_tree_label_color(&folder), None);
+    }
+
+    fn visible_folder_for_tests(empty: bool) -> VisibleFolder {
+        VisibleFolder {
+            id: String::from("folder"),
+            name: String::from("Folder"),
+            depth: 0,
+            is_source_root: false,
+            has_children: false,
+            empty,
+            expanded: false,
+            selected: false,
+            drag_active: false,
+            drag_source: false,
+            drop_candidate: false,
+            drop_target: false,
+            drop_target_active: false,
+            rename_draft: None,
+            rename_input_id: None,
+        }
     }
 }

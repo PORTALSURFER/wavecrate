@@ -217,6 +217,7 @@ pub(in crate::native_app) struct VisibleFolder {
     pub(in crate::native_app) depth: usize,
     pub(in crate::native_app) is_source_root: bool,
     pub(in crate::native_app) has_children: bool,
+    pub(in crate::native_app) empty: bool,
     pub(in crate::native_app) expanded: bool,
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) drag_active: bool,

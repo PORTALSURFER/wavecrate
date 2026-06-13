@@ -36,6 +36,11 @@ impl FolderEntry {
         !self.children.is_empty()
     }
 
+    pub(super) fn contains_audio(&self) -> bool {
+        self.files.iter().any(FileEntry::is_audio)
+            || self.children.iter().any(FolderEntry::contains_audio)
+    }
+
     pub(super) fn replace_direct_entries(
         &mut self,
         child_paths: Vec<PathBuf>,

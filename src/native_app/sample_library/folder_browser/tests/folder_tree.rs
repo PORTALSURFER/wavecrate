@@ -66,6 +66,50 @@ fn folder_audio_projection_cache_is_prewarmed_for_loaded_source_tree() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn visible_folders_mark_branches_without_audio_as_empty() {
+    let root = temp_source_root("wavecrate-gui-folder-empty-state");
+    let empty = root.join("empty");
+    let parent = root.join("parent");
+    let child = parent.join("child");
+    let direct = root.join("direct");
+    fs::create_dir_all(&empty).expect("create empty folder");
+    fs::create_dir_all(&child).expect("create nested folder");
+    fs::create_dir_all(&direct).expect("create direct folder");
+    fs::write(child.join("nested.wav"), []).expect("write nested audio");
+    fs::write(direct.join("direct.wav"), []).expect("write direct audio");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&parent));
+    let visible = browser.visible_folders();
+
+    let empty_row = visible_folder_by_id(&visible, &empty);
+    assert!(empty_row.empty);
+    let parent_row = visible_folder_by_id(&visible, &parent);
+    assert!(
+        !parent_row.empty,
+        "audio descendants make a branch non-empty"
+    );
+    let child_row = visible_folder_by_id(&visible, &child);
+    assert!(!child_row.empty);
+    let direct_row = visible_folder_by_id(&visible, &direct);
+    assert!(!direct_row.empty);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+fn visible_folder_by_id<'a>(
+    visible: &'a [crate::native_app::sample_library::folder_browser::model::VisibleFolder],
+    path: &std::path::Path,
+) -> &'a crate::native_app::sample_library::folder_browser::model::VisibleFolder {
+    let id = path_id(path);
+    visible
+        .iter()
+        .find(|folder| folder.id == id)
+        .expect("visible folder should exist")
+}
+
 #[test]
 fn source_root_folder_is_static_dot_selector() {
     let root = temp_source_root("wavecrate-gui-root-dot-selector");

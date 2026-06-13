@@ -192,6 +192,7 @@ impl FolderBrowserState {
             depth,
             is_source_root,
             has_children: folder.has_children(),
+            empty: !folder.contains_audio(),
             expanded: is_source_root || self.is_expanded(&folder.id),
             selected: self.selection.selected_collection.is_none()
                 && self.selection.selected_folder == folder.id,
