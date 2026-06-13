@@ -10,7 +10,7 @@ use crate::native_app::sample_library::folder_browser::commands::{
 impl NativeAppState {
     pub(in crate::native_app) fn begin_folder_browser_rename(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let target = self.library.folder_browser.selected_rename_target();
@@ -74,7 +74,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn begin_folder_browser_subfolder_creation(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         match self.library.folder_browser.begin_create_subfolder() {
@@ -121,7 +121,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn apply_folder_browser_rename_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let input_action = rename_input_action(&message);
@@ -154,7 +154,7 @@ impl NativeAppState {
     fn apply_folder_browser_rename_result(
         &mut self,
         result: RenameInputResult,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             RenameInputResult::Status(result) => self.apply_folder_browser_rename_status(result),

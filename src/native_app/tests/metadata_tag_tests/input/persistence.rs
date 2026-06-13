@@ -30,7 +30,7 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
             value: String::from("Deep Kick, Warm Tone"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         state.metadata.tags_by_file.get(&selected_file),
@@ -83,7 +83,7 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
             value: String::from("kick, warm tone"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert!(state.metadata.tags_by_file.is_empty());

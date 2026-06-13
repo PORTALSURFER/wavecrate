@@ -8,7 +8,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn add_metadata_tags(
         &mut self,
         tags: Vec<String>,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(file_id) = self
             .library
@@ -73,7 +73,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn toggle_metadata_tag(
         &mut self,
         tag: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self
             .selected_metadata_tags()
@@ -88,7 +88,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn remove_selected_metadata_tag(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(tag) = self.metadata.selected_tag.clone() else {
             return;
@@ -96,7 +96,7 @@ impl NativeAppState {
         self.remove_metadata_tag(tag, context);
     }
 
-    fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UpdateContext<GuiMessage>) {
+    fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UiUpdateContext<GuiMessage>) {
         let Some(file_id) = self
             .library
             .folder_browser

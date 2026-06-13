@@ -36,7 +36,7 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
         .library
         .folder_browser
         .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     state.drop_browser_drag_on_folder(loops.display().to_string(), &mut context);
     run_command_for_tests(&mut state, context.into_command());
 
@@ -66,7 +66,7 @@ fn activating_folder_queues_selected_folder_verify() {
         FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
             source_root.path().to_path_buf(),
         )]);
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_folder_browser_message(
         FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
@@ -91,7 +91,7 @@ fn activating_folder_replaces_pending_selected_folder_verify() {
         FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
             source_root.path().to_path_buf(),
         )]);
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_folder_browser_message(
         FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
@@ -133,7 +133,7 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
         .folder_browser
         .select_file(delete.display().to_string());
 
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     state.delete_selected_item(&mut context);
     run_command_for_tests(&mut state, context.into_command());
 
@@ -183,7 +183,7 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
             drums.display().to_string(),
         ));
 
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     state.delete_selected_item(&mut context);
     run_command_for_tests(&mut state, context.into_command());
 
@@ -212,7 +212,7 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
 fn delete_selected_file_requires_configured_trash_folder() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("blocked.wav");
 
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     state.delete_selected_item(&mut context);
     run_command_for_tests(&mut state, context.into_command());
 

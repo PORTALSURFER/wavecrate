@@ -35,7 +35,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
     write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
     let before = fs::read(&path).expect("read wav before normalization");
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
         &mut context,

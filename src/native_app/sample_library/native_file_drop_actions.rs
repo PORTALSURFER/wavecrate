@@ -13,7 +13,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn apply_native_file_drop(
         &mut self,
         drop: NativeFileDrop,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.library.folder_browser.drag_active() {
             self.apply_native_file_drop_during_browser_drag(drop, context);
@@ -40,7 +40,7 @@ impl NativeAppState {
     fn apply_native_file_drop_during_browser_drag(
         &mut self,
         drop: NativeFileDrop,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.browser_interaction.native_file_drop_hover = None;
         match drop.phase {
@@ -57,7 +57,7 @@ impl NativeAppState {
     fn cancel_pending_internal_file_drag_drop(
         &mut self,
         drop: &NativeFileDrop,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> bool {
         let should_cancel = match drop.phase {
             NativeFileDropPhase::Hover => drop
@@ -100,7 +100,7 @@ impl NativeAppState {
     fn drop_external_file_on_waveform(
         &mut self,
         path: PathBuf,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if !supported_waveform_drop_file(&path) {
@@ -148,7 +148,7 @@ impl NativeAppState {
         source: PathBuf,
         started_at: Instant,
         result: Result<PathBuf, String>,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(copied) => self.load_copied_external_file(copied, context, started_at),
@@ -169,7 +169,7 @@ impl NativeAppState {
     fn load_copied_external_file(
         &mut self,
         copied: PathBuf,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
         let copied_id = copied.display().to_string();

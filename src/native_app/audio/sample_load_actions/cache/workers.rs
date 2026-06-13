@@ -1,4 +1,3 @@
-use radiant::prelude as ui;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use crate::native_app::{
@@ -25,12 +24,12 @@ pub(in crate::native_app) fn warm_persisted_waveform_cache(
 
 pub(in crate::native_app) fn warm_active_folder_waveform_cache(
     paths: Vec<PathBuf>,
-    context: &ui::BusinessWorkContext,
+    is_cancelled: impl Fn() -> bool,
 ) -> Vec<(PathBuf, Arc<WaveformFile>)> {
     paths
         .into_iter()
         .filter_map(|path| {
-            if context.is_cancelled() {
+            if is_cancelled() {
                 return None;
             }
             if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
@@ -39,7 +38,7 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
             let waveform = WaveformState::load_path_with_progress_and_cancel(
                 path.clone(),
                 |_| {},
-                || context.is_cancelled(),
+                &is_cancelled,
             )
             .ok()?;
             Some((path, waveform.file()))

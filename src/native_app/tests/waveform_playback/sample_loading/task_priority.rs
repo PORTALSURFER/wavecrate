@@ -37,7 +37,7 @@ fn frame_queues_audio_output_warm_up_before_explicit_playback() {
     assert!(state.audio.player.is_none());
     assert!(state.background.audio_open.active().is_none());
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::Frame,
         &mut context,

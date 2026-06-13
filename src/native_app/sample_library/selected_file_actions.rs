@@ -10,7 +10,7 @@ use std::time::Instant;
 impl NativeAppState {
     pub(in crate::native_app) fn focus_loaded_file(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if !self.waveform.current.has_loaded_sample() {
@@ -69,7 +69,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn delete_selected_item(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         if self.library.folder_browser.selected_file_id().is_some() {
             self.delete_selected_files(context);
@@ -80,7 +80,7 @@ impl NativeAppState {
 
     fn delete_selected_folder(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let target = match self.library.folder_browser.selected_delete_target() {
@@ -101,7 +101,10 @@ impl NativeAppState {
         self.move_selected_folder_to_trash(target.path, started_at, context);
     }
 
-    fn delete_selected_files(&mut self, context: &mut radiant::prelude::UpdateContext<GuiMessage>) {
+    fn delete_selected_files(
+        &mut self,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         let target = match self.library.folder_browser.selected_file_delete_target() {
             Ok(target) => target,
@@ -123,7 +126,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn extract_playmarked_range(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         match self
@@ -161,7 +164,7 @@ impl NativeAppState {
         completion: WaveformExtractionCompletion,
         drag_position: Option<Point>,
         started_at: Instant,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         match completion.result {
             Ok(path) => {

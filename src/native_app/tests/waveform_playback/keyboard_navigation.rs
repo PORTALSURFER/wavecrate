@@ -34,6 +34,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         })
         .into_bridge();
     let mut runtime = radiant::runtime::SurfaceRuntime::new(bridge, ui::Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
 
     runtime.dispatch_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
@@ -209,7 +210,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
     let third = files[2].id.clone();
     state.library.folder_browser.select_file(first);
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
@@ -316,7 +317,7 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
@@ -376,7 +377,7 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
         ]);
     state.library.folder_browser.select_file(first);
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
@@ -456,7 +457,7 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
         crate::native_app::test_support::state::WaveformState::load_path(PathBuf::from(&second))
             .expect("sample loads");
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,

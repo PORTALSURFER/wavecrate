@@ -7,8 +7,8 @@ use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
     runtime::{
-        Command, DeclarativeOwnedCommandRuntimeBridge, Event, PaintTextInput, SurfaceRuntime,
-        TransientOverlayContext, UiSurface,
+        Command, DeclarativeOwnedCommandRuntimeBridge, Event, PaintTextInput, RuntimeBridge,
+        SurfaceRuntime, TransientOverlayContext, UiSurface,
     },
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
@@ -65,14 +65,30 @@ type NativeRuntimeForTests = SurfaceRuntime<
 >;
 
 fn native_runtime_for_tests(state: NativeAppState, viewport: Vector2) -> NativeRuntimeForTests {
-    radiant::runtime::SurfaceRuntime::new(
+    let mut runtime = radiant::runtime::SurfaceRuntime::new(
         radiant::runtime::declarative_owned_command_runtime_bridge(
             state,
-            project_gui_surface_for_tests,
-            reduce_gui_message_for_tests,
+            project_gui_surface_for_tests
+                as fn(&mut NativeAppState) -> UiSurface<super::test_support::state::GuiMessage>,
+            reduce_gui_message_for_tests
+                as fn(
+                    &mut NativeAppState,
+                    super::test_support::state::GuiMessage,
+                ) -> Command<super::test_support::state::GuiMessage>,
         ),
         viewport,
-    )
+    );
+    apply_strict_update_diagnostics(&mut runtime);
+    runtime
+}
+
+fn apply_strict_update_diagnostics<Bridge, Message>(runtime: &mut SurfaceRuntime<Bridge, Message>)
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    runtime.set_update_handler_diagnostics_policy(ui::UiUpdateHandlerDiagnosticsPolicy::panic_at(
+        Duration::from_millis(250),
+    ));
 }
 
 fn project_gui_surface_for_tests(
@@ -85,7 +101,7 @@ fn reduce_gui_message_for_tests(
     state: &mut NativeAppState,
     message: super::test_support::state::GuiMessage,
 ) -> Command<super::test_support::state::GuiMessage> {
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(message, &mut context);
     context.into_command()
 }
@@ -211,7 +227,7 @@ fn run_command_for_tests(
         | Command::After { .. }
         | Command::Exit => {}
         Command::Message(message) => {
-            state.apply_message(message, &mut ui::UpdateContext::default());
+            state.apply_message(message, &mut ui::UiUpdateContext::default());
         }
         Command::Batch(commands) => {
             for command in commands {
@@ -219,7 +235,7 @@ fn run_command_for_tests(
             }
         }
         Command::Perform { work, .. } => {
-            state.apply_message(work(), &mut ui::UpdateContext::default());
+            state.apply_message(work(), &mut ui::UiUpdateContext::default());
         }
     }
 }
@@ -228,7 +244,7 @@ fn start_deferred_sample_load_for_tests(
     state: &mut NativeAppState,
     path: String,
     autoplay: bool,
-    context: &mut ui::UpdateContext<super::test_support::state::GuiMessage>,
+    context: &mut ui::UiUpdateContext<super::test_support::state::GuiMessage>,
 ) {
     let ticket = state
         .background

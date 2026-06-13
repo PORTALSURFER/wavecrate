@@ -9,7 +9,7 @@ use crate::native_app::sample_library::context_menu_target::BrowserContextTarget
 impl NativeAppState {
     pub(in crate::native_app) fn move_context_target_to_trash(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
@@ -50,7 +50,7 @@ impl NativeAppState {
         &mut self,
         path: PathBuf,
         started_at: Instant,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         self.move_folder_path_to_trash(path, "folder_browser.delete_selected", started_at, context);
     }
@@ -59,7 +59,7 @@ impl NativeAppState {
         &mut self,
         paths: Vec<PathBuf>,
         started_at: Instant,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         self.move_file_paths_to_trash(paths, "browser.delete_selected_files", started_at, context);
     }
@@ -69,7 +69,7 @@ impl NativeAppState {
         path: PathBuf,
         action: &'static str,
         started_at: Instant,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
         self.ui.status.sample = format!("Moving {} to trash", sample_path_label(&path));
@@ -184,7 +184,7 @@ impl NativeAppState {
         paths: Vec<PathBuf>,
         action: &'static str,
         started_at: Instant,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
         self.ui.status.sample = match paths.len() {

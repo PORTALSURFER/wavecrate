@@ -11,7 +11,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn launch_folder_scan(
         &mut self,
         request: FolderScanRequest,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let label = request.label.clone();
@@ -42,7 +42,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_folder_scan(
         &mut self,
         result: FolderScanResult,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         match self.library.finish_folder_scan(result) {
@@ -79,7 +79,7 @@ impl NativeAppState {
         file_count: usize,
         folder_count: usize,
         started_at: Instant,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.chrome.job_details_open = false;
         self.background.progress_tick = 0.0;

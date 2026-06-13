@@ -78,7 +78,7 @@ fn stale_context_menu_copy_path_defers_missing_file_to_platform_completion() {
     let missing = std::env::temp_dir().join("wavecrate-missing-context-sample.wav");
     state.ui.browser_interaction.context_menu = Some(sample_context_menu(missing.clone()));
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.copy_context_path(&mut context);
 
     state.finish_context_path_copy(

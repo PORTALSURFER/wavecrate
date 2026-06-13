@@ -7,7 +7,7 @@ use crate::native_app::sample_library::folder_browser::scan;
 impl NativeAppState {
     pub(in crate::native_app) fn maybe_startup_visible_folder_verify(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if !self.ui.startup.folder_verify_pending {
             return;
@@ -33,7 +33,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn queue_selected_folder_verify_after_activation(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.queue_selected_folder_verify(
             context,
@@ -52,7 +52,7 @@ impl NativeAppState {
 
     fn queue_selected_folder_verify(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         action: &'static str,
         task_name: &'static str,
         finished: impl FnOnce(ui::TaskCompletion<scan::FolderVerifyResult>) -> GuiMessage

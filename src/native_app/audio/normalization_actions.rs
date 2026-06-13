@@ -12,7 +12,7 @@ use crate::native_app::sample_library::file_actions::normalize_wav_file_in_place
 impl NativeAppState {
     pub(in crate::native_app) fn normalize_selected_samples(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if self.background.normalization_progress.is_some() {

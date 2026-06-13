@@ -10,7 +10,7 @@ use super::timing::log_audio_open_timing;
 impl NativeAppState {
     pub(in crate::native_app) fn maybe_open_audio_player(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.audio.player.is_some()
             || self.background.audio_open.active().is_some()
@@ -23,7 +23,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn queue_configured_audio_player_open(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.background.audio_open.active().is_some() {
             return;

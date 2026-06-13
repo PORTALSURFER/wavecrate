@@ -69,6 +69,7 @@ fn folder_context_menu_outside_click_closes_menu() {
             }
         },
     );
+    apply_strict_update_diagnostics(&mut runtime);
     let outside_menu = Point::new(18.0, 18.0);
 
     runtime.dispatch_primary_click(outside_menu);
@@ -158,7 +159,7 @@ fn folder_context_menu_open_does_not_toggle_folder_expansion() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
     let (folder_id, expanded_before) = state
         .library
         .folder_browser

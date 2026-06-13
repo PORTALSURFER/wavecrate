@@ -13,7 +13,7 @@ use crate::native_app::{
 impl NativeAppState {
     pub(in crate::native_app) fn schedule_active_folder_cache_warm(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.cancel_active_folder_cache_warm();
         let Some((folder_id, paths)) = self
@@ -48,7 +48,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn start_active_folder_cache_warm_after_delay(
         &mut self,
         ticket: ui::TaskTicket,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if !self
             .waveform
@@ -63,7 +63,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn maybe_start_active_folder_cache_warm(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self
             .waveform
@@ -101,7 +101,8 @@ impl NativeAppState {
         .latest(&mut self.waveform.cache.active_folder_warm_task);
         self.waveform.cache.active_folder_warm_cancel = Some(warm.run(
             move |worker_context| {
-                let loaded = warm_active_folder_waveform_cache(paths, &worker_context);
+                let loaded =
+                    warm_active_folder_waveform_cache(paths, || worker_context.is_cancelled());
                 ActiveFolderCacheWarmResult {
                     folder_id,
                     loaded,
@@ -115,7 +116,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_active_folder_cache_warm(
         &mut self,
         completion: ui::TaskCompletion<ActiveFolderCacheWarmResult>,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if !self

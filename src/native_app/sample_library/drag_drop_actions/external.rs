@@ -8,7 +8,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 impl NativeAppState {
     pub(in crate::native_app) fn copy_selected_files(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let paths = self.library.folder_browser.selected_file_paths();
@@ -83,7 +83,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn external_drag_completed(
         &mut self,
         result: Result<ui::ExternalDragOutcome, String>,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         context.end_drag();
         self.library.folder_browser.clear_drag();

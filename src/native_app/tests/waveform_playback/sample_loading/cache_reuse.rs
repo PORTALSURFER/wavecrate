@@ -12,7 +12,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         .map(|name| name.to_string_lossy().to_string())
         .expect("sample file name");
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path.clone(),
@@ -115,7 +115,7 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     state.waveform.load.progress = 0.42;
     state.waveform.load.target_progress = 0.84;
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),
@@ -180,7 +180,7 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
     state.waveform.current.start_playback(0.25);
     state.audio.current_playback_span = Some((0.25, 1.0));
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.load_sample_without_autoplay(cached_path_string, &mut context);
 
     assert_eq!(state.waveform.current.path(), cached_path);

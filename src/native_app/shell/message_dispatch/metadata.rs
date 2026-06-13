@@ -7,7 +7,7 @@ impl NativeAppState {
     pub(super) fn apply_metadata_message(
         &mut self,
         message: MetadataMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             MetadataMessage::FocusMetadataTagInput => {

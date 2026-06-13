@@ -204,7 +204,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn maybe_auto_load_startup_sample(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if !self.ui.startup.auto_load_pending {
             return;

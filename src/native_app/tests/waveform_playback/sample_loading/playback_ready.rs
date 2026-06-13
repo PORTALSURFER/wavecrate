@@ -52,7 +52,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         .library
         .folder_browser
         .select_file(sample_path_string.clone());
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),

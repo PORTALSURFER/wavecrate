@@ -68,7 +68,7 @@ fn metadata_tag_context_delete_removes_unlocked_global_tag() {
         },
     );
 
-    state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
+    state.delete_context_metadata_tag(&mut ui::UiUpdateContext::default());
 
     assert!(!state.metadata.tag_dictionary.contains_key("oneshot"));
     assert_eq!(
@@ -104,7 +104,7 @@ fn metadata_tag_context_delete_rejects_locked_playback_tags() {
         },
     );
 
-    state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
+    state.delete_context_metadata_tag(&mut ui::UiUpdateContext::default());
 
     assert_eq!(state.ui.status.sample, "Playback Type tags are locked");
 }

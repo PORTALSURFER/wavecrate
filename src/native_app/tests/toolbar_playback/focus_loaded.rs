@@ -64,7 +64,7 @@ fn focus_loaded_action_scrolls_loaded_sample_into_file_view() {
         .follow_selected_file_view(16, 1, 1);
     assert_eq!(state.library.folder_browser.file_view_start(), 0);
 
-    state.focus_loaded_file(&mut ui::UpdateContext::default());
+    state.focus_loaded_file(&mut ui::UiUpdateContext::default());
     state
         .library
         .folder_browser

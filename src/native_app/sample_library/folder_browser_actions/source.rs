@@ -7,7 +7,7 @@ impl NativeAppState {
     pub(super) fn select_folder_browser_source(
         &mut self,
         id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let source = id.clone();

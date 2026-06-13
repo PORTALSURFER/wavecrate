@@ -34,7 +34,7 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
 
     state.apply_message(
         toggle_sample_name_view_mode(),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     prepare_sample_browser_view(&mut state);
     let label_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)

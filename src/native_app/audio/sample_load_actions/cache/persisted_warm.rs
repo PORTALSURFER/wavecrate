@@ -16,7 +16,7 @@ use crate::native_app::{
 impl NativeAppState {
     pub(in crate::native_app) fn maybe_start_waveform_cache_warm(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.waveform.cache.warm_task.active().is_some() {
             return;

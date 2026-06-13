@@ -10,7 +10,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn select_sample(
         &mut self,
         path: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let previous_selection = self
             .library
@@ -32,7 +32,7 @@ impl NativeAppState {
         &mut self,
         path: String,
         modifiers: PointerModifiers,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let previous_selection = self
             .library
@@ -53,7 +53,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn load_sample(
         &mut self,
         path: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.audio.pending_sample_playback = None;
         self.load_sample_with_autoplay(path, context, true);
@@ -62,7 +62,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn load_sample_without_autoplay(
         &mut self,
         path: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.load_sample_with_autoplay(path, context, false);
     }
@@ -70,7 +70,7 @@ impl NativeAppState {
     fn load_sample_with_autoplay(
         &mut self,
         path: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         autoplay: bool,
     ) {
         let started_at = Instant::now();
@@ -95,7 +95,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn defer_navigation_sample_load(
         &mut self,
         path: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         self.cancel_inflight_sample_load();

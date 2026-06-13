@@ -6,7 +6,7 @@ impl NativeAppState {
     pub(super) fn apply_file_dispatch(
         &mut self,
         message: GuiMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),

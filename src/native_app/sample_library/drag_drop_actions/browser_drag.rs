@@ -10,7 +10,7 @@ impl NativeAppState {
         &mut self,
         path: String,
         drag: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match drag.phase() {
             DragHandlePhase::Started => {
@@ -41,7 +41,7 @@ impl NativeAppState {
         &mut self,
         folder_id: String,
         drag: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match drag.phase() {
             DragHandlePhase::Started => {

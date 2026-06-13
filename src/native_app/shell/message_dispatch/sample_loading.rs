@@ -6,7 +6,7 @@ impl NativeAppState {
     pub(super) fn apply_sample_loading_dispatch(
         &mut self,
         message: GuiMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             GuiMessage::DeferredSampleLoad {

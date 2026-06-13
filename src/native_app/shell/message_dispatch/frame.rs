@@ -3,7 +3,7 @@ use radiant::prelude as ui;
 use crate::native_app::app::{GuiMessage, NativeAppState};
 
 impl NativeAppState {
-    pub(super) fn apply_frame_message(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+    pub(super) fn apply_frame_message(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
         self.maybe_open_audio_player(context);
         self.maybe_startup_source_scan(context);
         self.maybe_run_pending_source_refresh(context);

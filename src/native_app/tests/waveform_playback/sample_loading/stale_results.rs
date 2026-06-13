@@ -19,7 +19,7 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         .library
         .folder_browser
         .select_file(first_path_string.clone());
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: first_path_string.clone(),

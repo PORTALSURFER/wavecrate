@@ -24,7 +24,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn schedule_persisted_waveform_cache_indicator_refresh(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let paths = self
             .library

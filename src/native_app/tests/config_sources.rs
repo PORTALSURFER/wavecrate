@@ -105,7 +105,7 @@ fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
         .save_source_scan_cache()
         .expect("persist source scan cache");
     let mut state = NativeAppState::load_default().expect("default state loads persisted cache");
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.maybe_startup_source_scan(&mut context);
 
@@ -151,7 +151,7 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
 
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
     assert_eq!(loaded.sources.len(), 1);
@@ -181,7 +181,7 @@ fn default_gui_removes_context_source_from_app_config() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
     state.ui.browser_interaction.context_menu = Some(
         crate::native_app::test_support::context_menu::BrowserContextMenu {
             kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Source,
@@ -221,7 +221,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
     state.ui.browser_interaction.context_menu = Some(
         crate::native_app::test_support::context_menu::BrowserContextMenu {
             kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Source,
@@ -235,7 +235,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         },
     );
     let visible_before = state.library.folder_browser.selected_audio_files().len();
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.refresh_context_source(&mut context);
 
@@ -278,9 +278,9 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
     let visible_before = state.library.folder_browser.selected_audio_files().len();
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SourceFilesystemChanged {
@@ -327,8 +327,8 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
         |_| {},
         |_| {},
     );
-    state.finish_folder_scan(result, &mut ui::UpdateContext::default());
-    let mut context = ui::UpdateContext::default();
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
+    let mut context = ui::UiUpdateContext::default();
     state.refresh_source_after_filesystem_change(source_id.clone(), Vec::new(), true, &mut context);
 
     state.apply_message(
@@ -368,7 +368,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
             |_| {},
             |_| {},
         );
-    state.finish_folder_scan(finished, &mut ui::UpdateContext::default());
+    state.finish_folder_scan(finished, &mut ui::UiUpdateContext::default());
     state.maybe_run_pending_source_refresh(&mut context);
 
     let next_task = state

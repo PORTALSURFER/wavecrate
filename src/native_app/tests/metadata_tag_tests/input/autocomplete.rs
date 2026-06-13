@@ -13,7 +13,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         state.metadata_tag_completion_suffix().as_deref(),
@@ -32,7 +32,7 @@ fn metadata_tag_input_submits_typed_prefix_without_autoselecting_completion() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
@@ -53,13 +53,13 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         metadata_tag_input(radiant::widgets::TextInputMessage::CompletionRequested {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
@@ -76,7 +76,7 @@ fn metadata_tag_completion_request_shows_suggestions_without_selecting_one() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(state.metadata.tags_by_file.get(&selected_file), None);
@@ -97,19 +97,19 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         metadata_tag_input(radiant::widgets::TextInputMessage::CompletionRequested {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         metadata_tag_input(radiant::widgets::TextInputMessage::CompletionRequested {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(
@@ -125,7 +125,7 @@ fn metadata_tag_second_completion_request_activates_first_suggestion() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(
@@ -151,7 +151,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Changed {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         state
@@ -164,7 +164,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
 
     state.apply_message(
         move_metadata_tag_completion(1),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         state
@@ -177,7 +177,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
 
     state.apply_message(
         move_metadata_tag_completion(1),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         state
@@ -190,7 +190,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
 
     state.apply_message(
         move_metadata_tag_completion(1),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         state
@@ -205,7 +205,7 @@ fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
         metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
             value: String::from("ki"),
         }),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(

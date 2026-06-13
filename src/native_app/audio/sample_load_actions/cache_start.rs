@@ -33,7 +33,7 @@ impl NativeAppState {
         &mut self,
         path: &str,
         autoplay: bool,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) -> bool {
         let Some(file) = self
@@ -72,7 +72,7 @@ impl NativeAppState {
         &mut self,
         path: &str,
         autoplay: bool,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) -> bool {
         if !cached_waveform_file_playback_ready_exists(Path::new(path)) {
@@ -92,7 +92,7 @@ impl NativeAppState {
     pub(super) fn start_loaded_navigation_sample(
         &mut self,
         path: &str,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) -> bool {
         if !self.waveform.current.has_loaded_sample()

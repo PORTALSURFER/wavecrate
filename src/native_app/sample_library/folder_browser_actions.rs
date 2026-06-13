@@ -14,7 +14,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn apply_folder_browser_message(
         &mut self,
         message: FolderBrowserMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             FolderBrowserMessage::AddSource => self.add_source_from_dialog(context),

@@ -10,7 +10,7 @@ impl NativeAppState {
     pub(super) fn apply_waveform_message(
         &mut self,
         message: WaveformInteraction,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);

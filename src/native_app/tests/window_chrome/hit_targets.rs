@@ -81,7 +81,7 @@ fn active_waveform_sample_load_masks_waveform_hit_target() {
             path: selected_file,
             modifiers: Default::default(),
         },
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(state.waveform_input_blocked_by_sample_load());
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));

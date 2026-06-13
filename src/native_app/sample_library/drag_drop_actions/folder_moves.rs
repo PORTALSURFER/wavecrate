@@ -14,7 +14,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn drop_browser_drag_on_folder(
         &mut self,
         folder_id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         context.end_drag_session();
@@ -53,7 +53,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn resolve_file_move_conflict(
         &mut self,
         request: FileMoveConflictResolutionRequest,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         self.ui

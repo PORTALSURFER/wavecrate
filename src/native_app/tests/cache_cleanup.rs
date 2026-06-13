@@ -25,7 +25,7 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
 
     state.apply_message(
         GuiMessage::Settings(SettingsMessage::ClearRebuildableCaches),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert!(!cache_payload.exists());

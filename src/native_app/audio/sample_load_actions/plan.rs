@@ -18,7 +18,7 @@ impl NativeAppState {
         check_cache: bool,
         delay: Duration,
         input_method: &'static str,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         tracing::info!(
             target: "wavecrate::debug::sample_load",
@@ -50,7 +50,7 @@ impl NativeAppState {
         autoplay: bool,
         check_cache: bool,
         scheduled_at: Instant,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         log_sample_load_timing(
@@ -107,7 +107,7 @@ impl NativeAppState {
         &mut self,
         path: String,
         autoplay: bool,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         strategy: SampleLoadStrategy,
         started_at: Instant,
     ) {
@@ -132,7 +132,7 @@ impl NativeAppState {
         &mut self,
         path: String,
         autoplay: bool,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
         priority: ui::TaskPriority,
         strategy: SampleLoadStrategy,
     ) {

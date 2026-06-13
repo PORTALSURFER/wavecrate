@@ -63,7 +63,7 @@ fn general_settings_button_opens_general_tab() {
 #[test]
 fn settings_top_bar_actions_open_expected_tabs() {
     let mut state = gui_state_for_span_tests();
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::Settings(

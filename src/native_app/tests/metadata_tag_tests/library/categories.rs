@@ -12,7 +12,7 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
 
     state.apply_message(
         toggle_metadata_tag_category(String::from("sound-type")),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     let frame = crate::native_app::test_support::state::view(&mut state)

@@ -25,7 +25,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn adjust_selected_rating(
         &mut self,
         delta: i8,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let updates = self.rating_updates_for_selected_files(delta);

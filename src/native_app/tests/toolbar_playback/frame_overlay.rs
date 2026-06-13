@@ -60,9 +60,10 @@ fn scene_frame_clock_queues_gui_frame_message() {
     state.ui.startup.source_scan_pending = true;
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
-        .update_with(apply_gui_message_for_presentation_test)
+        .handle_message(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
 
     let activity = runtime.bridge_mut().animation_activity();
 
@@ -80,13 +81,14 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
     state.waveform.current.start_playback(0.25);
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if message == GuiMessage::Frame {
                 state.advance_frame();
             }
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
 
     assert!(
         runtime
@@ -109,9 +111,10 @@ fn scene_installs_playback_cursor_transient_overlay() {
     let theme = radiant::theme::ThemeTokens::default();
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
-        .update_with(apply_gui_message_for_presentation_test)
+        .handle_message(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
     let frame = runtime.frame(&theme);
     let mut primitives = Vec::new();
 
@@ -142,7 +145,7 @@ fn scene_installs_playback_cursor_transient_overlay() {
 fn apply_gui_message_for_presentation_test(
     state: &mut NativeAppState,
     message: GuiMessage,
-    context: &mut ui::UpdateContext<GuiMessage>,
+    context: &mut ui::UiUpdateContext<GuiMessage>,
 ) {
     let frame_message = matches!(message, GuiMessage::Frame);
     state.apply_message(message, context);

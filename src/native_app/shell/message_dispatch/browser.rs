@@ -6,7 +6,7 @@ impl NativeAppState {
     pub(super) fn apply_browser_dispatch(
         &mut self,
         message: GuiMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             GuiMessage::ResizeFolder(message) => self.resize_folder_browser(message),

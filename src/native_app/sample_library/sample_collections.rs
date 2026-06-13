@@ -15,7 +15,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn assign_selected_collection(
         &mut self,
         collection: SampleCollection,
-        _context: &mut ui::UpdateContext<GuiMessage>,
+        _context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let updates = self.collection_updates_for_selected_files(collection);
         self.apply_collection_updates(collection, updates, "hotkey", CollectionCommand::Toggle);
@@ -23,7 +23,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn remove_context_sample_from_collection(
         &mut self,
-        _context: &mut ui::UpdateContext<GuiMessage>,
+        _context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;
@@ -56,7 +56,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn drop_drag_on_collection(
         &mut self,
         collection: SampleCollection,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let updates = self.collection_updates_for_dragged_files(collection);
         context.end_drag_session();

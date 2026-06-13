@@ -11,7 +11,7 @@ use crate::native_app::sample_library::file_actions::format_copy_path;
 impl NativeAppState {
     pub(in crate::native_app) fn copy_context_path(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
@@ -87,7 +87,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn open_context_target(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {

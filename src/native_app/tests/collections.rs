@@ -10,7 +10,7 @@ fn collection_shortcut_toggles_selected_sample_membership() {
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(
@@ -31,7 +31,7 @@ fn collection_shortcut_toggles_selected_sample_membership() {
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(
@@ -60,7 +60,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(state.transactions.history.list_items().len(), 1);
     assert_eq!(
@@ -71,7 +71,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
 
     state.apply_message(
         GuiMessage::UndoTransaction,
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         db.collections_for_path(std::path::Path::new("undo-collection.wav"))
@@ -91,7 +91,7 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
 
     state.apply_message(
         GuiMessage::RedoTransaction,
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(
         db.collections_for_path(std::path::Path::new("undo-collection.wav"))
@@ -108,11 +108,11 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(collection)),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.open_sample_context_menu(selected_file, Point::new(12.0, 24.0));
 
@@ -128,7 +128,7 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
 
     state.apply_message(
         GuiMessage::RemoveContextSampleFromCollection,
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(
@@ -157,7 +157,7 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
 fn collection_rename_input_selects_name_when_focused() {
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
     let mut state = NativeAppState::load_default().expect("default state loads");
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection)),
         &mut context,

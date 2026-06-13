@@ -85,7 +85,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn delete_context_metadata_tag(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return;

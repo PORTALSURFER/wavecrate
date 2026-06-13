@@ -24,7 +24,7 @@ impl NativeAppState {
     pub(super) fn toggle_similarity_anchor(
         &mut self,
         file_id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let clearing = self
@@ -73,7 +73,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn focus_rename_input(
         &mut self,
         input_id: u64,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         context.focus(input_id);
@@ -109,7 +109,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn toggle_selected_sample_and_advance(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let previous_focus = self
@@ -177,7 +177,7 @@ impl NativeAppState {
         &mut self,
         delta: i32,
         extend: bool,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let direction = if delta < 0 { "previous" } else { "next" };

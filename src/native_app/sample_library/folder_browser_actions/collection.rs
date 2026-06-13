@@ -9,7 +9,7 @@ impl NativeAppState {
     pub(super) fn activate_folder_browser_collection(
         &mut self,
         collection: SampleCollection,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.library
             .folder_browser
@@ -21,7 +21,7 @@ impl NativeAppState {
     pub(super) fn drop_on_folder_browser_collection(
         &mut self,
         collection: SampleCollection,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.browser_interaction.context_menu = None;
         self.drop_drag_on_collection(collection, context);
@@ -30,7 +30,7 @@ impl NativeAppState {
     pub(super) fn begin_collection_rename(
         &mut self,
         collection: SampleCollection,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         match self

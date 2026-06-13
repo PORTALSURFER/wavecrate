@@ -53,7 +53,7 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
     state.audio.player = Some(player);
     state.audio.loop_playback = true;
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.play_random_sample_range_with_unit(0.5, &mut context);
 
     assert!(!state.audio.loop_playback);

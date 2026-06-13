@@ -7,11 +7,11 @@ fn default_gui_tag_library_can_apply_default_playback_tags() {
 
     state.apply_message(
         toggle_metadata_tag_library(),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         toggle_metadata_tag(String::from("one-shot")),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert!(state.metadata.tag_library_open);
@@ -32,11 +32,11 @@ fn default_gui_tag_library_button_adds_existing_tag() {
 
     state.apply_message(
         toggle_metadata_tag_library(),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         toggle_metadata_tag(String::from("bass")),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert!(state.metadata.tag_library_open);
@@ -61,11 +61,11 @@ fn default_gui_tag_library_button_removes_selected_tag() {
 
     state.apply_message(
         toggle_metadata_tag_library(),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     state.apply_message(
         toggle_metadata_tag(String::from("bass")),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert!(state.metadata.tag_library_open);
@@ -87,13 +87,13 @@ fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
 
     state.apply_message(
         select_metadata_tag(String::from("bass")),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert_eq!(state.metadata.selected_tag.as_deref(), Some("bass"));
 
     state.apply_message(
         delete_selected_metadata_tag(),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(

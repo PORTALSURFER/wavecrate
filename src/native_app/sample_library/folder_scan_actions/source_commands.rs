@@ -8,7 +8,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn select_source(
         &mut self,
         id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
@@ -38,7 +38,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn refresh_source(
         &mut self,
         id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
@@ -70,7 +70,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn refresh_context_source(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(menu) = self.ui.browser_interaction.context_menu.clone() else {
             return;
@@ -85,7 +85,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn maybe_startup_source_scan(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if !self.ui.startup.source_scan_pending {
             self.maybe_startup_visible_folder_verify(context);

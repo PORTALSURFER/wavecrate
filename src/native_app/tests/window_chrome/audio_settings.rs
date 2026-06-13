@@ -58,7 +58,7 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
 fn audio_settings_window_does_not_block_waveform_selection_messages() {
     let mut state = gui_state_for_span_tests();
     state.ui.settings.ui.audio_settings_open = true;
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::Waveform(

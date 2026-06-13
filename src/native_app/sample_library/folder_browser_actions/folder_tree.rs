@@ -12,7 +12,7 @@ impl NativeAppState {
     pub(super) fn activate_folder_browser_folder(
         &mut self,
         folder_id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let source = folder_id.clone();
@@ -35,7 +35,7 @@ impl NativeAppState {
     pub(super) fn drop_on_folder_browser_folder(
         &mut self,
         folder_id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.browser_interaction.context_menu = None;
         self.drop_browser_drag_on_folder(folder_id, context);
@@ -45,7 +45,7 @@ impl NativeAppState {
         &mut self,
         folder_id: String,
         drag: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.browser_interaction.context_menu = None;
         self.drag_folder(folder_id, drag, context);

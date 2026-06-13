@@ -36,7 +36,7 @@ impl NativeAppState {
         &mut self,
         tag: String,
         drag: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
             self.metadata.tag_drag = None;
@@ -69,7 +69,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn drop_metadata_tag_on_category(
         &mut self,
         category_id: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(tag) = self.metadata.tag_drag.clone() else {
             return;
@@ -109,7 +109,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn delete_metadata_tag_from_library(
         &mut self,
         tag: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
             self.ui.status.sample = String::from("Playback Type tags are locked");

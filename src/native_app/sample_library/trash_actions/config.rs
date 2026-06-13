@@ -7,7 +7,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 impl NativeAppState {
     pub(in crate::native_app) fn pick_trash_folder(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         context.pick_folder(

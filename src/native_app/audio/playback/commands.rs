@@ -18,7 +18,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn play_selected_sample(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if let Some(path) = self.library.folder_browser.selected_file_id()
@@ -102,7 +102,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn play_random_sample_range(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let mut rng = rand::rng();
         self.play_random_sample_range_with_unit(rng.random::<f32>(), context);
@@ -112,7 +112,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn play_random_sample_range_with_unit(
         &mut self,
         unit: f32,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if let Some(path) = self

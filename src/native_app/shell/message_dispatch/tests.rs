@@ -7,7 +7,7 @@ fn root_dispatch_routes_metadata_messages_to_metadata_owner() {
 
     state.apply_message(
         GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagLibrary),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert!(state.metadata.tag_library_open);

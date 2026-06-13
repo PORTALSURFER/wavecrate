@@ -140,7 +140,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::ToggleAudioBackendDropdown,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(
         state
@@ -155,7 +155,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::CloseAudioSettingsDropdowns,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(!state.ui.settings.ui.audio_settings_dropdown.any_open());
 
@@ -163,7 +163,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::ToggleAudioBackendDropdown,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(
         state
@@ -178,7 +178,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::ToggleAudioOutputDropdown,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(
         !state
@@ -201,7 +201,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::ToggleAudioSampleRateDropdown,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(
         !state
@@ -224,7 +224,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::CloseAudioSettingsDropdowns,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(!state.ui.settings.ui.audio_settings_dropdown.any_open());
 
@@ -232,7 +232,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
         crate::native_app::test_support::state::GuiMessage::Settings(
             crate::native_app::app::SettingsMessage::CloseAudioSettings,
         ),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
     assert!(!state.ui.settings.ui.audio_settings_dropdown.any_open());
 }

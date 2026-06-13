@@ -139,7 +139,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
@@ -240,7 +240,7 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     state.select_sample_with_modifiers(
         second_file.clone(),
         PointerModifiers::default(),
-        &mut ui::UpdateContext::default(),
+        &mut ui::UiUpdateContext::default(),
     );
 
     assert_eq!(

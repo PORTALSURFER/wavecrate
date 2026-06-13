@@ -13,7 +13,7 @@ impl NativeAppState {
         &mut self,
         column_id: String,
         message: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.library
             .folder_browser
@@ -21,14 +21,17 @@ impl NativeAppState {
         self.sync_file_column_drag_preview(context);
     }
 
-    pub(super) fn cancel_file_column_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+    pub(super) fn cancel_file_column_drag(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         self.library
             .folder_browser
             .apply_message(FolderBrowserMessage::CancelFileColumnDrag);
         context.end_drag();
     }
 
-    fn sync_file_column_drag_preview(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+    fn sync_file_column_drag_preview(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
         let Some(feedback) = self.library.folder_browser.file_column_drag_feedback() else {
             context.end_drag();
             return;

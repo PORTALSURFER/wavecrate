@@ -88,7 +88,7 @@ impl NativeAppState {
     pub(super) fn apply_metadata_tag_input(
         &mut self,
         message: TextInputMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let parts = message.parts();
         match parts.kind {
@@ -106,14 +106,17 @@ impl NativeAppState {
         }
     }
 
-    pub(super) fn focus_metadata_tag_input(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+    pub(super) fn focus_metadata_tag_input(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         context.focus(crate::native_app::ui::ids::METADATA_TAG_INPUT_ID);
     }
 
     fn submit_metadata_tag_input(
         &mut self,
         value: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if matches!(
             self.metadata.tag_input_mode,
@@ -128,7 +131,7 @@ impl NativeAppState {
     pub(super) fn submit_selected_metadata_tag_completion(
         &mut self,
         value: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if matches!(
             self.metadata.tag_input_mode,
@@ -143,7 +146,7 @@ impl NativeAppState {
     fn submit_metadata_tag_value(
         &mut self,
         value: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let mut commit = commit_metadata_tag_text(&value);
         let mut tags = std::mem::take(&mut self.metadata.tag_tokens);
@@ -173,7 +176,7 @@ impl NativeAppState {
     fn submit_metadata_tag_category(
         &mut self,
         value: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let MetadataTagInputMode::Category { pending_tag } = self.metadata.tag_input_mode.clone()
         else {
@@ -189,7 +192,7 @@ impl NativeAppState {
     fn submit_metadata_tag_category_value(
         &mut self,
         value: String,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let MetadataTagInputMode::Category { pending_tag } = self.metadata.tag_input_mode.clone()
         else {
@@ -206,7 +209,7 @@ impl NativeAppState {
         &mut self,
         pending_tag: String,
         category_id: &str,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.metadata
             .tag_dictionary

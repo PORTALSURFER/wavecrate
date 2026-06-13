@@ -12,7 +12,7 @@ impl NativeAppState {
         source_id: String,
         paths: Vec<PathBuf>,
         overflowed: bool,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         match self
@@ -71,7 +71,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn maybe_run_pending_source_refresh(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if let Some(source_id) = self.library.next_pending_source_refresh_if_idle() {
             self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
@@ -82,7 +82,7 @@ impl NativeAppState {
         &mut self,
         source_id: String,
         started_at: Instant,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let task_id = self.next_folder_task_id();
         match self

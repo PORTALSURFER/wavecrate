@@ -8,7 +8,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 impl NativeAppState {
     pub(in crate::native_app) fn add_source_from_dialog(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         context.pick_folder(
@@ -28,7 +28,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_add_source_dialog(
         &mut self,
         result: ui::PlatformResult,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let path = match result.into_path_or_canceled() {
@@ -64,7 +64,7 @@ impl NativeAppState {
         &mut self,
         path: PathBuf,
         started_at: Instant,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.library.begin_add_source_path(path, task_id) {

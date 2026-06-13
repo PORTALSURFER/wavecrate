@@ -19,7 +19,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn handle_message(
         &mut self,
         message: GuiMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.apply_message(message, context);
     }
@@ -27,7 +27,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn apply_message(
         &mut self,
         message: GuiMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             GuiMessage::ResizeFolder(_)

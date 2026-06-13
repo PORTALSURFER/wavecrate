@@ -38,7 +38,7 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
         "persisted cache should mark the sample as ready before it enters memory cache"
     );
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path.clone(),
@@ -113,7 +113,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         "playback-ready persisted caches should not be loaded into memory from UI refresh"
     );
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),

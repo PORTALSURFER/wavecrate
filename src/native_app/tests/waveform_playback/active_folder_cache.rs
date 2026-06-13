@@ -31,7 +31,7 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
             .contains(&sample_path_string)
     );
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
@@ -82,7 +82,7 @@ fn folder_activation_delays_active_folder_cache_warm() {
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
@@ -132,7 +132,7 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
@@ -200,10 +200,9 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
 
     assert!(!crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path));
 
-    let worker_context = ui::BusinessWorkContext::default();
     let loaded = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
         vec![sample_path.clone()],
-        &worker_context,
+        || false,
     );
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
 
@@ -279,7 +278,7 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
         ]);
     state.refresh_persisted_waveform_cache_indicators();
 
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: sample_path_string.clone(),

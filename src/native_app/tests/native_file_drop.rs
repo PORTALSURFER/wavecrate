@@ -15,7 +15,7 @@ fn native_file_hover_over_waveform_tracks_supported_state() {
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::hover(
@@ -70,7 +70,7 @@ fn native_file_hover_without_widget_target_still_shows_waveform_drop_feedback() 
     let wav = root.join("kick.wav");
     write_test_wav_i16(&wav, &[0, 100]);
     let mut state = gui_state_for_span_tests();
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::hover(wav.clone(), Some(Point::new(8.0, 8.0)), None),
@@ -107,7 +107,7 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
             loops.display().to_string(),
         ),
     );
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(
@@ -158,7 +158,7 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
             loops.display().to_string(),
         ),
     );
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(source, Some(Point::new(8.0, 8.0)), None),
@@ -193,7 +193,7 @@ fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
             drums.display().to_string(),
         ),
     );
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(source.clone(), Some(Point::new(8.0, 8.0)), None),
@@ -236,7 +236,7 @@ fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
         .library
         .folder_browser
         .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_native_file_drop(
         NativeFileDrop::dropped(source.clone(), Some(Point::new(8.0, 8.0)), None),
@@ -272,7 +272,7 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
         ),
     );
     state.library.folder_browser.select_file(source_id.clone());
-    let mut context = ui::UpdateContext::default();
+    let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::DragSampleFile {

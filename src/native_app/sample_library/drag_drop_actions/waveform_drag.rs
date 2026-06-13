@@ -12,7 +12,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn drag_waveform_play_selection(
         &mut self,
         drag: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> bool {
         match drag.phase() {
             DragHandlePhase::Started => self.start_waveform_play_selection_drag(drag, context),
@@ -40,7 +40,7 @@ impl NativeAppState {
     fn start_waveform_play_selection_drag(
         &mut self,
         drag: DragHandleMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> bool {
         let started_at = Instant::now();
         let target_folder = match self.library.folder_browser.selected_folder_path() {
@@ -97,7 +97,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn drop_waveform_play_selection_on_sample_list(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(path) = self.library.folder_browser.extracted_file_drag_path() else {
             return;

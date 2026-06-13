@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) struct WaveformPlaybackScenario {
     pub(super) state: NativeAppState,
-    context: ui::UpdateContext<crate::native_app::test_support::state::GuiMessage>,
+    context: ui::UiUpdateContext<crate::native_app::test_support::state::GuiMessage>,
     _source_root: Option<tempfile::TempDir>,
     selected_file: Option<String>,
 }
@@ -11,7 +11,7 @@ impl WaveformPlaybackScenario {
     pub(super) fn synthetic() -> Self {
         Self {
             state: gui_state_for_span_tests(),
-            context: ui::UpdateContext::default(),
+            context: ui::UiUpdateContext::default(),
             _source_root: None,
             selected_file: None,
         }
@@ -27,7 +27,7 @@ impl WaveformPlaybackScenario {
                 .expect("test sample loads");
         Some(Self {
             state,
-            context: ui::UpdateContext::default(),
+            context: ui::UiUpdateContext::default(),
             _source_root: None,
             selected_file: None,
         })
@@ -43,7 +43,7 @@ impl WaveformPlaybackScenario {
             .select_file(selected_file.clone());
         Self {
             state,
-            context: ui::UpdateContext::default(),
+            context: ui::UiUpdateContext::default(),
             _source_root: Some(source_root),
             selected_file: Some(selected_file),
         }

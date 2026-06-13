@@ -8,7 +8,7 @@ use crate::native_app::{
 impl NativeAppState {
     pub(in crate::native_app) fn arm_browser_drag(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let drag = self.library.folder_browser.drag_preview().map(|preview| {
             ui::DragRequest::new(
@@ -29,7 +29,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn cancel_browser_drag_on_sample_list(
         &mut self,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.library.folder_browser.clear_drag();
         self.clear_pending_internal_file_drag_paths();

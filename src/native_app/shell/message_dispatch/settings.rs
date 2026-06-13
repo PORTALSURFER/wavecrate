@@ -6,7 +6,7 @@ impl NativeAppState {
     pub(super) fn apply_settings_message(
         &mut self,
         message: SettingsMessage,
-        context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
             SettingsMessage::SetVolume(volume) => self.set_volume(volume),

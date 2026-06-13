@@ -30,7 +30,7 @@ impl SampleLoadWorker {
     pub(super) fn run(
         self,
         ticket: ui::TaskTicket,
-        context: ui::BusinessWorkContext,
+        context: radiant::runtime::BusinessWorkContext,
     ) -> SampleLoadResult {
         log_sample_load_timing(
             "browser.sample_load.worker.queue_wait",
@@ -60,7 +60,7 @@ impl SampleLoadWorker {
     fn load(
         &self,
         ticket: ui::TaskTicket,
-        context: &ui::BusinessWorkContext,
+        context: &radiant::runtime::BusinessWorkContext,
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         match self.request.strategy() {
@@ -95,7 +95,7 @@ impl SampleLoadWorker {
     fn load_decoded_sample(
         &self,
         ticket: ui::TaskTicket,
-        context: &ui::BusinessWorkContext,
+        context: &radiant::runtime::BusinessWorkContext,
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         let phase_started_at = Instant::now();
