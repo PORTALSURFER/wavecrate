@@ -1,7 +1,11 @@
 //! Confirm-prompt projection helpers.
 
-use super::*;
-use crate::app_core::state::OptionsPanelPrompt;
+use crate::app_core::actions::{
+    NativeConfirmPromptKind as ConfirmPromptKind, NativeConfirmPromptModel as ConfirmPromptModel,
+};
+use crate::app_core::state::{
+    FolderActionPrompt, OptionsPanelPrompt, SampleBrowserActionPrompt, UiState,
+};
 
 /// Project active confirm prompt metadata for modal rendering.
 pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {

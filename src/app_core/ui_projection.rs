@@ -5,32 +5,10 @@
 //! GUI work should compose Radiant's current public API through `src/native_app.rs`
 //! instead of expanding this migration projection surface.
 
-use super::controller::{
-    AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
-    ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup,
-    UmapPointQuery,
-};
-use crate::app_core::actions::NativeFolderRowKind as FolderRowKind;
 use crate::app_core::actions::{
-    NativeAppModel as AppModel, NativeAudioEngineModel as AudioEngineModel,
-    NativeBrowserActionsModel as BrowserActionsModel,
-    NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
-    NativeBrowserRowModel as BrowserRowModel, NativeBrowserTagPillModel as BrowserTagPillModel,
-    NativeBrowserTagSidebarModel as BrowserTagSidebarModel,
-    NativeBrowserTagState as BrowserTagState, NativeColumnModel as ColumnModel,
-    NativeConfirmPromptKind as ConfirmPromptKind, NativeConfirmPromptModel as ConfirmPromptModel,
-    NativeDragOverlayModel as DragOverlayModel, NativeFocusContextModel as FocusContextModel,
-    NativeFolderActionsModel as FolderActionsModel, NativeFolderPaneIdModel as FolderPaneIdModel,
-    NativeFolderPaneModel as FolderPaneModel, NativeFolderRecoveryModel as FolderRecoveryModel,
-    NativeFolderRowModel as FolderRowModel, NativeMapPanelModel as MapPanelModel,
-    NativeMapRenderModeModel as MapRenderModeModel,
-    NativeNormalizedRangeModel as NormalizedRangeModel,
-    NativeOptionsPanelModel as OptionsPanelModel,
-    NativeProgressOverlayModel as ProgressOverlayModel, NativeRetainedVec as RetainedVec,
-    NativeSourceRowModel as SourceRowModel, NativeSourcesPanelModel as SourcesPanelModel,
-    NativeStatusBarModel as StatusBarModel, NativeUpdatePanelModel as UpdatePanelModel,
-    NativeUpdateStatusModel as UpdateStatusModel, NativeWaveformChromeModel as WaveformChromeModel,
-    NativeWaveformPanelModel as WaveformPanelModel, native_folder_row_model as folder_row_model,
+    NativeBrowserActionsModel as BrowserActionsModel, NativeDragOverlayModel as DragOverlayModel,
+    NativeFocusContextModel as FocusContextModel,
+    NativeProgressOverlayModel as ProgressOverlayModel,
 };
 use crate::app_core::app_api::controller::supports_wav_destructive_edits;
 #[cfg(test)]
@@ -41,19 +19,26 @@ use crate::app_core::state::{
     WaveformSliceBatchProfile,
 };
 use crate::app_core::state::{
-    DragPayload, DragTarget, FocusContext, FolderActionPrompt, InlineFolderEditKind, MapBounds,
-    MapPoint, MapQueryBounds, MapRenderMode, PlaybackAgeBucket, PlaybackAgeFilterChip,
-    SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TagNamedFilter,
-    TriageFlagColumn, UiPoint, UiState, UpdateStatus,
+    DragPayload, DragTarget, FocusContext, SampleBrowserTab, TriageFlagColumn, UiPoint, UiState,
 };
-use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
-use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
-use radiant::gui::types::ImageRgba;
-use std::{
-    sync::Arc,
-    sync::atomic::{AtomicU64, Ordering},
+use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
+use std::sync::atomic::AtomicU64;
+
+#[cfg(test)]
+use super::controller::{
+    AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
 };
-use tracing::info;
+#[cfg(test)]
+use crate::app_core::actions::{
+    NativeBrowserTagState as BrowserTagState, NativeConfirmPromptKind as ConfirmPromptKind,
+    NativeFolderRowKind as FolderRowKind, NativeNormalizedRangeModel as NormalizedRangeModel,
+    NativeSourcesPanelModel as SourcesPanelModel, NativeUpdateStatusModel as UpdateStatusModel,
+};
+#[cfg(test)]
+use crate::app_core::state::{
+    FolderActionPrompt, InlineFolderEditKind, MapBounds, MapPoint, MapQueryBounds,
+    PlaybackAgeBucket, SampleBrowserActionPrompt, SampleBrowserSort, UpdateStatus,
+};
 
 /// Staged top-level app-model projection assembly.
 mod app_model;

@@ -1,4 +1,6 @@
-use super::*;
+use super::{FolderBrowserUiState, Path, PathBuf};
+#[cfg(test)]
+use crate::app_core::state::FolderRowView;
 
 fn normalize_folder_name_input(name: &str) -> Result<String, String> {
     let trimmed = name.trim();

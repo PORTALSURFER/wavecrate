@@ -1,4 +1,7 @@
-use super::*;
+use crate::app_core::controller::AppController;
+use crate::app_core::ui_projection::waveform_image_to_native_rgba;
+use radiant::gui::types::ImageRgba;
+use std::sync::Arc;
 
 /// Reuse or rebuild the projected waveform raster payload for the UI model.
 pub(super) fn project_waveform_image(
@@ -20,7 +23,7 @@ pub(super) fn project_waveform_image(
             .waveform
             .image
             .as_ref()
-            .and_then(super::super::waveform_image_to_native_rgba)
+            .and_then(waveform_image_to_native_rgba)
     });
     controller.projected_waveform_image_signature = signature;
     controller.projected_waveform_image = projected_waveform_image.clone();

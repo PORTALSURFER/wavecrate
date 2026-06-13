@@ -1,5 +1,9 @@
-use super::*;
-use crate::app_core::actions::NativeBrowserRowProcessingState as BrowserRowProcessingState;
+use crate::app_core::actions::{
+    NativeBrowserRowModel as BrowserRowModel,
+    NativeBrowserRowProcessingState as BrowserRowProcessingState, NativePlaybackAgeBucket,
+    NativeRetainedVec as RetainedVec,
+};
+use crate::app_core::state::PlaybackAgeBucket;
 use std::sync::Arc;
 
 pub(super) struct BrowserRowProjection<'a> {
@@ -49,7 +53,7 @@ fn update_existing_row(
     row: &mut BrowserRowModel,
     projection: &BrowserRowProjection<'_>,
     bucket_label: Option<&str>,
-    native_playback_age_bucket: crate::app_core::actions::NativePlaybackAgeBucket,
+    native_playback_age_bucket: NativePlaybackAgeBucket,
 ) -> bool {
     if row.visible_row != projection.visible_row || row.column != projection.column_index.min(2) {
         return false;
@@ -70,7 +74,7 @@ fn rewrite_existing_row(
     row: &mut BrowserRowModel,
     projection: &BrowserRowProjection<'_>,
     bucket_label: Option<&str>,
-    native_playback_age_bucket: crate::app_core::actions::NativePlaybackAgeBucket,
+    native_playback_age_bucket: NativePlaybackAgeBucket,
 ) {
     row.visible_row = projection.visible_row;
     if row.label.as_ref() != projection.row_label {
@@ -92,7 +96,7 @@ fn rewrite_existing_row(
 fn new_browser_row(
     projection: &BrowserRowProjection<'_>,
     bucket_label: Option<&str>,
-    native_playback_age_bucket: crate::app_core::actions::NativePlaybackAgeBucket,
+    native_playback_age_bucket: NativePlaybackAgeBucket,
 ) -> BrowserRowModel {
     let mut row = BrowserRowModel::new(
         projection.visible_row,
@@ -128,19 +132,11 @@ fn set_bucket_label(row: &mut BrowserRowModel, bucket_label: Option<&str>) {
 }
 
 /// Convert one app-core playback-age bucket into the native radiant contract enum.
-fn native_playback_age_bucket(
-    bucket: PlaybackAgeBucket,
-) -> crate::app_core::actions::NativePlaybackAgeBucket {
+fn native_playback_age_bucket(bucket: PlaybackAgeBucket) -> NativePlaybackAgeBucket {
     match bucket {
-        PlaybackAgeBucket::Fresh => crate::app_core::actions::NativePlaybackAgeBucket::Fresh,
-        PlaybackAgeBucket::OlderThanWeek => {
-            crate::app_core::actions::NativePlaybackAgeBucket::OlderThanWeek
-        }
-        PlaybackAgeBucket::OlderThanMonth => {
-            crate::app_core::actions::NativePlaybackAgeBucket::OlderThanMonth
-        }
-        PlaybackAgeBucket::NeverPlayed => {
-            crate::app_core::actions::NativePlaybackAgeBucket::NeverPlayed
-        }
+        PlaybackAgeBucket::Fresh => NativePlaybackAgeBucket::Fresh,
+        PlaybackAgeBucket::OlderThanWeek => NativePlaybackAgeBucket::OlderThanWeek,
+        PlaybackAgeBucket::OlderThanMonth => NativePlaybackAgeBucket::OlderThanMonth,
+        PlaybackAgeBucket::NeverPlayed => NativePlaybackAgeBucket::NeverPlayed,
     }
 }

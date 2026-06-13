@@ -1,6 +1,16 @@
-use super::*;
+use super::{
+    clear_projected_selected_paths_lookup, preload_browser_window_bpms, project_cached_browser_row,
+    refresh_projected_browser_row_cache, refresh_projected_selected_paths_lookup,
+    selected_index_is_selected,
+};
 use crate::app_core::actions::NativeBrowserRowProcessingState as BrowserRowProcessingState;
+use crate::app_core::actions::{
+    NativeBrowserRowModel as BrowserRowModel, NativeRetainedVec as RetainedVec,
+};
+use crate::app_core::controller::AppController;
 use crate::app_core::controller::AutoRenameBatchRowState;
+use crate::app_core::state::{PlaybackAgeBucket, SampleBrowserTab};
+use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -49,12 +59,12 @@ pub(crate) fn project_browser_rows_model_into(
 ) {
     if controller.ui.browser.active_tab == SampleBrowserTab::Map {
         clear_projected_browser_row_cache(controller);
-        super::clear_projected_selected_paths_lookup(controller);
+        clear_projected_selected_paths_lookup(controller);
         rows.clear();
         return;
     }
-    super::refresh_projected_browser_row_cache(controller);
-    super::refresh_projected_selected_paths_lookup(controller);
+    refresh_projected_browser_row_cache(controller);
+    refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) = browser_render_window(
         visible_count,
         selected_visible_row,
@@ -63,7 +73,7 @@ pub(crate) fn project_browser_rows_model_into(
         controller.ui.browser.viewport.render_window_start,
     );
     controller.ui.browser.viewport.render_window_start = window_start;
-    super::preload_browser_window_bpms(controller, window_start, window_len);
+    preload_browser_window_bpms(controller, window_start, window_len);
     let playback_age_now_unix_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -83,11 +93,9 @@ pub(crate) fn project_browser_rows_model_into(
         let Some(absolute_index) = controller.ui.browser.viewport.visible.get(visible_row) else {
             continue;
         };
-        let Some((cached_row, selected)) = super::project_cached_browser_row(
-            controller,
-            absolute_index,
-            playback_age_now_unix_secs,
-        ) else {
+        let Some((cached_row, selected)) =
+            project_cached_browser_row(controller, absolute_index, playback_age_now_unix_secs)
+        else {
             let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
             write_browser_row_into_slot(
                 rows,
@@ -161,13 +169,13 @@ pub(crate) fn patch_browser_rows_state(
     selected_visible_row: Option<usize>,
     rows: &mut [BrowserRowModel],
 ) {
-    super::refresh_projected_selected_paths_lookup(controller);
+    refresh_projected_selected_paths_lookup(controller);
     let processing_states = browser_auto_rename_processing_states(controller);
     for row in rows {
         let absolute_index = controller.ui.browser.viewport.visible.get(row.visible_row);
         row.focused = selected_visible_row.is_some_and(|focused| focused == row.visible_row);
-        row.selected = absolute_index
-            .is_some_and(|index| super::selected_index_is_selected(controller, index));
+        row.selected =
+            absolute_index.is_some_and(|index| selected_index_is_selected(controller, index));
         row.processing_state = absolute_index
             .and_then(|index| controller.browser_projection_entry(index))
             .and_then(|entry| {

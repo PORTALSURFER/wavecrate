@@ -1,6 +1,10 @@
-use super::*;
+use crate::analysis::similarity::SIMILARITY_MODEL_ID;
+use crate::app_core::controller::{AppController, ProjectedMapPointsCacheKey, UmapPointQuery};
+use crate::app_core::state::{MapBounds, MapPoint, MapQueryBounds};
+use crate::app_core::ui::MAX_RENDERED_MAP_POINTS;
 use crate::sample_sources::SourceId;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 /// Resolve map bounds from cache or the backing query layer.
 pub(super) fn resolve_map_bounds(

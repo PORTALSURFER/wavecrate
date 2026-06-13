@@ -1,6 +1,8 @@
 //! Status-bar and selected-column projection helpers.
 
-use super::*;
+use crate::app_core::actions::NativeStatusBarModel as StatusBarModel;
+use crate::app_core::controller::AppController;
+use crate::app_core::state::{TriageFlagColumn, UiState};
 
 /// Project status-bar text segments for the UI projection footer.
 pub(crate) fn project_status_model(

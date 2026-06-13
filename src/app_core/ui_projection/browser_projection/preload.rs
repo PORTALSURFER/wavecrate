@@ -1,4 +1,5 @@
-use super::*;
+use crate::app_core::controller::{AppController, ProjectedBrowserPreloadWindow};
+use crate::sample_sources::SourceId;
 
 /// Preload BPM metadata for the current visible browser window in one batch query.
 pub(super) fn preload_browser_window_bpms(
@@ -42,7 +43,7 @@ pub(super) fn preload_browser_window_bpms(
 #[cfg(test)]
 pub(crate) fn browser_bpm_preload_ranges(
     previous: Option<&ProjectedBrowserPreloadWindow>,
-    source_id: Option<&crate::sample_sources::SourceId>,
+    source_id: Option<&SourceId>,
     visible_rows_revision: u64,
     window_start: usize,
     window_len: usize,
@@ -59,7 +60,7 @@ pub(crate) fn browser_bpm_preload_ranges(
 #[cfg(not(test))]
 fn browser_bpm_preload_ranges(
     previous: Option<&ProjectedBrowserPreloadWindow>,
-    source_id: Option<&crate::sample_sources::SourceId>,
+    source_id: Option<&SourceId>,
     visible_rows_revision: u64,
     window_start: usize,
     window_len: usize,
@@ -75,7 +76,7 @@ fn browser_bpm_preload_ranges(
 
 fn browser_bpm_preload_ranges_impl(
     previous: Option<&ProjectedBrowserPreloadWindow>,
-    source_id: Option<&crate::sample_sources::SourceId>,
+    source_id: Option<&SourceId>,
     visible_rows_revision: u64,
     window_start: usize,
     window_len: usize,

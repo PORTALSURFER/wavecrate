@@ -1,4 +1,4 @@
-use super::*;
+use crate::app_core::controller::AppController;
 
 /// Scalar inputs needed to project the retained browser row window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

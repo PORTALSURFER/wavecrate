@@ -1,4 +1,5 @@
-use super::*;
+use crate::app_core::actions::NativeBrowserChromeModel as BrowserChromeModel;
+use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab, UiState};
 
 /// Project browser toolbar/tab/footer labels.
 pub(crate) fn project_browser_chrome_model(

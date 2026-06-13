@@ -1,5 +1,6 @@
 use super::units::normalized64_to_nanos;
-use super::*;
+use crate::app_core::actions::NativeNormalizedRangeModel as NormalizedRangeModel;
+use crate::app_core::state::UiState;
 use crate::app_core::state::WaveformSliceBatchProfile;
 
 /// Project edit-selection bounds into normalized milli-space.

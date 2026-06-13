@@ -1,6 +1,6 @@
 //! Audio-engine and options-panel projection helpers for the UI projection.
 
-use super::*;
+use crate::app_core::state::UiState;
 use std::path::Path;
 
 #[path = "options_panel_projection/audio_engine.rs"]

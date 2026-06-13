@@ -1,6 +1,8 @@
 //! Map-panel projection and retained map-point cache helpers.
 
-use super::*;
+use crate::app_core::actions::NativeMapPanelModel as MapPanelModel;
+use crate::app_core::controller::AppController;
+use crate::app_core::state::SampleBrowserTab;
 
 mod cache;
 mod labels;

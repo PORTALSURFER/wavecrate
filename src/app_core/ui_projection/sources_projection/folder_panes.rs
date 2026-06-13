@@ -1,5 +1,11 @@
 use super::tree_rows::{project_tree_rows, projected_focused_tree_row};
-use super::*;
+use super::{FolderBrowserUiState, FolderPaneId};
+use crate::app_core::actions::{
+    NativeFolderActionsModel as FolderActionsModel, NativeFolderPaneIdModel as FolderPaneIdModel,
+    NativeFolderPaneModel as FolderPaneModel, NativeFolderRecoveryModel as FolderRecoveryModel,
+};
+use crate::app_core::controller::AppController;
+use crate::app_core::state::UiState;
 
 pub(super) fn project_folder_pane(
     controller: &AppController,

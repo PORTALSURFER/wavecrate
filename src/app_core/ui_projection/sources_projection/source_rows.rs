@@ -1,4 +1,9 @@
-use super::*;
+use super::FolderPaneId;
+use crate::app_core::actions::{
+    NativeRetainedVec as RetainedVec, NativeSourceRowModel as SourceRowModel,
+};
+use crate::app_core::controller::AppController;
+use crate::app_core::state::UiState;
 
 pub(super) fn project_source_rows(ui: &UiState) -> RetainedVec<SourceRowModel> {
     ui.sources

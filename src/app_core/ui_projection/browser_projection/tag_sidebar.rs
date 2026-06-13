@@ -1,4 +1,10 @@
-use super::*;
+use crate::app_core::actions::{
+    NativeBrowserTagPillModel as BrowserTagPillModel,
+    NativeBrowserTagSidebarModel as BrowserTagSidebarModel,
+    NativeBrowserTagState as BrowserTagState,
+};
+use crate::app_core::controller::AppController;
+use crate::app_core::view_model;
 use crate::sample_sources::WavEntry;
 
 /// Project the browser tag sidebar from current target selection and metadata.

@@ -1,7 +1,12 @@
+use super::FolderBrowserUiState;
 use super::inline_edit::{
     inline_folder_create_draft_row, inline_folder_draft_location, inline_folder_rename_draft_row,
 };
-use super::*;
+use crate::app_core::actions::{
+    NativeFolderRowModel as FolderRowModel, NativeRetainedVec as RetainedVec,
+    native_folder_row_model as folder_row_model,
+};
+use crate::app_core::state::InlineFolderEditKind;
 
 pub(super) fn project_tree_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRowModel> {
     let mut projected: Vec<FolderRowModel> = folder_ui

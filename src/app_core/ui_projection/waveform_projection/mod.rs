@@ -1,7 +1,5 @@
 //! Waveform panel and waveform chrome projection helpers.
 
-use super::*;
-
 mod channel_view;
 mod chrome;
 mod fade_overlay;

@@ -3,7 +3,10 @@
 use super::folder_name_validation::{
     folder_create_validation_error, folder_rename_validation_error,
 };
-use super::*;
+use super::{FolderBrowserUiState, Path};
+use crate::app_core::actions::{
+    NativeFolderRowKind as FolderRowKind, NativeFolderRowModel as FolderRowModel,
+};
 use crate::app_core::state::InlineFolderEdit;
 
 pub(super) fn inline_folder_draft_location(

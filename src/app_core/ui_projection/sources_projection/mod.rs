@@ -1,6 +1,5 @@
 //! Source/folder sidebar projection helpers.
 
-use super::*;
 use crate::app_core::state::{FolderBrowserUiState, FolderPaneId};
 use std::path::{Path, PathBuf};
 

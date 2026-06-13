@@ -1,4 +1,4 @@
-use super::*;
+use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 
 /// Number of rows kept between the focused row and the window edge before scrolling.
 ///

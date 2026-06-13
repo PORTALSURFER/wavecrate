@@ -1,6 +1,6 @@
 //! Browser panel projection, row-window virtualization, and retained row-cache helpers.
 
-use super::*;
+use crate::app_core::controller::AppController;
 
 /// Retained selection/row cache helpers for browser projection.
 mod cache;

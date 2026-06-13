@@ -1,6 +1,9 @@
 //! Update-panel projection helpers.
 
-use super::*;
+use crate::app_core::actions::{
+    NativeUpdatePanelModel as UpdatePanelModel, NativeUpdateStatusModel as UpdateStatusModel,
+};
+use crate::app_core::state::{UiState, UpdateStatus};
 
 /// Project update panel state into the UI projection model.
 pub(crate) fn project_update_model(ui: &UiState) -> UpdatePanelModel {

@@ -1,5 +1,5 @@
 use super::units::{normalized_to_micros, normalized_to_milli};
-use super::*;
+use crate::app_core::state::UiState;
 
 /// Projected edit-fade overlay endpoints and curve values for the waveform panel.
 pub(in crate::app_core::ui_projection) struct WaveformEditFadeOverlayModel {

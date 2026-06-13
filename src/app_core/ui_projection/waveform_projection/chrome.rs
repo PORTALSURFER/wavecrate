@@ -1,5 +1,6 @@
 use super::channel_view::project_waveform_channel_view_model;
-use super::*;
+use crate::app_core::actions::NativeWaveformChromeModel as WaveformChromeModel;
+use crate::app_core::state::UiState;
 use crate::app_core::state::WaveformSliceBatchProfile;
 
 /// Project waveform chrome labels and action-hint copy.

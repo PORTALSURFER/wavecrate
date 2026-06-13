@@ -1,5 +1,4 @@
-use super::*;
-use crate::app_core::state::browser_playback_age_filter_chips;
+use crate::app_core::state::{PlaybackAgeFilterChip, browser_playback_age_filter_chips};
 
 /// Project active browser rating-filter levels into a fixed chip-state array.
 pub(super) fn browser_rating_filter_flags(

@@ -5,7 +5,13 @@ use super::units::{
     normalized_to_micros, normalized_to_milli, normalized64_to_micros, normalized64_to_milli,
     normalized64_to_nanos,
 };
-use super::*;
+use crate::app_core::actions::{
+    NativeNormalizedRangeModel as NormalizedRangeModel,
+    NativeWaveformPanelModel as WaveformPanelModel,
+};
+use crate::app_core::controller::AppController;
+use crate::app_core::state::UiState;
+use crate::app_core::view_model;
 
 /// Project waveform panel state, selection handles, and cached raster payloads.
 ///

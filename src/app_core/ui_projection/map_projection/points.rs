@@ -1,6 +1,10 @@
 use super::super::waveform_projection::normalized_to_milli;
-use super::*;
+use crate::app_core::controller::{
+    AppController, ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey,
+};
+use crate::app_core::state::{MapBounds, MapPoint};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// Refresh retained normalized map-point cache only when projection key changes.
 pub(super) fn refresh_projected_map_points_cache(

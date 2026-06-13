@@ -5,7 +5,30 @@
 //! materialization, and overlay/chrome assembly together so the root
 //! `ui_projection` facade can stay small.
 
-use super::*;
+use super::{
+    PROJECT_APP_MODEL_CALLS, project_audio_engine_model, project_browser_actions_model,
+    project_browser_chrome_model, project_browser_model, project_confirm_prompt_model,
+    project_drag_overlay_model, project_focus_context_model, project_map_model,
+    project_options_panel_model, project_progress_overlay_model, project_sources_model,
+    project_status_model, project_update_model, project_waveform_chrome_model,
+    project_waveform_model, selected_column_index,
+};
+use crate::app_core::actions::{
+    NativeAppModel as AppModel, NativeAudioEngineModel as AudioEngineModel,
+    NativeBrowserActionsModel as BrowserActionsModel,
+    NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
+    NativeColumnModel as ColumnModel, NativeConfirmPromptModel as ConfirmPromptModel,
+    NativeDragOverlayModel as DragOverlayModel, NativeFocusContextModel as FocusContextModel,
+    NativeMapPanelModel as MapPanelModel, NativeOptionsPanelModel as OptionsPanelModel,
+    NativeProgressOverlayModel as ProgressOverlayModel,
+    NativeSourcesPanelModel as SourcesPanelModel, NativeStatusBarModel as StatusBarModel,
+    NativeUpdatePanelModel as UpdatePanelModel, NativeWaveformChromeModel as WaveformChromeModel,
+    NativeWaveformPanelModel as WaveformPanelModel,
+};
+use crate::app_core::controller::AppController;
+use crate::app_core::state::UiState;
+use std::sync::atomic::Ordering;
+use tracing::info;
 
 /// Immutable projection inputs derived once per app-model projection.
 pub(crate) struct ProjectAppModelDerivedInputs {

@@ -1,7 +1,12 @@
 use super::filters::{browser_playback_age_filter_flags, browser_rating_filter_flags};
 use super::rows::project_browser_rows_projection_inputs;
 use super::tag_sidebar::project_browser_tag_sidebar_model;
-use super::*;
+use crate::app_core::actions::{
+    NativeBrowserPanelModel as BrowserPanelModel, NativeRetainedVec as RetainedVec,
+};
+use crate::app_core::controller::AppController;
+use crate::app_core::state::{SampleBrowserSort, TagNamedFilter};
+use crate::app_core::view_model;
 
 /// Project browser panel frame metadata without materializing row contents.
 ///

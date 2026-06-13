@@ -1,8 +1,12 @@
+use super::FolderPaneId;
 use super::folder_panes::{project_folder_pane, project_folder_pane_id};
 use super::source_rows::{
     project_loading_source_row, project_mutation_busy_source_row, project_source_rows,
 };
-use super::*;
+use crate::app_core::actions::{
+    NativeFolderPaneIdModel as FolderPaneIdModel, NativeSourcesPanelModel as SourcesPanelModel,
+};
+use crate::app_core::controller::AppController;
 
 /// Project source/folder panel data for the native sidebar.
 pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelModel {
