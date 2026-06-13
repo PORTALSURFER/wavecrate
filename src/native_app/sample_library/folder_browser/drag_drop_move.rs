@@ -4,22 +4,17 @@ use std::{
 };
 
 use super::{
-    FileMoveConflictBatch, FolderBrowserState, FolderDropResult,
-    file_move_conflicts::file_move_status,
-    file_move_execution::{
-        execute_extracted_file_move, execute_folder_move, execute_ready_file_moves,
-    },
-    file_move_transaction::file_move_plan_to_folder,
-    path_helpers::path_id,
-    selection_state::BrowserSelectionSnapshot,
+    FileMoveConflictBatch, FolderBrowserState, FolderDropResult, FolderMoveDropInput,
+    FolderMoveRequest, FolderMoveSuccess, file_move_conflicts::file_move_status,
+    path_helpers::path_id, selection_state::BrowserSelectionSnapshot,
 };
 
 impl FolderBrowserState {
-    pub(super) fn move_folder_to_folder(
+    pub(super) fn prepare_move_folder_to_folder(
         &mut self,
         folder_id: &str,
         target_folder_id: &str,
-    ) -> Result<FolderDropResult, String> {
+    ) -> Result<FolderMoveDropInput, String> {
         if self.rename_active() {
             return Err(String::from("Finish rename before moving a folder"));
         }
@@ -48,37 +43,23 @@ impl FolderBrowserState {
         };
         let new_path = target_path.join(folder_name);
         if old_path == new_path {
-            return Ok(FolderDropResult {
+            return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),
                 status: Some(String::from("Folder move unchanged")),
-            });
+            }));
         }
-        if new_path.exists() {
-            return Err(format!(
-                "Folder move failed: {} already exists",
-                folder_name.to_string_lossy()
-            ));
-        }
-        execute_folder_move(&old_path, &new_path, || {
-            self.relocate_moved_folder(&old_path, &new_path, &target_path)
-        })?;
-        Ok(FolderDropResult {
-            moved_paths: vec![(old_path, new_path.clone())],
-            status: Some(format!(
-                "Moved folder {}",
-                new_path
-                    .file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_else(|| new_path.display().to_string())
-            )),
-        })
+        Ok(FolderMoveDropInput::Request(FolderMoveRequest::Folder {
+            old_path,
+            new_path,
+            target_folder: target_path,
+        }))
     }
 
-    pub(super) fn move_files_to_folder(
+    pub(super) fn prepare_move_files_to_folder(
         &mut self,
         file_ids: &[String],
         target_folder_id: &str,
-    ) -> Result<FolderDropResult, String> {
+    ) -> Result<FolderMoveDropInput, String> {
         if self.rename_active() {
             return Err(String::from("Finish rename before moving files"));
         }
@@ -87,40 +68,30 @@ impl FolderBrowserState {
             .cloned()
             .ok_or_else(|| String::from("File move failed: target folder is missing"))?;
         let target_path = PathBuf::from(&target_folder.id);
-        if !target_path.is_dir() {
-            return Err(String::from("File move failed: target folder is missing"));
-        }
-        let plan = file_move_plan_to_folder(file_ids, &target_path)?;
-        if plan.ready.is_empty() && plan.conflicts.is_empty() {
-            return Ok(FolderDropResult {
+        let moving_file_ids = self
+            .source_file_ids_for_move(file_ids, &target_path)
+            .collect::<Vec<_>>();
+        if moving_file_ids.is_empty() {
+            return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),
                 status: Some(String::from("File move unchanged")),
-            });
+            }));
         }
-        let completed = if plan.ready.is_empty() {
-            Vec::new()
-        } else {
-            let previous_selection = self.selection.snapshot();
-            let completed = execute_ready_file_moves(&plan.ready, |completed| {
-                self.relocate_moved_files(completed, &target_path)
-            })?;
-            self.restore_source_selection_after_file_drop(previous_selection, &completed);
-            completed
-        };
-        if !plan.conflicts.is_empty() {
-            self.drag_drop.pending_file_move_conflicts = Some(FileMoveConflictBatch {
-                target_folder: target_path,
-                conflicts: plan.conflicts,
-                current_index: 0,
-                resolved_count: 0,
-                skipped_count: 0,
-                batch_policy: None,
-            });
-        }
-        let status = file_move_status(completed.len(), self.pending_file_move_conflict_count());
-        Ok(FolderDropResult {
-            moved_paths: completed.clone(),
-            status: Some(status),
+        Ok(FolderMoveDropInput::Request(FolderMoveRequest::Files {
+            file_ids: moving_file_ids,
+            target_folder: target_path,
+        }))
+    }
+
+    fn source_file_ids_for_move<'a>(
+        &'a self,
+        file_ids: &'a [String],
+        target_path: &'a Path,
+    ) -> impl Iterator<Item = String> + 'a {
+        file_ids.iter().filter_map(move |file_id| {
+            let path = Path::new(file_id);
+            (self.source_contains_audio_file(file_id) && path.parent() != Some(target_path))
+                .then(|| file_id.clone())
         })
     }
 
@@ -150,49 +121,121 @@ impl FolderBrowserState {
         self.reset_file_view();
     }
 
-    pub(super) fn move_extracted_file_to_folder(
+    pub(super) fn prepare_move_extracted_file_to_folder(
         &mut self,
         path: &Path,
         target_folder_id: &str,
-    ) -> Result<FolderDropResult, String> {
+    ) -> Result<FolderMoveDropInput, String> {
         if self.rename_active() {
             return Err(String::from("Finish rename before moving files"));
-        }
-        if !path.is_file() {
-            return Err(format!(
-                "Extraction move failed: {} is missing",
-                path.file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path.display().to_string())
-            ));
         }
         let target_folder = self
             .find_folder(target_folder_id)
             .cloned()
             .ok_or_else(|| String::from("Extraction move failed: target folder is missing"))?;
         let target_path = PathBuf::from(&target_folder.id);
-        if !target_path.is_dir() {
-            return Err(String::from(
-                "Extraction move failed: target folder is missing",
-            ));
-        }
         if path.parent() == Some(target_path.as_path()) {
-            return Ok(FolderDropResult {
+            return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),
                 status: Some(String::from("Extraction kept in current folder")),
+            }));
+        }
+        Ok(FolderMoveDropInput::Request(
+            FolderMoveRequest::ExtractedFile {
+                path: path.to_path_buf(),
+                target_folder: target_path,
+            },
+        ))
+    }
+
+    pub(in crate::native_app) fn apply_folder_move_completion(
+        &mut self,
+        request: &FolderMoveRequest,
+        success: FolderMoveSuccess,
+    ) -> Result<FolderDropResult, String> {
+        let result = match request {
+            FolderMoveRequest::Folder {
+                old_path,
+                new_path,
+                target_folder,
+            } => self.apply_folder_move(old_path, new_path, target_folder, success)?,
+            FolderMoveRequest::Files { target_folder, .. } => {
+                self.apply_file_move(target_folder, success)?
+            }
+            FolderMoveRequest::ExtractedFile { target_folder, .. } => {
+                self.apply_extracted_file_move(target_folder, success)?
+            }
+        };
+        Ok(result)
+    }
+
+    fn apply_folder_move(
+        &mut self,
+        old_path: &Path,
+        new_path: &Path,
+        target_folder: &Path,
+        success: FolderMoveSuccess,
+    ) -> Result<FolderDropResult, String> {
+        self.relocate_moved_folder(old_path, new_path, target_folder)?;
+        Ok(FolderDropResult {
+            moved_paths: success.moved_paths,
+            status: Some(format!(
+                "Moved folder {}",
+                new_path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| new_path.display().to_string())
+            )),
+        })
+    }
+
+    fn apply_file_move(
+        &mut self,
+        target_folder: &Path,
+        success: FolderMoveSuccess,
+    ) -> Result<FolderDropResult, String> {
+        let previous_selection = self.selection.snapshot();
+        if !success.moved_paths.is_empty() {
+            self.relocate_moved_files(&success.moved_paths, target_folder)?;
+            self.restore_source_selection_after_file_drop(previous_selection, &success.moved_paths);
+        }
+        if !success.conflicts.is_empty() {
+            self.drag_drop.pending_file_move_conflicts = Some(FileMoveConflictBatch {
+                target_folder: target_folder.to_path_buf(),
+                conflicts: success.conflicts,
+                current_index: 0,
+                resolved_count: 0,
+                skipped_count: 0,
+                batch_policy: None,
             });
         }
+        let status = file_move_status(
+            success.moved_paths.len(),
+            self.pending_file_move_conflict_count(),
+        );
+        Ok(FolderDropResult {
+            moved_paths: success.moved_paths,
+            status: Some(status),
+        })
+    }
+
+    fn apply_extracted_file_move(
+        &mut self,
+        target_folder: &Path,
+        success: FolderMoveSuccess,
+    ) -> Result<FolderDropResult, String> {
         let previous_selection = self.selection.snapshot();
         let previous_file_view_controller = self.sample_list.view_controller.clone();
-        let completed_move = execute_extracted_file_move(path, &target_path, |completed| {
-            self.relocate_moved_files(completed, &target_path)
-        })?;
-        let new_path = completed_move.1.clone();
-        let completed = vec![completed_move];
+        self.relocate_moved_files(&success.moved_paths, target_folder)?;
         self.selection.restore_snapshot(previous_selection);
         self.sample_list.view_controller = previous_file_view_controller;
+        let new_path = success
+            .moved_paths
+            .first()
+            .map(|(_, new_path)| new_path.clone())
+            .unwrap_or_else(|| target_folder.to_path_buf());
         Ok(FolderDropResult {
-            moved_paths: completed,
+            moved_paths: success.moved_paths,
             status: Some(format!(
                 "Extracted {}",
                 new_path

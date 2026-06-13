@@ -2,7 +2,10 @@ use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
-use crate::native_app::sample_library::folder_browser::commands::RenamePathRemap;
+use crate::native_app::sample_library::folder_browser::commands::{
+    RenameCommitCompletion, RenameCommitResult, RenameInputResult, RenamePathRemap,
+    execute_rename_commit_request,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn begin_folder_browser_rename(
@@ -118,14 +121,12 @@ impl NativeAppState {
     pub(in crate::native_app) fn apply_folder_browser_rename_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let input_action = rename_input_action(&message);
         if let Some(result) = self.library.folder_browser.apply_rename_input(message) {
-            if let Some(remap) = result.path_remap {
-                self.apply_browser_rename_path_remap(&remap);
-            }
-            self.ui.status.sample = result.status;
+            self.apply_folder_browser_rename_result(result, context);
         }
         if let Some(action) = input_action {
             emit_gui_action(
@@ -137,6 +138,44 @@ impl NativeAppState {
                 None,
             );
         }
+    }
+
+    pub(in crate::native_app) fn finish_folder_browser_rename(
+        &mut self,
+        completion: RenameCommitCompletion,
+    ) {
+        let result = self
+            .library
+            .folder_browser
+            .apply_rename_commit_completion(completion);
+        self.apply_folder_browser_rename_status(result);
+    }
+
+    fn apply_folder_browser_rename_result(
+        &mut self,
+        result: RenameInputResult,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        match result {
+            RenameInputResult::Status(result) => self.apply_folder_browser_rename_status(result),
+            RenameInputResult::Commit(request) => {
+                self.ui.status.sample = String::from("Applying rename");
+                context
+                    .business()
+                    .background("gui-folder-browser-rename")
+                    .run(
+                        move |_| execute_rename_commit_request(request),
+                        GuiMessage::FolderBrowserRenameFinished,
+                    );
+            }
+        }
+    }
+
+    fn apply_folder_browser_rename_status(&mut self, result: RenameCommitResult) {
+        if let Some(remap) = result.path_remap {
+            self.apply_browser_rename_path_remap(&remap);
+        }
+        self.ui.status.sample = result.status;
     }
 
     fn apply_browser_rename_path_remap(&mut self, remap: &RenamePathRemap) {

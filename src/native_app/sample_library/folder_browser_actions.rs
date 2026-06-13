@@ -32,7 +32,7 @@ impl NativeAppState {
                 self.begin_folder_browser_subfolder_creation(context);
             }
             FolderBrowserMessage::RenameInput(message) => {
-                self.apply_folder_browser_rename_input(message);
+                self.apply_folder_browser_rename_input(message, context);
             }
             FolderBrowserMessage::TagFilterInput(message) => {
                 self.apply_folder_browser_tag_filter_input(message);

@@ -5,6 +5,10 @@ use radiant::prelude as ui;
 use crate::native_app::app::{
     FileMoveConflictResolutionRequest, GuiMessage, NativeAppState, emit_gui_action,
 };
+use crate::native_app::sample_library::folder_browser::commands::{
+    FileMoveConflictCompletion, FolderDropResult, FolderMoveCompletion, FolderMoveDropInput,
+    execute_file_move_conflict_request, execute_folder_move_request,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn drop_browser_drag_on_folder(
@@ -16,6 +20,108 @@ impl NativeAppState {
         context.end_drag_session();
         self.clear_pending_internal_file_drag_paths();
         match self.library.folder_browser.drop_drag_on_folder(&folder_id) {
+            Ok(FolderMoveDropInput::Status(result)) => {
+                self.finish_folder_move_result(started_at, Ok(result));
+            }
+            Ok(FolderMoveDropInput::Request(request)) => {
+                context
+                    .business()
+                    .background("gui-folder-browser-move")
+                    .run(
+                        move |_| execute_folder_move_request(request),
+                        move |completion: FolderMoveCompletion| GuiMessage::FolderMoveFinished {
+                            started_at,
+                            completion,
+                        },
+                    );
+            }
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                self.library.folder_browser.clear_drag();
+                emit_gui_action(
+                    "browser.drag_drop.move",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn resolve_file_move_conflict(
+        &mut self,
+        request: FileMoveConflictResolutionRequest,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        self.ui
+            .browser_interaction
+            .file_move_conflict_apply_to_remaining = false;
+        let Some(batch) = self.library.folder_browser.take_file_move_conflict_batch() else {
+            self.finish_file_move_conflict_result(started_at, Ok(Default::default()));
+            return;
+        };
+        if batch.current_index >= batch.conflicts.len() {
+            self.finish_file_move_conflict_result(
+                started_at,
+                Ok(FolderDropResult {
+                    moved_paths: Vec::new(),
+                    status: Some(String::from("No file move conflicts pending")),
+                }),
+            );
+            return;
+        }
+        context.business().background("gui-file-move-conflict").run(
+            move |_| execute_file_move_conflict_request(batch, request),
+            move |completion: FileMoveConflictCompletion| GuiMessage::FileMoveConflictFinished {
+                started_at,
+                completion,
+            },
+        );
+    }
+
+    pub(in crate::native_app) fn cancel_file_move_conflicts(&mut self) {
+        self.ui
+            .browser_interaction
+            .file_move_conflict_apply_to_remaining = false;
+        if let Some(status) = self.library.folder_browser.cancel_file_move_conflicts() {
+            self.ui.status.sample = status;
+        }
+    }
+
+    pub(in crate::native_app) fn apply_moved_sample_paths(
+        &mut self,
+        moved_paths: &[(PathBuf, PathBuf)],
+    ) {
+        for (old_path, new_path) in moved_paths {
+            self.waveform
+                .current
+                .rewrite_path_prefix(old_path, new_path);
+            self.remap_renamed_waveform_cache_path(old_path, new_path);
+        }
+    }
+
+    pub(in crate::native_app) fn finish_folder_move(
+        &mut self,
+        started_at: Instant,
+        completion: FolderMoveCompletion,
+    ) {
+        let result = completion.result.and_then(|success| {
+            self.library
+                .folder_browser
+                .apply_folder_move_completion(&completion.request, success)
+        });
+        self.finish_folder_move_result(started_at, result);
+    }
+
+    fn finish_folder_move_result(
+        &mut self,
+        started_at: Instant,
+        result: Result<FolderDropResult, String>,
+    ) {
+        match result {
             Ok(result) => {
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
@@ -36,7 +142,6 @@ impl NativeAppState {
             }
             Err(error) => {
                 self.ui.status.sample = error.clone();
-                self.library.folder_browser.clear_drag();
                 emit_gui_action(
                     "browser.drag_drop.move",
                     Some("browser"),
@@ -49,19 +154,24 @@ impl NativeAppState {
         }
     }
 
-    pub(in crate::native_app) fn resolve_file_move_conflict(
+    pub(in crate::native_app) fn finish_file_move_conflict(
         &mut self,
-        request: FileMoveConflictResolutionRequest,
+        started_at: Instant,
+        completion: FileMoveConflictCompletion,
     ) {
-        let started_at = Instant::now();
-        self.ui
-            .browser_interaction
-            .file_move_conflict_apply_to_remaining = false;
-        match self
+        let result = self
             .library
             .folder_browser
-            .resolve_next_file_move_conflict(request)
-        {
+            .apply_file_move_conflict_completion(completion);
+        self.finish_file_move_conflict_result(started_at, result);
+    }
+
+    fn finish_file_move_conflict_result(
+        &mut self,
+        started_at: Instant,
+        result: Result<FolderDropResult, String>,
+    ) {
+        match result {
             Ok(result) => {
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
@@ -91,27 +201,6 @@ impl NativeAppState {
                     Some(&error),
                 );
             }
-        }
-    }
-
-    pub(in crate::native_app) fn cancel_file_move_conflicts(&mut self) {
-        self.ui
-            .browser_interaction
-            .file_move_conflict_apply_to_remaining = false;
-        if let Some(status) = self.library.folder_browser.cancel_file_move_conflicts() {
-            self.ui.status.sample = status;
-        }
-    }
-
-    pub(in crate::native_app) fn apply_moved_sample_paths(
-        &mut self,
-        moved_paths: &[(PathBuf, PathBuf)],
-    ) {
-        for (old_path, new_path) in moved_paths {
-            self.waveform
-                .current
-                .rewrite_path_prefix(old_path, new_path);
-            self.remap_renamed_waveform_cache_path(old_path, new_path);
         }
     }
 }

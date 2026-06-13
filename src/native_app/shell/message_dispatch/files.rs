@@ -18,14 +18,31 @@ impl NativeAppState {
                 self.remove_context_sample_from_collection(context)
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
-            GuiMessage::CopySelectedFiles => self.copy_selected_files(),
+            GuiMessage::CopySelectedFiles => self.copy_selected_files(context),
+            GuiMessage::SelectedFilesCopyFinished {
+                count,
+                started_at,
+                result,
+            } => self.finish_copy_selected_files(count, started_at, result),
             GuiMessage::SetFileMoveConflictApplyToRemaining(apply_to_remaining) => {
                 self.ui
                     .browser_interaction
                     .file_move_conflict_apply_to_remaining = apply_to_remaining;
             }
             GuiMessage::ResolveFileMoveConflict(request) => {
-                self.resolve_file_move_conflict(request);
+                self.resolve_file_move_conflict(request, context);
+            }
+            GuiMessage::FolderMoveFinished {
+                started_at,
+                completion,
+            } => {
+                self.finish_folder_move(started_at, completion);
+            }
+            GuiMessage::FileMoveConflictFinished {
+                started_at,
+                completion,
+            } => {
+                self.finish_file_move_conflict(started_at, completion);
             }
             GuiMessage::CancelFileMoveConflicts => self.cancel_file_move_conflicts(),
             GuiMessage::CopyContextPath => self.copy_context_path(context),
@@ -36,7 +53,13 @@ impl NativeAppState {
                 self.finish_context_path_copy(kind, path, result);
             }
             GuiMessage::OpenContextTarget => self.open_context_target(context),
-            GuiMessage::MoveContextTargetToTrash => self.move_context_target_to_trash(),
+            GuiMessage::MoveContextTargetToTrash => self.move_context_target_to_trash(context),
+            GuiMessage::TrashMoveFinished {
+                target,
+                action,
+                started_at,
+                result,
+            } => self.finish_trash_move(target, action, started_at, result),
             GuiMessage::ContextTargetOpenFinished { kind, path, result } => {
                 self.finish_context_target_open(kind, path, result);
             }
@@ -45,6 +68,11 @@ impl NativeAppState {
             GuiMessage::CloseContextMenu => {
                 self.ui.browser_interaction.context_menu = None;
             }
+            GuiMessage::ExternalWaveformFileDropFinished {
+                source,
+                started_at,
+                result,
+            } => self.finish_external_waveform_file_drop(source, started_at, result, context),
             GuiMessage::WaveformFileDrop(drop) => self.apply_native_file_drop(drop, context),
             _ => unreachable!("file dispatcher received a non-file message"),
         }

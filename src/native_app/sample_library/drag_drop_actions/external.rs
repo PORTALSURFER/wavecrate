@@ -6,7 +6,10 @@ use wavecrate::external_clipboard;
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
 impl NativeAppState {
-    pub(in crate::native_app) fn copy_selected_files(&mut self) {
+    pub(in crate::native_app) fn copy_selected_files(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         let paths = self.library.folder_browser.selected_file_paths();
         if paths.is_empty() {
@@ -22,9 +25,35 @@ impl NativeAppState {
             return;
         }
 
-        match external_clipboard::copy_file_paths(&paths) {
+        let count = paths.len();
+        self.ui.status.sample = match count {
+            1 => String::from("Copying selected file"),
+            count => format!("Copying {count} selected files"),
+        };
+        context
+            .business()
+            .background("gui-copy-selected-files")
+            .run(
+                move |_| {
+                    external_clipboard::copy_file_paths(&paths).map_err(|error| error.to_string())
+                },
+                move |result| GuiMessage::SelectedFilesCopyFinished {
+                    count,
+                    started_at,
+                    result,
+                },
+            );
+    }
+
+    pub(in crate::native_app) fn finish_copy_selected_files(
+        &mut self,
+        count: usize,
+        started_at: Instant,
+        result: Result<(), String>,
+    ) {
+        match result {
             Ok(()) => {
-                self.ui.status.sample = match paths.len() {
+                self.ui.status.sample = match count {
                     1 => String::from("Copied selected file"),
                     count => format!("Copied {count} selected files"),
                 };

@@ -25,8 +25,21 @@ impl NativeAppState {
             GuiMessage::FocusRenameInput(input_id) => {
                 self.focus_rename_input(input_id, context);
             }
-            GuiMessage::DeleteSelectedItem => self.delete_selected_item(),
-            GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
+            GuiMessage::FolderBrowserRenameFinished(completion) => {
+                self.finish_folder_browser_rename(completion);
+            }
+            GuiMessage::DeleteSelectedItem => self.delete_selected_item(context),
+            GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(context),
+            GuiMessage::PlaySelectionExtractionFinished {
+                completion,
+                drag_position,
+                started_at,
+            } => self.finish_play_selection_extraction(
+                completion,
+                drag_position,
+                started_at,
+                context,
+            ),
             _ => unreachable!("chrome dispatcher received a non-chrome message"),
         }
     }

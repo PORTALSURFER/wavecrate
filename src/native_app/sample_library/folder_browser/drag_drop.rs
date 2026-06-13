@@ -2,7 +2,7 @@ use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
 use std::path::{Path, PathBuf};
 
 use super::path_helpers::file_label;
-use super::{FolderBrowserDrag, FolderBrowserState, FolderDragPreview, FolderDropResult};
+use super::{FolderBrowserDrag, FolderBrowserState, FolderDragPreview, FolderMoveDropInput};
 use wavecrate::sample_sources::SampleCollection;
 
 #[derive(Clone, Debug)]
@@ -186,27 +186,27 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn drop_drag_on_folder(
         &mut self,
         target_folder_id: &str,
-    ) -> Result<FolderDropResult, String> {
+    ) -> Result<FolderMoveDropInput, String> {
         let Some(drag) = self.drag_drop.drag.clone() else {
-            return Ok(FolderDropResult::default());
+            return Ok(FolderMoveDropInput::Status(Default::default()));
         };
         if !self.can_drop_drag_on_folder(target_folder_id) {
             self.clear_drag();
-            return Ok(FolderDropResult {
+            return Ok(FolderMoveDropInput::Status(super::FolderDropResult {
                 moved_paths: Vec::new(),
                 status: Some(String::from("Drop target unchanged")),
-            });
+            }));
         }
         self.drag_drop.drop_target.close();
         let result = match drag {
             FolderBrowserDrag::Folder { folder_id } => {
-                self.move_folder_to_folder(&folder_id, target_folder_id)?
+                self.prepare_move_folder_to_folder(&folder_id, target_folder_id)?
             }
             FolderBrowserDrag::Files { file_ids } => {
-                self.move_files_to_folder(&file_ids, target_folder_id)?
+                self.prepare_move_files_to_folder(&file_ids, target_folder_id)?
             }
             FolderBrowserDrag::ExtractedFile { path } => {
-                self.move_extracted_file_to_folder(&path, target_folder_id)?
+                self.prepare_move_extracted_file_to_folder(&path, target_folder_id)?
             }
         };
         self.clear_drag();
@@ -288,14 +288,12 @@ impl FolderBrowserState {
                 let path = Path::new(id);
                 self.source_contains_audio_file(id) && path.parent() != Some(target_path)
             }),
-            Some(FolderBrowserDrag::ExtractedFile { path }) => {
-                path.is_file() && path.parent() != Some(target_path)
-            }
+            Some(FolderBrowserDrag::ExtractedFile { path }) => path.parent() != Some(target_path),
             None => false,
         }
     }
 
-    fn source_contains_audio_file(&self, file_id: &str) -> bool {
+    pub(super) fn source_contains_audio_file(&self, file_id: &str) -> bool {
         self.selected_source_root_folder()
             .is_some_and(|folder| folder_contains_audio_file(folder, file_id))
     }

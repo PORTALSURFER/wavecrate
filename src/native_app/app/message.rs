@@ -12,12 +12,22 @@ use crate::native_app::app::{
 };
 use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
-use crate::native_app::sample_library::folder_browser::commands::FileMoveConflictResolutionRequest;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::RenameCommitCompletion;
+use crate::native_app::sample_library::folder_browser::commands::{
+    FileMoveConflictCompletion, FileMoveConflictResolutionRequest, FolderMoveCompletion,
+};
 use crate::native_app::sample_library::folder_browser::scan::{
     FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderVerifyResult,
 };
+use crate::native_app::waveform::WaveformExtractionCompletion;
 use crate::native_app::waveform::WaveformInteraction;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) enum TrashMoveTarget {
+    Folder(PathBuf),
+    Files(Vec<PathBuf>),
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum GuiMessage {
@@ -60,6 +70,11 @@ pub(in crate::native_app) enum GuiMessage {
         drag: DragHandleMessage,
     },
     ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
+    ExternalWaveformFileDropFinished {
+        source: PathBuf,
+        started_at: Instant,
+        result: Result<PathBuf, String>,
+    },
     DeferredSampleLoad {
         ticket: ui::TaskTicket,
         path: String,
@@ -87,12 +102,31 @@ pub(in crate::native_app) enum GuiMessage {
     RemoveContextSampleFromCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
+    SelectedFilesCopyFinished {
+        count: usize,
+        started_at: Instant,
+        result: Result<(), String>,
+    },
     SetFileMoveConflictApplyToRemaining(bool),
     ResolveFileMoveConflict(FileMoveConflictResolutionRequest),
+    FolderMoveFinished {
+        started_at: Instant,
+        completion: FolderMoveCompletion,
+    },
+    FileMoveConflictFinished {
+        started_at: Instant,
+        completion: FileMoveConflictCompletion,
+    },
     CancelFileMoveConflicts,
     CopyContextPath,
     OpenContextTarget,
     MoveContextTargetToTrash,
+    TrashMoveFinished {
+        target: TrashMoveTarget,
+        action: &'static str,
+        started_at: Instant,
+        result: Result<Vec<PathBuf>, String>,
+    },
     RefreshContextSource,
     RemoveContextSource,
     CloseContextMenu,
@@ -103,8 +137,14 @@ pub(in crate::native_app) enum GuiMessage {
     ToggleTransactionList,
     CloseTransactionList,
     FocusRenameInput(u64),
+    FolderBrowserRenameFinished(RenameCommitCompletion),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,
+    PlaySelectionExtractionFinished {
+        completion: WaveformExtractionCompletion,
+        drag_position: Option<Point>,
+        started_at: Instant,
+    },
     NavigateBrowser {
         delta: i32,
         extend: bool,

@@ -1,69 +1,162 @@
 use std::path::{Path, PathBuf};
 
 use super::{
-    FileMoveConflict, FileMoveConflictResolution,
+    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictCompletion,
+    FileMoveConflictExecutionFailure, FileMoveConflictExecutionSuccess, FileMoveConflictResolution,
+    FileMoveConflictResolutionRequest, FolderMoveCompletion, FolderMoveRequest, FolderMoveSuccess,
+    file_move_transaction::file_move_plan_to_folder,
     file_move_transaction::{
         move_existing_destination_to_backup, move_file_over_backup,
         move_file_to_unique_destination, remove_overwrite_backup, rename_files_with_rollback,
-        restore_overwrite_backup, rollback_completed_file_moves, rollback_overwrite_move,
-        unique_destination,
+        restore_overwrite_backup, unique_destination,
     },
 };
 
-pub(super) fn execute_folder_move(
-    old_path: &Path,
-    new_path: &Path,
-    apply_move: impl FnOnce() -> Result<(), String>,
-) -> Result<(), String> {
+pub(in crate::native_app) fn execute_folder_move_request(
+    request: FolderMoveRequest,
+) -> FolderMoveCompletion {
+    let result = execute_folder_move_request_result(&request);
+    FolderMoveCompletion { request, result }
+}
+
+fn execute_folder_move_request_result(
+    request: &FolderMoveRequest,
+) -> Result<FolderMoveSuccess, String> {
+    match request {
+        FolderMoveRequest::Folder {
+            old_path, new_path, ..
+        } => execute_folder_move(old_path, new_path),
+        FolderMoveRequest::Files {
+            file_ids,
+            target_folder,
+        } => execute_file_drop(file_ids, target_folder),
+        FolderMoveRequest::ExtractedFile {
+            path,
+            target_folder,
+        } => execute_extracted_file_drop(path, target_folder),
+    }
+}
+
+fn execute_folder_move(old_path: &Path, new_path: &Path) -> Result<FolderMoveSuccess, String> {
+    if new_path.exists() {
+        let folder_name = new_path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| new_path.display().to_string());
+        return Err(format!("Folder move failed: {folder_name} already exists"));
+    }
     std::fs::rename(old_path, new_path).map_err(|error| format!("Folder move failed: {error}"))?;
-    if let Err(error) = apply_move() {
-        let _ = std::fs::rename(new_path, old_path);
-        return Err(error);
-    }
-    Ok(())
+    Ok(FolderMoveSuccess {
+        moved_paths: vec![(old_path.to_path_buf(), new_path.to_path_buf())],
+        conflicts: Vec::new(),
+    })
 }
 
-pub(super) fn execute_ready_file_moves(
-    moves: &[(PathBuf, PathBuf)],
-    apply_moves: impl FnOnce(&[(PathBuf, PathBuf)]) -> Result<(), String>,
-) -> Result<Vec<(PathBuf, PathBuf)>, String> {
-    let completed = rename_files_with_rollback(moves)?;
-    if let Err(error) = apply_moves(&completed) {
-        rollback_completed_file_moves(&completed);
-        return Err(error);
+fn execute_file_drop(
+    file_ids: &[String],
+    target_folder: &Path,
+) -> Result<FolderMoveSuccess, String> {
+    if !target_folder.is_dir() {
+        return Err(String::from("File move failed: target folder is missing"));
     }
-    Ok(completed)
+    let plan = file_move_plan_to_folder(file_ids, target_folder)?;
+    let moved_paths = rename_files_with_rollback(&plan.ready)?;
+    Ok(FolderMoveSuccess {
+        moved_paths,
+        conflicts: plan.conflicts,
+    })
 }
 
-pub(super) fn execute_extracted_file_move(
+fn execute_extracted_file_drop(
     path: &Path,
     target_folder: &Path,
-    apply_moves: impl FnOnce(&[(PathBuf, PathBuf)]) -> Result<(), String>,
-) -> Result<(PathBuf, PathBuf), String> {
-    let completed_move =
-        move_file_to_unique_destination(path, target_folder, "Extraction move failed")?;
-    if let Err(error) = apply_moves(std::slice::from_ref(&completed_move)) {
-        rollback_completed_file_moves(std::slice::from_ref(&completed_move));
-        return Err(error);
+) -> Result<FolderMoveSuccess, String> {
+    if !path.is_file() {
+        return Err(format!(
+            "Extraction move failed: {} is missing",
+            path.file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.display().to_string())
+        ));
     }
-    Ok(completed_move)
+    if !target_folder.is_dir() {
+        return Err(String::from(
+            "Extraction move failed: target folder is missing",
+        ));
+    }
+    let completed = move_file_to_unique_destination(path, target_folder, "Extraction move failed")?;
+    Ok(FolderMoveSuccess {
+        moved_paths: vec![completed],
+        conflicts: Vec::new(),
+    })
 }
 
-pub(super) fn execute_file_move_conflict(
+pub(in crate::native_app) fn execute_file_move_conflict_request(
+    mut batch: FileMoveConflictBatch,
+    request: FileMoveConflictResolutionRequest,
+) -> FileMoveConflictCompletion {
+    if request.apply_to_remaining {
+        batch.batch_policy = Some(request.resolution);
+    }
+
+    let mut moved_paths = Vec::new();
+    let mut last_resolution = request.resolution;
+    loop {
+        let Some(conflict) = batch.conflicts.get(batch.current_index).cloned() else {
+            break;
+        };
+        let resolution = batch.batch_policy.unwrap_or(request.resolution);
+        let completed = match execute_file_move_conflict(&conflict, resolution) {
+            Ok(completed) => completed,
+            Err(error) => {
+                batch.batch_policy = None;
+                return FileMoveConflictCompletion {
+                    result: Err(FileMoveConflictExecutionFailure {
+                        batch,
+                        moved_paths,
+                        error,
+                    }),
+                };
+            }
+        };
+        match resolution {
+            FileMoveConflictResolution::Overwrite | FileMoveConflictResolution::Rename => {
+                batch.resolved_count += 1;
+            }
+            FileMoveConflictResolution::Skip => {
+                batch.skipped_count += 1;
+            }
+        }
+        batch.current_index += 1;
+        last_resolution = resolution;
+        moved_paths.extend(completed);
+        if batch.batch_policy.is_none() {
+            break;
+        }
+    }
+
+    FileMoveConflictCompletion {
+        result: Ok(FileMoveConflictExecutionSuccess {
+            batch,
+            moved_paths,
+            last_resolution,
+        }),
+    }
+}
+
+fn execute_file_move_conflict(
     conflict: &FileMoveConflict,
     resolution: FileMoveConflictResolution,
-    apply_moves: impl FnOnce(&[(PathBuf, PathBuf)]) -> Result<(), String>,
 ) -> Result<Vec<(PathBuf, PathBuf)>, String> {
     match resolution {
-        FileMoveConflictResolution::Overwrite => execute_overwrite_conflict(conflict, apply_moves),
-        FileMoveConflictResolution::Rename => execute_rename_conflict(conflict, apply_moves),
+        FileMoveConflictResolution::Overwrite => execute_overwrite_conflict(conflict),
+        FileMoveConflictResolution::Rename => execute_rename_conflict(conflict),
         FileMoveConflictResolution::Skip => Ok(Vec::new()),
     }
 }
 
 fn execute_overwrite_conflict(
     conflict: &FileMoveConflict,
-    apply_moves: impl FnOnce(&[(PathBuf, PathBuf)]) -> Result<(), String>,
 ) -> Result<Vec<(PathBuf, PathBuf)>, String> {
     let backup = move_existing_destination_to_backup(&conflict.destination_path)?;
     if let Err(error) = move_file_over_backup(&conflict.source_path, &conflict.destination_path) {
@@ -75,26 +168,14 @@ fn execute_overwrite_conflict(
         conflict.source_path.clone(),
         conflict.destination_path.clone(),
     )];
-    if let Err(error) = apply_moves(&completed) {
-        rollback_overwrite_move(&completed[0], &backup);
-        return Err(error);
-    }
     remove_overwrite_backup(&backup);
     Ok(completed)
 }
 
-fn execute_rename_conflict(
-    conflict: &FileMoveConflict,
-    apply_moves: impl FnOnce(&[(PathBuf, PathBuf)]) -> Result<(), String>,
-) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+fn execute_rename_conflict(conflict: &FileMoveConflict) -> Result<Vec<(PathBuf, PathBuf)>, String> {
     let destination = unique_destination(&conflict.destination_path);
     let move_pair = (conflict.source_path.clone(), destination);
-    let completed = rename_files_with_rollback(std::slice::from_ref(&move_pair))?;
-    if let Err(error) = apply_moves(&completed) {
-        rollback_completed_file_moves(&completed);
-        return Err(error);
-    }
-    Ok(completed)
+    rename_files_with_rollback(std::slice::from_ref(&move_pair))
 }
 
 #[cfg(test)]
@@ -116,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn ready_file_moves_roll_back_when_state_apply_fails() {
+    fn ready_file_moves_execute_as_worker_request() {
         let root = temp_dir("wavecrate-file-move-execution-ready-rollback");
         let source_dir = root.join("source");
         let target_dir = root.join("target");
@@ -126,18 +207,23 @@ mod tests {
         let destination = target_dir.join("kick.wav");
         fs::write(&source, b"source").expect("write source");
 
-        let result = execute_ready_file_moves(&[(source.clone(), destination.clone())], |_| {
-            Err(String::from("state apply failed"))
-        });
+        let request = FolderMoveRequest::Files {
+            file_ids: vec![source.display().to_string()],
+            target_folder: target_dir,
+        };
+        let result = execute_folder_move_request(request).result;
 
-        assert_eq!(result, Err(String::from("state apply failed")));
-        assert_eq!(fs::read(&source).expect("read source"), b"source");
-        assert!(!destination.exists());
+        assert_eq!(
+            result.expect("move succeeds").moved_paths,
+            vec![(source.clone(), destination.clone())]
+        );
+        assert!(!source.exists());
+        assert_eq!(fs::read(&destination).expect("read destination"), b"source");
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn overwrite_conflict_restores_source_and_destination_when_state_apply_fails() {
+    fn overwrite_conflict_executes_as_worker_request() {
         let root = temp_dir("wavecrate-file-move-execution-overwrite-rollback");
         let source_dir = root.join("source");
         let target_dir = root.join("target");
@@ -152,17 +238,25 @@ mod tests {
             destination_path: destination.clone(),
         };
 
-        let result =
-            execute_file_move_conflict(&conflict, FileMoveConflictResolution::Overwrite, |_| {
-                Err(String::from("state apply failed"))
-            });
-
-        assert_eq!(result, Err(String::from("state apply failed")));
-        assert_eq!(fs::read(&source).expect("read source"), b"source");
-        assert_eq!(
-            fs::read(&destination).expect("read destination"),
-            b"destination"
+        let batch = FileMoveConflictBatch {
+            target_folder: target_dir.clone(),
+            conflicts: vec![conflict],
+            current_index: 0,
+            resolved_count: 0,
+            skipped_count: 0,
+            batch_policy: None,
+        };
+        let result = execute_file_move_conflict_request(
+            batch,
+            FileMoveConflictResolutionRequest::new(FileMoveConflictResolution::Overwrite, false),
         );
+
+        assert_eq!(
+            result.result.expect("overwrite succeeds").moved_paths,
+            vec![(source.clone(), destination.clone())]
+        );
+        assert!(!source.exists());
+        assert_eq!(fs::read(&destination).expect("read destination"), b"source");
         assert!(
             fs::read_dir(&target_dir)
                 .expect("read target")

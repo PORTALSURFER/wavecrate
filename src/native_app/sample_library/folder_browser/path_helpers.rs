@@ -32,17 +32,6 @@ pub(super) fn valid_file_name(name: &str) -> bool {
     valid_folder_name(name)
 }
 
-pub(super) fn next_available_folder_name(parent: &Path) -> String {
-    const BASE_NAME: &str = "New folder";
-    if !parent.join(BASE_NAME).exists() {
-        return String::from(BASE_NAME);
-    }
-    (2..)
-        .map(|index| format!("{BASE_NAME} {index}"))
-        .find(|name| !parent.join(name).exists())
-        .unwrap_or_else(|| String::from(BASE_NAME))
-}
-
 pub(super) fn resolved_file_rename(old_path: &Path, submitted: &str) -> Option<String> {
     if submitted.is_empty() {
         return None;

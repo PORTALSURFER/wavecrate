@@ -89,9 +89,7 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
         .begin_rename_selected()
         .expect("rename can start")
         .expect("rename input");
-    state.apply_folder_browser_rename_input(radiant::widgets::TextInputMessage::Submitted {
-        value: String::from("renamed"),
-    });
+    submit_folder_browser_rename_for_tests(&mut state, "renamed");
 
     assert_eq!(state.waveform.current.path(), new_path);
     assert!(state.waveform.current.has_loaded_sample());
@@ -174,9 +172,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         .begin_rename_selected()
         .expect("rename can start")
         .expect("rename input");
-    state.apply_folder_browser_rename_input(radiant::widgets::TextInputMessage::Submitted {
-        value: String::from("breaks"),
-    });
+    submit_folder_browser_rename_for_tests(&mut state, "breaks");
 
     assert_eq!(state.waveform.current.path(), new_path);
     assert!(state.waveform.current.has_loaded_sample());

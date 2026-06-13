@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use super::FolderEntry;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct RenamePathRemap {
     pub(in crate::native_app) old_path: PathBuf,
@@ -30,6 +32,57 @@ impl RenameCommitResult {
             path_remap: Some(RenamePathRemap { old_path, new_path }),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum RenameInputResult {
+    Status(RenameCommitResult),
+    Commit(RenameCommitRequest),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum RenameCommitRequest {
+    FolderRename {
+        old_path: PathBuf,
+        new_path: PathBuf,
+        new_name: String,
+    },
+    FolderCreate {
+        parent_id: String,
+        pending_id: String,
+        new_path: PathBuf,
+        new_name: String,
+    },
+    FileRename {
+        old_path: PathBuf,
+        new_path: PathBuf,
+        new_name: String,
+        metadata_remap: Option<FileMetadataRemap>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FileMetadataRemap {
+    pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) old_relative: PathBuf,
+    pub(in crate::native_app) new_relative: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct RenameCommitCompletion {
+    pub(in crate::native_app) request: RenameCommitRequest,
+    pub(in crate::native_app) result: Result<RenameCommitSuccess, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum RenameCommitSuccess {
+    FolderRenamed,
+    FolderCreated {
+        folder: FolderEntry,
+    },
+    FileRenamed {
+        metadata_remap_result: Result<(), String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

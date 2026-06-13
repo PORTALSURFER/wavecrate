@@ -1,7 +1,9 @@
 use super::commands::FolderBrowserMessage;
 use super::{FolderBrowserState, path_id};
 use crate::native_app::sample_library::folder_browser::commands::{
-    FileMoveConflictResolution, FileMoveConflictResolutionRequest,
+    FileMoveConflictResolution, FileMoveConflictResolutionRequest, FolderDropResult,
+    FolderMoveDropInput, RenameCommitResult, RenameInputResult, execute_file_move_conflict_request,
+    execute_folder_move_request, execute_rename_commit_request,
 };
 use crate::native_app::sample_library::folder_browser::scan::{
     FolderScanDiscoveryBatch, scan_source_with_progress,
@@ -51,6 +53,47 @@ fn temp_source_root(name: &str) -> PathBuf {
     ));
     fs::create_dir_all(&root).expect("create temp root");
     root
+}
+
+fn submit_rename(browser: &mut FolderBrowserState, value: impl Into<String>) -> RenameCommitResult {
+    match browser
+        .apply_rename_input(TextInputMessage::Submitted {
+            value: value.into(),
+        })
+        .expect("rename result")
+    {
+        RenameInputResult::Status(result) => result,
+        RenameInputResult::Commit(request) => {
+            let completion = execute_rename_commit_request(request);
+            browser.apply_rename_commit_completion(completion)
+        }
+    }
+}
+
+fn submit_folder_drop(
+    browser: &mut FolderBrowserState,
+    target_folder_id: &str,
+) -> Result<FolderDropResult, String> {
+    match browser.drop_drag_on_folder(target_folder_id)? {
+        FolderMoveDropInput::Status(result) => Ok(result),
+        FolderMoveDropInput::Request(request) => {
+            let completion = execute_folder_move_request(request);
+            completion.result.and_then(|success| {
+                browser.apply_folder_move_completion(&completion.request, success)
+            })
+        }
+    }
+}
+
+fn submit_file_move_conflict(
+    browser: &mut FolderBrowserState,
+    request: impl Into<FileMoveConflictResolutionRequest>,
+) -> Result<FolderDropResult, String> {
+    let Some(batch) = browser.take_file_move_conflict_batch() else {
+        return Ok(FolderDropResult::default());
+    };
+    let completion = execute_file_move_conflict_request(batch, request.into());
+    browser.apply_file_move_conflict_completion(completion)
 }
 
 #[test]

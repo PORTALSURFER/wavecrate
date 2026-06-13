@@ -40,14 +40,10 @@ pub(in crate::native_app) fn pane(kind: &BrowserContextTargetKind) -> &'static s
 }
 
 pub(in crate::native_app) fn target_available(
-    kind: &BrowserContextTargetKind,
-    path: &Path,
+    _kind: &BrowserContextTargetKind,
+    _path: &Path,
 ) -> bool {
-    match kind {
-        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => path.is_dir(),
-        BrowserContextTargetKind::Sample => path.is_file(),
-        BrowserContextTargetKind::MetadataTag => true,
-    }
+    true
 }
 
 pub(in crate::native_app) fn missing_target_message(

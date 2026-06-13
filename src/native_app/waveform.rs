@@ -29,6 +29,9 @@ use interaction::{WaveformDrag, edit_preview_for_selection};
 
 mod state;
 mod state_extraction;
+pub(in crate::native_app) use state_extraction::{
+    WaveformExtractionCompletion, execute_waveform_extraction,
+};
 mod state_file;
 mod state_interaction;
 pub(in crate::native_app) use state::WaveformState;

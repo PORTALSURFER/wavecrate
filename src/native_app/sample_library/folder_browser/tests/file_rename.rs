@@ -22,12 +22,7 @@ fn file_rename_hides_and_preserves_extension() {
     assert_eq!(rename.selection_start, 0);
     assert_eq!(rename.selection_end, "kick loop".chars().count());
 
-    let status = browser
-        .apply_rename_input(TextInputMessage::Submitted {
-            value: String::from("snare loop"),
-        })
-        .expect("rename status")
-        .status;
+    let status = submit_rename(&mut browser, "snare loop").status;
 
     assert_eq!(status, "Renamed file to snare loop.wav");
     assert!(!kick.exists());
@@ -65,12 +60,7 @@ fn file_rename_submission_cannot_change_extension() {
         .expect("rename can start")
         .expect("rename input id");
 
-    let status = browser
-        .apply_rename_input(TextInputMessage::Submitted {
-            value: String::from("snare.aiff"),
-        })
-        .expect("rename status")
-        .status;
+    let status = submit_rename(&mut browser, "snare.aiff").status;
 
     assert_eq!(status, "Renamed file to snare.aiff.wav");
     assert!(!kick.exists());
@@ -107,12 +97,7 @@ fn file_rename_keeps_active_collection_item_visible_and_persisted() {
         .expect("rename can start")
         .expect("rename input id");
 
-    let status = browser
-        .apply_rename_input(TextInputMessage::Submitted {
-            value: String::from("snare"),
-        })
-        .expect("rename status")
-        .status;
+    let status = submit_rename(&mut browser, "snare").status;
 
     assert_eq!(status, "Renamed file to snare.wav");
     assert_eq!(

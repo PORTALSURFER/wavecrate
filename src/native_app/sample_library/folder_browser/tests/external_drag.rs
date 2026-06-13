@@ -73,8 +73,7 @@ fn extracted_file_drag_drop_moves_file_into_target_folder() {
     browser.select_file(path_id(&original));
 
     browser.begin_extracted_file_drag(extracted.clone(), Point::new(4.0, 8.0));
-    let result = browser
-        .drop_drag_on_folder(&path_id(&loops))
+    let result = submit_folder_drop(&mut browser, &path_id(&loops))
         .expect("extracted file drag/drop should move");
 
     let moved = loops.join("loop_extraction.wav");

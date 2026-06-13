@@ -1,4 +1,4 @@
-use super::{gui_state_for_span_tests, native_app_state_with_temp_sample};
+use super::{gui_state_for_span_tests, native_app_state_with_temp_sample, run_command_for_tests};
 use crate::native_app::test_support::state::{FolderBrowserMessage, FolderBrowserState, view};
 use radiant::{
     gui::types::{Point, Vector2},
@@ -36,11 +36,9 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
         .library
         .folder_browser
         .begin_file_drag(source.display().to_string(), Point::new(4.0, 8.0));
-    state
-        .library
-        .folder_browser
-        .drop_drag_on_folder(&loops.display().to_string())
-        .expect("drop should park conflict");
+    let mut context = radiant::prelude::UpdateContext::default();
+    state.drop_browser_drag_on_folder(loops.display().to_string(), &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let frame = view(&mut state).view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
@@ -135,7 +133,9 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
         .folder_browser
         .select_file(delete.display().to_string());
 
-    state.delete_selected_item();
+    let mut context = radiant::prelude::UpdateContext::default();
+    state.delete_selected_item(&mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(!delete.exists());
     assert!(trash_root.path().join("delete.wav").exists());
@@ -183,7 +183,9 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
             drums.display().to_string(),
         ));
 
-    state.delete_selected_item();
+    let mut context = radiant::prelude::UpdateContext::default();
+    state.delete_selected_item(&mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(!drums.exists());
     assert!(trash_root.path().join("drums").join("kick.wav").exists());
@@ -210,7 +212,9 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
 fn delete_selected_file_requires_configured_trash_folder() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("blocked.wav");
 
-    state.delete_selected_item();
+    let mut context = radiant::prelude::UpdateContext::default();
+    state.delete_selected_item(&mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(std::path::Path::new(&selected_file).exists());
     assert_eq!(

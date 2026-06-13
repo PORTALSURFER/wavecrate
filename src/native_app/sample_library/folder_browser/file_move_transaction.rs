@@ -135,12 +135,6 @@ pub(super) fn move_file_over_backup(
         .map_err(|error| format!("File overwrite failed: {error}"))
 }
 
-pub(super) fn rollback_overwrite_move(completed: &(PathBuf, PathBuf), backup: &OverwriteBackup) {
-    let (source_path, destination_path) = completed;
-    let _ = fs::rename(destination_path, source_path);
-    restore_overwrite_backup(backup);
-}
-
 pub(super) fn restore_overwrite_backup(backup: &OverwriteBackup) {
     let _ = fs::rename(&backup.backup_path, &backup.destination_path);
 }

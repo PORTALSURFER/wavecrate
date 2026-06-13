@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, time::Instant};
+use std::time::Instant;
 
 use radiant::{
     prelude as ui,
@@ -6,6 +6,7 @@ use radiant::{
 };
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::waveform::execute_waveform_extraction;
 
 impl NativeAppState {
     pub(in crate::native_app) fn drag_waveform_play_selection(
@@ -42,22 +43,41 @@ impl NativeAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) -> bool {
         let started_at = Instant::now();
-        match self.extract_waveform_drag_file() {
-            Ok(path) => {
-                self.waveform.current.flash_play_selection();
-                self.library
-                    .folder_browser
-                    .begin_extracted_file_drag(path.clone(), drag.position());
-                self.arm_browser_drag(context);
-                self.ui.status.sample = format!("Dragging {}", sample_path_label(&path));
+        let target_folder = match self.library.folder_browser.selected_folder_path() {
+            Some(target_folder) => target_folder,
+            None => {
+                let error = String::from("Select a folder before dragging a range");
+                self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "waveform.selection_drag.start",
                     Some("waveform"),
                     None,
-                    "success",
+                    "error",
                     started_at,
-                    None,
+                    Some(&error),
                 );
+                return false;
+            }
+        };
+        match self
+            .waveform
+            .current
+            .play_selection_extraction_request(Some(target_folder))
+        {
+            Ok(request) => {
+                self.ui.status.sample = String::from("Preparing dragged range");
+                let position = drag.position();
+                context
+                    .business()
+                    .background("gui-waveform-drag-extract")
+                    .run(
+                        move |_| execute_waveform_extraction(request),
+                        move |completion| GuiMessage::PlaySelectionExtractionFinished {
+                            completion,
+                            drag_position: Some(position),
+                            started_at,
+                        },
+                    );
                 true
             }
             Err(error) => {
@@ -73,26 +93,6 @@ impl NativeAppState {
                 false
             }
         }
-    }
-
-    fn extract_waveform_drag_file(&mut self) -> Result<PathBuf, String> {
-        let target_folder = self
-            .library
-            .folder_browser
-            .selected_folder_path()
-            .ok_or_else(|| String::from("Select a folder before dragging a range"))?;
-        fs::create_dir_all(&target_folder).map_err(|err| {
-            format!(
-                "failed to create target folder {}: {err}",
-                target_folder.display()
-            )
-        })?;
-        let path = self
-            .waveform
-            .current
-            .extract_play_selection_to_folder(&target_folder)?;
-        self.library.folder_browser.refresh_file_path(&path);
-        Ok(path)
     }
 
     pub(in crate::native_app) fn drop_waveform_play_selection_on_sample_list(

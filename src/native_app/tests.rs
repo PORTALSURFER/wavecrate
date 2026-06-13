@@ -167,6 +167,63 @@ fn native_app_state_with_temp_sample(name: &str) -> (NativeAppState, tempfile::T
     (state, source_root, selected_file)
 }
 
+fn submit_folder_browser_rename_for_tests(state: &mut NativeAppState, value: impl Into<String>) {
+    let result = state
+        .library
+        .folder_browser
+        .apply_rename_input(radiant::widgets::TextInputMessage::Submitted {
+            value: value.into(),
+        })
+        .expect("rename result");
+    match result {
+        super::sample_library::folder_browser::commands::RenameInputResult::Status(result) => {
+            state.ui.status.sample = result.status;
+        }
+        super::sample_library::folder_browser::commands::RenameInputResult::Commit(request) => {
+            let completion =
+                super::sample_library::folder_browser::commands::execute_rename_commit_request(
+                    request,
+                );
+            state.finish_folder_browser_rename(completion);
+        }
+    }
+}
+
+fn run_command_for_tests(
+    state: &mut NativeAppState,
+    command: Command<super::test_support::state::GuiMessage>,
+) {
+    match command {
+        Command::None
+        | Command::RequestRepaint
+        | Command::RequestPaintOnly
+        | Command::SetDpiScale(_)
+        | Command::SetWindowLogicalSize(_)
+        | Command::Focus(_)
+        | Command::ScrollTo { .. }
+        | Command::ScrollIntoView { .. }
+        | Command::ScrollFixedRowIntoView { .. }
+        | Command::BeginExternalDrag { .. }
+        | Command::BeginDrag { .. }
+        | Command::EndDrag
+        | Command::PlatformRequest { .. }
+        | Command::EndExternalDrag
+        | Command::After { .. }
+        | Command::Exit => {}
+        Command::Message(message) => {
+            state.apply_message(message, &mut ui::UpdateContext::default());
+        }
+        Command::Batch(commands) => {
+            for command in commands {
+                run_command_for_tests(state, command);
+            }
+        }
+        Command::Perform { work, .. } => {
+            state.apply_message(work(), &mut ui::UpdateContext::default());
+        }
+    }
+}
+
 fn start_deferred_sample_load_for_tests(
     state: &mut NativeAppState,
     path: String,

@@ -34,12 +34,7 @@ fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
         .expect("rename can start")
         .expect("rename input id");
     assert_ne!(input_id, 0);
-    let status = browser
-        .apply_rename_input(TextInputMessage::Submitted {
-            value: String::from("breaks"),
-        })
-        .expect("rename status")
-        .status;
+    let status = submit_rename(&mut browser, "breaks").status;
 
     assert_eq!(status, "Renamed folder to breaks");
     assert!(!drums.exists());
@@ -81,12 +76,7 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
         "expected pending child rename row"
     );
 
-    let status = browser
-        .apply_rename_input(TextInputMessage::Submitted {
-            value: String::from("loops"),
-        })
-        .expect("create status")
-        .status;
+    let status = submit_rename(&mut browser, "loops").status;
 
     assert_eq!(status, "Created folder loops");
     assert!(!pending.exists());

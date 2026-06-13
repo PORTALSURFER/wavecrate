@@ -39,5 +39,5 @@ impl NativeAppState {
 }
 
 fn normalized_drag_path(path: &Path) -> PathBuf {
-    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+    path.components().collect()
 }

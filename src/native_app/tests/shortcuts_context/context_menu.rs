@@ -49,7 +49,7 @@ fn context_menu_escape_takes_priority_over_collection_focus_escape() {
 }
 
 #[test]
-fn context_menu_availability_requires_existing_target_kind() {
+fn context_menu_availability_does_not_probe_disk() {
     let root = std::env::temp_dir().join(format!(
         "wavecrate-context-menu-{}",
         std::time::SystemTime::now()
@@ -64,31 +64,32 @@ fn context_menu_availability_requires_existing_target_kind() {
     assert!(target_available(&BrowserContextTargetKind::Source, &root));
     assert!(target_available(&BrowserContextTargetKind::Folder, &root));
     assert!(target_available(&BrowserContextTargetKind::Sample, &sample));
-    assert!(!target_available(&BrowserContextTargetKind::Sample, &root));
-    assert!(!target_available(
-        &BrowserContextTargetKind::Folder,
-        &sample
-    ));
+    assert!(target_available(&BrowserContextTargetKind::Sample, &root));
+    assert!(target_available(&BrowserContextTargetKind::Folder, &sample));
 
     std::fs::remove_file(&sample).expect("remove sample");
-    assert!(!target_available(
-        &BrowserContextTargetKind::Sample,
-        &sample
-    ));
+    assert!(target_available(&BrowserContextTargetKind::Sample, &sample));
     let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]
-fn stale_context_menu_copy_path_refuses_missing_sample_file() {
+fn stale_context_menu_copy_path_defers_missing_file_to_platform_completion() {
     let mut state = NativeAppState::load_default().expect("default state loads");
-    state.ui.browser_interaction.context_menu = Some(sample_context_menu(
-        std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
-    ));
+    let missing = std::env::temp_dir().join("wavecrate-missing-context-sample.wav");
+    state.ui.browser_interaction.context_menu = Some(sample_context_menu(missing.clone()));
 
     let mut context = ui::UpdateContext::default();
     state.copy_context_path(&mut context);
 
-    assert_eq!(state.ui.status.sample, "Sample file is missing");
+    state.finish_context_path_copy(
+        BrowserContextTargetKind::Sample,
+        missing,
+        Err(String::from("Sample file is missing")),
+    );
+    assert_eq!(
+        state.ui.status.sample,
+        "Copy path failed: Sample file is missing"
+    );
     assert_eq!(state.ui.browser_interaction.context_menu, None);
 }
 

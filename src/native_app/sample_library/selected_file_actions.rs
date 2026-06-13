@@ -3,6 +3,8 @@ use crate::native_app::app::{emit_gui_action, sample_path_label};
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
 };
+use crate::native_app::waveform::{WaveformExtractionCompletion, execute_waveform_extraction};
+use radiant::gui::types::Point;
 use std::time::Instant;
 
 impl NativeAppState {
@@ -65,15 +67,21 @@ impl NativeAppState {
         }
     }
 
-    pub(in crate::native_app) fn delete_selected_item(&mut self) {
+    pub(in crate::native_app) fn delete_selected_item(
+        &mut self,
+        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+    ) {
         if self.library.folder_browser.selected_file_id().is_some() {
-            self.delete_selected_files();
+            self.delete_selected_files(context);
         } else {
-            self.delete_selected_folder();
+            self.delete_selected_folder(context);
         }
     }
 
-    fn delete_selected_folder(&mut self) {
+    fn delete_selected_folder(
+        &mut self,
+        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         let target = match self.library.folder_browser.selected_delete_target() {
             Ok(target) => target,
@@ -90,10 +98,10 @@ impl NativeAppState {
                 return;
             }
         };
-        self.move_selected_folder_to_trash(target.path, started_at);
+        self.move_selected_folder_to_trash(target.path, started_at, context);
     }
 
-    fn delete_selected_files(&mut self) {
+    fn delete_selected_files(&mut self, context: &mut radiant::prelude::UpdateContext<GuiMessage>) {
         let started_at = Instant::now();
         let target = match self.library.folder_browser.selected_file_delete_target() {
             Ok(target) => target,
@@ -110,30 +118,94 @@ impl NativeAppState {
                 return;
             }
         };
-        self.move_selected_files_to_trash(target.paths, started_at);
+        self.move_selected_files_to_trash(target.paths, started_at, context);
     }
 
-    pub(in crate::native_app) fn extract_playmarked_range(&mut self) {
+    pub(in crate::native_app) fn extract_playmarked_range(
+        &mut self,
+        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
-        match self.waveform.current.extract_play_selection_to_sibling() {
-            Ok(path) => {
-                let label = sample_path_label(&path);
-                self.waveform.current.flash_play_selection();
-                self.library.folder_browser.refresh_file_path(&path);
-                self.ui.status.sample = format!("Extracted {label}");
-                emit_gui_action(
-                    "waveform.extract_playmarked_range",
-                    Some("waveform"),
-                    Some(&label),
-                    "success",
-                    started_at,
-                    None,
+        match self
+            .waveform
+            .current
+            .play_selection_extraction_request(None)
+        {
+            Ok(request) => {
+                self.ui.status.sample = String::from("Extracting play range");
+                context.business().background("gui-waveform-extract").run(
+                    move |_| execute_waveform_extraction(request),
+                    move |completion| GuiMessage::PlaySelectionExtractionFinished {
+                        completion,
+                        drag_position: None,
+                        started_at,
+                    },
                 );
             }
             Err(error) => {
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "waveform.extract_playmarked_range",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn finish_play_selection_extraction(
+        &mut self,
+        completion: WaveformExtractionCompletion,
+        drag_position: Option<Point>,
+        started_at: Instant,
+        context: &mut radiant::prelude::UpdateContext<GuiMessage>,
+    ) {
+        match completion.result {
+            Ok(path) => {
+                self.waveform
+                    .current
+                    .mark_extracted_play_selection(&completion.source_path, completion.selection);
+                self.waveform.current.flash_play_selection();
+                self.library.folder_browser.refresh_file_path(&path);
+                if let Some(position) = drag_position {
+                    self.library
+                        .folder_browser
+                        .begin_extracted_file_drag(path.clone(), position);
+                    self.arm_browser_drag(context);
+                    self.ui.status.sample = format!("Dragging {}", sample_path_label(&path));
+                    emit_gui_action(
+                        "waveform.selection_drag.start",
+                        Some("waveform"),
+                        None,
+                        "success",
+                        started_at,
+                        None,
+                    );
+                } else {
+                    let label = sample_path_label(&path);
+                    self.ui.status.sample = format!("Extracted {label}");
+                    emit_gui_action(
+                        "waveform.extract_playmarked_range",
+                        Some("waveform"),
+                        Some(&label),
+                        "success",
+                        started_at,
+                        None,
+                    );
+                }
+            }
+            Err(error) => {
+                let action = if drag_position.is_some() {
+                    "waveform.selection_drag.start"
+                } else {
+                    "waveform.extract_playmarked_range"
+                };
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    action,
                     Some("waveform"),
                     None,
                     "error",

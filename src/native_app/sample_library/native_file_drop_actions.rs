@@ -116,72 +116,54 @@ impl NativeAppState {
             );
             return;
         }
-        if self.drop_targets_selected_folder_file(&path) {
-            self.ui.status.sample = String::from("Drag cancelled");
+        let Some(target_folder) = self.library.folder_browser.selected_folder_path() else {
+            self.ui.status.sample = String::from("External drop failed: no selected folder");
             emit_gui_action(
                 "waveform.external_file_drop",
                 Some("waveform"),
                 None,
-                "cancelled",
+                "error",
                 started_at,
-                Some("drop target unchanged"),
+                Some("no selected folder"),
             );
             return;
-        }
+        };
+        self.ui.status.sample = format!("Copying {}", file_name_or_path(&path));
+        let source = path.clone();
+        context
+            .business()
+            .background("gui-external-waveform-drop")
+            .run(
+                move |_| execute_external_waveform_file_drop(&source, &target_folder),
+                move |result| GuiMessage::ExternalWaveformFileDropFinished {
+                    source: path,
+                    started_at,
+                    result,
+                },
+            );
+    }
 
-        match self.copy_external_file_to_selected_folder(&path) {
+    pub(in crate::native_app) fn finish_external_waveform_file_drop(
+        &mut self,
+        source: PathBuf,
+        started_at: Instant,
+        result: Result<PathBuf, String>,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        match result {
             Ok(copied) => self.load_copied_external_file(copied, context, started_at),
             Err(error) => {
                 self.ui.status.sample = format!("External drop failed: {error}");
                 emit_gui_action(
                     "waveform.external_file_drop",
                     Some("waveform"),
-                    None,
+                    Some(file_name_or_path(&source).as_str()),
                     "error",
                     started_at,
                     Some(&error),
                 );
             }
         }
-    }
-
-    fn drop_targets_selected_folder_file(&self, source: &Path) -> bool {
-        let Some(target_folder) = self.library.folder_browser.selected_folder_path() else {
-            return false;
-        };
-        let Some(file_name) = source.file_name() else {
-            return false;
-        };
-        paths_refer_to_same_file(source, &target_folder.join(file_name))
-    }
-
-    fn copy_external_file_to_selected_folder(&mut self, source: &Path) -> Result<PathBuf, String> {
-        if !source.is_file() {
-            return Err(format!("not a file: {}", source.display()));
-        }
-        let target_folder = self
-            .library
-            .folder_browser
-            .selected_folder_path()
-            .ok_or_else(|| String::from("no selected folder"))?;
-        fs::create_dir_all(&target_folder).map_err(|err| {
-            format!(
-                "failed to create target folder {}: {err}",
-                target_folder.display()
-            )
-        })?;
-        let file_name = source
-            .file_name()
-            .ok_or_else(|| String::from("dropped file has no file name"))?;
-        let target = unique_copy_destination(&target_folder.join(file_name));
-        fs::copy(source, &target).map_err(|err| {
-            format!(
-                "failed to copy {} to {}: {err}",
-                source.display(),
-                target.display()
-            )
-        })?;
-        Ok(target)
     }
 
     fn load_copied_external_file(
@@ -206,11 +188,9 @@ impl NativeAppState {
 }
 
 fn supported_waveform_drop_file(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
 }
 
 fn file_name_or_path(path: &Path) -> String {
@@ -242,6 +222,37 @@ fn unique_copy_destination(first_candidate: &Path) -> PathBuf {
         }
     }
     unreachable!("unbounded copy suffix search should find a destination")
+}
+
+fn execute_external_waveform_file_drop(
+    source: &Path,
+    target_folder: &Path,
+) -> Result<PathBuf, String> {
+    if !source.is_file() {
+        return Err(format!("not a file: {}", source.display()));
+    }
+    fs::create_dir_all(target_folder).map_err(|err| {
+        format!(
+            "failed to create target folder {}: {err}",
+            target_folder.display()
+        )
+    })?;
+    let file_name = source
+        .file_name()
+        .ok_or_else(|| String::from("dropped file has no file name"))?;
+    let direct_target = target_folder.join(file_name);
+    if paths_refer_to_same_file(source, &direct_target) {
+        return Err(String::from("drop target unchanged"));
+    }
+    let target = unique_copy_destination(&direct_target);
+    fs::copy(source, &target).map_err(|err| {
+        format!(
+            "failed to copy {} to {}: {err}",
+            source.display(),
+            target.display()
+        )
+    })?;
+    Ok(target)
 }
 
 fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {

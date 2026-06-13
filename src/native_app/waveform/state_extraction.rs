@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use wavecrate::selection::SelectionRange;
 
@@ -7,7 +10,23 @@ use super::{
     audio_file::{extract_wav_range_to_folder, extract_wav_range_to_sibling, is_wav_path},
 };
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct WaveformExtractionCompletion {
+    pub(in crate::native_app) source_path: PathBuf,
+    pub(in crate::native_app) selection: SelectionRange,
+    pub(in crate::native_app) result: Result<PathBuf, String>,
+}
+
+pub(in crate::native_app) struct WaveformExtractionRequest {
+    source_path: PathBuf,
+    target_folder: Option<PathBuf>,
+    audio_bytes: Arc<[u8]>,
+    loaded_frames: usize,
+    selection: SelectionRange,
+}
+
 impl WaveformState {
+    #[cfg(test)]
     pub(in crate::native_app) fn extract_play_selection_to_sibling(
         &mut self,
     ) -> Result<PathBuf, String> {
@@ -22,6 +41,7 @@ impl WaveformState {
         Ok(path)
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn extract_play_selection_to_folder(
         &mut self,
         target_folder: &Path,
@@ -36,6 +56,30 @@ impl WaveformState {
         )?;
         self.mark_extracted_range(selection);
         Ok(path)
+    }
+
+    pub(in crate::native_app) fn play_selection_extraction_request(
+        &self,
+        target_folder: Option<PathBuf>,
+    ) -> Result<WaveformExtractionRequest, String> {
+        let selection = self.extractable_play_selection()?;
+        Ok(WaveformExtractionRequest {
+            source_path: self.file.path.clone(),
+            target_folder,
+            audio_bytes: Arc::clone(&self.file.audio_bytes),
+            loaded_frames: self.file.frames,
+            selection,
+        })
+    }
+
+    pub(in crate::native_app) fn mark_extracted_play_selection(
+        &mut self,
+        source_path: &Path,
+        selection: SelectionRange,
+    ) {
+        if self.file.path == source_path {
+            self.mark_extracted_range(selection);
+        }
     }
 
     fn mark_extracted_range(&mut self, selection: SelectionRange) {
@@ -94,5 +138,30 @@ impl WaveformState {
 
     pub(in crate::native_app) fn extracted_ranges(&self) -> &[SelectionRange] {
         &self.extracted_ranges
+    }
+}
+
+pub(in crate::native_app) fn execute_waveform_extraction(
+    request: WaveformExtractionRequest,
+) -> WaveformExtractionCompletion {
+    let result = match request.target_folder.as_deref() {
+        Some(target_folder) => extract_wav_range_to_folder(
+            &request.source_path,
+            target_folder,
+            &request.audio_bytes,
+            request.loaded_frames,
+            request.selection,
+        ),
+        None => extract_wav_range_to_sibling(
+            &request.source_path,
+            &request.audio_bytes,
+            request.loaded_frames,
+            request.selection,
+        ),
+    };
+    WaveformExtractionCompletion {
+        source_path: request.source_path,
+        selection: request.selection,
+        result,
     }
 }

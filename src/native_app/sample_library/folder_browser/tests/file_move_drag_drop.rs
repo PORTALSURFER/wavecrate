@@ -24,9 +24,8 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
     );
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    let result = browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("file drag/drop should move");
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
 
     let moved_kick = loops.join("kick.wav");
     let moved_snare = loops.join("snare.wav");
@@ -73,8 +72,7 @@ fn file_drag_drop_defers_destination_name_conflicts() {
     );
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    let result = browser
-        .drop_drag_on_folder(&path_id(&loops))
+    let result = submit_folder_drop(&mut browser, &path_id(&loops))
         .expect("non-conflicting files should still move");
 
     let moved_snare = loops.join("snare.wav");
@@ -112,11 +110,8 @@ fn file_move_conflict_rename_uses_available_copy_name() {
     browser.select_file(path_id(&source));
 
     browser.begin_file_drag(path_id(&source), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflict");
-    let result = browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolution::Rename)
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflict");
+    let result = submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Rename)
         .expect("rename conflict should move source");
 
     let renamed = loops.join("kick_copy002.wav");
@@ -144,11 +139,8 @@ fn file_move_conflict_overwrite_replaces_destination() {
     browser.select_file(path_id(&source));
 
     browser.begin_file_drag(path_id(&source), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflict");
-    let result = browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolution::Overwrite)
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflict");
+    let result = submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Overwrite)
         .expect("overwrite conflict should move source");
 
     assert_eq!(
@@ -177,11 +169,8 @@ fn file_move_conflict_skip_leaves_source_and_destination() {
     browser.select_file(path_id(&source));
 
     browser.begin_file_drag(path_id(&source), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflict");
-    let result = browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolution::Skip)
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflict");
+    let result = submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Skip)
         .expect("skip conflict should succeed");
 
     assert!(result.moved_paths.is_empty());
@@ -211,11 +200,8 @@ fn file_move_conflict_without_apply_all_leaves_next_conflict_pending() {
     select_two_files_for_move(&mut browser, &drums, &kick, &snare);
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflicts");
-    browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolution::Skip)
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflicts");
+    submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Skip)
         .expect("skip first conflict");
 
     let conflict = browser
@@ -246,14 +232,14 @@ fn file_move_conflict_apply_all_overwrite_resolves_remaining_conflicts() {
     select_two_files_for_move(&mut browser, &drums, &kick, &snare);
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflicts");
-    let result = browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolutionRequest::apply_to_remaining(
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflicts");
+    let result = submit_file_move_conflict(
+        &mut browser,
+        FileMoveConflictResolutionRequest::apply_to_remaining(
             FileMoveConflictResolution::Overwrite,
-        ))
-        .expect("overwrite all conflicts");
+        ),
+    )
+    .expect("overwrite all conflicts");
 
     assert_eq!(result.moved_paths.len(), 2);
     assert_eq!(fs::read(&existing_kick).expect("read kick"), b"source kick");
@@ -288,21 +274,18 @@ fn file_move_conflict_apply_all_skip_resets_for_later_batch() {
     select_two_files_for_move(&mut browser, &drums, &kick, &snare);
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("first drop should park conflicts");
-    browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolutionRequest::apply_to_remaining(
-            FileMoveConflictResolution::Skip,
-        ))
-        .expect("skip all conflicts");
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("first drop should park conflicts");
+    submit_file_move_conflict(
+        &mut browser,
+        FileMoveConflictResolutionRequest::apply_to_remaining(FileMoveConflictResolution::Skip),
+    )
+    .expect("skip all conflicts");
     assert_eq!(browser.pending_file_move_conflict_count(), 0);
     assert_eq!(fs::read(&kick).expect("read kick"), b"source kick");
     assert_eq!(fs::read(&snare).expect("read snare"), b"source snare");
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&oneshots))
+    submit_folder_drop(&mut browser, &path_id(&oneshots))
         .expect("second drop should park new conflicts");
     let conflict = browser
         .pending_file_move_conflict_view()
@@ -332,11 +315,10 @@ fn file_move_conflict_apply_all_policy_resets_after_error() {
     select_two_files_for_move(&mut browser, &drums, &kick, &snare);
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflicts");
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflicts");
     fs::remove_file(&snare).expect("remove second source before resolving");
-    let result = browser.resolve_next_file_move_conflict(
+    let result = submit_file_move_conflict(
+        &mut browser,
         FileMoveConflictResolutionRequest::apply_to_remaining(
             FileMoveConflictResolution::Overwrite,
         ),
@@ -348,8 +330,7 @@ fn file_move_conflict_apply_all_policy_resets_after_error() {
         b"existing snare"
     );
 
-    browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolution::Skip)
+    submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Skip)
         .expect("retry should use the new per-conflict resolution");
 
     assert_eq!(browser.pending_file_move_conflict_count(), 0);
@@ -375,14 +356,12 @@ fn file_move_conflict_apply_all_rename_uses_unique_name_per_conflict() {
     select_two_files_for_move(&mut browser, &drums, &kick, &snare);
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("drop should park conflicts");
-    let result = browser
-        .resolve_next_file_move_conflict(FileMoveConflictResolutionRequest::apply_to_remaining(
-            FileMoveConflictResolution::Rename,
-        ))
-        .expect("rename all conflicts");
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should park conflicts");
+    let result = submit_file_move_conflict(
+        &mut browser,
+        FileMoveConflictResolutionRequest::apply_to_remaining(FileMoveConflictResolution::Rename),
+    )
+    .expect("rename all conflicts");
 
     let renamed_kick = loops.join("kick_copy002.wav");
     let renamed_snare = loops.join("snare_copy001.wav");

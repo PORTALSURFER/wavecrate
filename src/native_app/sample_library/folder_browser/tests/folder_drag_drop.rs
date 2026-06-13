@@ -18,9 +18,8 @@ fn folder_drag_drop_moves_subtree_into_target_folder() {
         path_id(&kicks),
         DragHandleMessage::started(Point::new(0.0, 0.0)),
     );
-    let result = browser
-        .drop_drag_on_folder(&path_id(&loops))
-        .expect("folder drag/drop should move");
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("folder drag/drop should move");
 
     let moved_kicks = loops.join("kicks");
     let moved_kick = moved_kicks.join("kick.wav");

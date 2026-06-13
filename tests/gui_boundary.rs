@@ -208,6 +208,26 @@ fn cross_crate_public_wildcard_reexports_are_explicitly_audited() {
     );
 }
 
+#[test]
+fn native_app_ui_update_paths_do_not_call_blocking_business_apis() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let native_app_root = manifest_dir.join("src/native_app");
+    let mut offenders = Vec::new();
+
+    for_rust_source_file(&native_app_root, &mut |path| {
+        if is_test_source(path) || blocking_native_app_path_is_allowed(path, &manifest_dir) {
+            return;
+        }
+        collect_matching_lines(path, &manifest_dir, &mut offenders, blocking_business_call);
+    });
+
+    assert!(
+        offenders.is_empty(),
+        "native-app UI/update paths must offload filesystem, database, thread, sleep, clipboard, and other blocking business work through Radiant BusinessRuntime or a platform service:\n{}",
+        offenders.join("\n")
+    );
+}
+
 fn collect_app_core_legacy_crossings(dir: &Path, manifest_dir: &Path, offenders: &mut Vec<String>) {
     for_rust_source_file(dir, &mut |path| {
         if is_test_source(path) || path.ends_with("app_api.rs") {
@@ -338,6 +358,75 @@ fn native_app_test_support_import(line: &str) -> bool {
         && (code.contains("native_app::test_support")
             || code.contains("super::test_support")
             || code.contains("test_support::"))
+}
+
+fn blocking_business_call(line: &str) -> bool {
+    let code = line.trim();
+    !is_comment_or_empty(code)
+        && [
+            "std::fs::",
+            "fs::",
+            "SourceDatabase::open",
+            "open_for_user_metadata_write",
+            "std::thread::sleep",
+            "thread::sleep",
+            "std::thread::spawn",
+            "thread::spawn",
+            "external_clipboard::",
+            ".canonicalize(",
+            ".is_file(",
+            ".is_dir(",
+            ".exists(",
+            "fs::metadata(",
+            "fs::read(",
+            "fs::read_dir(",
+            "fs::read_to_string(",
+            "fs::write(",
+            "fs::create_dir",
+            "fs::remove_file(",
+            "fs::remove_dir",
+            "fs::rename(",
+            "fs::copy(",
+        ]
+        .iter()
+        .any(|pattern| code.contains(pattern))
+}
+
+fn blocking_native_app_path_is_allowed(path: &Path, manifest_dir: &Path) -> bool {
+    let relative = path
+        .strip_prefix(manifest_dir)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    [
+        "src/native_app/app/state/source_scan_worker.rs",
+        "src/native_app/audio/sample_load_actions/cache/workers.rs",
+        "src/native_app/audio/sample_load_actions/deferred_drop.rs",
+        "src/native_app/file_actions/wav_normalize.rs",
+        "src/native_app/metadata/persistence.rs",
+        "src/native_app/sample_library/file_actions/wav_normalize.rs",
+        "src/native_app/sample_library/folder_browser/file_move_execution.rs",
+        "src/native_app/sample_library/folder_browser/file_move_transaction.rs",
+        "src/native_app/sample_library/folder_browser/collections/assignment.rs",
+        "src/native_app/sample_library/folder_browser/delete_workflow.rs",
+        "src/native_app/sample_library/folder_browser/filesystem_refresh.rs",
+        "src/native_app/sample_library/folder_browser/rename_execution.rs",
+        "src/native_app/sample_library/folder_browser/scanning.rs",
+        "src/native_app/sample_library/folder_browser/scanning/file_entry_metadata.rs",
+        "src/native_app/sample_library/folder_browser/source_scan_cache.rs",
+        "src/native_app/sample_library/drag_drop_actions/external.rs",
+        "src/native_app/sample_library/native_file_drop_actions.rs",
+        "src/native_app/sample_library/sample_collections/persistence.rs",
+        "src/native_app/sample_library/sample_ratings.rs",
+        "src/native_app/sample_library/source_watcher/classification.rs",
+        "src/native_app/sample_library/source_watcher/handle.rs",
+        "src/native_app/sample_library/source_watcher/roots.rs",
+        "src/native_app/sample_library/trash_actions/movement.rs",
+        "src/native_app/waveform/audio_file/",
+    ]
+    .iter()
+    .any(|allowed| relative == *allowed || relative.starts_with(*allowed))
 }
 
 fn is_export_line(line: &str) -> bool {

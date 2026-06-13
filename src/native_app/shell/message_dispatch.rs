@@ -68,18 +68,23 @@ impl NativeAppState {
             | GuiMessage::RemoveContextSampleFromCollection
             | GuiMessage::NormalizeSelectedSamples
             | GuiMessage::CopySelectedFiles
+            | GuiMessage::SelectedFilesCopyFinished { .. }
             | GuiMessage::SetFileMoveConflictApplyToRemaining(_)
             | GuiMessage::ResolveFileMoveConflict(_)
+            | GuiMessage::FolderMoveFinished { .. }
+            | GuiMessage::FileMoveConflictFinished { .. }
             | GuiMessage::CancelFileMoveConflicts
             | GuiMessage::CopyContextPath
             | GuiMessage::TrashFolderDialogFinished(_)
             | GuiMessage::ContextPathCopyFinished { .. }
             | GuiMessage::OpenContextTarget
             | GuiMessage::MoveContextTargetToTrash
+            | GuiMessage::TrashMoveFinished { .. }
             | GuiMessage::ContextTargetOpenFinished { .. }
             | GuiMessage::RefreshContextSource
             | GuiMessage::RemoveContextSource
             | GuiMessage::CloseContextMenu
+            | GuiMessage::ExternalWaveformFileDropFinished { .. }
             | GuiMessage::WaveformFileDrop(_) => self.apply_file_dispatch(message, context),
             GuiMessage::ToggleJobDetails
             | GuiMessage::CloseJobDetails
@@ -88,8 +93,12 @@ impl NativeAppState {
             | GuiMessage::ToggleTransactionList
             | GuiMessage::CloseTransactionList
             | GuiMessage::FocusRenameInput(_)
+            | GuiMessage::FolderBrowserRenameFinished(_)
             | GuiMessage::DeleteSelectedItem
-            | GuiMessage::ExtractPlaymarkedRange => self.apply_chrome_dispatch(message, context),
+            | GuiMessage::ExtractPlaymarkedRange
+            | GuiMessage::PlaySelectionExtractionFinished { .. } => {
+                self.apply_chrome_dispatch(message, context);
+            }
             GuiMessage::NavigateBrowser { .. }
             | GuiMessage::ToggleSelectedSampleAndAdvance
             | GuiMessage::SelectAllSamples

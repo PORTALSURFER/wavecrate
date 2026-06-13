@@ -30,7 +30,6 @@ mod drag_drop_relocation;
 mod delete_workflow;
 
 mod file_selection;
-
 mod file_selection_model;
 
 mod selection_state;
@@ -41,29 +40,26 @@ mod sample_queries;
 mod visible_samples;
 use visible_samples::SampleListState;
 
-mod file_rename_workflow;
-
+mod file_columns;
 mod file_move_conflicts;
 mod file_move_execution;
 mod file_move_transaction;
-
-mod file_columns;
+mod file_rename_workflow;
 
 mod file_model;
 use file_model::{FileEntry, plural};
 
 mod filesystem_refresh;
-
 mod scanning;
 use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
 
-mod source_scan_cache;
-
 mod panel_state;
+mod source_scan_cache;
 use panel_state::{BrowserFilterState, BrowserPanelLayoutState};
 mod source_management;
 use source_management::BrowserSourceState;
 
+mod rename_execution;
 mod rename_tree;
 mod rename_workflow;
 use rename_workflow::BrowserRenameState;
@@ -80,9 +76,8 @@ pub(in crate::native_app) use state::FolderBrowserState;
 mod tree_state;
 use tree_state::FolderTreeState;
 
-mod tree_view_window;
-
 mod delete_types;
+mod tree_view_window;
 use delete_types::{FileDeleteTargetView, FolderDeleteTargetView};
 
 mod drag_types;
@@ -90,29 +85,41 @@ use drag_types::{FileColumnDragFeedback, FolderDragPreview, FolderDropResult};
 
 mod messages;
 use messages::FolderBrowserMessage;
-
 mod move_types;
 use move_types::{
-    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictResolution,
-    FileMoveConflictResolutionRequest, FileMoveConflictView,
+    FileMoveConflict, FileMoveConflictBatch, FileMoveConflictCompletion,
+    FileMoveConflictExecutionFailure, FileMoveConflictExecutionSuccess, FileMoveConflictResolution,
+    FileMoveConflictResolutionRequest, FileMoveConflictView, FolderMoveCompletion,
+    FolderMoveDropInput, FolderMoveRequest, FolderMoveSuccess,
 };
 
 mod rename_types;
-use rename_types::{FileRenameView, RenameCommitResult, RenameTargetView};
+use rename_types::{
+    FileMetadataRemap, FileRenameView, RenameCommitCompletion, RenameCommitRequest,
+    RenameCommitResult, RenameCommitSuccess, RenameInputResult, RenameTargetView,
+};
 
 mod scan_types;
-
 mod source_types;
 use source_types::RemovedSource;
 
 use scan_types::{FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult};
 
 pub(in crate::native_app) mod commands {
+    pub(in crate::native_app) use super::drag_types::FolderDropResult;
+    pub(in crate::native_app) use super::file_move_execution::{
+        execute_file_move_conflict_request, execute_folder_move_request,
+    };
     pub(in crate::native_app) use super::messages::FolderBrowserMessage;
     pub(in crate::native_app) use super::move_types::{
-        FileMoveConflictResolution, FileMoveConflictResolutionRequest,
+        FileMoveConflictCompletion, FileMoveConflictResolution, FileMoveConflictResolutionRequest,
+        FolderMoveCompletion, FolderMoveDropInput,
     };
-    pub(in crate::native_app) use super::rename_types::{FileRenameView, RenamePathRemap};
+    pub(in crate::native_app) use super::rename_execution::execute_rename_commit_request;
+    pub(in crate::native_app) use super::rename_types::{
+        FileRenameView, RenameCommitCompletion, RenameCommitResult, RenameInputResult,
+        RenamePathRemap,
+    };
 }
 
 pub(in crate::native_app) mod model {
