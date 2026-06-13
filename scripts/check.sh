@@ -35,6 +35,7 @@ case "$command" in
   main-branch) exec "$script_dir/check_next_branch.sh" "$@" ;;
   migration-boundary) exec "$script_dir/check_migration_boundary.sh" "$@" ;;
   native-app-boundary) exec "$script_dir/check_native_app_boundary.sh" "$@" ;;
+  non-blocking-architecture) exec "$script_dir/check_non_blocking_architecture.sh" "$@" ;;
   private-docs) exec "$script_dir/check_rust_private_docs.sh" "$@" ;;
   prune-file-budget) exec "$script_dir/prune_file_size_budget_allowlist.sh" "$@" ;;
   public-docs) exec "$script_dir/check_rust_public_docs.sh" "$@" ;;

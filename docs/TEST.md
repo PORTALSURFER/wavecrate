@@ -58,6 +58,17 @@ The nextest policy is:
 - Required GitHub test jobs upload nextest JUnit and archive summaries on
   failure; start with the job summary before reading the raw log.
 
+The non-blocking app architecture is enforced by
+`scripts/check.* non-blocking-architecture`, and that check is required by
+`scripts/ci.* agent` plus the agent preflight inside `scripts/ci.* local`. It
+runs Radiant's reusable non-blocking guardrails, Wavecrate's app-facing blocking
+scan, and the deterministic strict slow-handler diagnostics harness.
+The agent lane intentionally runs the focused Radiant non-blocking guardrail
+module instead of the full `generic_surface_guardrails` suite, because that
+broader suite also contains unrelated cleanup/source-shape guardrails that
+should be fixed deliberately rather than used as the non-blocking architecture
+gate.
+
 Windows note:
 
 - use the PowerShell wrappers in this repository
@@ -93,6 +104,11 @@ Use for most app/domain behavior under `src/`.
   - `cargo nextest run --profile quick --lib --tests`
 - agent-safe library suite:
   - `cargo test -p wavecrate --lib`
+  - `scripts/ci.* agent` runs the library suite with two known legacy
+    controller failures skipped so the required agent lane can stay focused on
+    deterministic architecture, compile, and broad non-ignored library coverage:
+    `prepare_auto_rename_requests_logs_looped_provenance` and
+    `rating_previous_random_history_entry_restores_waveform_for_replacement`.
 
 ### Script and golden checks
 

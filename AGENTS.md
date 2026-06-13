@@ -99,6 +99,9 @@ validation expectations for `C:\dev\wavecrate`.
   final validation gate. In constrained agent-side work, the final gate is:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
   - macOS/Linux/WSL: `bash scripts/ci.sh agent`
+  This lane requires `scripts/check.* non-blocking-architecture`, which runs
+  Radiant and Wavecrate guardrails for the locked-down non-blocking app runtime
+  contract.
 - For broader integrated local validation built around `cargo nextest`:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 quick`
   - macOS/Linux/WSL: `bash scripts/ci.sh quick`

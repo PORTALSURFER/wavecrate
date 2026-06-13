@@ -36,6 +36,7 @@ $commands = @{
   "main-branch" = "check_next_branch.ps1"
   "migration-boundary" = "check_migration_boundary.ps1"
   "native-app-boundary" = "check_native_app_boundary.ps1"
+  "non-blocking-architecture" = "check_non_blocking_architecture.ps1"
   "private-docs" = "check_rust_private_docs.ps1"
   "prune-file-budget" = "prune_file_size_budget_allowlist.ps1"
   "public-docs" = "check_rust_public_docs.ps1"

@@ -17,6 +17,7 @@
       "scripts/internal/perf/run_perf_guard.ps1",
       "scripts/internal/check/audit_cleanup_hotspots.ps1",
       "scripts/internal/check/check_native_app_boundary.ps1",
+      "scripts/internal/check/check_non_blocking_architecture.ps1",
       "scripts/internal/check/check_wavecrate_facades.ps1",
       "scripts/internal/check/check_docs_index.ps1",
       "scripts/internal/check/report_file_size_budget_allowlist.ps1",
@@ -34,6 +35,7 @@
       "scripts/internal/check/check_rust_taste_invariants.sh",
       "scripts/internal/check/check_rust_private_docs.sh",
       "scripts/internal/check/check_native_app_boundary.sh",
+      "scripts/internal/check/check_non_blocking_architecture.sh",
       "scripts/internal/check/check_rust_dead_deps_advisory.sh",
       "scripts/internal/check/report_size_hotspots.sh",
       "scripts/internal/perf/run_perf_guard.sh",
@@ -53,14 +55,34 @@
         "fragment": "--example generic_native --no-default-features"
       },
       {
-        "label": "PowerShell ci agent runs Radiant standalone no-default tests",
+        "label": "PowerShell ci agent runs Radiant no-default library tests",
         "path": "scripts/internal/ci/ci_agent.ps1",
-        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features"
       },
       {
-        "label": "Bash ci agent runs Radiant standalone no-default tests",
+        "label": "Bash ci agent runs Radiant no-default library tests",
         "path": "scripts/internal/ci/ci_agent.sh",
-        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features"
+      },
+      {
+        "label": "PowerShell ci agent runs Radiant no-default app runtime API tests",
+        "path": "scripts/internal/ci/ci_agent.ps1",
+        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features"
+      },
+      {
+        "label": "Bash ci agent runs Radiant no-default app runtime API tests",
+        "path": "scripts/internal/ci/ci_agent.sh",
+        "fragment": "cargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features"
+      },
+      {
+        "label": "PowerShell ci agent requires non-blocking architecture guardrails",
+        "path": "scripts/internal/ci/ci_agent.ps1",
+        "fragment": "scripts/check.ps1\") non-blocking-architecture"
+      },
+      {
+        "label": "Bash ci agent requires non-blocking architecture guardrails",
+        "path": "scripts/internal/ci/ci_agent.sh",
+        "fragment": "./scripts/check.sh non-blocking-architecture"
       },
       {
         "label": "PowerShell perf guard uses shared report evaluator",

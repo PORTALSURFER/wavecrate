@@ -230,6 +230,10 @@
           "target": "check_native_app_boundary.ps1"
         },
         {
+          "name": "non-blocking-architecture",
+          "target": "check_non_blocking_architecture.ps1"
+        },
+        {
           "name": "main-branch",
           "target": "check_next_branch.ps1"
         },
