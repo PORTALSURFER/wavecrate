@@ -1,27 +1,12 @@
-# Execution Plan Template
+# Deprecated Execution Plan Template
 
-Use this template for implementation plans that need a clear ordered path.
-Keep the durable navigation pointer in `docs/plans/` and put lane-specific
-details in the plan document itself.
+Do not use this file to create active implementation plans.
 
-## Goal
+Active plans, backlog state, dependency ordering, validation expectations, and
+definitions of done belong in Linear issues for the repo project named in
+`AGENTS.md`.
 
-- What outcome should this plan deliver?
-
-## Constraints
-
-- What must remain true while implementing this work?
-
-## Validation
-
-- Which commands or checks prove the work is correct?
-
-## Steps
-
-1. Establish the current state and confirm the live contract.
-2. Make the smallest durable change that resolves the problem.
-3. Validate the touched workflow and record any remaining manual follow-up.
-
-## Notes
-
-- Link supporting docs, issues, or temporary artifacts here.
+This file remains only as a compatibility placeholder for old references. If an
+issue needs more context than Linear can hold cleanly, write a narrow supporting
+investigation note and link it from the Linear issue. That note must not become
+the active plan or backlog source of truth.

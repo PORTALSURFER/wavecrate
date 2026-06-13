@@ -17,3 +17,5 @@ Use Linear for plans, backlog structure, and execution ordering.
 - Legacy plan docs that have not yet been removed
 - Long-form investigation or architecture notes only when an issue needs
   supporting context that does not fit cleanly inside Linear
+- Compatibility placeholders for old doc references, provided they point back
+  to Linear and do not define active execution state
