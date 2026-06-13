@@ -4,7 +4,7 @@
 //! invalidation, and tests can migrate by domain without treating the root
 //! action enum as one undifferentiated API.
 
-use super::{OptionsAction, UiAction};
+use super::{CompatibilityAction, OptionsAction, UiAction};
 
 /// Stable domain family for a Wavecrate UI action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -33,9 +33,6 @@ impl UiAction {
     /// Return the domain family that owns this action's behavior.
     pub fn domain(&self) -> UiActionDomain {
         match self {
-            // Column / triage actions.
-            UiAction::SelectColumn { .. } => UiActionDomain::ColumnTriage,
-            UiAction::MoveColumn { .. } => UiActionDomain::ColumnTriage,
             // Transport and global playback actions.
             UiAction::Transport(
                 crate::app_core::actions::NativeTransportAction::ToggleTransport,
@@ -239,8 +236,6 @@ impl UiAction {
             // Waveform transport, edit, and gesture actions.
             UiAction::SeekWaveformPrecise { .. } => UiActionDomain::Waveform,
             UiAction::SetWaveformCursorPrecise { .. } => UiActionDomain::Waveform,
-            UiAction::SeekWaveform { .. } => UiActionDomain::Waveform,
-            UiAction::SetWaveformCursor { .. } => UiActionDomain::Waveform,
             UiAction::BeginWaveformSelectionAt { .. } => UiActionDomain::Waveform,
             UiAction::BeginWaveformSelectionAtPrecise { .. } => UiActionDomain::Waveform,
             UiAction::BeginWaveformCircularSlide { .. } => UiActionDomain::Waveform,
@@ -277,12 +272,21 @@ impl UiAction {
             UiAction::ZoomWaveformToSelection => UiActionDomain::Waveform,
             UiAction::ZoomWaveformFull => UiActionDomain::Waveform,
             // Retained flat compatibility inputs for history and update actions.
-            UiAction::Undo => UiActionDomain::HistoryAndUpdates,
-            UiAction::Redo => UiActionDomain::HistoryAndUpdates,
-            UiAction::CheckForUpdates => UiActionDomain::HistoryAndUpdates,
-            UiAction::OpenUpdateLink => UiActionDomain::HistoryAndUpdates,
-            UiAction::InstallUpdate => UiActionDomain::HistoryAndUpdates,
-            UiAction::DismissUpdate => UiActionDomain::HistoryAndUpdates,
+            UiAction::Compatibility(
+                CompatibilityAction::Undo
+                | CompatibilityAction::Redo
+                | CompatibilityAction::CheckForUpdates
+                | CompatibilityAction::OpenUpdateLink
+                | CompatibilityAction::InstallUpdate
+                | CompatibilityAction::DismissUpdate,
+            ) => UiActionDomain::HistoryAndUpdates,
+            UiAction::Compatibility(
+                CompatibilityAction::SelectColumn { .. } | CompatibilityAction::MoveColumn { .. },
+            ) => UiActionDomain::ColumnTriage,
+            UiAction::Compatibility(
+                CompatibilityAction::SeekWaveform { .. }
+                | CompatibilityAction::SetWaveformCursor { .. },
+            ) => UiActionDomain::Waveform,
         }
     }
 }

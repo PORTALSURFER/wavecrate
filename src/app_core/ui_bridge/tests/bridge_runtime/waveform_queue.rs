@@ -5,9 +5,11 @@ use super::*;
 fn on_action_queues_waveform_cursor_preview_actions() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::SetWaveformCursor {
-        position_milli: 420,
-    });
+    bridge.on_action(NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+            position_milli: 420,
+        },
+    ));
 
     assert_eq!(
         bridge.pending_waveform_actions.cursor_nanos,
@@ -40,9 +42,11 @@ fn on_action_applies_waveform_edit_preview_actions_immediately() {
 fn on_action_keeps_seek_actions_queued() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::SeekWaveform {
-        position_milli: 333,
-    });
+    bridge.on_action(NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 333,
+        },
+    ));
 
     assert_eq!(
         bridge.pending_waveform_actions.seek_nanos,
@@ -74,9 +78,11 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
     };
 
     assert!(
-        bridge.enqueue_waveform_action(&NativeUiAction::SetWaveformCursor {
-            position_milli: 500,
-        })
+        bridge.enqueue_waveform_action(&NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+                position_milli: 500
+            }
+        ))
     );
     bridge.flush_pending_waveform_actions();
 
@@ -95,9 +101,11 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
     let mut bridge = test_bridge(16);
 
     assert!(
-        bridge.enqueue_waveform_action(&NativeUiAction::SetWaveformCursor {
-            position_milli: 500,
-        })
+        bridge.enqueue_waveform_action(&NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+                position_milli: 500
+            }
+        ))
     );
     bridge.flush_pending_waveform_actions();
     let Some(first_snapshot) = bridge.projection_key_snapshot.as_ref().cloned() else {
@@ -107,9 +115,11 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
     assert!(!bridge.controller.has_dirty_derived_nodes());
 
     assert!(
-        bridge.enqueue_waveform_action(&NativeUiAction::SetWaveformCursor {
-            position_milli: 500,
-        })
+        bridge.enqueue_waveform_action(&NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+                position_milli: 500
+            }
+        ))
     );
     bridge.flush_pending_waveform_actions();
 

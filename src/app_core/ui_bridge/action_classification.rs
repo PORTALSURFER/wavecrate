@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
-use crate::app_core::actions::{NativeOptionsAction, NativeUiAction};
+use crate::app_core::actions::{NativeCompatibilityAction, NativeOptionsAction, NativeUiAction};
 
 /// Interaction classes tracked by UI bridge profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,8 +34,8 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::Transport(
             crate::app_core::actions::NativeTransportAction::PlayWaveformAtPrecise { .. },
         )
-        | NativeUiAction::SeekWaveform { .. }
-        | NativeUiAction::SetWaveformCursor { .. }
+        | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
+        | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
         | NativeUiAction::BeginWaveformCircularSlide { .. }
         | NativeUiAction::UpdateWaveformCircularSlide { .. }
         | NativeUiAction::FinishWaveformCircularSlide

@@ -18,7 +18,7 @@ mod precision_eq;
 mod transport;
 
 pub use self::browser::BrowserTagTarget;
-pub use self::compatibility::upgrade_compatibility_action;
+pub use self::compatibility::{CompatibilityAction, upgrade_compatibility_action};
 pub use self::domain::UiActionDomain;
 pub use self::history_update::HistoryUpdateAction;
 pub use self::options::OptionsAction;
@@ -27,14 +27,6 @@ pub use self::transport::TransportAction;
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UiAction {
-    // Column / triage actions.
-    SelectColumn {
-        index: usize,
-    },
-    MoveColumn {
-        delta: i8,
-    },
-
     Transport(TransportAction),
     HistoryAndUpdate(HistoryUpdateAction),
 
@@ -311,12 +303,6 @@ pub enum UiAction {
     SetWaveformCursorPrecise {
         position_nanos: u32,
     },
-    SeekWaveform {
-        position_milli: u16,
-    },
-    SetWaveformCursor {
-        position_milli: u16,
-    },
     BeginWaveformSelectionAt {
         anchor_micros: u32,
     },
@@ -432,14 +418,18 @@ pub enum UiAction {
     ZoomWaveformToSelection,
     ZoomWaveformFull,
 
-    // Retained compatibility inputs for legacy flat history and update payloads.
-    Undo,
-    Redo,
-    CheckForUpdates,
-    OpenUpdateLink,
-    InstallUpdate,
-    DismissUpdate,
-
+    #[serde(untagged)]
+    Compatibility(CompatibilityAction),
     #[serde(untagged)]
     Options(OptionsAction),
+}
+
+#[allow(non_upper_case_globals)]
+impl UiAction {
+    pub const Undo: Self = Self::Compatibility(CompatibilityAction::Undo);
+    pub const Redo: Self = Self::Compatibility(CompatibilityAction::Redo);
+    pub const CheckForUpdates: Self = Self::Compatibility(CompatibilityAction::CheckForUpdates);
+    pub const OpenUpdateLink: Self = Self::Compatibility(CompatibilityAction::OpenUpdateLink);
+    pub const InstallUpdate: Self = Self::Compatibility(CompatibilityAction::InstallUpdate);
+    pub const DismissUpdate: Self = Self::Compatibility(CompatibilityAction::DismissUpdate);
 }

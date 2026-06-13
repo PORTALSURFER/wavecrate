@@ -123,9 +123,11 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::SetWaveformCursor {
-                    position_milli: 500,
-                },
+                action: NativeUiAction::Compatibility(
+                    crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+                        position_milli: 500,
+                    },
+                ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeActionAvailable {

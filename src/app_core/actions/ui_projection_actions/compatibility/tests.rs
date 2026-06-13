@@ -26,14 +26,14 @@ fn column_inputs_remain_review_compatibility_inputs() {
     assert_eq!(select.clone().policy(), CompatibilityPolicy::Review);
     assert_eq!(
         upgrade_compatibility_action(select),
-        UiAction::SelectColumn { index: 2 }
+        UiAction::Compatibility(CompatibilityAction::SelectColumn { index: 2 })
     );
 
     let move_column = CompatibilityAction::MoveColumn { delta: -1 };
     assert_eq!(move_column.clone().policy(), CompatibilityPolicy::Review);
     assert_eq!(
         upgrade_compatibility_action(move_column),
-        UiAction::MoveColumn { delta: -1 }
+        UiAction::Compatibility(CompatibilityAction::MoveColumn { delta: -1 })
     );
 }
 
@@ -54,9 +54,9 @@ fn legacy_json_payloads_parse_in_adapter() {
 #[test]
 fn ui_action_boundary_normalizes_retained_compatibility_variants() {
     assert_eq!(
-        UiAction::SeekWaveform {
+        UiAction::Compatibility(CompatibilityAction::SeekWaveform {
             position_milli: 250,
-        }
+        })
         .upgrade_compatibility(),
         UiAction::SeekWaveformPrecise {
             position_nanos: 250_000_000,
@@ -80,4 +80,35 @@ fn flat_history_update_inputs_upgrade_to_domain_action() {
         UiAction::Undo.upgrade_compatibility(),
         UiAction::HistoryAndUpdate(HistoryUpdateAction::Undo)
     );
+}
+
+#[test]
+fn flat_history_update_inputs_are_adapter_owned() {
+    let parsed: UiAction =
+        serde_json::from_value(serde_json::json!("DismissUpdate")).expect("parse flat update");
+
+    assert_eq!(parsed, UiAction::DismissUpdate);
+    assert_eq!(
+        parsed.upgrade_compatibility(),
+        UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate)
+    );
+
+    let root_source = include_str!("../../ui_projection_actions.rs");
+    for variant in [
+        "\n    SelectColumn {\n",
+        "\n    MoveColumn {\n",
+        "\n    SeekWaveform {\n",
+        "\n    SetWaveformCursor {\n",
+        "\n    Undo,\n",
+        "\n    Redo,\n",
+        "\n    CheckForUpdates,\n",
+        "\n    OpenUpdateLink,\n",
+        "\n    InstallUpdate,\n",
+        "\n    DismissUpdate,\n",
+    ] {
+        assert!(
+            !root_source.contains(variant),
+            "compatibility-only variant leaked back into UiAction: {variant:?}"
+        );
+    }
 }

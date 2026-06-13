@@ -11,6 +11,18 @@ use serde::{Deserialize, Serialize};
 /// Supported legacy action inputs retained for runtime and artifact readers.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CompatibilityAction {
+    /// Older flat undo payload.
+    Undo,
+    /// Older flat redo payload.
+    Redo,
+    /// Older flat update-check payload.
+    CheckForUpdates,
+    /// Older flat update-link payload.
+    OpenUpdateLink,
+    /// Older flat update-install payload.
+    InstallUpdate,
+    /// Older flat update-dismiss payload.
+    DismissUpdate,
     /// Older triage-column selection payload.
     SelectColumn {
         /// Target column index in the visible triage column set.
@@ -37,8 +49,16 @@ impl CompatibilityAction {
     /// Upgrade one retained compatibility input to the current action contract.
     pub fn upgrade(self) -> UiAction {
         match self {
-            Self::SelectColumn { index } => UiAction::SelectColumn { index },
-            Self::MoveColumn { delta } => UiAction::MoveColumn { delta },
+            Self::Undo => UiAction::HistoryAndUpdate(HistoryUpdateAction::Undo),
+            Self::Redo => UiAction::HistoryAndUpdate(HistoryUpdateAction::Redo),
+            Self::CheckForUpdates => {
+                UiAction::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates)
+            }
+            Self::OpenUpdateLink => UiAction::HistoryAndUpdate(HistoryUpdateAction::OpenUpdateLink),
+            Self::InstallUpdate => UiAction::HistoryAndUpdate(HistoryUpdateAction::InstallUpdate),
+            Self::DismissUpdate => UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate),
+            Self::SelectColumn { index } => UiAction::Compatibility(Self::SelectColumn { index }),
+            Self::MoveColumn { delta } => UiAction::Compatibility(Self::MoveColumn { delta }),
             Self::SeekWaveform { position_milli } => UiAction::SeekWaveformPrecise {
                 position_nanos: milli_to_nanos(position_milli),
             },
@@ -52,10 +72,15 @@ impl CompatibilityAction {
     /// compatibility contract.
     pub const fn policy(self) -> CompatibilityPolicy {
         match self {
+            Self::Undo
+            | Self::Redo
+            | Self::CheckForUpdates
+            | Self::OpenUpdateLink
+            | Self::InstallUpdate
+            | Self::DismissUpdate
+            | Self::SeekWaveform { .. }
+            | Self::SetWaveformCursor { .. } => CompatibilityPolicy::DurableUpgrade,
             Self::SelectColumn { .. } | Self::MoveColumn { .. } => CompatibilityPolicy::Review,
-            Self::SeekWaveform { .. } | Self::SetWaveformCursor { .. } => {
-                CompatibilityPolicy::DurableUpgrade
-            }
         }
     }
 }
@@ -64,30 +89,7 @@ impl UiAction {
     /// Normalize retained compatibility payloads into current action shapes.
     pub fn upgrade_compatibility(self) -> Self {
         match self {
-            UiAction::SelectColumn { index } => {
-                CompatibilityAction::SelectColumn { index }.upgrade()
-            }
-            UiAction::MoveColumn { delta } => CompatibilityAction::MoveColumn { delta }.upgrade(),
-            UiAction::SeekWaveform { position_milli } => {
-                CompatibilityAction::SeekWaveform { position_milli }.upgrade()
-            }
-            UiAction::SetWaveformCursor { position_milli } => {
-                CompatibilityAction::SetWaveformCursor { position_milli }.upgrade()
-            }
-            UiAction::Undo => UiAction::HistoryAndUpdate(HistoryUpdateAction::Undo),
-            UiAction::Redo => UiAction::HistoryAndUpdate(HistoryUpdateAction::Redo),
-            UiAction::CheckForUpdates => {
-                UiAction::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates)
-            }
-            UiAction::OpenUpdateLink => {
-                UiAction::HistoryAndUpdate(HistoryUpdateAction::OpenUpdateLink)
-            }
-            UiAction::InstallUpdate => {
-                UiAction::HistoryAndUpdate(HistoryUpdateAction::InstallUpdate)
-            }
-            UiAction::DismissUpdate => {
-                UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate)
-            }
+            UiAction::Compatibility(action) => action.upgrade(),
             action => action,
         }
     }

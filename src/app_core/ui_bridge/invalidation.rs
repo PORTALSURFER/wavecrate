@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
-use crate::app_core::actions::{NativeOptionsAction, NativeUiAction};
+use crate::app_core::actions::{NativeCompatibilityAction, NativeOptionsAction, NativeUiAction};
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 
 /// Return whether an action requires unconditional projection-cache invalidation.
@@ -9,8 +9,8 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
         action,
         NativeUiAction::SeekWaveformPrecise { .. }
             | NativeUiAction::SetWaveformCursorPrecise { .. }
-            | NativeUiAction::SeekWaveform { .. }
-            | NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
+            | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
             | NativeUiAction::BeginWaveformCircularSlide { .. }
             | NativeUiAction::UpdateWaveformCircularSlide { .. }
             | NativeUiAction::FinishWaveformCircularSlide
@@ -119,8 +119,8 @@ pub(super) fn classify_dirty_source(
     match action {
         NativeUiAction::SeekWaveformPrecise { .. }
         | NativeUiAction::SetWaveformCursorPrecise { .. }
-        | NativeUiAction::SeekWaveform { .. }
-        | NativeUiAction::SetWaveformCursor { .. }
+        | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
+        | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
         | NativeUiAction::BeginWaveformSelectionAt { .. }
         | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
@@ -268,10 +268,12 @@ pub(super) fn classify_dirty_source(
             | crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate
             | crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
         )
-        | NativeUiAction::CheckForUpdates
-        | NativeUiAction::OpenUpdateLink
-        | NativeUiAction::InstallUpdate
-        | NativeUiAction::DismissUpdate
+        | NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::CheckForUpdates
+            | crate::app_core::actions::NativeCompatibilityAction::OpenUpdateLink
+            | crate::app_core::actions::NativeCompatibilityAction::InstallUpdate
+            | crate::app_core::actions::NativeCompatibilityAction::DismissUpdate,
+        )
         | NativeUiAction::Options(NativeOptionsAction::OpenOptionsMenu)
         | NativeUiAction::Options(NativeOptionsAction::CloseOptionsPanel)
         | NativeUiAction::Options(NativeOptionsAction::PickTrashFolder)

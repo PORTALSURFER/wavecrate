@@ -32,6 +32,16 @@ macro_rules! build_action_mapping {
             }
         }
     };
+    (@match SelectColumn { index }) => {
+        NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::SelectColumn { index: _ },
+        )
+    };
+    (@match MoveColumn { delta }) => {
+        NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::MoveColumn { delta: _ },
+        )
+    };
     (@match ToggleTransport {}) => {
         NativeUiAction::Transport(crate::app_core::actions::NativeTransportAction::ToggleTransport)
     };
@@ -59,31 +69,31 @@ macro_rules! build_action_mapping {
     };
     (@match Undo {}) => {
         NativeUiAction::HistoryAndUpdate(crate::app_core::actions::NativeHistoryUpdateAction::Undo)
-            | NativeUiAction::Undo
+            | NativeUiAction::Compatibility(crate::app_core::actions::NativeCompatibilityAction::Undo)
     };
     (@match Redo {}) => {
         NativeUiAction::HistoryAndUpdate(crate::app_core::actions::NativeHistoryUpdateAction::Redo)
-            | NativeUiAction::Redo
+            | NativeUiAction::Compatibility(crate::app_core::actions::NativeCompatibilityAction::Redo)
     };
     (@match CheckForUpdates {}) => {
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::CheckForUpdates,
-        ) | NativeUiAction::CheckForUpdates
+        ) | NativeUiAction::Compatibility(crate::app_core::actions::NativeCompatibilityAction::CheckForUpdates)
     };
     (@match OpenUpdateLink {}) => {
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::OpenUpdateLink,
-        ) | NativeUiAction::OpenUpdateLink
+        ) | NativeUiAction::Compatibility(crate::app_core::actions::NativeCompatibilityAction::OpenUpdateLink)
     };
     (@match InstallUpdate {}) => {
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate,
-        ) | NativeUiAction::InstallUpdate
+        ) | NativeUiAction::Compatibility(crate::app_core::actions::NativeCompatibilityAction::InstallUpdate)
     };
     (@match DismissUpdate {}) => {
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
-        ) | NativeUiAction::DismissUpdate
+        ) | NativeUiAction::Compatibility(crate::app_core::actions::NativeCompatibilityAction::DismissUpdate)
     };
     (@match OpenOptionsMenu {}) => {
         NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::OpenOptionsMenu)
@@ -156,6 +166,20 @@ macro_rules! build_action_mapping {
     };
     (@match CommitVolumeSetting {}) => {
         NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::CommitVolumeSetting)
+    };
+    (@match SeekWaveform { position_milli }) => {
+        NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+                position_milli: _,
+            },
+        )
+    };
+    (@match SetWaveformCursor { position_milli }) => {
+        NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+                position_milli: _,
+            },
+        )
     };
     (@match $kind:ident {}) => {
         NativeUiAction::$kind

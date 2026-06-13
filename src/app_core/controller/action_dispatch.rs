@@ -1,6 +1,8 @@
 use std::time::Instant;
 
-use crate::app_core::actions::{GuiSurface, NativeUiAction, action_catalog_entry};
+use crate::app_core::actions::{
+    GuiSurface, NativeCompatibilityAction, NativeUiAction, action_catalog_entry,
+};
 use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use tracing::error;
 
@@ -74,8 +76,12 @@ fn apply_transport_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
-        NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
+        NativeUiAction::Compatibility(NativeCompatibilityAction::SelectColumn { index }) => {
+            controller.select_column_by_index(index)
+        }
+        NativeUiAction::Compatibility(NativeCompatibilityAction::MoveColumn { delta }) => {
+            controller.move_selection_column(delta as isize)
+        }
         NativeUiAction::Transport(
             crate::app_core::actions::NativeTransportAction::PlayFromStart,
         ) => {
@@ -110,11 +116,15 @@ fn apply_transport_ui_action(
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::Undo,
         )
-        | NativeUiAction::Undo => controller.undo(),
+        | NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::Undo,
+        ) => controller.undo(),
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::Redo,
         )
-        | NativeUiAction::Redo => controller.redo(),
+        | NativeUiAction::Compatibility(
+            crate::app_core::actions::NativeCompatibilityAction::Redo,
+        ) => controller.redo(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
         NativeUiAction::Options(crate::app_core::actions::NativeOptionsAction::SetVolume {

@@ -6,9 +6,11 @@ use std::sync::Arc;
 fn mark_dirty_for_waveform_action_marks_graph_nodes() {
     let mut bridge = test_bridge(16);
 
-    bridge.mark_dirty_for_action(&NativeUiAction::SeekWaveform {
-        position_milli: 250,
-    });
+    bridge.mark_dirty_for_action(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 250,
+        },
+    ));
 
     assert!(
         bridge

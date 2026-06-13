@@ -72,9 +72,11 @@ fn startup_retained_pull_plan_runs_startup_lanes() {
 fn apply_ui_seek_queues_deferred_seek_commit() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_ui_action(NativeUiAction::SeekWaveform {
-        position_milli: 420,
-    });
+    controller.apply_ui_action(NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 420,
+        },
+    ));
 
     assert_eq!(
         controller.pending_waveform_seek_nanos_for_test(),
@@ -192,9 +194,11 @@ fn apply_ui_action_routes_grouped_dispatch_cases() {
         },
         Case {
             label: "waveform group",
-            action: NativeUiAction::SeekWaveform {
-                position_milli: 333,
-            },
+            action: NativeUiAction::Compatibility(
+                crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+                    position_milli: 333,
+                },
+            ),
             expected: Expected::PendingSeek(Some(333)),
         },
         Case {

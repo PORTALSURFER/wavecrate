@@ -4,18 +4,26 @@ use super::*;
 #[test]
 fn waveform_action_queue_last_write_wins() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
-        position_milli: 100,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
-        position_milli: 220,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
-        position_milli: 300,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
-        position_milli: 420,
-    }));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 100
+        }
+    )));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 220
+        }
+    )));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+            position_milli: 300
+        }
+    )));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+            position_milli: 420
+        }
+    )));
     assert_eq!(queue.seek_nanos, Some(220_000_000));
     assert_eq!(queue.cursor_nanos, Some(420_000_000));
 }
@@ -24,12 +32,16 @@ fn waveform_action_queue_last_write_wins() {
 #[test]
 fn waveform_action_queue_dedupes_cursor_when_seek_matches() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
-        position_milli: 420,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
-        position_milli: 420,
-    }));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+            position_milli: 420
+        }
+    )));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 420
+        }
+    )));
     assert_eq!(queue.deduped_cursor_nanos(), None);
 }
 
@@ -67,12 +79,16 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
         center_micros: 500_000,
         center_nanos: None,
     }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
-        position_milli: 410,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
-        position_milli: 900,
-    }));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+            position_milli: 410
+        }
+    )));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
+            position_milli: 900
+        }
+    )));
 
     let mut emitted = Vec::new();
     let count = queue.emit_actions(|action| emitted.push(action));
@@ -382,9 +398,11 @@ fn waveform_action_queue_does_not_absorb_edit_selection_actions() {
 #[test]
 fn waveform_queue_dirty_reason_matches_enqueued_actions() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
-        position_milli: 400,
-    }));
+    assert!(queue.enqueue(&NativeUiAction::Compatibility(
+        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
+            position_milli: 400
+        }
+    )));
     assert_eq!(queue.dirty_reason(), DirtyReason::WaveformOverlayAction);
 
     assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
