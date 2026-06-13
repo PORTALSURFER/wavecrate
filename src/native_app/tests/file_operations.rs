@@ -58,6 +58,65 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
 }
 
 #[test]
+fn activating_folder_queues_selected_folder_verify() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(drums.join("kick.wav"), b"sample").expect("write sample");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let mut context = radiant::prelude::UpdateContext::default();
+
+    state.apply_folder_browser_message(
+        FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
+        &mut context,
+    );
+
+    assert!(
+        state.background.folder_verify_task.active().is_some(),
+        "activating a folder should schedule direct verification to reconcile stale rows"
+    );
+}
+
+#[test]
+fn activating_folder_replaces_pending_selected_folder_verify() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let mut context = radiant::prelude::UpdateContext::default();
+
+    state.apply_folder_browser_message(
+        FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
+        &mut context,
+    );
+    let first_ticket = state
+        .background
+        .folder_verify_task
+        .active()
+        .expect("first activation should queue verify");
+    state.apply_folder_browser_message(
+        FolderBrowserMessage::ActivateFolder(loops.display().to_string()),
+        &mut context,
+    );
+
+    assert_ne!(
+        state.background.folder_verify_task.active(),
+        Some(first_ticket),
+        "new folder activation should supersede an older pending verification"
+    );
+}
+
+#[test]
 fn delete_selected_file_moves_it_to_configured_trash_folder() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");

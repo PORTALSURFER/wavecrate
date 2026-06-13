@@ -26,6 +26,7 @@ impl NativeAppState {
             GuiMessage::StartupFolderVerifyFinished(ticket) => {
                 self.finish_startup_folder_verify(ticket)
             }
+            GuiMessage::SelectedFolderVerifyFinished(ticket) => self.finish_folder_verify(ticket),
             GuiMessage::SourceFilesystemChanged {
                 source_id,
                 paths,

@@ -64,9 +64,6 @@ impl FolderBrowserState {
         &mut self,
         result: FolderVerifyResult,
     ) -> bool {
-        let Some(snapshot) = result.snapshot else {
-            return false;
-        };
         let Some(source_index) = self
             .source
             .sources
@@ -74,6 +71,13 @@ impl FolderBrowserState {
             .position(|source| source.id == result.source_id)
         else {
             return false;
+        };
+        let Some(snapshot) = result.snapshot else {
+            let changed = self.remove_missing_path_from_source(source_index, &result.folder_path);
+            if changed {
+                self.after_source_tree_changed(&result.source_id);
+            }
+            return changed;
         };
         let folder_id = path_id(&result.folder_path);
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {

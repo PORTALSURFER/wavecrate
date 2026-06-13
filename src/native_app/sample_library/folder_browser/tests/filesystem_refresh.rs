@@ -102,6 +102,67 @@ fn direct_folder_verify_patches_visible_folder_without_dropping_nested_cache() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn direct_folder_verify_prunes_deleted_visible_file() {
+    let root = temp_source_root("wavecrate-gui-direct-folder-verify-prune-file");
+    let drums = root.join("drums");
+    let stale_sample = drums.join("stale.wav");
+    let keep_sample = drums.join("keep.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&stale_sample, [0_u8; 8]).expect("write stale sample");
+    fs::write(&keep_sample, [1_u8; 8]).expect("write keep sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&stale_sample));
+    let request = browser
+        .selected_folder_verify_request()
+        .expect("selected folder should be verifiable");
+    fs::remove_file(&stale_sample).expect("remove stale sample");
+
+    let result = verify_direct_folder(request);
+    assert!(browser.apply_direct_folder_verify_result(result));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"]
+    );
+    assert_eq!(
+        browser.selected_file_paths(),
+        Vec::<std::path::PathBuf>::new(),
+        "selection should drop a file pruned by folder verification"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn direct_folder_verify_prunes_deleted_selected_folder() {
+    let root = temp_source_root("wavecrate-gui-direct-folder-verify-prune-folder");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(drums.join("stale.wav"), [0_u8; 8]).expect("write stale sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    let request = browser
+        .selected_folder_verify_request()
+        .expect("selected folder should be verifiable");
+    fs::remove_dir_all(&drums).expect("remove selected folder");
+
+    let result = verify_direct_folder(request);
+    assert!(browser.apply_direct_folder_verify_result(result));
+
+    assert!(browser.find_folder(&path_id(&drums)).is_none());
+    assert_eq!(browser.selected_folder_path(), Some(root.clone()));
+    assert!(browser.selected_audio_files().is_empty());
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn selected_source_refresh_prunes_deleted_cached_folders_on_finish() {
     let root = temp_source_root("wavecrate-gui-source-refresh-prune");

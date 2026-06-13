@@ -38,6 +38,7 @@ pub(in crate::native_app) enum GuiMessage {
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
     StartupFolderVerifyFinished(ui::TaskTicket),
+    SelectedFolderVerifyFinished(ui::TaskTicket),
     SourceFilesystemChanged {
         source_id: String,
         paths: Vec<PathBuf>,

@@ -20,8 +20,8 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) sample_load_task: ui::LatestTask,
     pub(in crate::native_app) sample_load_cancel: Option<ui::CancellationToken>,
     pub(in crate::native_app) audio_open: AudioOpenTaskOwner,
-    pub(in crate::native_app) startup_folder_verify_task: ui::LatestTask,
-    pub(in crate::native_app) startup_folder_verify_results:
+    pub(in crate::native_app) folder_verify_task: ui::LatestTask,
+    pub(in crate::native_app) folder_verify_results:
         Arc<Mutex<HashMap<ui::TaskTicket, FolderVerifyResult>>>,
     pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
     pub(in crate::native_app) progress_tick: f32,
@@ -41,8 +41,8 @@ impl BackgroundTaskState {
             sample_load_task: ui::LatestTask::new(),
             sample_load_cancel: None,
             audio_open: AudioOpenTaskOwner::new(),
-            startup_folder_verify_task: ui::LatestTask::new(),
-            startup_folder_verify_results: Default::default(),
+            folder_verify_task: ui::LatestTask::new(),
+            folder_verify_results: Default::default(),
             normalization_progress: None,
             progress_tick: 0.0,
             frame_cadence: ui::FrameCadenceMonitor::new(),

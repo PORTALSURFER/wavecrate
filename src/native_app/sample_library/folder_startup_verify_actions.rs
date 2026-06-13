@@ -12,24 +12,54 @@ impl NativeAppState {
         if !self.ui.startup.folder_verify_pending {
             return;
         }
-        if self
-            .background
-            .startup_folder_verify_task
-            .active()
-            .is_some()
-        {
+        if self.background.folder_verify_task.active().is_some() {
             return;
         }
+        self.ui.startup.folder_verify_pending = false;
+        self.queue_selected_folder_verify(
+            context,
+            "folder_browser.startup_verify",
+            "gui-startup-folder-verify",
+            GuiMessage::StartupFolderVerifyFinished,
+        );
+    }
+
+    pub(in crate::native_app) fn finish_startup_folder_verify(&mut self, ticket: ui::TaskTicket) {
+        self.finish_folder_verify_with_action(ticket, "folder_browser.startup_verify");
+    }
+
+    pub(in crate::native_app) fn queue_selected_folder_verify_after_activation(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.queue_selected_folder_verify(
+            context,
+            "folder_browser.selected_folder_verify",
+            "gui-selected-folder-verify",
+            GuiMessage::SelectedFolderVerifyFinished,
+        );
+    }
+
+    pub(in crate::native_app) fn finish_folder_verify(&mut self, ticket: ui::TaskTicket) {
+        self.finish_folder_verify_with_action(ticket, "folder_browser.selected_folder_verify");
+    }
+
+    fn queue_selected_folder_verify(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+        action: &'static str,
+        task_name: &'static str,
+        finished: impl FnOnce(ui::TaskTicket) -> GuiMessage + Send + 'static,
+    ) {
         let Some(request) = self.library.folder_browser.selected_folder_verify_request() else {
-            self.ui.startup.folder_verify_pending = false;
             return;
         };
-        self.ui.startup.folder_verify_pending = false;
+        let source_id = request.source_id.clone();
         let started_at = Instant::now();
-        let ticket = self.background.startup_folder_verify_task.begin();
-        let results = self.background.startup_folder_verify_results.clone();
+        let ticket = self.background.folder_verify_task.begin();
+        let results = self.background.folder_verify_results.clone();
         context.spawn(
-            "gui-startup-folder-verify",
+            task_name,
             move || {
                 let result = scan::verify_direct_folder(request);
                 if let Ok(mut results) = results.lock() {
@@ -37,27 +67,27 @@ impl NativeAppState {
                 }
                 ticket
             },
-            GuiMessage::StartupFolderVerifyFinished,
+            finished,
         );
         emit_gui_action(
-            "folder_browser.startup_verify",
+            action,
             Some("folder_browser"),
-            None,
+            Some(&source_id),
             "queued",
             started_at,
             None,
         );
     }
 
-    pub(in crate::native_app) fn finish_startup_folder_verify(&mut self, ticket: ui::TaskTicket) {
+    fn finish_folder_verify_with_action(&mut self, ticket: ui::TaskTicket, action: &'static str) {
         let started_at = Instant::now();
         let result = self
             .background
-            .startup_folder_verify_results
+            .folder_verify_results
             .lock()
             .ok()
             .and_then(|mut results| results.remove(&ticket));
-        if !self.background.startup_folder_verify_task.finish(ticket) {
+        if !self.background.folder_verify_task.finish(ticket) {
             return;
         }
         let Some(result) = result else {
@@ -70,10 +100,10 @@ impl NativeAppState {
             .apply_direct_folder_verify_result(result);
         if changed {
             self.refresh_persisted_metadata_tags_for_source(&source_id);
-            self.persist_user_configuration("folder_browser.startup_verify.persist", started_at);
+            self.persist_user_configuration(action, started_at);
         }
         emit_gui_action(
-            "folder_browser.startup_verify",
+            action,
             Some("folder_browser"),
             Some(&source_id),
             if changed { "patched" } else { "unchanged" },

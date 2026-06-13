@@ -19,6 +19,7 @@ impl NativeAppState {
         self.library
             .folder_browser
             .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
+        self.queue_selected_folder_verify_after_activation(context);
         self.schedule_persisted_waveform_cache_indicator_refresh(context);
         self.schedule_active_folder_cache_warm(context);
         emit_gui_action(
