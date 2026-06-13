@@ -106,7 +106,7 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
         .guide_style(folder_tree_guide_style())
         .palette(folder_tree_palette())
         .drop_target_outline(folder_tree_drop_target_outline())
-        .highlighted_label_color(FOLDER_TREE_HIGHLIGHTED_LABEL);
+        .highlighted_label_color(folder_tree_highlighted_label_color(folder));
 
     let row = if let Some(label_color) = folder_tree_label_color(folder) {
         row.label_color(label_color)
@@ -177,6 +177,14 @@ fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba8> {
     folder.empty.then_some(FOLDER_TREE_EMPTY_LABEL)
 }
 
+fn folder_tree_highlighted_label_color(folder: &VisibleFolder) -> ui::Rgba8 {
+    if folder.empty {
+        FOLDER_TREE_EMPTY_LABEL
+    } else {
+        FOLDER_TREE_HIGHLIGHTED_LABEL
+    }
+}
+
 fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropState {
     ui::TreeRowDragDropState {
         drag_active: folder.drag_active,
@@ -222,6 +230,7 @@ fn selected_folder_status(label: String) -> ui::View<GuiMessage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use radiant::prelude::IntoView;
 
     #[test]
     fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
@@ -249,6 +258,34 @@ mod tests {
         let folder = visible_folder_for_tests(false);
 
         assert_eq!(folder_tree_label_color(&folder), None);
+    }
+
+    #[test]
+    fn selected_empty_folder_rows_keep_subdued_label_color() {
+        let mut folder = visible_folder_for_tests(true);
+        folder.selected = true;
+
+        let frame = folder_row(&folder, 0)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+
+        assert_eq!(
+            frame.paint_plan.first_text_color("Folder"),
+            Some(FOLDER_TREE_EMPTY_LABEL)
+        );
+    }
+
+    #[test]
+    fn selected_non_empty_folder_rows_keep_highlighted_label_color() {
+        let mut folder = visible_folder_for_tests(false);
+        folder.selected = true;
+
+        let frame = folder_row(&folder, 0)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+
+        assert_eq!(
+            frame.paint_plan.first_text_color("Folder"),
+            Some(FOLDER_TREE_HIGHLIGHTED_LABEL)
+        );
     }
 
     fn visible_folder_for_tests(empty: bool) -> VisibleFolder {
