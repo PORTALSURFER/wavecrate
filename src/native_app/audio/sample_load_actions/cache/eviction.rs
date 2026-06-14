@@ -8,6 +8,23 @@ const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 impl NativeAppState {
+    pub(in crate::native_app) fn evict_waveform_cache_path(&mut self, path: &Path) {
+        self.remove_waveform_cache_path(path);
+        self.waveform.cache.order.retain(|cached| cached != path);
+        self.waveform
+            .cache
+            .warm_pending
+            .retain(|cached| cached != path);
+        self.waveform
+            .cache
+            .active_folder_warm_pending
+            .retain(|cached| cached != path);
+        self.waveform
+            .cache
+            .cached_sample_paths
+            .remove(&path.display().to_string());
+    }
+
     pub(super) fn enforce_waveform_cache_limit(&mut self) {
         while self.waveform.cache.order.len() > WAVEFORM_MEMORY_CACHE_MAX_FILES
             || (self.waveform.cache.bytes > WAVEFORM_MEMORY_CACHE_MAX_BYTES

@@ -129,6 +129,7 @@ impl NativeAppState {
         self.background.progress_tick = 0.0;
 
         for path in &result.normalized {
+            self.evict_waveform_cache_path(path);
             self.library.folder_browser.refresh_file_path(path);
         }
 
