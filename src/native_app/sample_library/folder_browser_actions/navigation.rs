@@ -112,6 +112,24 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn toggle_random_navigation_mode(&mut self) {
+        let started_at = Instant::now();
+        let enabled = self.library.folder_browser.toggle_random_navigation();
+        self.ui.status.sample = if enabled {
+            String::from("Random sample navigation on")
+        } else {
+            String::from("Random sample navigation off")
+        };
+        emit_gui_action(
+            "browser.random_navigation.toggle",
+            Some("browser"),
+            Some(if enabled { "on" } else { "off" }),
+            "success",
+            started_at,
+            None,
+        );
+    }
+
     pub(in crate::native_app) fn toggle_selected_sample_and_advance(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,

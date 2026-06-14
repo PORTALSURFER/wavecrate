@@ -41,6 +41,7 @@ mod folder_drag_drop;
 mod folder_editing;
 mod folder_tree;
 mod panel_layout;
+mod random_navigation;
 mod source_management;
 mod source_scanning;
 

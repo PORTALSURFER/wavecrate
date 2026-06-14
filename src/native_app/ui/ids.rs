@@ -44,6 +44,8 @@ pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = FOLDER_TREE.id(0);
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
 pub(in crate::native_app) const SAMPLE_HEADER_SORT_DRAG_ID: u64 = SAMPLE_BROWSER_HEADER.id(1);
 pub(in crate::native_app) const SAMPLE_HEADER_RESIZE_ID: u64 = SAMPLE_BROWSER_HEADER.id(2);
+pub(in crate::native_app) const SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID: u64 =
+    SAMPLE_BROWSER_HEADER.id(3);
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = AUDIO_SETTINGS.id(0);
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = AUDIO_SETTINGS.id(100);
@@ -151,6 +153,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         SampleBrowserHeader,
         SAMPLE_HEADER_RESIZE_ID,
         "sample_browser.header_resize"
+    ),
+    registered_widget_id!(
+        SampleBrowserHeader,
+        SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID,
+        "sample_browser.random_navigation_toggle"
     ),
     registered_widget_id!(
         AudioSettings,

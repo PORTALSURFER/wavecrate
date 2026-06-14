@@ -18,6 +18,9 @@ impl NativeAppState {
             GuiMessage::SelectAllSamples => {
                 self.select_all_samples();
             }
+            GuiMessage::ToggleRandomNavigationMode => {
+                self.toggle_random_navigation_mode();
+            }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library
                     .folder_browser

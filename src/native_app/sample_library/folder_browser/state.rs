@@ -98,6 +98,21 @@ impl FolderBrowserState {
         self.sample_list.similarity.is_some()
     }
 
+    pub(in crate::native_app) fn random_navigation_enabled(&self) -> bool {
+        self.sample_list.random_navigation.enabled
+    }
+
+    pub(in crate::native_app) fn toggle_random_navigation(&mut self) -> bool {
+        let enabled = !self.sample_list.random_navigation.enabled;
+        let file_ids = self.selected_audio_file_ids();
+        self.sample_list.random_navigation.set_enabled(
+            enabled,
+            self.selection.selected_file_id(),
+            &file_ids,
+        );
+        enabled
+    }
+
     pub(in crate::native_app) fn file_is_similarity_anchor(&self, file_id: &str) -> bool {
         self.similarity_anchor_id() == Some(file_id)
     }

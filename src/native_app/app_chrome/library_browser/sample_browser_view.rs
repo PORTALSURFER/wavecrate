@@ -24,6 +24,8 @@ const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = widget_ids::SAMPLE_HEADER_SORT_DRAG_I
 const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
 const SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH: f32 = 22.0;
 pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 58.0;
+const SAMPLE_BROWSER_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
+const SAMPLE_BROWSER_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
 
 #[cfg(test)]
 pub(in crate::native_app) fn sample_browser_from_state(
@@ -43,6 +45,7 @@ pub(in crate::native_app) fn sample_browser(
             model.visible_samples.sort,
             model.drag_feedback.as_ref(),
             model.name_view_mode,
+            model.random_navigation_enabled,
             model.visible_samples.similarity_mode_active,
         ),
         sample_browser_rows(
@@ -110,15 +113,34 @@ fn sample_browser_header_bar(
     sort: &ui::DetailsSort,
     drag_feedback: Option<&FileColumnDragFeedback>,
     mode: SampleNameViewMode,
+    random_navigation_enabled: bool,
     similarity_mode_active: bool,
 ) -> ui::View<GuiMessage> {
     ui::row([
         sample_browser_header(columns, sort, drag_feedback, similarity_mode_active).fill_width(),
+        random_navigation_button(random_navigation_enabled),
         sample_name_view_mode_button(mode),
     ])
     .fill_width()
     .height(24.0)
     .spacing(6.0)
+}
+
+fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
+    ui::icon_button(random_navigation_icon(active))
+        .active(active)
+        .message(GuiMessage::ToggleRandomNavigationMode)
+        .id(widget_ids::SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
+        .key("sample-random-navigation-toggle")
+        .size(28.0, 22.0)
+}
+
+fn random_navigation_icon(active: bool) -> ui::SvgIcon {
+    DICE_ICON.icon(if active {
+        SAMPLE_BROWSER_ICON_ACTIVE_COLOR
+    } else {
+        SAMPLE_BROWSER_ICON_ENABLED_COLOR
+    })
 }
 
 fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage> {
@@ -133,6 +155,17 @@ fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage
         .key("sample-name-view-mode-toggle")
         .size(58.0, 22.0)
 }
+
+static DICE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="3" width="10" height="10" rx="1.5"/>
+  <circle cx="6" cy="6" r="1"/>
+  <circle cx="10" cy="6" r="1"/>
+  <circle cx="8" cy="8" r="1"/>
+  <circle cx="6" cy="10" r="1"/>
+  <circle cx="10" cy="10" r="1"/>
+</svg>"#,
+);
 
 fn sample_browser_header(
     columns: &[&FileColumn],

@@ -39,9 +39,15 @@ impl FolderBrowserState {
             .selection
             .selected_collection_active_without_file_focus()
         {
+            if self.sample_list.random_navigation.enabled {
+                return self.navigate_random_matching_tags(delta, tags_by_file);
+            }
             return self.navigate_into_active_file_list_matching_tags(delta, tags_by_file);
         }
         if self.selection.selected_file_active() {
+            if self.sample_list.random_navigation.enabled {
+                return self.navigate_random_matching_tags(delta, tags_by_file);
+            }
             return self.navigate_selected_file_matching_tags(delta, extend, tags_by_file);
         }
         self.navigate_selected_folder(delta);
@@ -133,6 +139,29 @@ impl FolderBrowserState {
         file_ids: &[String],
     ) -> Option<String> {
         self.selection.navigate_file(delta, extend, file_ids)
+    }
+
+    fn navigate_random_matching_tags(
+        &mut self,
+        delta: i32,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<String> {
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        if delta < 0 {
+            self.sample_list
+                .random_navigation
+                .reconcile(self.selection.selected_file_id(), &file_ids);
+            let target = self.sample_list.random_navigation.previous()?;
+            self.selection.select_single_file(target.clone(), &file_ids);
+            return Some(target);
+        }
+
+        let target = self
+            .sample_list
+            .random_navigation
+            .next(self.selection.selected_file_id(), &file_ids)?;
+        self.selection.select_single_file(target.clone(), &file_ids);
+        Some(target)
     }
 
     /// Selects the first reachable file when collection mode owns navigation focus.

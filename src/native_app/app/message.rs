@@ -162,6 +162,7 @@ pub(in crate::native_app) enum GuiMessage {
     },
     ToggleSelectedSampleAndAdvance,
     SelectAllSamples,
+    ToggleRandomNavigationMode,
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),
     FolderTreeWindowChanged(ui::VirtualListWindowChange),
     CollapseSelectedFolder,

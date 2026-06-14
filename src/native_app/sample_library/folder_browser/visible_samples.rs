@@ -53,6 +53,7 @@ pub(super) struct SampleListState {
     pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
     pub(super) similarity: Option<SimilarityBrowserState>,
+    pub(super) random_navigation: RandomNavigationState,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
     pub(super) prepared_window: ui::VirtualListWindow,
@@ -68,6 +69,7 @@ impl SampleListState {
             file_column_resize: None,
             file_column_reorder: None,
             similarity: None,
+            random_navigation: RandomNavigationState::default(),
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
             prepared_window: ui::VirtualListWindow::default(),
@@ -86,6 +88,102 @@ impl SampleListState {
         self.content_revision = self.content_revision.saturating_add(1);
         self.projection_cache
             .invalidate_for_content_revision(self.content_revision);
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct RandomNavigationState {
+    pub(super) enabled: bool,
+    result_ids: Vec<String>,
+    visited: HashSet<String>,
+    history: Vec<String>,
+}
+
+impl RandomNavigationState {
+    pub(super) fn set_enabled(
+        &mut self,
+        enabled: bool,
+        selected_file: Option<&str>,
+        ids: &[String],
+    ) {
+        if self.enabled == enabled {
+            return;
+        }
+        self.enabled = enabled;
+        self.reset_for_selection(selected_file, ids);
+    }
+
+    pub(super) fn reconcile(&mut self, selected_file: Option<&str>, ids: &[String]) {
+        if self.result_ids == ids {
+            return;
+        }
+        self.reset_for_selection(selected_file, ids);
+    }
+
+    pub(super) fn previous(&mut self) -> Option<String> {
+        if self.history.len() <= 1 {
+            return None;
+        }
+        self.history.pop();
+        self.history.last().cloned()
+    }
+
+    pub(super) fn next(&mut self, selected_file: Option<&str>, ids: &[String]) -> Option<String> {
+        self.reconcile(selected_file, ids);
+        if ids.len() <= 1 {
+            return None;
+        }
+        if let Some(selected) = selected_file.filter(|selected| ids.iter().any(|id| id == selected))
+        {
+            self.record_selected(selected);
+        }
+
+        let target = self.random_unvisited(ids).or_else(|| {
+            self.reset_cycle(selected_file, ids);
+            self.random_unvisited(ids)
+        })?;
+        self.record_selected(&target);
+        Some(target)
+    }
+
+    fn reset_for_selection(&mut self, selected_file: Option<&str>, ids: &[String]) {
+        self.result_ids = ids.to_vec();
+        self.visited.clear();
+        self.history.clear();
+        if let Some(selected) = selected_file.filter(|selected| ids.iter().any(|id| id == selected))
+        {
+            self.record_selected(selected);
+        }
+    }
+
+    fn reset_cycle(&mut self, selected_file: Option<&str>, ids: &[String]) {
+        self.visited.clear();
+        self.history.clear();
+        if let Some(selected) = selected_file.filter(|selected| ids.iter().any(|id| id == selected))
+        {
+            self.record_selected(selected);
+        }
+    }
+
+    fn random_unvisited(&self, ids: &[String]) -> Option<String> {
+        use rand::Rng;
+
+        let candidates = ids
+            .iter()
+            .filter(|id| !self.visited.contains(*id))
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
+            return None;
+        }
+        let index = rand::rng().random_range(0..candidates.len());
+        Some(candidates[index].to_string())
+    }
+
+    fn record_selected(&mut self, selected: &str) {
+        self.visited.insert(selected.to_owned());
+        if self.history.last().is_none_or(|last| last != selected) {
+            self.history.push(selected.to_owned());
+        }
     }
 }
 
