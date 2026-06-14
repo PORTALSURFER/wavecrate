@@ -53,6 +53,14 @@ impl NativeAppState {
                 self.finish_context_path_copy(kind, path, result);
             }
             GuiMessage::OpenContextTarget => self.open_context_target(context),
+            GuiMessage::CreateFolderAtContextTarget => {
+                self.create_folder_at_context_target(context)
+            }
+            GuiMessage::ContextFolderCreateFinished {
+                parent_id,
+                started_at,
+                result,
+            } => self.finish_context_folder_create(parent_id, started_at, result, context),
             GuiMessage::MoveContextTargetToTrash => self.move_context_target_to_trash(context),
             GuiMessage::TrashMoveFinished {
                 target,

@@ -96,6 +96,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
+    assert!(frame.paint_plan.contains_text("New Folder"));
     assert!(frame.paint_plan.contains_text("Remove Source"));
 }
 
@@ -115,7 +116,26 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
+    assert!(frame.paint_plan.contains_text("New Folder"));
     assert!(!frame.paint_plan.contains_text("Remove Source"));
+}
+
+#[test]
+fn folder_context_menu_paints_new_folder_action() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("C:\\Samples\\Drums"),
+        source_id: None,
+        source_removable: false,
+        metadata_tag: None,
+        collection: None,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Drums"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text("New Folder"));
 }
 
 #[test]
@@ -134,6 +154,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Remove from collection"));
+    assert!(!frame.paint_plan.contains_text("New Folder"));
 }
 
 #[test]

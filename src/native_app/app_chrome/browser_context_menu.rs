@@ -37,6 +37,15 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
     ];
     if matches!(
         menu.kind,
+        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder
+    ) {
+        actions.push(ui::MenuCommand::new(
+            "New Folder",
+            GuiMessage::CreateFolderAtContextTarget,
+        ));
+    }
+    if matches!(
+        menu.kind,
         BrowserContextTargetKind::Folder | BrowserContextTargetKind::Sample
     ) {
         actions.push(

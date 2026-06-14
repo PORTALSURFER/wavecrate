@@ -131,6 +131,45 @@ impl FolderBrowserState {
         Ok(Some(input_id))
     }
 
+    pub(in crate::native_app) fn apply_created_folder(
+        &mut self,
+        parent_id: String,
+        folder_path: PathBuf,
+    ) -> Result<u64, String> {
+        let folder_id = path_id(&folder_path);
+        let folder_name = folder_path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .ok_or_else(|| String::from("New folder failed: created folder has no name"))?;
+        let folder = FolderEntry {
+            id: folder_id.clone(),
+            name: folder_name.clone(),
+            children: Vec::new(),
+            files: Vec::new(),
+        };
+        if !self.upsert_child_folder(&parent_id, folder) {
+            return Err(String::from(
+                "New folder failed: parent folder is unavailable",
+            ));
+        }
+        self.tree.expanded_folders.insert(parent_id);
+        self.selection.selected_folder = folder_id.clone();
+        self.selection.selected_file = None;
+        self.selection.selected_file_ids.clear();
+        self.selection.selected_file_ids_explicit = false;
+        self.reset_file_view();
+
+        let input_id = rename_input_id(&folder_id);
+        self.rename.file = None;
+        self.rename.folder = Some(FolderRenameEdit {
+            folder_id,
+            draft: folder_name,
+            input_id,
+            kind: FolderRenameKind::Rename,
+        });
+        Ok(input_id)
+    }
+
     pub(in crate::native_app) fn apply_rename_input(
         &mut self,
         message: TextInputMessage,

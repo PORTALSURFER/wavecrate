@@ -83,6 +83,8 @@ impl NativeAppState {
             | GuiMessage::TrashFolderDialogFinished(_)
             | GuiMessage::ContextPathCopyFinished { .. }
             | GuiMessage::OpenContextTarget
+            | GuiMessage::CreateFolderAtContextTarget
+            | GuiMessage::ContextFolderCreateFinished { .. }
             | GuiMessage::MoveContextTargetToTrash
             | GuiMessage::TrashMoveFinished { .. }
             | GuiMessage::ContextTargetOpenFinished { .. }

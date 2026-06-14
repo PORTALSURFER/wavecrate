@@ -131,6 +131,12 @@ pub(in crate::native_app) enum GuiMessage {
     CancelFileMoveConflicts,
     CopyContextPath,
     OpenContextTarget,
+    CreateFolderAtContextTarget,
+    ContextFolderCreateFinished {
+        parent_id: String,
+        started_at: Instant,
+        result: Result<PathBuf, String>,
+    },
     MoveContextTargetToTrash,
     TrashMoveFinished {
         target: TrashMoveTarget,

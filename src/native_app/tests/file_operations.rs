@@ -1,5 +1,7 @@
 use super::{gui_state_for_span_tests, native_app_state_with_temp_sample, run_command_for_tests};
-use crate::native_app::test_support::state::{FolderBrowserMessage, FolderBrowserState, view};
+use crate::native_app::test_support::state::{
+    FolderBrowserMessage, FolderBrowserState, GuiMessage, view,
+};
 use radiant::{
     gui::types::{Point, Vector2},
     prelude::IntoView,
@@ -112,6 +114,147 @@ fn activating_folder_replaces_pending_selected_folder_verify() {
         state.background.folder_verify_task.active(),
         Some(first_ticket),
         "new folder activation should supersede an older pending verification"
+    );
+}
+
+#[test]
+fn context_new_folder_creates_child_and_starts_inline_rename() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let parent = source_root.path().join("drums");
+    fs::create_dir_all(&parent).expect("create drums folder");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let parent_id = parent.display().to_string();
+    state.open_folder_context_menu(parent_id.clone(), Point::new(40.0, 120.0));
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::CreateFolderAtContextTarget, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    let created = parent.join("New Folder");
+    let created_id = created.display().to_string();
+    assert!(created.is_dir());
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(created_id.as_str())
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .folder_expansion_for_tests(&parent_id),
+        Some(true)
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| {
+                folder.id == created_id
+                    && folder.selected
+                    && folder.rename_draft.as_deref() == Some("New Folder")
+                    && folder.rename_input_id.is_some()
+            })
+    );
+    assert!(state.ui.status.sample.contains("Created folder New Folder"));
+}
+
+#[test]
+fn context_new_folder_creates_root_child_from_source_context() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let source_id = source.id.as_str().to_string();
+    state.library.folder_browser = FolderBrowserState::from_sample_sources(&[source]);
+    state.open_source_context_menu(source_id, Point::new(40.0, 120.0));
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::CreateFolderAtContextTarget, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    let created = source_root.path().join("New Folder");
+    let created_id = created.display().to_string();
+    assert!(created.is_dir());
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(created_id.as_str())
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.id == created_id
+                && folder.rename_draft.as_deref() == Some("New Folder"))
+    );
+}
+
+#[test]
+fn context_new_folder_uses_collision_safe_name() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let parent = source_root.path().join("drums");
+    fs::create_dir_all(parent.join("New Folder")).expect("create first collision");
+    fs::create_dir_all(parent.join("New Folder 2")).expect("create second collision");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state.open_folder_context_menu(parent.display().to_string(), Point::new(40.0, 120.0));
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::CreateFolderAtContextTarget, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    let created = parent.join("New Folder 3");
+    let created_id = created.display().to_string();
+    assert!(created.is_dir());
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(created_id.as_str())
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Created folder New Folder 3")
+    );
+}
+
+#[test]
+fn context_new_folder_missing_parent_reports_error_without_tree_corruption() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let parent = source_root.path().join("drums");
+    fs::create_dir_all(&parent).expect("create drums folder");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let parent_id = parent.display().to_string();
+    state.open_folder_context_menu(parent_id.clone(), Point::new(40.0, 120.0));
+    fs::remove_dir_all(&parent).expect("remove context target");
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::CreateFolderAtContextTarget, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(state.ui.status.sample.contains("parent folder"));
+    assert!(state.ui.status.sample.contains("unavailable"));
+    assert!(
+        !state
+            .library
+            .folder_browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.name == "New Folder" && folder.id.starts_with(&parent_id))
     );
 }
 
