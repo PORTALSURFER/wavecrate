@@ -191,7 +191,7 @@ impl FrameRepaintScopeSnapshot {
             folder_progress_active: state.library.folder_scan_active(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
             waveform_loading_active: state.waveform_sample_load_active(),
-            sample_loading: state.background.sample_load_task.active().is_some(),
+            sample_loading: state.active_sample_load_task().is_some(),
             audio_opening: state.background.audio_open.active().is_some(),
             startup_source_scan_pending: state.ui.startup.source_scan_pending,
             startup_auto_load_pending: state.ui.startup.auto_load_pending,

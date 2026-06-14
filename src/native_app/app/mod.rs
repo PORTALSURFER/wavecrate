@@ -12,7 +12,8 @@ pub(in crate::native_app) use cache::{
 };
 pub(in crate::native_app) use drop::NativeFileDropHover;
 pub(in crate::native_app) use loading::{
-    PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady,
+    PendingSamplePlayback, SampleLoadResult, SampleLoadTaskCompletion, SamplePlaybackReady,
+    SampleSelectionLoadState,
 };
 pub(in crate::native_app) use message::{
     GuiMessage, MetadataMessage, SettingsMessage, TrashMoveTarget,

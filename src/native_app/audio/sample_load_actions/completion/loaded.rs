@@ -15,6 +15,7 @@ impl NativeAppState {
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         self.clear_sample_loading_state();
+        self.waveform.load.selection.waveform_ready(path.as_str());
         let file_name = waveform.file_name();
         let remember_started_at = Instant::now();
         self.remember_waveform(&waveform);

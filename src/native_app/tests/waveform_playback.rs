@@ -117,7 +117,7 @@ fn file_rename_remaps_loaded_waveform_and_cache_without_reload() {
             .active()
             .is_none()
     );
-    assert!(state.background.sample_load_task.active().is_none());
+    assert!(active_sample_load_ticket(&state).is_none());
     let new_id = new_path.display().to_string();
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
@@ -202,7 +202,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
             .active()
             .is_none()
     );
-    assert!(state.background.sample_load_task.active().is_none());
+    assert!(active_sample_load_ticket(&state).is_none());
 }
 
 fn wait_for_playback_ready_cache(sample_path: &str) {
@@ -213,6 +213,50 @@ fn wait_for_playback_ready_cache(sample_path: &str) {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+fn active_sample_load_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
+    state.active_sample_load_task()
+}
+
+fn sample_load_completion(
+    ticket: ui::TaskTicket,
+    path: String,
+    result: Result<crate::native_app::test_support::state::WaveformState, String>,
+    autoplay: bool,
+) -> ui::KeyedTaskCompletion<
+    ui::ResourceKey,
+    crate::native_app::test_support::state::SampleLoadResult,
+> {
+    ui::KeyedTaskCompletion {
+        key: crate::native_app::audio::sample_load_actions::sample_resource_key(path.as_str()),
+        ticket,
+        output: crate::native_app::test_support::state::SampleLoadResult {
+            path,
+            result,
+            autoplay,
+        },
+    }
+}
+
+fn sample_playback_ready_completion(
+    ticket: ui::TaskTicket,
+    path: String,
+    audio: crate::native_app::waveform::WaveformPlaybackReady,
+    autoplay: bool,
+) -> ui::KeyedTaskCompletion<
+    ui::ResourceKey,
+    crate::native_app::test_support::state::SamplePlaybackReady,
+> {
+    ui::KeyedTaskCompletion {
+        key: crate::native_app::audio::sample_load_actions::sample_resource_key(path.as_str()),
+        ticket,
+        output: crate::native_app::test_support::state::SamplePlaybackReady {
+            path,
+            audio,
+            autoplay,
+        },
     }
 }
 

@@ -33,26 +33,20 @@ fn sample_selection_loads_selected_file_into_waveform() {
         "direct selection should not debounce or probe cache metadata on the UI thread"
     );
     assert!(
-        state.background.sample_load_task.active().is_some(),
+        active_sample_load_ticket(&state).is_some(),
         "direct selection should immediately queue foreground sample loading"
     );
-    let ticket = state
-        .background
-        .sample_load_task
-        .active()
-        .expect("sample load queued");
+    let ticket = active_sample_load_ticket(&state).expect("sample load queued");
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            ui::TaskCompletion {
+            sample_load_completion(
                 ticket,
-                output: crate::native_app::test_support::state::SampleLoadResult {
-                    path: sample_path.clone(),
-                    result: crate::native_app::test_support::state::WaveformState::load_path(
-                        sample_path.clone().into(),
-                    ),
-                    autoplay: true,
-                },
-            },
+                sample_path.clone(),
+                crate::native_app::test_support::state::WaveformState::load_path(
+                    sample_path.clone().into(),
+                ),
+                true,
+            ),
         ),
         &mut context,
     );
@@ -90,7 +84,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         "repeat selection should use the memory waveform cache without a deferred worker"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "repeat selection must not start decode work"
     );
     assert_eq!(state.waveform.current.file_name(), sample_name);
@@ -197,7 +191,7 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         "memory-cached repeat selection should not debounce a reload"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "memory-cached repeat selection should not queue decode work"
     );
     assert!(
@@ -255,7 +249,7 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
         "memory-cached non-autoplay load should not debounce a reload"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "memory-cached non-autoplay load should not queue decode work"
     );
     assert!(

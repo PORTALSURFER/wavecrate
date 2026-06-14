@@ -66,32 +66,24 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         true,
         &mut context,
     );
-    let ticket = state
-        .background
-        .sample_load_task
-        .active()
-        .expect("sample load queued");
+    let ticket = active_sample_load_ticket(&state).expect("sample load queued");
     let samples = std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]);
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SamplePlaybackReady(
-            ui::TaskCompletion {
+            sample_playback_ready_completion(
                 ticket,
-                output: crate::native_app::test_support::state::SamplePlaybackReady {
-                    path: sample_path_string.clone(),
-                    audio: crate::native_app::waveform::WaveformPlaybackReady {
-                        path: sample_path.clone(),
-                        audio_bytes: std::sync::Arc::from(
-                            fs::read(&sample_path).expect("read wav"),
-                        ),
-                        playback_samples: samples,
-                        sample_rate: 48_000,
-                        channels: 1,
-                        frames: 4,
-                    },
-                    autoplay: true,
+                sample_path_string.clone(),
+                crate::native_app::waveform::WaveformPlaybackReady {
+                    path: sample_path.clone(),
+                    audio_bytes: std::sync::Arc::from(fs::read(&sample_path).expect("read wav")),
+                    playback_samples: samples,
+                    sample_rate: 48_000,
+                    channels: 1,
+                    frames: 4,
                 },
-            },
+                true,
+            ),
         ),
         &mut context,
     );
@@ -108,16 +100,14 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            ui::TaskCompletion {
+            sample_load_completion(
                 ticket,
-                output: crate::native_app::test_support::state::SampleLoadResult {
-                    path: sample_path_string.clone(),
-                    result: crate::native_app::test_support::state::WaveformState::load_path(
-                        sample_path.clone(),
-                    ),
-                    autoplay: true,
-                },
-            },
+                sample_path_string.clone(),
+                crate::native_app::test_support::state::WaveformState::load_path(
+                    sample_path.clone(),
+                ),
+                true,
+            ),
         ),
         &mut context,
     );

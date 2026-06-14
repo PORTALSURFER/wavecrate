@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label},
     audio::sample_load_actions::{
-        foreground_sample_load_priority, log_sample_load_timing,
+        foreground_sample_load_priority, log_sample_load_timing, sample_resource_key,
         types::{SampleLoadRequest, SampleLoadStrategy},
         worker::{SampleLoadWorker, SampleLoadWorkerEvent},
     },
@@ -94,6 +94,7 @@ impl NativeAppState {
         self.waveform.load.label = Some(label.clone());
         self.waveform.load.progress = 0.0;
         self.waveform.load.target_progress = 0.0;
+        self.waveform.load.selection.start_uncached(path);
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),
@@ -138,23 +139,26 @@ impl NativeAppState {
         strategy: SampleLoadStrategy,
     ) {
         let request = SampleLoadRequest::new(path, autoplay, priority, strategy);
+        let key = sample_resource_key(request.path());
+        self.background.active_sample_load_key = Some(key.clone());
         let load = match request.priority() {
             ui::TaskPriority::Interactive => context.business().interactive("gui-sample-load"),
             ui::TaskPriority::Background => context.business().background("gui-sample-load"),
             ui::TaskPriority::Idle => context.business().idle("gui-sample-load"),
         }
         .cancellable()
-        .latest(&mut self.background.sample_load_task);
+        .latest_for_resource(&mut self.background.sample_load_tasks, key);
         self.background.sample_load_cancel = Some(load.stream(
             move |worker_context, events| {
                 SampleLoadWorker::new(request).run(worker_context, events)
             },
             |event| match event.output {
                 SampleLoadWorkerEvent::Progress(progress) => {
-                    GuiMessage::SampleLoadProgress(event.ticket, progress)
+                    GuiMessage::SampleLoadProgress(event.key, event.ticket, progress)
                 }
                 SampleLoadWorkerEvent::PlaybackReady(ready) => {
-                    GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
+                    GuiMessage::SamplePlaybackReady(ui::KeyedTaskCompletion {
+                        key: event.key,
                         ticket: event.ticket,
                         output: ready,
                     })

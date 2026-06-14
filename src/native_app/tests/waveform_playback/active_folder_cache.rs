@@ -290,7 +290,7 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
         "foreground selection must cancel the active-folder worker token"
     );
     assert!(
-        state.background.sample_load_task.active().is_some(),
+        active_sample_load_ticket(&state).is_some(),
         "foreground sample load should be queued after cancelling background warm work"
     );
 }
@@ -559,7 +559,7 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
         "summary-only cache selection should not debounce or probe cache metadata on the UI thread"
     );
     assert!(
-        state.background.sample_load_task.active().is_some(),
+        active_sample_load_ticket(&state).is_some(),
         "summary-only cache selection should queue foreground loading off the UI thread"
     );
     assert_eq!(

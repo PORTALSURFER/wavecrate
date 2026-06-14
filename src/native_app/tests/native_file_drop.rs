@@ -136,7 +136,7 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
         "native file import should debounce uncached sample loading before queueing decode work"
     );
     super::start_deferred_sample_load_for_tests(&mut state, copied_id, true, &mut context);
-    assert!(state.background.sample_load_task.active().is_some());
+    assert!(state.active_sample_load_task().is_some());
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(external_root);
 }

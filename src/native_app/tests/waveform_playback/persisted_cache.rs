@@ -56,7 +56,7 @@ fn sample_selection_starts_foreground_load_for_persisted_cache_row_after_restart
         "playback-ready persisted cache should not wait for a debounce after restart"
     );
     assert!(
-        state.background.sample_load_task.active().is_some(),
+        active_sample_load_ticket(&state).is_some(),
         "playback-ready persisted cache rows should start foreground loading immediately"
     );
     assert!(
@@ -120,7 +120,7 @@ fn sample_selection_cancels_running_persisted_cache_warm() {
         "foreground selection must cancel the persisted warm token"
     );
     assert!(
-        state.background.sample_load_task.active().is_some(),
+        active_sample_load_ticket(&state).is_some(),
         "foreground sample load should be queued after cancelling persisted warm work"
     );
 }
@@ -182,28 +182,24 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
             .is_none(),
         "selection of a playback-ready cached file should not wait for debounce"
     );
-    assert!(state.background.sample_load_task.active().is_some());
+    assert!(active_sample_load_ticket(&state).is_some());
     assert_ne!(state.waveform.current.path(), sample_path);
 
-    let ticket = state
-        .background
-        .sample_load_task
-        .active()
-        .expect("foreground load queued");
+    let ticket = active_sample_load_ticket(&state).expect("foreground load queued");
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
-            ticket,
-            output: crate::native_app::test_support::state::SampleLoadResult {
-                path: sample_path_string,
-                result: crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                sample_path_string,
+                crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
                     sample_path.clone(),
                     |_| {},
                     || false,
                     |_| {},
                 ),
-                autoplay: false,
-            },
-        }),
+                false,
+            ),
+        ),
         &mut context,
     );
 

@@ -146,7 +146,7 @@ impl NativeAppState {
         };
         let delta_ms = duration_ms(delta);
         let max_delta_ms = duration_ms(report.max_delta);
-        let sample_loading = self.background.sample_load_task.active().is_some();
+        let sample_loading = self.active_sample_load_task().is_some();
         let audio_opening = self.background.audio_open.active().is_some();
         let folder_scanning = self.library.folder_scan_active();
         let normalizing = self.background.normalization_progress.is_some();

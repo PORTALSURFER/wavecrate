@@ -50,7 +50,7 @@ impl NativeAppState {
             | GuiMessage::DragSampleFile { .. }
             | GuiMessage::ExternalDragCompleted(_) => self.apply_browser_dispatch(message, context),
             GuiMessage::DeferredSampleLoad { .. }
-            | GuiMessage::SampleLoadProgress(_, _)
+            | GuiMessage::SampleLoadProgress(_, _, _)
             | GuiMessage::SamplePlaybackReady(_)
             | GuiMessage::SampleLoadFinished(_)
             | GuiMessage::WaveformCacheIndicatorRefreshFinished(_)

@@ -8,11 +8,17 @@ impl NativeAppState {
         self.waveform.load.progress = 0.0;
         self.waveform.load.target_progress = 0.0;
         self.background.sample_load_cancel = None;
+        self.background.active_sample_load_key = None;
     }
 
     pub(in crate::native_app) fn waveform_sample_load_active(&self) -> bool {
         self.background.deferred_sample_load_task.active().is_some()
-            || self.background.sample_load_task.active().is_some()
+            || self.active_sample_load_task().is_some()
+    }
+
+    pub(in crate::native_app) fn active_sample_load_task(&self) -> Option<ui::TaskTicket> {
+        let key = self.background.active_sample_load_key.as_ref()?;
+        self.background.sample_load_tasks.active(key)
     }
 
     pub(in crate::native_app) fn sample_cache_warm_should_yield(&self) -> bool {
@@ -53,7 +59,10 @@ impl NativeAppState {
         if let Some(token) = self.background.sample_load_cancel.take() {
             token.cancel();
         }
-        self.background.sample_load_task.cancel();
+        if let Some(key) = self.background.active_sample_load_key.take() {
+            self.background.sample_load_tasks.cancel(&key);
+        }
+        self.waveform.load.selection.cancel();
         if self.audio.early_sample_playback_path.is_some() {
             if let Some(player) = self.audio.player.as_mut() {
                 player.stop();

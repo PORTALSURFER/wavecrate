@@ -5,7 +5,7 @@ use std::{
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::WaveformCacheEntry;
+use crate::native_app::app::{SampleSelectionLoadState, WaveformCacheEntry};
 use crate::native_app::waveform::WaveformState;
 
 pub(in crate::native_app) struct WaveformAppState {
@@ -28,6 +28,7 @@ pub(in crate::native_app) struct WaveformLoadState {
     pub(in crate::native_app) progress: f32,
     pub(in crate::native_app) target_progress: f32,
     pub(in crate::native_app) label: Option<String>,
+    pub(in crate::native_app) selection: SampleSelectionLoadState,
 }
 
 impl Default for WaveformLoadState {
@@ -36,6 +37,7 @@ impl Default for WaveformLoadState {
             progress: 0.0,
             target_progress: 0.0,
             label: None,
+            selection: SampleSelectionLoadState::default(),
         }
     }
 }

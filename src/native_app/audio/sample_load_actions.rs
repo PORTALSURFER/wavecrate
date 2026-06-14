@@ -32,3 +32,7 @@ pub(super) use diagnostics::{
 pub(in crate::native_app) fn foreground_sample_load_priority() -> ui::TaskPriority {
     ui::TaskPriority::Interactive
 }
+
+pub(in crate::native_app) fn sample_resource_key(path: &str) -> ui::ResourceKey {
+    ui::ResourceKey::new(format!("sample:{path}"))
+}

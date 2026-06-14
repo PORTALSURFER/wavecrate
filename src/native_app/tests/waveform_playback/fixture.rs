@@ -113,24 +113,17 @@ impl WaveformPlaybackScenario {
             .selected_file
             .clone()
             .expect("scenario should have a selected temp sample");
-        let ticket = self
-            .state
-            .background
-            .sample_load_task
-            .active()
-            .expect("sample load queued");
+        let ticket = active_sample_load_ticket(&self.state).expect("sample load queued");
         self.state.apply_message(
             crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-                ui::TaskCompletion {
+                sample_load_completion(
                     ticket,
-                    output: crate::native_app::test_support::state::SampleLoadResult {
-                        path: selected_file.clone(),
-                        result: crate::native_app::test_support::state::WaveformState::load_path(
-                            PathBuf::from(&selected_file),
-                        ),
-                        autoplay,
-                    },
-                },
+                    selected_file.clone(),
+                    crate::native_app::test_support::state::WaveformState::load_path(
+                        PathBuf::from(&selected_file),
+                    ),
+                    autoplay,
+                ),
             ),
             &mut self.context,
         );

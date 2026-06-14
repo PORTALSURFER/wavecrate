@@ -2,21 +2,28 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::{
-    app::{NativeAppState, SamplePlaybackReady, emit_gui_action, sample_path_label},
+    app::{
+        NativeAppState, SampleLoadTaskCompletion, SamplePlaybackReady, emit_gui_action,
+        sample_path_label,
+    },
     audio::sample_load_actions::log_slow_sample_load_phase,
 };
 
 impl NativeAppState {
     pub(in crate::native_app) fn finish_sample_playback_ready(
         &mut self,
-        ready: ui::TaskCompletion<SamplePlaybackReady>,
+        ready: SampleLoadTaskCompletion<SamplePlaybackReady>,
         context: &mut ui::UiUpdateContext<crate::native_app::app::GuiMessage>,
     ) {
         let started_at = Instant::now();
         let ticket = ready.ticket;
+        let key = ready.key.clone();
         let ready = ready.output;
         let label = sample_path_label(ready.path.as_str());
-        if !self.background.sample_load_task.is_active(ticket)
+        if !self
+            .background
+            .sample_load_tasks
+            .is_active_key(&key, ticket)
             || self.library.folder_browser.selected_file_id() != Some(ready.path.as_str())
         {
             emit_gui_action(
@@ -32,6 +39,10 @@ impl NativeAppState {
         if !ready.autoplay {
             return;
         }
+        self.waveform
+            .load
+            .selection
+            .playback_ready(ready.path.as_str());
         self.prepare_playback_mode_for_path(ready.path.as_str());
         let loop_playback = self.audio.loop_playback;
         let Some(player) = self.audio.player.as_mut() else {

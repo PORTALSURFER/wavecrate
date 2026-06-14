@@ -53,11 +53,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         "navigation feedback must update before deferred business work completes"
     );
     assert!(
-        lock_navigation_harness_state(&state)
-            .background
-            .sample_load_task
-            .active()
-            .is_none(),
+        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_none(),
         "first key repeat should not synchronously start decode work"
     );
     let stale_deferred_ticket = lock_navigation_harness_state(&state)
@@ -93,11 +89,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         },
     );
     assert!(
-        lock_navigation_harness_state(&state)
-            .background
-            .sample_load_task
-            .active()
-            .is_none(),
+        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_none(),
         "stale deferred navigation work must not start a sample-load worker"
     );
 
@@ -115,11 +107,9 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             scheduled_at: std::time::Instant::now(),
         },
     );
-    let stale_sample_load_ticket = lock_navigation_harness_state(&state)
-        .background
-        .sample_load_task
-        .active()
-        .expect("settled navigation queues sample-load business work");
+    let stale_sample_load_ticket =
+        active_sample_load_ticket(&lock_navigation_harness_state(&state))
+            .expect("settled navigation queues sample-load business work");
     let diagnostics_after_queue = runtime.runtime_diagnostics();
     assert_eq!(
         diagnostics_after_queue.ui.slow_update_handlers, 0,
@@ -153,14 +143,12 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
 
     runtime.dispatch_message(
         crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            ui::TaskCompletion {
-                ticket: stale_sample_load_ticket,
-                output: crate::native_app::test_support::state::SampleLoadResult {
-                    path: third,
-                    result: Err(String::from("synthetic slow decode finished late")),
-                    autoplay: true,
-                },
-            },
+            sample_load_completion(
+                stale_sample_load_ticket,
+                third,
+                Err(String::from("synthetic slow decode finished late")),
+                true,
+            ),
         ),
     );
 
@@ -236,7 +224,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         "keyboard navigation should queue only a deferred latest load"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "keyboard navigation must not synchronously start decode work"
     );
     assert_eq!(
@@ -269,7 +257,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
             .active()
             .is_some()
     );
-    assert!(state.background.sample_load_task.active().is_none());
+    assert!(active_sample_load_ticket(&state).is_none());
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
@@ -287,7 +275,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         Some(third.as_str())
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "stale deferred navigation loads must not start decode work"
     );
     assert!(
@@ -346,7 +334,7 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         "memory-cached keyboard navigation should not debounce a reload"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "memory-cached keyboard navigation should not queue decode work"
     );
     assert!(
@@ -406,7 +394,7 @@ fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
         "keyboard navigation should debounce foreground sample loading"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "keyboard navigation must not start foreground sample loading on the UI thread"
     );
     assert_eq!(
@@ -431,7 +419,7 @@ fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
     );
 
     assert!(
-        state.background.sample_load_task.active().is_some(),
+        active_sample_load_ticket(&state).is_some(),
         "deferred keyboard load should start foreground loading only after navigation settles"
     );
 }
@@ -492,7 +480,7 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
         "already loaded navigation target should not queue a deferred reload"
     );
     assert!(
-        state.background.sample_load_task.active().is_none(),
+        active_sample_load_ticket(&state).is_none(),
         "already loaded navigation target must not start decode work"
     );
 }

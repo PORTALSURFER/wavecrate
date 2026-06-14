@@ -249,7 +249,7 @@ fn start_deferred_sample_load_for_tests(
 ) {
     let Some(ticket) = state.background.deferred_sample_load_task.active() else {
         assert!(
-            state.background.sample_load_task.active().is_some(),
+            state.active_sample_load_task().is_some(),
             "sample load queued"
         );
         return;

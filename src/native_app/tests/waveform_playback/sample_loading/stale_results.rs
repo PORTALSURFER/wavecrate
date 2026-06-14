@@ -28,30 +28,24 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         &mut context,
     );
     start_deferred_sample_load_for_tests(&mut state, first_path_string.clone(), true, &mut context);
-    let ticket = state
-        .background
-        .sample_load_task
-        .active()
-        .expect("sample load queued");
+    let ticket = active_sample_load_ticket(&state).expect("sample load queued");
     state.library.folder_browser.select_file(second_path_string);
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SamplePlaybackReady(
-            ui::TaskCompletion {
+            sample_playback_ready_completion(
                 ticket,
-                output: crate::native_app::test_support::state::SamplePlaybackReady {
-                    path: first_path_string.clone(),
-                    audio: crate::native_app::waveform::WaveformPlaybackReady {
-                        path: first_path,
-                        audio_bytes: std::sync::Arc::from(Vec::<u8>::new()),
-                        playback_samples: std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]),
-                        sample_rate: 48_000,
-                        channels: 1,
-                        frames: 4,
-                    },
-                    autoplay: true,
+                first_path_string.clone(),
+                crate::native_app::waveform::WaveformPlaybackReady {
+                    path: first_path,
+                    audio_bytes: std::sync::Arc::from(Vec::<u8>::new()),
+                    playback_samples: std::sync::Arc::from(vec![0.0_f32, 0.25, -0.25, 0.5]),
+                    sample_rate: 48_000,
+                    channels: 1,
+                    frames: 4,
                 },
-            },
+                true,
+            ),
         ),
         &mut context,
     );

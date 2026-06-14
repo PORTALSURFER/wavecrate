@@ -49,6 +49,7 @@ impl NativeAppState {
         self.touch_cached_waveform_path(PathBuf::from(path));
         self.stop_current_sample_playback_for_load();
         self.clear_sample_loading_state();
+        self.waveform.load.selection.start_cached(path);
         self.replace_waveform_deferred(waveform);
         if !autoplay {
             self.ui.status.sample = format!("Loaded {file_name}");

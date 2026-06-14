@@ -2,7 +2,8 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::app::{
-    NativeAppState, SampleLoadResult, WaveformState, emit_gui_action, sample_path_label,
+    NativeAppState, SampleLoadResult, SampleLoadTaskCompletion, WaveformState, emit_gui_action,
+    sample_path_label,
 };
 
 pub(super) enum SampleLoadCompletion {
@@ -15,6 +16,7 @@ pub(super) enum SampleLoadCompletion {
         autoplay: bool,
     },
     Failed {
+        path: String,
         label: String,
         error: String,
     },
@@ -22,7 +24,7 @@ pub(super) enum SampleLoadCompletion {
 
 impl SampleLoadCompletion {
     pub(super) fn from_task(
-        completion: ui::TaskCompletion<SampleLoadResult>,
+        completion: SampleLoadTaskCompletion<SampleLoadResult>,
         task_is_current: bool,
     ) -> Self {
         let load = completion.output;
@@ -36,7 +38,11 @@ impl SampleLoadCompletion {
                 waveform: Box::new(waveform),
                 autoplay: load.autoplay,
             },
-            Err(error) => Self::Failed { label, error },
+            Err(error) => Self::Failed {
+                path: load.path,
+                label,
+                error,
+            },
         }
     }
 }
@@ -44,13 +50,16 @@ impl SampleLoadCompletion {
 impl NativeAppState {
     pub(in crate::native_app) fn finish_sample_load(
         &mut self,
-        load: ui::TaskCompletion<SampleLoadResult>,
+        load: SampleLoadTaskCompletion<SampleLoadResult>,
         context: &mut ui::UiUpdateContext<crate::native_app::app::GuiMessage>,
     ) {
         let started_at = Instant::now();
         let ticket = load.ticket;
-        let completion =
-            SampleLoadCompletion::from_task(load, self.background.sample_load_task.finish(ticket));
+        let key = load.key.clone();
+        let completion = SampleLoadCompletion::from_task(
+            load,
+            self.background.sample_load_tasks.finish_key(&key, ticket),
+        );
         match completion {
             SampleLoadCompletion::Stale { label } => {
                 self.audio.pending_sample_playback = None;
@@ -63,8 +72,12 @@ impl NativeAppState {
                     None,
                 );
             }
-            SampleLoadCompletion::Failed { label, error } => {
+            SampleLoadCompletion::Failed { path, label, error } => {
                 self.clear_sample_loading_state();
+                self.waveform
+                    .load
+                    .selection
+                    .failed(path.as_str(), error.clone());
                 self.audio.pending_sample_playback = None;
                 self.ui.status.sample = format!("Could not load sample: {error}");
                 emit_gui_action(
@@ -92,9 +105,10 @@ mod tests {
     fn completion(
         path: &str,
         result: Result<WaveformState, String>,
-    ) -> ui::TaskCompletion<SampleLoadResult> {
+    ) -> SampleLoadTaskCompletion<SampleLoadResult> {
         let mut latest = ui::LatestTask::new();
-        ui::TaskCompletion {
+        ui::KeyedTaskCompletion {
+            key: ui::ResourceKey::new(format!("sample:{path}")),
             ticket: latest.begin(),
             output: SampleLoadResult {
                 path: String::from(path),
