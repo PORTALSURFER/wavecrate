@@ -555,6 +555,65 @@ fn rating_adjustment_survives_selected_file_move() {
 }
 
 #[test]
+fn rating_adjustment_survives_selected_file_move_and_source_refresh() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, []).expect("write kick");
+    state.ui.settings.persisted.controls.advance_after_rating = false;
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let source_id = source.id.clone();
+    state.library.folder_browser = FolderBrowserState::from_sample_sources(&[source]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+    state
+        .library
+        .folder_browser
+        .begin_file_drag(kick.display().to_string(), Point::new(4.0, 8.0));
+    state.drop_browser_drag_on_folder(loops.display().to_string(), &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+    state.library.folder_browser.refresh_filesystem_paths(
+        source_id.as_str(),
+        &[std::path::PathBuf::from("loops").join("kick.wav")],
+    );
+
+    let moved = loops.join("kick.wav");
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+            Default::default(),
+        ));
+    let rows = state.library.folder_browser.selected_audio_files();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, moved.display().to_string());
+    assert_eq!(rows[0].rating, Rating::KEEP_1);
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    assert_eq!(
+        db.tag_for_path(std::path::Path::new("loops/kick.wav"))
+            .expect("rating"),
+        Some(Rating::KEEP_1)
+    );
+}
+
+#[test]
 fn fourth_negative_rating_moves_selected_file_to_trash() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
