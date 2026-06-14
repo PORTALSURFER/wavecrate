@@ -5,17 +5,19 @@ use crate::native_app::app_chrome::browser_context_menu;
 use crate::native_app::app_chrome::library_browser::library_sidebar;
 use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::modals;
-use crate::native_app::app_chrome::overlays;
 use crate::native_app::app_chrome::sample_workspace;
 use crate::native_app::app_chrome::view_models::{
     library_sidebar::LibrarySidebarViewModel, sample_workspace::SampleWorkspaceViewModel,
 };
 
+const LIBRARY_SIDEBAR_PADDING: f32 = 4.0;
+const METADATA_PANEL_PADDING: f32 = 6.0;
+const BOTTOM_STATUS_BAR_HEIGHT: f32 = 30.0;
+
 pub(in crate::native_app) fn library_sidebar_region(
     state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
-    let sidebar = library_sidebar_view(state).overlays(library_pane_overlays(state));
-    ui::resizable(sidebar)
+    ui::resizable(library_sidebar_view(state))
         .subtle_resize_handle("library-sidebar-resize-handle", GuiMessage::ResizeFolder)
 }
 
@@ -40,15 +42,35 @@ pub(in crate::native_app) fn sample_workspace_region(
     sample_workspace::region(SampleWorkspaceViewModel::from_app_state(state))
 }
 
-fn library_pane_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
+pub(in crate::native_app) fn library_sidebar_overlays(
+    state: &NativeAppState,
+) -> ui::Overlays<GuiMessage> {
     ui::overlays().floating_opt(metadata_completion_overlay(state))
 }
 
 fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
-    overlays::metadata_tag_completion(state)
+    state.library.folder_browser.selected_file_id()?;
+    let completion_options = state.metadata_tag_completion_options();
+    if completion_options.is_empty() {
+        return None;
+    }
+    let tag_field_content_width =
+        library_sidebar::tag_field_content_width(state.ui.chrome.folder_panel.size());
+    let inset_x = LIBRARY_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
+    let metadata_panel_height = state.library.folder_browser.metadata_panel_height();
+    let inset_y = BOTTOM_STATUS_BAR_HEIGHT
+        + LIBRARY_SIDEBAR_PADDING
+        + metadata_panel_height
+        + library_sidebar::TAG_COMPLETION_POPUP_GAP;
+    Some(library_sidebar::tag_completion_overlay(
+        completion_options.as_slice(),
+        tag_field_content_width,
+        inset_x,
+        inset_y,
+    ))
 }
 
-pub(in crate::native_app) fn active_workspace_overlays(
+pub(in crate::native_app) fn sample_workspace_overlays(
     state: &NativeAppState,
 ) -> ui::Overlays<GuiMessage> {
     ui::overlays()
