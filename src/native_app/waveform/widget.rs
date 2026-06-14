@@ -86,6 +86,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    hover_cursor_ratio: Option<f32>,
     extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     playing: bool,
@@ -102,6 +103,7 @@ impl WaveformWidgetProps {
             edit_mark_ratio: state.edit_mark_ratio(),
             play_selection: state.play_selection(),
             edit_selection: state.edit_selection(),
+            hover_cursor_ratio: state.hover_cursor_ratio(),
             extracted_ranges: state.extracted_ranges().to_vec(),
             play_selection_flash_frames: state.play_selection_flash_frames(),
             playing: state.is_playing(),
@@ -121,6 +123,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) edit_mark_ratio: Option<f32>,
     pub(super) play_selection: Option<wavecrate::selection::SelectionRange>,
     pub(super) edit_selection: Option<wavecrate::selection::SelectionRange>,
+    pub(super) hover_cursor_ratio: Option<f32>,
     pub(super) extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) play_selection_flash_frames: u8,
     pub(super) playing: bool,
@@ -138,6 +141,7 @@ impl WaveformWidget {
             edit_mark_ratio,
             play_selection,
             edit_selection,
+            hover_cursor_ratio,
             extracted_ranges,
             play_selection_flash_frames,
             playing,
@@ -159,6 +163,7 @@ impl WaveformWidget {
             edit_mark_ratio,
             play_selection,
             edit_selection,
+            hover_cursor_ratio,
             extracted_ranges,
             play_selection_flash_frames,
             playing,
@@ -193,7 +198,7 @@ impl Widget for WaveformWidget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        false
+        true
     }
 
     fn append_paint(

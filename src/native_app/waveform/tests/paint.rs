@@ -55,6 +55,25 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
 }
 
 #[test]
+fn hover_cursor_paints_thin_white_overlay_line() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.apply_interaction(WaveformInteraction::HoverCursor {
+        visible_ratio: Some(0.25),
+    });
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+
+    let cursor = fill_rects(&plan)
+        .into_iter()
+        .find(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 255, 255, 210)
+        })
+        .expect("hover cursor fill paints");
+    assert_eq!(cursor.rect.width(), 1.0);
+    assert!((cursor.rect.center().x - 100.0).abs() < 1.0);
+}
+
+#[test]
 fn play_start_marker_is_hidden_at_sample_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.0);

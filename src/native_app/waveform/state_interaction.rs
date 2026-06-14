@@ -29,6 +29,7 @@ impl WaveformState {
                 visible_ratio,
             } => {
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                self.hover_cursor_ratio = None;
                 self.active_drag = Some(WaveformDrag::Selection(WaveformSelectionDrag::new(
                     kind, ratio,
                 )));
@@ -52,6 +53,7 @@ impl WaveformState {
                     return;
                 };
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                self.hover_cursor_ratio = None;
                 self.active_drag = Some(WaveformDrag::EditFade(WaveformEditFadeDrag::new(
                     handle, selection,
                 )));
@@ -70,6 +72,7 @@ impl WaveformState {
                     return;
                 };
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                self.hover_cursor_ratio = None;
                 self.active_drag = Some(WaveformDrag::SelectionResize(
                     WaveformSelectionResizeDrag::new(kind, edge, selection),
                 ));
@@ -83,17 +86,23 @@ impl WaveformState {
                     return;
                 };
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                self.hover_cursor_ratio = None;
                 self.active_drag = Some(WaveformDrag::SelectionMove(
                     WaveformSelectionMoveDrag::new(kind, ratio, selection),
                 ));
                 self.update_active_selection_move(ratio);
             }
             WaveformInteraction::BeginPan { visible_ratio } => {
+                self.hover_cursor_ratio = None;
                 self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
                     visible_ratio,
                     self.viewport
                         .clamp(self.file.frames.max(1), MIN_VISIBLE_FRAMES),
                 )));
+            }
+            WaveformInteraction::HoverCursor { visible_ratio } => {
+                self.hover_cursor_ratio =
+                    visible_ratio.map(|ratio| self.absolute_ratio_from_visible(ratio));
             }
             WaveformInteraction::UpdateSelection { visible_ratio } => {
                 self.update_active_drag(visible_ratio);

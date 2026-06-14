@@ -25,6 +25,11 @@ impl WaveformWidget {
             if !has_loaded_sample {
                 return None;
             }
+            if !pointer_inside {
+                return Some(WidgetOutput::typed(WaveformInteraction::HoverCursor {
+                    visible_ratio: None,
+                }));
+            }
             if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
                 return Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::moved(
@@ -32,11 +37,18 @@ impl WaveformWidget {
                     )),
                 ));
             }
-            return self.active_drag_kind.map(|_| {
-                WidgetOutput::typed(WaveformInteraction::UpdateSelection {
-                    visible_ratio: pointer.normalized_x(),
+            return self
+                .active_drag_kind
+                .map(|_| {
+                    WidgetOutput::typed(WaveformInteraction::UpdateSelection {
+                        visible_ratio: pointer.normalized_x(),
+                    })
                 })
-            });
+                .or_else(|| {
+                    Some(WidgetOutput::typed(WaveformInteraction::HoverCursor {
+                        visible_ratio: Some(pointer.normalized_x()),
+                    }))
+                });
         }
         if let Some((pointer, delta)) = event.wheel_pointer_delta_inside(bounds) {
             return has_loaded_sample.then(|| {

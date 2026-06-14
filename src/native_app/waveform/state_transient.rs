@@ -20,4 +20,8 @@ impl WaveformState {
     pub(in crate::native_app) fn active_drag_kind(&self) -> Option<WaveformActiveDragKind> {
         self.active_drag.map(WaveformDrag::kind)
     }
+
+    pub(in crate::native_app) fn hover_cursor_ratio(&self) -> Option<f32> {
+        self.hover_cursor_ratio
+    }
 }

@@ -30,6 +30,7 @@ const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
 const PLAY_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 142, 92, 255);
 const EDIT_SELECTION_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
 const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
+const HOVER_CURSOR_COLOR: Rgba8 = Rgba8::new(255, 255, 255, 210);
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
 const IMPLICIT_SAMPLE_START_RATIO: f32 = 0.000_1;
 
@@ -154,6 +155,17 @@ impl WaveformWidget {
                 edit_mark_ratio,
                 2.0,
                 EDIT_SELECTION_COLOR.with_alpha(230),
+            );
+        }
+        if self.active_drag_kind.is_none()
+            && let Some(hover_cursor_ratio) =
+                self.visible_ratio_for_absolute(self.hover_cursor_ratio)
+        {
+            paint.push_horizontal_value_cursor_fill(
+                bounds,
+                hover_cursor_ratio,
+                1.0,
+                HOVER_CURSOR_COLOR,
             );
         }
         if !self.playing

@@ -97,6 +97,13 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+    assert!(widget.accepts_pointer_move());
+
+    let hover = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 40.0)))
+        .expect("hover cursor interaction")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 40.0)))
@@ -106,12 +113,40 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
         .expect("waveform interaction");
 
     assert_eq!(
+        hover,
+        WaveformInteraction::HoverCursor {
+            visible_ratio: Some(0.25)
+        }
+    );
+    assert_eq!(
         interaction,
         WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
             visible_ratio: 0.25
         }
     );
+}
+
+#[test]
+fn pointer_move_outside_loaded_waveform_clears_hover_cursor() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+
+    let output = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
+        .expect("hover clear interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::HoverCursor {
+            visible_ratio: None
+        }
+    );
+    assert!(!widget.common.is_hovered());
 }
 
 #[test]

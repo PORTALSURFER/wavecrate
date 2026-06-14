@@ -33,6 +33,9 @@ pub(in crate::native_app) enum WaveformInteraction {
     BeginPan {
         visible_ratio: f32,
     },
+    HoverCursor {
+        visible_ratio: Option<f32>,
+    },
     UpdateSelection {
         visible_ratio: f32,
     },

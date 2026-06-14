@@ -93,6 +93,7 @@ impl WaveformState {
             extracted_ranges: Vec::new(),
             play_selection_flash_frames: 0,
             active_drag: None::<WaveformDrag>,
+            hover_cursor_ratio: None,
             pending_playback_start: None,
         }
     }
