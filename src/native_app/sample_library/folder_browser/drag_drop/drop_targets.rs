@@ -1,0 +1,65 @@
+use super::state::FolderBrowserDropTarget;
+use super::*;
+
+impl FolderBrowserState {
+    pub(in crate::native_app) fn clear_drop_target_folder(&mut self, position: Point) {
+        self.update_drag_pointer(position);
+        if self
+            .drag_drop
+            .drop_target
+            .current()
+            .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(_)))
+            && self.drag_drop.drop_target.close_changed()
+        {
+            self.drag_drop.revision.bump();
+        }
+    }
+
+    pub(in crate::native_app) fn clear_drop_target_folder_unless(
+        &mut self,
+        retained_folder_id: &str,
+        position: Point,
+    ) {
+        self.update_drag_pointer(position);
+        if self
+            .drag_drop
+            .drop_target
+            .current()
+            .is_some_and(
+                |target| matches!(target, FolderBrowserDropTarget::Folder(folder_id) if folder_id == retained_folder_id),
+            )
+        {
+            return;
+        }
+        self.clear_drop_target_folder(position);
+    }
+
+    pub(in crate::native_app) fn hovered_drop_target_folder_id(&self) -> Option<String> {
+        match self.drag_drop.drop_target.current() {
+            Some(FolderBrowserDropTarget::Folder(folder_id)) => Some(folder_id.clone()),
+            _ => None,
+        }
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn hover_drop_target_folder(
+        &mut self,
+        folder_id: &str,
+    ) {
+        let changed = if self.can_drop_drag_on_folder(folder_id) {
+            self.drag_drop
+                .drop_target
+                .open_changed(FolderBrowserDropTarget::Folder(folder_id.to_owned()))
+        } else {
+            self.drag_drop.drop_target.close_changed()
+        };
+        if changed {
+            self.drag_drop.revision.bump();
+        }
+    }
+
+    pub(super) fn clear_drop_targets_for_new_drag(&mut self) {
+        if self.drag_drop.drop_target.close_changed() {
+            self.drag_drop.revision.bump();
+        }
+    }
+}
