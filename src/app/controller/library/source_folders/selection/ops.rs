@@ -1,14 +1,16 @@
 use super::super::*;
-use super::ops_logic::{
-    FolderSelectMode, apply_path_selection, apply_root_selection, insert_folder,
+use super::ops_logic::FolderSelectMode;
+use super::planning::{
+    FolderRangePlan, FolderSelectionChange, plan_add_folder_to_selection,
+    plan_clear_folder_selection, plan_range_selection, plan_row_selection,
+    plan_toggle_folder_negation,
 };
-use crate::app::state::FolderRowView;
 
 impl AppController {
     pub(crate) fn replace_folder_selection(&mut self, row_index: usize) {
         self.record_meaningful_ui_transaction("Select folder", |controller| {
             controller.clear_drop_target_selection();
-            controller.apply_folder_selection(row_index, FolderSelectMode::Replace);
+            controller.apply_planned_folder_selection(row_index, FolderSelectMode::Replace);
         });
     }
 
@@ -16,55 +18,26 @@ impl AppController {
         self.record_meaningful_ui_transaction("Select folder range", |controller| {
             controller.clear_drop_target_selection();
             let rows = controller.ui.sources.folders.rows.clone();
-            if rows.is_empty() {
-                return;
-            }
-            if rows.get(row_index).is_some_and(|row| row.is_root) {
-                controller.apply_folder_selection(row_index, FolderSelectMode::Replace);
-                return;
-            }
-            let Some(anchor_idx) = controller.folder_anchor_index(&rows) else {
-                controller.apply_folder_selection(row_index, FolderSelectMode::Replace);
-                return;
-            };
-            let anchor_idx = anchor_idx.min(rows.len().saturating_sub(1));
-            let row_index = row_index.min(rows.len().saturating_sub(1));
-            if rows.get(anchor_idx).is_some_and(|row| row.is_root) {
-                controller.apply_folder_selection(row_index, FolderSelectMode::Replace);
-                return;
-            }
-            let start = anchor_idx.min(row_index);
-            let end = anchor_idx.max(row_index);
-            let selection: Vec<(PathBuf, bool)> = rows[start..=end]
-                .iter()
-                .filter(|row| !row.is_root)
-                .map(|row| (row.path.clone(), row.has_children))
-                .collect();
-            if selection.is_empty() {
-                return;
-            }
-            let (snapshot, selection_changed) = {
+            let anchor_path = controller.current_folder_anchor_path().or_else(|| {
+                controller
+                    .ui
+                    .sources
+                    .folders
+                    .focused
+                    .and_then(|idx| rows.get(idx).map(|row| row.path.clone()))
+            });
+            let plan = {
                 let Some(model) = controller.current_folder_model_mut() else {
                     return;
                 };
-                model.selected.clear();
-                for (path, has_children) in &selection {
-                    insert_folder(&mut model.selected, path, *has_children);
-                }
-                model.selection_anchor = Some(rows[anchor_idx].path.clone());
-                model.focused = Some(rows[row_index].path.clone());
-                (model.clone(), true)
+                plan_range_selection(model, &rows, row_index, anchor_path)
             };
-            controller.ui.sources.folders.focused = Some(row_index);
-            controller.ui.sources.folders.scroll_to = Some(row_index);
-            controller.focus_folder_context();
-            let _ = controller.patch_current_folder_ui_locally(
-                controller.active_folder_pane(),
-                &snapshot,
-                true,
-            );
-            if selection_changed {
-                controller.rebuild_browser_lists();
+            match plan {
+                FolderRangePlan::Change(change) => controller.apply_folder_selection_change(change),
+                FolderRangePlan::ReplaceSingle => {
+                    controller.apply_planned_folder_selection(row_index, FolderSelectMode::Replace);
+                }
+                FolderRangePlan::Noop => {}
             }
         });
     }
@@ -72,7 +45,7 @@ impl AppController {
     pub(crate) fn toggle_folder_row_selection(&mut self, row_index: usize) {
         self.record_meaningful_ui_transaction("Toggle folder selection", |controller| {
             controller.clear_drop_target_selection();
-            controller.apply_folder_selection(row_index, FolderSelectMode::Toggle);
+            controller.apply_planned_folder_selection(row_index, FolderSelectMode::Toggle);
         });
     }
 
@@ -86,7 +59,8 @@ impl AppController {
     pub(crate) fn clear_folder_selection(&mut self) {
         self.record_meaningful_ui_transaction("Clear folder selection", |controller| {
             controller.clear_drop_target_selection();
-            let focused_path = controller.ui.sources.folders.focused.and_then(|idx| {
+            let focused_row = controller.ui.sources.folders.focused;
+            let focused_path = focused_row.and_then(|idx| {
                 controller
                     .ui
                     .sources
@@ -95,93 +69,30 @@ impl AppController {
                     .get(idx)
                     .map(|row| row.path.clone())
             });
-            let snapshot = {
+            let change = {
                 let Some(model) = controller.current_folder_model_mut() else {
                     return;
                 };
-                if model.selected.is_empty() {
-                    return;
-                }
-                model.selected.clear();
-                if let Some(focused) = focused_path.clone() {
-                    model.focused = Some(focused.clone());
-                    if focused.as_os_str().is_empty() {
-                        model.selection_anchor = None;
-                    } else {
-                        model.selection_anchor = Some(focused);
-                    }
-                }
-                model.clone()
+                plan_clear_folder_selection(model, focused_path, focused_row)
             };
-            controller.ui.sources.folders.scroll_to = controller.ui.sources.folders.focused;
-            let _ = controller.patch_current_folder_ui_locally(
-                controller.active_folder_pane(),
-                &snapshot,
-                true,
-            );
-            controller.rebuild_browser_lists();
+            if let Some(change) = change {
+                controller.apply_folder_selection_change(change);
+            }
         });
     }
 
     pub(crate) fn add_folder_to_selection(&mut self, row_index: usize) {
         self.record_meaningful_ui_transaction("Add folder selection", |controller| {
             controller.clear_drop_target_selection();
-            let Some(row) = controller.ui.sources.folders.rows.get(row_index).cloned() else {
-                return;
-            };
-            if row.is_root {
-                let (snapshot, selection_changed) = {
-                    let Some(model) = controller.current_folder_model_mut() else {
-                        return;
-                    };
-                    let before = model.selected.clone();
-                    model.selected.insert(PathBuf::new());
-                    if model.selection_anchor.is_none() {
-                        model.selection_anchor = Some(PathBuf::new());
-                    }
-                    model.focused = Some(PathBuf::new());
-                    (model.clone(), before != model.selected)
-                };
-                controller.ui.sources.folders.focused = Some(row_index);
-                controller.ui.sources.folders.scroll_to = Some(row_index);
-                controller.focus_folder_context();
-                let _ = controller.patch_current_folder_ui_locally(
-                    controller.active_folder_pane(),
-                    &snapshot,
-                    true,
-                );
-                if selection_changed {
-                    controller.rebuild_browser_lists();
-                }
-                return;
-            }
-            let path = row.path.clone();
-            let (snapshot, selection_changed) = {
+            let rows = controller.ui.sources.folders.rows.clone();
+            let change = {
                 let Some(model) = controller.current_folder_model_mut() else {
                     return;
                 };
-                if !model.available.contains(&path) {
-                    return;
-                }
-                let before = model.selected.clone();
-                insert_folder(&mut model.selected, &path, row.has_children);
-                if model.selection_anchor.is_none() {
-                    model.selection_anchor = Some(path.clone());
-                }
-                model.focused = Some(path.clone());
-                let changed = before != model.selected;
-                (model.clone(), changed)
+                plan_add_folder_to_selection(model, &rows, row_index)
             };
-            controller.ui.sources.folders.focused = Some(row_index);
-            controller.ui.sources.folders.scroll_to = Some(row_index);
-            controller.focus_folder_context();
-            let _ = controller.patch_current_folder_ui_locally(
-                controller.active_folder_pane(),
-                &snapshot,
-                true,
-            );
-            if selection_changed {
-                controller.rebuild_browser_lists();
+            if let Some(change) = change {
+                controller.apply_folder_selection_change(change);
             }
         });
     }
@@ -189,36 +100,15 @@ impl AppController {
     pub(crate) fn toggle_folder_row_negation(&mut self, row_index: usize) {
         self.record_meaningful_ui_transaction("Toggle folder exclusion", |controller| {
             controller.clear_drop_target_selection();
-            let Some(row) = controller.ui.sources.folders.rows.get(row_index).cloned() else {
-                return;
-            };
-            let path = row.path.clone();
-            let (snapshot, negation_changed) = {
+            let rows = controller.ui.sources.folders.rows.clone();
+            let change = {
                 let Some(model) = controller.current_folder_model_mut() else {
                     return;
                 };
-                if !row.is_root && !model.available.contains(&path) {
-                    return;
-                }
-                let before = model.negated.clone();
-                if model.negated.contains(&path) {
-                    model.negated.remove(&path);
-                } else {
-                    model.negated.insert(path.clone());
-                }
-                model.focused = Some(path.clone());
-                (model.clone(), before != model.negated)
+                plan_toggle_folder_negation(model, &rows, row_index)
             };
-            controller.ui.sources.folders.focused = Some(row_index);
-            controller.ui.sources.folders.scroll_to = Some(row_index);
-            controller.focus_folder_context();
-            let _ = controller.patch_current_folder_ui_locally(
-                controller.active_folder_pane(),
-                &snapshot,
-                true,
-            );
-            if negation_changed {
-                controller.rebuild_browser_lists();
+            if let Some(change) = change {
+                controller.apply_folder_selection_change(change);
             }
         });
     }
@@ -239,54 +129,30 @@ impl AppController {
             .map(|row| row.path.clone())
     }
 
-    fn apply_folder_selection(&mut self, row_index: usize, mode: FolderSelectMode) {
-        let Some(row) = self.ui.sources.folders.rows.get(row_index).cloned() else {
-            return;
-        };
-        if row.is_root {
-            let (snapshot, selection_changed) = {
-                let Some(model) = self.current_folder_model_mut() else {
-                    return;
-                };
-                let changed = apply_root_selection(model, mode);
-                (model.clone(), changed)
-            };
-            self.ui.sources.folders.focused = Some(row_index);
-            self.ui.sources.folders.scroll_to = Some(row_index);
-            self.focus_folder_context();
-            let _ =
-                self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true);
-            if selection_changed {
-                self.rebuild_browser_lists();
-            }
-            return;
-        }
-        let path = row.path.clone();
-        let (snapshot, selection_changed) = {
+    fn apply_planned_folder_selection(&mut self, row_index: usize, mode: FolderSelectMode) {
+        let rows = self.ui.sources.folders.rows.clone();
+        let change = {
             let Some(model) = self.current_folder_model_mut() else {
                 return;
             };
-            let changed = apply_path_selection(model, &path, row.has_children, mode);
-            (model.clone(), changed)
+            plan_row_selection(model, &rows, row_index, mode)
         };
-        self.ui.sources.folders.focused = Some(row_index);
-        self.ui.sources.folders.scroll_to = Some(row_index);
-        self.focus_folder_context();
-        let _ = self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true);
-        if selection_changed {
-            self.rebuild_browser_lists();
+        if let Some(change) = change {
+            self.apply_folder_selection_change(change);
         }
     }
 
-    fn folder_anchor_index(&self, rows: &[FolderRowView]) -> Option<usize> {
-        let anchor_path = self.current_folder_anchor_path().or_else(|| {
-            self.ui
-                .sources
-                .folders
-                .focused
-                .and_then(|idx| rows.get(idx).map(|r| r.path.clone()))
-        });
-        anchor_path.and_then(|path| rows.iter().position(|row| row.path == path))
+    fn apply_folder_selection_change(&mut self, change: FolderSelectionChange) {
+        if let Some(index) = change.focused_row {
+            self.ui.sources.folders.focused = Some(index);
+        }
+        self.ui.sources.folders.scroll_to = change.scroll_to_row;
+        self.focus_folder_context();
+        let _ =
+            self.patch_current_folder_ui_locally(self.active_folder_pane(), &change.snapshot, true);
+        if change.browser_filters_changed {
+            self.rebuild_browser_lists();
+        }
     }
 
     fn current_folder_anchor_path(&self) -> Option<PathBuf> {

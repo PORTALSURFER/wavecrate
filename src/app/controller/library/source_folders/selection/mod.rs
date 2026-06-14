@@ -3,6 +3,7 @@ mod filter;
 mod navigation;
 mod ops;
 mod ops_logic;
+mod planning;
 mod search;
 mod visibility;
 
