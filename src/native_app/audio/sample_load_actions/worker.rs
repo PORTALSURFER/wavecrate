@@ -41,7 +41,7 @@ impl SampleLoadWorker {
             self.request.queue_wait(Instant::now()),
             true,
         );
-        if context.is_cancelled() {
+        if context.check_cancelled().is_err() {
             let autoplay = self.request.autoplay();
             return SampleLoadResult {
                 path: self.request.into_path(),
@@ -86,6 +86,7 @@ impl SampleLoadWorker {
         let result = WaveformState::load_path_for_foreground_audition(
             PathBuf::from(self.request.path()),
             |progress| {
+                let _ = context.yield_if_elapsed(Duration::from_millis(8));
                 progress_reporter.borrow_mut().report(progress);
             },
             || context.is_cancelled(),
