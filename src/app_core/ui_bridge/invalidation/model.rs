@@ -1,4 +1,4 @@
-use crate::app::controller::state::runtime::{DerivedNodeId, DirtyReason};
+use crate::app_core::controller::{DerivedNodeId, DirtyReason};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum InvalidationSource {

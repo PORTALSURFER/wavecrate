@@ -47,19 +47,19 @@ try {
   Enable-WavecrateCargoCache
 
   Invoke-NativeStep -Label "Radiant synthetic blocking-token fixture" -Command {
-    Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml guardrail_reports_file_line_and_guidance_for_blocking_tokens
+    Invoke-WavecrateCargo @("test", "--manifest-path", "vendor/radiant/Cargo.toml", "guardrail_reports_file_line_and_guidance_for_blocking_tokens")
   }
 
   Invoke-NativeStep -Label "Radiant app/runtime/example guardrails" -Command {
-    Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml --test generic_surface_guardrails source_quality::runtime::commands_and_app
+    Invoke-WavecrateCargo @("test", "--manifest-path", "vendor/radiant/Cargo.toml", "--test", "generic_surface_guardrails", "source_quality::runtime::commands_and_app")
   }
 
   Invoke-NativeStep -Label "Wavecrate app-facing blocking guardrail" -Command {
-    Invoke-WavecrateCargo test -p wavecrate --no-default-features native_app_ui_update_paths_do_not_call_blocking_business_apis
+    Invoke-WavecrateCargo @("test", "-p", "wavecrate", "--no-default-features", "native_app_ui_update_paths_do_not_call_blocking_business_apis")
   }
 
   Invoke-NativeStep -Label "Wavecrate strict slow-handler diagnostics harness" -Command {
-    Invoke-WavecrateCargo test -p wavecrate --no-default-features rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
+    Invoke-WavecrateCargo @("test", "-p", "wavecrate", "--no-default-features", "rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow")
   }
 
   Write-Host "[non_blocking_architecture] OK"

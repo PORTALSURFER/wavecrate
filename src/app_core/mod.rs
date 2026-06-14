@@ -2,6 +2,8 @@
 //!
 //! Migration-facing compatibility adapters are owned by focused app-core modules.
 
+mod app_api;
+
 /// Controller aliases and helpers used by migration-facing runtimes.
 pub mod controller;
 
