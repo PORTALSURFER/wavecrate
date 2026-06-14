@@ -134,6 +134,10 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if self.library.folder_browser.selected_file_id().is_none() {
+            self.toggle_focused_folder_selection();
+            return;
+        }
         let started_at = Instant::now();
         let previous_focus = self
             .library
@@ -200,6 +204,7 @@ impl NativeAppState {
         &mut self,
         delta: i32,
         extend: bool,
+        preserve_selection: bool,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -217,6 +222,7 @@ impl NativeAppState {
         let Some(path) = self.library.folder_browser.navigate_vertical_matching_tags(
             delta,
             extend,
+            preserve_selection,
             &self.metadata.tags_by_file,
         ) else {
             if self
@@ -288,5 +294,43 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.defer_navigation_sample_load(path, context);
+    }
+
+    fn toggle_focused_folder_selection(&mut self) {
+        let started_at = Instant::now();
+        let Some(result) = self
+            .library
+            .folder_browser
+            .toggle_focused_folder_selection()
+        else {
+            self.ui.status.sample = String::from("Select a folder to mark");
+            emit_gui_action(
+                "folder_browser.toggle_folder_selection",
+                Some("folder_browser"),
+                None,
+                "short_circuit",
+                started_at,
+                None,
+            );
+            return;
+        };
+        let action = if result.selected {
+            "Marked"
+        } else {
+            "Unmarked"
+        };
+        self.ui.status.sample = format!(
+            "{action} {} ({} selected)",
+            sample_path_label(&result.folder_id),
+            result.selected_count
+        );
+        emit_gui_action(
+            "folder_browser.toggle_folder_selection",
+            Some("folder_browser"),
+            Some(&sample_path_label(&result.folder_id)),
+            "success",
+            started_at,
+            None,
+        );
     }
 }

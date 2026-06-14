@@ -168,6 +168,7 @@ pub(in crate::native_app) enum GuiMessage {
     NavigateBrowser {
         delta: i32,
         extend: bool,
+        preserve_selection: bool,
     },
     ToggleSelectedSampleAndAdvance,
     SelectAllSamples,

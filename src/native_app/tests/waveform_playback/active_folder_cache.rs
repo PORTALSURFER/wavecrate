@@ -36,6 +36,7 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,
@@ -88,6 +89,7 @@ fn folder_activation_delays_active_folder_cache_warm() {
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,
@@ -139,6 +141,7 @@ fn folder_activation_bounds_active_folder_cache_warm_candidates() {
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,
@@ -174,6 +177,7 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 first_folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,
@@ -203,6 +207,7 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 second_folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,

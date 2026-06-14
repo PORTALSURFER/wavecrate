@@ -90,7 +90,7 @@ impl NativeAppState {
         }
 
         if applied > 0 && self.ui.settings.persisted.controls.advance_after_rating {
-            self.navigate_browser(1, false, context);
+            self.navigate_browser(1, false, false, context);
         }
     }
 

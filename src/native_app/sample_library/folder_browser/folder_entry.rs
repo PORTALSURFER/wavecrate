@@ -48,6 +48,13 @@ impl FolderEntry {
             || self.children.iter().any(FolderEntry::contains_audio)
     }
 
+    pub(super) fn collect_folder_ids(&self, ids: &mut HashSet<String>) {
+        ids.insert(self.id.clone());
+        for child in &self.children {
+            child.collect_folder_ids(ids);
+        }
+    }
+
     pub(super) fn replace_direct_entries(
         &mut self,
         child_paths: Vec<PathBuf>,

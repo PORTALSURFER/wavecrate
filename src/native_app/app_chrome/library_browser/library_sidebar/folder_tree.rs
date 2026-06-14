@@ -139,11 +139,11 @@ fn folder_row_actions(
     drop_target_active: bool,
 ) -> ui::InteractiveRowActions<GuiMessage> {
     ui::row_actions()
-        .primary_key(id.clone(), |id| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id))
+        .primary_with_modifiers_key(id.clone(), |id, modifiers| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id, modifiers))
         })
         .double_key(id.clone(), |id| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id))
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id, Default::default()))
         })
         .secondary_key(id.clone(), |id, position| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::OpenFolderContextMenu(id, position))
@@ -178,7 +178,11 @@ fn folder_hover_drop_message(
 }
 
 fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba8> {
-    folder.empty.then_some(FOLDER_TREE_EMPTY_LABEL)
+    if folder.focused && !folder.selected {
+        Some(folder_tree_highlighted_label_color(folder))
+    } else {
+        folder.empty.then_some(FOLDER_TREE_EMPTY_LABEL)
+    }
 }
 
 fn folder_tree_highlighted_label_color(folder: &VisibleFolder) -> ui::Rgba8 {
@@ -329,6 +333,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn focused_unselected_folder_rows_use_highlighted_label_color() {
+        let mut folder = visible_folder_for_tests(false);
+        folder.focused = true;
+
+        let frame = folder_row(&folder, 0)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+
+        assert_eq!(
+            frame.paint_plan.first_text_color("Folder"),
+            Some(FOLDER_TREE_HIGHLIGHTED_LABEL)
+        );
+    }
+
     fn visible_folder_for_tests(empty: bool) -> VisibleFolder {
         VisibleFolder {
             id: String::from("folder"),
@@ -339,6 +357,7 @@ mod tests {
             empty,
             expanded: false,
             selected: false,
+            focused: false,
             drag_active: false,
             drag_source: false,
             drop_candidate: false,

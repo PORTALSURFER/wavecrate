@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use radiant::widgets::DragHandleMessage;
+use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
@@ -12,13 +12,14 @@ impl NativeAppState {
     pub(super) fn activate_folder_browser_folder(
         &mut self,
         folder_id: String,
+        modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         let source = folder_id.clone();
         self.library
             .folder_browser
-            .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
+            .apply_message(FolderBrowserMessage::ActivateFolder(folder_id, modifiers));
         self.queue_selected_folder_verify_after_activation(context);
         self.schedule_persisted_waveform_cache_indicator_refresh(context);
         self.schedule_active_folder_cache_warm(context);

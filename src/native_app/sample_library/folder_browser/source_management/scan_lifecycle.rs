@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 #[cfg(test)]
 use super::super::scan_types::FolderScanDiscovery;
@@ -247,6 +247,12 @@ impl FolderBrowserState {
         self.tree.expanded_folders.insert(root_id.clone());
 
         if self.find_folder(&self.selection.selected_folder).is_some() {
+            let mut existing_folder_ids = HashSet::new();
+            for folder in &self.tree.folders {
+                folder.collect_folder_ids(&mut existing_folder_ids);
+            }
+            self.selection
+                .retain_existing_folders(&existing_folder_ids, root_id.clone());
             self.expand_selected_folder_ancestors();
             let visible_ids = self
                 .selected_audio_files()

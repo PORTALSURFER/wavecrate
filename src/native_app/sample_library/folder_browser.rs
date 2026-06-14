@@ -31,6 +31,7 @@ mod delete_workflow;
 
 mod file_selection;
 mod file_selection_model;
+mod folder_selection_model;
 
 mod selection_state;
 use selection_state::BrowserSelectionState;
@@ -67,7 +68,8 @@ use rename_workflow::BrowserRenameState;
 mod state_types;
 use state_types::{
     FileColumn, FileColumnKind, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit,
-    FolderRenameKind, SimilarityBrowserState, SourceEntry, VisibleFolder, default_file_columns,
+    FolderRenameKind, FolderSelectionToggleResult, SimilarityBrowserState, SourceEntry,
+    VisibleFolder, default_file_columns,
 };
 
 mod state;

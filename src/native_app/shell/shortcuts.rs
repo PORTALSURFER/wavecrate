@@ -211,10 +211,12 @@ fn navigation_shortcut(press: ui::KeyPress) -> ui::ShortcutResolution<GuiMessage
         ui::KeyCode::ArrowUp => ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
             delta: -1,
             extend: press.shift,
+            preserve_selection: press.command,
         }),
         ui::KeyCode::ArrowDown => ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
             delta: 1,
             extend: press.shift,
+            preserve_selection: press.command,
         }),
         _ => ui::ShortcutResolution::unhandled(),
     }

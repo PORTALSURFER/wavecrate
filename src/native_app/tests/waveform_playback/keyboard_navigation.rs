@@ -40,6 +40,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
     );
     assert_eq!(
@@ -69,6 +70,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
     );
     assert_eq!(
@@ -136,6 +138,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: -1,
             extend: false,
+            preserve_selection: false,
         },
     );
     assert_eq!(
@@ -215,6 +218,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
         &mut context,
     );
@@ -249,6 +253,7 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
         &mut context,
     );
@@ -322,6 +327,7 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
         &mut context,
     );
@@ -382,6 +388,7 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
         &mut context,
     );
@@ -462,6 +469,7 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
             delta: 1,
             extend: false,
+            preserve_selection: false,
         },
         &mut context,
     );

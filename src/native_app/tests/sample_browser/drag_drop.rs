@@ -17,6 +17,7 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
     state

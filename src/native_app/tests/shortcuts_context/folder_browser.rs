@@ -76,3 +76,43 @@ fn audio_settings_window_does_not_block_folder_creation_shortcut() {
     ));
     assert!(resolution.handled);
 }
+
+#[test]
+fn command_arrow_navigation_preserves_folder_selection() {
+    let state = NativeAppState::load_default().expect("default state loads");
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress {
+        key: ui::KeyCode::ArrowDown,
+        command: true,
+        shift: false,
+        alt: false,
+    });
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: true,
+        })
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn shift_arrow_navigation_extends_folder_selection() {
+    let state = NativeAppState::load_default().expect("default state loads");
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::ArrowDown));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: true,
+            preserve_selection: false,
+        })
+    );
+    assert!(resolution.handled);
+}

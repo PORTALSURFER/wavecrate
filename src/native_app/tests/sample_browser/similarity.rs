@@ -19,6 +19,7 @@ fn sample_row_selection_still_works_in_similarity_mode() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
     let anchor_id = anchor.display().to_string();
@@ -58,6 +59,7 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
 
@@ -194,6 +196,7 @@ fn similarity_state_with_embeddings() -> (
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
     (

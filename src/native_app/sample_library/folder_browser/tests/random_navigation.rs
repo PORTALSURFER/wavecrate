@@ -24,13 +24,13 @@ fn random_navigation_forward_avoids_repeats_until_result_set_exhaustion() {
     browser.toggle_random_navigation();
 
     let first = browser
-        .navigate_vertical_matching_tags(1, false, &Default::default())
+        .navigate_vertical_matching_tags(1, false, false, &Default::default())
         .expect("first random target");
     let second = browser
-        .navigate_vertical_matching_tags(1, false, &Default::default())
+        .navigate_vertical_matching_tags(1, false, false, &Default::default())
         .expect("second random target");
     let third = browser
-        .navigate_vertical_matching_tags(1, false, &Default::default())
+        .navigate_vertical_matching_tags(1, false, false, &Default::default())
         .expect("third random target");
 
     let visited = [hat, first, second, third]
@@ -56,15 +56,15 @@ fn random_navigation_previous_walks_history() {
     browser.toggle_random_navigation();
 
     let first = browser
-        .navigate_vertical_matching_tags(1, false, &Default::default())
+        .navigate_vertical_matching_tags(1, false, false, &Default::default())
         .expect("first random target");
     let second = browser
-        .navigate_vertical_matching_tags(1, false, &Default::default())
+        .navigate_vertical_matching_tags(1, false, false, &Default::default())
         .expect("second random target");
     assert_ne!(first, second);
 
     assert_eq!(
-        browser.navigate_vertical_matching_tags(-1, false, &Default::default()),
+        browser.navigate_vertical_matching_tags(-1, false, false, &Default::default()),
         Some(first.clone())
     );
     assert_eq!(browser.selected_file_id(), Some(first.as_str()));
@@ -83,7 +83,7 @@ fn random_navigation_reconciles_when_result_set_changes() {
     browser.select_file(hat.clone());
     browser.toggle_random_navigation();
     let first = browser
-        .navigate_vertical_matching_tags(1, false, &Default::default())
+        .navigate_vertical_matching_tags(1, false, false, &Default::default())
         .expect("first random target");
     assert_ne!(first, hat);
 
@@ -94,12 +94,12 @@ fn random_navigation_reconciles_when_result_set_changes() {
     ));
 
     assert_eq!(
-        browser.navigate_vertical_matching_tags(-1, false, &Default::default()),
+        browser.navigate_vertical_matching_tags(-1, false, false, &Default::default()),
         None,
         "history should reset when the visible result set changes"
     );
     assert_eq!(
-        browser.navigate_vertical_matching_tags(1, false, &Default::default()),
+        browser.navigate_vertical_matching_tags(1, false, false, &Default::default()),
         None,
         "one-item result sets should not random-jump"
     );
@@ -110,7 +110,7 @@ fn random_navigation_reconciles_when_result_set_changes() {
         },
     ));
     assert_eq!(
-        browser.navigate_vertical_matching_tags(1, false, &Default::default()),
+        browser.navigate_vertical_matching_tags(1, false, false, &Default::default()),
         None,
         "empty result sets should not random-jump"
     );
@@ -132,7 +132,7 @@ fn linear_navigation_restores_when_random_mode_is_off() {
     assert!(!browser.random_navigation_enabled());
 
     assert_eq!(
-        browser.navigate_vertical_matching_tags(1, false, &Default::default()),
+        browser.navigate_vertical_matching_tags(1, false, false, &Default::default()),
         Some(path_id(&drums.join("kick.wav")))
     );
 

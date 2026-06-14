@@ -226,6 +226,7 @@ pub(in crate::native_app) struct VisibleFolder {
     pub(in crate::native_app) empty: bool,
     pub(in crate::native_app) expanded: bool,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
     pub(in crate::native_app) drop_candidate: bool,
@@ -233,6 +234,13 @@ pub(in crate::native_app) struct VisibleFolder {
     pub(in crate::native_app) drop_target_active: bool,
     pub(in crate::native_app) rename_draft: Option<String>,
     pub(in crate::native_app) rename_input_id: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderSelectionToggleResult {
+    pub(in crate::native_app) folder_id: String,
+    pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) selected_count: usize,
 }
 
 pub(super) fn default_file_columns() -> Vec<FileColumn> {

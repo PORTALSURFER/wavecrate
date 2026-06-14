@@ -9,8 +9,12 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match message {
-            GuiMessage::NavigateBrowser { delta, extend } => {
-                self.navigate_browser(delta, extend, context);
+            GuiMessage::NavigateBrowser {
+                delta,
+                extend,
+                preserve_selection,
+            } => {
+                self.navigate_browser(delta, extend, preserve_selection, context);
             }
             GuiMessage::ToggleSelectedSampleAndAdvance => {
                 self.toggle_selected_sample_and_advance(context);

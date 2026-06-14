@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::Point,
-    widgets::{DragHandleMessage, TextInputMessage},
+    widgets::{DragHandleMessage, PointerModifiers, TextInputMessage},
 };
 use wavecrate::sample_sources::SampleCollection;
 
@@ -9,7 +9,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     AddSource,
     SelectSource(String),
     OpenSourceContextMenu(String, Point),
-    ActivateFolder(String),
+    ActivateFolder(String, PointerModifiers),
     ToggleFolderExpansion(String),
     OpenFolderContextMenu(String, Point),
     DragFolder(String, DragHandleMessage),

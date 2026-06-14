@@ -99,21 +99,17 @@ impl FolderBrowserState {
             return false;
         }
         self.tree.folders = vec![root_folder.clone()];
-        if self.selection.selected_folder_id() == folder_id {
-            let selected_folder = parent_id
-                .filter(|id| self.find_folder(id).is_some())
-                .unwrap_or_else(|| {
-                    self.tree
-                        .folders
-                        .first()
-                        .map(|folder| folder.id.clone())
-                        .unwrap_or_default()
-                });
-            self.selection
-                .select_folder_and_clear_files(selected_folder);
-        } else {
-            self.selection.clear_file_selection();
-        }
+        let fallback_folder = parent_id
+            .filter(|id| self.find_folder(id).is_some())
+            .unwrap_or_else(|| {
+                self.tree
+                    .folders
+                    .first()
+                    .map(|folder| folder.id.clone())
+                    .unwrap_or_default()
+            });
+        self.selection.discard_folder(&folder_id, fallback_folder);
+        self.selection.clear_file_selection();
         self.tree.expanded_folders.retain(|id| id != &folder_id);
         self.bump_file_content_revision();
         true

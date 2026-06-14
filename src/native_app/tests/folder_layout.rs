@@ -48,7 +48,7 @@ fn keyboard_folder_navigation_keeps_selected_folder_in_tree_view() {
     );
 
     for _ in 0..12 {
-        state.navigate_browser(1, false, &mut context);
+        state.navigate_browser(1, false, false, &mut context);
     }
 
     assert_eq!(
@@ -59,6 +59,38 @@ fn keyboard_folder_navigation_keeps_selected_folder_in_tree_view() {
         last_fixed_row_scroll(context.into_command()),
         Some((12, 23.0, 2, 2, 1))
     );
+}
+
+#[test]
+fn x_toggle_marks_focused_folder_without_sample_focus() {
+    let tempdir = tempfile::tempdir().expect("create temp root");
+    let root = tempdir.path().join("wavecrate-folder-x-toggle");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let mut state = NativeAppStateFixture::default()
+        .with_folder_browser(FolderBrowserState::from_root(root.clone()))
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.navigate_browser(1, true, false, &mut context);
+    state.apply_message(GuiMessage::ToggleSelectedSampleAndAdvance, &mut context);
+
+    let visible = state.library.folder_browser.visible_folders();
+    let root_id = root.display().to_string();
+    let drums_id = drums.display().to_string();
+    let root_row = visible
+        .iter()
+        .find(|folder| folder.id == root_id)
+        .expect("root row should stay visible");
+    let drums_row = visible
+        .iter()
+        .find(|folder| folder.id == drums_id)
+        .expect("drums row should stay visible");
+    assert!(root_row.selected);
+    assert!(!root_row.focused);
+    assert!(!drums_row.selected);
+    assert!(drums_row.focused);
+    assert!(state.ui.status.sample.contains("Unmarked"));
 }
 
 fn last_fixed_row_scroll(command: Command<GuiMessage>) -> Option<(usize, f32, usize, usize, i32)> {

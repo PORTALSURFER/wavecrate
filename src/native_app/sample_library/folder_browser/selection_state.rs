@@ -5,6 +5,7 @@ use radiant::widgets::PointerModifiers;
 
 use super::{
     file_selection_model::{FileSelectionModel, SelectionToggleAdvanceOutcome},
+    folder_selection_model::FolderSelectionModel,
     path_helpers::rewrite_path_id,
 };
 use wavecrate::sample_sources::SampleCollection;
@@ -12,6 +13,8 @@ use wavecrate::sample_sources::SampleCollection;
 #[derive(Clone, Debug)]
 pub(super) struct BrowserSelectionState {
     pub(super) selected_folder: String,
+    pub(super) selected_folder_ids: HashSet<String>,
+    pub(super) folder_selection_anchor: Option<String>,
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
     pub(super) selected_file_ids_explicit: bool,
@@ -30,7 +33,9 @@ pub(super) struct BrowserSelectionSnapshot {
 impl BrowserSelectionState {
     pub(super) fn new(selected_folder: String) -> Self {
         Self {
-            selected_folder,
+            selected_folder: selected_folder.clone(),
+            selected_folder_ids: [selected_folder].into_iter().collect(),
+            folder_selection_anchor: None,
             selected_file: None,
             selected_file_ids: HashSet::new(),
             selected_file_ids_explicit: false,
@@ -48,8 +53,69 @@ impl BrowserSelectionState {
     pub(super) fn select_folder(&mut self, folder_id: String) {
         self.selected_collection = None;
         self.folder_before_collection = None;
-        self.selected_folder = folder_id;
+        self.select_single_folder(folder_id);
         self.clear_file_selection();
+    }
+
+    pub(super) fn select_folder_with_modifiers(
+        &mut self,
+        folder_id: String,
+        visible_ids: &[String],
+        modifiers: PointerModifiers,
+    ) -> bool {
+        self.selected_collection = None;
+        self.folder_before_collection = None;
+        let mut selection = self.folder_selection_model();
+        let selected = selection.select_with_modifiers(folder_id, visible_ids, modifiers);
+        self.apply_folder_selection_model(selection);
+        self.clear_file_selection();
+        selected
+    }
+
+    pub(super) fn navigate_folder(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        preserve_selection: bool,
+        visible_ids: &[String],
+    ) -> Option<String> {
+        let mut selection = self.folder_selection_model();
+        let target = selection.navigate(delta, extend, preserve_selection, visible_ids)?;
+        self.apply_folder_selection_model(selection);
+        self.clear_file_selection();
+        Some(target)
+    }
+
+    pub(super) fn toggle_focused_folder(&mut self, visible_ids: &[String]) -> Option<bool> {
+        let mut selection = self.folder_selection_model();
+        let selected = selection.toggle_focused(visible_ids)?;
+        self.apply_folder_selection_model(selection);
+        self.clear_file_selection();
+        Some(selected)
+    }
+
+    pub(super) fn selected_folder_ids_contains(&self, folder_id: &str) -> bool {
+        self.selected_folder_ids.contains(folder_id)
+    }
+
+    pub(super) fn selected_folder_count(&self) -> usize {
+        self.selected_folder_ids.len()
+    }
+
+    pub(super) fn retain_existing_folders(
+        &mut self,
+        existing_ids: &HashSet<String>,
+        fallback_id: String,
+    ) {
+        let mut selection = self.folder_selection_model();
+        selection.retain_existing(existing_ids, fallback_id);
+        self.apply_folder_selection_model(selection);
+    }
+
+    pub(super) fn discard_folder(&mut self, folder_id: &str, fallback_id: String) {
+        let mut selection = self.folder_selection_model();
+        selection.remove_id(folder_id, fallback_id);
+        self.apply_folder_selection_model(selection);
     }
 
     pub(super) fn enter_collection(&mut self, collection: SampleCollection) {
@@ -189,7 +255,7 @@ impl BrowserSelectionState {
     }
 
     pub(super) fn select_folder_after_tree_changed(&mut self, folder_id: String) {
-        self.selected_folder = folder_id;
+        self.select_single_folder(folder_id);
         self.clear_file_selection();
     }
 
@@ -202,15 +268,23 @@ impl BrowserSelectionState {
 
     pub(super) fn set_folder_focus(&mut self, folder_id: String) {
         self.selected_folder = folder_id;
-    }
-
-    pub(super) fn select_folder_and_clear_files(&mut self, folder_id: String) {
-        self.selected_folder = folder_id;
-        self.clear_file_selection();
+        self.selected_folder_ids
+            .insert(self.selected_folder.clone());
+        self.folder_selection_anchor
+            .get_or_insert_with(|| self.selected_folder.clone());
     }
 
     pub(super) fn rewrite_folder_prefix(&mut self, old_path: &Path, new_path: &Path) {
         self.selected_folder = rewrite_path_id(&self.selected_folder, old_path, new_path);
+        self.selected_folder_ids = self
+            .selected_folder_ids
+            .iter()
+            .map(|id| rewrite_path_id(id, old_path, new_path))
+            .collect();
+        self.folder_selection_anchor = self
+            .folder_selection_anchor
+            .take()
+            .map(|id| rewrite_path_id(&id, old_path, new_path));
         self.selected_file = self
             .selected_file
             .take()
@@ -330,5 +404,26 @@ impl BrowserSelectionState {
         self.selected_file = selection.focused_id().map(ToOwned::to_owned);
         self.selected_file_ids = selection.selected_ids().clone();
         self.selected_file_ids_explicit = selection.explicit();
+    }
+
+    fn select_single_folder(&mut self, folder_id: String) {
+        self.selected_folder = folder_id.clone();
+        self.selected_folder_ids.clear();
+        self.selected_folder_ids.insert(folder_id.clone());
+        self.folder_selection_anchor = Some(folder_id);
+    }
+
+    fn folder_selection_model(&self) -> FolderSelectionModel {
+        FolderSelectionModel::new(
+            self.selected_folder.clone(),
+            self.folder_selection_anchor.clone(),
+            self.selected_folder_ids.clone(),
+        )
+    }
+
+    fn apply_folder_selection_model(&mut self, selection: FolderSelectionModel) {
+        self.selected_folder = selection.focused_id().to_owned();
+        self.folder_selection_anchor = selection.anchor_id().map(ToOwned::to_owned);
+        self.selected_folder_ids = selection.selected_ids().clone();
     }
 }

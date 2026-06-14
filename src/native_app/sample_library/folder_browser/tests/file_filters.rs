@@ -102,11 +102,11 @@ fn tag_filter_limits_selected_audio_files_and_clears_hidden_selection() {
         vec!["Deep Kick.wav", "Snare.wav"]
     );
     assert_eq!(
-        browser.navigate_vertical_matching_tags(1, false, &tags_by_file),
+        browser.navigate_vertical_matching_tags(1, false, false, &tags_by_file),
         Some(path_id(&snare))
     );
     assert_eq!(
-        browser.navigate_vertical_matching_tags(1, false, &tags_by_file),
+        browser.navigate_vertical_matching_tags(1, false, false, &tags_by_file),
         None
     );
     let _ = fs::remove_dir_all(root);

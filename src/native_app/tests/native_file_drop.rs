@@ -105,6 +105,7 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
+            Default::default(),
         ),
     );
     let mut context = ui::UiUpdateContext::default();
@@ -156,6 +157,7 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
+            Default::default(),
         ),
     );
     let mut context = ui::UiUpdateContext::default();
@@ -191,6 +193,7 @@ fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
     let mut context = ui::UiUpdateContext::default();
@@ -230,6 +233,7 @@ fn native_file_drop_from_active_browser_drag_cancels_instead_of_copying() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
     state
@@ -269,6 +273,7 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ),
     );
     state.library.folder_browser.select_file(source_id.clone());

@@ -2,7 +2,7 @@ use super::{
     FolderBrowserDropTarget, FolderBrowserState, FolderEntry, FolderVerifyRequest, VisibleFolder,
     path_helpers::path_id,
 };
-use radiant::prelude as ui;
+use radiant::{prelude as ui, widgets::PointerModifiers};
 use std::collections::HashSet;
 
 #[derive(Clone, Debug)]
@@ -81,7 +81,26 @@ impl FolderBrowserState {
         self.tree.expanded_folders.contains(id)
     }
 
+    #[cfg(test)]
     pub(super) fn activate_folder(&mut self, id: String) {
+        self.activate_folder_with_modifiers(id, PointerModifiers::default());
+    }
+
+    pub(super) fn activate_folder_with_modifiers(
+        &mut self,
+        id: String,
+        modifiers: PointerModifiers,
+    ) {
+        if modifiers.shift || modifiers.command {
+            let visible_ids = self
+                .visible_folders()
+                .into_iter()
+                .map(|folder| folder.id)
+                .collect::<Vec<_>>();
+            self.selection
+                .select_folder_with_modifiers(id, &visible_ids, modifiers);
+            return;
+        }
         if self.selected_folder_is_source_root_id(&id) {
             self.select_folder(id);
             return;
@@ -206,6 +225,8 @@ impl FolderBrowserState {
             empty: !folder.contains_audio(),
             expanded: is_source_root || self.is_expanded(&folder.id),
             selected: self.selection.selected_collection.is_none()
+                && self.selection.selected_folder_ids_contains(&folder.id),
+            focused: self.selection.selected_collection.is_none()
                 && self.selection.selected_folder == folder.id,
             drag_active,
             drag_source,

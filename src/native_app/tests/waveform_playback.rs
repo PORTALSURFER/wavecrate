@@ -145,6 +145,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 old_folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,
@@ -163,6 +164,7 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
             crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
                 old_folder.display().to_string(),
+                Default::default(),
             ),
         ),
         &mut context,

@@ -79,6 +79,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
+            Default::default(),
         ),
     );
     let messages = Rc::new(RefCell::new(Vec::new()));
@@ -134,6 +135,7 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
     state.library.folder_browser.apply_message(
         crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
+            Default::default(),
         ),
     );
     let waveform_loading_label = Rc::new(RefCell::new(None));

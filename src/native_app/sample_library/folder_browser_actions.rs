@@ -46,8 +46,8 @@ impl NativeAppState {
             FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
                 self.open_folder_context_menu(folder_id, position);
             }
-            FolderBrowserMessage::ActivateFolder(folder_id) => {
-                self.activate_folder_browser_folder(folder_id, context);
+            FolderBrowserMessage::ActivateFolder(folder_id, modifiers) => {
+                self.activate_folder_browser_folder(folder_id, modifiers, context);
             }
             FolderBrowserMessage::DragFolder(folder_id, drag) => {
                 self.drag_folder_browser_folder(folder_id, drag, context);

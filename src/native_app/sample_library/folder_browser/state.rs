@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use super::{
     BrowserDragDropState, BrowserFilterState, BrowserPanelLayoutState, BrowserRenameState,
     BrowserSelectionState, BrowserSourceState, CollectionPanelState, FolderBrowserMessage,
-    FolderEntry, FolderTreeState, SampleListState, SimilarityBrowserState, SourceEntry,
-    default_root_path, load_root_folder, placeholder_folder,
+    FolderEntry, FolderSelectionToggleResult, FolderTreeState, SampleListState,
+    SimilarityBrowserState, SourceEntry, default_root_path, load_root_folder, placeholder_folder,
 };
 
 #[derive(Clone, Debug)]
@@ -85,6 +85,26 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn selected_file_id(&self) -> Option<&str> {
         self.selection.selected_file_id()
+    }
+
+    pub(in crate::native_app) fn toggle_focused_folder_selection(
+        &mut self,
+    ) -> Option<FolderSelectionToggleResult> {
+        if self.rename_active() || self.selection.selected_collection.is_some() {
+            return None;
+        }
+        let visible_ids = self
+            .visible_folders()
+            .into_iter()
+            .map(|folder| folder.id)
+            .collect::<Vec<_>>();
+        let folder_id = self.selection.selected_folder.clone();
+        let selected = self.selection.toggle_focused_folder(&visible_ids)?;
+        Some(FolderSelectionToggleResult {
+            folder_id,
+            selected,
+            selected_count: self.selection.selected_folder_count(),
+        })
     }
 
     pub(in crate::native_app) fn similarity_anchor_id(&self) -> Option<&str> {
@@ -217,9 +237,9 @@ impl FolderBrowserState {
                 self.update_drag_pointer(position);
                 self.hover_drop_target_folder(&id);
             }
-            FolderBrowserMessage::ActivateFolder(id) => {
+            FolderBrowserMessage::ActivateFolder(id, modifiers) => {
                 self.cancel_rename();
-                self.activate_folder(id);
+                self.activate_folder_with_modifiers(id, modifiers);
                 self.sync_tree_view_to_selection(
                     super::FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
                     super::FOLDER_TREE_OVERSCAN_ROWS,

@@ -1,4 +1,3 @@
-use radiant::prelude as ui;
 use std::collections::HashMap;
 
 use super::super::FolderBrowserState;
@@ -22,7 +21,7 @@ impl FolderBrowserState {
         if self.selection.selected_file_active() {
             return self.navigate_selected_file(delta, extend);
         }
-        self.navigate_selected_folder(delta);
+        self.navigate_selected_folder(delta, extend, false);
         None
     }
 
@@ -30,6 +29,7 @@ impl FolderBrowserState {
         &mut self,
         delta: i32,
         extend: bool,
+        preserve_folder_selection: bool,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<String> {
         if delta == 0 || self.rename_active() {
@@ -50,7 +50,7 @@ impl FolderBrowserState {
             }
             return self.navigate_selected_file_matching_tags(delta, extend, tags_by_file);
         }
-        self.navigate_selected_folder(delta);
+        self.navigate_selected_folder(delta, extend, preserve_folder_selection);
         None
     }
 
@@ -90,30 +90,36 @@ impl FolderBrowserState {
     pub(in crate::native_app::sample_library::folder_browser) fn navigate_selected_folder(
         &mut self,
         delta: i32,
+        extend: bool,
+        preserve_selection: bool,
     ) -> bool {
-        self.navigate_selected_folder_by_delta(delta)
+        self.navigate_selected_folder_by_delta(delta, extend, preserve_selection)
     }
 
     #[cfg(not(test))]
-    fn navigate_selected_folder(&mut self, delta: i32) -> bool {
-        self.navigate_selected_folder_by_delta(delta)
+    fn navigate_selected_folder(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        preserve_selection: bool,
+    ) -> bool {
+        self.navigate_selected_folder_by_delta(delta, extend, preserve_selection)
     }
 
-    fn navigate_selected_folder_by_delta(&mut self, delta: i32) -> bool {
+    fn navigate_selected_folder_by_delta(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        preserve_selection: bool,
+    ) -> bool {
         let folders = self.visible_folders();
-        let Some(current_index) = folders
-            .iter()
-            .position(|folder| folder.id == self.selection.selected_folder)
-        else {
-            return false;
-        };
-        let target_index = ui::list_index_after_delta(current_index, delta as isize, folders.len())
-            .unwrap_or(current_index);
-        if target_index == current_index {
-            return false;
-        }
-        self.select_folder(folders[target_index].id.clone());
-        true
+        let folder_ids = folders
+            .into_iter()
+            .map(|folder| folder.id)
+            .collect::<Vec<_>>();
+        self.selection
+            .navigate_folder(delta, extend, preserve_selection, &folder_ids)
+            .is_some()
     }
 
     #[cfg(test)]

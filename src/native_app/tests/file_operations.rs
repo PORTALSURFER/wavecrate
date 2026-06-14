@@ -30,6 +30,7 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
         .folder_browser
         .apply_message(FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ));
     state
         .library
@@ -72,7 +73,7 @@ fn activating_folder_queues_selected_folder_verify() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_folder_browser_message(
-        FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
+        FolderBrowserMessage::ActivateFolder(drums.display().to_string(), Default::default()),
         &mut context,
     );
 
@@ -97,7 +98,7 @@ fn activating_folder_replaces_pending_selected_folder_verify() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_folder_browser_message(
-        FolderBrowserMessage::ActivateFolder(drums.display().to_string()),
+        FolderBrowserMessage::ActivateFolder(drums.display().to_string(), Default::default()),
         &mut context,
     );
     let first_ticket = state
@@ -106,7 +107,7 @@ fn activating_folder_replaces_pending_selected_folder_verify() {
         .active()
         .expect("first activation should queue verify");
     state.apply_folder_browser_message(
-        FolderBrowserMessage::ActivateFolder(loops.display().to_string()),
+        FolderBrowserMessage::ActivateFolder(loops.display().to_string(), Default::default()),
         &mut context,
     );
 
@@ -312,7 +313,10 @@ fn context_delete_folder_confirmation_moves_folder_to_trash() {
     state
         .library
         .folder_browser
-        .apply_message(FolderBrowserMessage::ActivateFolder(folder_id.clone()));
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            folder_id.clone(),
+            Default::default(),
+        ));
     state.open_folder_context_menu(folder_id.clone(), Point::new(40.0, 120.0));
 
     let mut context = radiant::prelude::UiUpdateContext::default();
@@ -584,6 +588,7 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
         .folder_browser
         .apply_message(FolderBrowserMessage::ActivateFolder(
             drums.display().to_string(),
+            Default::default(),
         ));
 
     let mut context = radiant::prelude::UiUpdateContext::default();
@@ -599,6 +604,7 @@ fn delete_selected_folder_moves_it_to_configured_trash_folder() {
         .folder_browser
         .apply_message(FolderBrowserMessage::ActivateFolder(
             loops.display().to_string(),
+            Default::default(),
         ));
     assert!(
         state
