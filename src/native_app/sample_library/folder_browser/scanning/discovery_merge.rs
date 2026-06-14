@@ -1,4 +1,7 @@
-use super::{FileEntry, FolderEntry, FolderScanDiscovery, FolderScanItem};
+use super::super::{
+    FileEntry, FolderEntry,
+    scan_types::{FolderScanDiscovery, FolderScanItem},
+};
 
 pub(in crate::native_app::sample_library::folder_browser) fn merge_scan_discovery(
     root: &mut FolderEntry,
