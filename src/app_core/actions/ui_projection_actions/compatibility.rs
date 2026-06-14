@@ -8,6 +8,32 @@
 use super::{ColumnTriageAction, HistoryUpdateAction, UiAction, WaveformAction};
 use serde::{Deserialize, Serialize};
 
+/// Runtime or artifact action input that may contain retained legacy payloads.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RetainedUiAction {
+    /// Current Wavecrate action contract.
+    Current(UiAction),
+    /// Retained legacy action input upgraded before dispatch.
+    Compatibility(CompatibilityAction),
+}
+
+impl RetainedUiAction {
+    /// Normalize retained input into the current action contract.
+    pub fn into_current(self) -> UiAction {
+        match self {
+            Self::Current(action) => action,
+            Self::Compatibility(action) => action.upgrade(),
+        }
+    }
+}
+
+impl From<UiAction> for RetainedUiAction {
+    fn from(action: UiAction) -> Self {
+        Self::Current(action)
+    }
+}
+
 /// Supported legacy action inputs retained for runtime and artifact readers.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CompatibilityAction {
@@ -75,46 +101,6 @@ impl CompatibilityAction {
             }
         }
     }
-
-    /// Return whether this compatibility input remains part of the durable
-    /// compatibility contract.
-    pub const fn policy(self) -> CompatibilityPolicy {
-        match self {
-            Self::Undo
-            | Self::Redo
-            | Self::CheckForUpdates
-            | Self::OpenUpdateLink
-            | Self::InstallUpdate
-            | Self::DismissUpdate
-            | Self::SeekWaveform { .. }
-            | Self::SetWaveformCursor { .. } => CompatibilityPolicy::DurableUpgrade,
-            Self::SelectColumn { .. } | Self::MoveColumn { .. } => {
-                CompatibilityPolicy::DurableUpgrade
-            }
-        }
-    }
-}
-
-impl UiAction {
-    /// Normalize retained compatibility payloads into current action shapes.
-    pub fn upgrade_compatibility(self) -> Self {
-        match self {
-            UiAction::Compatibility(action) => action.upgrade(),
-            action => action,
-        }
-    }
-}
-
-/// Compatibility support policy for a retained legacy input.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CompatibilityPolicy {
-    /// Keep parsing and upgrade to a current action at the adapter boundary.
-    DurableUpgrade,
-}
-
-/// Upgrade one optional compatibility action.
-pub fn upgrade_compatibility_action(action: CompatibilityAction) -> UiAction {
-    action.upgrade()
 }
 
 pub(crate) const fn milli_to_nanos(position_milli: u16) -> u32 {

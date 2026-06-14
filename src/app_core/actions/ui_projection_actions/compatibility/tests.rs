@@ -3,9 +3,10 @@ use super::*;
 #[test]
 fn waveform_milli_inputs_upgrade_to_precise_actions() {
     assert_eq!(
-        upgrade_compatibility_action(CompatibilityAction::SeekWaveform {
+        CompatibilityAction::SeekWaveform {
             position_milli: 420,
-        }),
+        }
+        .upgrade(),
         UiAction::Waveform(
             crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
                 position_nanos: 420_000_000,
@@ -13,9 +14,10 @@ fn waveform_milli_inputs_upgrade_to_precise_actions() {
         )
     );
     assert_eq!(
-        upgrade_compatibility_action(CompatibilityAction::SetWaveformCursor {
+        CompatibilityAction::SetWaveformCursor {
             position_milli: 1_200,
-        }),
+        }
+        .upgrade(),
         UiAction::Waveform(
             crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
                 position_nanos: 1_000_000_000,
@@ -27,19 +29,14 @@ fn waveform_milli_inputs_upgrade_to_precise_actions() {
 #[test]
 fn column_inputs_upgrade_to_current_column_triage_actions() {
     let select = CompatibilityAction::SelectColumn { index: 2 };
-    assert_eq!(select.clone().policy(), CompatibilityPolicy::DurableUpgrade);
     assert_eq!(
-        upgrade_compatibility_action(select),
+        select.upgrade(),
         UiAction::ColumnTriage(ColumnTriageAction::SelectColumn { index: 2 })
     );
 
     let move_column = CompatibilityAction::MoveColumn { delta: -1 };
     assert_eq!(
-        move_column.clone().policy(),
-        CompatibilityPolicy::DurableUpgrade
-    );
-    assert_eq!(
-        upgrade_compatibility_action(move_column),
+        move_column.upgrade(),
         UiAction::ColumnTriage(ColumnTriageAction::MoveColumn { delta: -1 })
     );
 }
@@ -79,10 +76,10 @@ fn legacy_json_payloads_parse_in_adapter() {
 #[test]
 fn ui_action_boundary_normalizes_retained_compatibility_variants() {
     assert_eq!(
-        UiAction::Compatibility(CompatibilityAction::SeekWaveform {
+        RetainedUiAction::Compatibility(CompatibilityAction::SeekWaveform {
             position_milli: 250,
         })
-        .upgrade_compatibility(),
+        .into_current(),
         UiAction::Waveform(
             crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
                 position_nanos: 250_000_000,
@@ -91,8 +88,10 @@ fn ui_action_boundary_normalizes_retained_compatibility_variants() {
     );
 
     assert_eq!(
-        UiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromStart)
-            .upgrade_compatibility(),
+        RetainedUiAction::Current(UiAction::Transport(
+            crate::app_core::actions::NativeTransportAction::PlayFromStart
+        ))
+        .into_current(),
         UiAction::Transport(crate::app_core::actions::NativeTransportAction::PlayFromStart)
     );
 }
@@ -100,26 +99,26 @@ fn ui_action_boundary_normalizes_retained_compatibility_variants() {
 #[test]
 fn flat_history_update_inputs_upgrade_to_domain_action() {
     assert_eq!(
-        UiAction::CheckForUpdates.upgrade_compatibility(),
+        RetainedUiAction::Compatibility(CompatibilityAction::CheckForUpdates).into_current(),
         UiAction::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates)
     );
     assert_eq!(
-        UiAction::Undo.upgrade_compatibility(),
+        RetainedUiAction::Compatibility(CompatibilityAction::Undo).into_current(),
         UiAction::HistoryAndUpdate(HistoryUpdateAction::Undo)
     );
 }
 
 #[test]
 fn flat_history_update_inputs_are_adapter_owned() {
-    let parsed: UiAction =
+    let parsed: RetainedUiAction =
         serde_json::from_value(serde_json::json!("DismissUpdate")).expect("parse flat update");
 
     assert_eq!(
         parsed,
-        UiAction::Compatibility(CompatibilityAction::DismissUpdate)
+        RetainedUiAction::Compatibility(CompatibilityAction::DismissUpdate)
     );
     assert_eq!(
-        parsed.upgrade_compatibility(),
+        parsed.into_current(),
         UiAction::HistoryAndUpdate(HistoryUpdateAction::DismissUpdate)
     );
 

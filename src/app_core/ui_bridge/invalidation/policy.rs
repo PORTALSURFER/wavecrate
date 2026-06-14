@@ -1,7 +1,7 @@
 use super::{InvalidationReason, InvalidationSource};
 #[cfg(test)]
 use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
-use crate::app_core::actions::{NativeCompatibilityAction, NativeOptionsAction, NativeUiAction};
+use crate::app_core::actions::{NativeOptionsAction, NativeUiAction};
 
 /// Return whether an action requires unconditional projection-cache invalidation.
 pub(in crate::app_core::ui_bridge) fn action_requires_projection_cache_invalidation(
@@ -11,8 +11,6 @@ pub(in crate::app_core::ui_bridge) fn action_requires_projection_cache_invalidat
         action,
         NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { .. })
             | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { .. })
-            | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
-            | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
             | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide { .. })
             | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::UpdateWaveformCircularSlide { .. })
             | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::FinishWaveformCircularSlide)
@@ -207,8 +205,6 @@ pub(in crate::app_core::ui_bridge) fn classify_dirty_source(
     match action {
         NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { .. })
         | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { .. })
-        | NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform { .. })
-        | NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor { .. })
         | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAt { .. })
         | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::BeginWaveformSelectionAtPrecise { .. })
         | NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange { .. })
@@ -355,12 +351,6 @@ pub(in crate::app_core::ui_bridge) fn classify_dirty_source(
             | crate::app_core::actions::NativeHistoryUpdateAction::OpenUpdateLink
             | crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate
             | crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
-        )
-        | NativeUiAction::Compatibility(
-            crate::app_core::actions::NativeCompatibilityAction::CheckForUpdates
-            | crate::app_core::actions::NativeCompatibilityAction::OpenUpdateLink
-            | crate::app_core::actions::NativeCompatibilityAction::InstallUpdate
-            | crate::app_core::actions::NativeCompatibilityAction::DismissUpdate,
         )
         | NativeUiAction::Options(NativeOptionsAction::OpenOptionsMenu)
         | NativeUiAction::Options(NativeOptionsAction::CloseOptionsPanel)

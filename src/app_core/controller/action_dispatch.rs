@@ -16,7 +16,6 @@ pub(super) fn apply_ui_action(controller: &mut AppController, action: NativeUiAc
     let started_at = Instant::now();
     let action_id = ui_action_id(&action);
     let pane = ui_action_pane(&action);
-    let action = action.upgrade_compatibility();
     controller.begin_waveform_refresh_batch();
     let action = match apply_transport_ui_action(controller, action) {
         Ok(()) => {
@@ -116,15 +115,9 @@ fn apply_transport_ui_action(
         ) => controller.handle_escape(),
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::Undo,
-        )
-        | NativeUiAction::Compatibility(
-            crate::app_core::actions::NativeCompatibilityAction::Undo,
         ) => controller.undo(),
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::Redo,
-        )
-        | NativeUiAction::Compatibility(
-            crate::app_core::actions::NativeCompatibilityAction::Redo,
         ) => controller.redo(),
         NativeUiAction::Options(
             crate::app_core::actions::NativeOptionsAction::ToggleLoopPlayback,

@@ -20,7 +20,7 @@ pub enum HistoryUpdateAction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_core::actions::{NativeCompatibilityAction, NativeUiAction};
+    use crate::app_core::actions::{NativeRetainedUiAction, NativeUiAction};
 
     #[test]
     fn history_update_action_round_trips_through_current_action_contract() {
@@ -37,15 +37,12 @@ mod tests {
 
     #[test]
     fn retained_flat_update_payload_still_parses_for_compatibility() {
-        let parsed: NativeUiAction = serde_json::from_value(serde_json::json!("CheckForUpdates"))
-            .expect("parse retained flat action");
+        let parsed: NativeRetainedUiAction =
+            serde_json::from_value(serde_json::json!("CheckForUpdates"))
+                .expect("parse retained flat action");
 
         assert_eq!(
-            parsed,
-            NativeUiAction::Compatibility(NativeCompatibilityAction::CheckForUpdates)
-        );
-        assert_eq!(
-            parsed.upgrade_compatibility(),
+            parsed.into_current(),
             NativeUiAction::HistoryAndUpdate(HistoryUpdateAction::CheckForUpdates)
         );
     }

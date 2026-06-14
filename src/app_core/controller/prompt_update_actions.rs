@@ -1,7 +1,7 @@
 //! Prompt, progress, and update UI action dispatch helpers.
 
 use super::AppController;
-use crate::app_core::actions::{NativeCompatibilityAction, NativeUiAction};
+use crate::app_core::actions::NativeUiAction;
 
 /// Try to dispatch prompt/update/progress UI actions.
 pub(super) fn apply_prompt_and_update_ui_action(
@@ -51,28 +51,16 @@ pub(super) fn apply_prompt_and_update_ui_action(
         }
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::CheckForUpdates,
-        )
-        | NativeUiAction::Compatibility(NativeCompatibilityAction::CheckForUpdates) => {
-            controller.check_for_updates_now()
-        }
+        ) => controller.check_for_updates_now(),
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::OpenUpdateLink,
-        )
-        | NativeUiAction::Compatibility(NativeCompatibilityAction::OpenUpdateLink) => {
-            controller.open_update_link()
-        }
+        ) => controller.open_update_link(),
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::InstallUpdate,
-        )
-        | NativeUiAction::Compatibility(NativeCompatibilityAction::InstallUpdate) => {
-            controller.install_update_and_exit()
-        }
+        ) => controller.install_update_and_exit(),
         NativeUiAction::HistoryAndUpdate(
             crate::app_core::actions::NativeHistoryUpdateAction::DismissUpdate,
-        )
-        | NativeUiAction::Compatibility(NativeCompatibilityAction::DismissUpdate) => {
-            controller.dismiss_update_notification()
-        }
+        ) => controller.dismiss_update_notification(),
         action => return Err(action),
     }
     Ok(())

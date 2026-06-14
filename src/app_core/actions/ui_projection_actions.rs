@@ -22,7 +22,7 @@ mod waveform;
 
 pub use self::browser::{BrowserAction, BrowserTagTarget};
 pub use self::column_triage::ColumnTriageAction;
-pub use self::compatibility::{CompatibilityAction, upgrade_compatibility_action};
+pub use self::compatibility::RetainedUiAction;
 pub use self::domain::UiActionDomain;
 pub use self::history_update::HistoryUpdateAction;
 pub use self::options::OptionsAction;
@@ -50,8 +50,6 @@ pub enum UiAction {
     Options(OptionsAction),
     #[serde(untagged)]
     Waveform(WaveformAction),
-    #[serde(untagged)]
-    Compatibility(CompatibilityAction),
 }
 
 #[allow(non_upper_case_globals)]

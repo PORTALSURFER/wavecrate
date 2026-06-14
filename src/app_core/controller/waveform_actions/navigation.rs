@@ -1,7 +1,7 @@
 //! Waveform navigation and viewport routing for UI actions.
 
 use super::AppController;
-use crate::app_core::actions::{NativeCompatibilityAction, NativeUiAction};
+use crate::app_core::actions::NativeUiAction;
 use crate::app_core::state::StatusTone;
 
 /// Try to dispatch waveform navigation UI actions.
@@ -13,17 +13,11 @@ pub(super) fn apply_waveform_navigation_action(
         NativeUiAction::Waveform(
             crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise { position_nanos },
         ) => controller.queue_waveform_seek_nanos(position_nanos),
-        NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform {
-            position_milli,
-        }) => controller.queue_waveform_seek_milli(position_milli),
         NativeUiAction::Waveform(
             crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
                 position_nanos,
             },
         ) => controller.set_waveform_cursor_nanos(position_nanos),
-        NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor {
-            position_milli,
-        }) => controller.set_waveform_cursor_milli(position_milli),
         NativeUiAction::Waveform(
             crate::app_core::actions::NativeWaveformAction::BeginWaveformCircularSlide {
                 anchor_micros,

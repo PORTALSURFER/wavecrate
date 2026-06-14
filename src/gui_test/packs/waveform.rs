@@ -143,16 +143,16 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
-                action: NativeUiAction::Compatibility(
-                    crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-                        position_milli: 500,
+                action: NativeUiAction::Waveform(
+                    crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+                        position_nanos: 500_000_000,
                     },
                 ),
             },
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeActionAvailable {
                     node_id: String::from("waveform.region"),
-                    action_id: String::from("set_waveform_cursor"),
+                    action_id: String::from("set_waveform_cursor_precise"),
                 },
             },
             GuiScenarioStep::DispatchAction {

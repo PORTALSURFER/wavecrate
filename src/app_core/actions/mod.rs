@@ -72,11 +72,11 @@ pub type NativeBrowserTagTarget = self::ui_projection_actions::BrowserTagTarget;
 /// UI runtime UI action payload.
 pub type NativeUiAction = self::ui_projection_actions::UiAction;
 
+/// UI runtime or artifact input that can upgrade retained legacy action payloads.
+pub type NativeRetainedUiAction = self::ui_projection_actions::RetainedUiAction;
+
 /// UI runtime UI action domain family.
 pub type NativeUiActionDomain = self::ui_projection_actions::UiActionDomain;
-
-/// UI runtime retained compatibility action payload.
-pub type NativeCompatibilityAction = self::ui_projection_actions::CompatibilityAction;
 
 /// UI runtime current column triage action payload.
 pub type NativeColumnTriageAction = self::ui_projection_actions::ColumnTriageAction;
@@ -104,9 +104,6 @@ pub type NativeOptionsAction = self::ui_projection_actions::OptionsAction;
 
 /// UI runtime waveform action payload.
 pub type NativeWaveformAction = self::ui_projection_actions::WaveformAction;
-
-/// Upgrade a retained compatibility input into the current UI action contract.
-pub use self::ui_projection_actions::upgrade_compatibility_action;
 
 /// UI runtime projected app model.
 pub type NativeAppModel = self::ui_projection_dtos::AppModel;

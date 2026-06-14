@@ -4,7 +4,7 @@
 //! invalidation, and tests can migrate by domain without treating the root
 //! action enum as one undifferentiated API.
 
-use super::{CompatibilityAction, UiAction};
+use super::UiAction;
 
 /// Stable domain family for a Wavecrate UI action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -42,22 +42,6 @@ impl UiAction {
             UiAction::PromptsAndEdits(_) => UiActionDomain::PromptsAndEdits,
             UiAction::Options(_) => UiActionDomain::Options,
             UiAction::Waveform(_) => UiActionDomain::Waveform,
-            UiAction::Compatibility(action) => action.domain(),
-        }
-    }
-}
-
-impl CompatibilityAction {
-    fn domain(&self) -> UiActionDomain {
-        match self {
-            Self::Undo
-            | Self::Redo
-            | Self::CheckForUpdates
-            | Self::OpenUpdateLink
-            | Self::InstallUpdate
-            | Self::DismissUpdate => UiActionDomain::HistoryAndUpdates,
-            Self::SelectColumn { .. } | Self::MoveColumn { .. } => UiActionDomain::ColumnTriage,
-            Self::SeekWaveform { .. } | Self::SetWaveformCursor { .. } => UiActionDomain::Waveform,
         }
     }
 }

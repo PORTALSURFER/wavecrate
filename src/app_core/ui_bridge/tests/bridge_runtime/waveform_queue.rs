@@ -5,9 +5,9 @@ use super::*;
 fn on_action_queues_waveform_cursor_preview_actions() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-            position_milli: 420,
+    bridge.on_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 420_000_000,
         },
     ));
 
@@ -44,9 +44,9 @@ fn on_action_applies_waveform_edit_preview_actions_immediately() {
 fn on_action_keeps_seek_actions_queued() {
     let mut bridge = test_bridge(16);
 
-    bridge.on_action(NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
-            position_milli: 333,
+    bridge.on_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 333_000_000,
         },
     ));
 
@@ -79,13 +79,11 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         runtime_exit_emitted: false,
     };
 
-    assert!(
-        bridge.enqueue_waveform_action(&NativeUiAction::Compatibility(
-            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-                position_milli: 500
-            }
-        ))
-    );
+    assert!(bridge.enqueue_waveform_action(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 500_000_000,
+        },
+    )));
     bridge.flush_pending_waveform_actions();
 
     assert!(!bridge.pending_waveform_actions.has_pending());
@@ -102,13 +100,11 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
 fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
     let mut bridge = test_bridge(16);
 
-    assert!(
-        bridge.enqueue_waveform_action(&NativeUiAction::Compatibility(
-            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-                position_milli: 500
-            }
-        ))
-    );
+    assert!(bridge.enqueue_waveform_action(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 500_000_000,
+        },
+    )));
     bridge.flush_pending_waveform_actions();
     let Some(first_snapshot) = bridge.projection_key_snapshot.as_ref().cloned() else {
         panic!("waveform flush should retain a projection key snapshot");
@@ -116,13 +112,11 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
     bridge.flush_derived_updates_before_pull(false);
     assert!(!bridge.controller.has_dirty_derived_nodes());
 
-    assert!(
-        bridge.enqueue_waveform_action(&NativeUiAction::Compatibility(
-            crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-                position_milli: 500
-            }
-        ))
-    );
+    assert!(bridge.enqueue_waveform_action(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 500_000_000,
+        },
+    )));
     bridge.flush_pending_waveform_actions();
 
     assert!(

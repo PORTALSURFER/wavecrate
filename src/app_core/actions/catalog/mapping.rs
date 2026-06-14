@@ -1,6 +1,5 @@
 mod browser;
 mod column_triage;
-mod compatibility;
 mod history_update;
 mod options;
 mod prompt_edit;
@@ -11,7 +10,6 @@ mod waveform;
 
 use self::browser::browser_action_kind;
 use self::column_triage::column_triage_action_kind;
-use self::compatibility::compatibility_action_kind;
 use self::history_update::history_update_action_kind;
 use self::options::options_action_kind;
 use self::prompt_edit::prompt_edit_action_kind;
@@ -50,7 +48,6 @@ pub fn action_kind(action: &NativeUiAction) -> GuiActionKind {
         NativeUiAction::PromptsAndEdits(action) => prompt_edit_action_kind(action),
         NativeUiAction::Options(action) => options_action_kind(action),
         NativeUiAction::Waveform(action) => waveform_action_kind(action),
-        NativeUiAction::Compatibility(action) => compatibility_action_kind(action),
     }
 }
 
@@ -58,9 +55,9 @@ gui_action_rows!(build_representative_action_mapping);
 
 mod shared {
     pub(super) use super::super::super::{
-        NativeBrowserAction, NativeColumnTriageAction, NativeCompatibilityAction,
-        NativeHistoryUpdateAction, NativeOptionsAction, NativePromptEditAction, NativeShellAction,
-        NativeSourcesFoldersAction, NativeTransportAction, NativeWaveformAction,
+        NativeBrowserAction, NativeColumnTriageAction, NativeHistoryUpdateAction,
+        NativeOptionsAction, NativePromptEditAction, NativeShellAction, NativeSourcesFoldersAction,
+        NativeTransportAction, NativeWaveformAction,
     };
     pub(super) use super::super::{GuiActionKind, GuiActionKind as Kind};
 }

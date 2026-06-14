@@ -1,5 +1,5 @@
 use super::PendingWaveformActions;
-use crate::app_core::actions::{NativeCompatibilityAction, NativeUiAction};
+use crate::app_core::actions::NativeUiAction;
 
 impl PendingWaveformActions {
     /// Queue a coalescable waveform action and return true when absorbed.
@@ -9,20 +9,8 @@ impl PendingWaveformActions {
                 self.seek_nanos = Some(*position_nanos);
                 true
             }
-            NativeUiAction::Compatibility(NativeCompatibilityAction::SeekWaveform {
-                position_milli,
-            }) => {
-                self.seek_nanos = Some(u32::from((*position_milli).min(1000)) * 1_000_000);
-                true
-            }
             NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise { position_nanos }) => {
                 self.cursor_nanos = Some(*position_nanos);
-                true
-            }
-            NativeUiAction::Compatibility(NativeCompatibilityAction::SetWaveformCursor {
-                position_milli,
-            }) => {
-                self.cursor_nanos = Some(u32::from((*position_milli).min(1000)) * 1_000_000);
                 true
             }
             NativeUiAction::Waveform(crate::app_core::actions::NativeWaveformAction::SetWaveformSelectionRange {

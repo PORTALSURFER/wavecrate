@@ -4,25 +4,25 @@ use super::*;
 #[test]
 fn waveform_action_queue_last_write_wins() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
-            position_milli: 100
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 100_000_000,
+        },
     )));
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
-            position_milli: 220
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 220_000_000,
+        },
     )));
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-            position_milli: 300
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 300_000_000,
+        },
     )));
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-            position_milli: 420
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 420_000_000,
+        },
     )));
     assert_eq!(queue.seek_nanos, Some(220_000_000));
     assert_eq!(queue.cursor_nanos, Some(420_000_000));
@@ -32,15 +32,15 @@ fn waveform_action_queue_last_write_wins() {
 #[test]
 fn waveform_action_queue_dedupes_cursor_when_seek_matches() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-            position_milli: 420
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 420_000_000,
+        },
     )));
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
-            position_milli: 420
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 420_000_000,
+        },
     )));
     assert_eq!(queue.deduped_cursor_nanos(), None);
 }
@@ -89,15 +89,15 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
             center_nanos: None,
         }
     )));
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-            position_milli: 410
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 410_000_000,
+        },
     )));
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SeekWaveform {
-            position_milli: 900
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 900_000_000,
+        },
     )));
 
     let mut emitted = Vec::new();
@@ -484,10 +484,10 @@ fn waveform_action_queue_does_not_absorb_edit_selection_actions() {
 #[test]
 fn waveform_queue_dirty_reason_matches_enqueued_actions() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::Compatibility(
-        crate::app_core::actions::NativeCompatibilityAction::SetWaveformCursor {
-            position_milli: 400
-        }
+    assert!(queue.enqueue(&NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 400_000_000,
+        },
     )));
     assert_eq!(
         queue.dirty_reason(),
