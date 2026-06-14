@@ -33,6 +33,9 @@ impl NativeAppState {
             GuiMessage::ResizeFolder(_)
             | GuiMessage::AddSourceDialogFinished(_)
             | GuiMessage::FolderBrowser(_)
+            | GuiMessage::PrepareSimilarityForSelectedSource
+            | GuiMessage::SimilarityPrepStatusResolved(_)
+            | GuiMessage::SimilarityPrepEnqueueFinished(_)
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)
             | GuiMessage::FolderScanFinished(_)

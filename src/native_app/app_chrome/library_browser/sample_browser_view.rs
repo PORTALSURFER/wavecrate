@@ -9,6 +9,7 @@ use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserVie
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
+use crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepState;
 use crate::native_app::ui::ids as widget_ids;
 
 mod hit_target;
@@ -49,7 +50,7 @@ pub(in crate::native_app) fn sample_browser(
             model.name_view_mode,
             model.metadata_tags_by_file,
         ),
-        sample_browser_status(model.visible_samples.total_count),
+        sample_browser_status(model.visible_samples.total_count, model.similarity_prep),
     ])
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
@@ -223,7 +224,19 @@ fn sample_similarity_header_cell() -> ui::View<GuiMessage> {
     .key("sample-header-similarity")
 }
 
-fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
+fn sample_browser_status(
+    audio_count: usize,
+    similarity_prep: &NativeSimilarityPrepState,
+) -> ui::View<GuiMessage> {
+    let similarity_status = similarity_prep
+        .summary
+        .as_deref()
+        .unwrap_or("Similarity status unknown");
+    let prepare_enabled = !similarity_prep.running
+        && similarity_prep
+            .status
+            .as_ref()
+            .is_some_and(|status| status.can_prepare());
     ui::row([
         ui::text("Listed").height(20.0).width(90.0),
         ui::text(format!(
@@ -232,8 +245,26 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
         ))
         .height(20.0)
         .fill_width(),
+        ui::text(similarity_status)
+            .muted_text()
+            .height(20.0)
+            .width(190.0),
+        similarity_prep_button(prepare_enabled),
     ])
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
+}
+
+fn similarity_prep_button(enabled: bool) -> ui::View<GuiMessage> {
+    if enabled {
+        ui::button("Prepare")
+            .message(GuiMessage::PrepareSimilarityForSelectedSource)
+            .key("sample-browser-similarity-prepare")
+            .size(86.0, 22.0)
+    } else {
+        ui::text("")
+            .key("sample-browser-similarity-prepare-spacer")
+            .width(86.0)
+    }
 }

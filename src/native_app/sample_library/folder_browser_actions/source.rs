@@ -13,6 +13,7 @@ impl NativeAppState {
         let source = id.clone();
         self.ui.browser_interaction.context_menu = None;
         self.select_source(id, context);
+        self.refresh_selected_similarity_prep_status(context);
         self.schedule_active_folder_cache_warm(context);
         emit_gui_action(
             "folder_browser.select_source",

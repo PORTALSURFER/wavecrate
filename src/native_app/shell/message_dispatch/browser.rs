@@ -16,6 +16,15 @@ impl NativeAppState {
             GuiMessage::FolderBrowser(message) => {
                 self.apply_folder_browser_message(message, context);
             }
+            GuiMessage::PrepareSimilarityForSelectedSource => {
+                self.prepare_similarity_for_selected_source(context);
+            }
+            GuiMessage::SimilarityPrepStatusResolved(result) => {
+                self.finish_similarity_prep_status(result);
+            }
+            GuiMessage::SimilarityPrepEnqueueFinished(result) => {
+                self.finish_similarity_prep_enqueue(result, context);
+            }
             GuiMessage::FolderScanProgress(progress) => {
                 self.apply_folder_scan_progress(progress);
             }

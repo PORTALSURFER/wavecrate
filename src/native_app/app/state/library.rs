@@ -3,6 +3,7 @@ use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState,
     scan::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
 };
+use crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepState;
 use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
 
 use super::{
@@ -11,6 +12,7 @@ use super::{
 
 pub(in crate::native_app) struct LibraryAppState {
     pub(in crate::native_app) folder_browser: FolderBrowserState,
+    pub(in crate::native_app) similarity_prep: NativeSimilarityPrepState,
     source_scan: SourceScanWorkflow,
     pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
 }
@@ -22,6 +24,7 @@ impl LibraryAppState {
     ) -> Self {
         Self {
             folder_browser,
+            similarity_prep: NativeSimilarityPrepState::default(),
             source_scan: SourceScanWorkflow::new(),
             source_watcher,
         }

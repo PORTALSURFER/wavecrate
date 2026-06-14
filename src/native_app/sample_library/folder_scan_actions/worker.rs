@@ -100,6 +100,7 @@ impl NativeAppState {
             None,
         );
         self.refresh_persisted_metadata_tags_for_source(&source_id);
+        self.refresh_selected_similarity_prep_status(context);
         self.schedule_persisted_waveform_cache_indicator_refresh(context);
         self.schedule_active_folder_cache_warm(context);
         self.persist_user_configuration("folder_browser.sources.persist", started_at);
