@@ -18,6 +18,19 @@ impl FolderBrowserState {
         new_path: &Path,
         target_parent: &Path,
     ) -> Result<(), String> {
+        let Some(source_root) = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == self.source.selected_source)
+            .map(|source| source.root.clone())
+        else {
+            return Err(String::from(
+                "Folder move failed: selected source is unavailable",
+            ));
+        };
+        persist_moved_folder_metadata(&source_root, old_path, new_path)?;
+
         let old_id = path_id(old_path);
         let target_parent_id = path_id(target_parent);
         let Some(source) = self
@@ -138,6 +151,47 @@ impl FolderBrowserState {
         self.bump_file_content_revision();
         Ok(())
     }
+}
+
+fn persist_moved_folder_metadata(
+    source_root: &Path,
+    old_path: &Path,
+    new_path: &Path,
+) -> Result<(), String> {
+    let old_relative = old_path
+        .strip_prefix(source_root)
+        .map_err(|_| String::from("Folder move metadata update failed: source folder mismatch"))?;
+    let new_relative = new_path
+        .strip_prefix(source_root)
+        .map_err(|_| String::from("Folder move metadata update failed: target folder mismatch"))?;
+    let db = SourceDatabase::open_for_user_metadata_write(source_root)
+        .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
+    let entries = db
+        .list_files_under_path(old_relative)
+        .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
+    if entries.is_empty() {
+        return Ok(());
+    }
+
+    let mut batch = db
+        .write_batch()
+        .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
+    for entry in entries {
+        let suffix = entry
+            .relative_path
+            .strip_prefix(old_relative)
+            .map_err(|_| String::from("Folder move metadata update failed: invalid source row"))?;
+        let target_relative = new_relative.join(suffix);
+        batch
+            .remap_wav_file_path(&entry.relative_path, &target_relative)
+            .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
+        batch
+            .remap_analysis_sample_identity(&entry.relative_path, &target_relative)
+            .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
+    }
+    batch
+        .commit()
+        .map_err(|err| format!("Folder move metadata update failed: {err}"))
 }
 
 fn persist_moved_file_metadata(
