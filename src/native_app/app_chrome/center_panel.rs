@@ -3,18 +3,13 @@ use radiant::prelude as ui;
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::browser_context_menu;
 use crate::native_app::app_chrome::library_browser::library_sidebar;
-use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser;
 use crate::native_app::app_chrome::metadata_tag_library;
 use crate::native_app::app_chrome::modals;
 use crate::native_app::app_chrome::overlays;
-use crate::native_app::app_chrome::toolbar::main_toolbar;
+use crate::native_app::app_chrome::sample_workspace;
 use crate::native_app::app_chrome::view_models::{
-    library_sidebar::LibrarySidebarViewModel,
-    sample_browser::{SampleBrowserViewModel, SampleBrowserViewProjection},
-    toolbar::MainToolbarViewModel,
-    waveform_panel::WaveformPanelViewModel,
+    library_sidebar::LibrarySidebarViewModel, sample_workspace::SampleWorkspaceViewModel,
 };
-use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 
 pub(in crate::native_app) fn library_sidebar_region(
     state: &NativeAppState,
@@ -42,14 +37,7 @@ pub(in crate::native_app) fn metadata_tag_library_region(
 pub(in crate::native_app) fn sample_workspace_region(
     state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
-    let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
-    let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
-    let sample_browser_model = SampleBrowserViewModel::from_projection(
-        SampleBrowserViewProjection::from_prepared_app_state(state),
-    );
-    ui::column([toolbar, waveform, sample_browser(sample_browser_model)])
-        .padding(4.0)
-        .fill()
+    sample_workspace::region(SampleWorkspaceViewModel::from_app_state(state))
 }
 
 fn library_pane_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
