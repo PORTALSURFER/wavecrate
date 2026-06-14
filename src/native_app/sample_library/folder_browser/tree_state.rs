@@ -53,8 +53,16 @@ impl FolderBrowserState {
         &self,
     ) -> Option<FolderVerifyRequest> {
         let folder = self.selected_folder()?;
+        let source_root = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == self.source.selected_source)?
+            .root
+            .clone();
         Some(FolderVerifyRequest {
             source_id: self.source.selected_source.clone(),
+            source_root,
             folder_path: std::path::PathBuf::from(&folder.id),
             cached_child_ids: folder
                 .children

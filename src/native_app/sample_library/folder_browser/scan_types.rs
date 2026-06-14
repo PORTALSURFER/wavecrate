@@ -72,6 +72,7 @@ pub(in crate::native_app) struct FolderTreeRefreshResult {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderVerifyRequest {
     pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) source_root: PathBuf,
     pub(in crate::native_app) folder_path: PathBuf,
     pub(in crate::native_app) cached_child_ids: Vec<String>,
     pub(in crate::native_app) cached_file_signatures: Vec<(String, u64)>,
