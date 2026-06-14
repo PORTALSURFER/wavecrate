@@ -1,6 +1,4 @@
-use crate::app_core::app_api::controller_state::DerivedNodeId;
-
-use super::AppController;
+use super::{AppController, DerivedNodeId};
 
 /// Internal frame-preparation plans used by the UI bridge.
 ///

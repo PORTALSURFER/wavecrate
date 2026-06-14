@@ -98,8 +98,8 @@ fn async_waveform_image_arrival_is_projection_only_dirty_work() {
     bridge.controller.projected_waveform_image = None;
     bridge.controller.projected_waveform_image_signature = None;
     bridge.controller.mark_derived_source_dirty(
-        crate::app_core::app_api::controller_state::DerivedNodeId::WaveformState,
-        crate::app_core::app_api::controller_state::DirtyReason::WaveformViewAction,
+        crate::app_core::controller::DerivedNodeId::WaveformState,
+        crate::app_core::controller::DirtyReason::WaveformViewAction,
     );
     bridge.controller.mark_waveform_image_projection_dirty();
 

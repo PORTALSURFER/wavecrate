@@ -19,32 +19,36 @@ mod startup;
 /// Focused waveform-UI action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
-use crate::app_core::app_api::controller::AppController as CurrentAppController;
-pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
+use crate::app::controller::AppController as CurrentAppController;
+pub(crate) use crate::app::controller::{
+    build_named_gui_fixture_controller, supports_wav_destructive_edits,
+};
 pub(crate) use frame_preparation::UiFramePreparationPlan;
 pub use startup::build_ui_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = CurrentAppController;
 /// Retained browser preload-window cache type used by ui-projection helpers.
 pub(crate) type ProjectedBrowserPreloadWindow =
-    crate::app_core::app_api::controller::ProjectedBrowserPreloadWindow;
+    crate::app::controller::ProjectedBrowserPreloadWindow;
 /// Retained browser-row cache entry used by ui-projection helpers.
 pub(crate) type ProjectedBrowserRowCacheEntry =
-    crate::app_core::app_api::controller::ProjectedBrowserRowCacheEntry;
+    crate::app::controller::ProjectedBrowserRowCacheEntry;
 /// Retained map-point cache key used by ui-projection helpers.
-pub(crate) type ProjectedMapPointsCacheKey =
-    crate::app_core::app_api::controller::ProjectedMapPointsCacheKey;
+pub(crate) type ProjectedMapPointsCacheKey = crate::app::controller::ProjectedMapPointsCacheKey;
 /// Retained normalized map-point cache entry used by ui-projection helpers.
-pub(crate) type ProjectedMapPointCacheEntry =
-    crate::app_core::app_api::controller::ProjectedMapPointCacheEntry;
+pub(crate) type ProjectedMapPointCacheEntry = crate::app::controller::ProjectedMapPointCacheEntry;
 /// Retained selected-path lookup cache entry used by ui-projection helpers.
-pub(crate) type ProjectedSelectedPathsLookup =
-    crate::app_core::app_api::controller::ProjectedSelectedPathsLookup;
+pub(crate) type ProjectedSelectedPathsLookup = crate::app::controller::ProjectedSelectedPathsLookup;
 /// Map-point query payload alias used by ui-projection map projection.
-pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
+pub(crate) type UmapPointQuery<'a> = crate::app::controller::UmapPointQuery<'a>;
 /// Active browser auto-rename row state used by ui-projection.
 pub(crate) type AutoRenameBatchRowState =
-    crate::app_core::app_api::controller_state::AutoRenameBatchRowState;
+    crate::app::controller::state::runtime::AutoRenameBatchRowState;
+/// Retained controller dirty graph node identifiers used by frame preparation and bridge adapters.
+pub(crate) type DerivedNodeId = crate::app::controller::state::runtime::DerivedNodeId;
+/// Retained controller dirty graph reason identifiers used by bridge tests.
+#[cfg(test)]
+pub(crate) type DirtyReason = crate::app::controller::state::runtime::DirtyReason;
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 #[cfg(test)]

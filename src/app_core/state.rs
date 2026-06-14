@@ -6,8 +6,8 @@
 //! state, but this file is the documented boundary for state ownership during
 //! migration.
 
+use crate::app::state as app_state;
 use crate::app_core::actions::NativeBrowserTagTarget;
-use crate::app_core::app_api::state as app_state;
 
 // Root UI and source/browser shell state.
 

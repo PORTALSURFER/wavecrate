@@ -1,8 +1,6 @@
 //! Backend-neutral application-core helpers shared by GUI runtimes.
 //!
-//! This module centralizes migration-facing types so projection and test helpers can
-//! rely on `app_core` without taking direct `app` module dependencies.
-pub mod app_api;
+//! Migration-facing compatibility adapters are owned by focused app-core modules.
 
 /// Controller aliases and helpers used by migration-facing runtimes.
 pub mod controller;

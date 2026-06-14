@@ -10,7 +10,7 @@ use crate::app_core::actions::{
     NativeFocusContextModel as FocusContextModel,
     NativeProgressOverlayModel as ProgressOverlayModel,
 };
-use crate::app_core::app_api::controller::supports_wav_destructive_edits;
+use crate::app_core::controller::supports_wav_destructive_edits;
 #[cfg(test)]
 use crate::app_core::state::{
     BrowserDuplicateCleanupState, CompareAnchorState, DestructiveEditPrompt,
