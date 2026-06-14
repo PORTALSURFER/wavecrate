@@ -16,26 +16,9 @@ use crate::native_app::app_chrome::view_models::{
 };
 use crate::native_app::app_chrome::waveform_panel::waveform_panel;
 
-pub(in crate::native_app) fn center_panel(state: &NativeAppState) -> ui::View<GuiMessage> {
-    center_panel_row(state)
-        .fill()
-        .overlays(active_center_panel_overlays(state))
-}
-
-fn center_panel_row(state: &NativeAppState) -> ui::View<GuiMessage> {
-    ui::row(center_panel_panes(state))
-}
-
-fn center_panel_panes(state: &NativeAppState) -> ui::Children<GuiMessage> {
-    ui::children()
-        .push(library_pane(state))
-        .push_if(metadata_tag_library_pane_visible(state), || {
-            metadata_tag_library_pane(state)
-        })
-        .push(sample_workspace_pane(state))
-}
-
-fn library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn library_sidebar_region(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
     let sidebar = library_sidebar_view(state).overlays(library_pane_overlays(state));
     ui::resizable(sidebar)
         .subtle_resize_handle("library-sidebar-resize-handle", GuiMessage::ResizeFolder)
@@ -46,15 +29,19 @@ fn library_sidebar_view(state: &NativeAppState) -> ui::View<GuiMessage> {
     library_sidebar::library_sidebar(model)
 }
 
-fn metadata_tag_library_pane_visible(state: &NativeAppState) -> bool {
+pub(in crate::native_app) fn metadata_tag_library_region_visible(state: &NativeAppState) -> bool {
     state.metadata.tag_library_open && state.library.folder_browser.selected_file_id().is_some()
 }
 
-fn metadata_tag_library_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn metadata_tag_library_region(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
     metadata_tag_library::panel(state)
 }
 
-fn sample_workspace_pane(state: &NativeAppState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn sample_workspace_region(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
     let toolbar = main_toolbar(MainToolbarViewModel::from_app_state(state));
     let waveform = waveform_panel(WaveformPanelViewModel::from_app_state(state));
     let sample_browser_model = SampleBrowserViewModel::from_projection(
@@ -73,7 +60,9 @@ fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMes
     overlays::metadata_tag_completion(state)
 }
 
-fn active_center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
+pub(in crate::native_app) fn active_workspace_overlays(
+    state: &NativeAppState,
+) -> ui::Overlays<GuiMessage> {
     ui::overlays()
         .dismissible_context_menu_opt(
             browser_context_menu_overlay(state),
