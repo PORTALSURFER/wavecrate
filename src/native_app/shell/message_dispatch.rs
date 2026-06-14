@@ -36,6 +36,7 @@ impl NativeAppState {
             | GuiMessage::PrepareSimilarityForSelectedSource
             | GuiMessage::SimilarityPrepStatusResolved(_)
             | GuiMessage::SimilarityPrepEnqueueFinished(_)
+            | GuiMessage::SimilarityScoresResolved(_)
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)
             | GuiMessage::FolderScanFinished(_)

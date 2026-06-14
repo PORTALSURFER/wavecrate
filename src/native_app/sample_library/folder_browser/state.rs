@@ -1,4 +1,3 @@
-#[cfg(test)]
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -122,8 +121,7 @@ impl FolderBrowserState {
         self.bump_file_content_revision();
     }
 
-    #[cfg(test)]
-    pub(in crate::native_app) fn set_similarity_scores_for_tests(
+    pub(in crate::native_app) fn set_similarity_scores(
         &mut self,
         anchor_id: String,
         scores_by_file: HashMap<String, f32>,
@@ -133,6 +131,15 @@ impl FolderBrowserState {
             scores_by_file,
         ));
         self.bump_file_content_revision();
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn set_similarity_scores_for_tests(
+        &mut self,
+        anchor_id: String,
+        scores_by_file: HashMap<String, f32>,
+    ) {
+        self.set_similarity_scores(anchor_id, scores_by_file);
     }
 
     pub(in crate::native_app) fn folder_path(&self, folder_id: &str) -> Option<PathBuf> {

@@ -25,6 +25,9 @@ impl NativeAppState {
             GuiMessage::SimilarityPrepEnqueueFinished(result) => {
                 self.finish_similarity_prep_enqueue(result, context);
             }
+            GuiMessage::SimilarityScoresResolved(result) => {
+                self.finish_similarity_scores(result);
+            }
             GuiMessage::FolderScanProgress(progress) => {
                 self.apply_folder_scan_progress(progress);
             }

@@ -63,6 +63,7 @@ impl NativeAppState {
                 "Similarity anchor set to {}",
                 sample_path_label(file_id.as_str())
             );
+            self.queue_similarity_score_resolution(file_id.clone(), context);
             emit_gui_action(
                 "browser.similarity_anchor.set",
                 Some("browser"),

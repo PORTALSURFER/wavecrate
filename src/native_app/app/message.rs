@@ -24,6 +24,7 @@ use crate::native_app::sample_library::folder_browser::scan::{
 use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
 };
+use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult;
 use crate::native_app::waveform::WaveformExtractionCompletion;
 use crate::native_app::waveform::WaveformInteraction;
 
@@ -102,6 +103,7 @@ pub(in crate::native_app) enum GuiMessage {
     PrepareSimilarityForSelectedSource,
     SimilarityPrepStatusResolved(SimilarityPrepStatusResult),
     SimilarityPrepEnqueueFinished(SimilarityPrepEnqueueResult),
+    SimilarityScoresResolved(SimilarityScoresResult),
     Settings(SettingsMessage),
     Metadata(MetadataMessage),
     FocusLoadedFile,
