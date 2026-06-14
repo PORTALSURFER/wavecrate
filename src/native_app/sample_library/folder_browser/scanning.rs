@@ -196,6 +196,23 @@ pub(super) fn load_folder_at_path(path: &Path, source_root: &Path) -> Option<Fol
     load_folder(path, source_root, &ratings)
 }
 
+pub(super) fn file_entry_for_source_path(path: &PathBuf, source_root: &Path) -> FileEntry {
+    let metadata =
+        source_file_metadata(source_root, path).unwrap_or((Rating::NEUTRAL, false, Vec::new()));
+    file_entry_with_metadata(path, metadata.0, metadata.1, metadata.2)
+}
+
+fn source_file_metadata(
+    source_root: &Path,
+    path: &Path,
+) -> Option<(Rating, bool, Vec<SampleCollection>)> {
+    let relative = path.strip_prefix(source_root).ok()?;
+    let db = SourceDatabase::open_read_only(source_root).ok()?;
+    let entry = db.entry_for_path(relative).ok()??;
+    let collections = db.collections_for_path(relative).unwrap_or_default();
+    Some((entry.tag, entry.locked, collections))
+}
+
 struct ScanProgressCounter {
     completed: usize,
     files: usize,

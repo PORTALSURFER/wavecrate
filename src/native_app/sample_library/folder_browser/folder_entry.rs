@@ -32,6 +32,13 @@ impl FolderEntry {
             .find_map(|child| child.find_mut(id))
     }
 
+    pub(super) fn find_file(&self, id: &str) -> Option<&FileEntry> {
+        self.files
+            .iter()
+            .find(|file| file.id == id)
+            .or_else(|| self.children.iter().find_map(|child| child.find_file(id)))
+    }
+
     pub(super) fn has_children(&self) -> bool {
         !self.children.is_empty()
     }

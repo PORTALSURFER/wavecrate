@@ -47,6 +47,50 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn file_drag_drop_preserves_rating_metadata_after_move() {
+    let root = temp_source_root("wavecrate-gui-file-drag-rating");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(std::path::Path::new("drums/kick.wav"), 8, 1)
+        .expect("upsert kick");
+    db.set_tag(std::path::Path::new("drums/kick.wav"), Rating::new(2))
+        .expect("set rating");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    let moved_kick = loops.join("kick.wav");
+    browser.activate_folder(path_id(&loops));
+    let moved = browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.id == path_id(&moved_kick))
+        .expect("moved kick row");
+    assert_eq!(moved.rating, Rating::new(2));
+    assert_eq!(
+        db.tag_for_path(std::path::Path::new("drums/kick.wav"))
+            .expect("read old rating"),
+        None
+    );
+    assert_eq!(
+        db.tag_for_path(std::path::Path::new("loops/kick.wav"))
+            .expect("read moved rating"),
+        Some(Rating::new(2))
+    );
+    let _ = fs::remove_dir_all(root);
+}
 #[test]
 fn file_drag_drop_defers_destination_name_conflicts() {
     let root = temp_source_root("wavecrate-gui-file-drag-conflict");

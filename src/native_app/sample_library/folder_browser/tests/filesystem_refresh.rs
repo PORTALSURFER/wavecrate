@@ -1,5 +1,6 @@
 use super::*;
 use crate::native_app::sample_library::folder_browser::scan::verify_direct_folder;
+use wavecrate::sample_sources::{Rating, SourceDatabase};
 #[test]
 fn selected_folder_audio_projection_refreshes_after_file_update() {
     let root = temp_source_root("wavecrate-gui-folder-projection-refresh");
@@ -100,6 +101,36 @@ fn direct_folder_verify_patches_visible_folder_without_dropping_nested_cache() {
             .collect::<Vec<_>>(),
         vec!["new-root.wav"]
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn selected_file_refresh_preserves_source_database_rating_metadata() {
+    let root = temp_source_root("wavecrate-gui-refresh-preserves-rating");
+    let drums = root.join("drums");
+    let snare = drums.join("snare.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(std::path::Path::new("drums/snare.wav"), 8, 1)
+        .expect("upsert snare");
+    db.set_tag(std::path::Path::new("drums/snare.wav"), Rating::new(2))
+        .expect("set rating");
+    db.set_locked(std::path::Path::new("drums/snare.wav"), true)
+        .expect("set locked");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    assert!(browser.refresh_file_path(&snare));
+
+    let refreshed = browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.name == "snare.wav")
+        .expect("refreshed snare row");
+    assert_eq!(refreshed.rating, Rating::new(2));
+    assert!(refreshed.rating_locked);
     let _ = fs::remove_dir_all(root);
 }
 

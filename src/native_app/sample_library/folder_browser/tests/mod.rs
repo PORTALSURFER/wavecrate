@@ -17,7 +17,7 @@ use radiant::{
     widgets::{DragHandleMessage, PointerModifiers, TextInputMessage},
 };
 use std::{fs, path::PathBuf};
-use wavecrate::sample_sources::SampleCollection;
+use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 
 mod collection_activation;
 mod collection_escape;

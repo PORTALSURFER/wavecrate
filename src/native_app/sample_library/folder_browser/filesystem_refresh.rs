@@ -7,7 +7,9 @@ use wavecrate::sample_sources::Rating;
 use super::{
     FolderBrowserState, FolderVerifyOutcome, FolderVerifyResult,
     path_helpers::path_id,
-    scanning::{file_entry, load_folder_at_path, upsert_file, upsert_folder},
+    scanning::{
+        file_entry, file_entry_for_source_path, load_folder_at_path, upsert_file, upsert_folder,
+    },
 };
 
 impl FolderBrowserState {
@@ -30,7 +32,10 @@ impl FolderBrowserState {
         let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
             return false;
         };
-        upsert_file(&mut parent_folder.files, file_entry(&path.to_path_buf()));
+        upsert_file(
+            &mut parent_folder.files,
+            file_entry_for_source_path(&path.to_path_buf(), &source.root),
+        );
         self.tree.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
         true
