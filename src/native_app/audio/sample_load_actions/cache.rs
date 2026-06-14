@@ -10,8 +10,10 @@ mod persisted_warm;
 mod workers;
 
 pub(in crate::native_app) const WAVEFORM_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
+pub(in crate::native_app) const WAVEFORM_CACHE_INDICATOR_REFRESH_MAX_FILES: usize = 192;
 pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_DELAY: Duration =
     Duration::from_millis(750);
+pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES: usize = 192;
 pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES: usize = 4;
 
 pub(in crate::native_app) fn active_folder_cache_warm_priority() -> ui::TaskPriority {

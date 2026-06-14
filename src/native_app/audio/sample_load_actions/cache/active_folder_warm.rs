@@ -5,8 +5,9 @@ use crate::native_app::{
     app::{ActiveFolderCacheWarmResult, GuiMessage, NativeAppState, WaveformState},
     audio::sample_load_actions::cache::{
         ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_DELAY,
-        active_folder_cache_warm_priority, logging::log_slow_cache_phase,
-        persisted_warm::take_cache_warm_batch, workers::warm_active_folder_waveform_cache,
+        ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES, active_folder_cache_warm_priority,
+        logging::log_slow_cache_phase, persisted_warm::take_cache_warm_batch,
+        workers::warm_active_folder_waveform_cache,
     },
 };
 
@@ -19,7 +20,7 @@ impl NativeAppState {
         let Some((folder_id, paths)) = self
             .library
             .folder_browser
-            .selected_folder_cache_warm_request()
+            .selected_folder_cache_warm_request(ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES)
         else {
             return;
         };

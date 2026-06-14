@@ -115,6 +115,43 @@ fn folder_activation_delays_active_folder_cache_warm() {
 }
 
 #[test]
+fn folder_activation_bounds_active_folder_cache_warm_candidates() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    let max_candidates =
+        crate::native_app::audio::sample_load_actions::ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES;
+    for index in 0..max_candidates + 25 {
+        fs::write(folder.join(format!("sample-{index:03}.wav")), []).expect("write sample");
+    }
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                folder.display().to_string(),
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_pending.len(),
+        max_candidates,
+        "background cache warming must not enqueue every file in a large folder"
+    );
+}
+
+#[test]
 fn changing_folder_cancels_previous_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

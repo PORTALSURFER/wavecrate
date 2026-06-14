@@ -33,16 +33,42 @@ impl FolderBrowserState {
         self.selected_folder_audio_files(folder)
     }
 
+    pub(in crate::native_app) fn selected_cache_candidate_paths(
+        &self,
+        max_files: usize,
+    ) -> Vec<PathBuf> {
+        if max_files == 0 {
+            return Vec::new();
+        }
+
+        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
+        if let Some(collection) = self.selection.selected_collection {
+            let mut paths = Vec::new();
+            if let Some(folder) = self.selected_source_root_folder() {
+                collect_collection_cache_candidate_paths(
+                    folder,
+                    collection,
+                    &name_query,
+                    max_files,
+                    &mut paths,
+                );
+            }
+            return paths;
+        }
+
+        let Some(folder) = self.selected_folder() else {
+            return Vec::new();
+        };
+        collect_local_cache_candidate_paths(folder, &name_query, max_files)
+    }
+
     pub(in crate::native_app) fn selected_folder_cache_warm_request(
         &self,
+        max_files: usize,
     ) -> Option<(String, Vec<PathBuf>)> {
         let folder = self.selected_folder()?;
-        let paths = folder
-            .files
-            .iter()
-            .filter(|file| file.is_audio())
-            .map(|file| PathBuf::from(&file.id))
-            .collect::<Vec<_>>();
+        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
+        let paths = collect_local_cache_candidate_paths(folder, &name_query, max_files);
         Some((folder.id.clone(), paths))
     }
 
@@ -210,5 +236,51 @@ impl FolderBrowserState {
     #[cfg(test)]
     pub(in crate::native_app) fn selected_audio_projection_cache_len_for_tests(&self) -> usize {
         self.sample_list.projection_cache.len()
+    }
+}
+
+fn collect_local_cache_candidate_paths(
+    folder: &FolderEntry,
+    name_query: &str,
+    max_files: usize,
+) -> Vec<PathBuf> {
+    folder
+        .files
+        .iter()
+        .filter(|file| file.is_audio() && filters::audio_file_matches_name_query(file, name_query))
+        .take(max_files)
+        .map(|file| PathBuf::from(&file.id))
+        .collect()
+}
+
+fn collect_collection_cache_candidate_paths(
+    folder: &FolderEntry,
+    collection: wavecrate::sample_sources::SampleCollection,
+    name_query: &str,
+    max_files: usize,
+    paths: &mut Vec<PathBuf>,
+) {
+    if paths.len() >= max_files {
+        return;
+    }
+
+    paths.extend(
+        folder
+            .files
+            .iter()
+            .filter(|file| {
+                file.is_audio()
+                    && file.belongs_to_collection(collection)
+                    && filters::audio_file_matches_name_query(file, name_query)
+            })
+            .take(max_files.saturating_sub(paths.len()))
+            .map(|file| PathBuf::from(&file.id)),
+    );
+
+    for child in &folder.children {
+        if paths.len() >= max_files {
+            break;
+        }
+        collect_collection_cache_candidate_paths(child, collection, name_query, max_files, paths);
     }
 }

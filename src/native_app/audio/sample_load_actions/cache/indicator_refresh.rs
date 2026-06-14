@@ -1,9 +1,11 @@
 use radiant::prelude as ui;
-use std::path::PathBuf;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, WaveformCacheIndicatorRefreshResult},
-    audio::sample_load_actions::cache::workers::probe_persisted_waveform_cache_indicators,
+    audio::sample_load_actions::cache::{
+        WAVEFORM_CACHE_INDICATOR_REFRESH_MAX_FILES,
+        workers::probe_persisted_waveform_cache_indicators,
+    },
 };
 
 impl NativeAppState {
@@ -17,7 +19,10 @@ impl NativeAppState {
             .map(|file| file.id.clone())
             .collect::<Vec<_>>();
         let result = probe_persisted_waveform_cache_indicators(
-            audio_files.into_iter().map(PathBuf::from).collect(),
+            audio_files
+                .into_iter()
+                .map(std::path::PathBuf::from)
+                .collect(),
         );
         self.apply_waveform_cache_indicator_refresh_result(result);
     }
@@ -29,10 +34,7 @@ impl NativeAppState {
         let paths = self
             .library
             .folder_browser
-            .selected_audio_files()
-            .into_iter()
-            .map(|file| PathBuf::from(&file.id))
-            .collect::<Vec<_>>();
+            .selected_cache_candidate_paths(WAVEFORM_CACHE_INDICATOR_REFRESH_MAX_FILES);
         if paths.is_empty() {
             return;
         }
