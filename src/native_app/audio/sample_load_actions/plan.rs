@@ -144,6 +144,7 @@ impl NativeAppState {
         let load = match request.priority() {
             ui::TaskPriority::Interactive => context.business().interactive("gui-sample-load"),
             ui::TaskPriority::Background => context.business().background("gui-sample-load"),
+            ui::TaskPriority::BlockingIo => context.business().blocking_io("gui-sample-load"),
             ui::TaskPriority::Idle => context.business().idle("gui-sample-load"),
         }
         .cancellable()

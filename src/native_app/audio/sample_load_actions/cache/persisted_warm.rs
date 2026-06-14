@@ -35,7 +35,7 @@ impl NativeAppState {
         }
         let Some(warm) = context
             .business()
-            .background("gui-waveform-cache-warm")
+            .blocking_io("gui-waveform-cache-warm")
             .cancellable()
             .exclusive_for(&mut self.waveform.cache.warm_tasks, key.clone())
         else {

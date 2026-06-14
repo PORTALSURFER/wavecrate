@@ -107,6 +107,9 @@ impl NativeAppState {
             ui::TaskPriority::Background => context
                 .business()
                 .background("gui-active-folder-cache-warm"),
+            ui::TaskPriority::BlockingIo => context
+                .business()
+                .blocking_io("gui-active-folder-cache-warm"),
             ui::TaskPriority::Idle => context.business().idle("gui-active-folder-cache-warm"),
         })
         .cancellable()

@@ -48,7 +48,7 @@ impl NativeAppState {
         }
         let parent_id = parent.display().to_string();
         self.ui.status.sample = format!("Creating folder in {}", target_label(&parent));
-        context.business().background("gui-folder-create").run(
+        context.business().blocking_io("gui-folder-create").run(
             {
                 let parent = parent.clone();
                 move |_| create_unique_child_folder(&parent)

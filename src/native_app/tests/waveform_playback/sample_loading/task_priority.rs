@@ -22,7 +22,7 @@ fn uncached_selected_sample_load_uses_foreground_priority() {
 fn active_folder_cache_warm_uses_lower_priority_than_selected_sample_load() {
     assert_eq!(
         crate::native_app::audio::sample_load_actions::active_folder_cache_warm_priority(),
-        ui::TaskPriority::Idle
+        ui::TaskPriority::BlockingIo
     );
     assert_ne!(
         crate::native_app::audio::sample_load_actions::foreground_sample_load_priority(),

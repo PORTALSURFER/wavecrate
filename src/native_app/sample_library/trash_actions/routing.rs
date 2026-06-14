@@ -142,7 +142,7 @@ impl NativeAppState {
     ) {
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
         self.ui.status.sample = format!("Moving {} to trash", sample_path_label(&path));
-        context.business().background("gui-trash-move").run(
+        context.business().blocking_io("gui-trash-move").run(
             {
                 let path = path.clone();
                 move |_| {
@@ -285,7 +285,7 @@ impl NativeAppState {
     ) {
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
         self.ui.status.sample = trash_move_started_status(paths.len(), action);
-        context.business().background("gui-trash-move").run(
+        context.business().blocking_io("gui-trash-move").run(
             {
                 let paths = paths.clone();
                 move |_| move_paths_to_configured_trash(&paths, trash_folder.as_deref())

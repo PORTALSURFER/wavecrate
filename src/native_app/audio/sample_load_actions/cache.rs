@@ -17,7 +17,7 @@ pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES: usiz
 pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES: usize = 1;
 
 pub(in crate::native_app) fn active_folder_cache_warm_priority() -> ui::TaskPriority {
-    ui::TaskPriority::Idle
+    ui::TaskPriority::BlockingIo
 }
 
 #[cfg(test)]
