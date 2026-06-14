@@ -12,14 +12,12 @@ use super::{
     metadata::{SourceMetadataMap, rated_file_entry, source_rating_map},
     traversal::{placeholder_folder, read_sorted_entries},
 };
-use wavecrate::sample_sources::{ScanMode, SourceDatabase, scanner};
 
 pub(in crate::native_app) fn scan_source_with_progress(
     request: FolderScanRequest,
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
-    reconcile_source_database(&request, &mut progress);
     let ratings = source_rating_map(&request.root);
     let mut scan = ScanProgressContext {
         request: &request,
@@ -51,44 +49,6 @@ pub(in crate::native_app) fn scan_source_with_progress(
         folder,
         file_count,
         folder_count,
-    }
-}
-
-fn reconcile_source_database(
-    request: &FolderScanRequest,
-    progress: &mut impl FnMut(FolderScanProgress),
-) {
-    let Ok(db) = SourceDatabase::open_for_user_metadata_write(&request.root) else {
-        return;
-    };
-    let result = scanner::scan_with_progress(
-        &db,
-        ScanMode::Quick,
-        None,
-        &mut |completed, path: &std::path::Path| {
-            progress(FolderScanProgress {
-                task_id: request.task_id,
-                source_id: request.source_id.clone(),
-                label: request.label.clone(),
-                phase: String::from("Indexing"),
-                completed,
-                total: 0,
-                detail: path.display().to_string(),
-            });
-        },
-    );
-    match result {
-        Ok(stats) if stats.hashes_pending > 0 => {
-            scanner::schedule_deep_hash_scan(request.root.clone());
-        }
-        Ok(_) => {}
-        Err(error) => {
-            tracing::warn!(
-                source_root = %request.root.display(),
-                error = %error,
-                "Native source scan skipped source database reconciliation"
-            );
-        }
     }
 }
 

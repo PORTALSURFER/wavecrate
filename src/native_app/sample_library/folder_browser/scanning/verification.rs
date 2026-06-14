@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::{
     super::{
         path_helpers::path_id,
@@ -5,16 +7,14 @@ use super::{
             FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
         },
     },
-    metadata::file_entry_for_source_path,
+    file_entry_metadata::file_entry,
     traversal::read_sorted_entries,
 };
-use wavecrate::sample_sources::{SourceDatabase, scanner};
 
 pub(in crate::native_app) fn verify_direct_folder(
     request: FolderVerifyRequest,
 ) -> FolderVerifyResult {
-    reconcile_verified_folder(&request);
-    let outcome = match read_direct_folder_snapshot(&request) {
+    let outcome = match read_direct_folder_snapshot(&request.folder_path) {
         DirectFolderSnapshot::Missing => FolderVerifyOutcome::Missing,
         DirectFolderSnapshot::Unavailable => FolderVerifyOutcome::Unchanged,
         DirectFolderSnapshot::Available(snapshot) => {
@@ -38,8 +38,7 @@ enum DirectFolderSnapshot {
     Unavailable,
 }
 
-fn read_direct_folder_snapshot(request: &FolderVerifyRequest) -> DirectFolderSnapshot {
-    let path = &request.folder_path;
+fn read_direct_folder_snapshot(path: &Path) -> DirectFolderSnapshot {
     if !path.is_dir() {
         return DirectFolderSnapshot::Missing;
     }
@@ -54,36 +53,9 @@ fn read_direct_folder_snapshot(request: &FolderVerifyRequest) -> DirectFolderSna
     let files = entries
         .iter()
         .filter(|entry| entry.is_file())
-        .map(|entry| file_entry_for_source_path(entry, &request.source_root))
+        .map(file_entry)
         .collect::<Vec<_>>();
     DirectFolderSnapshot::Available(FolderVerifySnapshot { child_paths, files })
-}
-
-fn reconcile_verified_folder(request: &FolderVerifyRequest) {
-    let Ok(relative_folder) = request.folder_path.strip_prefix(&request.source_root) else {
-        return;
-    };
-    let Ok(db) = SourceDatabase::open_for_user_metadata_write(&request.source_root) else {
-        return;
-    };
-    let result = if relative_folder.as_os_str().is_empty() {
-        scanner::scan_once(&db)
-    } else {
-        scanner::sync_paths(&db, &[relative_folder.to_path_buf()])
-    };
-    match result {
-        Ok(stats) if stats.hashes_pending > 0 => {
-            scanner::schedule_deep_hash_scan(request.source_root.clone());
-        }
-        Ok(_) => {}
-        Err(error) => {
-            tracing::warn!(
-                folder = %request.folder_path.display(),
-                error = %error,
-                "Native folder verification skipped source database reconciliation"
-            );
-        }
-    }
 }
 
 fn direct_folder_changed(request: &FolderVerifyRequest, snapshot: &FolderVerifySnapshot) -> bool {
