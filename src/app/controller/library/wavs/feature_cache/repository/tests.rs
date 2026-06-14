@@ -144,7 +144,10 @@ fn insert_features(conn: &Connection, sample_id: &str) {
 fn insert_embedding(conn: &Connection, sample_id: &str) {
     conn.execute(
         "INSERT INTO embeddings (sample_id, model_id) VALUES (?1, ?2)",
-        params![sample_id, crate::analysis::similarity::SIMILARITY_MODEL_ID],
+        params![
+            sample_id,
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID
+        ],
     )
     .expect("insert embedding");
 }

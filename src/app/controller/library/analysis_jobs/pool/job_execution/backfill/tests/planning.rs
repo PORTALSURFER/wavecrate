@@ -6,8 +6,8 @@ use rusqlite::params;
 fn plan_uses_cached_embedding_when_available() {
     let conn = conn_with_schema();
     insert_sample(&conn, "s::a.wav", "hash-a");
-    let vec = vec![0.0_f32; crate::analysis::similarity::SIMILARITY_DIM];
-    let blob = crate::analysis::vector::encode_f32_le_blob(&vec);
+    let vec = vec![0.0_f32; wavecrate_analysis::similarity::SIMILARITY_DIM];
+    let blob = wavecrate_analysis::vector::encode_f32_le_blob(&vec);
     conn.execute(
         "INSERT INTO analysis_cache_embeddings
             (content_hash, analysis_version, model_id, dim, dtype, l2_normed, vec, created_at)
@@ -15,9 +15,9 @@ fn plan_uses_cached_embedding_when_available() {
         params![
             "hash-a",
             "v1",
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            crate::analysis::similarity::SIMILARITY_DIM as i64,
-            crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+            wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+            wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
             blob
         ],
     )

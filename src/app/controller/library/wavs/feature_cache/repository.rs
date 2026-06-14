@@ -61,7 +61,7 @@ impl<'conn> FeatureCacheRepository<'conn> {
         let mut rows = stmt
             .query(params![
                 ANALYSIS_JOB_TYPE,
-                crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
                 prefix,
                 prefix_end
             ])

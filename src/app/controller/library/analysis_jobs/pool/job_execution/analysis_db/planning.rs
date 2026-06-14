@@ -24,7 +24,7 @@ pub(crate) struct DecodedAnalysisWrite {
 /// Precompute all SQL and ANN payloads for one decoded analysis result.
 pub(crate) fn build_decoded_analysis_write(
     job: &db::ClaimedJob,
-    decoded: crate::analysis::audio::AnalysisAudio,
+    decoded: wavecrate_analysis::AnalysisAudio,
     analysis_version: &str,
     needs_embedding_upsert: bool,
 ) -> Result<DecodedAnalysisWrite, String> {
@@ -32,9 +32,9 @@ pub(crate) fn build_decoded_analysis_write(
         .content_hash
         .clone()
         .ok_or_else(|| format!("Missing content_hash for analysis job {}", job.sample_id))?;
-    let vector = crate::analysis::compute_feature_vector_v1_for_decoded_audio(&decoded)?;
-    let embedding = crate::analysis::similarity::embedding_from_features(&vector)?;
-    let feature_blob = crate::analysis::vector::encode_f32_le_blob(&vector);
+    let vector = wavecrate_analysis::compute_feature_vector_v1_for_decoded_audio(&decoded)?;
+    let embedding = wavecrate_analysis::similarity::embedding_from_features(&vector)?;
+    let feature_blob = wavecrate_analysis::vector::encode_f32_le_blob(&vector);
     let (light_dsp_blob, rms) = derive_similarity_metric_payloads(&vector);
     let computed_at = now_epoch_seconds();
     Ok(DecodedAnalysisWrite {
@@ -47,7 +47,7 @@ pub(crate) fn build_decoded_analysis_write(
         light_dsp_blob,
         rms,
         computed_at,
-        embedding_blob: crate::analysis::vector::encode_f32_le_blob(&embedding),
+        embedding_blob: wavecrate_analysis::vector::encode_f32_le_blob(&embedding),
         embedding_created_at: now_epoch_seconds(),
         needs_embedding_upsert,
         ann_embedding: embedding,
@@ -55,8 +55,8 @@ pub(crate) fn build_decoded_analysis_write(
 }
 
 fn derive_similarity_metric_payloads(features: &[f32]) -> (Option<Vec<u8>>, Option<f32>) {
-    let light_dsp_blob = crate::analysis::light_dsp_from_features_v1(features)
-        .map(|light_dsp| crate::analysis::vector::encode_f32_le_blob(&light_dsp));
+    let light_dsp_blob = wavecrate_analysis::light_dsp_from_features_v1(features)
+        .map(|light_dsp| wavecrate_analysis::vector::encode_f32_le_blob(&light_dsp));
     let rms = features.get(FEATURE_RMS_INDEX).copied();
     (light_dsp_blob, rms)
 }
@@ -75,9 +75,9 @@ impl DecodedAnalysisWrite {
     pub(super) fn embedding_upsert(&self) -> db::EmbeddingUpsert<'_> {
         db::EmbeddingUpsert {
             sample_id: &self.sample_id,
-            model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
-            dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+            model_id: wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+            dim: wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+            dtype: wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
             l2_normed: true,
             vec_blob: &self.embedding_blob,
             created_at: self.embedding_created_at,
@@ -88,7 +88,7 @@ impl DecodedAnalysisWrite {
         db::CachedFeaturesUpsert {
             content_hash: &self.content_hash,
             analysis_version: &self.analysis_version,
-            feat_version: crate::analysis::vector::FEATURE_VERSION_V1,
+            feat_version: wavecrate_analysis::vector::FEATURE_VERSION_V1,
             vec_blob: &self.feature_blob,
             light_dsp_blob: self.light_dsp_blob.as_deref(),
             rms: self.rms,
@@ -102,9 +102,9 @@ impl DecodedAnalysisWrite {
         db::CachedEmbeddingUpsert {
             content_hash: &self.content_hash,
             analysis_version: &self.analysis_version,
-            model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
-            dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+            model_id: wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+            dim: wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+            dtype: wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
             l2_normed: true,
             vec_blob: &self.embedding_blob,
             created_at: self.embedding_created_at,

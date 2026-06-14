@@ -1,10 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use radiant::prelude as ui;
-use wavecrate::{
-    analysis::{decode_f32_le_blob, similarity::SIMILARITY_MODEL_ID},
-    sample_sources::{SourceDatabase, SourceDatabaseConnectionRole, SourceId},
-};
+use wavecrate::sample_sources::{SourceDatabase, SourceDatabaseConnectionRole, SourceId};
+use wavecrate_analysis::{decode_f32_le_blob, similarity::SIMILARITY_MODEL_ID};
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, emit_gui_action},

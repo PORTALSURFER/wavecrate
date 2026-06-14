@@ -20,7 +20,7 @@ pub(crate) fn load_embedding_vec_optional(
     let Some(blob) = row else {
         return Ok(None);
     };
-    let vec = crate::analysis::decode_f32_le_blob(&blob)?;
+    let vec = wavecrate_analysis::decode_f32_le_blob(&blob)?;
     if vec.len() != expected_dim {
         return Ok(None);
     }

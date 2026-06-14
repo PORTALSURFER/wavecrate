@@ -116,13 +116,13 @@ pub(super) fn load_query_vectors(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::vector::encode_f32_le_blob;
     use crate::app::controller::library::analysis_jobs;
     use crate::app::controller::state::audio::LoadedAudio;
     use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
     use crate::sample_sources::Rating;
     use rusqlite::params;
     use std::sync::Arc;
+    use wavecrate_analysis::vector::encode_f32_le_blob;
 
     #[test]
     fn loaded_similarity_builder_matches_sync_and_background_entrypoints() {
@@ -282,7 +282,10 @@ mod tests {
         let embedding_blob = embedding_blob(embedding_xy);
         conn.execute(
             "DELETE FROM embeddings WHERE sample_id = ?1 AND model_id = ?2",
-            params![sample_id, crate::analysis::similarity::SIMILARITY_MODEL_ID],
+            params![
+                sample_id,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID
+            ],
         )
         .expect("clear embedding");
         conn.execute(
@@ -290,8 +293,8 @@ mod tests {
              VALUES (?1, ?2, ?3, 'f32', 1, ?4, 0)",
             params![
                 sample_id,
-                crate::analysis::similarity::SIMILARITY_MODEL_ID,
-                crate::analysis::similarity::SIMILARITY_DIM as i64,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
                 embedding_blob,
             ],
         )
@@ -307,7 +310,7 @@ mod tests {
                  VALUES (?1, ?2, ?3, 0)",
                 params![
                     sample_id,
-                    crate::analysis::FEATURE_VERSION_V1,
+                    wavecrate_analysis::FEATURE_VERSION_V1,
                     feature_blob(dsp_triplet),
                 ],
             )
@@ -316,7 +319,7 @@ mod tests {
     }
 
     fn embedding_blob(embedding_xy: &[f32]) -> Vec<u8> {
-        let mut embedding = vec![0.0_f32; crate::analysis::similarity::SIMILARITY_DIM];
+        let mut embedding = vec![0.0_f32; wavecrate_analysis::similarity::SIMILARITY_DIM];
         embedding[..embedding_xy.len()].copy_from_slice(embedding_xy);
         let norm = embedding
             .iter()
@@ -332,7 +335,7 @@ mod tests {
     }
 
     fn feature_blob(dsp_triplet: &[f32]) -> Vec<u8> {
-        let mut features = vec![0.0_f32; crate::analysis::FEATURE_VECTOR_LEN_V1];
+        let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
         features[..dsp_triplet.len()].copy_from_slice(dsp_triplet);
         encode_f32_le_blob(&features)
     }

@@ -102,14 +102,14 @@ fn write_backfill_chunk(
     let tx = telemetry::begin_immediate_transaction(conn, "embedding_backfill_chunk")
         .map_err(|err| format!("Begin embedding backfill tx failed: {err}"))?;
     for result in chunk {
-        let embedding_blob = crate::analysis::vector::encode_f32_le_blob(&result.embedding);
+        let embedding_blob = wavecrate_analysis::vector::encode_f32_le_blob(&result.embedding);
         db::upsert_embedding(
             &tx,
             db::EmbeddingUpsert {
                 sample_id: &result.sample_id,
-                model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
-                dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
-                dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+                model_id: wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                dim: wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+                dtype: wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
                 l2_normed: true,
                 vec_blob: &embedding_blob,
                 created_at: result.created_at,
@@ -120,9 +120,9 @@ fn write_backfill_chunk(
             db::CachedEmbeddingUpsert {
                 content_hash: &result.content_hash,
                 analysis_version,
-                model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
-                dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
-                dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+                model_id: wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                dim: wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+                dtype: wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
                 l2_normed: true,
                 vec_blob: &embedding_blob,
                 created_at: result.created_at,
@@ -152,7 +152,7 @@ fn update_ann_index_batch(
     conn: &rusqlite::Connection,
     chunk: &[EmbeddingResult],
 ) -> Result<(), String> {
-    crate::analysis::ann_index::upsert_embeddings_batch(
+    wavecrate_analysis::ann_index::upsert_embeddings_batch(
         conn,
         chunk
             .iter()

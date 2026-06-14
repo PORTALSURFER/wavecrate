@@ -39,7 +39,7 @@ pub(super) fn update_missing_sample_durations(
             }
         };
         let absolute = source.root.join(&relative_path);
-        let probe = match crate::analysis::audio::probe_metadata(&absolute) {
+        let probe = match wavecrate_analysis::probe_metadata(&absolute) {
             Ok(probe) => probe,
             Err(err) => {
                 warn!("Failed to probe duration for {}: {err}", absolute.display());
@@ -54,7 +54,7 @@ pub(super) fn update_missing_sample_durations(
         };
         let sample_rate = probe
             .sample_rate
-            .unwrap_or(crate::analysis::audio::ANALYSIS_SAMPLE_RATE)
+            .unwrap_or(wavecrate_analysis::ANALYSIS_SAMPLE_RATE)
             .max(1);
         match db::update_sample_duration(conn, &sample.sample_id, duration_seconds, sample_rate) {
             Ok(true) => updated += 1,

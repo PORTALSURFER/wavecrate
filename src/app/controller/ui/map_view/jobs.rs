@@ -52,7 +52,7 @@ pub(crate) fn run_umap_build(
     source_id: &SourceId,
 ) -> Result<(), String> {
     let mut conn = open_source_db_for_id(source_id)?;
-    crate::analysis::build_map_layout(&mut conn, model_id, umap_version, 0, 0.95)?;
+    wavecrate_analysis::build_map_layout(&mut conn, model_id, umap_version, 0, 0.95)?;
     Ok(())
 }
 
@@ -60,19 +60,19 @@ pub(crate) fn run_umap_cluster_build(
     model_id: &str,
     umap_version: &str,
     source_id: Option<&SourceId>,
-) -> Result<crate::analysis::hdbscan::HdbscanStats, String> {
+) -> Result<wavecrate_analysis::hdbscan::HdbscanStats, String> {
     let Some(source_id) = source_id else {
         return Err("Missing source for cluster build".to_string());
     };
     let mut conn = open_source_db_for_id(source_id)?;
     let sample_id_prefix = Some(format!("{}::%", source_id.as_str()));
-    crate::analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
+    wavecrate_analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
         &mut conn,
         model_id,
-        crate::analysis::hdbscan::HdbscanMethod::Umap,
+        wavecrate_analysis::hdbscan::HdbscanMethod::Umap,
         Some(umap_version),
         sample_id_prefix.as_deref(),
-        crate::analysis::hdbscan::HdbscanConfig {
+        wavecrate_analysis::hdbscan::HdbscanConfig {
             min_cluster_size: DEFAULT_CLUSTER_MIN_SIZE,
             min_samples: None,
             allow_single_cluster: false,

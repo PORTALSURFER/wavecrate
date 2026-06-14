@@ -13,21 +13,21 @@ pub(super) struct FeatureBlobDecodeBenchResult {
 
 pub(super) fn run(options: &BenchOptions) -> Result<FeatureBlobDecodeBenchResult, String> {
     let blobs = options.similarity_rows.max(1);
-    let feature_len_f32 = wavecrate::analysis::LIGHT_DSP_VECTOR_LEN;
+    let feature_len_f32 = wavecrate_analysis::LIGHT_DSP_VECTOR_LEN;
     let bytes_per_blob = feature_len_f32.saturating_mul(4);
 
     let mut payload = vec![0u8; bytes_per_blob];
     fill_deterministic_bytes(&mut payload, options.seed);
 
     for _ in 0..options.warmup_iters.max(1) {
-        let _ = wavecrate::analysis::decode_f32_le_blob(&payload)?;
+        let _ = wavecrate_analysis::decode_f32_le_blob(&payload)?;
     }
 
     let started = Instant::now();
     let mut checksum = 0.0_f64;
     for _ in 0..options.measure_iters.max(1) {
         for _ in 0..blobs {
-            let decoded = wavecrate::analysis::decode_f32_le_blob(&payload)?;
+            let decoded = wavecrate_analysis::decode_f32_le_blob(&payload)?;
             checksum += decoded.first().copied().unwrap_or(0.0) as f64;
             checksum += decoded.get(2).copied().unwrap_or(0.0) as f64;
         }

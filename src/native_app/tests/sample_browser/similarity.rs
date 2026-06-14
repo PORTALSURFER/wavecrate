@@ -217,14 +217,14 @@ fn seed_similarity_embedding(source_root: &std::path::Path, relative_path: &str,
     )
     .expect("source db connection");
     let sample_id = format!("{SIMILARITY_TEST_SOURCE_ID}::{relative_path}");
-    let blob = wavecrate::analysis::vector::encode_f32_le_blob(values);
+    let blob = wavecrate_analysis::vector::encode_f32_le_blob(values);
     conn.execute(
         "INSERT OR REPLACE INTO embeddings
          (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
          VALUES (?1, ?2, ?3, 'f32', 1, ?4, 0)",
         rusqlite::params![
             sample_id,
-            wavecrate::analysis::similarity::SIMILARITY_MODEL_ID,
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
             values.len() as i64,
             blob
         ],

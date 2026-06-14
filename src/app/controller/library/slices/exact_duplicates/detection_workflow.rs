@@ -1,5 +1,5 @@
 use super::{super::*, WaveformSliceBatchProfile, build_duplicate_cleanup_state, inputs};
-use crate::analysis::audio::detect_exact_duplicate_window_ranges;
+use wavecrate_analysis::detect_exact_duplicate_window_ranges;
 
 impl AppController {
     /// Detect near-duplicate hit windows across the loaded waveform using the current selection size.
@@ -53,7 +53,7 @@ impl AppController {
 
     fn install_duplicate_cleanup_detection(
         &mut self,
-        windows: &[crate::analysis::audio::DetectedDuplicateWindow],
+        windows: &[wavecrate_analysis::DetectedDuplicateWindow],
         duplicate_group_count: usize,
         total_frames: usize,
     ) {

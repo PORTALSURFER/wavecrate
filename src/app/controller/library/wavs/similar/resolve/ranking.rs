@@ -13,7 +13,7 @@ use super::super::{DEFAULT_SIMILAR_COUNT, DSP_WEIGHT, DUPLICATE_RMS_MIN, EMBED_W
 /// Blend ANN and lightweight DSP similarity into the final candidate ordering.
 pub(crate) fn rerank_with_dsp(
     conn: &Connection,
-    neighbours: Vec<crate::analysis::ann_index::SimilarNeighbor>,
+    neighbours: Vec<wavecrate_analysis::ann_index::SimilarNeighbor>,
     query_embedding: Option<&[f32]>,
     query_dsp: Option<&[f32]>,
 ) -> Result<Vec<(String, f32)>, String> {
@@ -154,10 +154,10 @@ pub(super) fn filter_ranked_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::vector::encode_f32_le_blob;
     use rusqlite::{Connection, params};
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use wavecrate_analysis::vector::encode_f32_le_blob;
 
     use super::super::super::{DUPLICATE_SCORE_THRESHOLD, FEATURE_RMS_INDEX};
 

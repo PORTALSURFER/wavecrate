@@ -62,7 +62,7 @@ fn test_write(sample_id: &str, content_hash: &str) -> DecodedAnalysisWrite {
         content_hash: content_hash.to_string(),
         analysis_version: "analysis_v1_test".to_string(),
         duration_seconds: 1.5,
-        sample_rate: crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+        sample_rate: wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
         feature_blob: vec![1, 2, 3],
         light_dsp_blob: Some(vec![4, 5, 6]),
         rms: Some(0.25),
@@ -70,7 +70,7 @@ fn test_write(sample_id: &str, content_hash: &str) -> DecodedAnalysisWrite {
         embedding_blob: vec![7, 8, 9],
         embedding_created_at: 11,
         needs_embedding_upsert: true,
-        ann_embedding: vec![0.1; crate::analysis::similarity::SIMILARITY_DIM],
+        ann_embedding: vec![0.1; wavecrate_analysis::similarity::SIMILARITY_DIM],
     }
 }
 

@@ -51,7 +51,7 @@ fn load_embedding_batch(
         let blob = row
             .get::<_, Vec<u8>>(1)
             .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let embedding = crate::analysis::decode_f32_le_blob(&blob)?;
+        let embedding = wavecrate_analysis::decode_f32_le_blob(&blob)?;
         embeddings.insert(sample_id, embedding);
     }
     Ok(())

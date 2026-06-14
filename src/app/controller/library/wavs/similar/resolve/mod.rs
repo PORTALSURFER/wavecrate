@@ -37,7 +37,7 @@ pub(crate) fn resolve_similarity_for_sample_id(
     }
     let conn = open_source_db_for_id(controller, &source_id)?;
     let neighbours =
-        crate::analysis::ann_index::find_similar(&conn, sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
+        wavecrate_analysis::ann_index::find_similar(&conn, sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
     let query = load_query_similarity_inputs(&conn, sample_id)?;
     if score_cutoff.is_some()
         && let Some(rms) = query.rms

@@ -17,7 +17,7 @@ fn enqueue_invalidates_when_analysis_version_stale() {
     insert_embeddings_row(
         &conn,
         &sample_id,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
 
     let changed_samples = vec![ChangedSample {
@@ -58,14 +58,14 @@ fn enqueue_invalidates_when_content_hash_changes() {
     conn.execute(
         "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version)
          VALUES (?1, ?2, 1, 1, 1.0, 1, ?3)",
-        params![&sample_id, "old_hash", crate::analysis::version::analysis_version()],
+        params![&sample_id, "old_hash", wavecrate_analysis::analysis_version()],
     )
     .unwrap();
     insert_features_row(&conn, &sample_id);
     insert_embeddings_row(
         &conn,
         &sample_id,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
 
     let changed_samples = vec![ChangedSample {
@@ -116,7 +116,7 @@ fn backfill_invalidates_when_analysis_version_stale() {
     insert_embeddings_row(
         &conn,
         &sample_id,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
 
     let (_inserted, _progress) = enqueue_jobs_for_source_backfill(&env.source).unwrap();
@@ -153,14 +153,14 @@ fn backfill_invalidates_when_content_hash_changes() {
     conn.execute(
         "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version)
          VALUES (?1, ?2, 1, 1, 1.0, 1, ?3)",
-        params![&sample_id, "old_hash", crate::analysis::version::analysis_version()],
+        params![&sample_id, "old_hash", wavecrate_analysis::analysis_version()],
     )
     .unwrap();
     insert_features_row(&conn, &sample_id);
     insert_embeddings_row(
         &conn,
         &sample_id,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
 
     let (_inserted, _progress) = enqueue_jobs_for_source_backfill(&env.source).unwrap();

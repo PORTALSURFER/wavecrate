@@ -86,7 +86,7 @@ fn run_worker_loop(
     tx: std::sync::mpsc::Sender<Result<EmbeddingComputation, String>>,
     analysis_sample_rate: u32,
 ) {
-    let batch_max = crate::analysis::similarity::SIMILARITY_BATCH_MAX;
+    let batch_max = wavecrate_analysis::similarity::SIMILARITY_BATCH_MAX;
     loop {
         let batch = next_batch(&queue, batch_max);
         if batch.is_empty() {
@@ -112,17 +112,17 @@ fn compute_embedding(
     analysis_sample_rate: u32,
 ) -> Result<EmbeddingComputation, String> {
     let path = work.absolute_path.display().to_string();
-    let decoded = crate::analysis::audio::decode_for_analysis_with_rate(
+    let decoded = wavecrate_analysis::decode_for_analysis_with_rate(
         &work.absolute_path,
         analysis_sample_rate,
     )
     .map_err(|err| format!("Decode failed for {path}: {err}"))?;
-    let features = crate::analysis::compute_feature_vector_v1_for_mono_samples(
+    let features = wavecrate_analysis::compute_feature_vector_v1_for_mono_samples(
         &decoded.mono,
         decoded.sample_rate_used,
     )
     .map_err(|err| format!("Feature extraction failed for {path}: {err}"))?;
-    let embedding = crate::analysis::similarity::embedding_from_features(&features)
+    let embedding = wavecrate_analysis::similarity::embedding_from_features(&features)
         .map_err(|err| format!("Embedding build failed for {path}: {err}"))?;
     Ok(EmbeddingComputation {
         content_hash: work.content_hash,

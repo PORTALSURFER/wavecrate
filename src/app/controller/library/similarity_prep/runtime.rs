@@ -1,10 +1,10 @@
 use super::DEFAULT_CLUSTER_MIN_SIZE;
 use super::store::{DbSimilarityPrepStore, SimilarityPrepStore};
-use crate::analysis::hdbscan::{HdbscanConfig, HdbscanMethod};
 use crate::app::controller::AppController;
 use crate::app::controller::jobs;
 use crate::sample_sources::{SampleSource, SourceId};
 use std::thread;
+use wavecrate_analysis::hdbscan::{HdbscanConfig, HdbscanMethod};
 
 impl AppController {
     pub(crate) fn apply_similarity_prep_duration_cap(&mut self) {
@@ -29,7 +29,7 @@ impl AppController {
             return;
         }
         let sample_rate = self.similarity_prep_fast_sample_rate();
-        let version = crate::analysis::version::analysis_version_for_sample_rate(sample_rate);
+        let version = wavecrate_analysis::analysis_version_for_sample_rate(sample_rate);
         self.runtime.analysis.set_analysis_sample_rate(sample_rate);
         self.runtime
             .analysis
@@ -39,7 +39,7 @@ impl AppController {
     pub(crate) fn restore_similarity_prep_fast_mode(&mut self) {
         self.runtime
             .analysis
-            .set_analysis_sample_rate(crate::analysis::audio::ANALYSIS_SAMPLE_RATE);
+            .set_analysis_sample_rate(wavecrate_analysis::ANALYSIS_SAMPLE_RATE);
         self.runtime.analysis.set_analysis_version_override(None);
     }
 
@@ -115,16 +115,16 @@ fn run_similarity_finalize(
     let store = DbSimilarityPrepStore;
     let mut conn = store.open_source_db_for_similarity(source_id)?;
     let sample_id_prefix = format!("{}::%", source_id.as_str());
-    crate::analysis::build_map_layout(
+    wavecrate_analysis::build_map_layout(
         &mut conn,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         umap_version,
         0,
         0.95,
     )?;
     let layout_rows = store.count_umap_layout_rows(
         &conn,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         umap_version,
         &sample_id_prefix,
     )?;
@@ -134,9 +134,9 @@ fn run_similarity_finalize(
             source_id.as_str()
         ));
     }
-    let cluster_stats = crate::analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
+    let cluster_stats = wavecrate_analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
         &mut conn,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         HdbscanMethod::Umap,
         Some(umap_version),
         Some(sample_id_prefix.as_str()),
@@ -146,6 +146,6 @@ fn run_similarity_finalize(
             allow_single_cluster: false,
         },
     )?;
-    crate::analysis::flush_ann_index(&conn)?;
+    wavecrate_analysis::flush_ann_index(&conn)?;
     Ok(jobs::SimilarityPrepOutcome { cluster_stats })
 }

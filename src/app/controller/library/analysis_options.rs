@@ -108,7 +108,7 @@ impl AppController {
 
     /// Set the sample rate used for fast similarity prep.
     pub fn set_similarity_prep_fast_sample_rate(&mut self, value: u32) {
-        let max_rate = crate::analysis::audio::ANALYSIS_SAMPLE_RATE;
+        let max_rate = wavecrate_analysis::ANALYSIS_SAMPLE_RATE;
         let clamped = value.clamp(MIN_FAST_PREP_SAMPLE_RATE, max_rate);
         if self.settings.analysis.fast_similarity_prep_sample_rate == clamped {
             return;

@@ -3,8 +3,6 @@
 
 //! Library exports for reuse in benchmarks and tests.
 extern crate alloc;
-/// Background analysis helpers.
-pub mod analysis;
 /// Keep app internals compiled for the binary/runtime while the library target
 /// intentionally reuses only a subset of that surface.
 #[allow(dead_code)]

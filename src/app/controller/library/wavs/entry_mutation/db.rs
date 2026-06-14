@@ -13,7 +13,7 @@ pub(crate) fn normalize_and_save_for_path(
     if samples.is_empty() {
         return Err("No audio data to normalize".into());
     }
-    crate::analysis::audio::normalize_peak_in_place(&mut samples);
+    wavecrate_analysis::normalize_peak_in_place(&mut samples);
 
     let target_spec = hound::WavSpec {
         channels: spec.channels.max(1),

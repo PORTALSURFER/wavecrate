@@ -53,7 +53,7 @@ impl AnalysisWorkerPool {
             allowed_source_ids: Arc::new(RwLock::new(None)),
             max_duration_bits: Arc::new(AtomicU32::new(30.0f32.to_bits())),
             analysis_sample_rate: Arc::new(AtomicU32::new(
-                crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+                wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
             )),
             analysis_version_override: Arc::new(RwLock::new(None)),
             worker_count_override: Arc::new(AtomicU32::new(0)),
@@ -152,7 +152,7 @@ impl AnalysisWorkerPool {
                     worker_count,
                     self.decode_worker_count_override.load(Ordering::Relaxed),
                 );
-                let embedding_batch_max = crate::analysis::similarity::SIMILARITY_BATCH_MAX;
+                let embedding_batch_max = wavecrate_analysis::similarity::SIMILARITY_BATCH_MAX;
                 let decode_queue_target =
                     job_claim::decode_queue_target(embedding_batch_max, worker_count);
                 let claim_wakeup = wakeup::claim_wakeup_handle();

@@ -47,7 +47,7 @@ fn enqueue_samples(
         .iter()
         .map(|sample| sample.sample_id.clone())
         .collect();
-    let current_version = crate::analysis::version::analysis_version();
+    let current_version = wavecrate_analysis::analysis_version();
     let existing_states = db::sample_analysis_states(&conn, &sample_ids)?;
     let (invalidate, jobs) = invalidate::collect_changed_sample_updates(
         &sample_metadata,

@@ -11,7 +11,7 @@ fn update_analysis_metadata_updates_matching_hash() {
             sample_id: "s::a.wav",
             content_hash: Some("h1"),
             duration_seconds: 1.25,
-            sr_used: crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+            sr_used: wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
             analysis_version: "analysis_v1_test",
         },
     )
@@ -25,10 +25,7 @@ fn update_analysis_metadata_updates_matching_hash() {
         )
         .unwrap();
     assert_eq!(duration, Some(1.25));
-    assert_eq!(
-        sr,
-        Some(crate::analysis::audio::ANALYSIS_SAMPLE_RATE as i64)
-    );
+    assert_eq!(sr, Some(wavecrate_analysis::ANALYSIS_SAMPLE_RATE as i64));
     assert_eq!(version.as_deref(), Some("analysis_v1_test"));
 }
 
@@ -44,7 +41,7 @@ fn update_sample_duration_preserves_analysis_version() {
         &db.conn,
         "s::a.wav",
         2.5,
-        crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+        wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
     )
     .unwrap();
     let (duration, version): (Option<f64>, Option<String>) = db
@@ -67,7 +64,7 @@ fn update_sample_duration_updates_when_hash_differs() {
         &db.conn,
         "s::a.wav",
         3.0,
-        crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+        wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
     )
     .unwrap();
     assert!(updated);
@@ -97,7 +94,7 @@ fn update_sample_duration_creates_row_on_load() {
         &db.conn,
         "s::a.wav",
         4.0,
-        crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+        wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
     )
     .unwrap();
     assert!(updated);

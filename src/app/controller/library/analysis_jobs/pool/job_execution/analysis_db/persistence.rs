@@ -71,7 +71,7 @@ pub(crate) fn update_metadata_for_skip(
 pub(crate) fn finalize_analysis_job(
     conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
-    decoded: crate::analysis::audio::AnalysisAudio,
+    decoded: wavecrate_analysis::AnalysisAudio,
     analysis_version: &str,
     needs_embedding_upsert: bool,
     do_ann_upsert: bool,
@@ -149,7 +149,7 @@ fn persist_decoded_analysis_write_in_tx(
         &write.feature_blob,
         write.light_dsp_blob.as_deref(),
         write.rms,
-        crate::analysis::vector::FEATURE_VERSION_V1,
+        wavecrate_analysis::vector::FEATURE_VERSION_V1,
         write.computed_at,
     )?;
     db::upsert_cached_features(conn, write.cached_features_upsert())?;

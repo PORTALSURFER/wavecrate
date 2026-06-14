@@ -20,7 +20,7 @@ pub(super) fn sample_id_values(sample_ids: &[String]) -> Vec<Value> {
 pub(super) fn embedding_query_values(sample_ids: &[String]) -> Vec<Value> {
     let mut params = Vec::with_capacity(sample_ids.len() + 1);
     params.push(Value::from(
-        crate::analysis::similarity::SIMILARITY_MODEL_ID.to_string(),
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID.to_string(),
     ));
     params.extend(sample_ids.iter().cloned().map(Value::from));
     params

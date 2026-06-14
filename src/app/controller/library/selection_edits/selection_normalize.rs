@@ -1,6 +1,6 @@
 use super::buffer::SelectionEditBuffer;
-use crate::analysis::audio::normalize_peak_in_place;
 use std::time::Duration;
+use wavecrate_analysis::normalize_peak_in_place;
 
 pub(crate) fn normalize_selection(
     buffer: &mut SelectionEditBuffer,

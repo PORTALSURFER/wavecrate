@@ -1,6 +1,6 @@
 use super::stats::RollingMedian;
-use crate::analysis::fft::{Complex32, FftPlan, fft_radix2_inplace_with_plan, hann_window};
 use crate::waveform::DecodedWaveform;
+use wavecrate_analysis::{Complex32, FftPlan, fft_radix2_inplace_with_plan, hann_window};
 
 const BAND_COUNT: usize = 24;
 const MIN_BAND_HZ: f32 = 40.0;

@@ -64,11 +64,11 @@ pub(crate) fn build_similarity_query_for_audio_path(
         .selected_source
         .clone()
         .ok_or_else(|| "No active source selected".to_string())?;
-    let features = crate::analysis::compute_feature_vector_v1_for_path(path)?;
-    let embedding = crate::analysis::similarity::embedding_from_features(&features)?;
-    let query_dsp = crate::analysis::light_dsp_from_features_v1(&features).map(normalize_l2);
+    let features = wavecrate_analysis::compute_feature_vector_v1_for_path(path)?;
+    let embedding = wavecrate_analysis::similarity::embedding_from_features(&features)?;
+    let query_dsp = wavecrate_analysis::light_dsp_from_features_v1(&features).map(normalize_l2);
     let conn = open_source_db_for_id(controller, &source_id)?;
-    let neighbours = crate::analysis::ann_index::find_similar_for_embedding(
+    let neighbours = wavecrate_analysis::ann_index::find_similar_for_embedding(
         &conn,
         &embedding,
         SIMILAR_RE_RANK_CANDIDATES,

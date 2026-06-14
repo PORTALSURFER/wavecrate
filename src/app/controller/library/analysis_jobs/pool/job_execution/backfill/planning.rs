@@ -40,8 +40,8 @@ pub(super) fn build_backfill_plan(
         if load_embedding_vec_optional(
             conn,
             sample_id,
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            crate::analysis::similarity::SIMILARITY_DIM,
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+            wavecrate_analysis::similarity::SIMILARITY_DIM,
         )?
         .is_some()
         {

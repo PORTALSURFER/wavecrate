@@ -191,19 +191,19 @@ fn decode_analysis_job(
     let sample_rate = analysis_sample_rate.load(Ordering::Relaxed).max(1);
     if max_analysis_duration_seconds.is_finite()
         && max_analysis_duration_seconds > 0.0
-        && let Ok(probe) = crate::analysis::audio::probe_metadata(&absolute)
+        && let Ok(probe) = wavecrate_analysis::probe_metadata(&absolute)
         && let Some(duration_seconds) = probe.duration_seconds
         && duration_seconds > max_analysis_duration_seconds
     {
         let sample_rate = probe
             .sample_rate
-            .unwrap_or(crate::analysis::audio::ANALYSIS_SAMPLE_RATE);
+            .unwrap_or(wavecrate_analysis::ANALYSIS_SAMPLE_RATE);
         return DecodeOutcome::Skipped {
             duration_seconds,
             sample_rate,
         };
     }
-    match crate::analysis::audio::decode_for_analysis_with_rate(&absolute, sample_rate) {
+    match wavecrate_analysis::decode_for_analysis_with_rate(&absolute, sample_rate) {
         Ok(decoded) => DecodeOutcome::Decoded(decoded),
         Err(err) => DecodeOutcome::Failed(err),
     }

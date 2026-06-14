@@ -62,7 +62,7 @@ pub(crate) fn collect_backfill_updates(
             invalidate: Vec::new(),
         });
     }
-    let current_version = crate::analysis::version::analysis_version();
+    let current_version = wavecrate_analysis::analysis_version();
     let invalidate = fetch_backfill_invalidations(conn, current_version)?;
     let QueuedBackfillJobs {
         sample_metadata,
@@ -71,7 +71,7 @@ pub(crate) fn collect_backfill_updates(
         conn,
         current_version,
         job_type,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     )?;
     Ok(BackfillUpdates {
         sample_metadata,

@@ -7,7 +7,8 @@ pub(super) fn upsert_ann_with_recovery(
     job: &db::ClaimedJob,
     embedding: &[f32],
 ) -> Result<(), String> {
-    if let Err(err) = crate::analysis::ann_index::upsert_embedding(conn, &job.sample_id, embedding)
+    if let Err(err) =
+        wavecrate_analysis::ann_index::upsert_embedding(conn, &job.sample_id, embedding)
     {
         let rebuild_result = handle_ann_update_failure(conn, job, &err);
         return Err(format_ann_update_error(err, rebuild_result));

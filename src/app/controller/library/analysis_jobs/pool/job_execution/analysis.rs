@@ -77,7 +77,7 @@ pub(crate) fn run_analysis_job(
 pub(crate) fn run_analysis_job_with_decoded(
     conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
-    decoded: crate::analysis::audio::AnalysisAudio,
+    decoded: wavecrate_analysis::AnalysisAudio,
     context: &AnalysisContext<'_>,
 ) -> Result<(), String> {
     let needs_embedding_upsert = if context.use_cache {
@@ -97,7 +97,7 @@ pub(crate) fn run_analysis_job_with_decoded(
 
 pub(crate) fn run_analysis_jobs_with_decoded_batch(
     conn: &mut rusqlite::Connection,
-    jobs: Vec<(db::ClaimedJob, crate::analysis::audio::AnalysisAudio)>,
+    jobs: Vec<(db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>,
     context: &AnalysisContext<'_>,
 ) -> Vec<(db::ClaimedJob, Result<(), String>)> {
     struct BatchJob {

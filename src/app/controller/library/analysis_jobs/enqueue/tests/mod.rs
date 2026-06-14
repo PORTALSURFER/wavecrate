@@ -113,8 +113,8 @@ fn insert_embeddings_row(conn: &Connection, sample_id: &str, model_id: &str) {
         params![
             sample_id,
             model_id,
-            crate::analysis::similarity::SIMILARITY_DIM as i64,
-            crate::analysis::similarity::SIMILARITY_DTYPE_F32
+            wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+            wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32
         ],
     )
     .unwrap();

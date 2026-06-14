@@ -15,15 +15,15 @@ pub(super) fn cached_embedding_data(
         conn,
         content_hash,
         analysis_version,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     )?
     else {
         return Ok(None);
     };
-    let Ok(vec) = crate::analysis::decode_f32_le_blob(&cached.vec_blob) else {
+    let Ok(vec) = wavecrate_analysis::decode_f32_le_blob(&cached.vec_blob) else {
         return Ok(None);
     };
-    if vec.len() != crate::analysis::similarity::SIMILARITY_DIM {
+    if vec.len() != wavecrate_analysis::similarity::SIMILARITY_DIM {
         return Ok(None);
     }
     Ok(Some(EmbeddingData {
@@ -41,12 +41,12 @@ pub(super) fn cached_feature_embedding_data(
         conn,
         content_hash,
         analysis_version,
-        crate::analysis::vector::FEATURE_VERSION_V1,
+        wavecrate_analysis::vector::FEATURE_VERSION_V1,
     )?
     else {
         return Ok(None);
     };
-    let Ok(features) = crate::analysis::decode_f32_le_blob(&cached.vec_blob) else {
+    let Ok(features) = wavecrate_analysis::decode_f32_le_blob(&cached.vec_blob) else {
         return Ok(None);
     };
     let Ok(data) = embedding_data_from_features(&features) else {
@@ -56,7 +56,7 @@ pub(super) fn cached_feature_embedding_data(
 }
 
 pub(super) fn embedding_data_from_features(features: &[f32]) -> Result<EmbeddingData, String> {
-    let embedding = crate::analysis::similarity::embedding_from_features(features)?;
+    let embedding = wavecrate_analysis::similarity::embedding_from_features(features)?;
     Ok(EmbeddingData {
         embedding,
         created_at: now_epoch_seconds(),
@@ -78,8 +78,8 @@ pub(super) fn load_features_vec_optional(
     let Some(blob) = blob else {
         return Ok(None);
     };
-    let vec = crate::analysis::decode_f32_le_blob(&blob)?;
-    if vec.len() != crate::analysis::vector::FEATURE_VECTOR_LEN_V1 {
+    let vec = wavecrate_analysis::decode_f32_le_blob(&blob)?;
+    if vec.len() != wavecrate_analysis::vector::FEATURE_VECTOR_LEN_V1 {
         return Ok(None);
     }
     Ok(Some(vec))

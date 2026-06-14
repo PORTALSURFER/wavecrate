@@ -14,7 +14,7 @@ pub(super) fn run_normalization_job(job: NormalizationJob) -> NormalizationResul
             return Err("No audio data to normalize".to_string());
         }
 
-        crate::analysis::audio::normalize_peak_in_place(&mut samples);
+        wavecrate_analysis::normalize_peak_in_place(&mut samples);
 
         let target_spec = hound::WavSpec {
             channels: spec.channels.max(1),

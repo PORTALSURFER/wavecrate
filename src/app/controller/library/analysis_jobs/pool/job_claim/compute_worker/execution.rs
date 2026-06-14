@@ -18,13 +18,8 @@ pub(super) struct BatchSettings {
     pub(super) heartbeat_tracker: std::sync::Arc<super::super::heartbeat::DecodeHeartbeatTracker>,
 }
 
-pub(super) type DecodedBatchMap = HashMap<
-    std::path::PathBuf,
-    Vec<(
-        analysis_db::ClaimedJob,
-        crate::analysis::audio::AnalysisAudio,
-    )>,
->;
+pub(super) type DecodedBatchMap =
+    HashMap<std::path::PathBuf, Vec<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>>;
 
 struct BatchProcessContext<'a> {
     connections: &'a mut HashMap<std::path::PathBuf, Connection>,
@@ -57,7 +52,7 @@ pub(super) fn current_batch_settings(
             .read()
             .ok()
             .and_then(|guard| guard.clone())
-            .unwrap_or_else(|| crate::analysis::version::analysis_version().to_string()),
+            .unwrap_or_else(|| wavecrate_analysis::analysis_version().to_string()),
         heartbeat_tracker: heartbeat_tracker.clone(),
     }
 }
@@ -144,10 +139,7 @@ fn run_work_item(
     work: DecodedWork,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
     settings: &BatchSettings,
-    batch_job: &mut Option<(
-        analysis_db::ClaimedJob,
-        crate::analysis::audio::AnalysisAudio,
-    )>,
+    batch_job: &mut Option<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>,
     immediate_job: &mut Option<(analysis_db::ClaimedJob, Result<(), String>)>,
 ) -> Result<(), String> {
     let conn = match db::open_connection_with_retry(connections, &work.job.source_root) {
@@ -184,10 +176,7 @@ fn handle_analysis_work(
     work: DecodedWork,
     conn: &Connection,
     analysis_version: &str,
-    batch_job: &mut Option<(
-        analysis_db::ClaimedJob,
-        crate::analysis::audio::AnalysisAudio,
-    )>,
+    batch_job: &mut Option<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>,
     immediate_job: &mut Option<(analysis_db::ClaimedJob, Result<(), String>)>,
 ) -> Result<(), String> {
     match work.outcome {
@@ -243,10 +232,7 @@ pub(super) fn immediate_jobs_with_decoded_batches(
 
 fn run_decoded_batch(
     source_root: std::path::PathBuf,
-    jobs: Vec<(
-        analysis_db::ClaimedJob,
-        crate::analysis::audio::AnalysisAudio,
-    )>,
+    jobs: Vec<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
     settings: &BatchSettings,
     immediate_jobs: &mut Vec<ImmediateJob>,

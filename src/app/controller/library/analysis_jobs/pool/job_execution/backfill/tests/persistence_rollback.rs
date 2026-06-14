@@ -21,13 +21,13 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
         model::EmbeddingResult {
             sample_id: "s::a.wav".to_string(),
             content_hash: "hash-a".to_string(),
-            embedding: vec![0.0; crate::analysis::similarity::SIMILARITY_DIM],
+            embedding: vec![0.0; wavecrate_analysis::similarity::SIMILARITY_DIM],
             created_at: 1,
         },
         model::EmbeddingResult {
             sample_id: "s::b.wav".to_string(),
             content_hash: "hash-b".to_string(),
-            embedding: vec![0.0; crate::analysis::similarity::SIMILARITY_DIM],
+            embedding: vec![0.0; wavecrate_analysis::similarity::SIMILARITY_DIM],
             created_at: 2,
         },
     ];

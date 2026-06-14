@@ -203,7 +203,7 @@ pub(crate) struct DecodedWork {
 
 /// Result of attempting to decode audio for analysis.
 pub(crate) enum DecodeOutcome {
-    Decoded(crate::analysis::audio::AnalysisAudio),
+    Decoded(wavecrate_analysis::AnalysisAudio),
     Skipped {
         duration_seconds: f32,
         sample_rate: u32,

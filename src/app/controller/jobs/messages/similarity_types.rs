@@ -29,13 +29,13 @@ pub(crate) struct UmapClusterBuildJob {
 #[derive(Debug)]
 pub(crate) struct UmapClusterBuildResult {
     pub(crate) source_id: Option<SourceId>,
-    pub(crate) result: Result<crate::analysis::hdbscan::HdbscanStats, String>,
+    pub(crate) result: Result<wavecrate_analysis::hdbscan::HdbscanStats, String>,
 }
 
 /// Final prepared similarity payload applied back to controller state.
 #[derive(Debug)]
 pub(crate) struct SimilarityPrepOutcome {
-    pub(crate) cluster_stats: crate::analysis::hdbscan::HdbscanStats,
+    pub(crate) cluster_stats: wavecrate_analysis::hdbscan::HdbscanStats,
 }
 
 /// Result of one similarity-preparation run.

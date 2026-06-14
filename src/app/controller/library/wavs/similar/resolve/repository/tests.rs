@@ -1,8 +1,8 @@
 use super::*;
-use crate::analysis::vector::encode_f32_le_blob;
 use crate::app::controller::test_support::dummy_controller;
 use crate::app::state::VisibleRows;
 use rusqlite::params;
+use wavecrate_analysis::vector::encode_f32_le_blob;
 
 use super::loaders::{SQLITE_IN_BATCH_SIZE, load_rms_for_sample};
 
@@ -37,7 +37,7 @@ fn insert_embedding(conn: &rusqlite::Connection, sample_id: &str, values: &[f32]
          VALUES (?1, ?2, ?3, 'f32', 1, ?4, 0)",
         params![
             sample_id,
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
             values.len() as i64,
             encode_f32_le_blob(values),
         ],
@@ -46,9 +46,9 @@ fn insert_embedding(conn: &rusqlite::Connection, sample_id: &str, values: &[f32]
 }
 
 fn insert_features(conn: &rusqlite::Connection, sample_id: &str, values: &[f32]) {
-    let mut features = vec![0.0_f32; crate::analysis::FEATURE_VECTOR_LEN_V1];
+    let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
     features[..values.len()].copy_from_slice(values);
-    let light_dsp_blob = crate::analysis::light_dsp_from_features_v1(&features)
+    let light_dsp_blob = wavecrate_analysis::light_dsp_from_features_v1(&features)
         .map(|light_dsp| encode_f32_le_blob(&light_dsp));
     let rms = features
         .get(super::super::FEATURE_RMS_INDEX)
@@ -59,7 +59,7 @@ fn insert_features(conn: &rusqlite::Connection, sample_id: &str, values: &[f32])
          VALUES (?1, ?2, ?3, ?4, ?5, 0)",
         params![
             sample_id,
-            crate::analysis::FEATURE_VERSION_V1,
+            wavecrate_analysis::FEATURE_VERSION_V1,
             encode_f32_le_blob(&features),
             light_dsp_blob,
             rms,
@@ -120,14 +120,14 @@ fn rms_loader_extracts_v1_rms_without_full_feature_decode() {
 #[test]
 fn rms_loader_falls_back_for_unknown_feature_versions() {
     let conn = in_memory_similarity_conn();
-    let mut features = vec![0.0_f32; crate::analysis::FEATURE_VECTOR_LEN_V1];
+    let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
     features[super::super::FEATURE_RMS_INDEX] = 0.75;
     conn.execute(
         "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
          VALUES (?1, ?2, ?3, 0)",
         params![
             "sample-a",
-            crate::analysis::FEATURE_VERSION_V1 + 1,
+            wavecrate_analysis::FEATURE_VERSION_V1 + 1,
             encode_f32_le_blob(&features),
         ],
     )

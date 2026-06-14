@@ -1,6 +1,6 @@
 use super::*;
-use crate::analysis::audio::DetectedDuplicateWindow;
 use crate::app::state::{WaveformDuplicateCleanupPreview, WaveformDuplicateCleanupState};
+use wavecrate_analysis::DetectedDuplicateWindow;
 
 mod detection_workflow;
 mod exemption;

@@ -4,7 +4,7 @@ use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::{META_LAST_SCAN_COMPLETED_AT, META_LAST_SIMILARITY_PREP_SCAN_AT},
 };
-use wavecrate::{analysis, analysis::similarity::SIMILARITY_MODEL_ID};
+use wavecrate_analysis::{self as analysis, similarity::SIMILARITY_MODEL_ID};
 
 use super::{NativeSimilarityPrepStatus, SimilarityPrepEnqueueSummary};
 

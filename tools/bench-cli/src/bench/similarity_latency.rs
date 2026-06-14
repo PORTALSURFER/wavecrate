@@ -5,8 +5,8 @@ use rand::{Rng, SeedableRng};
 use rusqlite::{Connection, params};
 use serde::Serialize;
 use tempfile::tempdir;
-use wavecrate::analysis::vector::encode_f32_le_blob;
-use wavecrate::analysis::{ann_index, similarity};
+use wavecrate_analysis::vector::encode_f32_le_blob;
+use wavecrate_analysis::{ann_index, similarity};
 
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct SimilarityBenchResult {

@@ -59,7 +59,7 @@ fn missing_features_only_enqueues_unanalyzed_samples() {
         &conn,
         &b,
         "hb",
-        Some(crate::analysis::version::analysis_version()),
+        Some(wavecrate_analysis::analysis_version()),
     );
     insert_sample_row(&conn, &c, "hc", None);
     insert_features_row(&conn, &b);
@@ -90,7 +90,7 @@ fn backfill_full_enqueues_even_when_up_to_date() {
 
     let conn = db::open_source_db(&env.source.root).unwrap();
     clear_analysis_tables(&conn);
-    let version = crate::analysis::version::analysis_version();
+    let version = wavecrate_analysis::analysis_version();
     for (rel, hash) in [("Pack/a.wav", "ha"), ("Pack/b.wav", "hb")] {
         let sample_id = sample_id(&env.source, rel);
         insert_sample_row(&conn, &sample_id, hash, Some(version));
@@ -98,7 +98,7 @@ fn backfill_full_enqueues_even_when_up_to_date() {
         insert_embeddings_row(
             &conn,
             &sample_id,
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         );
     }
 
@@ -117,14 +117,14 @@ fn hard_sync_skips_failed_jobs_but_force_requeue_restores() {
 
     let conn = db::open_source_db(&env.source.root).unwrap();
     clear_analysis_tables(&conn);
-    let version = crate::analysis::version::analysis_version();
+    let version = wavecrate_analysis::analysis_version();
     let sample_id = sample_id(&env.source, "Pack/a.wav");
     insert_sample_row(&conn, &sample_id, "ha", Some(version));
     insert_features_row(&conn, &sample_id);
     insert_embeddings_row(
         &conn,
         &sample_id,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
     conn.execute(
         "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, content_hash, status, attempts, created_at, last_error)
@@ -215,7 +215,11 @@ fn embedding_backfill_enqueues_missing_or_mismatched() {
     for (sample_id, hash) in [(&a, "ha"), (&b, "hb"), (&c, "hc")] {
         insert_sample_row(&conn, sample_id, hash, None);
     }
-    insert_embeddings_row(&conn, &b, crate::analysis::similarity::SIMILARITY_MODEL_ID);
+    insert_embeddings_row(
+        &conn,
+        &b,
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+    );
     insert_embeddings_row(&conn, &c, "old_model");
 
     let (inserted, _progress) = enqueue_jobs_for_embedding_backfill(&env.source).unwrap();

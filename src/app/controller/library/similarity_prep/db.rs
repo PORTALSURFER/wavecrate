@@ -41,7 +41,7 @@ pub(crate) fn source_has_embeddings(source: &SampleSource) -> bool {
     let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
         return false;
     };
-    let model_id = crate::analysis::similarity::SIMILARITY_MODEL_ID;
+    let model_id = wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     sample_ids_covered_by_embeddings(&conn, model_id, &sample_id_prefix, &sample_ids)
         .unwrap_or(false)
@@ -57,7 +57,7 @@ pub(crate) fn source_has_layout(source: &SampleSource, umap_version: &str) -> bo
     let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
         return false;
     };
-    let model_id = crate::analysis::similarity::SIMILARITY_MODEL_ID;
+    let model_id = wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     sample_ids_covered_by_layout(
         &conn,
@@ -261,7 +261,7 @@ mod tests {
              VALUES (?1, ?2, 1, 'f32', 1, ?3, 0)",
             rusqlite::params![
                 sample_id(source, relative_path),
-                crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
                 1.0_f32.to_le_bytes().to_vec(),
             ],
         )
@@ -278,7 +278,7 @@ mod tests {
              VALUES (?1, ?2, ?3, 0.0, 0.0, 0)",
             rusqlite::params![
                 sample_id(source, relative_path),
-                crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
                 UMAP_VERSION,
             ],
         )

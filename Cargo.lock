@@ -5940,6 +5940,7 @@ dependencies = [
  "sysinfo",
  "tempfile",
  "wavecrate",
+ "wavecrate-analysis",
 ]
 
 [[package]]

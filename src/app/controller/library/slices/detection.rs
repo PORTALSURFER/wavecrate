@@ -1,11 +1,11 @@
 use super::super::AppController;
 use super::super::MIN_SELECTION_WIDTH;
-use crate::analysis::audio::detect_non_silent_ranges_for_slices;
 use crate::app::controller::StatusTone;
 use crate::app::controller::playback::audio_samples::decode_samples_from_bytes;
 use crate::app::state::WaveformSliceBatchProfile;
 use crate::selection::SelectionRange;
 use std::borrow::Cow;
+use wavecrate_analysis::detect_non_silent_ranges_for_slices;
 
 impl AppController {
     /// Detect silence-split slice ranges for the loaded waveform and store them in UI state.

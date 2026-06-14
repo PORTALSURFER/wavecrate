@@ -3,8 +3,8 @@ use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use rusqlite::{Connection, params};
 use std::path::Path;
 use tempfile::tempdir;
-use wavecrate::analysis::vector::encode_f32_le_blob;
-use wavecrate::analysis::{ann_index, similarity};
+use wavecrate_analysis::vector::encode_f32_le_blob;
+use wavecrate_analysis::{ann_index, similarity};
 
 const SAMPLE_COUNT: usize = 256;
 const EXTRA_COUNT: usize = 32;

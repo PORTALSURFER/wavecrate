@@ -14,8 +14,8 @@ fn failed_samples_for_source_conn(
     conn: &Connection,
     source_id: &crate::sample_sources::SourceId,
 ) -> Result<HashMap<PathBuf, String>, String> {
-    let embedding_model = crate::analysis::similarity::SIMILARITY_MODEL_ID;
-    let analysis_version = crate::analysis::version::analysis_version();
+    let embedding_model = wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
+    let analysis_version = wavecrate_analysis::analysis_version();
     let mut stmt = conn
         .prepare(
             "SELECT aj.relative_path, aj.last_error
@@ -102,7 +102,7 @@ mod tests {
         conn.execute(
             "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, analysis_version)
              VALUES ('s1::Pack/a.wav', 'h1', 1, 1, ?1)",
-            params![crate::analysis::version::analysis_version()],
+            params![wavecrate_analysis::analysis_version()],
         )
         .unwrap();
         conn.execute(
@@ -114,7 +114,7 @@ mod tests {
         conn.execute(
             "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
              VALUES ('s1::Pack/a.wav', ?1, 1, 'f32', 1, X'00', 0)",
-            params![crate::analysis::similarity::SIMILARITY_MODEL_ID],
+            params![wavecrate_analysis::similarity::SIMILARITY_MODEL_ID],
         )
         .unwrap();
 

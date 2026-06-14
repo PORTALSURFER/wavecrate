@@ -44,7 +44,7 @@ fn run_compute_worker(context: ComputeWorkerContext) {
     let mut last_queue_log = Instant::now();
     let mut connections: HashMap<std::path::PathBuf, Connection> = HashMap::new();
     let mut deferred_updates: Vec<db::DeferredJobUpdate> = Vec::new();
-    let embedding_batch_max = crate::analysis::similarity::SIMILARITY_BATCH_MAX;
+    let embedding_batch_max = wavecrate_analysis::similarity::SIMILARITY_BATCH_MAX;
     loop {
         if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
             break;

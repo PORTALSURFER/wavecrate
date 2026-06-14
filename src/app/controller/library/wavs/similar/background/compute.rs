@@ -45,7 +45,7 @@ pub(crate) fn compute_focused_similarity(
     job: FocusedSimilarityJob,
 ) -> Result<Option<FocusedSimilarityPaths>, String> {
     let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
-    let neighbours = crate::analysis::ann_index::find_similar(
+    let neighbours = wavecrate_analysis::ann_index::find_similar(
         &conn,
         &job.sample_id,
         SIMILAR_RE_RANK_CANDIDATES,
@@ -146,12 +146,12 @@ fn filter_ranked_candidate_paths(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::vector::encode_f32_le_blob;
     use crate::app::controller::library::analysis_jobs;
     use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
     use crate::sample_sources::Rating;
     use rusqlite::params;
     use std::path::Path;
+    use wavecrate_analysis::vector::encode_f32_le_blob;
 
     fn normalize_embedding(values: &mut [f32]) {
         let norm = values.iter().map(|value| value * value).sum::<f32>().sqrt();
@@ -172,14 +172,17 @@ mod tests {
             .expect("open source db");
         let sample_id =
             analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
-        let mut embedding = vec![0.0_f32; crate::analysis::similarity::SIMILARITY_DIM];
+        let mut embedding = vec![0.0_f32; wavecrate_analysis::similarity::SIMILARITY_DIM];
         embedding[0] = x;
         embedding[1] = y;
         normalize_embedding(&mut embedding);
         let blob = encode_f32_le_blob(&embedding);
         conn.execute(
             "DELETE FROM embeddings WHERE sample_id = ?1 AND model_id = ?2",
-            params![sample_id, crate::analysis::similarity::SIMILARITY_MODEL_ID],
+            params![
+                sample_id,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID
+            ],
         )
         .expect("clear embedding");
         conn.execute(
@@ -187,13 +190,13 @@ mod tests {
              VALUES (?1, ?2, ?3, 'f32', 1, ?4, 0)",
             params![
                 sample_id,
-                crate::analysis::similarity::SIMILARITY_MODEL_ID,
-                crate::analysis::similarity::SIMILARITY_DIM as i64,
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
                 blob,
             ],
         )
         .expect("insert embedding");
-        crate::analysis::rebuild_ann_index(&conn).expect("rebuild ann index");
+        wavecrate_analysis::rebuild_ann_index(&conn).expect("rebuild ann index");
     }
 
     fn set_fast_similarity_metadata(
@@ -204,8 +207,7 @@ mod tests {
         let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
         let sample_id =
             analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
-        let fast_version =
-            crate::analysis::version::analysis_version_for_sample_rate(fast_sample_rate);
+        let fast_version = wavecrate_analysis::analysis_version_for_sample_rate(fast_sample_rate);
         conn.execute(
             "UPDATE samples
              SET content_hash = 'fast-prep-hash',
