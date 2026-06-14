@@ -1,12 +1,19 @@
 use crate::native_app::app::NativeAppState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TaggedPlaybackMode {
+pub(in crate::native_app) enum TaggedPlaybackMode {
     OneShot,
     Loop,
 }
 
 impl TaggedPlaybackMode {
+    pub(in crate::native_app) fn label(self) -> &'static str {
+        match self {
+            Self::OneShot => "One-shot",
+            Self::Loop => "Loop",
+        }
+    }
+
     fn loop_playback(self) -> bool {
         matches!(self, Self::Loop)
     }
@@ -92,7 +99,9 @@ impl NativeAppState {
     }
 }
 
-fn tagged_playback_mode_for_tags(tags: Option<&[String]>) -> Option<TaggedPlaybackMode> {
+pub(in crate::native_app) fn tagged_playback_mode_for_tags(
+    tags: Option<&[String]>,
+) -> Option<TaggedPlaybackMode> {
     tags?
         .iter()
         .find_map(|tag| match normalized_playback_tag(tag).as_str() {

@@ -102,6 +102,10 @@ fn typed_file_column_kinds_map_to_sort_behavior() {
         (FileColumnKind::Kind, vec!["alpha", "charlie", "bravo"]),
         (FileColumnKind::Rating, vec!["charlie", "alpha", "bravo"]),
         (
+            FileColumnKind::PlaybackType,
+            vec!["alpha", "bravo", "charlie"],
+        ),
+        (
             FileColumnKind::Collection,
             vec!["alpha", "charlie", "bravo"],
         ),

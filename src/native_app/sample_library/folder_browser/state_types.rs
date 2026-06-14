@@ -81,6 +81,7 @@ impl FileColumn {
 pub(in crate::native_app) enum FileColumnKind {
     Name,
     Rating,
+    PlaybackType,
     Collection,
     Extension,
     Size,
@@ -91,9 +92,10 @@ pub(in crate::native_app) enum FileColumnKind {
 }
 
 impl FileColumnKind {
-    pub(super) const DEFAULT_VISIBLE: [Self; 6] = [
+    pub(super) const DEFAULT_VISIBLE: [Self; 7] = [
         Self::Name,
         Self::Rating,
+        Self::PlaybackType,
         Self::Collection,
         Self::Extension,
         Self::Size,
@@ -104,6 +106,7 @@ impl FileColumnKind {
         match id {
             "name" => Some(Self::Name),
             "rating" => Some(Self::Rating),
+            "playback_type" => Some(Self::PlaybackType),
             "collection" => Some(Self::Collection),
             "extension" => Some(Self::Extension),
             "size" => Some(Self::Size),
@@ -119,6 +122,7 @@ impl FileColumnKind {
         match self {
             Self::Name => "name",
             Self::Rating => "rating",
+            Self::PlaybackType => "playback_type",
             Self::Collection => "collection",
             Self::Extension => "extension",
             Self::Size => "size",
@@ -133,6 +137,7 @@ impl FileColumnKind {
         match self {
             Self::Name => "Name",
             Self::Rating => "Rating",
+            Self::PlaybackType => "Type",
             Self::Collection => "Col",
             Self::Extension => "Ext",
             Self::Size => "Size",
@@ -147,6 +152,7 @@ impl FileColumnKind {
         match self {
             Self::Name => 240.0,
             Self::Rating => 68.0,
+            Self::PlaybackType => 76.0,
             Self::Collection => 58.0,
             Self::Extension => 54.0,
             Self::Size => 78.0,

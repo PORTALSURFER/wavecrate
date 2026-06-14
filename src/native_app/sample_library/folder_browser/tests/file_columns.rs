@@ -223,6 +223,7 @@ fn sample_file_column_drag_reorders_columns() {
         vec![
             "name",
             "rating",
+            "playback_type",
             "collection",
             "extension",
             "size",
@@ -235,7 +236,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 536.0);
+    assert_eq!(feedback.marker_x, 534.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -251,10 +252,11 @@ fn sample_file_column_drag_reorders_columns() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "playback_type",
             "collection",
             "extension",
-            "size",
             "rating",
+            "size",
             "modified"
         ]
     );
@@ -285,6 +287,7 @@ fn sample_file_column_drag_cancel_clears_feedback_without_reorder() {
         vec![
             "name",
             "rating",
+            "playback_type",
             "collection",
             "extension",
             "size",

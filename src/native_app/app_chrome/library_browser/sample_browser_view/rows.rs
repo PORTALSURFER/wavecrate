@@ -129,6 +129,9 @@ fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
         SampleColumnContent::Rating(indicator) => {
             sample_rating_cell(indicator, column.width, column.file_id)
         }
+        SampleColumnContent::PlaybackType(label) => {
+            sample_playback_type_cell(label, column.width, column.file_id)
+        }
         SampleColumnContent::Collection(colors) => {
             sample_collection_cell(colors, column.width, column.file_id)
         }
@@ -151,6 +154,24 @@ fn similarity_anchor_toggle(
         ))
         .key(format!("sample-similarity-anchor-{file_id}"))
         .size(SIMILARITY_TOGGLE_WIDTH, SIMILARITY_TOGGLE_SIZE)
+}
+
+fn sample_playback_type_cell(
+    label: Option<&'static str>,
+    width: f32,
+    file_id: &str,
+) -> ui::View<GuiMessage> {
+    let text = label.unwrap_or("-");
+    let text = ui::text(text)
+        .key(format!("sample-playback-type-{file_id}"))
+        .height(18.0)
+        .fill_width();
+    let text = if label.is_some() {
+        text
+    } else {
+        text.muted_text()
+    };
+    ui::compact_details_cell(text, Some(width))
 }
 
 fn sample_rename_cell(rename: FileRenameView, width: f32, file_id: &str) -> ui::View<GuiMessage> {

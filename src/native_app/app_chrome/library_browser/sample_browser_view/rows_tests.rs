@@ -167,6 +167,37 @@ fn collection_cell_paints_each_collection_membership_color() {
 }
 
 #[test]
+/// Verifies playback-type cells paint compact type labels.
+fn playback_type_cell_paints_loop_label() {
+    let theme = ThemeTokens::default();
+    let file = file_entry();
+    let frame = sample_playback_type_cell(Some("Loop"), 76.0, file.id.as_str())
+        .view_frame_at_size(Vector2::new(76.0, 20.0), &theme);
+
+    assert!(
+        frame.paint_plan.text_runs().any(|run| run.text == "Loop"),
+        "loop playback type should paint a compact Loop label"
+    );
+}
+
+#[test]
+/// Verifies unknown playback type stays visually quiet.
+fn missing_playback_type_cell_paints_muted_dash() {
+    let theme = ThemeTokens::default();
+    let file = file_entry();
+    let frame = sample_playback_type_cell(None, 76.0, file.id.as_str())
+        .view_frame_at_size(Vector2::new(76.0, 20.0), &theme);
+
+    assert!(
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text == "-" && run.color == theme.text_muted),
+        "unknown playback type should paint a muted dash"
+    );
+}
+
+#[test]
 /// Verifies similarity scores render as compact progress bars.
 fn similarity_score_cell_paints_progress_fill() {
     let theme = ThemeTokens::default();

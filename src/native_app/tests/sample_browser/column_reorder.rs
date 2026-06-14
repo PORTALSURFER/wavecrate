@@ -91,6 +91,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
         vec![
             "name",
             "rating",
+            "playback_type",
             "collection",
             "extension",
             "size",
@@ -134,10 +135,11 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "playback_type",
             "collection",
             "extension",
-            "size",
             "rating",
+            "size",
             "modified"
         ]
     );
@@ -164,27 +166,27 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
         crate::native_app::ui::ids::SAMPLE_HEADER_SORT_DRAG_ID,
         "rating",
     );
-    let modified_header_id = radiant::widgets::stable_widget_id(
+    let size_header_id = radiant::widgets::stable_widget_id(
         crate::native_app::ui::ids::SAMPLE_HEADER_SORT_DRAG_ID,
-        "modified",
+        "size",
     );
     let rating_rect = *runtime
         .layout()
         .rects
         .get(&rating_header_id)
         .expect("rating column header hit target should be laid out");
-    let modified_rect = *runtime
+    let size_rect = *runtime
         .layout()
         .rects
-        .get(&modified_header_id)
-        .expect("modified column header hit target should be laid out");
+        .get(&size_header_id)
+        .expect("size column header hit target should be laid out");
     let press = rating_rect.center();
-    let hover_modified_left = Point::new(modified_rect.min.x + 2.0, press.y);
-    let hover_modified_left_update = Point::new(hover_modified_left.x + 1.0, hover_modified_left.y);
+    let hover_size_left = Point::new(size_rect.min.x + 12.0, press.y);
+    let hover_size_left_update = Point::new(hover_size_left.x + 1.0, hover_size_left.y);
 
     runtime.dispatch_event(Event::primary_press(press));
-    runtime.dispatch_event(Event::pointer_move(hover_modified_left));
-    runtime.dispatch_event(Event::pointer_move(hover_modified_left_update));
+    runtime.dispatch_event(Event::pointer_move(hover_size_left));
+    runtime.dispatch_event(Event::pointer_move(hover_size_left_update));
     let dragging_frame = runtime.frame_with_default_theme();
     let marker = dragging_frame
         .paint_plan
@@ -194,11 +196,11 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
                 && fill.rect.width() <= 2.5
                 && fill.rect.height() >= 20.0
         })
-        .expect("dragging over a later header should paint the drop marker");
-    let handle_gap = marker.rect.min.x - modified_rect.min.x;
+        .expect("dragging over a later visible header should paint the drop marker");
+    let handle_gap = marker.rect.min.x - size_rect.min.x;
     assert!(
         (-42.0..=2.0).contains(&handle_gap),
-        "drop marker should paint near the modified header's leading resize handle, marker={:?}, modified={modified_rect:?}, gap={handle_gap}",
+        "drop marker should paint near the size header's leading resize handle, marker={:?}, size={size_rect:?}, gap={handle_gap}",
         marker.rect
     );
 }

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use super::SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH;
 use super::row_widgets::RatingIndicator;
 use crate::native_app::app::SampleNameViewMode;
+use crate::native_app::audio::playback::tagged_playback_mode_for_tags;
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::model::{
     FileColumn, FileColumnKind, FileEntry,
@@ -34,6 +35,7 @@ pub(super) enum SampleColumnContent {
     Text { value: String, cached: bool },
     Rename(FileRenameView),
     Rating(RatingIndicator),
+    PlaybackType(Option<&'static str>),
     Collection(Vec<ui::Rgba8>),
     Similarity(Option<f32>),
 }
@@ -120,6 +122,10 @@ fn sample_column_display<'a>(
         FileColumnKind::Rating => {
             SampleColumnContent::Rating(RatingIndicator::new(file.rating, file.rating_locked))
         }
+        FileColumnKind::PlaybackType => SampleColumnContent::PlaybackType(
+            tagged_playback_mode_for_tags(metadata_tags_by_file.get(&file.id).map(Vec::as_slice))
+                .map(|mode| mode.label()),
+        ),
         FileColumnKind::Collection => {
             SampleColumnContent::Collection(row.collection_colors.clone())
         }
@@ -178,9 +184,10 @@ fn sample_file_column_value(file: &FileEntry, kind: FileColumnKind) -> String {
             .collect::<Vec<_>>()
             .join(","),
         FileColumnKind::Path => file.id.clone(),
-        FileColumnKind::Name | FileColumnKind::Rating | FileColumnKind::Similarity => {
-            file.stem.clone()
-        }
+        FileColumnKind::Name
+        | FileColumnKind::Rating
+        | FileColumnKind::PlaybackType
+        | FileColumnKind::Similarity => file.stem.clone(),
     }
 }
 
@@ -284,6 +291,70 @@ mod tests {
             display.content,
             SampleColumnContent::Collection(colors)
                 if colors == vec![ui::Rgba8::new(1, 2, 3, 255), ui::Rgba8::new(4, 5, 6, 255)]
+        ));
+    }
+
+    #[test]
+    fn sample_playback_type_projection_uses_metadata_tags() {
+        let file = file_entry();
+        let row = VisibleSampleRow {
+            file: &file,
+            selected: false,
+            drag_revision: 0,
+            drag_active: false,
+            drag_source: false,
+            cached: false,
+            rename: None,
+            similarity_anchor: false,
+            similarity_strength: None,
+            collection_colors: Vec::new(),
+        };
+        let column = FileColumn::for_tests("playback_type", "Type", 76.0);
+        let metadata_tags_by_file =
+            HashMap::from([(file.id.clone(), vec![String::from("one-shot")])]);
+
+        let display = sample_column_display(
+            &file,
+            &row,
+            &column,
+            SampleNameViewMode::DiskFilename,
+            &metadata_tags_by_file,
+        );
+
+        assert!(matches!(
+            display.content,
+            SampleColumnContent::PlaybackType(Some("One-shot"))
+        ));
+    }
+
+    #[test]
+    fn sample_playback_type_projection_handles_unknown_tags() {
+        let file = file_entry();
+        let row = VisibleSampleRow {
+            file: &file,
+            selected: false,
+            drag_revision: 0,
+            drag_active: false,
+            drag_source: false,
+            cached: false,
+            rename: None,
+            similarity_anchor: false,
+            similarity_strength: None,
+            collection_colors: Vec::new(),
+        };
+        let column = FileColumn::for_tests("playback_type", "Type", 76.0);
+
+        let display = sample_column_display(
+            &file,
+            &row,
+            &column,
+            SampleNameViewMode::DiskFilename,
+            &HashMap::new(),
+        );
+
+        assert!(matches!(
+            display.content,
+            SampleColumnContent::PlaybackType(None)
         ));
     }
 }

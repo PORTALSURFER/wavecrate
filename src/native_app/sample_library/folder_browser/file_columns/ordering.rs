@@ -74,6 +74,9 @@ pub(in crate::native_app) fn sort_file_indices_by_column_kind(
             let file = &folder.files[*index];
             (file.rating.val(), file.name_sort_key())
         }),
+        FileColumnKind::PlaybackType => {
+            indices.sort_by_cached_key(|index| folder.files[*index].name_sort_key());
+        }
         FileColumnKind::Collection => indices.sort_by_cached_key(|index| {
             let file = &folder.files[*index];
             (
@@ -113,6 +116,7 @@ fn sort_file_refs_by_column_kind(kind: FileColumnKind, files: &mut [&FileEntry])
         FileColumnKind::Rating => {
             files.sort_by_cached_key(|file| (file.rating.val(), file.name_sort_key()))
         }
+        FileColumnKind::PlaybackType => files.sort_by_cached_key(|file| file.name_sort_key()),
         FileColumnKind::Collection => files.sort_by_cached_key(|file| {
             (
                 file.first_collection().map(|collection| collection.index()),
