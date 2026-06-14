@@ -44,10 +44,12 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             GuiMessage::CreateFolderAtContextTarget,
         ));
     }
-    if matches!(
-        menu.kind,
-        BrowserContextTargetKind::Folder | BrowserContextTargetKind::Sample
-    ) {
+    if menu.kind == BrowserContextTargetKind::Folder {
+        actions.push(
+            ui::MenuCommand::new("Delete Folder", GuiMessage::RequestDeleteContextFolder).danger(),
+        );
+    }
+    if menu.kind == BrowserContextTargetKind::Sample {
         actions.push(
             ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash).danger(),
         );

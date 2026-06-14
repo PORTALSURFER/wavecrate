@@ -86,6 +86,9 @@ impl NativeAppState {
             | GuiMessage::CreateFolderAtContextTarget
             | GuiMessage::ContextFolderCreateFinished { .. }
             | GuiMessage::MoveContextTargetToTrash
+            | GuiMessage::RequestDeleteContextFolder
+            | GuiMessage::ConfirmContextFolderDelete
+            | GuiMessage::CancelContextFolderDelete
             | GuiMessage::TrashMoveFinished { .. }
             | GuiMessage::ContextTargetOpenFinished { .. }
             | GuiMessage::RefreshContextSource

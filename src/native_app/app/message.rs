@@ -138,6 +138,9 @@ pub(in crate::native_app) enum GuiMessage {
         result: Result<PathBuf, String>,
     },
     MoveContextTargetToTrash,
+    RequestDeleteContextFolder,
+    ConfirmContextFolderDelete,
+    CancelContextFolderDelete,
     TrashMoveFinished {
         target: TrashMoveTarget,
         action: &'static str,

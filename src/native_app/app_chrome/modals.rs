@@ -139,6 +139,58 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
     .key("file-move-conflict-modal")
 }
 
+pub(in crate::native_app) fn folder_delete_confirmation(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
+    let target = state
+        .ui
+        .browser_interaction
+        .pending_folder_delete
+        .as_ref()
+        .expect("folder delete modal requires pending folder delete state");
+    let content = ui::column([
+        ui::text_line(target.name.clone(), 24.0).fill_width(),
+        ui::text_line("Move folder contents to the configured trash folder?", 20.0).fill_width(),
+        ui::text_line(
+            "The folder tree will update after the move completes.",
+            20.0,
+        )
+        .fill_width(),
+        ui::row([
+            ui::button("Delete Folder")
+                .danger()
+                .message(GuiMessage::ConfirmContextFolderDelete)
+                .width(112.0)
+                .height(24.0),
+            ui::button("Cancel")
+                .message(GuiMessage::CancelContextFolderDelete)
+                .width(72.0)
+                .height(24.0),
+        ])
+        .spacing(6.0)
+        .fill_width()
+        .height(26.0),
+    ])
+    .spacing(6.0)
+    .fill_width()
+    .fill_height();
+
+    ui::closeable_panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Delete Folder", content)
+                .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
+                .padding(8.0)
+                .spacing(6.0)
+                .title_height(24.0),
+            ui::Vector2::new(440.0, 190.0),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::Center)
+        .vertical(ui::LayerVerticalAnchor::Center),
+        GuiMessage::CancelContextFolderDelete,
+    )
+    .key("folder-delete-confirmation-modal")
+}
+
 fn transaction_list_summary(state: &NativeAppState) -> ui::View<GuiMessage> {
     let undo = if state.transactions.history.can_undo() {
         "undo ready"

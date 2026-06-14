@@ -62,6 +62,9 @@ impl NativeAppState {
                 result,
             } => self.finish_context_folder_create(parent_id, started_at, result, context),
             GuiMessage::MoveContextTargetToTrash => self.move_context_target_to_trash(context),
+            GuiMessage::RequestDeleteContextFolder => self.request_delete_context_folder(),
+            GuiMessage::ConfirmContextFolderDelete => self.confirm_context_folder_delete(context),
+            GuiMessage::CancelContextFolderDelete => self.cancel_context_folder_delete(),
             GuiMessage::TrashMoveFinished {
                 target,
                 action,

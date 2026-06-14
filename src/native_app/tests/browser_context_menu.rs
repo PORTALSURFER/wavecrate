@@ -97,6 +97,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
     assert!(frame.paint_plan.contains_text("New Folder"));
+    assert!(!frame.paint_plan.contains_text("Delete Folder"));
     assert!(frame.paint_plan.contains_text("Remove Source"));
 }
 
@@ -117,6 +118,7 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
     assert!(frame.paint_plan.contains_text("New Folder"));
+    assert!(!frame.paint_plan.contains_text("Delete Folder"));
     assert!(!frame.paint_plan.contains_text("Remove Source"));
 }
 
@@ -136,6 +138,7 @@ fn folder_context_menu_paints_new_folder_action() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("New Folder"));
+    assert!(frame.paint_plan.contains_text("Delete Folder"));
 }
 
 #[test]
@@ -155,6 +158,8 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
 
     assert!(frame.paint_plan.contains_text("Remove from collection"));
     assert!(!frame.paint_plan.contains_text("New Folder"));
+    assert!(!frame.paint_plan.contains_text("Delete Folder"));
+    assert!(frame.paint_plan.contains_text("Move to Trash"));
 }
 
 #[test]

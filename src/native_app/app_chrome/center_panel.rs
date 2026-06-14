@@ -79,6 +79,7 @@ fn active_center_panel_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessa
             browser_context_menu_overlay(state),
             GuiMessage::CloseContextMenu,
         )
+        .blocking_modal_opt(folder_delete_confirmation_overlay(state))
         .blocking_modal_opt(file_move_conflict_overlay(state))
 }
 
@@ -98,4 +99,13 @@ fn file_move_conflict_overlay(state: &NativeAppState) -> Option<ui::View<GuiMess
         .pending_file_move_conflict_view()
         .is_some()
         .then(|| modals::file_move_conflict(state))
+}
+
+fn folder_delete_confirmation_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    state
+        .ui
+        .browser_interaction
+        .pending_folder_delete
+        .is_some()
+        .then(|| modals::folder_delete_confirmation(state))
 }

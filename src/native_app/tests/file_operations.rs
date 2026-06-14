@@ -259,6 +259,130 @@ fn context_new_folder_missing_parent_reports_error_without_tree_corruption() {
 }
 
 #[test]
+fn context_delete_folder_requests_confirmation() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("drums");
+    fs::create_dir_all(&folder).expect("create drums folder");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state.open_folder_context_menu(folder.display().to_string(), Point::new(40.0, 120.0));
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::RequestDeleteContextFolder, &mut context);
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_folder_delete
+        .as_ref()
+        .expect("folder delete should wait for confirmation");
+    assert_eq!(pending.path, folder);
+    assert!(state.ui.browser_interaction.context_menu.is_none());
+
+    let frame = view(&mut state).view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    assert!(frame.paint_plan.contains_text("Delete Folder"));
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Move folder contents to the configured trash folder?")
+    );
+    assert!(folder.is_dir());
+}
+
+#[test]
+fn context_delete_folder_confirmation_moves_folder_to_trash() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let trash_root = tempfile::tempdir().expect("trash root");
+    let folder = source_root.path().join("drums");
+    let sibling = source_root.path().join("loops");
+    fs::create_dir_all(folder.join("nested")).expect("create nested folder");
+    fs::create_dir_all(&sibling).expect("create sibling folder");
+    fs::write(folder.join("nested").join("kick.wav"), []).expect("write nested sample");
+    fs::write(sibling.join("loop.wav"), []).expect("write sibling sample");
+    state.ui.settings.persisted.trash_folder = Some(trash_root.path().to_path_buf());
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let folder_id = folder.display().to_string();
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(folder_id.clone()));
+    state.open_folder_context_menu(folder_id.clone(), Point::new(40.0, 120.0));
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::RequestDeleteContextFolder, &mut context);
+    state.apply_message(GuiMessage::ConfirmContextFolderDelete, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(!folder.exists());
+    assert!(
+        trash_root
+            .path()
+            .join("drums")
+            .join("nested")
+            .join("kick.wav")
+            .exists()
+    );
+    assert!(sibling.exists());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .visible_folders()
+            .into_iter()
+            .all(|visible| visible.id != folder_id)
+    );
+    let source_root_id = source_root.path().display().to_string();
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(source_root_id.as_str())
+    );
+    assert!(state.ui.status.sample.contains("Moved drums to trash"));
+}
+
+#[test]
+fn context_delete_folder_missing_target_reconciles_tree_without_trash_move() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("drums");
+    fs::create_dir_all(&folder).expect("create drums folder");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let folder_id = folder.display().to_string();
+    state.open_folder_context_menu(folder_id.clone(), Point::new(40.0, 120.0));
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::RequestDeleteContextFolder, &mut context);
+    fs::remove_dir_all(&folder).expect("remove folder before confirmation");
+    state.apply_message(GuiMessage::ConfirmContextFolderDelete, &mut context);
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .visible_folders()
+            .into_iter()
+            .all(|visible| visible.id != folder_id)
+    );
+    assert!(state.ui.status.sample.contains("no longer exists"));
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("removed it from the browser")
+    );
+}
+
+#[test]
 fn delete_selected_file_moves_it_to_configured_trash_folder() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");

@@ -2,7 +2,8 @@ use std::{path::PathBuf, time::Instant};
 
 use super::movement::{move_path_to_configured_trash, move_paths_to_configured_trash};
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, TrashMoveTarget, emit_gui_action, sample_path_label,
+    GuiMessage, NativeAppState, PendingFolderDelete, TrashMoveTarget, emit_gui_action,
+    sample_path_label,
 };
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 
@@ -44,6 +45,78 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    pub(in crate::native_app) fn request_delete_context_folder(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Folder {
+            self.ui.status.sample = String::from("Choose a folder to delete");
+            emit_gui_action(
+                "browser.context_menu.folder.delete",
+                Some("folder_browser"),
+                None,
+                "blocked",
+                started_at,
+                Some("unsupported target"),
+            );
+            return;
+        }
+        let name = sample_path_label(&menu.path);
+        self.ui.browser_interaction.pending_folder_delete = Some(PendingFolderDelete {
+            path: menu.path,
+            name: name.clone(),
+        });
+        self.ui.status.sample = format!("Confirm delete folder {name}");
+        emit_gui_action(
+            "browser.context_menu.folder.delete",
+            Some("folder_browser"),
+            Some(name.as_str()),
+            "confirming",
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn confirm_context_folder_delete(
+        &mut self,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let Some(target) = self.ui.browser_interaction.pending_folder_delete.take() else {
+            return;
+        };
+        if !target.path.exists() {
+            self.library
+                .folder_browser
+                .discard_trashed_folder_path(&target.path);
+            self.ui.status.sample = format!(
+                "Folder {} no longer exists; removed it from the browser",
+                target.name
+            );
+            emit_gui_action(
+                "browser.context_menu.folder.delete",
+                Some("folder_browser"),
+                Some(target.name.as_str()),
+                "reconciled",
+                started_at,
+                Some("folder missing"),
+            );
+            return;
+        }
+        self.move_folder_path_to_trash(
+            target.path,
+            "browser.context_menu.folder.delete",
+            started_at,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn cancel_context_folder_delete(&mut self) {
+        self.ui.browser_interaction.pending_folder_delete = None;
+        self.ui.status.sample = String::from("Folder delete canceled");
     }
 
     pub(in crate::native_app) fn move_selected_folder_to_trash(
@@ -120,7 +193,7 @@ impl NativeAppState {
                 self.finish_file_trash_move(paths, moved.len(), action, started_at);
             }
             (TrashMoveTarget::Folder(path), Err(error)) => {
-                self.finish_trash_move_error(Some(path), action, started_at, error);
+                self.finish_folder_trash_move_error(path, action, started_at, error);
             }
             (TrashMoveTarget::Files(_), Err(error)) => {
                 self.finish_trash_move_error(None, action, started_at, error);
@@ -173,6 +246,34 @@ impl NativeAppState {
             started_at,
             None,
         );
+    }
+
+    fn finish_folder_trash_move_error(
+        &mut self,
+        path: PathBuf,
+        action: &'static str,
+        started_at: Instant,
+        error: String,
+    ) {
+        if !path.exists() {
+            self.library
+                .folder_browser
+                .discard_trashed_folder_path(&path);
+            self.clear_loaded_sample_if_path_within(&path);
+            let label = sample_path_label(&path);
+            self.ui.status.sample =
+                format!("Folder {label} no longer exists; removed it from the browser");
+            emit_gui_action(
+                action,
+                Some("folder_browser"),
+                Some(label.as_str()),
+                "reconciled",
+                started_at,
+                Some("folder missing"),
+            );
+            return;
+        }
+        self.finish_trash_move_error(Some(path), action, started_at, error);
     }
 
     fn finish_trash_move_error(
