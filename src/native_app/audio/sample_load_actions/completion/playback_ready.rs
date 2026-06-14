@@ -32,6 +32,8 @@ impl NativeAppState {
         if !ready.autoplay {
             return;
         }
+        self.prepare_playback_mode_for_path(ready.path.as_str());
+        let loop_playback = self.audio.loop_playback;
         let Some(player) = self.audio.player.as_mut() else {
             emit_gui_action(
                 "browser.sample_load.playback_ready",
@@ -66,7 +68,12 @@ impl NativeAppState {
             set_audio_started_at,
         );
         let play_started_at = Instant::now();
-        match player.play_range(0.0, 1.0, false) {
+        let play_result = if loop_playback {
+            player.play_looped_range_from(0.0, 1.0, 0.0)
+        } else {
+            player.play_range(0.0, 1.0, false)
+        };
+        match play_result {
             Ok(()) => {
                 self.audio.early_sample_playback_path = Some(ready.path);
                 self.audio.current_playback_span = Some((0.0, 1.0));

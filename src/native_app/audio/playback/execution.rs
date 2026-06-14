@@ -36,6 +36,7 @@ impl NativeAppState {
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
+        self.prepare_playback_mode_for_loaded_sample();
         if self.audio.player.is_none() {
             self.audio.pending_playback_start = Some(intent);
             if self.background.audio_open.active().is_none() {

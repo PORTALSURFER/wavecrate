@@ -69,6 +69,32 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
 }
 
 #[test]
+fn random_audition_uses_loop_mode_for_loop_tagged_sample() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    let file_id = scenario.state.waveform.current.path().display().to_string();
+    scenario
+        .state
+        .metadata
+        .tags_by_file
+        .insert(file_id, vec![String::from("loop")]);
+    scenario.state.audio.loop_playback = false;
+
+    scenario.play_random_range(0.5);
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(
+        scenario
+            .state
+            .audio
+            .player
+            .as_ref()
+            .is_some_and(|player| player.is_looping())
+    );
+}
+
+#[test]
 fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
     let mut scenario = WaveformPlaybackScenario::with_temp_wav(
         "random-load.wav",

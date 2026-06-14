@@ -7,7 +7,9 @@ use wavecrate::audio::AudioPlayer;
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {
         let started_at = Instant::now();
+        let previous_override = self.audio.loop_playback_manual_override_path.clone();
         self.audio.loop_playback = !self.audio.loop_playback;
+        self.mark_loop_playback_manual_override_for_loaded_sample();
         let mut outcome = "success";
         let mut error = None;
         if self.waveform.current.is_playing()
@@ -21,6 +23,7 @@ impl NativeAppState {
             };
             if let Err(err) = result {
                 self.audio.loop_playback = false;
+                self.audio.loop_playback_manual_override_path = previous_override;
                 self.ui.status.sample = format!("Loop toggle failed: {err}");
                 outcome = "error";
                 error = Some(err);

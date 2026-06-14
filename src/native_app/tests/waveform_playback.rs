@@ -7,6 +7,7 @@ mod normalization;
 mod persisted_cache;
 mod random_audition;
 mod sample_loading;
+mod tagged_playback;
 
 use fixture::WaveformPlaybackScenario;
 

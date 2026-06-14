@@ -10,6 +10,7 @@ use crate::native_app::{app::PendingSamplePlayback, audio::playback::PlaybackInt
 pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) player: Option<AudioPlayer>,
     pub(in crate::native_app) loop_playback: bool,
+    pub(in crate::native_app) loop_playback_manual_override_path: Option<String>,
     pub(in crate::native_app) volume: f32,
     pub(in crate::native_app) volume_persist_deadline: Option<Instant>,
     pub(in crate::native_app) output_config: AudioOutputConfig,
@@ -29,6 +30,7 @@ impl AudioAppState {
         Self {
             player: None,
             loop_playback: false,
+            loop_playback_manual_override_path: None,
             volume: settings.volume.clamp(0.0, 1.0),
             volume_persist_deadline: None,
             output_config: settings.audio_output.clone(),

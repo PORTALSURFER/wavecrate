@@ -139,8 +139,7 @@ impl NativeAppState {
         match playback {
             PendingSamplePlayback::RandomAudition { unit } => {
                 let span = self.random_audition_span_for_loaded_waveform(unit);
-                let was_looping = self.audio.loop_playback;
-                self.audio.loop_playback = false;
+                self.prepare_random_audition_mode_for_loaded_sample();
                 match self.start_playback_current_span(span.start, span.end) {
                     Ok(()) => {
                         self.record_selected_sample_last_played(context);
@@ -155,9 +154,6 @@ impl NativeAppState {
                         );
                     }
                     Err(err) => {
-                        if self.audio.pending_playback_start.is_none() {
-                            self.audio.loop_playback = was_looping;
-                        }
                         self.ui.status.sample = format!("Playback unavailable: {err}");
                         emit_gui_action(
                             "playback.play_random_sample_range",

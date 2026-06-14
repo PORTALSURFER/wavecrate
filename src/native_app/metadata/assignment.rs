@@ -47,6 +47,9 @@ impl NativeAppState {
             .tags_by_file
             .insert(file_id.clone(), file_tags);
         self.retain_visible_file_selection_after_metadata_tag_change();
+        if !added.is_empty() {
+            self.reconcile_playback_mode_after_metadata_tag_change(file_id.as_str());
+        }
         match added.as_slice() {
             [] => {}
             [tag] => self.ui.status.sample = format!("Added tag {tag}"),
@@ -131,6 +134,7 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.retain_visible_file_selection_after_metadata_tag_change();
+        self.reconcile_playback_mode_after_metadata_tag_change(file_id.as_str());
         self.ui.status.sample = format!("Removed tag {tag}");
         let request = MetadataTagPersistRequest {
             absolute_path,
