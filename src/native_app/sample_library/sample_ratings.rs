@@ -21,6 +21,12 @@ struct RatingUpdate {
     locked: bool,
 }
 
+#[derive(Debug, Default)]
+struct RatingAdjustmentPlan {
+    updates: Vec<RatingUpdate>,
+    auto_trash_paths: Vec<PathBuf>,
+}
+
 impl NativeAppState {
     pub(in crate::native_app) fn adjust_selected_rating(
         &mut self,
@@ -28,8 +34,8 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let updates = self.rating_updates_for_selected_files(delta);
-        if updates.is_empty() {
+        let plan = self.rating_adjustment_plan_for_selected_files(delta);
+        if plan.is_empty() {
             self.ui.status.sample = String::from("Select a sample to rate");
             emit_gui_action(
                 "browser.rating.adjust",
@@ -42,7 +48,8 @@ impl NativeAppState {
             return;
         }
 
-        let applied = match self.apply_rating_update_states(&updates, RatingUpdateMode::After) {
+        let applied = match self.apply_rating_update_states(&plan.updates, RatingUpdateMode::After)
+        {
             Ok(applied) => applied,
             Err(error) => {
                 self.ui.status.sample = format!("Rating failed: {error}");
@@ -58,10 +65,12 @@ impl NativeAppState {
             }
         };
 
-        self.ui.status.sample = format!(
-            "Rated {applied} sample{}",
-            if applied == 1 { "" } else { "s" }
-        );
+        if applied > 0 {
+            self.ui.status.sample = format!(
+                "Rated {applied} sample{}",
+                if applied == 1 { "" } else { "s" }
+            );
+        }
         emit_gui_action(
             "browser.rating.adjust",
             Some("browser"),
@@ -72,7 +81,12 @@ impl NativeAppState {
         );
 
         if applied > 0 {
-            self.register_rating_transaction(delta, updates);
+            self.register_rating_transaction(delta, plan.updates);
+        }
+
+        if !plan.auto_trash_paths.is_empty() {
+            self.move_negative_threshold_files_to_trash(plan.auto_trash_paths, started_at, context);
+            return;
         }
 
         if applied > 0 && self.ui.settings.persisted.controls.advance_after_rating {
@@ -80,32 +94,43 @@ impl NativeAppState {
         }
     }
 
-    fn rating_updates_for_selected_files(&self, delta: i8) -> Vec<RatingUpdate> {
+    fn rating_adjustment_plan_for_selected_files(&self, delta: i8) -> RatingAdjustmentPlan {
         if delta == 0 {
-            return Vec::new();
+            return RatingAdjustmentPlan::default();
         }
-        self.library
+        let mut plan = RatingAdjustmentPlan::default();
+        for candidate in self
+            .library
             .folder_browser
             .selected_file_rating_candidates()
             .into_iter()
             .filter(|candidate| !candidate.locked)
-            .filter_map(|candidate| {
-                let (root, relative_path) = self
-                    .library
-                    .folder_browser
-                    .source_relative_file_path(&candidate.path)?;
-                let (rating, locked) = next_rating_state(candidate.rating, delta)?;
-                Some(RatingUpdate {
-                    root,
-                    relative_path,
-                    absolute_path: candidate.path,
-                    previous_rating: candidate.rating,
-                    previous_locked: candidate.locked,
-                    rating,
-                    locked,
-                })
-            })
-            .collect()
+        {
+            if should_auto_trash_on_rating(candidate.rating, delta) {
+                plan.auto_trash_paths.push(candidate.path);
+                continue;
+            }
+            let Some((root, relative_path)) = self
+                .library
+                .folder_browser
+                .source_relative_file_path(&candidate.path)
+            else {
+                continue;
+            };
+            let Some((rating, locked)) = next_rating_state(candidate.rating, delta) else {
+                continue;
+            };
+            plan.updates.push(RatingUpdate {
+                root,
+                relative_path,
+                absolute_path: candidate.path,
+                previous_rating: candidate.rating,
+                previous_locked: candidate.locked,
+                rating,
+                locked,
+            });
+        }
+        plan
     }
 
     fn register_rating_transaction(&mut self, delta: i8, updates: Vec<RatingUpdate>) {
@@ -199,6 +224,16 @@ fn next_rating_state(current: Rating, delta: i8) -> Option<(Rating, bool)> {
     (rating != current).then_some((rating, false))
 }
 
+fn should_auto_trash_on_rating(current: Rating, delta: i8) -> bool {
+    current == Rating::TRASH_3 && delta < 0
+}
+
+impl RatingAdjustmentPlan {
+    fn is_empty(&self) -> bool {
+        self.updates.is_empty() && self.auto_trash_paths.is_empty()
+    }
+}
+
 fn group_updates_by_source(updates: Vec<RatingUpdate>) -> BTreeMap<PathBuf, Vec<RatingUpdate>> {
     let mut by_source: BTreeMap<PathBuf, Vec<RatingUpdate>> = BTreeMap::new();
     for update in updates {
@@ -271,5 +306,12 @@ mod tests {
     #[test]
     fn next_rating_stops_at_trash_three_without_trash_move() {
         assert_eq!(next_rating_state(Rating::TRASH_3, -1), None);
+    }
+
+    #[test]
+    fn fourth_negative_rating_triggers_auto_trash_threshold() {
+        assert!(should_auto_trash_on_rating(Rating::TRASH_3, -1));
+        assert!(!should_auto_trash_on_rating(Rating::new(-2), -1));
+        assert!(!should_auto_trash_on_rating(Rating::TRASH_3, 1));
     }
 }

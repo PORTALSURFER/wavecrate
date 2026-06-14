@@ -64,6 +64,20 @@ impl NativeAppState {
         self.move_file_paths_to_trash(paths, "browser.delete_selected_files", started_at, context);
     }
 
+    pub(in crate::native_app) fn move_negative_threshold_files_to_trash(
+        &mut self,
+        paths: Vec<PathBuf>,
+        started_at: Instant,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        self.move_file_paths_to_trash(
+            paths,
+            "browser.rating.auto_trash_threshold",
+            started_at,
+            context,
+        );
+    }
+
     fn move_folder_path_to_trash(
         &mut self,
         path: PathBuf,
@@ -150,7 +164,7 @@ impl NativeAppState {
             self.clear_loaded_sample_if_exact(path);
         }
         let noun = if moved_count == 1 { "file" } else { "files" };
-        self.ui.status.sample = format!("Moved {moved_count} {noun} to trash");
+        self.ui.status.sample = trash_move_finished_status(moved_count, noun, action);
         emit_gui_action(
             action,
             Some("browser"),
@@ -187,10 +201,7 @@ impl NativeAppState {
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
-        self.ui.status.sample = match paths.len() {
-            1 => String::from("Moving file to trash"),
-            count => format!("Moving {count} files to trash"),
-        };
+        self.ui.status.sample = trash_move_started_status(paths.len(), action);
         context.business().background("gui-trash-move").run(
             {
                 let paths = paths.clone();
@@ -204,4 +215,24 @@ impl NativeAppState {
             },
         );
     }
+}
+
+fn trash_move_started_status(count: usize, action: &str) -> String {
+    if action == "browser.rating.auto_trash_threshold" {
+        return match count {
+            1 => String::from("Moving sample to trash after fourth negative rating"),
+            count => format!("Moving {count} samples to trash after fourth negative rating"),
+        };
+    }
+    match count {
+        1 => String::from("Moving file to trash"),
+        count => format!("Moving {count} files to trash"),
+    }
+}
+
+fn trash_move_finished_status(count: usize, noun: &str, action: &str) -> String {
+    if action == "browser.rating.auto_trash_threshold" {
+        return format!("Moved {count} {noun} to trash after fourth negative rating");
+    }
+    format!("Moved {count} {noun} to trash")
 }

@@ -5,6 +5,7 @@ use radiant::{
     prelude::IntoView,
 };
 use std::fs;
+use wavecrate::sample_sources::Rating;
 
 #[test]
 fn file_move_conflict_dialog_renders_resolution_choices() {
@@ -158,6 +159,141 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
             .any(|file| file.name == "delete.wav")
     );
     assert!(state.ui.status.sample.contains("Moved 1 file to trash"));
+}
+
+#[test]
+fn third_negative_rating_does_not_auto_trash_selected_file() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let trash_root = tempfile::tempdir().expect("trash root");
+    let sample = source_root.path().join("third.wav");
+    fs::write(&sample, []).expect("write sample");
+    state.ui.settings.persisted.trash_folder = Some(trash_root.path().to_path_buf());
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample.display().to_string());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&sample, Rating::new(-2), false)
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(-1, &mut context);
+
+    assert!(sample.exists());
+    assert!(!trash_root.path().join("third.wav").exists());
+    let selected = state.library.folder_browser.selected_audio_files();
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0].rating, Rating::TRASH_3);
+    assert!(state.ui.status.sample.contains("Rated 1 sample"));
+}
+
+#[test]
+fn fourth_negative_rating_moves_selected_file_to_trash() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let trash_root = tempfile::tempdir().expect("trash root");
+    let keep = source_root.path().join("keep.wav");
+    let sample = source_root.path().join("fourth.wav");
+    fs::write(&keep, []).expect("write keep wav");
+    fs::write(&sample, []).expect("write sample");
+    state.ui.settings.persisted.trash_folder = Some(trash_root.path().to_path_buf());
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample.display().to_string());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&sample, Rating::TRASH_3, false)
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(-1, &mut context);
+    assert!(
+        state.ui.status.sample.contains("fourth negative rating"),
+        "{}",
+        state.ui.status.sample
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(!sample.exists());
+    assert!(trash_root.path().join("fourth.wav").exists());
+    assert!(keep.exists());
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
+    assert!(
+        !state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .any(|file| file.name == "fourth.wav")
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Moved 1 file to trash after fourth negative rating")
+    );
+}
+
+#[test]
+fn fourth_negative_rating_keeps_file_available_when_trash_move_fails() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("blocked.wav");
+    fs::write(&sample, []).expect("write sample");
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample.display().to_string());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&sample, Rating::TRASH_3, false)
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(-1, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(sample.exists());
+    let expected_selected = sample.display().to_string();
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(expected_selected.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_audio_files()[0].rating,
+        Rating::TRASH_3
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Set a trash folder in Settings > General"),
+        "{}",
+        state.ui.status.sample
+    );
 }
 
 #[test]
