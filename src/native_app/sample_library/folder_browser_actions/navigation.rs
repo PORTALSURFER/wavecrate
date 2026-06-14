@@ -4,6 +4,10 @@ use std::time::Instant;
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::view_contract::{
+    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
+    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, TREE_ROW_HEIGHT,
+};
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
 };
@@ -186,11 +190,47 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
+        let previous_folder = self
+            .library
+            .folder_browser
+            .selected_folder_id()
+            .map(str::to_owned);
         let Some(path) = self.library.folder_browser.navigate_vertical_matching_tags(
             delta,
             extend,
             &self.metadata.tags_by_file,
         ) else {
+            if self
+                .library
+                .folder_browser
+                .selected_folder_id()
+                .is_some_and(|folder| Some(folder) != previous_folder.as_deref())
+            {
+                self.library.folder_browser.sync_tree_view_to_selection(
+                    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+                    FOLDER_TREE_OVERSCAN_ROWS,
+                    FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                );
+                if let Some(index) = self.library.folder_browser.selected_folder_visible_index() {
+                    context.scroll_fixed_row_into_view(
+                        FOLDER_TREE_LIST_ID,
+                        index,
+                        TREE_ROW_HEIGHT,
+                        FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                        FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                        delta,
+                    );
+                }
+                emit_gui_action(
+                    "folder_browser.navigate",
+                    Some("folder_browser"),
+                    Some(direction),
+                    "selected_folder",
+                    started_at,
+                    None,
+                );
+                return;
+            }
             emit_gui_action(
                 "folder_browser.navigate",
                 Some("browser"),

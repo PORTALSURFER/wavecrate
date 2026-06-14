@@ -31,6 +31,14 @@ impl Default for NativeAppStateFixture {
 }
 
 impl NativeAppStateFixture {
+    pub(in crate::native_app) fn with_folder_browser(
+        mut self,
+        folder_browser: FolderBrowserState,
+    ) -> Self {
+        self.folder_browser = folder_browser;
+        self
+    }
+
     pub(in crate::native_app) fn with_synthetic_waveform(mut self) -> Self {
         self.waveform = Some(WaveformState::synthetic_for_tests());
         self

@@ -4,7 +4,7 @@ use super::{FolderBrowserState, VisibleFolder};
 
 impl FolderBrowserState {
     #[cfg(test)]
-    pub(super) fn tree_view_start(&self) -> usize {
+    pub(in crate::native_app) fn tree_view_start(&self) -> usize {
         self.tree.view_controller.viewport_start()
     }
 

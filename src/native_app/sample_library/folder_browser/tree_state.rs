@@ -38,6 +38,17 @@ impl FolderBrowserState {
             .map(|folder| std::path::PathBuf::from(&folder.id))
     }
 
+    pub(in crate::native_app) fn selected_folder_id(&self) -> Option<&str> {
+        self.selected_folder().map(|folder| folder.id.as_str())
+    }
+
+    pub(in crate::native_app) fn selected_folder_visible_index(&self) -> Option<usize> {
+        let selected_id = self.selected_folder_id()?;
+        self.visible_folders()
+            .iter()
+            .position(|folder| folder.id == selected_id)
+    }
+
     pub(in crate::native_app) fn selected_folder_verify_request(
         &self,
     ) -> Option<FolderVerifyRequest> {
