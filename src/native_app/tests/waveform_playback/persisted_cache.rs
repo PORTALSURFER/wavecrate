@@ -74,6 +74,58 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
 }
 
 #[test]
+fn sample_selection_cancels_running_persisted_cache_warm() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let warm_path = source_root.path().join("warm.wav");
+    let selected_path = source_root.path().join("selected.wav");
+    write_test_wav_i16(&warm_path, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&selected_path, &[0, 512, -512, 1024]);
+    let selected_path = selected_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .waveform
+        .cache
+        .warm_pending
+        .push_back(warm_path.clone());
+    let mut context = ui::UiUpdateContext::default();
+    state.maybe_start_waveform_cache_warm(&mut context);
+    assert!(
+        state.waveform.cache.warm_task.active().is_some(),
+        "test setup should start persisted cache warming"
+    );
+    assert!(
+        state.waveform.cache.warm_cancel.is_some(),
+        "persisted cache warming should be cancellable"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: selected_path,
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.waveform.cache.warm_task.active().is_none(),
+        "foreground selection must cancel an already-running persisted cache warm"
+    );
+    assert!(
+        state.waveform.cache.warm_cancel.is_none(),
+        "foreground selection must cancel the persisted warm token"
+    );
+    assert!(
+        state.background.sample_load_task.active().is_some(),
+        "foreground sample load should be queued after cancelling persisted warm work"
+    );
+}
+
+#[test]
 fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

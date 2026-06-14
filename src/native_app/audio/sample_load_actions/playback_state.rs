@@ -1,4 +1,6 @@
+use crate::native_app::app::GuiMessage;
 use crate::native_app::app::NativeAppState;
+use radiant::prelude as ui;
 
 impl NativeAppState {
     pub(super) fn clear_sample_loading_state(&mut self) {
@@ -18,6 +20,14 @@ impl NativeAppState {
             || self.audio.pending_playback_start.is_some()
             || self.audio.early_sample_playback_path.is_some()
             || self.waveform.current.is_playing()
+    }
+
+    pub(in crate::native_app) fn yield_sample_cache_warm_for_foreground_load(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.cancel_waveform_cache_warm();
+        self.pause_active_folder_cache_warm(context);
     }
 
     pub(in crate::native_app) fn waveform_input_blocked_by_sample_load(&self) -> bool {

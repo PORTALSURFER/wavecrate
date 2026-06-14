@@ -17,7 +17,6 @@ pub(in crate::native_app) struct WaveformPlaybackResume {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum SampleLoadStrategy {
     Decode,
-    PersistedPlaybackCacheOnly,
     PreferPersistedPlaybackCache,
 }
 

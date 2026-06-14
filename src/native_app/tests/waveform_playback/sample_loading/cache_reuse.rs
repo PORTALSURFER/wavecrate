@@ -29,10 +29,13 @@ fn sample_selection_loads_selected_file_into_waveform() {
             .background
             .deferred_sample_load_task
             .active()
-            .is_some(),
-        "selection should debounce uncached sample loading before queueing decode work"
+            .is_none(),
+        "direct selection should not debounce or probe cache metadata on the UI thread"
     );
-    start_deferred_sample_load_for_tests(&mut state, sample_path.clone(), true, &mut context);
+    assert!(
+        state.background.sample_load_task.active().is_some(),
+        "direct selection should immediately queue foreground sample loading"
+    );
     let ticket = state
         .background
         .sample_load_task

@@ -19,7 +19,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.sample_cache_warm_should_yield() {
-            self.waveform.cache.warm_task.cancel();
+            self.cancel_waveform_cache_warm();
             return;
         }
         if self.waveform.cache.warm_task.active().is_some() {
@@ -29,14 +29,24 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
-        context
+        let warm = context
             .business()
             .background("gui-waveform-cache-warm")
-            .latest(&mut self.waveform.cache.warm_task)
-            .run(
-                move |_| warm_persisted_waveform_cache(paths),
-                GuiMessage::WaveformCacheWarmFinished,
-            );
+            .cancellable()
+            .latest(&mut self.waveform.cache.warm_task);
+        self.waveform.cache.warm_cancel = Some(warm.run(
+            move |worker_context| {
+                warm_persisted_waveform_cache(paths, || worker_context.is_cancelled())
+            },
+            GuiMessage::WaveformCacheWarmFinished,
+        ));
+    }
+
+    pub(in crate::native_app) fn cancel_waveform_cache_warm(&mut self) {
+        if let Some(token) = self.waveform.cache.warm_cancel.take() {
+            token.cancel();
+        }
+        self.waveform.cache.warm_task.cancel();
     }
 
     pub(in crate::native_app) fn finish_waveform_cache_warm(
@@ -47,6 +57,7 @@ impl NativeAppState {
         if !self.waveform.cache.warm_task.finish(completion.ticket) {
             return;
         }
+        self.waveform.cache.warm_cancel = None;
         self.apply_waveform_cache_warm_result(completion.output);
         log_slow_cache_phase(
             "browser.sample_cache.warm_finish",

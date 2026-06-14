@@ -224,6 +224,78 @@ fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
 }
 
 #[test]
+fn sample_selection_cancels_running_active_folder_cache_warm() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    let first = folder.join("first.wav");
+    let second = folder.join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                folder.display().to_string(),
+                Default::default(),
+            ),
+        ),
+        &mut context,
+    );
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("folder warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_task
+            .active()
+            .is_some(),
+        "test setup should start active-folder cache warming"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: first.display().to_string(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_task
+            .active()
+            .is_none(),
+        "foreground sample selection must cancel an already-running active-folder cache warm"
+    );
+    assert!(
+        state.waveform.cache.active_folder_warm_cancel.is_none(),
+        "foreground selection must cancel the active-folder worker token"
+    );
+    assert!(
+        state.background.sample_load_task.active().is_some(),
+        "foreground sample load should be queued after cancelling background warm work"
+    );
+}
+
+#[test]
 fn changing_folder_cancels_previous_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
@@ -483,8 +555,12 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
             .background
             .deferred_sample_load_task
             .active()
-            .is_some(),
-        "summary-only cache selection should not synchronously decode long playback samples"
+            .is_none(),
+        "summary-only cache selection should not debounce or probe cache metadata on the UI thread"
+    );
+    assert!(
+        state.background.sample_load_task.active().is_some(),
+        "summary-only cache selection should queue foreground loading off the UI thread"
     );
     assert_eq!(
         state.waveform.current.path(),
@@ -511,10 +587,10 @@ fn background_warm_upgrades_summary_only_cache_to_playback_ready() {
     );
     crate::native_app::waveform::store_summary_only_cached_waveform_file_for_tests(&file);
 
-    let result =
-        crate::native_app::audio::sample_load_actions::warm_persisted_waveform_cache(vec![
-            sample_path.clone(),
-        ]);
+    let result = crate::native_app::audio::sample_load_actions::warm_persisted_waveform_cache(
+        vec![sample_path.clone()],
+        || false,
+    );
     assert_eq!(result.loaded.len(), 1);
 
     let mut restarted_state = gui_state_for_span_tests();

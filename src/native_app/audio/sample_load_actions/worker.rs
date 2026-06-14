@@ -64,9 +64,6 @@ impl SampleLoadWorker {
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         match self.request.strategy() {
-            SampleLoadStrategy::PersistedPlaybackCacheOnly => {
-                self.load_persisted_playback_cache("browser.sample_load.worker.persisted_cache")
-            }
             SampleLoadStrategy::PreferPersistedPlaybackCache => {
                 let result = self.load_persisted_playback_cache(
                     "browser.sample_load.worker.persisted_cache_probe",

@@ -7,7 +7,6 @@ use std::{
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, WaveformState, emit_gui_action},
     audio::sample_load_actions::types::SampleLoadStrategy,
-    waveform::cached_waveform_file_playback_ready_exists,
 };
 
 struct CachedPlaybackOutcomes {
@@ -68,25 +67,21 @@ impl NativeAppState {
         true
     }
 
-    pub(super) fn start_persisted_cached_sample_load(
+    pub(super) fn start_foreground_sample_load(
         &mut self,
         path: &str,
         autoplay: bool,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
-    ) -> bool {
-        if !cached_waveform_file_playback_ready_exists(Path::new(path)) {
-            return false;
-        }
-        self.prepare_uncached_sample_load(path, "persistent_cache_load_queued", started_at);
+    ) {
+        self.prepare_uncached_sample_load(path, "preferred_cache_load_queued", started_at);
         self.start_sample_load_with_priority(
             path.to_owned(),
             autoplay,
             context,
             ui::TaskPriority::Interactive,
-            SampleLoadStrategy::PersistedPlaybackCacheOnly,
+            SampleLoadStrategy::PreferPersistedPlaybackCache,
         );
-        true
     }
 
     pub(super) fn start_loaded_navigation_sample(

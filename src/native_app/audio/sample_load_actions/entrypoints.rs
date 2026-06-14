@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label},
-    audio::sample_load_actions::{KEYBOARD_SAMPLE_LOAD_DEBOUNCE, UNCACHED_SAMPLE_LOAD_DEBOUNCE},
+    audio::sample_load_actions::KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
 };
 
 impl NativeAppState {
@@ -74,22 +74,12 @@ impl NativeAppState {
         autoplay: bool,
     ) {
         let started_at = Instant::now();
+        self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load();
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
-        if self.start_persisted_cached_sample_load(path.as_str(), autoplay, context, started_at) {
-            return;
-        }
-        self.prepare_uncached_sample_load(path.as_str(), "load_deferred", started_at);
-        self.schedule_deferred_sample_load(
-            path,
-            autoplay,
-            false,
-            UNCACHED_SAMPLE_LOAD_DEBOUNCE,
-            "mouse_or_direct",
-            context,
-        );
+        self.start_foreground_sample_load(path.as_str(), autoplay, context, started_at);
     }
 
     pub(in crate::native_app) fn defer_navigation_sample_load(
@@ -98,6 +88,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load();
         self.audio.pending_sample_playback = None;
         self.waveform.load.label = None;

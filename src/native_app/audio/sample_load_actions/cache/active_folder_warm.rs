@@ -118,7 +118,10 @@ impl NativeAppState {
         ));
     }
 
-    fn pause_active_folder_cache_warm(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+    pub(in crate::native_app) fn pause_active_folder_cache_warm(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
         }

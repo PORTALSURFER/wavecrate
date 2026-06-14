@@ -10,10 +10,14 @@ use crate::native_app::{
 
 pub(in crate::native_app) fn warm_persisted_waveform_cache(
     paths: Vec<PathBuf>,
+    is_cancelled: impl Fn() -> bool,
 ) -> WaveformCacheWarmResult {
     let loaded = paths
         .into_iter()
         .filter_map(|path| {
+            if is_cancelled() {
+                return None;
+            }
             load_cached_waveform_file_for_playback(path.clone())
                 .map(Arc::new)
                 .map(|file| (path, file))
