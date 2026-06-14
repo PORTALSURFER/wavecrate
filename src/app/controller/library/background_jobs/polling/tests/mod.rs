@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::AppController;
-use crate::app::controller::jobs::{JobMessage, SelectionExportMessage};
+use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
 use crate::app::controller::playback::audio_loader::AudioLoadOutcome;
 use crate::sample_sources::SampleSource;
