@@ -7,8 +7,12 @@
 use super::DeleteStagingInfo;
 use std::path::{Path, PathBuf};
 
+#[path = "restore_merge/filesystem.rs"]
+mod filesystem;
 #[path = "restore_merge/ops.rs"]
 mod ops;
+#[path = "restore_merge/reporting.rs"]
+mod reporting;
 #[path = "restore_merge/util.rs"]
 mod util;
 
