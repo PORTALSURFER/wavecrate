@@ -48,7 +48,7 @@ impl NativeAppState {
         ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
-        check_cache: bool,
+        _check_cache: bool,
         scheduled_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
@@ -73,12 +73,13 @@ impl NativeAppState {
             );
             return;
         }
-        let strategy = if check_cache {
-            SampleLoadStrategy::PreferPersistedPlaybackCache
-        } else {
-            SampleLoadStrategy::Decode
-        };
-        self.start_sample_load(path, autoplay, context, strategy, started_at);
+        self.start_sample_load(
+            path,
+            autoplay,
+            context,
+            SampleLoadStrategy::Decode,
+            started_at,
+        );
     }
 
     pub(super) fn prepare_uncached_sample_load(

@@ -48,6 +48,7 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_a
         cancelled,
         playback_ready,
         true,
+        true,
     )
 }
 
@@ -63,6 +64,7 @@ pub(in crate::native_app::waveform) fn load_waveform_file_for_foreground_auditio
         cancelled,
         playback_ready,
         false,
+        false,
     )
 }
 
@@ -71,21 +73,24 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     progress: impl Fn(f32),
     cancelled: impl Fn() -> bool,
     playback_ready: impl Fn(WaveformPlaybackReady),
+    read_cache: bool,
     persist_cache: bool,
 ) -> Result<WaveformFile, String> {
     if cancelled() {
         return Err(String::from("cancelled"));
     }
     progress(0.0);
-    let cache_started_at = Instant::now();
-    if let Some(file) = waveform_cache::load_cached_waveform_file_for_playback(path.clone()) {
-        log_audio_load_timing(
-            "browser.audio_file.load.playback_cache",
-            &path,
-            cache_started_at.elapsed(),
-        );
-        progress(0.99);
-        return Ok(file);
+    if read_cache {
+        let cache_started_at = Instant::now();
+        if let Some(file) = waveform_cache::load_cached_waveform_file_for_playback(path.clone()) {
+            log_audio_load_timing(
+                "browser.audio_file.load.playback_cache",
+                &path,
+                cache_started_at.elapsed(),
+            );
+            progress(0.99);
+            return Ok(file);
+        }
     }
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -100,24 +105,26 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    let summary_cache_started_at = Instant::now();
-    if let Some(mut file) =
-        waveform_cache::load_cached_waveform_file(path.clone(), Arc::clone(&bytes))
-    {
-        log_audio_load_timing(
-            "browser.audio_file.load.summary_cache",
-            &path,
-            summary_cache_started_at.elapsed(),
-        );
-        complete_wav_playback_ready_from_summary_cache(
-            &mut file,
-            &path,
-            &bytes,
-            &playback_ready,
-            persist_cache,
-        );
-        progress(0.99);
-        return Ok(file);
+    if read_cache {
+        let summary_cache_started_at = Instant::now();
+        if let Some(mut file) =
+            waveform_cache::load_cached_waveform_file(path.clone(), Arc::clone(&bytes))
+        {
+            log_audio_load_timing(
+                "browser.audio_file.load.summary_cache",
+                &path,
+                summary_cache_started_at.elapsed(),
+            );
+            complete_wav_playback_ready_from_summary_cache(
+                &mut file,
+                &path,
+                &bytes,
+                &playback_ready,
+                persist_cache,
+            );
+            progress(0.99);
+            return Ok(file);
+        }
     }
     if cancelled() {
         return Err(String::from("cancelled"));

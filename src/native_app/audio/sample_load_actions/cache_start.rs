@@ -74,13 +74,13 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        self.prepare_uncached_sample_load(path, "preferred_cache_load_queued", started_at);
+        self.prepare_uncached_sample_load(path, "foreground_load_queued", started_at);
         self.start_sample_load_with_priority(
             path.to_owned(),
             autoplay,
             context,
             ui::TaskPriority::Interactive,
-            SampleLoadStrategy::PreferPersistedPlaybackCache,
+            SampleLoadStrategy::Decode,
         );
     }
 

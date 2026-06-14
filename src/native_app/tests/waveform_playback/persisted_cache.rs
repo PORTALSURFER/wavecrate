@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
+fn sample_selection_starts_foreground_load_for_persisted_cache_row_after_restart() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -57,11 +57,11 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
     );
     assert!(
         state.background.sample_load_task.active().is_some(),
-        "playback-ready persisted cache should start worker loading immediately"
+        "playback-ready persisted cache rows should start foreground loading immediately"
     );
     assert!(
         state.waveform.load.label.as_deref() == Some(sample_name.as_str()),
-        "selection should show loading state while the persisted cache is promoted"
+        "selection should show loading state while foreground loading runs"
     );
     assert!(
         !state
@@ -69,7 +69,7 @@ fn sample_selection_starts_playback_ready_persisted_cache_load_after_restart() {
             .cache
             .entries
             .contains_key(&PathBuf::from(&sample_path)),
-        "persisted cache promotion must stay off the UI thread until background loading completes"
+        "persisted cache payloads must stay off the UI thread during selection"
     );
 }
 
@@ -189,16 +189,18 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         .background
         .sample_load_task
         .active()
-        .expect("persisted cache load queued");
+        .expect("foreground load queued");
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
             ticket,
             output: crate::native_app::test_support::state::SampleLoadResult {
                 path: sample_path_string,
-                result:
-                    crate::native_app::test_support::state::WaveformState::load_persisted_playback_cache(
-                        sample_path.clone(),
-                    ),
+                result: crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+                    sample_path.clone(),
+                    |_| {},
+                    || false,
+                    |_| {},
+                ),
                 autoplay: false,
             },
         }),
@@ -207,7 +209,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
 
     assert_eq!(state.waveform.current.path(), sample_path);
     assert!(
-        state.waveform.current.audio_bytes().is_empty(),
-        "playback-ready persisted cache should not reread source WAV bytes"
+        !state.waveform.current.audio_bytes().is_empty(),
+        "foreground selection should decode source bytes instead of hydrating persisted cache payloads"
     );
 }

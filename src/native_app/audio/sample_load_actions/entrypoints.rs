@@ -112,7 +112,7 @@ impl NativeAppState {
         self.schedule_deferred_sample_load(
             path,
             true,
-            true,
+            false,
             KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
             "keyboard",
             context,

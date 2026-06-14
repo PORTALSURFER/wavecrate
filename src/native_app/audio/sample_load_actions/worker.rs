@@ -64,29 +64,10 @@ impl SampleLoadWorker {
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         match self.request.strategy() {
-            SampleLoadStrategy::PreferPersistedPlaybackCache => {
-                let result = self.load_persisted_playback_cache(
-                    "browser.sample_load.worker.persisted_cache_probe",
-                );
-                if result.is_ok() {
-                    result
-                } else {
-                    self.load_decoded_sample(ticket, context, progress_reporter)
-                }
-            }
             SampleLoadStrategy::Decode => {
                 self.load_decoded_sample(ticket, context, progress_reporter)
             }
         }
-    }
-
-    fn load_persisted_playback_cache(&self, event: &'static str) -> Result<WaveformState, String> {
-        let phase_started_at = Instant::now();
-        let result =
-            WaveformState::load_persisted_playback_cache(PathBuf::from(self.request.path()));
-        log_sample_load_timing(event, self.request.path(), phase_started_at.elapsed(), true);
-        log_loaded_sample_metadata(self.request.path(), &result, "persisted_playback_cache");
-        result
     }
 
     fn load_decoded_sample(

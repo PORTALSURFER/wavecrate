@@ -88,7 +88,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             ticket: stale_deferred_ticket,
             path: second.clone(),
             autoplay: true,
-            check_cache: true,
+            check_cache: false,
             scheduled_at: std::time::Instant::now(),
         },
     );
@@ -111,7 +111,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             ticket: current_deferred_ticket,
             path: third.clone(),
             autoplay: true,
-            check_cache: true,
+            check_cache: false,
             scheduled_at: std::time::Instant::now(),
         },
     );
@@ -357,7 +357,7 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
 }
 
 #[test]
-fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
+fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -403,11 +403,11 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
             .deferred_sample_load_task
             .active()
             .is_some(),
-        "keyboard navigation should debounce persisted cache promotion"
+        "keyboard navigation should debounce foreground sample loading"
     );
     assert!(
         state.background.sample_load_task.active().is_none(),
-        "keyboard navigation must not probe persisted playback cache on the UI thread"
+        "keyboard navigation must not start foreground sample loading on the UI thread"
     );
     assert_eq!(
         state.waveform.load.label, None,
@@ -418,13 +418,13 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
         .background
         .deferred_sample_load_task
         .active()
-        .expect("deferred persisted cache load");
+        .expect("deferred foreground load");
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
             ticket: deferred_ticket,
             path: second,
             autoplay: true,
-            check_cache: true,
+            check_cache: false,
             scheduled_at: std::time::Instant::now(),
         },
         &mut context,
@@ -432,7 +432,7 @@ fn keyboard_navigation_defers_persisted_cache_probe_until_navigation_settles() {
 
     assert!(
         state.background.sample_load_task.active().is_some(),
-        "deferred keyboard load should start cache promotion only after navigation settles"
+        "deferred keyboard load should start foreground loading only after navigation settles"
     );
 }
 

@@ -122,6 +122,38 @@ fn foreground_sample_load_does_not_persist_waveform_cache() {
 }
 
 #[test]
+fn foreground_sample_load_ignores_persisted_cache_payloads() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("cached-foreground.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+
+    let cached =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("cache seed loads");
+    let file = cached.file();
+    crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
+    wait_for_playback_ready_cache(&sample_path.display().to_string());
+
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("foreground sample load");
+
+    assert_eq!(loaded.path(), sample_path);
+    assert!(
+        !loaded.audio_bytes().is_empty(),
+        "foreground audition should decode from source bytes instead of hydrating persisted cache payloads"
+    );
+}
+
+#[test]
 fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("resident.wav");
