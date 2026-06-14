@@ -97,6 +97,31 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn foreground_sample_load_does_not_persist_waveform_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("foreground.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("foreground sample load");
+
+    assert_eq!(loaded.path(), sample_path);
+    assert!(
+        !crate::native_app::waveform::cached_waveform_file_exists(&sample_path),
+        "foreground audition loads must not enqueue persistent cache writes on the hot selection path"
+    );
+}
+
+#[test]
 fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("resident.wav");

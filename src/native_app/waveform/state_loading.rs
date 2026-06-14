@@ -1,14 +1,15 @@
 use std::{path::PathBuf, sync::Arc};
 
 #[cfg(test)]
+use super::audio_file::load_waveform_file_with_progress_cancel_and_playback_ready;
+#[cfg(test)]
 use super::audio_file::synthetic_waveform_file;
 use super::{
     MIN_VISIBLE_FRAMES, SELECTION_FLASH_FRAMES, WaveformDrag, WaveformFile, WaveformState,
     WaveformViewport,
     audio_file::{
         empty_waveform_file, load_cached_waveform_file_for_playback, load_waveform_file,
-        load_waveform_file_with_progress_and_cancel,
-        load_waveform_file_with_progress_cancel_and_playback_ready,
+        load_waveform_file_for_foreground_audition, load_waveform_file_with_progress_and_cancel,
     },
 };
 
@@ -49,6 +50,7 @@ impl WaveformState {
         Ok(Self::from_file(file))
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn load_path_with_progress_cancel_and_playback_ready(
         path: PathBuf,
         progress: impl Fn(f32),
@@ -56,6 +58,21 @@ impl WaveformState {
         playback_ready: impl Fn(super::WaveformPlaybackReady),
     ) -> Result<Self, String> {
         let file = Arc::new(load_waveform_file_with_progress_cancel_and_playback_ready(
+            path,
+            progress,
+            cancelled,
+            playback_ready,
+        )?);
+        Ok(Self::from_file(file))
+    }
+
+    pub(in crate::native_app) fn load_path_for_foreground_audition(
+        path: PathBuf,
+        progress: impl Fn(f32),
+        cancelled: impl Fn() -> bool,
+        playback_ready: impl Fn(super::WaveformPlaybackReady),
+    ) -> Result<Self, String> {
+        let file = Arc::new(load_waveform_file_for_foreground_audition(
             path,
             progress,
             cancelled,

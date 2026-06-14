@@ -61,13 +61,10 @@ impl NativeAppState {
             relative_path,
             played_at,
         };
-        context
-            .business()
-            .background("gui-last-played-persist")
-            .run(
-                move |_| persist_last_played(request),
-                GuiMessage::LastPlayedPersisted,
-            );
+        context.business().idle("gui-last-played-persist").run(
+            move |_| persist_last_played(request),
+            GuiMessage::LastPlayedPersisted,
+        );
     }
 
     pub(in crate::native_app) fn finish_last_played_persist(

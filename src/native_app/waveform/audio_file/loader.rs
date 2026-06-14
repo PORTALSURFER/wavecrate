@@ -42,6 +42,37 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_a
     cancelled: impl Fn() -> bool,
     playback_ready: impl Fn(WaveformPlaybackReady),
 ) -> Result<WaveformFile, String> {
+    load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
+        path,
+        progress,
+        cancelled,
+        playback_ready,
+        true,
+    )
+}
+
+pub(in crate::native_app::waveform) fn load_waveform_file_for_foreground_audition(
+    path: PathBuf,
+    progress: impl Fn(f32),
+    cancelled: impl Fn() -> bool,
+    playback_ready: impl Fn(WaveformPlaybackReady),
+) -> Result<WaveformFile, String> {
+    load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
+        path,
+        progress,
+        cancelled,
+        playback_ready,
+        false,
+    )
+}
+
+fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
+    path: PathBuf,
+    progress: impl Fn(f32),
+    cancelled: impl Fn() -> bool,
+    playback_ready: impl Fn(WaveformPlaybackReady),
+    persist_cache: bool,
+) -> Result<WaveformFile, String> {
     if cancelled() {
         return Err(String::from("cancelled"));
     }
@@ -78,7 +109,13 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_a
             &path,
             summary_cache_started_at.elapsed(),
         );
-        complete_wav_playback_ready_from_summary_cache(&mut file, &path, &bytes, &playback_ready);
+        complete_wav_playback_ready_from_summary_cache(
+            &mut file,
+            &path,
+            &bytes,
+            &playback_ready,
+            persist_cache,
+        );
         progress(0.99);
         return Ok(file);
     }
@@ -103,10 +140,12 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_a
             &path,
             wav_decode_started_at.elapsed(),
         );
-        waveform_cache::store_cached_waveform_file_in_background(&file);
+        if persist_cache {
+            waveform_cache::store_cached_waveform_file_in_background(&file);
+        }
         return Ok(file);
     }
-    load_with_fallback_decoder(path, bytes, progress, cancelled)
+    load_with_fallback_decoder(path, bytes, progress, cancelled, persist_cache)
 }
 
 fn complete_wav_playback_ready_from_summary_cache(
@@ -114,6 +153,7 @@ fn complete_wav_playback_ready_from_summary_cache(
     path: &Path,
     bytes: &Arc<[u8]>,
     playback_ready: &impl Fn(WaveformPlaybackReady),
+    persist_cache: bool,
 ) {
     if !summary_cache_can_attempt_wav_playback_ready(file, path) {
         return;
@@ -129,7 +169,9 @@ fn complete_wav_playback_ready_from_summary_cache(
             frames: file.frames,
         });
         file.playback_samples = Some(playback_samples);
-        waveform_cache::store_cached_waveform_file_in_background(file);
+        if persist_cache {
+            waveform_cache::store_cached_waveform_file_in_background(file);
+        }
     }
 }
 
@@ -142,6 +184,7 @@ fn load_with_fallback_decoder(
     bytes: Arc<[u8]>,
     progress: impl Fn(f32),
     cancelled: impl Fn() -> bool,
+    persist_cache: bool,
 ) -> Result<WaveformFile, String> {
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -205,7 +248,9 @@ fn load_with_fallback_decoder(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    waveform_cache::store_cached_waveform_file_in_background(&file);
+    if persist_cache {
+        waveform_cache::store_cached_waveform_file_in_background(&file);
+    }
     Ok(file)
 }
 

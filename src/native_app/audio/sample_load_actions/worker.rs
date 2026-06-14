@@ -99,7 +99,7 @@ impl SampleLoadWorker {
         let ready_sender = self.sender.clone();
         let ready_path = self.request.path().to_owned();
         let autoplay = self.request.autoplay();
-        let result = WaveformState::load_path_with_progress_cancel_and_playback_ready(
+        let result = WaveformState::load_path_for_foreground_audition(
             PathBuf::from(self.request.path()),
             |progress| {
                 progress_reporter.borrow_mut().report(progress);
