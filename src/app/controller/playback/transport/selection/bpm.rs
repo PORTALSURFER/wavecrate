@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 use crate::app::controller::formatting::format_waveform_bpm_input;
 
 pub(super) fn bpm_snap_step(controller: &AppController) -> Option<f32> {

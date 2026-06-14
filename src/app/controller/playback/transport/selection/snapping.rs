@@ -1,4 +1,4 @@
-use super::*;
+use super::super::*;
 
 const TRANSIENT_SNAP_RADIUS: f32 = 0.01;
 
