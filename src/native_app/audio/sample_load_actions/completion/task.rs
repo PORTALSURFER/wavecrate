@@ -45,6 +45,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_sample_load(
         &mut self,
         load: ui::TaskCompletion<SampleLoadResult>,
+        context: &mut ui::UiUpdateContext<crate::native_app::app::GuiMessage>,
     ) {
         let started_at = Instant::now();
         let ticket = load.ticket;
@@ -79,7 +80,7 @@ impl NativeAppState {
                 path,
                 waveform,
                 autoplay,
-            } => self.finish_loaded_sample_load(path, *waveform, autoplay, started_at),
+            } => self.finish_loaded_sample_load(path, *waveform, autoplay, started_at, context),
         }
     }
 }

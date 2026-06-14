@@ -46,6 +46,7 @@ impl NativeAppState {
         match self.start_playback_current_span(start, end) {
             Ok(()) => {
                 let file_name = self.waveform.current.file_name();
+                self.record_selected_sample_last_played(context);
                 self.ui.status.sample = format!("Playing {file_name}");
                 emit_gui_action(
                     "playback.play_selected_sample",
@@ -70,11 +71,16 @@ impl NativeAppState {
         }
     }
 
-    pub(in crate::native_app) fn play_waveform_from_ratio(&mut self, start_ratio: f32) {
+    pub(in crate::native_app) fn play_waveform_from_ratio(
+        &mut self,
+        start_ratio: f32,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         match self.start_playback_current_span(start_ratio, 1.0) {
             Ok(()) => {
                 let file_name = self.waveform.current.file_name();
+                self.record_selected_sample_last_played(context);
                 self.ui.status.sample =
                     format!("Playing {} from {:.1}%", file_name, start_ratio * 100.0);
                 emit_gui_action(
@@ -164,6 +170,7 @@ impl NativeAppState {
 
         match self.start_playback_current_span(span.start, span.end) {
             Ok(()) => {
+                self.record_selected_sample_last_played(context);
                 self.ui.status.sample = span.status_message(&file_name);
                 emit_gui_action(
                     "playback.play_random_sample_range",

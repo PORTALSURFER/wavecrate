@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,6 +77,42 @@ impl FileEntry {
         collections.sort_by_key(|collection| collection.index());
         collections
     }
+
+    pub(in crate::native_app) fn set_last_played_at(&mut self, last_played_at: Option<i64>) {
+        self.modified = last_played_label(last_played_at);
+        self.modified_rank = last_played_rank(last_played_at);
+    }
+}
+
+pub(super) fn last_played_label(last_played_at: Option<i64>) -> String {
+    let Some(last_played_at) = last_played_at else {
+        return String::from("Never");
+    };
+    let age = playback_age(last_played_at);
+    let days = age.as_secs() / 86_400;
+    if days == 0 {
+        String::from("Today")
+    } else if days == 1 {
+        String::from("1 day")
+    } else {
+        format!("{days} days")
+    }
+}
+
+pub(super) fn last_played_rank(last_played_at: Option<i64>) -> u64 {
+    last_played_at
+        .map(playback_age)
+        .map(|age| age.as_secs())
+        .unwrap_or(u64::MAX)
+}
+
+fn playback_age(last_played_at: i64) -> Duration {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_secs();
+    let played = u64::try_from(last_played_at).unwrap_or_default();
+    Duration::from_secs(now.saturating_sub(played))
 }
 
 pub(in crate::native_app) fn plural(count: usize) -> &'static str {

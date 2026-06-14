@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use crate::native_app::{
-    app::{NativeAppState, PendingSamplePlayback, WaveformState, emit_gui_action},
+    app::{GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState, emit_gui_action},
     audio::sample_load_actions::log_slow_sample_load_phase,
 };
 
@@ -12,6 +12,7 @@ impl NativeAppState {
         waveform: WaveformState,
         autoplay: bool,
         started_at: Instant,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         self.clear_sample_loading_state();
         let file_name = waveform.file_name();
@@ -29,10 +30,10 @@ impl NativeAppState {
             &file_name,
             replace_started_at,
         );
-        if self.continue_early_sample_playback(&path, &file_name, started_at) {
+        if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
-        if self.start_pending_sample_playback(&file_name, started_at) {
+        if self.start_pending_sample_playback(&file_name, started_at, context) {
             return;
         }
         if !autoplay {
@@ -47,13 +48,19 @@ impl NativeAppState {
             );
             return;
         }
-        self.start_completed_sample_playback(&file_name, started_at);
+        self.start_completed_sample_playback(&file_name, started_at, context);
     }
 
-    fn start_completed_sample_playback(&mut self, file_name: &str, started_at: Instant) {
+    fn start_completed_sample_playback(
+        &mut self,
+        file_name: &str,
+        started_at: Instant,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
         let playback_started_at = Instant::now();
         match self.start_playback_current_span(0.0, 1.0) {
             Ok(()) => {
+                self.record_selected_sample_last_played(context);
                 log_slow_sample_load_phase(
                     "browser.sample_load.finish.start_playback",
                     file_name,
@@ -93,6 +100,7 @@ impl NativeAppState {
         path: &str,
         file_name: &str,
         started_at: Instant,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) -> bool {
         if self.audio.early_sample_playback_path.as_deref() != Some(path) {
             return false;
@@ -106,6 +114,7 @@ impl NativeAppState {
         self.waveform.current.start_playback(progress);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.audio.early_sample_playback_path = None;
+        self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
         emit_gui_action(
             "browser.sample_load.finish",
@@ -118,7 +127,12 @@ impl NativeAppState {
         true
     }
 
-    fn start_pending_sample_playback(&mut self, file_name: &str, started_at: Instant) -> bool {
+    fn start_pending_sample_playback(
+        &mut self,
+        file_name: &str,
+        started_at: Instant,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) -> bool {
         let Some(playback) = self.audio.pending_sample_playback.take() else {
             return false;
         };
@@ -129,6 +143,7 @@ impl NativeAppState {
                 self.audio.loop_playback = false;
                 match self.start_playback_current_span(span.start, span.end) {
                     Ok(()) => {
+                        self.record_selected_sample_last_played(context);
                         self.ui.status.sample = span.status_message(file_name);
                         emit_gui_action(
                             "playback.play_random_sample_range",

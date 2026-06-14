@@ -10,6 +10,7 @@ use crate::native_app::app::{
     NormalizationResult, SampleLoadResult, SamplePlaybackReady,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
+use crate::native_app::audio::playback_history::LastPlayedPersistResult;
 use crate::native_app::metadata::MetadataTagPersistResult;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -92,6 +93,7 @@ pub(in crate::native_app) enum GuiMessage {
     AudioPlayerOpenFinished(AudioOpenTaskCompletion),
     PlaySelectedSample,
     PlayRandomSampleRange,
+    LastPlayedPersisted(LastPlayedPersistResult),
     StopPlayback,
     ToggleLoopPlayback,
     Settings(SettingsMessage),

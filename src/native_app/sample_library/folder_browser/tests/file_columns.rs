@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 #[test]
 fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
     let root = temp_source_root("wavecrate-gui-file-sort");
@@ -33,6 +34,65 @@ fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
     browser.select_file(path_id(&large));
     assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&small)));
 
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn history_column_label_reflects_last_played_behavior() {
+    let browser = FolderBrowserState::load_default();
+
+    let history = browser
+        .visible_file_columns()
+        .into_iter()
+        .find(|column| column.id == "modified")
+        .expect("history column");
+
+    assert_eq!(history.label, "Last Played");
+}
+
+#[test]
+fn history_column_uses_last_played_metadata_display_and_sort() {
+    let root = temp_source_root("wavecrate-gui-last-played-column");
+    let old = root.join("old.wav");
+    let fresh = root.join("fresh.wav");
+    let never = root.join("never.wav");
+    for path in [&old, &fresh, &never] {
+        fs::write(path, []).expect("write sample");
+    }
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(Path::new("old.wav"), 0, 30)
+        .expect("upsert old");
+    db.set_last_played_at(Path::new("old.wav"), 1_000_000)
+        .expect("set old last played");
+    db.upsert_file(Path::new("fresh.wav"), 0, 10)
+        .expect("upsert fresh");
+    db.set_last_played_at(Path::new("fresh.wav"), 1_000_000_000)
+        .expect("set fresh last played");
+    db.upsert_file(Path::new("never.wav"), 0, 20)
+        .expect("upsert never");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .find(|file| file.name == "never.wav")
+            .map(|file| file.modified.as_str()),
+        Some("Never")
+    );
+
+    browser.apply_message(FolderBrowserMessage::SortFileColumn(String::from(
+        "modified",
+    )));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["fresh.wav", "old.wav", "never.wav"]
+    );
     let _ = fs::remove_dir_all(root);
 }
 #[test]

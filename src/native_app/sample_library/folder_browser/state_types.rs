@@ -136,7 +136,7 @@ impl FileColumnKind {
             Self::Collection => "Col",
             Self::Extension => "Ext",
             Self::Size => "Size",
-            Self::Modified => "Modified",
+            Self::Modified => "Last Played",
             Self::Kind => "Kind",
             Self::Path => "Path",
             Self::Similarity => "Sim",

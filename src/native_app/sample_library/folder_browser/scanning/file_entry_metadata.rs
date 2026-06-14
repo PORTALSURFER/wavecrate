@@ -1,11 +1,11 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    time::{Duration, SystemTime},
 };
 
 use super::super::{
     FileEntry,
+    file_model::{last_played_label, last_played_rank},
     path_helpers::{file_extension_label, file_label, file_stem_label, path_id},
 };
 use wavecrate::sample_sources::{Rating, SampleCollection};
@@ -13,7 +13,7 @@ use wavecrate::sample_sources::{Rating, SampleCollection};
 pub(in crate::native_app::sample_library::folder_browser) fn file_entry(
     path: &PathBuf,
 ) -> FileEntry {
-    file_entry_with_metadata(path, Rating::NEUTRAL, false, Vec::new())
+    file_entry_with_metadata(path, Rating::NEUTRAL, false, Vec::new(), None)
 }
 
 pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_metadata(
@@ -21,10 +21,10 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_met
     rating: Rating,
     rating_locked: bool,
     collections: Vec<SampleCollection>,
+    last_played_at: Option<i64>,
 ) -> FileEntry {
     let metadata = fs::metadata(path).ok();
     let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
-    let modified = metadata.and_then(|metadata| metadata.modified().ok());
     FileEntry {
         id: path_id(path),
         name: file_label(path),
@@ -33,8 +33,8 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_met
         kind: file_kind(path),
         size: format_size(size_bytes),
         size_bytes,
-        modified: modified_label(modified),
-        modified_rank: modified_rank(modified),
+        modified: last_played_label(last_played_at),
+        modified_rank: last_played_rank(last_played_at),
         rating,
         rating_locked,
         collection: collections.first().copied(),
@@ -70,28 +70,4 @@ fn format_size(bytes: u64) -> String {
     } else {
         format!("{bytes} B")
     }
-}
-
-fn modified_label(modified: Option<SystemTime>) -> String {
-    let Some(modified) = modified else {
-        return String::from("-");
-    };
-    let age = SystemTime::now()
-        .duration_since(modified)
-        .unwrap_or(Duration::ZERO);
-    let days = age.as_secs() / 86_400;
-    if days == 0 {
-        String::from("Today")
-    } else if days == 1 {
-        String::from("1 day")
-    } else {
-        format!("{days} days")
-    }
-}
-
-fn modified_rank(modified: Option<SystemTime>) -> u64 {
-    modified
-        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
-        .map(|age| age.as_secs())
-        .unwrap_or(u64::MAX)
 }

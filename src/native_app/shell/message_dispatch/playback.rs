@@ -14,6 +14,7 @@ impl NativeAppState {
             }
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::PlayRandomSampleRange => self.play_random_sample_range(context),
+            GuiMessage::LastPlayedPersisted(result) => self.finish_last_played_persist(result),
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
             _ => unreachable!("playback dispatcher received a non-playback message"),

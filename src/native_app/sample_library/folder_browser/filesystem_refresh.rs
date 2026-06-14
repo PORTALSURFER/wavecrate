@@ -230,4 +230,26 @@ impl FolderBrowserState {
         }
         changed
     }
+
+    pub(in crate::native_app) fn set_file_last_played_at(
+        &mut self,
+        path: &Path,
+        last_played_at: i64,
+    ) -> bool {
+        let file_id = path_id(path);
+        let mut changed = false;
+        for source in &mut self.source.sources {
+            let Some(root_folder) = &mut source.root_folder else {
+                continue;
+            };
+            changed |= root_folder.set_file_last_played_at(&file_id, last_played_at);
+            if source.id == self.source.selected_source {
+                self.tree.folders = vec![root_folder.clone()];
+            }
+        }
+        if changed {
+            self.bump_file_content_revision();
+        }
+        changed
+    }
 }
