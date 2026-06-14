@@ -22,6 +22,9 @@ const FOLDER_TREE_EMPTY_LABEL: ui::Rgba8 = ui::Rgba8 {
     b: 156,
     a: 255,
 };
+const FOLDER_TREE_SELECTED_HOVER_ALPHA: u8 = 174;
+const FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA: u8 = 245;
+const FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH: f32 = 3.0;
 
 pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
     ui::column([
@@ -106,6 +109,7 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
         .guide_style(folder_tree_guide_style())
         .palette(folder_tree_palette())
         .drop_target_outline(folder_tree_drop_target_outline())
+        .selected_hover_marker(folder_tree_selected_hover_marker())
         .highlighted_label_color(folder_tree_highlighted_label_color(folder));
 
     let row = if let Some(label_color) = folder_tree_label_color(folder) {
@@ -196,7 +200,12 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
 }
 
 fn folder_tree_palette() -> ui::DenseRowPalette {
-    ui::dense_row_palette_from_style(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE)
+    let theme = ui::ThemeTokens::default();
+    ui::dense_row_palette_from_style(&theme, SIDEBAR_ROW_STYLE).selected_hovered(
+        theme
+            .accent_mint
+            .with_alpha(FOLDER_TREE_SELECTED_HOVER_ALPHA),
+    )
 }
 
 fn folder_tree_drop_target_outline() -> ui::DenseRowOutlineStyle {
@@ -208,6 +217,17 @@ fn folder_tree_guide_style() -> ui::TreeGuideStyle {
         TREE_DEPTH_INDENT,
         TREE_ROW_HEIGHT,
         ui::dense_row_tree_guide_color(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE),
+    )
+}
+
+fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {
+    ui::DenseRowMarkerStyle::new(
+        ui::DenseRowMarkerParts::leading(FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH)
+            .edge_inset(1.0)
+            .vertical_inset(3.0),
+        ui::ThemeTokens::default()
+            .accent_mint
+            .with_alpha(FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA),
     )
 }
 
@@ -241,6 +261,27 @@ mod tests {
         assert_eq!(palette.hovered, expected.hovered);
         assert_eq!(palette.candidate_hovered, expected.candidate_hovered);
         assert_eq!(palette.selected, expected.selected);
+        assert_eq!(
+            palette.selected_hovered,
+            Some(
+                ui::ThemeTokens::default()
+                    .accent_mint
+                    .with_alpha(FOLDER_TREE_SELECTED_HOVER_ALPHA)
+            )
+        );
+    }
+
+    #[test]
+    fn folder_tree_selected_hover_marker_uses_left_orange_rail() {
+        let marker = folder_tree_selected_hover_marker();
+
+        assert_eq!(marker.parts.width, FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH);
+        assert_eq!(
+            marker.color,
+            ui::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA)
+        );
     }
 
     #[test]
