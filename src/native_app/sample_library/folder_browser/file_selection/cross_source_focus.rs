@@ -22,7 +22,7 @@ impl FolderBrowserState {
         self.selection.folder_before_collection = None;
         self.collection_panel.rename_edit = None;
         self.source.selected_source = source_id;
-        self.selection.selected_folder = parent_id;
+        self.selection.select_folder_after_tree_changed(parent_id);
         self.selection.set_focus_file_set(file_id);
         self.reset_file_view();
         self.tree.folders = vec![root_folder];

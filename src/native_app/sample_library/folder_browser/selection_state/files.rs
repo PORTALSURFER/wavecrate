@@ -1,0 +1,171 @@
+use super::{BrowserSelectionSnapshot, BrowserSelectionState};
+use crate::native_app::sample_library::folder_browser::file_selection_model::{
+    FileSelectionModel, SelectionToggleAdvanceOutcome,
+};
+use radiant::widgets::PointerModifiers;
+use std::collections::HashSet;
+
+impl BrowserSelectionState {
+    pub(in crate::native_app::sample_library::folder_browser) fn clear_file_selection(&mut self) {
+        self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.selected_file_ids_explicit = false;
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn active_file_ids(
+        &self,
+    ) -> HashSet<String> {
+        self.file_selection_model().active_ids()
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_file_count(
+        &self,
+    ) -> usize {
+        self.selected_file_ids.len()
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_file_id(
+        &self,
+    ) -> Option<&str> {
+        self.selected_file.as_deref()
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_file_ids_contains(
+        &self,
+        file_id: &str,
+    ) -> bool {
+        self.file_selection_model().contains_selected_id(file_id)
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_file_active(
+        &self,
+    ) -> bool {
+        self.selected_file.is_some()
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn snapshot(
+        &self,
+    ) -> BrowserSelectionSnapshot {
+        BrowserSelectionSnapshot {
+            selected_folder: self.selected_folder.clone(),
+            selected_file: self.selected_file.clone(),
+            selected_file_ids: self.selected_file_ids.clone(),
+            selected_file_ids_explicit: self.selected_file_ids_explicit,
+        }
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn restore_snapshot(
+        &mut self,
+        snapshot: BrowserSelectionSnapshot,
+    ) {
+        self.selected_folder = snapshot.selected_folder;
+        self.selected_file = snapshot.selected_file;
+        self.selected_file_ids = snapshot.selected_file_ids;
+        self.selected_file_ids_explicit = snapshot.selected_file_ids_explicit;
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn select_single_file(
+        &mut self,
+        id: String,
+        visible_ids: &[String],
+    ) -> bool {
+        if !visible_ids.contains(&id) {
+            return false;
+        }
+        let mut selection = self.file_selection_model();
+        let selected = selection.select_single(id, visible_ids);
+        self.apply_file_selection_model(selection);
+        selected
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn select_file_with_modifiers(
+        &mut self,
+        id: String,
+        visible_ids: &[String],
+        modifiers: PointerModifiers,
+    ) -> bool {
+        if !visible_ids.contains(&id) {
+            return false;
+        }
+        let mut selection = self.file_selection_model();
+        let selected = selection.select_with_modifiers(id, visible_ids, modifiers);
+        self.apply_file_selection_model(selection);
+        selected
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn focus_file_preserving_selection(
+        &mut self,
+        id: String,
+        visible_ids: &[String],
+    ) -> bool {
+        let mut selection = self.file_selection_model();
+        let focused = selection.focus_preserving_selection(id, visible_ids);
+        self.apply_file_selection_model(selection);
+        focused
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn select_all_files(
+        &mut self,
+        ids: Vec<String>,
+    ) -> usize {
+        let mut selection = self.file_selection_model();
+        let count = selection.select_all(ids);
+        self.apply_file_selection_model(selection);
+        count
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn navigate_file(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        visible_ids: &[String],
+    ) -> Option<String> {
+        let mut selection = self.file_selection_model();
+        let target = selection.navigate(delta, extend, visible_ids)?;
+        self.apply_file_selection_model(selection);
+        Some(target)
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn toggle_focused_file_and_advance(
+        &mut self,
+        visible_ids: &[String],
+    ) -> Option<SelectionToggleAdvanceOutcome> {
+        let mut selection = self.file_selection_model();
+        let outcome = selection.toggle_focused_and_advance(visible_ids)?;
+        self.apply_file_selection_model(selection);
+        Some(outcome)
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn retain_visible_files(
+        &mut self,
+        visible_ids: &HashSet<String>,
+    ) {
+        let mut selection = self.file_selection_model();
+        selection.retain_visible(visible_ids);
+        self.apply_file_selection_model(selection);
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn set_focus_file_set(
+        &mut self,
+        file_id: String,
+    ) {
+        self.selected_file = Some(file_id.clone());
+        self.selected_file_ids.clear();
+        self.selected_file_ids.insert(file_id);
+        self.selected_file_ids_explicit = false;
+    }
+
+    fn file_selection_model(&self) -> FileSelectionModel {
+        FileSelectionModel::new(
+            self.selected_file.clone(),
+            self.selected_file_ids.clone(),
+            self.selected_file_ids_explicit,
+        )
+    }
+
+    fn apply_file_selection_model(&mut self, selection: FileSelectionModel) {
+        self.selected_file = selection.focused_id().map(ToOwned::to_owned);
+        self.selected_file_ids = selection.selected_ids().clone();
+        self.selected_file_ids_explicit = selection.explicit();
+    }
+}

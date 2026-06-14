@@ -36,7 +36,7 @@ impl FolderBrowserState {
 
     fn reset_folder_focus_to_selected_source_root(&mut self) {
         if let Some(root) = self.tree.folders.first() {
-            self.selection.selected_folder = root.id.clone();
+            self.selection.set_folder_focus(root.id.clone());
         }
     }
 }

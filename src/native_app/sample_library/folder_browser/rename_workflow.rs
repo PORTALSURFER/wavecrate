@@ -118,10 +118,8 @@ impl FolderBrowserState {
             ));
         }
         self.tree.expanded_folders.insert(parent_id.clone());
-        self.selection.selected_folder = folder_id.clone();
-        self.selection.selected_file = None;
-        self.selection.selected_file_ids.clear();
-        self.selection.selected_file_ids_explicit = false;
+        self.selection
+            .select_folder_after_tree_changed(folder_id.clone());
         self.rename.folder = Some(FolderRenameEdit {
             folder_id,
             draft,
@@ -153,10 +151,8 @@ impl FolderBrowserState {
             ));
         }
         self.tree.expanded_folders.insert(parent_id);
-        self.selection.selected_folder = folder_id.clone();
-        self.selection.selected_file = None;
-        self.selection.selected_file_ids.clear();
-        self.selection.selected_file_ids_explicit = false;
+        self.selection
+            .select_folder_after_tree_changed(folder_id.clone());
         self.reset_file_view();
 
         let input_id = rename_input_id(&folder_id);
@@ -262,10 +258,8 @@ impl FolderBrowserState {
                 self.remove_pending_created_folder(&pending_id, &parent_id);
                 self.upsert_child_folder(&parent_id, folder);
                 self.tree.expanded_folders.insert(parent_id);
-                self.selection.selected_folder = path_id(&new_path);
-                self.selection.selected_file = None;
-                self.selection.selected_file_ids.clear();
-                self.selection.selected_file_ids_explicit = false;
+                self.selection
+                    .select_folder_after_tree_changed(path_id(&new_path));
                 self.reset_file_view();
                 RenameCommitResult::status(format!("Created folder {new_name}"))
             }
