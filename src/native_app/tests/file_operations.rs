@@ -367,6 +367,7 @@ fn context_delete_folder_missing_target_reconciles_tree_without_trash_move() {
     state.apply_message(GuiMessage::RequestDeleteContextFolder, &mut context);
     fs::remove_dir_all(&folder).expect("remove folder before confirmation");
     state.apply_message(GuiMessage::ConfirmContextFolderDelete, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(
         state

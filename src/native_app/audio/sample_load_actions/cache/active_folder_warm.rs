@@ -3,11 +3,14 @@ use std::{path::Path, time::Instant};
 
 use crate::native_app::{
     app::{ActiveFolderCacheWarmResult, GuiMessage, NativeAppState, WaveformState},
-    audio::sample_load_actions::cache::{
-        ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_DELAY,
-        ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES, active_folder_cache_warm_priority,
-        logging::log_slow_cache_phase, persisted_warm::take_cache_warm_batch,
-        workers::warm_active_folder_waveform_cache,
+    audio::sample_load_actions::{
+        active_folder_cache_warm_resource_key,
+        cache::{
+            ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_DELAY,
+            ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES, active_folder_cache_warm_priority,
+            logging::log_slow_cache_phase, persisted_warm::take_cache_warm_batch,
+            workers::warm_active_folder_waveform_cache,
+        },
     },
 };
 
@@ -38,7 +41,9 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn cancel_active_folder_cache_warm(&mut self) {
         self.waveform.cache.active_folder_warm_delay_task.cancel();
-        self.waveform.cache.active_folder_warm_task.cancel();
+        if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
+            self.waveform.cache.active_folder_warm_tasks.cancel(&key);
+        }
         if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
         }
@@ -79,8 +84,9 @@ impl NativeAppState {
             || self
                 .waveform
                 .cache
-                .active_folder_warm_task
-                .active()
+                .active_folder_warm_key
+                .as_ref()
+                .and_then(|key| self.waveform.cache.active_folder_warm_tasks.active(key))
                 .is_some()
         {
             return;
@@ -93,7 +99,8 @@ impl NativeAppState {
             self.waveform.cache.active_folder_warm_folder_id = None;
             return;
         }
-        let warm = match active_folder_cache_warm_priority() {
+        let key = active_folder_cache_warm_resource_key(&folder_id);
+        let Some(warm) = (match active_folder_cache_warm_priority() {
             ui::TaskPriority::Interactive => context
                 .business()
                 .interactive("gui-active-folder-cache-warm"),
@@ -101,9 +108,15 @@ impl NativeAppState {
                 .business()
                 .background("gui-active-folder-cache-warm"),
             ui::TaskPriority::Idle => context.business().idle("gui-active-folder-cache-warm"),
-        }
+        })
         .cancellable()
-        .latest(&mut self.waveform.cache.active_folder_warm_task);
+        .exclusive_for(
+            &mut self.waveform.cache.active_folder_warm_tasks,
+            key.clone(),
+        ) else {
+            return;
+        };
+        self.waveform.cache.active_folder_warm_key = Some(key);
         self.waveform.cache.active_folder_warm_cancel = Some(warm.run(
             move |worker_context| {
                 let loaded =
@@ -125,7 +138,9 @@ impl NativeAppState {
         if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
         }
-        self.waveform.cache.active_folder_warm_task.cancel();
+        if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
+            self.waveform.cache.active_folder_warm_tasks.cancel(&key);
+        }
         self.reschedule_active_folder_cache_warm_delay(context);
     }
 
@@ -153,18 +168,19 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn finish_active_folder_cache_warm(
         &mut self,
-        completion: ui::TaskCompletion<ActiveFolderCacheWarmResult>,
+        completion: ui::KeyedTaskCompletion<ui::ResourceKey, ActiveFolderCacheWarmResult>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if !self
             .waveform
             .cache
-            .active_folder_warm_task
-            .finish(completion.ticket)
+            .active_folder_warm_tasks
+            .finish_key(&completion.key, completion.ticket)
         {
             return;
         }
+        self.waveform.cache.active_folder_warm_key = None;
         self.waveform.cache.active_folder_warm_cancel = None;
         let result = completion.output;
         if self.waveform.cache.active_folder_warm_folder_id.as_deref()

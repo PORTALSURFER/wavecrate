@@ -88,24 +88,6 @@ impl NativeAppState {
         let Some(target) = self.ui.browser_interaction.pending_folder_delete.take() else {
             return;
         };
-        if !target.path.exists() {
-            self.library
-                .folder_browser
-                .discard_trashed_folder_path(&target.path);
-            self.ui.status.sample = format!(
-                "Folder {} no longer exists; removed it from the browser",
-                target.name
-            );
-            emit_gui_action(
-                "browser.context_menu.folder.delete",
-                Some("folder_browser"),
-                Some(target.name.as_str()),
-                "reconciled",
-                started_at,
-                Some("folder missing"),
-            );
-            return;
-        }
         self.move_folder_path_to_trash(
             target.path,
             "browser.context_menu.folder.delete",
@@ -255,7 +237,7 @@ impl NativeAppState {
         started_at: Instant,
         error: String,
     ) {
-        if !path.exists() {
+        if is_missing_trash_move_error(&error) {
             self.library
                 .folder_browser
                 .discard_trashed_folder_path(&path);
@@ -336,4 +318,8 @@ fn trash_move_finished_status(count: usize, noun: &str, action: &str) -> String 
         return format!("Moved {count} {noun} to trash after fourth negative rating");
     }
     format!("Moved {count} {noun} to trash")
+}
+
+fn is_missing_trash_move_error(error: &str) -> bool {
+    error.starts_with("Trash move failed: ") && error.ends_with(" is missing")
 }

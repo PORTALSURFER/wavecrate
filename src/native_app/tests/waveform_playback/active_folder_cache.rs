@@ -105,12 +105,7 @@ fn folder_activation_delays_active_folder_cache_warm() {
         "folder activation should wait briefly before assuming browse intent"
     );
     assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_none(),
+        active_folder_cache_warm_ticket(&state).is_none(),
         "active folder cache warm must not start during folder activation"
     );
     assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 2);
@@ -199,12 +194,7 @@ fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
     );
 
     assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_none(),
+        active_folder_cache_warm_ticket(&state).is_none(),
         "background folder cache warm must not start while a foreground sample load is pending"
     );
     assert!(
@@ -259,12 +249,7 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
         &mut context,
     );
     assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_some(),
+        active_folder_cache_warm_ticket(&state).is_some(),
         "test setup should start active-folder cache warming"
     );
 
@@ -277,12 +262,7 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
     );
 
     assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_none(),
+        active_folder_cache_warm_ticket(&state).is_none(),
         "foreground sample selection must cancel an already-running active-folder cache warm"
     );
     assert!(
@@ -335,14 +315,7 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         ),
         &mut context,
     );
-    assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_some()
-    );
+    assert!(active_folder_cache_warm_ticket(&state).is_some());
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
@@ -355,12 +328,7 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
     );
 
     assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_none(),
+        active_folder_cache_warm_ticket(&state).is_none(),
         "changing folders should cancel the active warm worker"
     );
     let second_folder_id = second_folder.display().to_string();
@@ -404,35 +372,23 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
         crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
         &mut context,
     );
-    let running_ticket = state
-        .waveform
-        .cache
-        .active_folder_warm_task
-        .active()
-        .expect("folder warm task");
+    let running_ticket = active_folder_cache_warm_ticket(&state).expect("folder warm task");
 
     state.waveform.current.start_playback(0.0);
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
-            ui::TaskCompletion {
-                ticket: running_ticket,
-                output: crate::native_app::app::ActiveFolderCacheWarmResult {
-                    folder_id: folder.display().to_string(),
-                    loaded: Vec::new(),
-                    cancelled: false,
-                },
-            },
+            active_folder_cache_warm_completion(
+                running_ticket,
+                folder.display().to_string(),
+                Vec::new(),
+                false,
+            ),
         ),
         &mut context,
     );
 
     assert!(
-        state
-            .waveform
-            .cache
-            .active_folder_warm_task
-            .active()
-            .is_none(),
+        active_folder_cache_warm_ticket(&state).is_none(),
         "completed warm batches must not immediately start another batch during playback"
     );
     assert!(

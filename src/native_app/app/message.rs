@@ -92,9 +92,11 @@ pub(in crate::native_app) enum GuiMessage {
     SamplePlaybackReady(ui::KeyedTaskCompletion<ui::ResourceKey, SamplePlaybackReady>),
     SampleLoadFinished(ui::KeyedTaskCompletion<ui::ResourceKey, SampleLoadResult>),
     WaveformCacheIndicatorRefreshFinished(ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>),
-    WaveformCacheWarmFinished(ui::TaskCompletion<WaveformCacheWarmResult>),
+    WaveformCacheWarmFinished(ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>),
     ActiveFolderCacheWarmReady(ui::TaskTicket),
-    ActiveFolderCacheWarmFinished(ui::TaskCompletion<ActiveFolderCacheWarmResult>),
+    ActiveFolderCacheWarmFinished(
+        ui::KeyedTaskCompletion<ui::ResourceKey, ActiveFolderCacheWarmResult>,
+    ),
     AudioPlayerOpenFinished(AudioOpenTaskCompletion),
     PlaySelectedSample,
     PlayRandomSampleRange,

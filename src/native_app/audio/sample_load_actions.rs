@@ -34,5 +34,15 @@ pub(in crate::native_app) fn foreground_sample_load_priority() -> ui::TaskPriori
 }
 
 pub(in crate::native_app) fn sample_resource_key(path: &str) -> ui::ResourceKey {
-    ui::ResourceKey::new(format!("sample:{path}"))
+    ui::ResourceKey::scoped("sample", path)
+}
+
+pub(in crate::native_app) fn waveform_cache_warm_resource_key() -> ui::ResourceKey {
+    ui::ResourceKey::scoped("waveform_cache", "warm")
+}
+
+pub(in crate::native_app) fn active_folder_cache_warm_resource_key(
+    folder_id: &str,
+) -> ui::ResourceKey {
+    ui::ResourceKey::scoped("active_folder_cache_warm", folder_id)
 }

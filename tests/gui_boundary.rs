@@ -464,6 +464,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "deferred file-drop worker boundary",
         ),
         (
+            "src/native_app/audio/playback_history/worker.rs",
+            "last-played persistence worker",
+        ),
+        (
             "src/native_app/file_actions/wav_normalize.rs",
             "audio file worker",
         ),
@@ -482,6 +486,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
         (
             "src/native_app/sample_library/folder_browser/file_move_transaction.rs",
             "file operation transaction worker",
+        ),
+        (
+            "src/native_app/sample_library/folder_browser/drag_drop_relocation.rs",
+            "drag/drop relocation persistence worker",
         ),
         (
             "src/native_app/sample_library/folder_browser/collections/assignment.rs",
@@ -504,8 +512,16 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "source scanning worker",
         ),
         (
+            "src/native_app/sample_library/folder_browser/scanning/",
+            "source scanning worker helpers",
+        ),
+        (
             "src/native_app/sample_library/folder_browser/scanning/file_entry_metadata.rs",
             "source scanning metadata worker",
+        ),
+        (
+            "src/native_app/sample_library/folder_create_actions/worker.rs",
+            "folder creation worker",
         ),
         (
             "src/native_app/sample_library/folder_browser/source_scan_cache.rs",
@@ -526,6 +542,14 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
         (
             "src/native_app/sample_library/sample_ratings.rs",
             "rating persistence scheduling boundary",
+        ),
+        (
+            "src/native_app/sample_library/similarity_prep/worker.rs",
+            "similarity preparation worker",
+        ),
+        (
+            "src/native_app/sample_library/similarity_scores.rs",
+            "similarity score lookup worker",
         ),
         (
             "src/native_app/sample_library/source_watcher/classification.rs",

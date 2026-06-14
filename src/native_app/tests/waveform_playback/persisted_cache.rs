@@ -95,7 +95,7 @@ fn sample_selection_cancels_running_persisted_cache_warm() {
     let mut context = ui::UiUpdateContext::default();
     state.maybe_start_waveform_cache_warm(&mut context);
     assert!(
-        state.waveform.cache.warm_task.active().is_some(),
+        persisted_cache_warm_ticket(&state).is_some(),
         "test setup should start persisted cache warming"
     );
     assert!(
@@ -112,7 +112,7 @@ fn sample_selection_cancels_running_persisted_cache_warm() {
     );
 
     assert!(
-        state.waveform.cache.warm_task.active().is_none(),
+        persisted_cache_warm_ticket(&state).is_none(),
         "foreground selection must cancel an already-running persisted cache warm"
     );
     assert!(

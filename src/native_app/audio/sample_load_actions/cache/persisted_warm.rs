@@ -7,9 +7,12 @@ use std::{
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, WaveformCacheWarmResult, WaveformState},
-    audio::sample_load_actions::cache::{
-        WAVEFORM_CACHE_WARM_BATCH_MAX_FILES, logging::log_slow_cache_phase,
-        workers::warm_persisted_waveform_cache,
+    audio::sample_load_actions::{
+        cache::{
+            WAVEFORM_CACHE_WARM_BATCH_MAX_FILES, logging::log_slow_cache_phase,
+            workers::warm_persisted_waveform_cache,
+        },
+        waveform_cache_warm_resource_key,
     },
 };
 
@@ -22,18 +25,23 @@ impl NativeAppState {
             self.cancel_waveform_cache_warm();
             return;
         }
-        if self.waveform.cache.warm_task.active().is_some() {
+        let key = waveform_cache_warm_resource_key();
+        if self.waveform.cache.warm_tasks.active(&key).is_some() {
             return;
         }
         let paths = self.next_waveform_cache_warm_batch();
         if paths.is_empty() {
             return;
         }
-        let warm = context
+        let Some(warm) = context
             .business()
             .background("gui-waveform-cache-warm")
             .cancellable()
-            .latest(&mut self.waveform.cache.warm_task);
+            .exclusive_for(&mut self.waveform.cache.warm_tasks, key.clone())
+        else {
+            return;
+        };
+        self.waveform.cache.warm_key = Some(key);
         self.waveform.cache.warm_cancel = Some(warm.run(
             move |worker_context| {
                 warm_persisted_waveform_cache(paths, || worker_context.is_cancelled())
@@ -46,17 +54,25 @@ impl NativeAppState {
         if let Some(token) = self.waveform.cache.warm_cancel.take() {
             token.cancel();
         }
-        self.waveform.cache.warm_task.cancel();
+        if let Some(key) = self.waveform.cache.warm_key.take() {
+            self.waveform.cache.warm_tasks.cancel(&key);
+        }
     }
 
     pub(in crate::native_app) fn finish_waveform_cache_warm(
         &mut self,
-        completion: ui::TaskCompletion<WaveformCacheWarmResult>,
+        completion: ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>,
     ) {
         let started_at = Instant::now();
-        if !self.waveform.cache.warm_task.finish(completion.ticket) {
+        if !self
+            .waveform
+            .cache
+            .warm_tasks
+            .finish_key(&completion.key, completion.ticket)
+        {
             return;
         }
+        self.waveform.cache.warm_key = None;
         self.waveform.cache.warm_cancel = None;
         self.apply_waveform_cache_warm_result(completion.output);
         log_slow_cache_phase(

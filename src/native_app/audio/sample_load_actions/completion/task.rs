@@ -108,7 +108,7 @@ mod tests {
     ) -> SampleLoadTaskCompletion<SampleLoadResult> {
         let mut latest = ui::LatestTask::new();
         ui::KeyedTaskCompletion {
-            key: ui::ResourceKey::new(format!("sample:{path}")),
+            key: crate::native_app::audio::sample_load_actions::sample_resource_key(path),
             ticket: latest.begin(),
             output: SampleLoadResult {
                 path: String::from(path),

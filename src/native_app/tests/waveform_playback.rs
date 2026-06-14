@@ -220,6 +220,38 @@ fn active_sample_load_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     state.active_sample_load_task()
 }
 
+fn persisted_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
+    let key = state.waveform.cache.warm_key.as_ref()?;
+    state.waveform.cache.warm_tasks.active(key)
+}
+
+fn active_folder_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
+    let key = state.waveform.cache.active_folder_warm_key.as_ref()?;
+    state.waveform.cache.active_folder_warm_tasks.active(key)
+}
+
+fn active_folder_cache_warm_completion(
+    ticket: ui::TaskTicket,
+    folder_id: String,
+    loaded: Vec<(
+        PathBuf,
+        std::sync::Arc<crate::native_app::waveform::WaveformFile>,
+    )>,
+    cancelled: bool,
+) -> ui::KeyedTaskCompletion<ui::ResourceKey, crate::native_app::app::ActiveFolderCacheWarmResult> {
+    ui::KeyedTaskCompletion {
+        key: crate::native_app::audio::sample_load_actions::active_folder_cache_warm_resource_key(
+            folder_id.as_str(),
+        ),
+        ticket,
+        output: crate::native_app::app::ActiveFolderCacheWarmResult {
+            folder_id,
+            loaded,
+            cancelled,
+        },
+    }
+}
+
 fn sample_load_completion(
     ticket: ui::TaskTicket,
     path: String,

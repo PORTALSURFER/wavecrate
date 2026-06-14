@@ -18,12 +18,12 @@ pub(super) fn move_path_to_configured_trash(
     path: &Path,
     trash_folder: Option<&Path>,
 ) -> Result<PathBuf, String> {
-    let trash_folder = trash_folder.ok_or_else(|| {
-        String::from("Set a trash folder in Settings > General before deleting files")
-    })?;
     if !path.exists() {
         return Err(format!("Trash move failed: {} is missing", path.display()));
     }
+    let trash_folder = trash_folder.ok_or_else(|| {
+        String::from("Set a trash folder in Settings > General before deleting files")
+    })?;
     fs::create_dir_all(trash_folder).map_err(|err| format!("Create trash folder failed: {err}"))?;
     let trash_folder = trash_folder
         .canonicalize()
