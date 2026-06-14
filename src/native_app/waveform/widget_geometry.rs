@@ -71,6 +71,13 @@ impl WaveformWidget {
         self.viewport_scope().visible_ratio_from_absolute(ratio?)
     }
 
+    pub(super) fn absolute_ratio_for_visible(&self, visible_ratio: f32) -> Option<f32> {
+        Some(
+            self.viewport_scope()
+                .absolute_ratio_from_visible(visible_ratio),
+        )
+    }
+
     pub(super) fn selection_geometry(
         &self,
         bounds: Rect,

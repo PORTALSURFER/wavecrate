@@ -103,7 +103,7 @@ impl WaveformWidgetProps {
             edit_mark_ratio: state.edit_mark_ratio(),
             play_selection: state.play_selection(),
             edit_selection: state.edit_selection(),
-            hover_cursor_ratio: state.hover_cursor_ratio(),
+            hover_cursor_ratio: None,
             extracted_ranges: state.extracted_ranges().to_vec(),
             play_selection_flash_frames: state.play_selection_flash_frames(),
             playing: state.is_playing(),
@@ -201,6 +201,10 @@ impl Widget for WaveformWidget {
         true
     }
 
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
@@ -210,5 +214,15 @@ impl Widget for WaveformWidget {
     ) {
         self.append_selection_and_marker_paint(primitives, bounds);
         self.append_edit_fade_paint(primitives, bounds);
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        self.append_hover_cursor_paint(primitives, bounds);
     }
 }

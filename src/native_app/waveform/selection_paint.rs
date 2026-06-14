@@ -157,22 +157,31 @@ impl WaveformWidget {
                 EDIT_SELECTION_COLOR.with_alpha(230),
             );
         }
-        if self.active_drag_kind.is_none()
-            && let Some(hover_cursor_ratio) =
-                self.visible_ratio_for_absolute(self.hover_cursor_ratio)
-        {
-            paint.push_horizontal_value_cursor_fill(
-                bounds,
-                hover_cursor_ratio,
-                1.0,
-                HOVER_CURSOR_COLOR,
-            );
-        }
         if !self.playing
             && let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio)
         {
             paint.push_horizontal_value_cursor_fill(bounds, playhead_ratio, 2.0, PLAYHEAD_COLOR);
         }
+    }
+
+    pub(super) fn append_hover_cursor_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
+        if self.active_drag_kind.is_some() || !self.common.is_hovered() {
+            return;
+        }
+        let Some(hover_cursor_ratio) = self.visible_ratio_for_absolute(self.hover_cursor_ratio)
+        else {
+            return;
+        };
+        WidgetPaint::new(primitives, self.common.id).push_horizontal_value_cursor_fill(
+            bounds,
+            hover_cursor_ratio,
+            1.0,
+            HOVER_CURSOR_COLOR,
+        );
     }
 
     fn append_selection_boundary_cursors(

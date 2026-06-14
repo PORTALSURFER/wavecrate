@@ -75,8 +75,6 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
             ui::DragHandlePhase::Cancelled => None,
         },
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
-        WaveformInteraction::HoverCursor { .. }
-        | WaveformInteraction::UpdateSelection { .. }
-        | WaveformInteraction::Frame => None,
+        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
     }
 }

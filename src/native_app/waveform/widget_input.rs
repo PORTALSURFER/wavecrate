@@ -23,32 +23,30 @@ impl WaveformWidget {
         if let Some(pointer) = event.hover_pointer() {
             self.common.state.hovered = pointer_inside;
             if !has_loaded_sample {
+                self.hover_cursor_ratio = None;
                 return None;
             }
             if !pointer_inside {
-                return Some(WidgetOutput::typed(WaveformInteraction::HoverCursor {
-                    visible_ratio: None,
-                }));
+                self.hover_cursor_ratio = None;
+                return None;
             }
             if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
+                self.hover_cursor_ratio = None;
                 return Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::moved(
                         pointer.position,
                     )),
                 ));
             }
-            return self
-                .active_drag_kind
-                .map(|_| {
-                    WidgetOutput::typed(WaveformInteraction::UpdateSelection {
-                        visible_ratio: pointer.normalized_x(),
-                    })
-                })
-                .or_else(|| {
-                    Some(WidgetOutput::typed(WaveformInteraction::HoverCursor {
-                        visible_ratio: Some(pointer.normalized_x()),
-                    }))
-                });
+            let visible_ratio = pointer.normalized_x();
+            if self.active_drag_kind.is_some() {
+                self.hover_cursor_ratio = None;
+                return Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
+                    visible_ratio,
+                }));
+            }
+            self.hover_cursor_ratio = self.absolute_ratio_for_visible(visible_ratio);
+            return None;
         }
         if let Some((pointer, delta)) = event.wheel_pointer_delta_inside(bounds) {
             return has_loaded_sample.then(|| {
@@ -106,9 +104,14 @@ impl WaveformWidget {
         None
     }
 
-    fn handle_primary_press(&self, bounds: Rect, pointer: CanvasPointer) -> Option<WidgetOutput> {
+    fn handle_primary_press(
+        &mut self,
+        bounds: Rect,
+        pointer: CanvasPointer,
+    ) -> Option<WidgetOutput> {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
+        self.hover_cursor_ratio = None;
         if self.play_selection_export_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::started(position)),
@@ -170,9 +173,14 @@ impl WaveformWidget {
         None
     }
 
-    fn handle_secondary_press(&self, bounds: Rect, pointer: CanvasPointer) -> Option<WidgetOutput> {
+    fn handle_secondary_press(
+        &mut self,
+        bounds: Rect,
+        pointer: CanvasPointer,
+    ) -> Option<WidgetOutput> {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
+        self.hover_cursor_ratio = None;
         if let Some(handle) = self.edit_fade_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(WaveformInteraction::BeginEditFade {
                 handle,

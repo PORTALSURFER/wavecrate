@@ -56,12 +56,19 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
 
 #[test]
 fn hover_cursor_paints_thin_white_overlay_line() {
-    let mut state = WaveformState::synthetic_for_tests();
-    state.apply_interaction(WaveformInteraction::HoverCursor {
-        visible_ratio: Some(0.25),
-    });
-    let widget = waveform_widget_for_state(&state);
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(400.0, 80.0);
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(100.0, 40.0)));
+    assert!(output.is_none());
+
+    let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+    widget.append_runtime_overlay_paint(
+        &mut plan.primitives,
+        bounds,
+        &radiant::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
 
     let cursor = fill_rects(&plan)
         .into_iter()
