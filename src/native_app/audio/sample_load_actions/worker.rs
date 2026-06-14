@@ -2,12 +2,11 @@ use radiant::prelude as ui;
 use std::{
     cell::RefCell,
     path::PathBuf,
-    sync::mpsc::Sender,
     time::{Duration, Instant},
 };
 
 use crate::native_app::{
-    app::{GuiMessage, SampleLoadResult, SamplePlaybackReady, WaveformState},
+    app::{SampleLoadResult, SamplePlaybackReady, WaveformState},
     audio::sample_load_actions::{
         log_loaded_sample_metadata, log_sample_load_timing,
         types::{SampleLoadRequest, SampleLoadStrategy},
@@ -17,20 +16,24 @@ use crate::native_app::{
 const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
 const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;
 
+pub(super) enum SampleLoadWorkerEvent {
+    Progress(f32),
+    PlaybackReady(SamplePlaybackReady),
+}
+
 pub(super) struct SampleLoadWorker {
     request: SampleLoadRequest,
-    sender: Sender<GuiMessage>,
 }
 
 impl SampleLoadWorker {
-    pub(super) fn new(request: SampleLoadRequest, sender: Sender<GuiMessage>) -> Self {
-        Self { request, sender }
+    pub(super) fn new(request: SampleLoadRequest) -> Self {
+        Self { request }
     }
 
     pub(super) fn run(
         self,
-        ticket: ui::TaskTicket,
         context: radiant::runtime::BusinessWorkContext,
+        events: ui::BusinessEventSink<SampleLoadWorkerEvent>,
     ) -> SampleLoadResult {
         log_sample_load_timing(
             "browser.sample_load.worker.queue_wait",
@@ -47,8 +50,8 @@ impl SampleLoadWorker {
             };
         }
 
-        let progress_reporter = Self::progress_reporter(ticket, &self.sender);
-        let result = self.load(ticket, &context, &progress_reporter);
+        let progress_reporter = Self::progress_reporter(events.clone());
+        let result = self.load(&context, &events, &progress_reporter);
         let autoplay = self.request.autoplay();
         SampleLoadResult {
             path: self.request.path().to_owned(),
@@ -59,25 +62,25 @@ impl SampleLoadWorker {
 
     fn load(
         &self,
-        ticket: ui::TaskTicket,
         context: &radiant::runtime::BusinessWorkContext,
+        events: &ui::BusinessEventSink<SampleLoadWorkerEvent>,
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         match self.request.strategy() {
             SampleLoadStrategy::Decode => {
-                self.load_decoded_sample(ticket, context, progress_reporter)
+                self.load_decoded_sample(context, events, progress_reporter)
             }
         }
     }
 
     fn load_decoded_sample(
         &self,
-        ticket: ui::TaskTicket,
         context: &radiant::runtime::BusinessWorkContext,
+        events: &ui::BusinessEventSink<SampleLoadWorkerEvent>,
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         let phase_started_at = Instant::now();
-        let ready_sender = self.sender.clone();
+        let ready_events = events.clone();
         let ready_path = self.request.path().to_owned();
         let autoplay = self.request.autoplay();
         let result = WaveformState::load_path_for_foreground_audition(
@@ -88,15 +91,13 @@ impl SampleLoadWorker {
             || context.is_cancelled(),
             |audio| {
                 if autoplay && !context.is_cancelled() {
-                    let _ =
-                        ready_sender.send(GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
-                            ticket,
-                            output: SamplePlaybackReady {
-                                path: ready_path.clone(),
-                                audio,
-                                autoplay,
-                            },
-                        }));
+                    let _ = ready_events.emit(SampleLoadWorkerEvent::PlaybackReady(
+                        SamplePlaybackReady {
+                            path: ready_path.clone(),
+                            audio,
+                            autoplay,
+                        },
+                    ));
                 }
             },
         );
@@ -111,19 +112,17 @@ impl SampleLoadWorker {
     }
 
     fn progress_reporter(
-        ticket: ui::TaskTicket,
-        sender: &Sender<GuiMessage>,
+        events: ui::BusinessEventSink<SampleLoadWorkerEvent>,
     ) -> RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>> {
         let progress_gate = ui::ProgressUpdateGate::new(
             SAMPLE_LOAD_PROGRESS_MIN_INTERVAL,
             SAMPLE_LOAD_PROGRESS_MIN_DELTA,
         )
         .with_max_fraction(0.995);
-        let progress_sender = sender.clone();
         RefCell::new(ui::ThrottledProgressReporter::new(
             progress_gate,
             move |progress| {
-                let _ = progress_sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
+                let _ = events.emit(SampleLoadWorkerEvent::Progress(progress));
             },
         ))
     }

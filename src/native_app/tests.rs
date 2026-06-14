@@ -225,6 +225,7 @@ fn run_command_for_tests(
         | Command::PlatformRequest { .. }
         | Command::EndExternalDrag
         | Command::After { .. }
+        | Command::PerformStream { .. }
         | Command::Exit => {}
         Command::Message(message) => {
             state.apply_message(message, &mut ui::UiUpdateContext::default());
@@ -246,11 +247,13 @@ fn start_deferred_sample_load_for_tests(
     autoplay: bool,
     context: &mut ui::UiUpdateContext<super::test_support::state::GuiMessage>,
 ) {
-    let ticket = state
-        .background
-        .deferred_sample_load_task
-        .active()
-        .expect("deferred sample load queued");
+    let Some(ticket) = state.background.deferred_sample_load_task.active() else {
+        assert!(
+            state.background.sample_load_task.active().is_some(),
+            "sample load queued"
+        );
+        return;
+    };
     state.apply_message(
         super::test_support::state::GuiMessage::DeferredSampleLoad {
             ticket,

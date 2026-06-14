@@ -6,7 +6,7 @@ use crate::native_app::{
     audio::sample_load_actions::{
         foreground_sample_load_priority, log_sample_load_timing,
         types::{SampleLoadRequest, SampleLoadStrategy},
-        worker::SampleLoadWorker,
+        worker::{SampleLoadWorker, SampleLoadWorkerEvent},
     },
 };
 
@@ -137,7 +137,6 @@ impl NativeAppState {
         priority: ui::TaskPriority,
         strategy: SampleLoadStrategy,
     ) {
-        let sender = self.background.worker_sender.clone();
         let request = SampleLoadRequest::new(path, autoplay, priority, strategy);
         let load = match request.priority() {
             ui::TaskPriority::Interactive => context.business().interactive("gui-sample-load"),
@@ -146,10 +145,20 @@ impl NativeAppState {
         }
         .cancellable()
         .latest(&mut self.background.sample_load_task);
-        let ticket = load.ticket();
-        self.background.sample_load_cancel = Some(load.run(
-            move |worker_context| {
-                SampleLoadWorker::new(request, sender).run(ticket, worker_context)
+        self.background.sample_load_cancel = Some(load.stream(
+            move |worker_context, events| {
+                SampleLoadWorker::new(request).run(worker_context, events)
+            },
+            |event| match event.output {
+                SampleLoadWorkerEvent::Progress(progress) => {
+                    GuiMessage::SampleLoadProgress(event.ticket, progress)
+                }
+                SampleLoadWorkerEvent::PlaybackReady(ready) => {
+                    GuiMessage::SamplePlaybackReady(ui::TaskCompletion {
+                        ticket: event.ticket,
+                        output: ready,
+                    })
+                }
             },
             GuiMessage::SampleLoadFinished,
         ));
