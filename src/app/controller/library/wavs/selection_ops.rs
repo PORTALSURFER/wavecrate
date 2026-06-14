@@ -1,10 +1,18 @@
 use super::*;
 use crate::sample_sources::Rating;
 
+/// Wav-selection cache and lookup maintenance helpers.
+mod maintenance;
+/// Staged focus/commit selection pipeline.
+mod pipeline;
 /// Side-effect policies for preview and commit focus transitions.
 mod side_effects;
 /// Database-backed tag/loop mutation helpers for wav entries.
 mod tags;
+/// Target resolution for path and index selection entrypoints.
+mod target;
+
+pub(crate) use maintenance::{invalidate_cached_audio_for_entry_updates, rebuild_wav_lookup};
 use side_effects::SelectionSideEffects;
 pub(crate) use tags::{
     apply_normal_tag_for_source, normal_tag_state_for_source, normal_tags_for_path,
@@ -27,7 +35,7 @@ pub(crate) fn focus_wav_by_path_with_rebuild(
     path: &Path,
     rebuild: bool,
 ) {
-    select_wav_path_with_options(
+    target::select_wav_path_with_options(
         controller,
         path,
         rebuild,
@@ -46,7 +54,12 @@ pub(crate) fn focus_wav_by_path_preview_with_rebuild(
     path: &Path,
     rebuild: bool,
 ) {
-    select_wav_path_with_options(controller, path, rebuild, SelectionSideEffects::preview());
+    target::select_wav_path_with_options(
+        controller,
+        path,
+        rebuild,
+        SelectionSideEffects::preview(),
+    );
 }
 
 /// Preview-focus a wav entry by index while skipping heavy commit side effects.
@@ -55,7 +68,12 @@ pub(crate) fn focus_wav_by_index_preview_with_rebuild(
     index: usize,
     rebuild: bool,
 ) {
-    select_wav_index_with_options(controller, index, rebuild, SelectionSideEffects::preview());
+    target::select_wav_index_with_options(
+        controller,
+        index,
+        rebuild,
+        SelectionSideEffects::preview(),
+    );
 }
 
 pub(crate) fn select_wav_by_path_with_rebuild(
@@ -63,7 +81,7 @@ pub(crate) fn select_wav_by_path_with_rebuild(
     path: &Path,
     rebuild: bool,
 ) {
-    select_wav_path_with_options(controller, path, rebuild, SelectionSideEffects::commit());
+    target::select_wav_path_with_options(controller, path, rebuild, SelectionSideEffects::commit());
 }
 
 /// Select a wav entry by index, optionally deferring browser list rebuild.
@@ -72,188 +90,12 @@ pub(crate) fn select_wav_by_index_with_rebuild(
     index: usize,
     rebuild: bool,
 ) {
-    select_wav_index_with_options(controller, index, rebuild, SelectionSideEffects::commit());
-}
-
-/// Shared wav-path selection pipeline with optional audio load queueing.
-///
-/// Side effects are controlled by `side_effects` so high-frequency navigation
-/// can remain lightweight while commit actions preserve full behavior.
-fn select_wav_path_with_options(
-    controller: &mut AppController,
-    path: &Path,
-    rebuild: bool,
-    side_effects: SelectionSideEffects,
-) {
-    let Some(index) = controller.wav_index_for_path(path) else {
-        return;
-    };
-    select_wav_known_index_with_options(
+    target::select_wav_index_with_options(
         controller,
         index,
-        path.to_path_buf(),
         rebuild,
-        side_effects,
+        SelectionSideEffects::commit(),
     );
-}
-
-/// Shared wav-index selection pipeline for hot paths where entry index is known.
-fn select_wav_index_with_options(
-    controller: &mut AppController,
-    index: usize,
-    rebuild: bool,
-    side_effects: SelectionSideEffects,
-) {
-    let path = match controller.wav_entry(index) {
-        Some(entry) => entry.relative_path.clone(),
-        None => return,
-    };
-    select_wav_known_index_with_options(controller, index, path, rebuild, side_effects);
-}
-
-/// Shared selection implementation with pre-resolved absolute index and path.
-fn select_wav_known_index_with_options(
-    controller: &mut AppController,
-    index: usize,
-    path: PathBuf,
-    rebuild: bool,
-    side_effects: SelectionSideEffects,
-) {
-    if side_effects.commit_pending_age_update {
-        controller.defer_pending_age_update_commit_if_path_changes(&path);
-    }
-    if controller.current_source().is_none() {
-        if let Some(source_id) = controller
-            .selection_state
-            .ctx
-            .last_selected_browsable_source
-            .clone()
-            .filter(|id| controller.library.sources.iter().any(|s| &s.id == id))
-        {
-            controller.selection_state.ctx.selected_source = Some(source_id);
-            controller.refresh_sources_ui();
-        } else if let Some(first) = controller.library.sources.first().cloned() {
-            controller
-                .selection_state
-                .ctx
-                .last_selected_browsable_source = Some(first.id.clone());
-            controller.selection_state.ctx.selected_source = Some(first.id);
-            controller.refresh_sources_ui();
-        }
-    }
-    let path_changed = controller.sample_view.wav.selected_wav.as_deref() != Some(path.as_path());
-    let commit_focus_pending = controller.ui.browser.selection.commit_focus_pending
-        && side_effects.record_focus_history
-        && controller.sample_view.wav.selected_wav.as_deref() == Some(path.as_path());
-    let apply_commit_focus_effects = path_changed || commit_focus_pending;
-    let active_loop_enabled = controller.ui.waveform.loop_enabled;
-    let entry_looped = controller
-        .wav_entries
-        .entry(index)
-        .map(|entry| entry.looped)
-        .unwrap_or(false);
-    let loop_lock_enabled = controller.ui.waveform.loop_lock_enabled;
-    if path_changed {
-        let _ = controller.commit_edit_selection_fades();
-    }
-    if path_changed {
-        controller.ui.waveform.last_start_marker = None;
-        if !(loop_lock_enabled
-            || (controller.settings.feature_flags.autoplay_selection && active_loop_enabled))
-        {
-            controller.ui.waveform.loop_enabled = entry_looped;
-        }
-    }
-    controller.sample_view.wav.selected_wav = Some(path.clone());
-    controller.ui.browser.selection.last_focused_index = Some(index);
-    controller.ui.browser.selection.last_focused_path = Some(path.clone());
-    if apply_commit_focus_effects && !side_effects.refresh_similarity_highlight {
-        controller.clear_focused_similarity_highlight();
-    }
-    let missing = controller
-        .wav_entries
-        .entry(index)
-        .map(|entry| entry.missing)
-        .unwrap_or(false);
-    if missing {
-        if let Some(source) = controller.current_source() {
-            let _ = controller.prune_missing_sample(&source, &path);
-        }
-        controller.show_missing_waveform_notice(&path);
-        controller.set_status(
-            format!("File missing: {}", path.display()),
-            StatusTone::Warning,
-        );
-        controller.selection_state.suppress_autoplay_once = false;
-        controller.clear_focused_similarity_highlight();
-        if rebuild {
-            controller.rebuild_browser_lists();
-        }
-        return;
-    }
-    if !side_effects.queue_audio_load {
-        controller.selection_state.suppress_autoplay_once = false;
-    } else if let Some(source) = controller.current_source() {
-        let autoplay = controller.settings.feature_flags.autoplay_selection
-            && !controller.selection_state.suppress_autoplay_once;
-        controller.selection_state.suppress_autoplay_once = false;
-        let selection_looped = if active_loop_enabled {
-            true
-        } else if path_changed && !loop_lock_enabled {
-            entry_looped
-        } else {
-            controller.ui.waveform.loop_enabled
-        };
-        let pending_playback = if autoplay {
-            Some(PendingPlayback {
-                source_id: source.id.clone(),
-                relative_path: path.clone(),
-                looped: selection_looped,
-                start_override: None,
-                force_loaded_audio: false,
-            })
-        } else {
-            None
-        };
-        controller
-            .runtime
-            .jobs
-            .set_pending_playback(pending_playback.clone());
-        controller.publish_browser_commit_selection(
-            source.id.clone(),
-            path.clone(),
-            index,
-            apply_commit_focus_effects && side_effects.record_focus_history,
-            apply_commit_focus_effects && side_effects.refresh_similarity_highlight,
-            true,
-            pending_playback,
-        );
-    } else if apply_commit_focus_effects
-        && (side_effects.record_focus_history || side_effects.refresh_similarity_highlight)
-        && let Some(source_id) = controller.selection_state.ctx.selected_source.clone()
-    {
-        controller.publish_browser_commit_selection(
-            source_id,
-            path.clone(),
-            index,
-            side_effects.record_focus_history,
-            side_effects.refresh_similarity_highlight,
-            false,
-            None,
-        );
-    } else {
-        controller.selection_state.suppress_autoplay_once = false;
-    }
-    if !side_effects.queue_audio_load {
-        if let Some(source_id) = controller.selection_state.ctx.selected_source.clone() {
-            controller.publish_browser_preview_selection(source_id, path.clone(), index);
-        } else {
-            controller.ui.browser.selection.commit_focus_pending = true;
-        }
-    }
-    if rebuild {
-        controller.rebuild_browser_lists();
-    }
 }
 
 pub(crate) fn select_wav_by_index(controller: &mut AppController, index: usize) {
@@ -278,29 +120,4 @@ pub(crate) fn selected_tag(controller: &mut AppController) -> Option<Rating> {
         .selected_row_index()
         .and_then(|idx| controller.wav_entry(idx))
         .map(|entry| entry.tag)
-}
-
-pub(crate) fn rebuild_wav_lookup(controller: &mut AppController) {
-    controller.wav_entries.lookup.clear();
-    let mut entries = Vec::new();
-    for (page_index, page) in controller.wav_entries.pages.iter() {
-        let base = page_index * controller.wav_entries.page_size;
-        for (idx, entry) in page.iter().enumerate() {
-            entries.push((entry.relative_path.clone(), base + idx));
-        }
-    }
-    for (path, index) in entries {
-        controller.wav_entries.insert_lookup(path, index);
-    }
-}
-
-pub(crate) fn invalidate_cached_audio_for_entry_updates(
-    controller: &mut AppController,
-    source_id: &SourceId,
-    updates: &[(WavEntry, WavEntry)],
-) {
-    for (old_entry, new_entry) in updates {
-        controller.invalidate_cached_audio(source_id, &old_entry.relative_path);
-        controller.invalidate_cached_audio(source_id, &new_entry.relative_path);
-    }
 }
