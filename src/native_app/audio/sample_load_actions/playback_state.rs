@@ -13,6 +13,13 @@ impl NativeAppState {
             || self.background.sample_load_task.active().is_some()
     }
 
+    pub(in crate::native_app) fn sample_cache_warm_should_yield(&self) -> bool {
+        self.waveform_sample_load_active()
+            || self.audio.pending_playback_start.is_some()
+            || self.audio.early_sample_playback_path.is_some()
+            || self.waveform.current.is_playing()
+    }
+
     pub(in crate::native_app) fn waveform_input_blocked_by_sample_load(&self) -> bool {
         self.waveform.load.label.is_some()
             && self.waveform_sample_load_active()

@@ -18,6 +18,10 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if self.sample_cache_warm_should_yield() {
+            self.waveform.cache.warm_task.cancel();
+            return;
+        }
         if self.waveform.cache.warm_task.active().is_some() {
             return;
         }

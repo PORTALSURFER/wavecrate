@@ -155,6 +155,75 @@ fn folder_activation_bounds_active_folder_cache_warm_candidates() {
 }
 
 #[test]
+fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    let first = folder.join("first.wav");
+    let second = folder.join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                folder.display().to_string(),
+                Default::default(),
+            ),
+        ),
+        &mut context,
+    );
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("folder warm delay");
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: first.display().to_string(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_task
+            .active()
+            .is_none(),
+        "background folder cache warm must not start while a foreground sample load is pending"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_some(),
+        "folder cache warm should retry later instead of competing with selection"
+    );
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_pending.len(),
+        2,
+        "foreground selection must not drain warm candidates"
+    );
+}
+
+#[test]
 fn changing_folder_cancels_previous_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
@@ -228,6 +297,86 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         Some(second_folder_id.as_str())
     );
     assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 1);
+}
+
+#[test]
+fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    write_test_wav_i16(&folder.join("first.wav"), &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&folder.join("second.wav"), &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                folder.display().to_string(),
+                Default::default(),
+            ),
+        ),
+        &mut context,
+    );
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("folder warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    let running_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_task
+        .active()
+        .expect("folder warm task");
+
+    state.waveform.current.start_playback(0.0);
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
+            ui::TaskCompletion {
+                ticket: running_ticket,
+                output: crate::native_app::app::ActiveFolderCacheWarmResult {
+                    folder_id: folder.display().to_string(),
+                    loaded: Vec::new(),
+                    cancelled: false,
+                },
+            },
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_task
+            .active()
+            .is_none(),
+        "completed warm batches must not immediately start another batch during playback"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_some(),
+        "active folder cache warm should wait until playback is idle before resuming"
+    );
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_pending.len(),
+        1,
+        "only the already-started single-file batch may be drained"
+    );
 }
 
 #[test]

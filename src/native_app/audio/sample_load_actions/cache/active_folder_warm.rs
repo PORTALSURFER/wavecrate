@@ -66,6 +66,10 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if self.sample_cache_warm_should_yield() {
+            self.pause_active_folder_cache_warm(context);
+            return;
+        }
         if self
             .waveform
             .cache
@@ -114,6 +118,36 @@ impl NativeAppState {
         ));
     }
 
+    fn pause_active_folder_cache_warm(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
+            token.cancel();
+        }
+        self.waveform.cache.active_folder_warm_task.cancel();
+        self.reschedule_active_folder_cache_warm_delay(context);
+    }
+
+    fn reschedule_active_folder_cache_warm_delay(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.waveform.cache.active_folder_warm_folder_id.is_none()
+            || self.waveform.cache.active_folder_warm_pending.is_empty()
+            || self
+                .waveform
+                .cache
+                .active_folder_warm_delay_task
+                .active()
+                .is_some()
+        {
+            return;
+        }
+        context.after_latest(
+            &mut self.waveform.cache.active_folder_warm_delay_task,
+            ACTIVE_FOLDER_CACHE_WARM_DELAY,
+            GuiMessage::ActiveFolderCacheWarmReady,
+        );
+    }
+
     pub(in crate::native_app) fn finish_active_folder_cache_warm(
         &mut self,
         completion: ui::TaskCompletion<ActiveFolderCacheWarmResult>,
@@ -147,7 +181,11 @@ impl NativeAppState {
             Path::new(&result.folder_id),
             started_at,
         );
-        self.maybe_start_active_folder_cache_warm(context);
+        if self.sample_cache_warm_should_yield() {
+            self.reschedule_active_folder_cache_warm_delay(context);
+        } else {
+            self.maybe_start_active_folder_cache_warm(context);
+        }
     }
 
     fn next_active_folder_cache_warm_batch(&mut self) -> Vec<std::path::PathBuf> {
