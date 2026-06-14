@@ -8,9 +8,7 @@ pub(crate) use super::state::cache::{
     AnalysisJobStatus, FeatureCache, FeatureCacheKey, FeatureStatus,
 };
 pub(super) use super::state::cache::{ControllerUiCacheState, LibraryCacheState, WavEntriesState};
-pub(super) use super::state::history::{
-    ControllerHistoryState, FocusHistoryEntry, RandomHistoryEntry,
-};
+pub(super) use super::state::history::{ControllerHistoryState, FocusHistoryEntry};
 pub(super) use super::state::library::{LibraryState, MissingState};
 pub(crate) use super::state::runtime::{
     ControllerRuntimeState, LoadEntriesError, ScanJobMessage, ScanKind, ScanResult,
