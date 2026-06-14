@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use super::super::{FolderBrowserState, SourceEntry, source_scan_cache::save_source_scan_cache};
+use super::super::{
+    FolderBrowserState, SourceEntry, scan::FolderTreeRefreshRequest,
+    source_scan_cache::save_source_scan_cache,
+};
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
 #[derive(Clone, Debug)]
@@ -65,6 +68,22 @@ impl FolderBrowserState {
             .iter()
             .find(|source| source.id == source_id)
             .map(|source| source.root.clone())
+    }
+
+    pub(in crate::native_app) fn selected_source_folder_tree_refresh_request(
+        &self,
+    ) -> Option<FolderTreeRefreshRequest> {
+        let source = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == self.source.selected_source)?;
+        source.root_folder.as_ref()?;
+        Some(FolderTreeRefreshRequest {
+            source_id: source.id.clone(),
+            label: source.label.clone(),
+            root: source.root.clone(),
+        })
     }
 
     pub(in crate::native_app) fn source_relative_file_path(

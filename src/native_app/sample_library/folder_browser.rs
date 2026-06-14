@@ -139,10 +139,10 @@ pub(in crate::native_app) mod projection {
 pub(in crate::native_app) mod scan {
     pub(in crate::native_app) use super::scan_types::{
         FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-        FolderScanResult, FolderVerifyResult,
+        FolderScanResult, FolderTreeRefreshRequest, FolderTreeRefreshResult, FolderVerifyResult,
     };
     pub(in crate::native_app) use super::scanning::{
-        scan_source_with_progress, verify_direct_folder,
+        refresh_folder_tree_only, scan_source_with_progress, verify_direct_folder,
     };
 }
 

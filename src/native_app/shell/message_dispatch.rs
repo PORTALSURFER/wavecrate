@@ -40,7 +40,7 @@ impl NativeAppState {
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)
             | GuiMessage::FolderScanFinished(_)
-            | GuiMessage::StartupFolderVerifyFinished(_)
+            | GuiMessage::FolderTreeRefreshFinished(_)
             | GuiMessage::SelectedFolderVerifyFinished(_)
             | GuiMessage::SourceFilesystemChanged { .. }
             | GuiMessage::NormalizationProgress(_)

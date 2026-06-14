@@ -12,23 +12,15 @@ impl NativeAppState {
         if !self.ui.startup.folder_verify_pending {
             return;
         }
-        if self.background.folder_verify_task.active().is_some() {
+        if self.background.folder_tree_refresh_task.active().is_some() {
             return;
         }
         self.ui.startup.folder_verify_pending = false;
-        self.queue_selected_folder_verify(
+        self.queue_selected_source_folder_tree_refresh(
             context,
-            "folder_browser.startup_verify",
-            "gui-startup-folder-verify",
-            GuiMessage::StartupFolderVerifyFinished,
+            "folder_browser.startup_folder_tree_refresh",
+            "gui-startup-folder-tree-refresh",
         );
-    }
-
-    pub(in crate::native_app) fn finish_startup_folder_verify(
-        &mut self,
-        completion: ui::TaskCompletion<scan::FolderVerifyResult>,
-    ) {
-        self.finish_folder_verify_with_action(completion, "folder_browser.startup_verify");
     }
 
     pub(in crate::native_app) fn queue_selected_folder_verify_after_activation(

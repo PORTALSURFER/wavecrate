@@ -245,6 +245,134 @@ fn selected_source_refresh_prunes_deleted_cached_folders_on_finish() {
     assert!(browser.find_folder(&path_id(&stale)).is_none());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn folder_tree_refresh_prunes_deleted_folders_and_preserves_files() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-refresh-prune");
+    let stale = root.join("stale");
+    let keep = root.join("keep");
+    let keep_file = keep.join("keep.wav");
+    fs::create_dir_all(&stale).expect("create stale folder");
+    fs::create_dir_all(&keep).expect("create keep folder");
+    fs::write(&keep_file, [0_u8; 8]).expect("write keep sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.find_folder(&path_id(&stale)).is_some());
+    assert!(browser.find_folder(&path_id(&keep)).is_some());
+    fs::remove_dir_all(&stale).expect("remove stale folder");
+
+    let result = refresh_folder_tree_only(FolderTreeRefreshRequest {
+        source_id: String::from("assets"),
+        label: String::from("Assets"),
+        root: root.clone(),
+    });
+    assert!(browser.apply_folder_tree_refresh_result(result));
+
+    assert!(browser.find_folder(&path_id(&stale)).is_none());
+    browser.activate_folder(path_id(&keep));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"],
+        "folder-only refresh should preserve cached file rows for folders that still exist"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_tree_refresh_adds_new_empty_folder() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-refresh-add-empty");
+    let added = root.join("added-empty");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.find_folder(&path_id(&added)).is_none());
+    fs::create_dir_all(&added).expect("create added folder");
+
+    let result = refresh_folder_tree_only(FolderTreeRefreshRequest {
+        source_id: String::from("assets"),
+        label: String::from("Assets"),
+        root: root.clone(),
+    });
+    assert!(browser.apply_folder_tree_refresh_result(result));
+
+    let folder = browser
+        .find_folder(&path_id(&added))
+        .expect("new empty folder should be visible");
+    assert!(
+        !folder.contains_audio(),
+        "new folder should be marked empty by the existing contains-audio styling contract"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_tree_refresh_reconciles_deleted_selected_folder() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-refresh-selected");
+    let stale = root.join("stale");
+    fs::create_dir_all(&stale).expect("create stale folder");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&stale));
+    fs::remove_dir_all(&stale).expect("remove stale folder");
+
+    let result = refresh_folder_tree_only(FolderTreeRefreshRequest {
+        source_id: String::from("assets"),
+        label: String::from("Assets"),
+        root: root.clone(),
+    });
+    assert!(browser.apply_folder_tree_refresh_result(result));
+
+    assert!(browser.find_folder(&path_id(&stale)).is_none());
+    assert_eq!(browser.selected_folder_path(), Some(root.clone()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_tree_refresh_ignores_stale_source_result() {
+    let first_root = temp_source_root("wavecrate-gui-folder-tree-refresh-first");
+    let second_root = temp_source_root("wavecrate-gui-folder-tree-refresh-second");
+    let stale_first = first_root.join("stale-first");
+    let second_child = second_root.join("second-child");
+    fs::create_dir_all(&stale_first).expect("create first child");
+    fs::create_dir_all(&second_child).expect("create second child");
+    let first_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("first"),
+        first_root.clone(),
+    );
+    let second_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("second"),
+        second_root.clone(),
+    );
+    let mut browser =
+        FolderBrowserState::from_sample_sources(&[first_source.clone(), second_source.clone()]);
+    let second_scan = browser
+        .begin_source_scan(String::from("second"), 42)
+        .expect("second source scan can queue");
+    let second_result = scan_source_with_progress(second_scan, |_| {}, |_| {});
+    assert!(browser.apply_scan_finished(second_result));
+    assert!(
+        browser
+            .begin_select_source(String::from("second"), 43)
+            .is_none()
+    );
+    fs::remove_dir_all(&stale_first).expect("remove first child");
+
+    let stale_result = refresh_folder_tree_only(FolderTreeRefreshRequest {
+        source_id: String::from("first"),
+        label: String::from("First"),
+        root: first_root.clone(),
+    });
+    assert!(!browser.apply_folder_tree_refresh_result(stale_result));
+
+    assert_eq!(browser.selected_source_id(), "second");
+    assert!(browser.find_folder(&path_id(&second_child)).is_some());
+    let _ = fs::remove_dir_all(first_root);
+    let _ = fs::remove_dir_all(second_root);
+}
+
 #[test]
 fn selected_source_refresh_prunes_deleted_cached_files_on_finish() {
     let root = temp_source_root("wavecrate-gui-source-refresh-prune-file");

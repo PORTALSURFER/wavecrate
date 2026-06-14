@@ -11,6 +11,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        let requested_id = id.clone();
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.library.begin_select_source(id, task_id) {
             let label = request.label.clone();
@@ -23,6 +24,22 @@ impl NativeAppState {
                 None,
             );
             self.launch_folder_scan(request, context);
+        } else if self.library.folder_browser.selected_source_id() == requested_id
+            && self.library.folder_browser.selected_source_loaded()
+        {
+            emit_gui_action(
+                "folder_browser.select_source",
+                Some("folder_browser"),
+                Some(&requested_id),
+                "loaded",
+                started_at,
+                None,
+            );
+            self.queue_selected_source_folder_tree_refresh(
+                context,
+                "folder_browser.select_source.folder_tree_refresh",
+                "gui-source-switch-folder-tree-refresh",
+            );
         } else {
             emit_gui_action(
                 "folder_browser.select_source",

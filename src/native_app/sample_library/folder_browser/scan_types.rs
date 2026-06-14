@@ -53,6 +53,21 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) folder_count: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderTreeRefreshRequest {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) label: String,
+    pub(in crate::native_app) root: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderTreeRefreshResult {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) label: String,
+    pub(in crate::native_app) folder: FolderEntry,
+    pub(in crate::native_app) folder_count: usize,
+}
+
 /// Request for verifying that a selected folder still matches its cached child state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderVerifyRequest {

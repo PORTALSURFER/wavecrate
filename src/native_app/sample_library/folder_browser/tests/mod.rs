@@ -6,7 +6,8 @@ use crate::native_app::sample_library::folder_browser::commands::{
     execute_folder_move_request, execute_rename_commit_request,
 };
 use crate::native_app::sample_library::folder_browser::scan::{
-    FolderScanDiscoveryBatch, scan_source_with_progress,
+    FolderScanDiscoveryBatch, FolderTreeRefreshRequest, refresh_folder_tree_only,
+    scan_source_with_progress,
 };
 use crate::native_app::sample_library::folder_browser::test_support::{
     FolderDragPreview, MIN_FILE_COLUMN_WIDTH,

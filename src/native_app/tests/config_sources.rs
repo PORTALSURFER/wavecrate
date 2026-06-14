@@ -74,7 +74,7 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
     );
     assert!(
         state.ui.startup.folder_verify_pending,
-        "cached source trees should queue only a bounded visible-folder verification"
+        "cached source trees should queue a bounded folder-tree refresh"
     );
     assert!(
         !state
@@ -87,7 +87,7 @@ fn default_gui_restores_cached_sample_indicators_from_source_scan_cache() {
 }
 
 #[test]
-fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
+fn cached_startup_queues_folder_tree_refresh_without_foreground_scan() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
@@ -119,11 +119,15 @@ fn cached_startup_queues_visible_folder_verify_without_foreground_scan() {
     );
     assert!(
         !state.ui.startup.folder_verify_pending,
-        "visible-folder verification should be consumed as a one-shot startup task"
+        "folder-tree refresh should be consumed as a one-shot startup task"
     );
     assert!(
-        state.background.folder_verify_task.active().is_some(),
-        "cached startup should verify only the visible folder in the background"
+        state.background.folder_tree_refresh_task.active().is_some(),
+        "cached startup should refresh only the folder tree in the background"
+    );
+    assert!(
+        state.background.folder_verify_task.active().is_none(),
+        "cached startup should not queue the old visible-folder verification task"
     );
 }
 

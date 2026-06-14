@@ -90,6 +90,30 @@ impl FolderEntry {
         changed
     }
 
+    pub(super) fn replace_folder_structure(&mut self, fresh: FolderEntry) -> bool {
+        let previous_name = std::mem::replace(&mut self.name, fresh.name);
+        let previous_children = std::mem::take(&mut self.children);
+        let next_children = fresh
+            .children
+            .into_iter()
+            .map(|fresh_child| {
+                if let Some(mut previous_child) = previous_children
+                    .iter()
+                    .find(|child| child.id == fresh_child.id)
+                    .cloned()
+                {
+                    previous_child.replace_folder_structure(fresh_child);
+                    previous_child
+                } else {
+                    fresh_child
+                }
+            })
+            .collect::<Vec<_>>();
+        let changed = previous_name != self.name || previous_children != next_children;
+        self.children = next_children;
+        changed
+    }
+
     pub(super) fn rewrite_path_prefix(&mut self, old_path: &Path, new_path: &Path) {
         self.id = rewrite_path_id(&self.id, old_path, new_path);
         if Path::new(&self.id) == new_path {

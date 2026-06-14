@@ -5,7 +5,9 @@ use super::super::scan_types::FolderScanDiscovery;
 use super::super::{
     FolderBrowserState, FolderEntry, SourceEntry,
     path_helpers::{folder_label, path_id},
-    scan_types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
+    scan_types::{
+        FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult, FolderTreeRefreshResult,
+    },
     scanning::{merge_scan_discovery, placeholder_folder},
 };
 
@@ -136,6 +138,37 @@ impl FolderBrowserState {
         } else {
             self.bump_file_content_revision();
         }
+        true
+    }
+
+    pub(in crate::native_app) fn apply_folder_tree_refresh_result(
+        &mut self,
+        result: FolderTreeRefreshResult,
+    ) -> bool {
+        if self.source.selected_source != result.source_id {
+            return false;
+        }
+        let Some(source_index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == result.source_id)
+        else {
+            return false;
+        };
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        if root_folder.id != result.folder.id {
+            return false;
+        }
+        if !root_folder.replace_folder_structure(result.folder) {
+            return false;
+        }
+        self.tree.folders = vec![root_folder.clone()];
+        self.retain_tree_state_after_selected_source_refresh();
+        self.bump_file_content_revision();
+        self.prewarm_selected_source_audio_projection_cache();
         true
     }
 

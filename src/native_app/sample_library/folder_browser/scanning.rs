@@ -9,8 +9,8 @@ use super::{
     path_helpers::{file_label, folder_label, path_id},
     scan_types::{
         FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-        FolderScanResult, FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult,
-        FolderVerifySnapshot,
+        FolderScanResult, FolderTreeRefreshRequest, FolderTreeRefreshResult, FolderVerifyOutcome,
+        FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
     },
 };
 use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
@@ -62,6 +62,20 @@ pub(in crate::native_app) fn verify_direct_folder(
         source_id: request.source_id,
         folder_path: request.folder_path,
         outcome,
+    }
+}
+
+pub(in crate::native_app) fn refresh_folder_tree_only(
+    request: FolderTreeRefreshRequest,
+) -> FolderTreeRefreshResult {
+    let mut folder_count = 0;
+    let folder = load_folder_tree_only(&request.root, &mut folder_count)
+        .unwrap_or_else(|| placeholder_folder(&request.root));
+    FolderTreeRefreshResult {
+        source_id: request.source_id,
+        label: request.label,
+        folder,
+        folder_count,
     }
 }
 
@@ -148,6 +162,22 @@ fn load_folder(
         name: folder_label(path),
         children,
         files,
+    })
+}
+
+fn load_folder_tree_only(path: &Path, folder_count: &mut usize) -> Option<FolderEntry> {
+    let entries = read_sorted_entries(path)?;
+    *folder_count += 1;
+    let children = entries
+        .iter()
+        .filter(|entry| entry.is_dir())
+        .filter_map(|entry| load_folder_tree_only(entry, folder_count))
+        .collect::<Vec<_>>();
+    Some(FolderEntry {
+        id: path_id(path),
+        name: folder_label(path),
+        children,
+        files: Vec::new(),
     })
 }
 

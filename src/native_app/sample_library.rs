@@ -11,6 +11,7 @@ pub(in crate::native_app) mod folder_browser_actions;
 pub(in crate::native_app) mod folder_browser_rename_actions;
 pub(in crate::native_app) mod folder_scan_actions;
 pub(in crate::native_app) mod folder_startup_verify_actions;
+pub(in crate::native_app) mod folder_tree_refresh_actions;
 pub(in crate::native_app) mod native_file_drop_actions;
 pub(in crate::native_app) mod sample_collections;
 pub(in crate::native_app) mod sample_list;

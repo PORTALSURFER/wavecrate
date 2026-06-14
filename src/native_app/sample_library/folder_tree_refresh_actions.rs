@@ -1,0 +1,73 @@
+use radiant::prelude as ui;
+use std::time::Instant;
+
+use crate::native_app::{
+    app::{GuiMessage, NativeAppState, emit_gui_action},
+    sample_library::folder_browser::scan,
+};
+
+impl NativeAppState {
+    pub(in crate::native_app) fn queue_selected_source_folder_tree_refresh(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        action: &'static str,
+        task_name: &'static str,
+    ) -> bool {
+        let Some(request) = self
+            .library
+            .folder_browser
+            .selected_source_folder_tree_refresh_request()
+        else {
+            return false;
+        };
+        let source_id = request.source_id.clone();
+        let started_at = Instant::now();
+        context
+            .business()
+            .background(task_name)
+            .latest(&mut self.background.folder_tree_refresh_task)
+            .run(
+                move |_| scan::refresh_folder_tree_only(request),
+                GuiMessage::FolderTreeRefreshFinished,
+            );
+        emit_gui_action(
+            action,
+            Some("folder_browser"),
+            Some(&source_id),
+            "queued",
+            started_at,
+            None,
+        );
+        true
+    }
+
+    pub(in crate::native_app) fn finish_folder_tree_refresh(
+        &mut self,
+        completion: ui::TaskCompletion<scan::FolderTreeRefreshResult>,
+    ) {
+        let started_at = Instant::now();
+        if !self
+            .background
+            .folder_tree_refresh_task
+            .finish(completion.ticket)
+        {
+            return;
+        }
+        let source_id = completion.output.source_id.clone();
+        let changed = self
+            .library
+            .folder_browser
+            .apply_folder_tree_refresh_result(completion.output);
+        if changed {
+            self.persist_user_configuration("folder_browser.folder_tree_refresh", started_at);
+        }
+        emit_gui_action(
+            "folder_browser.folder_tree_refresh",
+            Some("folder_browser"),
+            Some(&source_id),
+            if changed { "patched" } else { "unchanged" },
+            started_at,
+            None,
+        );
+    }
+}

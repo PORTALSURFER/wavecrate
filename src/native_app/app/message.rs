@@ -19,7 +19,8 @@ use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FileMoveConflictResolutionRequest, FolderMoveCompletion,
 };
 use crate::native_app::sample_library::folder_browser::scan::{
-    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderVerifyResult,
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderTreeRefreshResult,
+    FolderVerifyResult,
 };
 use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
@@ -53,7 +54,7 @@ pub(in crate::native_app) enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
-    StartupFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
+    FolderTreeRefreshFinished(ui::TaskCompletion<FolderTreeRefreshResult>),
     SelectedFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
     SourceFilesystemChanged {
         source_id: String,
