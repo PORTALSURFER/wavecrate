@@ -33,6 +33,25 @@ fn count_node(parent: &NativeAutomationNodeSnapshot, id: &str) -> usize {
             .sum::<usize>()
 }
 
+fn assert_shell_region_map(root: &NativeAutomationNodeSnapshot) {
+    assert_eq!(root.id.0, "shell.root");
+    let regions: Vec<_> = root
+        .children
+        .iter()
+        .map(|node| (node.id.0.as_str(), node.role))
+        .collect();
+    assert_eq!(
+        regions,
+        [
+            ("shell.top_bar", NativeAutomationRole::Panel),
+            ("sources.panel", NativeAutomationRole::Panel),
+            ("waveform.panel", NativeAutomationRole::Panel),
+            ("browser.panel", NativeAutomationRole::Panel),
+            ("shell.status_bar", NativeAutomationRole::Readout),
+        ]
+    );
+}
+
 #[test]
 fn automation_snapshot_exposes_semantic_shell_nodes_from_wavecrate_fixture() {
     let mut model = NativeAppModel {
@@ -72,7 +91,7 @@ fn automation_snapshot_exposes_semantic_shell_nodes_from_wavecrate_fixture() {
     model.focus_context = NativeFocusContextModel::SampleBrowser;
 
     let snapshot = capture_gui_automation_snapshot([1440.0, 810.0], &model);
-    assert_eq!(snapshot.root.id.0, "shell.root");
+    assert_shell_region_map(&snapshot.root);
     assert_eq!(snapshot.root.label.as_deref(), Some("Wavecrate shell"));
 
     let top_bar = child(&snapshot.root, "shell.top_bar");
