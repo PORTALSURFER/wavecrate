@@ -6,7 +6,6 @@ mod loop_control;
 mod policy;
 mod progress;
 mod random_audition;
-mod runtime;
 mod span;
 
 use std::time::Duration;

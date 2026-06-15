@@ -46,9 +46,7 @@ impl NativeAppState {
         if !self.waveform.current.is_playing() && self.audio.early_sample_playback_path.is_none() {
             return;
         }
-        if let Some(player) = self.audio.player.as_mut() {
-            player.stop();
-        }
+        self.stop_audio_output_playback();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.early_sample_playback_path = None;
@@ -64,9 +62,7 @@ impl NativeAppState {
         }
         self.waveform.load.selection.cancel();
         if self.audio.early_sample_playback_path.is_some() {
-            if let Some(player) = self.audio.player.as_mut() {
-                player.stop();
-            }
+            self.stop_audio_output_playback();
             self.audio.current_playback_span = None;
         }
         self.audio.early_sample_playback_path = None;

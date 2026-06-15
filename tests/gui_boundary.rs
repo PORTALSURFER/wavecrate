@@ -220,6 +220,28 @@ fn native_app_ui_update_paths_do_not_call_blocking_business_apis() {
         .expect("native-app UI/update paths must offload filesystem, database, thread, sleep, clipboard, and other blocking business work through Radiant BusinessRuntime or a platform service");
 }
 
+#[test]
+fn native_app_playback_paths_do_not_start_audio_directly() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let native_app_root = manifest_dir.join("src/native_app");
+    let mut offenders = Vec::new();
+    collect_matching_source_lines(&native_app_root, &manifest_dir, &mut offenders, |line| {
+        let code = line.trim();
+        !is_comment_or_empty(code)
+            && (code.contains("set_audio_samples_with_metadata(")
+                || code.contains("set_audio_with_metadata(")
+                || code.contains("set_interleaved_f32_file_with_metadata(")
+                || code.contains(".play_range(")
+                || code.contains(".play_looped_range_from("))
+    });
+
+    assert!(
+        offenders.is_empty(),
+        "native-app playback start paths must submit neutral requests to Reson's playback runtime instead of preparing or starting AudioPlayer directly:\n{}",
+        offenders.join("\n")
+    );
+}
+
 fn collect_app_core_legacy_crossings(dir: &Path, manifest_dir: &Path, offenders: &mut Vec<String>) {
     for_rust_source_file(dir, &mut |path| {
         if is_test_source(path) || path.ends_with("app_api.rs") {

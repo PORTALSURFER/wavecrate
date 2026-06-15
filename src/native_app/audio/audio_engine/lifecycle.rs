@@ -12,7 +12,8 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if self.audio.player.is_some()
+        if self.audio.playback_runtime.is_some()
+            || self.audio.player.is_some()
             || self.background.audio_open.active().is_some()
             || self.audio.settings_error.is_some()
         {
@@ -132,6 +133,9 @@ impl NativeAppState {
         log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
         self.audio.settings_error = Some(err.clone());
         self.audio.player = None;
+        if let Some(runtime) = self.audio.playback_runtime.take() {
+            let _ = runtime.try_shutdown();
+        }
         self.audio.playback_runtime = None;
         self.audio.playback_events = None;
         self.audio.output_resolved = None;

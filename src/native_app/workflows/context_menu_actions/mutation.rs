@@ -51,9 +51,7 @@ impl NativeAppState {
         match self.library.folder_browser.remove_source(&source_id) {
             Ok(removed) => {
                 if path_is_within(&loaded_path, &removed.root) {
-                    if let Some(player) = self.audio.player.as_mut() {
-                        player.stop();
-                    }
+                    self.stop_audio_output_playback();
                     self.waveform.current = WaveformState::empty();
                     self.audio.current_playback_span = None;
                 }

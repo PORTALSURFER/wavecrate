@@ -220,9 +220,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn stop_playback(&mut self) {
         let started_at = Instant::now();
-        if let Some(player) = self.audio.player.as_mut() {
-            player.stop();
-        }
+        self.stop_audio_output_playback();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         let file_name = self.waveform.current.file_name();
@@ -235,5 +233,14 @@ impl NativeAppState {
             started_at,
             None,
         );
+    }
+
+    pub(in crate::native_app) fn stop_audio_output_playback(&mut self) {
+        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+            let _ = runtime.try_stop();
+            self.audio.pending_runtime_start = None;
+        } else if let Some(player) = self.audio.player.as_mut() {
+            player.stop();
+        }
     }
 }

@@ -106,12 +106,7 @@ impl NativeAppState {
         if self.audio.early_sample_playback_path.as_deref() != Some(path) {
             return false;
         }
-        let progress = self
-            .audio
-            .player
-            .as_ref()
-            .and_then(|player| player.progress())
-            .unwrap_or(0.0);
+        let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
         self.waveform.current.start_playback(progress);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.audio.early_sample_playback_path = None;

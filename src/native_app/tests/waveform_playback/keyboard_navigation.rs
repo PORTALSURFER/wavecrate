@@ -426,9 +426,6 @@ fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
 
 #[test]
 fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
-    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
-        return;
-    };
     let source_root = tempfile::tempdir().expect("source root");
     for (name, samples) in [
         ("a.wav", &[0, 256, -256, 512][..]),
@@ -438,7 +435,9 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
     }
 
     let mut state = gui_state_for_span_tests();
-    state.audio.player = Some(player);
+    if !install_playback_runtime_for_tests(&mut state) {
+        return;
+    }
     state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),

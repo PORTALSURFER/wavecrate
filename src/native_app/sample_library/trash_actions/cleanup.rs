@@ -17,9 +17,7 @@ impl NativeAppState {
     }
 
     fn clear_loaded_sample_after_trash(&mut self) {
-        if let Some(player) = self.audio.player.as_mut() {
-            player.stop();
-        }
+        self.stop_audio_output_playback();
         self.waveform.current = WaveformState::empty();
         self.audio.current_playback_span = None;
     }

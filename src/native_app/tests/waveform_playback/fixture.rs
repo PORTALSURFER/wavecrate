@@ -18,9 +18,10 @@ impl WaveformPlaybackScenario {
     }
 
     pub(super) fn default_loaded_with_player() -> Option<Self> {
-        let player = wavecrate::audio::AudioPlayer::new().ok()?;
         let mut state = gui_state_for_span_tests();
-        state.audio.player = Some(player);
+        if !install_playback_runtime_for_tests(&mut state) {
+            return None;
+        }
         let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
         state.waveform.current =
             crate::native_app::test_support::state::WaveformState::load_path(sample_path.into())

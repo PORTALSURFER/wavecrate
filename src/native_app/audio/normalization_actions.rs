@@ -1,7 +1,6 @@
 use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
 
 use radiant::prelude as ui;
-use wavecrate::audio::AudioPlayer;
 
 use crate::native_app::app::{
     GuiMessage, NativeAppState, NormalizationProgress, NormalizationResult,
@@ -74,16 +73,13 @@ impl NativeAppState {
         let was_playing = self.waveform.current.is_playing() && normalizing_loaded;
         let restart_ratio = self
             .audio
-            .player
-            .as_ref()
-            .and_then(AudioPlayer::progress)
+            .playback_progress
+            .progress
             .or(self.waveform.current.playhead_ratio())
             .unwrap_or(0.0);
         let restart_span = self.audio.current_playback_span;
         if was_playing {
-            if let Some(player) = self.audio.player.as_mut() {
-                player.stop();
-            }
+            self.stop_audio_output_playback();
             self.waveform.current.stop_playback();
             self.audio.current_playback_span = None;
         }

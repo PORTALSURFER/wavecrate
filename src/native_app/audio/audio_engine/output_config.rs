@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use wavecrate::audio::AudioPlayer;
+use wavecrate::audio::{AudioPlayer, PlaybackRuntime, PlaybackRuntimeConfig};
 
 use crate::native_app::app::{NativeAppState, emit_gui_action};
 
@@ -40,11 +40,14 @@ impl NativeAppState {
             .is_playing()
             .then_some(self.audio.current_playback_span)
             .flatten();
-        if let Some(player) = self.audio.player.as_mut() {
-            player.stop();
+        self.stop_audio_output_playback();
+        if let Some(runtime) = self.audio.playback_runtime.take() {
+            let _ = runtime.try_shutdown();
         }
         self.background.audio_open.cancel();
         self.audio.player = None;
+        self.audio.playback_events = None;
+        self.audio.pending_runtime_start = None;
         self.audio.output_resolved = None;
         self.refresh_audio_options();
 
@@ -100,7 +103,11 @@ impl NativeAppState {
         player.set_volume(self.audio.volume);
         self.audio.output_resolved = Some(player.output_details().clone());
         self.audio.settings_error = None;
-        self.audio.player = Some(player);
+        self.audio.player = None;
+        let runtime = PlaybackRuntime::spawn(player, PlaybackRuntimeConfig::default())
+            .map_err(|error| format!("start playback runtime: {error}"))?;
+        self.audio.playback_runtime = Some(runtime.handle);
+        self.audio.playback_events = Some(runtime.events);
         Ok(())
     }
 }

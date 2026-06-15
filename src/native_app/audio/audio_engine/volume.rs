@@ -9,7 +9,9 @@ impl NativeAppState {
         let started_at = Instant::now();
         let previous = volume_milli(self.audio.volume);
         self.audio.volume = volume.clamp(0.0, 1.0);
-        if let Some(player) = self.audio.player.as_mut() {
+        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+            let _ = runtime.try_set_volume(self.audio.volume);
+        } else if let Some(player) = self.audio.player.as_mut() {
             player.set_volume(self.audio.volume);
         }
         if volume_milli(self.audio.volume) == previous {

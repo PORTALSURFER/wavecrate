@@ -13,6 +13,23 @@ use fixture::WaveformPlaybackScenario;
 
 static WAVEFORM_CONFIG_BASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+fn install_playback_runtime_for_tests(state: &mut NativeAppState) -> bool {
+    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+        return false;
+    };
+    let output = player.output_details().clone();
+    let Ok(runtime) = wavecrate::audio::PlaybackRuntime::spawn(
+        player,
+        wavecrate::audio::PlaybackRuntimeConfig::default(),
+    ) else {
+        return false;
+    };
+    state.audio.output_resolved = Some(output);
+    state.audio.playback_runtime = Some(runtime.handle);
+    state.audio.playback_events = Some(runtime.events);
+    true
+}
+
 fn set_waveform_test_config_base(
     path: PathBuf,
 ) -> (
@@ -357,20 +374,12 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
         scenario.state.audio.current_playback_span,
         Some((0.25, 0.6))
     );
-    assert!(
-        scenario
-            .state
-            .audio
-            .player
-            .as_ref()
-            .is_some_and(|player| player.is_looping())
-    );
+    assert!(scenario.state.audio.loop_playback);
     let progress = scenario
         .state
-        .audio
-        .player
-        .as_ref()
-        .and_then(|player| player.progress())
+        .waveform
+        .current
+        .playhead_ratio()
         .expect("playback progress");
     assert!(
         (0.24..=0.35).contains(&progress),
@@ -384,25 +393,18 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
         return;
     };
     scenario.start_full_sample_loop();
-    assert_player_progress_inside_span(&scenario.state, 0.0, 1.0);
+    assert_waveform_progress_inside_span(&scenario.state, 0.0, 1.0);
 
     scenario.select_play_range(0.25, 0.60);
 
     assert_playback_span_state(&scenario.state, 0.25, 0.60);
-    assert_player_progress_inside_span(&scenario.state, 0.25, 0.60);
-    assert!(
-        scenario
-            .state
-            .audio
-            .player
-            .as_ref()
-            .is_some_and(|player| player.is_looping())
-    );
+    assert_waveform_progress_inside_span(&scenario.state, 0.25, 0.60);
+    assert!(scenario.state.audio.loop_playback);
 
     scenario.resize_play_range_start(0.25, 0.10);
 
     assert_playback_span_state(&scenario.state, 0.10, 0.60);
-    assert_player_progress_inside_span(&scenario.state, 0.10, 0.60);
+    assert_waveform_progress_inside_span(&scenario.state, 0.10, 0.60);
 }
 
 fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expected_end: f32) {
@@ -420,13 +422,12 @@ fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expec
     );
 }
 
-fn assert_player_progress_inside_span(state: &NativeAppState, start: f32, end: f32) {
+fn assert_waveform_progress_inside_span(state: &NativeAppState, start: f32, end: f32) {
     let progress = state
-        .audio
-        .player
-        .as_ref()
-        .and_then(|player| player.progress())
-        .expect("audio player progress should be available");
+        .waveform
+        .current
+        .playhead_ratio()
+        .expect("waveform progress should be available");
     assert!(
         progress >= start - 0.02 && progress <= end + 0.02,
         "progress {progress}, expected inside {start}..={end}"

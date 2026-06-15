@@ -134,7 +134,11 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             .background
             .deferred_sample_load_task
             .active()
-            .is_some(),
-        "reselect should queue a fresh decode instead of loading stale pre-normalized memory cache"
+            .is_none(),
+        "direct reselect should not use the deferred navigation load path"
+    );
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "reselect should queue a fresh foreground decode instead of loading stale pre-normalized memory cache"
     );
 }

@@ -141,6 +141,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
             .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
+    wait_for_playback_ready_cache(&sample_path_string);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =

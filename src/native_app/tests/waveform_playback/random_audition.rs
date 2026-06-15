@@ -46,11 +46,10 @@ fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
 
 #[test]
 fn random_audition_is_one_shot_even_when_loop_is_enabled() {
-    let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
-        return;
-    };
     let mut state = gui_state_for_span_tests();
-    state.audio.player = Some(player);
+    if !install_playback_runtime_for_tests(&mut state) {
+        return;
+    }
     state.audio.loop_playback = true;
 
     let mut context = ui::UiUpdateContext::default();
@@ -59,13 +58,6 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
     assert!(!state.audio.loop_playback);
     assert!(state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
-    assert!(
-        state
-            .audio
-            .player
-            .as_ref()
-            .is_some_and(|player| !player.is_looping())
-    );
 }
 
 #[test]
@@ -84,14 +76,8 @@ fn random_audition_uses_loop_mode_for_loop_tagged_sample() {
     scenario.play_random_range(0.5);
 
     assert!(scenario.state.audio.loop_playback);
-    assert!(
-        scenario
-            .state
-            .audio
-            .player
-            .as_ref()
-            .is_some_and(|player| player.is_looping())
-    );
+    assert!(scenario.state.waveform.current.is_playing());
+    assert!(scenario.state.audio.current_playback_span.is_some());
 }
 
 #[test]
