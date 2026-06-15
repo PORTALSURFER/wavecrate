@@ -48,16 +48,6 @@ impl NativeAppState {
             && !after.requires_surface_frame()
     }
 
-    pub(in crate::native_app) fn frame_message_animation_active(&self) -> bool {
-        self.waveform.current.is_playing()
-            || self.waveform.current.play_selection_flash_active()
-            || self.library.folder_scan_active()
-            || self.background.normalization_progress.is_some()
-            || self.ui.startup.source_scan_pending
-            || self.ui.startup.auto_load_pending
-            || self.waveform_input_blocked_by_sample_load()
-    }
-
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
         if let Some(player) = self.audio.player.as_ref() {
             player.set_edit_fade_state(wavecrate::audio::edit_fade_range_from_selection(

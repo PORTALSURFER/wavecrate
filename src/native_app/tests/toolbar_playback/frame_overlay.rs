@@ -42,32 +42,6 @@ fn playback_frame_repaints_surface_when_playback_state_changes() {
 }
 
 #[test]
-fn frame_animation_stays_active_for_pending_startup_source_scan() {
-    let mut state = gui_state_for_span_tests();
-    assert!(!state.frame_message_animation_active());
-
-    state.ui.startup.source_scan_pending = true;
-
-    assert!(
-        state.frame_message_animation_active(),
-        "startup source restoration needs a frame message to queue the source scan"
-    );
-}
-
-#[test]
-fn frame_animation_stays_active_for_pending_startup_auto_load() {
-    let mut state = gui_state_for_span_tests();
-    assert!(!state.frame_message_animation_active());
-
-    state.ui.startup.auto_load_pending = true;
-
-    assert!(
-        state.frame_message_animation_active(),
-        "startup sample auto-load needs frame messages until the restored source is loaded"
-    );
-}
-
-#[test]
 fn scene_frame_clock_runs_at_60hz_even_when_idle() {
     let state = gui_state_for_span_tests();
     let bridge = radiant::app(state)
