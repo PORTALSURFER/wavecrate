@@ -85,7 +85,7 @@ pub(in crate::native_app::waveform) fn waveform_file_from_mono_samples_with_prog
     .expect("non-cancellable waveform construction cannot be cancelled")
 }
 
-pub(super) fn waveform_file_from_mono_samples_with_progress_and_cancel(
+pub(in crate::native_app::waveform) fn waveform_file_from_mono_samples_with_progress_and_cancel(
     path: PathBuf,
     audio_bytes: Arc<[u8]>,
     sample_rate: u32,

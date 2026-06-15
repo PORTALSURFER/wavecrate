@@ -31,6 +31,9 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
 
     let frames = samples.len() / channels;
     let playback_samples = Arc::from(samples);
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
     playback_ready(WaveformPlaybackReady {
         path: path.clone(),
         audio_bytes: Arc::clone(&bytes),
@@ -39,6 +42,9 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
         channels,
         frames,
     });
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
     let downmix_started_at = Instant::now();
     let mono_samples = downmix_to_mono_with_progress_and_cancel(
         &playback_samples,
@@ -57,15 +63,19 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
     if mono_samples.is_empty() {
         return Err(String::from("WAV contains no complete frames"));
     }
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
     let waveform_started_at = Instant::now();
-    let mut file = super::waveform_file_from_mono_samples_with_progress(
+    let mut file = super::waveform_file_from_mono_samples_with_progress_and_cancel(
         path,
         bytes,
         spec.sample_rate,
         channels,
         mono_samples,
         progress,
-    );
+        cancelled,
+    )?;
     log_audio_load_timing(
         "browser.audio_file.wav.waveform_summary",
         &file.path,
@@ -186,4 +196,59 @@ fn integer_sample_max_i32(bits_per_sample: u16) -> f32 {
 
 fn integer_sample_max_i64(bits_per_sample: u16) -> f32 {
     ((1_i64 << (u32::from(bits_per_sample).saturating_sub(1))) - 1).max(1) as f32
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        path::PathBuf,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+    };
+
+    use super::*;
+
+    fn wav_bytes_i16(channels: u16, samples: &[i16]) -> Arc<[u8]> {
+        let spec = hound::WavSpec {
+            channels,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = hound::WavWriter::new(&mut cursor, spec)
+                .expect("test wav writer should be created");
+            for &sample in samples {
+                writer
+                    .write_sample(sample)
+                    .expect("test wav sample should be written");
+            }
+            writer.finalize().expect("test wav should be finalized");
+        }
+        Arc::from(cursor.into_inner())
+    }
+
+    #[test]
+    fn cancellation_after_playback_ready_stops_waveform_summary() {
+        let bytes = wav_bytes_i16(2, &[0, 0, 1000, -1000, 2000, -2000, 0, 0]);
+        let cancelled = AtomicBool::new(false);
+        let playback_ready_called = AtomicBool::new(false);
+
+        let result = load_wav_waveform_file_with_progress(
+            PathBuf::from("cancelled-after-playback-ready.wav"),
+            bytes,
+            &|_| {},
+            &|| cancelled.load(Ordering::Relaxed),
+            &|_| {
+                playback_ready_called.store(true, Ordering::Relaxed);
+                cancelled.store(true, Ordering::Relaxed);
+            },
+        );
+
+        assert!(matches!(result, Err(error) if error == "cancelled"));
+        assert!(playback_ready_called.load(Ordering::Relaxed));
+    }
 }
