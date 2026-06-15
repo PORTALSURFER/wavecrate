@@ -33,7 +33,7 @@ impl NativeAppState {
         let config = self.audio.output_config.clone();
         let volume = self.audio.volume;
         self.audio.settings_error = None;
-        context.business().interactive("gui-audio-open").run(
+        context.business().blocking_io("gui-audio-open").run(
             move |_| {
                 log_audio_open_timing("audio.output.open.queue_wait", started_at.elapsed(), true);
                 let open_started_at = Instant::now();
