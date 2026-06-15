@@ -60,9 +60,9 @@ try {
       Invoke-WavecrateCargo nextest run --workspace --profile quick --all-targets
     }
   } else {
-    Write-Host "[ci_quick] cargo nextest run -p wavecrate --profile quick --lib --tests"
-    Invoke-NativeStep -Label "cargo nextest run -p wavecrate --profile quick --lib --tests" -Command {
-      Invoke-WavecrateCargo nextest run -p wavecrate --profile quick --lib --tests
+    Write-Host "[ci_quick] cargo nextest run --package wavecrate --profile quick --lib --tests"
+    Invoke-NativeStep -Label "cargo nextest run --package wavecrate --profile quick --lib --tests" -Command {
+      Invoke-WavecrateCargo nextest run --package wavecrate --profile quick --lib --tests
     }
   }
 

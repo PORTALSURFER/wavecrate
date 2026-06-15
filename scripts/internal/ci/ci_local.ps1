@@ -64,8 +64,8 @@ try {
   $prevRustdocFlags = $env:RUSTDOCFLAGS
   try {
     $env:RUSTDOCFLAGS = "-D warnings"
-    Invoke-NativeStep -Label "cargo doc -p wavecrate --no-deps" -Command {
-      Invoke-WavecrateCargo doc -p wavecrate --no-deps
+    Invoke-NativeStep -Label "cargo doc --package wavecrate --no-deps" -Command {
+      Invoke-WavecrateCargo doc --package wavecrate --no-deps
     }
   } finally {
     if ($null -eq $prevRustdocFlags) {

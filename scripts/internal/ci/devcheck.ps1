@@ -68,9 +68,9 @@ try {
   }
 
   if ($AppOnly) {
-    Write-Host "[devcheck] cargo check -p wavecrate --lib --bin wavecrate"
-    Invoke-NativeStep -Label "cargo check -p wavecrate --lib --bin wavecrate" -Command {
-      Invoke-WavecrateCargo check -p wavecrate --lib --bin wavecrate
+    Write-Host "[devcheck] cargo check --package wavecrate --lib --bin wavecrate"
+    Invoke-NativeStep -Label "cargo check --package wavecrate --lib --bin wavecrate" -Command {
+      Invoke-WavecrateCargo check --package wavecrate --lib --bin wavecrate
     }
   } elseif ($Workspace) {
     Write-Host "[devcheck] cargo check --workspace --tests --bins"
@@ -78,9 +78,9 @@ try {
       Invoke-WavecrateCargo check --workspace --tests --bins
     }
   } else {
-    Write-Host "[devcheck] cargo check -p wavecrate --tests --bins"
-    Invoke-NativeStep -Label "cargo check -p wavecrate --tests --bins" -Command {
-      Invoke-WavecrateCargo check -p wavecrate --tests --bins
+    Write-Host "[devcheck] cargo check --package wavecrate --tests --bins"
+    Invoke-NativeStep -Label "cargo check --package wavecrate --tests --bins" -Command {
+      Invoke-WavecrateCargo check --package wavecrate --tests --bins
     }
   }
 

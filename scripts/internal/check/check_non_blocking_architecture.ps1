@@ -55,11 +55,11 @@ try {
   }
 
   Invoke-NativeStep -Label "Wavecrate app-facing blocking guardrail" -Command {
-    Invoke-WavecrateCargo test -p wavecrate --no-default-features native_app_ui_update_paths_do_not_call_blocking_business_apis
+    Invoke-WavecrateCargo test --package wavecrate --no-default-features native_app_ui_update_paths_do_not_call_blocking_business_apis
   }
 
   Invoke-NativeStep -Label "Wavecrate strict slow-handler diagnostics harness" -Command {
-    Invoke-WavecrateCargo test -p wavecrate --no-default-features rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
+    Invoke-WavecrateCargo test --package wavecrate --no-default-features rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
   }
 
   Write-Host "[non_blocking_architecture] OK"

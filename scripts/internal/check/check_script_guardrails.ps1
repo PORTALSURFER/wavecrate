@@ -203,6 +203,28 @@ function Assert-AgentCiCheckDirectory {
   Assert-TextNotContains -Label "agent ci PowerShell does not use stale scripts/check directory" -Text $text -Fragment '"scripts/check"'
 }
 
+function Assert-NoAmbiguousWavecrateCargoPackageShorthand {
+  $violations = New-Object System.Collections.Generic.List[string]
+  $pattern = '(?m)^\s*Invoke-WavecrateCargo\b[^\r\n]*\s-p(\s|$)'
+  foreach ($scriptPath in Get-ChildItem -Path $scriptsDir -Recurse -Filter "*.ps1") {
+    $matches = Select-String -Path $scriptPath.FullName -Pattern $pattern
+    foreach ($match in $matches) {
+      $relativePath = Resolve-Path -Path $match.Path -Relative
+      $violations.Add(("{0}:{1}: use --package instead of -p when calling Invoke-WavecrateCargo" -f $relativePath, $match.LineNumber))
+    }
+  }
+
+  if ($violations.Count -eq 0) {
+    Write-Pass "Invoke-WavecrateCargo calls avoid ambiguous -p package shorthand"
+    return
+  }
+
+  Add-Failure "Invoke-WavecrateCargo package shorthand can bind as a PowerShell parameter"
+  foreach ($violation in $violations) {
+    Write-Host ("  - {0}" -f $violation)
+  }
+}
+
 function Get-Inventory {
   $inventoryPath = Join-Path $scriptsDir "command-inventory.json"
   if (-not (Test-Path -LiteralPath $inventoryPath)) {
@@ -381,6 +403,7 @@ try {
   }
 
   Assert-AgentCiCheckDirectory -Path (Join-Path $scriptsDir "internal/agent/run_agent_ci_checks.ps1")
+  Assert-NoAmbiguousWavecrateCargoPackageShorthand
   $inventory = Get-Inventory
   Assert-ScriptInventoryClassifiesTopLevel -Inventory $inventory
   Assert-CompatibilityWrappers -Inventory $inventory
