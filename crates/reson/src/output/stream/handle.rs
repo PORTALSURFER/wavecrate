@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, TrySendError};
+use std::time::Instant;
 
+use crate::telemetry;
 use tracing::warn;
 
 use crate::output::callback::{StreamCommand, sanitize_gain, store_volume};
@@ -48,8 +50,10 @@ impl CpalAudioStream {
         source: S,
         volume: f32,
     ) -> Result<(), String> {
+        let started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
         let generation = self.command_generation.load(Ordering::Acquire);
-        self.command_sender
+        let result = self
+            .command_sender
             .try_send(StreamCommand::Append {
                 generation,
                 source: Box::new(source),
@@ -58,7 +62,9 @@ impl CpalAudioStream {
             .map_err(|err| match err {
                 TrySendError::Full(_) => "Audio command queue full; dropping source".to_string(),
                 TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
-            })
+            });
+        log_stream_command_timing("append", started_at, result.is_ok());
+        result
     }
 
     /// Clear all queued sources on the audio thread.
@@ -66,7 +72,8 @@ impl CpalAudioStream {
     /// If the command queue is full, a pending clear is still recorded so the
     /// callback can apply it without blocking.
     pub fn clear_sources(&self) -> Result<(), String> {
-        request_clear(
+        let started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
+        let result = request_clear(
             &self.command_sender,
             &self.clear_pending,
             &self.command_generation,
@@ -74,7 +81,9 @@ impl CpalAudioStream {
         .map_err(|err| match err {
             TrySendError::Full(_) => "Audio command queue full; clear pending".to_string(),
             TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
-        })
+        });
+        log_stream_command_timing("clear", started_at, result.is_ok());
+        result
     }
 
     /// Update the master output volume used by the audio callback.
@@ -164,6 +173,21 @@ fn request_clear(
     let generation = command_generation.fetch_add(1, Ordering::AcqRel) + 1;
     clear_pending.store(true, Ordering::Release);
     command_sender.try_send(StreamCommand::Clear { generation })
+}
+
+fn log_stream_command_timing(command: &'static str, started_at: Option<Instant>, submitted: bool) {
+    let Some(started_at) = started_at else {
+        return;
+    };
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "reson_stream",
+        stage = "stream_command_try_send",
+        command,
+        submitted,
+        elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+        "Audio stream command stage"
+    );
 }
 
 #[cfg(test)]

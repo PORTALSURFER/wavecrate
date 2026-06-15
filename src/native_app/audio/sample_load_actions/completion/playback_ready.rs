@@ -6,7 +6,7 @@ use crate::native_app::{
         NativeAppState, SampleLoadTaskCompletion, SamplePlaybackReady, emit_gui_action,
         sample_path_label,
     },
-    audio::sample_load_actions::log_slow_sample_load_phase,
+    audio::sample_load_actions::{log_sample_load_timing, log_slow_sample_load_phase},
 };
 
 impl NativeAppState {
@@ -20,6 +20,7 @@ impl NativeAppState {
         let key = ready.key.clone();
         let ready = ready.output;
         let label = sample_path_label(ready.path.as_str());
+        let stale_gate_started_at = Instant::now();
         if !self
             .background
             .sample_load_tasks
@@ -36,15 +37,28 @@ impl NativeAppState {
             );
             return;
         }
+        log_sample_load_timing(
+            "browser.sample_load.playback_ready.stale_gate",
+            &label,
+            stale_gate_started_at.elapsed(),
+            true,
+        );
         if !ready.autoplay {
             return;
         }
+        let state_update_started_at = Instant::now();
         self.waveform
             .load
             .selection
             .playback_ready(ready.path.as_str());
         self.prepare_playback_mode_for_path(ready.path.as_str());
         let loop_playback = self.audio.loop_playback;
+        log_sample_load_timing(
+            "browser.sample_load.playback_ready.state_update",
+            &label,
+            state_update_started_at.elapsed(),
+            true,
+        );
         let Some(player) = self.audio.player.as_mut() else {
             emit_gui_action(
                 "browser.sample_load.playback_ready",
@@ -84,16 +98,38 @@ impl NativeAppState {
         } else {
             player.play_range(0.0, 1.0, false)
         };
+        log_sample_load_timing(
+            "browser.sample_load.playback_ready.player_play_call",
+            &label,
+            play_started_at.elapsed(),
+            true,
+        );
         match play_result {
             Ok(()) => {
+                let commit_started_at = Instant::now();
                 self.audio.early_sample_playback_path = Some(ready.path);
                 self.audio.current_playback_span = Some((0.0, 1.0));
-                self.record_selected_sample_last_played(context);
-                self.ui.status.sample = format!("Playing {label}");
-                log_slow_sample_load_phase(
-                    "browser.sample_load.playback_ready.player_play",
+                log_sample_load_timing(
+                    "browser.sample_load.playback_ready.commit_audio_state",
                     &label,
-                    play_started_at,
+                    commit_started_at.elapsed(),
+                    true,
+                );
+                let last_played_started_at = Instant::now();
+                self.record_selected_sample_last_played(context);
+                log_sample_load_timing(
+                    "browser.sample_load.playback_ready.last_played_update",
+                    &label,
+                    last_played_started_at.elapsed(),
+                    true,
+                );
+                let status_started_at = Instant::now();
+                self.ui.status.sample = format!("Playing {label}");
+                log_sample_load_timing(
+                    "browser.sample_load.playback_ready.status_update",
+                    &label,
+                    status_started_at.elapsed(),
+                    true,
                 );
                 emit_gui_action(
                     "browser.sample_load.playback_ready",
@@ -105,9 +141,16 @@ impl NativeAppState {
                 );
             }
             Err(err) => {
+                let error_state_started_at = Instant::now();
                 self.audio.early_sample_playback_path = None;
                 self.audio.current_playback_span = None;
                 self.ui.status.sample = format!("Loaded {label} | playback unavailable: {err}");
+                log_sample_load_timing(
+                    "browser.sample_load.playback_ready.error_state_update",
+                    &label,
+                    error_state_started_at.elapsed(),
+                    true,
+                );
                 emit_gui_action(
                     "browser.sample_load.playback_ready",
                     Some("browser"),

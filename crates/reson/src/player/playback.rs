@@ -1,4 +1,5 @@
 use crate::SamplesBuffer;
+use crate::telemetry;
 use crate::timebase::{frames_to_seconds, seconds_to_frames_round};
 use crate::{AsyncSource, Source};
 
@@ -115,12 +116,22 @@ impl AudioPlayer {
         duration: f32,
         looped: bool,
     ) -> Result<(), String> {
+        let total_started_at = playback_stage_started();
+        let source_kind = self.current_source_kind();
         if duration <= 0.0 {
             return Err("Load a .wav file first".into());
         }
 
+        let clear_started_at = playback_stage_started();
         self.fade_out_current_sink(self.anti_clip_fade());
+        log_playback_stage(
+            "clear_or_fade_current",
+            clear_started_at,
+            source_kind,
+            looped,
+        );
 
+        let plan_started_at = playback_stage_started();
         let plan = self.playback_span_plan(
             start_seconds,
             end_seconds,
@@ -128,9 +139,11 @@ impl AudioPlayer {
             looped,
             PlaybackSeekBehavior::SpanStart,
         )?;
+        log_playback_stage("span_plan", plan_started_at, source_kind, looped);
         let sample_rate = plan.layout().sample_rate();
         let channels = plan.layout().channels();
 
+        let source_started_at = playback_stage_started();
         let fade = fade_duration(
             (plan.end_seconds() - plan.start_seconds()).max(f32::EPSILON),
             self.anti_clip_fade(),
@@ -193,11 +206,25 @@ impl AudioPlayer {
             let faded = EdgeFade::new(editable, fade);
             Box::new(faded)
         };
+        log_playback_stage(
+            "source_construction",
+            source_started_at,
+            source_kind,
+            looped,
+        );
 
         let (handle, format) = self.build_sink_with_fade(final_source)?;
+        let finish_started_at = playback_stage_started();
         self.finish_span_playback(&plan, None);
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
+        log_playback_stage("finish_span_state", finish_started_at, source_kind, looped);
+        log_playback_stage(
+            "start_with_span_total",
+            total_started_at,
+            source_kind,
+            looped,
+        );
         Ok(())
     }
 
@@ -208,14 +235,19 @@ impl AudioPlayer {
         duration: f32,
         offset_seconds: f32,
     ) -> Result<(), String> {
+        let total_started_at = playback_stage_started();
+        let source_kind = self.current_source_kind();
         if duration <= 0.0 {
             return Err("Load a .wav file first".into());
         }
 
+        let clear_started_at = playback_stage_started();
         self.fade_out_current_sink(self.anti_clip_fade());
+        log_playback_stage("clear_or_fade_current", clear_started_at, source_kind, true);
 
         let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
         let offset_frames = seconds_to_frames_round(offset_seconds, sample_rate);
+        let plan_started_at = playback_stage_started();
         let plan = self.playback_span_plan(
             start_seconds,
             end_seconds,
@@ -223,9 +255,11 @@ impl AudioPlayer {
             true,
             PlaybackSeekBehavior::FrameOffset(offset_frames),
         )?;
+        log_playback_stage("span_plan", plan_started_at, source_kind, true);
         let sample_rate = plan.layout().sample_rate();
         let channels = plan.layout().channels();
 
+        let source_started_at = playback_stage_started();
         let diagnostic: Box<dyn Source<Item = f32> + Send> =
             if let Some(samples) = self.playback_samples.as_ref().cloned() {
                 let source = SamplesBuffer::from_arc_span_at(
@@ -263,11 +297,20 @@ impl AudioPlayer {
                     plan.sample_count(),
                 ))
             };
+        log_playback_stage("source_construction", source_started_at, source_kind, true);
 
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
+        let finish_started_at = playback_stage_started();
         self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
+        log_playback_stage("finish_span_state", finish_started_at, source_kind, true);
+        log_playback_stage(
+            "start_with_looped_span_total",
+            total_started_at,
+            source_kind,
+            true,
+        );
         Ok(())
     }
 
@@ -309,6 +352,37 @@ impl AudioPlayer {
             self.elapsed_override = None;
         }
     }
+
+    fn current_source_kind(&self) -> &'static str {
+        self.current_audio
+            .as_ref()
+            .map(AudioPlaybackSource::kind)
+            .unwrap_or("none")
+    }
+}
+
+fn playback_stage_started() -> Option<std::time::Instant> {
+    telemetry::playback_telemetry_enabled().then(std::time::Instant::now)
+}
+
+fn log_playback_stage(
+    stage: &'static str,
+    started_at: Option<std::time::Instant>,
+    source_kind: &'static str,
+    looped: bool,
+) {
+    let Some(started_at) = started_at else {
+        return;
+    };
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "reson_player",
+        stage,
+        source_kind,
+        looped,
+        elapsed_ms = telemetry::elapsed_ms(started_at.elapsed()),
+        "Audio player stage"
+    );
 }
 
 fn span_source_for_audio_source(

@@ -153,6 +153,19 @@ impl NativeAppState {
         let waveform_loading = self.waveform_sample_load_active();
         let playing = self.waveform.current.is_playing();
         let pending_playback = self.audio.pending_playback_start.is_some();
+        let interaction_active = sample_loading
+            || audio_opening
+            || folder_scanning
+            || normalizing
+            || waveform_loading
+            || pending_playback;
+        let cadence_context = if interaction_active {
+            "interaction"
+        } else if playing {
+            "playback"
+        } else {
+            "idle"
+        };
         let selected = self
             .library
             .folder_browser
@@ -162,6 +175,27 @@ impl NativeAppState {
 
         match report.kind {
             ui::FrameCadenceKind::ErrorSpike | ui::FrameCadenceKind::WarnSpike => {
+                if cadence_context == "idle" {
+                    tracing::debug!(
+                        target: "wavecrate::debug::ui_frame",
+                        event = "ui.frame.idle_gap",
+                        severity = report.kind.severity().unwrap_or("warn"),
+                        frame = report.frame_index,
+                        delta_ms,
+                        max_delta_ms,
+                        sample_loading,
+                        audio_opening,
+                        folder_scanning,
+                        normalizing,
+                        waveform_loading,
+                        playing,
+                        pending_playback,
+                        cadence_context,
+                        selected = selected.as_str(),
+                        "UI frame cadence idle gap"
+                    );
+                    return;
+                }
                 tracing::warn!(
                     target: "wavecrate::debug::ui_frame",
                     event = "ui.frame.spike",
@@ -176,6 +210,7 @@ impl NativeAppState {
                     waveform_loading,
                     playing,
                     pending_playback,
+                    cadence_context,
                     selected = selected.as_str(),
                     "UI frame spike"
                 );
@@ -194,6 +229,7 @@ impl NativeAppState {
                     waveform_loading,
                     playing,
                     pending_playback,
+                    cadence_context,
                     selected = selected.as_str(),
                     "UI frame timing"
                 );
