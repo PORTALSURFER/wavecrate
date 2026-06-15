@@ -27,7 +27,7 @@ pub(in crate::native_app) struct VisibleSampleWindowPolicy<'a> {
 pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) total_count: usize,
     pub(in crate::native_app) window: ui::VirtualListWindow,
-    pub(in crate::native_app) rows: Vec<VisibleSampleRow<'a>>,
+    pub(in crate::native_app) rows: Vec<Option<VisibleSampleRow<'a>>>,
     pub(in crate::native_app) columns: Vec<&'a FileColumn>,
     pub(in crate::native_app) sort: &'a ui::DetailsSort,
     pub(in crate::native_app) similarity_mode_active: bool,
@@ -322,7 +322,7 @@ impl FolderBrowserState {
         let window = self.sample_list.prepared_window;
         let total_count = window.total_items;
         let rows = (window.window_start..window.window_end)
-            .filter_map(|index| self.visible_sample_row(index, query))
+            .map(|index| self.visible_sample_row(index, query))
             .collect();
 
         VisibleSampleList {

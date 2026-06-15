@@ -58,7 +58,7 @@ pub(in crate::native_app) fn sample_browser_window_projection(
             .rows
             .iter()
             .take(take)
-            .map(|row| row.file.stem.clone())
+            .filter_map(|row| row.as_ref().map(|row| row.file.stem.clone()))
             .collect(),
     }
 }

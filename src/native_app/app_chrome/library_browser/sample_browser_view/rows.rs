@@ -32,7 +32,7 @@ pub(super) fn sample_browser_rows(
         let Some(row_index) = index.checked_sub(visible_samples.window.window_start) else {
             return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
         };
-        let Some(row) = visible_samples.rows.get(row_index) else {
+        let Some(Some(row)) = visible_samples.rows.get(row_index) else {
             return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
         };
         sample_browser_row(sample_row_display(
