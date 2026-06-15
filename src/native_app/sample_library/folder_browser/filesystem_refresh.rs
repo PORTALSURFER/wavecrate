@@ -216,21 +216,20 @@ impl FolderBrowserState {
         rating: Rating,
         locked: bool,
     ) -> bool {
+        let Some(source_index) = self.source_index_for_path(path) else {
+            return false;
+        };
         let file_id = path_id(path);
-        let mut changed = false;
-        for source in &mut self.source.sources {
-            let Some(root_folder) = &mut source.root_folder else {
-                continue;
-            };
-            changed |= root_folder.set_file_rating(&file_id, rating, locked);
-            if source.id == self.source.selected_source {
-                self.tree.folders = vec![root_folder.clone()];
-            }
+        let changed = self.source.sources[source_index]
+            .root_folder
+            .as_mut()
+            .is_some_and(|root| root.set_file_rating(&file_id, rating, locked));
+        if !changed {
+            return false;
         }
-        if changed {
-            self.bump_file_content_revision();
-        }
-        changed
+        self.update_visible_tree_file_rating(&file_id, source_index, rating, locked);
+        self.bump_file_content_revision();
+        true
     }
 
     pub(in crate::native_app) fn set_file_last_played_at(
@@ -238,20 +237,69 @@ impl FolderBrowserState {
         path: &Path,
         last_played_at: i64,
     ) -> bool {
+        let Some(source_index) = self.source_index_for_path(path) else {
+            return false;
+        };
         let file_id = path_id(path);
-        let mut changed = false;
-        for source in &mut self.source.sources {
-            let Some(root_folder) = &mut source.root_folder else {
-                continue;
-            };
-            changed |= root_folder.set_file_last_played_at(&file_id, last_played_at);
-            if source.id == self.source.selected_source {
-                self.tree.folders = vec![root_folder.clone()];
+        let changed = self.source.sources[source_index]
+            .root_folder
+            .as_mut()
+            .is_some_and(|root| root.set_file_last_played_at(&file_id, last_played_at));
+        if !changed {
+            return false;
+        }
+        self.update_visible_tree_file_last_played_at(&file_id, source_index, last_played_at);
+        self.bump_file_content_revision();
+        true
+    }
+
+    fn source_index_for_path(&self, path: &Path) -> Option<usize> {
+        self.source
+            .sources
+            .iter()
+            .enumerate()
+            .filter(|(_, source)| path.starts_with(&source.root))
+            .max_by_key(|(_, source)| source.root.components().count())
+            .map(|(index, _)| index)
+    }
+
+    fn source_is_visible(&self, source_index: usize) -> bool {
+        self.source
+            .sources
+            .get(source_index)
+            .is_some_and(|source| source.id == self.source.selected_source)
+    }
+
+    fn update_visible_tree_file_rating(
+        &mut self,
+        file_id: &str,
+        source_index: usize,
+        rating: Rating,
+        locked: bool,
+    ) {
+        if !self.source_is_visible(source_index) {
+            return;
+        }
+        for root in &mut self.tree.folders {
+            if root.set_file_rating(file_id, rating, locked) {
+                break;
             }
         }
-        if changed {
-            self.bump_file_content_revision();
+    }
+
+    fn update_visible_tree_file_last_played_at(
+        &mut self,
+        file_id: &str,
+        source_index: usize,
+        last_played_at: i64,
+    ) {
+        if !self.source_is_visible(source_index) {
+            return;
         }
-        changed
+        for root in &mut self.tree.folders {
+            if root.set_file_last_played_at(file_id, last_played_at) {
+                break;
+            }
+        }
     }
 }
