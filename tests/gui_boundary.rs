@@ -444,6 +444,16 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "fs::copy(",
             "filesystem write",
             "schedule filesystem work through context.business()",
+        )
+        .forbid_token(
+            "cached_waveform_file_exists(",
+            "persisted waveform cache metadata probe",
+            "schedule cache probing through context.business()",
+        )
+        .forbid_token(
+            "cached_waveform_file_playback_ready_exists(",
+            "persisted waveform cache metadata probe",
+            "schedule cache probing through context.business()",
         );
 
     for (fragment, reason) in [

@@ -1,8 +1,6 @@
 use std::path::Path;
 
-use crate::native_app::{
-    app::NativeAppState, waveform::cached_waveform_file_playback_ready_exists,
-};
+use crate::native_app::app::NativeAppState;
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
@@ -34,7 +32,10 @@ impl NativeAppState {
                 break;
             };
             if self.remove_waveform_cache_path(&path) {
-                self.remove_cached_sample_path_if_not_persisted(&path);
+                self.waveform
+                    .cache
+                    .cached_sample_paths
+                    .remove(&path.display().to_string());
             }
         }
     }
@@ -45,14 +46,5 @@ impl NativeAppState {
         };
         self.waveform.cache.bytes = self.waveform.cache.bytes.saturating_sub(entry.byte_len);
         true
-    }
-
-    fn remove_cached_sample_path_if_not_persisted(&mut self, path: &Path) {
-        if !cached_waveform_file_playback_ready_exists(path) {
-            self.waveform
-                .cache
-                .cached_sample_paths
-                .remove(&path.display().to_string());
-        }
     }
 }
