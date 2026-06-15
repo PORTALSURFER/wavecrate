@@ -1,12 +1,13 @@
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
-use crate::native_app::app::{NativeAppState, emit_gui_action};
+use crate::native_app::app::{NativeAppState, emit_gui_action, sample_path_label};
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
     gui::types::{Rect, Rgba8},
     runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
+use wavecrate::audio::{PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeStarted};
 
 const PLAYBACK_CURSOR_COLOR: Rgba8 = Rgba8 {
     r: 71,
@@ -66,7 +67,96 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn drain_playback_runtime_events(&mut self) {
+        let Some(events) = self.audio.playback_events.take() else {
+            return;
+        };
+        for event in events.try_iter() {
+            self.apply_playback_runtime_event(event);
+        }
+        self.audio.playback_events = Some(events);
+    }
+
+    fn apply_playback_runtime_event(&mut self, event: PlaybackRuntimeEvent) {
+        match event {
+            PlaybackRuntimeEvent::Started(started) => self.finish_runtime_playback_started(started),
+            PlaybackRuntimeEvent::Failed { id, error } => {
+                self.finish_runtime_playback_failed(id, error)
+            }
+            PlaybackRuntimeEvent::Cancelled { id, reason } => {
+                self.finish_runtime_playback_cancelled(id, reason)
+            }
+            PlaybackRuntimeEvent::Stopped { .. } => {}
+            PlaybackRuntimeEvent::Progress { progress, .. } => {
+                self.audio.playback_progress = progress;
+            }
+        }
+    }
+
+    fn finish_runtime_playback_started(&mut self, started: PlaybackRuntimeStarted) {
+        let Some(pending) = self.audio.pending_runtime_start.take() else {
+            return;
+        };
+        if pending.id != started.id {
+            self.audio.pending_runtime_start = Some(pending);
+            return;
+        }
+        self.audio.output_resolved = Some(started.output);
+        self.audio.current_playback_span = Some(pending.span);
+        if self.waveform.current.path() == Path::new(&pending.path) {
+            self.waveform.current.start_playback(started.playback_start);
+        }
+        self.ui.status.sample = format!("Playing {}", sample_path_label(&pending.path));
+    }
+
+    fn finish_runtime_playback_failed(
+        &mut self,
+        id: wavecrate::audio::PlaybackRequestId,
+        error: String,
+    ) {
+        let Some(pending) = self.audio.pending_runtime_start.take() else {
+            return;
+        };
+        if pending.id != id {
+            self.audio.pending_runtime_start = Some(pending);
+            return;
+        }
+        self.audio.early_sample_playback_path = None;
+        self.audio.current_playback_span = None;
+        self.waveform.current.stop_playback();
+        self.ui.status.sample = format!(
+            "Loaded {} | playback unavailable: {error}",
+            sample_path_label(&pending.path)
+        );
+    }
+
+    fn finish_runtime_playback_cancelled(
+        &mut self,
+        id: wavecrate::audio::PlaybackRequestId,
+        reason: PlaybackRuntimeCancellation,
+    ) {
+        let Some(pending) = self.audio.pending_runtime_start.take() else {
+            return;
+        };
+        if pending.id != id {
+            self.audio.pending_runtime_start = Some(pending);
+            return;
+        }
+        if reason != PlaybackRuntimeCancellation::Superseded {
+            self.audio.early_sample_playback_path = None;
+            self.audio.current_playback_span = None;
+            self.waveform.current.stop_playback();
+        }
+    }
+
     pub(in crate::native_app) fn refresh_playback_progress(&mut self) {
+        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+            let _ = runtime.try_poll_progress();
+        }
+        if self.audio.playback_runtime.is_some() {
+            self.refresh_runtime_playback_progress();
+            return;
+        }
         let Some(player) = self.audio.player.as_mut() else {
             return;
         };
@@ -79,6 +169,39 @@ impl NativeAppState {
         let elapsed = player.playback_elapsed();
         let player_looping = player.is_looping();
         let progress = player.progress();
+        let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
+        let within_start_grace =
+            elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
+
+        if self.loop_recovery_needed(
+            should_be_looping,
+            player_looping,
+            active,
+            within_start_grace,
+        ) {
+            self.recover_progress_loop_playback(player_looping);
+            return;
+        }
+
+        if active || within_start_grace || (should_be_looping && player_looping) {
+            if let Some(progress) = progress {
+                self.waveform.current.set_playhead_ratio(progress);
+            }
+        } else if self.waveform.current.is_playing() {
+            self.finish_playback_progress();
+        }
+    }
+
+    fn refresh_runtime_playback_progress(&mut self) {
+        if let Some(error) = self.audio.playback_progress.error.take() {
+            self.stop_playback_after_progress_error(error);
+            return;
+        }
+
+        let active = self.audio.playback_progress.active;
+        let elapsed = self.audio.playback_progress.elapsed;
+        let player_looping = self.audio.playback_progress.looping;
+        let progress = self.audio.playback_progress.progress;
         let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);

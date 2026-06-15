@@ -6,6 +6,7 @@ use std::{
         mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
     },
     thread,
+    time::Duration,
 };
 
 use super::{AudioPlayer, EditFadeRange};
@@ -147,6 +148,16 @@ pub struct PlaybackRuntimeStarted {
     pub playback_start: f32,
 }
 
+/// Playback state snapshot returned by the audio-control runtime.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PlaybackRuntimeProgress {
+    pub active: bool,
+    pub elapsed: Option<Duration>,
+    pub looping: bool,
+    pub progress: Option<f32>,
+    pub error: Option<String>,
+}
+
 /// Reason a playback command was cancelled before execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlaybackRuntimeCancellation {
@@ -172,6 +183,10 @@ pub enum PlaybackRuntimeEvent {
     },
     Stopped {
         id: PlaybackRequestId,
+    },
+    Progress {
+        id: PlaybackRequestId,
+        progress: PlaybackRuntimeProgress,
     },
 }
 
@@ -211,6 +226,22 @@ impl PlaybackRuntimeHandle {
             .map_err(map_try_send_error)
     }
 
+    /// Submit a non-blocking playback-progress snapshot request.
+    pub fn try_poll_progress(&self) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
+        let id = self.next_request_id();
+        self.commands
+            .try_send(PlaybackRuntimeCommand::PollProgress { id })
+            .map(|()| id)
+            .map_err(map_try_send_error)
+    }
+
+    /// Submit a non-blocking volume update for current and future playback.
+    pub fn try_set_volume(&self, volume: f32) -> Result<(), PlaybackRuntimeSubmitError> {
+        self.commands
+            .try_send(PlaybackRuntimeCommand::SetVolume { volume })
+            .map_err(map_try_send_error)
+    }
+
     /// Request runtime shutdown without blocking the caller.
     pub fn try_shutdown(&self) -> Result<(), PlaybackRuntimeSubmitError> {
         self.commands
@@ -247,6 +278,12 @@ enum PlaybackRuntimeCommand {
     Stop {
         id: PlaybackRequestId,
     },
+    PollProgress {
+        id: PlaybackRequestId,
+    },
+    SetVolume {
+        volume: f32,
+    },
     Shutdown,
 }
 
@@ -256,6 +293,8 @@ trait PlaybackRuntimeExecutor: Send + 'static {
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRuntimeStartedData, String>;
     fn stop(&mut self) -> Result<(), String>;
+    fn set_volume(&mut self, volume: f32);
+    fn progress(&mut self) -> PlaybackRuntimeProgress;
 }
 
 struct PlaybackRuntimeStartedData {
@@ -286,6 +325,20 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
     fn stop(&mut self) -> Result<(), String> {
         self.player.stop();
         Ok(())
+    }
+
+    fn set_volume(&mut self, volume: f32) {
+        self.player.set_volume(volume);
+    }
+
+    fn progress(&mut self) -> PlaybackRuntimeProgress {
+        PlaybackRuntimeProgress {
+            active: self.player.is_playing(),
+            elapsed: self.player.playback_elapsed(),
+            looping: self.player.is_looping(),
+            progress: self.player.progress(),
+            error: self.player.take_error(),
+        }
     }
 }
 
@@ -334,6 +387,15 @@ fn run_playback_runtime(
                 };
                 let _ = events.send(event);
             }
+            CoalescedCommand::PollProgress { id } => {
+                let _ = events.send(PlaybackRuntimeEvent::Progress {
+                    id,
+                    progress: executor.progress(),
+                });
+            }
+            CoalescedCommand::SetVolume { volume } => {
+                executor.set_volume(volume);
+            }
             CoalescedCommand::Shutdown => return,
         }
     }
@@ -346,6 +408,12 @@ enum CoalescedCommand {
     },
     Stop {
         id: PlaybackRequestId,
+    },
+    PollProgress {
+        id: PlaybackRequestId,
+    },
+    SetVolume {
+        volume: f32,
     },
     Shutdown,
 }
@@ -392,6 +460,8 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
     match command {
         PlaybackRuntimeCommand::Play { id, request } => CoalescedCommand::Play { id, request },
         PlaybackRuntimeCommand::Stop { id } => CoalescedCommand::Stop { id },
+        PlaybackRuntimeCommand::PollProgress { id } => CoalescedCommand::PollProgress { id },
+        PlaybackRuntimeCommand::SetVolume { volume } => CoalescedCommand::SetVolume { volume },
         PlaybackRuntimeCommand::Shutdown => CoalescedCommand::Shutdown,
     }
 }
@@ -471,6 +541,18 @@ mod tests {
             *self.stopped.lock().expect("stopped lock") += 1;
             Ok(())
         }
+
+        fn set_volume(&mut self, _volume: f32) {}
+
+        fn progress(&mut self) -> PlaybackRuntimeProgress {
+            PlaybackRuntimeProgress {
+                active: true,
+                elapsed: Some(Duration::from_millis(10)),
+                looping: false,
+                progress: Some(0.25),
+                error: None,
+            }
+        }
     }
 
     #[test]
@@ -537,6 +619,23 @@ mod tests {
             handle.try_play(test_request(0.25)),
             Err(PlaybackRuntimeSubmitError::QueueFull)
         );
+    }
+
+    #[test]
+    fn playback_runtime_reports_progress_snapshots() {
+        let runtime = spawn_executor(FakeExecutor::new(vec![]), PlaybackRuntimeConfig::default())
+            .expect("spawn runtime");
+
+        let id = runtime.handle.try_poll_progress().expect("poll");
+        let event = runtime.events.recv().expect("event");
+
+        assert!(matches!(
+            event,
+            PlaybackRuntimeEvent::Progress {
+                id: event_id,
+                progress
+            } if event_id == id && progress.active && progress.progress == Some(0.25)
+        ));
     }
 
     fn test_request(start: f64) -> PlaybackRuntimeRequest {

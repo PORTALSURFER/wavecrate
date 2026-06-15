@@ -7,11 +7,14 @@
 pub use reson::{
     AudioDeviceSummary, AudioHostSummary, AudioInputConfig, AudioInputError, AudioOutputConfig,
     AudioOutputError, AudioPlayer, AudioRecorder, EditFadeRange, FadeParams, InputMonitor,
-    RecordingOutcome, ResolvedInput, ResolvedInputConfig, ResolvedOutput, SamplesBuffer, Source,
-    Wsola, available_devices, available_hosts, available_input_channel_count,
-    available_input_devices, available_input_hosts, decoder, input, open_output_stream, output,
-    recording, resolve_input_stream_config, supported_input_sample_rates, supported_sample_rates,
-    wav_sanitize,
+    PlaybackRequestId, PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeProgress,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStarted,
+    PlaybackRuntimeSubmitError, RecordingOutcome, ResolvedInput, ResolvedInputConfig,
+    ResolvedOutput, SamplesBuffer, Source, Wsola, available_devices, available_hosts,
+    available_input_channel_count, available_input_devices, available_input_hosts, decoder, input,
+    open_output_stream, output, recording, resolve_input_stream_config,
+    supported_input_sample_rates, supported_sample_rates, wav_sanitize,
 };
 
 use crate::selection::SelectionRange;

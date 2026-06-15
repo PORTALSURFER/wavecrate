@@ -37,13 +37,22 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;
     };
+    let output = player.output_details().clone();
+    let Ok(runtime) = wavecrate::audio::PlaybackRuntime::spawn(
+        player,
+        wavecrate::audio::PlaybackRuntimeConfig::default(),
+    ) else {
+        return;
+    };
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("early-message.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let sample_path_string = sample_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
-    state.audio.player = Some(player);
+    state.audio.output_resolved = Some(output);
+    state.audio.playback_runtime = Some(runtime.handle);
+    state.audio.playback_events = Some(runtime.events);
     state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),

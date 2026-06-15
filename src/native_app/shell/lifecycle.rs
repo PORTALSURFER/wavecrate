@@ -115,6 +115,12 @@ impl NativeAppState {
             .current
             .apply_interaction(WaveformInteraction::Frame);
         log_slow_frame_phase("ui.frame.update.waveform_interaction", waveform_started_at);
+        let playback_events_started_at = Instant::now();
+        self.drain_playback_runtime_events();
+        log_slow_frame_phase(
+            "ui.frame.update.playback_runtime_events",
+            playback_events_started_at,
+        );
         let playback_started_at = Instant::now();
         self.refresh_playback_progress();
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);

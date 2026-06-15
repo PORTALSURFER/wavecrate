@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use radiant::prelude as ui;
-use wavecrate::audio::AudioPlayer;
+use wavecrate::audio::{AudioPlayer, PlaybackRuntime, PlaybackRuntimeConfig};
 
 use crate::native_app::app::{AudioOpenCompletion, GuiMessage, NativeAppState, emit_gui_action};
 
@@ -87,7 +87,20 @@ impl NativeAppState {
         log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
         self.audio.output_resolved = Some(player.output_details().clone());
         self.audio.settings_error = None;
-        self.audio.player = Some(player);
+        self.audio.player = None;
+        match PlaybackRuntime::spawn(player, PlaybackRuntimeConfig::default()) {
+            Ok(runtime) => {
+                self.audio.playback_runtime = Some(runtime.handle);
+                self.audio.playback_events = Some(runtime.events);
+            }
+            Err(err) => {
+                self.finish_failed_audio_player_open(
+                    format!("start playback runtime: {err}"),
+                    started_at,
+                );
+                return;
+            }
+        }
         let pending = self.audio.pending_playback_start.take();
         if let Some(pending) = pending {
             match self.start_playback_span(
@@ -119,6 +132,8 @@ impl NativeAppState {
         log_audio_open_timing("audio.output.open.finish", started_at.elapsed(), false);
         self.audio.settings_error = Some(err.clone());
         self.audio.player = None;
+        self.audio.playback_runtime = None;
+        self.audio.playback_events = None;
         self.audio.output_resolved = None;
         self.audio.pending_playback_start = None;
         emit_gui_action(

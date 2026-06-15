@@ -1,12 +1,13 @@
 use radiant::prelude as ui;
 use std::time::Instant;
+use wavecrate::audio::{PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource};
 
 use crate::native_app::{
     app::{
-        NativeAppState, SampleLoadTaskCompletion, SamplePlaybackReady, emit_gui_action,
-        sample_path_label,
+        NativeAppState, PendingRuntimePlaybackStart, SampleLoadTaskCompletion, SamplePlaybackReady,
+        emit_gui_action, sample_path_label,
     },
-    audio::sample_load_actions::{log_sample_load_timing, log_slow_sample_load_phase},
+    audio::sample_load_actions::log_sample_load_timing,
 };
 
 impl NativeAppState {
@@ -59,7 +60,7 @@ impl NativeAppState {
             state_update_started_at.elapsed(),
             true,
         );
-        let Some(player) = self.audio.player.as_mut() else {
+        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
             emit_gui_action(
                 "browser.sample_load.playback_ready",
                 Some("browser"),
@@ -71,86 +72,69 @@ impl NativeAppState {
             return;
         };
         let duration = ready.audio.frames as f32 / ready.audio.sample_rate.max(1) as f32;
-        let output_setup_started_at = Instant::now();
-        player.set_volume(self.audio.volume);
-        self.audio.output_resolved = Some(player.output_details().clone());
-        log_slow_sample_load_phase(
-            "browser.sample_load.playback_ready.output_setup",
-            &label,
-            output_setup_started_at,
-        );
-        let set_audio_started_at = Instant::now();
-        player.set_audio_samples_with_metadata(
-            ready.audio.audio_bytes,
-            ready.audio.playback_samples,
-            duration,
-            ready.audio.sample_rate,
-            ready.audio.channels,
-        );
-        log_slow_sample_load_phase(
-            "browser.sample_load.playback_ready.set_audio",
-            &label,
-            set_audio_started_at,
-        );
-        let play_started_at = Instant::now();
-        let play_result = if loop_playback {
-            player.play_looped_range_from(0.0, 1.0, 0.0)
-        } else {
-            player.play_range(0.0, 1.0, false)
+        let request_started_at = Instant::now();
+        let request = PlaybackRuntimeRequest {
+            source: PlaybackRuntimeSource::DecodedSamples {
+                audio_bytes: ready.audio.audio_bytes,
+                samples: ready.audio.playback_samples,
+                duration,
+                sample_rate: ready.audio.sample_rate,
+                channels: ready.audio.channels,
+            },
+            mode: if loop_playback {
+                PlaybackRuntimeMode::Looped {
+                    start: 0.0,
+                    end: 1.0,
+                    offset: 0.0,
+                }
+            } else {
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.0,
+                    end: 1.0,
+                }
+            },
+            volume: self.audio.volume,
+            edit_fade: None,
         };
         log_sample_load_timing(
-            "browser.sample_load.playback_ready.player_play_call",
+            "browser.sample_load.playback_ready.request_build",
             &label,
-            play_started_at.elapsed(),
+            request_started_at.elapsed(),
             true,
         );
-        match play_result {
-            Ok(()) => {
-                let commit_started_at = Instant::now();
+        let submit_started_at = Instant::now();
+        match runtime.try_play(request) {
+            Ok(request_id) => {
+                self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
+                    id: request_id,
+                    path: ready.path.clone(),
+                    span: (0.0, 1.0),
+                });
                 self.audio.early_sample_playback_path = Some(ready.path);
                 self.audio.current_playback_span = Some((0.0, 1.0));
-                log_sample_load_timing(
-                    "browser.sample_load.playback_ready.commit_audio_state",
-                    &label,
-                    commit_started_at.elapsed(),
-                    true,
-                );
-                let last_played_started_at = Instant::now();
                 self.record_selected_sample_last_played(context);
+                self.ui.status.sample = format!("Starting {label}");
                 log_sample_load_timing(
-                    "browser.sample_load.playback_ready.last_played_update",
+                    "browser.sample_load.playback_ready.submit",
                     &label,
-                    last_played_started_at.elapsed(),
-                    true,
-                );
-                let status_started_at = Instant::now();
-                self.ui.status.sample = format!("Playing {label}");
-                log_sample_load_timing(
-                    "browser.sample_load.playback_ready.status_update",
-                    &label,
-                    status_started_at.elapsed(),
+                    submit_started_at.elapsed(),
                     true,
                 );
                 emit_gui_action(
                     "browser.sample_load.playback_ready",
                     Some("browser"),
                     Some(&label),
-                    "playing",
+                    "playback_start_queued",
                     started_at,
                     None,
                 );
             }
             Err(err) => {
-                let error_state_started_at = Instant::now();
+                let err = format!("audio runtime unavailable: {err:?}");
                 self.audio.early_sample_playback_path = None;
                 self.audio.current_playback_span = None;
+                self.audio.pending_runtime_start = None;
                 self.ui.status.sample = format!("Loaded {label} | playback unavailable: {err}");
-                log_sample_load_timing(
-                    "browser.sample_load.playback_ready.error_state_update",
-                    &label,
-                    error_state_started_at.elapsed(),
-                    true,
-                );
                 emit_gui_action(
                     "browser.sample_load.playback_ready",
                     Some("browser"),

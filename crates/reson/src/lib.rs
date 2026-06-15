@@ -35,10 +35,10 @@ pub use output::{
 pub use player::{
     AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackRequestId,
     PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig, PlaybackRuntimeEvent,
-    PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
-    PlaybackRuntimeStarted, PlaybackRuntimeSubmitError, PlaybackSeekBehavior,
-    PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan, PlaybackSpanPlanError,
-    PlaybackSpanRequest,
+    PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeProgress, PlaybackRuntimeRequest,
+    PlaybackRuntimeSource, PlaybackRuntimeStarted, PlaybackRuntimeSubmitError,
+    PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan,
+    PlaybackSpanPlanError, PlaybackSpanRequest,
 };
 pub use recording::{AudioRecorder, InputMonitor, RecordingOutcome};
 pub use time_stretch::Wsola;

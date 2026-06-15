@@ -12,7 +12,7 @@ mod waveform;
 #[cfg(test)]
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
 
-pub(in crate::native_app) use audio::AudioAppState;
+pub(in crate::native_app) use audio::{AudioAppState, PendingRuntimePlaybackStart};
 pub(in crate::native_app) use background::{
     AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,
 };

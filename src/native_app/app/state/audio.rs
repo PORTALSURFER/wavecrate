@@ -1,7 +1,8 @@
-use std::time::Instant;
+use std::{sync::mpsc::Receiver, time::Instant};
 
 use wavecrate::audio::{
-    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
+    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeProgress, ResolvedOutput,
 };
 use wavecrate::sample_sources::config::AppSettingsCore;
 
@@ -23,6 +24,16 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) pending_playback_start: Option<PlaybackIntent>,
     pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
     pub(in crate::native_app) early_sample_playback_path: Option<String>,
+    pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
+    pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
+    pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
+    pub(in crate::native_app) pending_runtime_start: Option<PendingRuntimePlaybackStart>,
+}
+
+pub(in crate::native_app) struct PendingRuntimePlaybackStart {
+    pub(in crate::native_app) id: PlaybackRequestId,
+    pub(in crate::native_app) path: String,
+    pub(in crate::native_app) span: (f32, f32),
 }
 
 impl AudioAppState {
@@ -43,6 +54,10 @@ impl AudioAppState {
             pending_playback_start: None,
             pending_sample_playback: None,
             early_sample_playback_path: None,
+            playback_runtime: None,
+            playback_events: None,
+            playback_progress: PlaybackRuntimeProgress::default(),
+            pending_runtime_start: None,
         }
     }
 
