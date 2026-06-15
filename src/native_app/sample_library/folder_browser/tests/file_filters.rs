@@ -1,6 +1,60 @@
 use super::*;
 
 #[test]
+fn tagged_file_window_materializes_requested_range_without_holes() {
+    let root = temp_source_root("wavecrate-gui-tag-filter-window");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..90)
+        .map(|index| drums.join(format!("sample_{index:03}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, []).expect("write sample file");
+    }
+    let tags_by_file = files
+        .iter()
+        .enumerate()
+        .filter_map(|(index, file)| {
+            (index % 2 == 0).then(|| (path_id(file), vec![String::from("Drum")]))
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_message(FolderBrowserMessage::TagFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("drum"),
+        },
+    ));
+
+    let window_files = browser.selected_audio_file_window_matching_tags(
+        radiant::prelude::VirtualListWindow {
+            total_items: 45,
+            viewport_start: 30,
+            viewport_end: 40,
+            window_start: 28,
+            window_end: 42,
+        },
+        &tags_by_file,
+    );
+
+    assert_eq!(window_files.total_count, 45);
+    assert_eq!(window_files.rows.len(), 14);
+    assert!(
+        window_files.rows.iter().all(Option::is_some),
+        "filtered virtual windows should not paint blank row holes while scrolling"
+    );
+    assert_eq!(
+        window_files.rows[0].expect("first file").name,
+        "sample_056.wav"
+    );
+    assert_eq!(
+        window_files.rows[13].expect("last file").name,
+        "sample_082.wav"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
     let root = temp_source_root("wavecrate-gui-name-filter");
     let drums = root.join("drums");

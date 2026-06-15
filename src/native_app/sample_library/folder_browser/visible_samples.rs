@@ -33,6 +33,11 @@ pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) similarity_mode_active: bool,
 }
 
+pub(super) struct VisibleSampleWindowFiles<'a> {
+    pub(super) total_count: usize,
+    pub(super) rows: Vec<Option<&'a FileEntry>>,
+}
+
 pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) file: &'a FileEntry,
     pub(in crate::native_app) selected: bool,
@@ -320,13 +325,16 @@ impl FolderBrowserState {
         query: VisibleSampleQuery<'a>,
     ) -> VisibleSampleList<'a> {
         let window = self.sample_list.prepared_window;
-        let total_count = window.total_items;
-        let rows = (window.window_start..window.window_end)
-            .map(|index| self.visible_sample_row(index, query))
+        let window_files =
+            self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
+        let rows = window_files
+            .rows
+            .into_iter()
+            .map(|file| file.map(|file| self.visible_sample_row_for_file(file, query)))
             .collect();
 
         VisibleSampleList {
-            total_count,
+            total_count: window_files.total_count,
             window,
             rows,
             columns: self.visible_file_columns(),
@@ -335,13 +343,12 @@ impl FolderBrowserState {
         }
     }
 
-    fn visible_sample_row<'a>(
+    fn visible_sample_row_for_file<'a>(
         &'a self,
-        index: usize,
+        file: &'a FileEntry,
         query: VisibleSampleQuery<'a>,
-    ) -> Option<VisibleSampleRow<'a>> {
-        let file = self.selected_audio_file_at_matching_tags(index, query.tags_by_file)?;
-        Some(VisibleSampleRow {
+    ) -> VisibleSampleRow<'a> {
+        VisibleSampleRow {
             file,
             selected: self.is_file_selected(&file.id),
             drag_revision: self.drag_revision(),
@@ -356,7 +363,7 @@ impl FolderBrowserState {
                 .into_iter()
                 .filter_map(|collection| self.collection_color(collection))
                 .collect(),
-        })
+        }
     }
 }
 

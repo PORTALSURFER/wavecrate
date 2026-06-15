@@ -1,7 +1,8 @@
 use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
 use super::{
-    FileEntry, FolderBrowserState, FolderEntry, visible_samples::VisibleSampleProjectionRequest,
+    FileEntry, FolderBrowserState, FolderEntry,
+    visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
 
 mod cache_warming;
@@ -125,32 +126,61 @@ impl FolderBrowserState {
         self.selected_folder_audio_file_indices_ref(folder).len()
     }
 
-    pub(in crate::native_app) fn selected_audio_file_at_matching_tags(
+    pub(super) fn selected_audio_file_window_matching_tags(
         &self,
-        index: usize,
+        window: radiant::prelude::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Option<&FileEntry> {
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+    ) -> VisibleSampleWindowFiles<'_> {
         if self.selection.selected_collection.is_some() {
-            return self
-                .selected_audio_files_matching_tags(tags_by_file)
-                .get(index)
-                .copied();
+            let files = self.selected_audio_files_matching_tags(tags_by_file);
+            let total_count = files.len();
+            return VisibleSampleWindowFiles {
+                total_count,
+                rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
+                    .map(|index| files.get(index).copied())
+                    .collect(),
+            };
         }
-        let folder = self.selected_folder()?;
+
+        let Some(folder) = self.selected_folder() else {
+            return VisibleSampleWindowFiles {
+                total_count: 0,
+                rows: Vec::new(),
+            };
+        };
+
+        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let indices = self.selected_folder_audio_file_indices_ref(folder);
         if required_tags.is_empty() {
-            return self
-                .selected_folder_audio_file_indices_ref(folder)
-                .get(index)
-                .and_then(|file_index| folder.files.get(*file_index));
+            let total_count = indices.len();
+            return VisibleSampleWindowFiles {
+                total_count,
+                rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
+                    .map(|index| {
+                        indices
+                            .get(index)
+                            .and_then(|file_index| folder.files.get(*file_index))
+                    })
+                    .collect(),
+            };
         }
-        self.selected_folder_audio_file_indices_ref(folder)
+
+        let mut total_count = 0;
+        let rows = indices
             .iter()
             .filter_map(|file_index| folder.files.get(*file_index))
             .filter(|file| {
                 filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
             })
-            .nth(index)
+            .filter_map(|file| {
+                let row = (total_count >= window.window_start && total_count < window.window_end)
+                    .then_some(Some(file));
+                total_count += 1;
+                row
+            })
+            .collect();
+
+        VisibleSampleWindowFiles { total_count, rows }
     }
 
     pub(in crate::native_app) fn selected_audio_file_index_matching_tags(
