@@ -5,9 +5,15 @@ use std::{
 };
 
 use crate::native_app::{
-    app::{GuiMessage, NativeAppState, WaveformState, emit_gui_action},
-    audio::sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
+    app::{
+        GuiMessage, NativeAppState, PendingRuntimePlaybackStart, WaveformState, emit_gui_action,
+    },
+    audio::{
+        playback::PlaybackIntent,
+        sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
+    },
 };
+use wavecrate::audio::{PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource};
 
 struct CachedPlaybackOutcomes {
     playing: &'static str,
@@ -137,7 +143,7 @@ impl NativeAppState {
         started_at: Instant,
     ) {
         let playback_started_at = Instant::now();
-        match self.start_playback_current_span(0.0, 1.0) {
+        match self.start_current_full_sample_runtime_playback() {
             Ok(()) => {
                 log_sample_load_timing(
                     "browser.sample_load.cached_playback.submit",
@@ -178,5 +184,78 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    fn start_current_full_sample_runtime_playback(&mut self) -> Result<(), String> {
+        if !self.waveform.current.has_loaded_sample() {
+            return Err(String::from("Select a sample to load"));
+        }
+        self.prepare_playback_mode_for_loaded_sample();
+        if self.audio.playback_runtime.is_none() {
+            self.audio.pending_playback_start = Some(PlaybackIntent::new(0.0, 1.0));
+            if self.background.audio_open.active().is_some() {
+                return Ok(());
+            }
+            return Err(String::from("Audio output is starting"));
+        }
+        let runtime = self
+            .audio
+            .playback_runtime
+            .as_ref()
+            .ok_or_else(|| String::from("audio player did not initialize"))?;
+        let duration = self.waveform.current.duration_seconds();
+        let source = if let Some(samples) = self.waveform.current.playback_samples() {
+            PlaybackRuntimeSource::DecodedSamples {
+                audio_bytes: self.waveform.current.audio_bytes(),
+                samples,
+                duration,
+                sample_rate: self.waveform.current.sample_rate(),
+                channels: self.waveform.current.channels(),
+            }
+        } else if let Some(cache_file) = self.waveform.current.playback_cache_file() {
+            PlaybackRuntimeSource::InterleavedF32File {
+                path: cache_file.path,
+                sample_count: cache_file.sample_count,
+                duration,
+                sample_rate: self.waveform.current.sample_rate(),
+                channels: self.waveform.current.channels(),
+            }
+        } else {
+            PlaybackRuntimeSource::AudioBytes {
+                data: self.waveform.current.audio_bytes(),
+                duration,
+                sample_rate: self.waveform.current.sample_rate(),
+                channels: self.waveform.current.channels(),
+            }
+        };
+        let request = PlaybackRuntimeRequest {
+            source,
+            mode: if self.audio.loop_playback {
+                PlaybackRuntimeMode::Looped {
+                    start: 0.0,
+                    end: 1.0,
+                    offset: 0.0,
+                }
+            } else {
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.0,
+                    end: 1.0,
+                }
+            },
+            volume: self.audio.volume,
+            edit_fade: None,
+        };
+        let request_id = runtime
+            .try_play(request)
+            .map_err(|err| format!("submit playback request: {err:?}"))?;
+        self.waveform.current.start_playback(0.0);
+        let path = self.waveform.current.path().display().to_string();
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
+            id: request_id,
+            path,
+            span: (0.0, 1.0),
+        });
+        Ok(())
     }
 }
