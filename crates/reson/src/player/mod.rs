@@ -10,12 +10,18 @@ mod helpers;
 mod playback;
 mod playback_span_plan;
 mod progress;
+mod runtime;
 mod state;
 pub(crate) use edit_fade_impl::{EditFadeHandle, EditFadeSource};
 pub use edit_fade_impl::{EditFadeRange, FadeParams};
 pub use playback_span_plan::{
     PlaybackChannelLayout, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
     PlaybackSpanPlan, PlaybackSpanPlanError, PlaybackSpanRequest,
+};
+pub use runtime::{
+    PlaybackRequestId, PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeRequest,
+    PlaybackRuntimeSource, PlaybackRuntimeStarted, PlaybackRuntimeSubmitError,
 };
 
 #[derive(Clone)]

@@ -33,7 +33,10 @@ pub use output::{
     available_devices, available_hosts, open_output_stream, supported_sample_rates,
 };
 pub use player::{
-    AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackSeekBehavior,
+    AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackRequestId,
+    PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig, PlaybackRuntimeEvent,
+    PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
+    PlaybackRuntimeStarted, PlaybackRuntimeSubmitError, PlaybackSeekBehavior,
     PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan, PlaybackSpanPlanError,
     PlaybackSpanRequest,
 };
