@@ -38,11 +38,6 @@ fn waveform_viewport_with_loading_state(
                 .drop_hover
                 .map(|hover| waveform_drop_hover_visual(hover.supported)),
         )
-        .overlay_opt(
-            model
-                .loading_label
-                .map(|label| waveform_loading_visual(label, model.loading_progress)),
-        )
         .input_opt(waveform_loading_input_blocker(model))
         .into_view()
         .accepts_native_file_drop()
@@ -62,17 +57,6 @@ fn waveform_loading_input_blocker(
             .fill_width()
             .height(WAVEFORM_VIEW_HEIGHT)
     })
-}
-
-#[cfg_attr(test, allow(dead_code))]
-pub(crate) fn waveform_loading_visual(_label: &str, progress: f32) -> ui::View<GuiMessage> {
-    ui::feedback_overlay()
-        .background(ui::Rgba8::new(22, 24, 25, 72))
-        .progress(progress, ui::Rgba8::new(174, 178, 181, 118))
-        .view()
-        .key("waveform-loading-visual")
-        .fill_width()
-        .height(WAVEFORM_VIEW_HEIGHT)
 }
 
 fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {

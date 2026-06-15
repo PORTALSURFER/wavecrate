@@ -4,8 +4,8 @@ use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{NativeAppState, emit_gui_action, sample_path_label};
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
-    gui::types::{Rect, Rgba8},
-    runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
+    gui::types::{Point, Rect, Rgba8},
+    runtime::{PaintFillRect, PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
 use wavecrate::audio::{PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeStarted};
 
@@ -16,6 +16,18 @@ const PLAYBACK_CURSOR_COLOR: Rgba8 = Rgba8 {
     a: 245,
 };
 const PLAYBACK_CURSOR_WIDTH: f32 = 2.0;
+const LOADING_BACKGROUND_COLOR: Rgba8 = Rgba8 {
+    r: 22,
+    g: 24,
+    b: 25,
+    a: 72,
+};
+const LOADING_PROGRESS_COLOR: Rgba8 = Rgba8 {
+    r: 174,
+    g: 178,
+    b: 181,
+    a: 118,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
@@ -43,9 +55,7 @@ impl NativeAppState {
         before: FrameRepaintScopeSnapshot,
     ) -> bool {
         let after = FrameRepaintScopeSnapshot::from_state(self);
-        before.playing == after.playing
-            && !before.requires_surface_frame()
-            && !after.requires_surface_frame()
+        before.same_transient_frame_state(after) && !before.requires_surface_frame()
     }
 
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
@@ -234,6 +244,51 @@ impl NativeAppState {
         push_playback_cursor(primitives, bounds, visible_ratio);
     }
 
+    pub(in crate::native_app) fn paint_waveform_transient_overlay(
+        &mut self,
+        context: TransientOverlayContext<'_>,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        self.paint_loading_overlay(context, primitives);
+        self.paint_playback_overlay(context, primitives);
+    }
+
+    fn paint_loading_overlay(
+        &mut self,
+        context: TransientOverlayContext<'_>,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        if self.waveform.load.label.is_none() {
+            return;
+        }
+        let Some(bounds) = context
+            .plan
+            .first_widget_rect_by_priority([WAVEFORM_WIDGET_ID, WAVEFORM_SIGNAL_WIDGET_ID])
+        else {
+            return;
+        };
+        push_fill(
+            primitives,
+            WAVEFORM_WIDGET_ID,
+            bounds,
+            LOADING_BACKGROUND_COLOR,
+        );
+        let progress = self.waveform.load.progress.clamp(0.0, 1.0);
+        if progress <= 0.0 {
+            return;
+        }
+        let progress_bounds = Rect::from_min_max(
+            bounds.min,
+            Point::new(bounds.min.x + bounds.width() * progress, bounds.max.y),
+        );
+        push_fill(
+            primitives,
+            WAVEFORM_WIDGET_ID,
+            progress_bounds,
+            LOADING_PROGRESS_COLOR,
+        );
+    }
+
     fn stop_playback_after_progress_error(&mut self, error: String) {
         let started_at = Instant::now();
         self.waveform.current.stop_playback();
@@ -302,7 +357,7 @@ impl FrameRepaintScopeSnapshot {
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
             folder_progress_active: state.library.folder_scan_active(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
-            waveform_loading_active: state.waveform_sample_load_active(),
+            waveform_loading_active: state.waveform.load.label.is_some(),
             sample_loading: state.active_sample_load_task().is_some(),
             audio_opening: state.background.audio_open.active().is_some(),
             startup_source_scan_pending: state.ui.startup.source_scan_pending,
@@ -315,12 +370,24 @@ impl FrameRepaintScopeSnapshot {
         self.play_selection_flash_active
             || self.folder_progress_active
             || self.normalization_progress_active
-            || self.waveform_loading_active
             || self.sample_loading
             || self.audio_opening
             || self.startup_source_scan_pending
             || self.startup_auto_load_pending
             || self.pending_playback_start
+    }
+
+    fn same_transient_frame_state(self, after: Self) -> bool {
+        self.playing == after.playing
+            && self.play_selection_flash_active == after.play_selection_flash_active
+            && self.folder_progress_active == after.folder_progress_active
+            && self.normalization_progress_active == after.normalization_progress_active
+            && self.waveform_loading_active == after.waveform_loading_active
+            && self.sample_loading == after.sample_loading
+            && self.audio_opening == after.audio_opening
+            && self.startup_source_scan_pending == after.startup_source_scan_pending
+            && self.startup_auto_load_pending == after.startup_auto_load_pending
+            && self.pending_playback_start == after.pending_playback_start
     }
 }
 
@@ -331,4 +398,20 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
         PLAYBACK_CURSOR_WIDTH,
         PLAYBACK_CURSOR_COLOR,
     );
+}
+
+fn push_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: radiant::widgets::WidgetId,
+    rect: Rect,
+    color: Rgba8,
+) {
+    if !rect.has_finite_positive_area() {
+        return;
+    }
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id,
+        rect,
+        color,
+    }));
 }

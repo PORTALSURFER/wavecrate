@@ -28,6 +28,41 @@ fn idle_frame_uses_paint_only_when_frame_state_is_stable() {
 }
 
 #[test]
+fn loading_frame_uses_paint_only_when_progress_advances() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.load.label = Some(String::from("kick.wav"));
+    state.waveform.load.progress = 0.25;
+    state.waveform.load.target_progress = 0.8;
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "loading-progress-only frames should not force full surface reprojection"
+    );
+}
+
+#[test]
+fn loading_frame_repaints_surface_when_loading_state_changes() {
+    let mut state = gui_state_for_span_tests();
+
+    let before_start = state.frame_repaint_scope_before_update();
+    state.waveform.load.label = Some(String::from("kick.wav"));
+    assert!(
+        !state.frame_can_use_paint_only(before_start),
+        "starting loading changes structural overlay/input state and needs a full repaint"
+    );
+
+    let before_stop = state.frame_repaint_scope_before_update();
+    state.waveform.load.label = None;
+    assert!(
+        !state.frame_can_use_paint_only(before_stop),
+        "finishing loading changes structural overlay/input state and needs a full repaint"
+    );
+}
+
+#[test]
 fn playback_frame_repaints_surface_when_playback_state_changes() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
@@ -194,5 +229,49 @@ fn playback_cursor_paints_as_transient_overlay() {
                     && fill.color.b == 255
             }),
         "paint-only playback overlay should append the live cursor"
+    );
+}
+
+#[test]
+fn loading_progress_paints_as_transient_overlay() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.load.label = Some(String::from("kick.wav"));
+    state.waveform.load.progress = 0.5;
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    assert!(
+        !frame
+            .paint_plan
+            .fill_rects_for_widget(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
+            .any(|fill| { fill.color.r == 174 && fill.color.g == 178 && fill.color.b == 181 }),
+        "live loading progress should not be baked into the cached surface"
+    );
+
+    let mut primitives = Vec::new();
+    runtime
+        .bridge_mut()
+        .state_mut()
+        .paint_waveform_transient_overlay(
+            TransientOverlayContext::new(
+                &frame.paint_plan,
+                Vector2::new(900.0, 620.0),
+                Duration::ZERO,
+            ),
+            &mut primitives,
+        );
+
+    assert!(
+        primitives
+            .iter()
+            .filter_map(|primitive| primitive.fill_rect())
+            .any(|fill| {
+                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+                    && fill.color.r == 174
+                    && fill.color.g == 178
+                    && fill.color.b == 181
+            }),
+        "paint-only loading overlay should append the live progress fill"
     );
 }

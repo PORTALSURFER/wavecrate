@@ -87,7 +87,6 @@ mod app_bridge;
 mod audio_settings;
 mod browser_labels;
 mod hit_targets;
-mod loading_visual;
 mod modal_blocking;
 mod primary_waveform;
 mod secondary_waveform;
