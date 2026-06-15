@@ -15,6 +15,19 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
 }
 
 #[test]
+fn idle_frame_uses_paint_only_when_frame_state_is_stable() {
+    let mut state = gui_state_for_span_tests();
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "stable 60Hz idle frames should not force full surface reprojection"
+    );
+}
+
+#[test]
 fn playback_frame_repaints_surface_when_playback_state_changes() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
@@ -52,6 +65,22 @@ fn frame_animation_stays_active_for_pending_startup_auto_load() {
         state.frame_message_animation_active(),
         "startup sample auto-load needs frame messages until the restored source is loaded"
     );
+}
+
+#[test]
+fn scene_frame_clock_runs_at_60hz_even_when_idle() {
+    let state = gui_state_for_span_tests();
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+
+    let activity = runtime.bridge_mut().animation_activity();
+
+    assert!(activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), Some(60));
 }
 
 #[test]

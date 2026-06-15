@@ -5,6 +5,7 @@ use radiant::prelude as ui;
 
 const PLAYBACK_CURSOR_OVERLAY_KEY: u64 = 0x706c_6179_6375_7273;
 const PLAYBACK_CURSOR_OVERLAY_FPS: u32 = 60;
+const APP_FRAME_CLOCK_FPS: u32 = 60;
 
 pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMessage> {
     prepare_sample_browser_view(state);
@@ -20,7 +21,7 @@ fn scene(state: &NativeAppState) -> ui::Scene<GuiMessage> {
 
 fn frame_clock() -> ui::FrameClock<NativeAppState, GuiMessage> {
     ui::FrameClock::message(GuiMessage::Frame)
-        .when(|state: &mut NativeAppState| state.frame_message_animation_active())
+        .fps(APP_FRAME_CLOCK_FPS)
         .repaint_scope(
             |state: &mut NativeAppState| state.frame_repaint_scope_before_update(),
             |state, scope| state.frame_can_use_paint_only(scope),

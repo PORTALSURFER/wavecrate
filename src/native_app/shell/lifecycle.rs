@@ -12,8 +12,10 @@ use std::{
 };
 use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 
+const UI_FRAME_TARGET_FPS: u32 = 60;
+const UI_FRAME_TARGET: Duration = Duration::from_micros(16_667);
 const UI_FRAME_CADENCE: ui::FrameCadenceConfig =
-    ui::FrameCadenceConfig::new(Duration::from_millis(34), Duration::from_millis(100), 120);
+    ui::FrameCadenceConfig::new(Duration::from_millis(25), Duration::from_millis(100), 60);
 
 impl NativeAppState {
     pub(in crate::native_app) fn load_default() -> Result<Self, String> {
@@ -184,32 +186,13 @@ impl NativeAppState {
 
         match report.kind {
             ui::FrameCadenceKind::ErrorSpike | ui::FrameCadenceKind::WarnSpike => {
-                if cadence_context == "idle" {
-                    tracing::debug!(
-                        target: "wavecrate::debug::ui_frame",
-                        event = "ui.frame.idle_gap",
-                        severity = report.kind.severity().unwrap_or("warn"),
-                        frame = report.frame_index,
-                        delta_ms,
-                        max_delta_ms,
-                        sample_loading,
-                        audio_opening,
-                        folder_scanning,
-                        normalizing,
-                        waveform_loading,
-                        playing,
-                        pending_playback,
-                        cadence_context,
-                        selected = selected.as_str(),
-                        "UI frame cadence idle gap"
-                    );
-                    return;
-                }
                 tracing::warn!(
                     target: "wavecrate::debug::ui_frame",
-                    event = "ui.frame.spike",
+                    event = "ui.frame.deviation",
                     severity = report.kind.severity().unwrap_or("warn"),
                     frame = report.frame_index,
+                    target_fps = UI_FRAME_TARGET_FPS,
+                    target_ms = duration_ms(UI_FRAME_TARGET),
                     delta_ms,
                     max_delta_ms,
                     sample_loading,
@@ -221,7 +204,7 @@ impl NativeAppState {
                     pending_playback,
                     cadence_context,
                     selected = selected.as_str(),
-                    "UI frame spike"
+                    "UI frame cadence deviated from 60Hz target"
                 );
             }
             ui::FrameCadenceKind::Periodic => {
@@ -229,6 +212,8 @@ impl NativeAppState {
                     target: "wavecrate::debug::ui_frame",
                     event = "ui.frame",
                     frame = report.frame_index,
+                    target_fps = UI_FRAME_TARGET_FPS,
+                    target_ms = duration_ms(UI_FRAME_TARGET),
                     delta_ms,
                     max_delta_ms,
                     sample_loading,

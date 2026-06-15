@@ -103,6 +103,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
         .expect("app bridge should lay out waveform widget");
 
     runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, Some(rect.center()), None));
+    runtime.drain_runtime_messages();
 
     let copied = loops.join("kick.wav");
     assert!(copied.is_file());
@@ -151,6 +152,7 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
     apply_strict_update_diagnostics(&mut runtime);
 
     runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, None, None));
+    runtime.drain_runtime_messages();
 
     let copied = loops.join("kick.wav");
     assert!(copied.is_file());

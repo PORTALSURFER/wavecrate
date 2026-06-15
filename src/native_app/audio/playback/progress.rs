@@ -43,8 +43,7 @@ impl NativeAppState {
         before: FrameRepaintScopeSnapshot,
     ) -> bool {
         let after = FrameRepaintScopeSnapshot::from_state(self);
-        before.playing
-            && after.playing
+        before.playing == after.playing
             && !before.requires_surface_frame()
             && !after.requires_surface_frame()
     }
