@@ -81,9 +81,17 @@ impl NativeAppState {
             .playback_runtime
             .as_ref()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
+        let runtime_submit_started_at = Instant::now();
         let request_id = runtime
             .try_play(request)
             .map_err(|err| format!("submit playback request: {err:?}"))?;
+        log_slow_playback_phase(
+            "playback.start.runtime_try_play",
+            &self.waveform.current.file_name(),
+            "waveform",
+            runtime_submit_started_at,
+        );
+        let state_update_started_at = Instant::now();
         let playback_start = match command.mode {
             PlaybackMode::Looped { offset_ratio } => offset_ratio,
             PlaybackMode::OneShot => command.resolved.start_ratio,
@@ -96,6 +104,12 @@ impl NativeAppState {
             path: self.waveform.current.path().display().to_string(),
             span: (command.resolved.start_ratio, command.resolved.end_ratio),
         });
+        log_slow_playback_phase(
+            "playback.start.state_update",
+            &self.waveform.current.file_name(),
+            "waveform",
+            state_update_started_at,
+        );
         log_slow_playback_phase(
             "playback.start.submit_runtime",
             &self.waveform.current.file_name(),

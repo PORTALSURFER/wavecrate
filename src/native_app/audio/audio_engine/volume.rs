@@ -1,6 +1,11 @@
 use std::time::{Duration, Instant};
 
-use crate::native_app::app::{NativeAppState, emit_gui_action};
+use radiant::prelude as ui;
+use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
+
+use crate::native_app::app::{
+    GuiMessage, NativeAppState, VolumeSettingsPersistResult, emit_gui_action,
+};
 
 pub(in crate::native_app) const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
 
@@ -20,26 +25,73 @@ impl NativeAppState {
         self.audio.volume_persist_deadline = Some(started_at + VOLUME_PERSIST_DEBOUNCE);
     }
 
-    pub(in crate::native_app) fn flush_pending_volume_persist(&mut self) {
+    pub(in crate::native_app) fn flush_pending_volume_persist(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let Some(deadline) = self.audio.volume_persist_deadline else {
             return;
         };
-        if Instant::now() < deadline {
+        if Instant::now() < deadline || self.audio.volume_persist_inflight {
             return;
         }
-        let started_at = Instant::now();
-        self.persist_user_configuration("playback.volume.persist", started_at);
-        if self.audio.volume_persist_deadline.is_none() {
-            emit_gui_action(
-                "playback.volume.set",
-                Some("transport"),
-                None,
-                "success",
-                started_at,
-                None,
+        self.audio.volume_persist_deadline = None;
+        self.audio.volume_persist_inflight = true;
+
+        let persisted = self.current_settings_core();
+        let sources = self.library.folder_browser.configured_sample_sources();
+        context
+            .business()
+            .blocking_io("gui-volume-settings-persist")
+            .run(
+                move |_| persist_volume_settings(sources, persisted),
+                GuiMessage::VolumeSettingsPersisted,
             );
+    }
+
+    pub(in crate::native_app) fn finish_volume_settings_persist(
+        &mut self,
+        result: VolumeSettingsPersistResult,
+    ) {
+        let started_at = Instant::now();
+        self.audio.volume_persist_inflight = false;
+        match result.result {
+            Ok(()) => {
+                self.ui.settings.persisted = result.persisted;
+                emit_gui_action(
+                    "playback.volume.set",
+                    Some("transport"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = format!("Settings not saved: {error}");
+                emit_gui_action(
+                    "playback.volume.persist",
+                    Some("settings"),
+                    None,
+                    "persist_error",
+                    started_at,
+                    Some(&error),
+                );
+            }
         }
     }
+}
+
+fn persist_volume_settings(
+    sources: Vec<wavecrate::sample_sources::SampleSource>,
+    persisted: AppSettingsCore,
+) -> VolumeSettingsPersistResult {
+    let result = wavecrate::sample_sources::config::save(&AppConfig {
+        sources,
+        core: persisted.clone(),
+    })
+    .map_err(|err| err.to_string());
+    VolumeSettingsPersistResult { persisted, result }
 }
 
 fn volume_milli(volume: f32) -> u16 {

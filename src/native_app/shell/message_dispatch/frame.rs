@@ -10,6 +10,6 @@ impl NativeAppState {
         self.maybe_auto_load_startup_sample(context);
         self.maybe_start_waveform_cache_warm(context);
         self.maybe_start_active_folder_cache_warm(context);
-        self.advance_frame();
+        self.advance_frame(context);
     }
 }

@@ -3,7 +3,7 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{path::PathBuf, time::Instant};
-use wavecrate::sample_sources::SampleCollection;
+use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
 
 use crate::native_app::app::{
     ActiveFolderCacheWarmResult, AppSettingsTab, AudioOpenTaskCompletion, NormalizationProgress,
@@ -101,6 +101,7 @@ pub(in crate::native_app) enum GuiMessage {
     PlaySelectedSample,
     PlayRandomSampleRange,
     LastPlayedPersisted(LastPlayedPersistResult),
+    VolumeSettingsPersisted(VolumeSettingsPersistResult),
     StopPlayback,
     ToggleLoopPlayback,
     PrepareSimilarityForSelectedSource,
@@ -184,6 +185,19 @@ pub(in crate::native_app) enum GuiMessage {
     Waveform(WaveformInteraction),
     WaveformFileDrop(NativeFileDrop),
     Frame,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::native_app) struct VolumeSettingsPersistResult {
+    pub(in crate::native_app) persisted: AppSettingsCore,
+    pub(in crate::native_app) result: Result<(), String>,
+}
+
+impl PartialEq for VolumeSettingsPersistResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.result == other.result
+            && self.persisted.volume.to_bits() == other.persisted.volume.to_bits()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

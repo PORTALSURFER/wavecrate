@@ -107,7 +107,10 @@ impl NativeAppState {
         }
     }
 
-    pub(in crate::native_app) fn advance_frame(&mut self) {
+    pub(in crate::native_app) fn advance_frame(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let frame_update_started_at = Instant::now();
         self.record_frame_timing();
         let waveform_started_at = Instant::now();
@@ -134,7 +137,7 @@ impl NativeAppState {
             }
         }
         let persist_started_at = Instant::now();
-        self.flush_pending_volume_persist();
+        self.flush_pending_volume_persist(context);
         log_slow_frame_phase("ui.frame.update.persist_volume", persist_started_at);
         log_slow_frame_phase("ui.frame.update.total", frame_update_started_at);
     }

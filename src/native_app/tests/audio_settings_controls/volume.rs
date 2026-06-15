@@ -45,9 +45,27 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
     assert!(state.audio.volume_persist_deadline.is_some());
 
     state.audio.volume_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
-    state.advance_frame();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.advance_frame(&mut context);
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!(
+        (loaded.core.volume - crate::native_app::test_support::state::DEFAULT_VOLUME).abs()
+            < f32::EPSILON
+    );
+    assert!(state.audio.volume_persist_deadline.is_none());
+    assert!(state.audio.volume_persist_inflight);
+
+    let command = context.into_command();
+    let radiant::runtime::Command::Perform { priority, work, .. } = command else {
+        panic!("expected volume settings persist background command");
+    };
+    assert_eq!(priority, radiant::prelude::TaskPriority::BlockingIo);
+    let message = work();
+    state.apply_message(message, &mut radiant::prelude::UiUpdateContext::default());
 
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
     assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
     assert!(state.audio.volume_persist_deadline.is_none());
+    assert!(!state.audio.volume_persist_inflight);
 }

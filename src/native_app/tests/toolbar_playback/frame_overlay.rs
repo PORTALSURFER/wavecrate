@@ -6,7 +6,7 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
     state.waveform.current.start_playback(0.25);
 
     let before = state.frame_repaint_scope_before_update();
-    state.advance_frame();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
         state.frame_can_use_paint_only(before),
@@ -83,7 +83,7 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
         .view(crate::native_app::test_support::state::view)
         .handle_message(|state, message, _context| {
             if message == GuiMessage::Frame {
-                state.advance_frame();
+                state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
             }
         })
         .into_bridge();

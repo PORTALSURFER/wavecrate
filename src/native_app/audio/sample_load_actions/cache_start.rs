@@ -6,7 +6,7 @@ use std::{
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, WaveformState, emit_gui_action},
-    audio::sample_load_actions::types::SampleLoadStrategy,
+    audio::sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
 };
 
 struct CachedPlaybackOutcomes {
@@ -35,6 +35,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) -> bool {
+        let cache_lookup_started_at = Instant::now();
         let Some(file) = self
             .waveform
             .cache
@@ -44,6 +45,13 @@ impl NativeAppState {
         else {
             return false;
         };
+        log_sample_load_timing(
+            "browser.sample_load.memory_cache.lookup",
+            path,
+            cache_lookup_started_at.elapsed(),
+            false,
+        );
+        let replace_started_at = Instant::now();
         let waveform = WaveformState::from_cached_file(file);
         let file_name = waveform.file_name();
         self.touch_cached_waveform_path(PathBuf::from(path));
@@ -51,6 +59,12 @@ impl NativeAppState {
         self.clear_sample_loading_state();
         self.waveform.load.selection.start_cached(path);
         self.replace_waveform_deferred(waveform);
+        log_sample_load_timing(
+            "browser.sample_load.memory_cache.replace_waveform",
+            &file_name,
+            replace_started_at.elapsed(),
+            false,
+        );
         if !autoplay {
             self.ui.status.sample = format!("Loaded {file_name}");
             emit_gui_action(
@@ -63,8 +77,21 @@ impl NativeAppState {
             );
             return true;
         }
+        let audio_open_started_at = Instant::now();
         self.maybe_open_audio_player(context);
+        log_sample_load_timing(
+            "browser.sample_load.memory_cache.audio_open",
+            &file_name,
+            audio_open_started_at.elapsed(),
+            false,
+        );
         self.start_cached_sample_playback(&file_name, MEMORY_CACHE_OUTCOMES, started_at);
+        log_sample_load_timing(
+            "browser.sample_load.memory_cache.total",
+            &file_name,
+            started_at.elapsed(),
+            false,
+        );
         true
     }
 
@@ -109,8 +136,15 @@ impl NativeAppState {
         outcomes: CachedPlaybackOutcomes,
         started_at: Instant,
     ) {
+        let playback_started_at = Instant::now();
         match self.start_playback_current_span(0.0, 1.0) {
             Ok(()) => {
+                log_sample_load_timing(
+                    "browser.sample_load.cached_playback.submit",
+                    file_name,
+                    playback_started_at.elapsed(),
+                    false,
+                );
                 self.ui.status.sample = format!("Playing {file_name}");
                 emit_gui_action(
                     "browser.select_sample",

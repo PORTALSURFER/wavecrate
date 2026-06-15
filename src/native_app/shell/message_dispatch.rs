@@ -63,6 +63,7 @@ impl NativeAppState {
             | GuiMessage::PlaySelectedSample
             | GuiMessage::PlayRandomSampleRange
             | GuiMessage::LastPlayedPersisted(_)
+            | GuiMessage::VolumeSettingsPersisted(_)
             | GuiMessage::StopPlayback
             | GuiMessage::ToggleLoopPlayback => self.apply_playback_dispatch(message, context),
             GuiMessage::Settings(message) => self.apply_settings_message(message, context),

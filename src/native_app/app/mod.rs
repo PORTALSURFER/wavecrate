@@ -16,7 +16,7 @@ pub(in crate::native_app) use loading::{
     SampleSelectionLoadState,
 };
 pub(in crate::native_app) use message::{
-    GuiMessage, MetadataMessage, SettingsMessage, TrashMoveTarget,
+    GuiMessage, MetadataMessage, SettingsMessage, TrashMoveTarget, VolumeSettingsPersistResult,
 };
 pub(in crate::native_app) use progress::{NormalizationProgress, NormalizationResult};
 pub(in crate::native_app) use settings::{
