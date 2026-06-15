@@ -30,9 +30,25 @@ impl FolderBrowserState {
         &mut self,
         change: ui::VirtualListWindowChange,
     ) {
+        let viewport_rows = change.window.viewport_len().max(1);
+        let overscan_rows = change
+            .window
+            .viewport_start
+            .saturating_sub(change.window.window_start)
+            .max(
+                change
+                    .window
+                    .window_end
+                    .saturating_sub(change.window.viewport_end),
+            );
+        self.sample_list.runtime_viewport_rows = Some(viewport_rows);
         self.sample_list
             .view_controller
             .set_total_items(change.window.total_items);
+        self.sample_list
+            .view_controller
+            .set_viewport_len(viewport_rows);
+        self.sample_list.view_controller.set_overscan(overscan_rows);
         self.sample_list.prepared_window = self
             .sample_list
             .view_controller
@@ -71,6 +87,10 @@ impl FolderBrowserState {
         guard_rows: usize,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> ui::VirtualListWindow {
+        let viewport_rows = self
+            .sample_list
+            .runtime_viewport_rows
+            .unwrap_or(viewport_rows);
         let selected_file = self.selection.selected_file.clone();
         let total_items = self.selected_audio_file_count_matching_tags(tags_by_file);
         if self.sample_list.follow_selection.focus_key() == selected_file.as_ref() {

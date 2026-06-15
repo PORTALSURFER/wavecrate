@@ -1,4 +1,5 @@
 use super::*;
+use radiant::prelude as ui;
 
 #[test]
 fn file_keyboard_navigation_follow_window_moves_only_near_edges() {
@@ -80,6 +81,46 @@ fn file_scroll_tracking_is_not_overridden_by_unchanged_selection_follow() {
     assert_eq!(browser.file_view_start(), 18);
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn file_scroll_tracking_uses_runtime_viewport_rows_after_scrollbar_update() {
+    let root = temp_source_root("wavecrate-gui-file-scroll-runtime-viewport");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..80)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&files[4]));
+
+    let initial = browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+    assert_eq!(initial.viewport_len(), 80);
+
+    browser.apply_file_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: ui::VirtualListWindow {
+            total_items: 80,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+
+    let scrolled = browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+
+    assert_eq!(scrolled.viewport_start, 40);
+    assert_eq!(scrolled.viewport_len(), 18);
+    assert_eq!(scrolled.window_start, 36);
+    assert_eq!(scrolled.window_end, 62);
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn folder_tree_follow_window_tracks_selected_folder() {
     let root = temp_source_root("wavecrate-gui-folder-tree-follow-window");
