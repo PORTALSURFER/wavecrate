@@ -62,6 +62,7 @@ impl NativeAppState {
             GuiMessage::AudioPlayerOpenFinished(_)
             | GuiMessage::PlaySelectedSample
             | GuiMessage::PlayRandomSampleRange
+            | GuiMessage::LastPlayedPersistReady { .. }
             | GuiMessage::LastPlayedPersisted(_)
             | GuiMessage::VolumeSettingsPersisted(_)
             | GuiMessage::StopPlayback

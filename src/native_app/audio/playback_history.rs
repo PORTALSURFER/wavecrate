@@ -8,13 +8,17 @@ use radiant::prelude as ui;
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
 mod worker;
-use worker::{LastPlayedPersistRequest, persist_last_played};
+use worker::persist_last_played;
+
+const LAST_PLAYED_PERSIST_DEBOUNCE: Duration = Duration::from_millis(350);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct LastPlayedPersistResult {
     pub(in crate::native_app) file_id: String,
     pub(in crate::native_app) result: Result<(), String>,
 }
+
+pub(in crate::native_app) use worker::LastPlayedPersistRequest;
 
 impl NativeAppState {
     pub(in crate::native_app) fn record_selected_sample_last_played(
@@ -55,6 +59,22 @@ impl NativeAppState {
             relative_path,
             played_at,
         };
+        context.after_latest(
+            &mut self.audio.last_played_persist_task,
+            LAST_PLAYED_PERSIST_DEBOUNCE,
+            |ticket| GuiMessage::LastPlayedPersistReady { ticket, request },
+        );
+    }
+
+    pub(in crate::native_app) fn start_last_played_persist(
+        &mut self,
+        ticket: ui::TaskTicket,
+        request: LastPlayedPersistRequest,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !self.audio.last_played_persist_task.finish(ticket) {
+            return;
+        }
         context
             .business()
             .blocking_io("gui-last-played-persist")

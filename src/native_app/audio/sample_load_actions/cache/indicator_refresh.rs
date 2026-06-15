@@ -23,6 +23,7 @@ impl NativeAppState {
                 .into_iter()
                 .map(std::path::PathBuf::from)
                 .collect(),
+            || false,
         );
         self.apply_waveform_cache_indicator_refresh_result(result);
     }
@@ -49,9 +50,12 @@ impl NativeAppState {
         context
             .business()
             .background("gui-waveform-cache-indicators")
+            .cancellable()
             .latest(&mut self.waveform.cache.indicator_refresh_task)
             .run(
-                move |_| probe_persisted_waveform_cache_indicators(paths),
+                move |context| {
+                    probe_persisted_waveform_cache_indicators(paths, || context.is_cancelled())
+                },
                 GuiMessage::WaveformCacheIndicatorRefreshFinished,
             );
     }

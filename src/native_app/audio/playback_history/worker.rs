@@ -8,11 +8,11 @@ use wavecrate::sample_sources::SourceDatabase;
 use crate::native_app::audio::playback_history::LastPlayedPersistResult;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct LastPlayedPersistRequest {
-    pub(super) file_id: String,
-    pub(super) source_root: PathBuf,
-    pub(super) relative_path: PathBuf,
-    pub(super) played_at: i64,
+pub(in crate::native_app) struct LastPlayedPersistRequest {
+    pub(in crate::native_app) file_id: String,
+    pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) relative_path: PathBuf,
+    pub(in crate::native_app) played_at: i64,
 }
 
 pub(super) fn persist_last_played(request: LastPlayedPersistRequest) -> LastPlayedPersistResult {

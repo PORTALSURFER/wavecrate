@@ -52,10 +52,14 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
 
 pub(super) fn probe_persisted_waveform_cache_indicators(
     paths: Vec<PathBuf>,
+    is_cancelled: impl Fn() -> bool,
 ) -> WaveformCacheIndicatorRefreshResult {
     let mut playback_ready_paths = HashSet::new();
     let mut warm_candidate_paths = HashSet::new();
     for path in &paths {
+        if is_cancelled() {
+            break;
+        }
         if cached_waveform_file_playback_ready_exists(path) {
             playback_ready_paths.insert(path.clone());
         } else if cached_waveform_file_exists(path) {
