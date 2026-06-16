@@ -294,10 +294,21 @@ fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
 
 fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
     let mut reader = hound::WavReader::open(path).expect("open wav");
-    reader
-        .samples::<f32>()
-        .collect::<Result<Vec<_>, _>>()
-        .expect("read samples")
+    let spec = reader.spec();
+    match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .expect("read float samples"),
+        hound::SampleFormat::Int => {
+            let scale = (1_i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
+            reader
+                .samples::<i32>()
+                .map(|sample| sample.map(|value| value as f32 / scale))
+                .collect::<Result<Vec<_>, _>>()
+                .expect("read int samples")
+        }
+    }
 }
 
 fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {

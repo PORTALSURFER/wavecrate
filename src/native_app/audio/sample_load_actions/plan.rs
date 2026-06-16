@@ -10,6 +10,9 @@ use crate::native_app::{
     },
 };
 
+pub(in crate::native_app::audio) const NORMALIZATION_SAMPLE_LOAD_RETRY_DELAY: Duration =
+    Duration::from_millis(250);
+
 impl NativeAppState {
     pub(super) fn schedule_deferred_sample_load(
         &mut self,
@@ -73,6 +76,21 @@ impl NativeAppState {
             );
             return;
         }
+        if self.normalization_work_active() {
+            self.ui.status.sample = format!(
+                "Selected {} | waiting for normalization",
+                sample_path_label(path.as_str())
+            );
+            self.schedule_deferred_sample_load(
+                path,
+                autoplay,
+                _check_cache,
+                NORMALIZATION_SAMPLE_LOAD_RETRY_DELAY,
+                "normalization",
+                context,
+            );
+            return;
+        }
         self.start_sample_load(
             path,
             autoplay,
@@ -113,6 +131,21 @@ impl NativeAppState {
         strategy: SampleLoadStrategy,
         started_at: Instant,
     ) {
+        if self.normalization_work_active() {
+            self.ui.status.sample = format!(
+                "Selected {} | waiting for normalization",
+                sample_path_label(path.as_str())
+            );
+            self.schedule_deferred_sample_load(
+                path,
+                autoplay,
+                false,
+                NORMALIZATION_SAMPLE_LOAD_RETRY_DELAY,
+                "normalization",
+                context,
+            );
+            return;
+        }
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),

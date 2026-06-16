@@ -17,13 +17,18 @@ fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
     crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
         .expect("normalize wav");
 
+    let spec = hound::WavReader::open(&path)
+        .expect("open normalized wav")
+        .spec();
+    assert_eq!(spec.bits_per_sample, 16);
+    assert_eq!(spec.sample_format, hound::SampleFormat::Int);
     let samples = read_test_wav_f32(&path);
     let peak = samples
         .iter()
         .copied()
         .map(f32::abs)
         .fold(0.0_f32, f32::max);
-    assert!((peak - 1.0).abs() < 0.000_001, "peak was {peak}");
+    assert!((peak - 1.0).abs() < 0.000_1, "peak was {peak}");
     assert!(samples.iter().all(|sample| sample.is_finite()));
 
     let _ = fs::remove_dir_all(root);
@@ -112,6 +117,75 @@ fn normalize_selected_samples_enqueues_when_worker_is_active() {
         .expect("normalization progress should remain active");
     assert_eq!(progress.queued, 1);
     assert!(state.ui.status.sample.contains("1 task waiting"));
+}
+
+#[test]
+fn uncached_sample_load_waits_for_active_normalization() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("wait-load.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 77,
+            label: String::from("1 sample"),
+            completed: 0,
+            total: 1,
+            queued: 0,
+            detail: String::from("normalizing.wav"),
+        },
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_sample(selected_file.clone(), &mut context);
+
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "uncached foreground decode should not start while normalization is active"
+    );
+    let retry_ticket = state
+        .background
+        .deferred_sample_load_task
+        .active()
+        .expect("sample load should be deferred until normalization is idle");
+    assert!(state.ui.status.sample.contains("waiting for normalization"));
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
+            ticket: retry_ticket,
+            path: selected_file.clone(),
+            autoplay: true,
+            check_cache: false,
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "deferred retry should keep waiting while normalization is still active"
+    );
+    let ready_ticket = state
+        .background
+        .deferred_sample_load_task
+        .active()
+        .expect("sample load retry should be scheduled again");
+
+    state.background.normalization_progress = None;
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
+            ticket: ready_ticket,
+            path: selected_file,
+            autoplay: true,
+            check_cache: false,
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "deferred sample load should start once normalization is idle"
+    );
 }
 
 #[test]

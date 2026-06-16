@@ -7,6 +7,7 @@ use std::{
 use crate::native_app::{
     app::{
         GuiMessage, NativeAppState, PendingRuntimePlaybackStart, WaveformState, emit_gui_action,
+        sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
@@ -108,6 +109,21 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
+        if self.normalization_work_active() {
+            self.ui.status.sample = format!(
+                "Selected {} | waiting for normalization",
+                sample_path_label(path)
+            );
+            self.schedule_deferred_sample_load(
+                path.to_owned(),
+                autoplay,
+                false,
+                crate::native_app::audio::sample_load_actions::NORMALIZATION_SAMPLE_LOAD_RETRY_DELAY,
+                "normalization",
+                context,
+            );
+            return;
+        }
         self.prepare_uncached_sample_load(path, "foreground_load_queued", started_at);
         self.start_sample_load_with_priority(
             path.to_owned(),

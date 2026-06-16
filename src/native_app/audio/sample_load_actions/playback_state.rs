@@ -26,7 +26,11 @@ impl NativeAppState {
             || self.audio.pending_playback_start.is_some()
             || self.audio.early_sample_playback_path.is_some()
             || self.waveform.current.is_playing()
-            || self.background.normalization_progress.is_some()
+            || self.normalization_work_active()
+    }
+
+    pub(in crate::native_app) fn normalization_work_active(&self) -> bool {
+        self.background.normalization_progress.is_some()
             || !self.background.normalization_queue.is_empty()
     }
 

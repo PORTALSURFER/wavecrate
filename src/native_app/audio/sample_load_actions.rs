@@ -28,6 +28,7 @@ pub(in crate::native_app) use cache::{
 pub(super) use diagnostics::{
     log_loaded_sample_metadata, log_sample_load_timing, log_slow_sample_load_phase,
 };
+pub(super) use plan::NORMALIZATION_SAMPLE_LOAD_RETRY_DELAY;
 
 pub(in crate::native_app) fn foreground_sample_load_priority() -> ui::TaskPriority {
     ui::TaskPriority::Interactive
