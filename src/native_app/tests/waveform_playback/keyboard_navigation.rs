@@ -342,6 +342,11 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         "cached keyboard navigation should update the visible status, got {}",
         state.ui.status.sample
     );
+    assert_eq!(
+        last_played_label_for(&state, &second),
+        Some(String::from("Today")),
+        "memory-cached autoplay navigation should update last played history"
+    );
 }
 
 #[test]
@@ -470,6 +475,11 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
         "resident waveform should audition immediately during keyboard navigation"
     );
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(
+        last_played_label_for(&state, &second),
+        Some(String::from("Today")),
+        "already-loaded autoplay navigation should update last played history"
+    );
     assert!(
         state
             .background
@@ -482,4 +492,14 @@ fn keyboard_navigation_plays_loaded_sample_without_deferred_reload() {
         active_sample_load_ticket(&state).is_none(),
         "already loaded navigation target must not start decode work"
     );
+}
+
+fn last_played_label_for(state: &NativeAppState, path: &str) -> Option<String> {
+    state
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.id == path)
+        .map(|file| file.modified.clone())
 }

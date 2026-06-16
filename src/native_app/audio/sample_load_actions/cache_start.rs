@@ -91,7 +91,7 @@ impl NativeAppState {
             audio_open_started_at.elapsed(),
             false,
         );
-        self.start_cached_sample_playback(&file_name, MEMORY_CACHE_OUTCOMES, started_at);
+        self.start_cached_sample_playback(&file_name, MEMORY_CACHE_OUTCOMES, started_at, context);
         log_sample_load_timing(
             "browser.sample_load.memory_cache.total",
             &file_name,
@@ -132,7 +132,12 @@ impl NativeAppState {
 
         self.maybe_open_audio_player(context);
         let file_name = self.waveform.current.file_name();
-        self.start_cached_sample_playback(&file_name, LOADED_NAVIGATION_OUTCOMES, started_at);
+        self.start_cached_sample_playback(
+            &file_name,
+            LOADED_NAVIGATION_OUTCOMES,
+            started_at,
+            context,
+        );
         true
     }
 
@@ -141,10 +146,12 @@ impl NativeAppState {
         file_name: &str,
         outcomes: CachedPlaybackOutcomes,
         started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let playback_started_at = Instant::now();
         match self.start_current_full_sample_runtime_playback() {
             Ok(()) => {
+                self.record_selected_sample_last_played(context);
                 log_sample_load_timing(
                     "browser.sample_load.cached_playback.submit",
                     file_name,
