@@ -100,23 +100,18 @@ impl NativeAppState {
             return;
         }
         let key = active_folder_cache_warm_resource_key(&folder_id);
-        let Some(warm) = (match active_folder_cache_warm_priority() {
-            ui::TaskPriority::Interactive => context
-                .business()
-                .interactive("gui-active-folder-cache-warm"),
-            ui::TaskPriority::Background => context
-                .business()
-                .background("gui-active-folder-cache-warm"),
-            ui::TaskPriority::BlockingIo => context
-                .business()
-                .blocking_io("gui-active-folder-cache-warm"),
-            ui::TaskPriority::Idle => context.business().idle("gui-active-folder-cache-warm"),
-        })
-        .cancellable()
-        .exclusive_for(
-            &mut self.waveform.cache.active_folder_warm_tasks,
-            key.clone(),
-        ) else {
+        let Some(warm) = context
+            .business()
+            .priority(
+                "gui-active-folder-cache-warm",
+                active_folder_cache_warm_priority(),
+            )
+            .cancellable()
+            .exclusive_for(
+                &mut self.waveform.cache.active_folder_warm_tasks,
+                key.clone(),
+            )
+        else {
             return;
         };
         self.waveform.cache.active_folder_warm_key = Some(key);

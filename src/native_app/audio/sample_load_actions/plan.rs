@@ -141,14 +141,11 @@ impl NativeAppState {
         let request = SampleLoadRequest::new(path, autoplay, priority, strategy);
         let key = sample_resource_key(request.path());
         self.background.active_sample_load_key = Some(key.clone());
-        let load = match request.priority() {
-            ui::TaskPriority::Interactive => context.business().interactive("gui-sample-load"),
-            ui::TaskPriority::Background => context.business().background("gui-sample-load"),
-            ui::TaskPriority::BlockingIo => context.business().blocking_io("gui-sample-load"),
-            ui::TaskPriority::Idle => context.business().idle("gui-sample-load"),
-        }
-        .cancellable()
-        .latest_for_resource(&mut self.background.sample_load_tasks, key);
+        let load = context
+            .business()
+            .priority("gui-sample-load", request.priority())
+            .cancellable()
+            .latest_for_resource(&mut self.background.sample_load_tasks, key);
         self.background.sample_load_cancel = Some(load.stream(
             move |worker_context, events| {
                 SampleLoadWorker::new(request).run(worker_context, events)
