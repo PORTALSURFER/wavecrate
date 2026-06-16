@@ -1,8 +1,10 @@
 use std::path::Path;
 
 mod wav_normalize;
+#[cfg(test)]
+pub(in crate::native_app) use wav_normalize::normalize_wav_file_in_place;
 pub(in crate::native_app) use wav_normalize::{
-    WavNormalizationOutcome, normalize_wav_file_in_place,
+    WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
 };
 
 pub(in crate::native_app) fn sample_path_label(path: impl AsRef<Path>) -> String {

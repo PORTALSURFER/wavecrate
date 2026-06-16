@@ -6,6 +6,8 @@ pub(in crate::native_app) struct NormalizationProgress {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
+    pub(in crate::native_app) work_completed: usize,
+    pub(in crate::native_app) work_total: usize,
     pub(in crate::native_app) queued: usize,
     pub(in crate::native_app) detail: String,
 }

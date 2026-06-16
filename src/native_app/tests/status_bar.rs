@@ -62,6 +62,8 @@ fn bottom_status_bar_reports_normalization_progress() {
             label: String::from("2 samples"),
             completed: 1,
             total: 2,
+            work_completed: 500,
+            work_total: 2_000,
             queued: 0,
             detail: String::from("snare.wav"),
         },
@@ -85,6 +87,8 @@ fn bottom_status_bar_reports_queued_normalization_tasks() {
             label: String::from("1 sample"),
             completed: 0,
             total: 1,
+            work_completed: 250,
+            work_total: 1_000,
             queued: 2,
             detail: String::from("kick.wav"),
         },
@@ -178,6 +182,8 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
             label: String::from("2 samples"),
             completed: 1,
             total: 2,
+            work_completed: 500,
+            work_total: 2_000,
             queued: 0,
             detail: String::from("snare.wav"),
         },
@@ -192,6 +198,37 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 2,
             total: 5,
+        }
+    );
+}
+
+#[test]
+fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 9,
+            label: String::from("1 sample"),
+            completed: 0,
+            total: 1,
+            work_completed: 420,
+            work_total: 1_000,
+            queued: 0,
+            detail: String::from("kick.wav | Writing"),
+        },
+    );
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert_eq!(
+        model.status_text,
+        "Normalizing 1 sample | 0/1 | kick.wav | Writing"
+    );
+    assert_eq!(
+        model.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 420,
+            total: 1_000,
         }
     );
 }

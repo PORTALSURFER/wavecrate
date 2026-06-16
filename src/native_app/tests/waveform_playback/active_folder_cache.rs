@@ -305,6 +305,8 @@ fn active_folder_cache_warm_yields_while_normalization_is_active() {
             label: String::from("1 sample"),
             completed: 0,
             total: 1,
+            work_completed: 100,
+            work_total: 1_000,
             queued: 0,
             detail: String::from("normalize-yield.wav"),
         },

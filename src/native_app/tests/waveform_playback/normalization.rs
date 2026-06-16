@@ -72,6 +72,56 @@ fn normalize_wav_file_in_place_cleans_work_files_after_success() {
 }
 
 #[test]
+fn normalize_wav_file_in_place_reports_realtime_progress_phases() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-default-gui-normalize-progress-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let path = root.join("progress.wav");
+    let samples: Vec<i16> = (0..40_000)
+        .map(|index| if index % 2 == 0 { 2_048 } else { -4_096 })
+        .collect();
+    write_test_wav_i16(&path, &samples);
+
+    let mut snapshots = Vec::new();
+    let outcome =
+        crate::native_app::test_support::waveform::normalize_wav_file_in_place_with_progress(
+            &path,
+            |fraction, phase| snapshots.push((fraction, phase.to_string())),
+        )
+        .expect("normalize wav");
+
+    assert_eq!(
+        outcome,
+        crate::native_app::test_support::waveform::WavNormalizationOutcome::Normalized
+    );
+    assert!(
+        snapshots.iter().any(|(_, phase)| phase == "Analyzing"),
+        "expected analyze progress updates"
+    );
+    assert!(
+        snapshots.iter().any(|(_, phase)| phase == "Writing"),
+        "expected write progress updates"
+    );
+    assert!(
+        snapshots
+            .iter()
+            .any(|(fraction, _)| *fraction > 0.0 && *fraction < 1.0),
+        "expected intermediate progress fractions"
+    );
+    assert_eq!(
+        snapshots.last().expect("final progress snapshot"),
+        &(1.0, String::from("Done"))
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("quiet.wav");
     let path = PathBuf::from(&selected_file);
@@ -96,6 +146,8 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
         .expect("normalization progress should be visible after queueing");
     assert_eq!(progress.completed, 0);
     assert_eq!(progress.total, 1);
+    assert_eq!(progress.work_completed, 0);
+    assert_eq!(progress.work_total, 1_000);
     assert_eq!(progress.queued, 0);
     assert_eq!(progress.detail, "Queued");
     assert!(state.ui.status.sample.contains("Normalizing 1 sample"));
@@ -139,6 +191,8 @@ fn uncached_sample_load_waits_for_active_normalization() {
             label: String::from("1 sample"),
             completed: 0,
             total: 1,
+            work_completed: 250,
+            work_total: 1_000,
             queued: 0,
             detail: String::from("normalizing.wav"),
         },
@@ -248,6 +302,8 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             label: String::from("1 sample"),
             completed: 1,
             total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
             queued: 0,
             detail: selected_file.clone(),
         },

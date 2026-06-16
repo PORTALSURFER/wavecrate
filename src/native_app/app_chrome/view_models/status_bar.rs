@@ -103,8 +103,8 @@ impl WorkerProgressViewModel {
 
     fn from_normalization_progress(progress: &NormalizationProgress) -> Self {
         Self {
-            completed: progress.completed,
-            total: progress.total,
+            completed: progress.work_completed,
+            total: progress.work_total,
         }
     }
 }

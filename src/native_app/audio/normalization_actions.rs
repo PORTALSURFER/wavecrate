@@ -1,4 +1,8 @@
-use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
+use std::{
+    path::PathBuf,
+    sync::mpsc::Sender,
+    time::{Duration, Instant},
+};
 
 use radiant::prelude as ui;
 
@@ -7,8 +11,12 @@ use crate::native_app::app::{
     NormalizedWaveformReload, WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };
 use crate::native_app::sample_library::file_actions::{
-    WavNormalizationOutcome, normalize_wav_file_in_place,
+    WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
 };
+
+const NORMALIZATION_WORK_UNITS_PER_FILE: usize = 1_000;
+const NORMALIZATION_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(80);
+const NORMALIZATION_PROGRESS_MIN_UNITS: usize = 20;
 
 impl NativeAppState {
     pub(in crate::native_app) fn normalize_selected_samples(
@@ -75,6 +83,8 @@ impl NativeAppState {
             label: label.clone(),
             completed: 0,
             total: request.paths.len(),
+            work_completed: 0,
+            work_total: normalization_work_total(request.paths.len()),
             queued,
             detail: String::from("Queued"),
         });
@@ -272,16 +282,40 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
     let mut skipped = Vec::new();
     let mut last_error = None;
     for (index, path) in request.paths.iter().enumerate() {
-        let detail = sample_path_label(path);
-        send_normalization_progress(&request, label.as_str(), index, total, detail.clone());
-        match normalize_wav_file_in_place(path) {
-            Ok(WavNormalizationOutcome::Normalized) => normalized.push(path.clone()),
-            Ok(WavNormalizationOutcome::Skipped) => skipped.push(path.clone()),
+        let file_label = sample_path_label(path);
+        let work_total = normalization_work_total(total);
+        let file_started_at = Instant::now();
+        let mut progress_reporter = NormalizationProgressReporter::new(
+            &request,
+            label.as_str(),
+            index,
+            total,
+            work_total,
+            file_label.clone(),
+        );
+        progress_reporter.emit(index, 0.0, "Queued", true);
+        match normalize_wav_file_in_place_with_progress(path, |fraction, phase| {
+            progress_reporter.emit(index, fraction, phase, false);
+        }) {
+            Ok(WavNormalizationOutcome::Normalized) => {
+                normalized.push(path.clone());
+                log_normalization_worker_result(path, "normalized", None, file_started_at);
+            }
+            Ok(WavNormalizationOutcome::Skipped) => {
+                skipped.push(path.clone());
+                log_normalization_worker_result(path, "skipped", None, file_started_at);
+            }
             Err(error) => {
-                last_error = Some(format!("{detail}: {error}"));
+                log_normalization_worker_result(
+                    path,
+                    "error",
+                    Some(error.as_str()),
+                    file_started_at,
+                );
+                last_error = Some(format!("{file_label}: {error}"));
             }
         }
-        send_normalization_progress(&request, label.as_str(), index + 1, total, detail);
+        progress_reporter.emit(index + 1, 0.0, "Done", true);
     }
     NormalizationResult {
         task_id: request.task_id,
@@ -296,21 +330,100 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
     }
 }
 
-fn send_normalization_progress(
-    request: &NormalizationWorkerRequest,
-    label: &str,
-    completed: usize,
-    total: usize,
-    detail: String,
+struct NormalizationProgressReporter<'a> {
+    request: &'a NormalizationWorkerRequest,
+    label: &'a str,
+    total_files: usize,
+    work_total: usize,
+    file_label: String,
+    last_emit: Instant,
+    last_work_completed: usize,
+}
+
+impl<'a> NormalizationProgressReporter<'a> {
+    fn new(
+        request: &'a NormalizationWorkerRequest,
+        label: &'a str,
+        file_index: usize,
+        total_files: usize,
+        work_total: usize,
+        file_label: String,
+    ) -> Self {
+        Self {
+            request,
+            label,
+            total_files,
+            work_total,
+            file_label,
+            last_emit: Instant::now() - NORMALIZATION_PROGRESS_MIN_INTERVAL,
+            last_work_completed: normalization_work_completed(file_index, 0.0),
+        }
+    }
+
+    fn emit(
+        &mut self,
+        completed_files: usize,
+        file_fraction: f32,
+        phase: &'static str,
+        force: bool,
+    ) {
+        let work_completed =
+            normalization_work_completed(completed_files, file_fraction).min(self.work_total);
+        let now = Instant::now();
+        let advanced = work_completed.saturating_sub(self.last_work_completed);
+        if !force
+            && advanced < NORMALIZATION_PROGRESS_MIN_UNITS
+            && now.duration_since(self.last_emit) < NORMALIZATION_PROGRESS_MIN_INTERVAL
+        {
+            return;
+        }
+        self.last_emit = now;
+        self.last_work_completed = work_completed;
+        let detail = if phase.is_empty() {
+            self.file_label.clone()
+        } else {
+            format!("{} | {phase}", self.file_label)
+        };
+        let _ =
+            self.request
+                .sender
+                .send(GuiMessage::NormalizationProgress(NormalizationProgress {
+                    task_id: self.request.task_id,
+                    label: self.label.to_string(),
+                    completed: completed_files.min(self.total_files),
+                    total: self.total_files,
+                    work_completed,
+                    work_total: self.work_total,
+                    queued: 0,
+                    detail,
+                }));
+    }
+}
+
+fn normalization_work_total(total_files: usize) -> usize {
+    total_files.saturating_mul(NORMALIZATION_WORK_UNITS_PER_FILE)
+}
+
+fn normalization_work_completed(completed_files: usize, file_fraction: f32) -> usize {
+    let file_units =
+        (file_fraction.clamp(0.0, 1.0) * NORMALIZATION_WORK_UNITS_PER_FILE as f32).round() as usize;
+    completed_files
+        .saturating_mul(NORMALIZATION_WORK_UNITS_PER_FILE)
+        .saturating_add(file_units)
+}
+
+fn log_normalization_worker_result(
+    path: &std::path::Path,
+    outcome: &'static str,
+    error: Option<&str>,
+    started_at: Instant,
 ) {
-    let _ = request
-        .sender
-        .send(GuiMessage::NormalizationProgress(NormalizationProgress {
-            task_id: request.task_id,
-            label: label.to_string(),
-            completed,
-            total,
-            queued: 0,
-            detail,
-        }));
+    tracing::info!(
+        target: "wavecrate::debug::normalization",
+        event = "browser.normalize.worker.result",
+        outcome,
+        elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+        error = error.unwrap_or_default(),
+        path = %path.display()
+    );
 }

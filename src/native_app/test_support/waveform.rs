@@ -4,6 +4,7 @@ pub(in crate::native_app) use crate::native_app::audio::sample_load_actions::{
 };
 pub(in crate::native_app) use crate::native_app::sample_library::file_actions::{
     WavNormalizationOutcome, format_copy_path, normalize_wav_file_in_place,
+    normalize_wav_file_in_place_with_progress,
 };
 pub(in crate::native_app) use crate::native_app::waveform::{
     WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID,

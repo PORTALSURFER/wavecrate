@@ -1,10 +1,15 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 const NORMALIZED_PEAK_TOLERANCE: f32 = 0.001;
+const ANALYZE_PROGRESS_END: f32 = 0.45;
+const WRITE_PROGRESS_START: f32 = 0.45;
+const WRITE_PROGRESS_END: f32 = 0.95;
+const REPLACE_PROGRESS: f32 = 0.98;
+const NORMALIZATION_PROGRESS_SAMPLE_STEP: u64 = 16_384;
 const REPLACE_RETRY_COUNT: usize = 12;
 const REPLACE_RETRY_DELAY: Duration = Duration::from_millis(75);
 
@@ -14,29 +19,69 @@ pub(in crate::native_app) enum WavNormalizationOutcome {
     Skipped,
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn normalize_wav_file_in_place(
     path: &Path,
 ) -> Result<WavNormalizationOutcome, String> {
+    normalize_wav_file_in_place_with_progress(path, |_, _| {})
+}
+
+pub(in crate::native_app) fn normalize_wav_file_in_place_with_progress(
+    path: &Path,
+    mut progress: impl FnMut(f32, &'static str),
+) -> Result<WavNormalizationOutcome, String> {
+    let started_at = Instant::now();
     ensure_normalizable_wav(path)?;
-    let analysis = analyze_wav_peak(path)?;
+    progress(0.0, "Opening");
+    let analyze_started_at = Instant::now();
+    let analysis = analyze_wav_peak(path, |fraction| {
+        progress(fraction * ANALYZE_PROGRESS_END, "Analyzing");
+    })?;
+    log_normalization_phase(path, "analyze", analyze_started_at);
     if analysis.sample_count == 0 {
         return Err(String::from("No audio data to normalize"));
     }
     if !analysis.peak.is_finite() || analysis.peak <= f32::EPSILON {
+        progress(1.0, "Skipped");
+        log_normalization_phase(path, "total_skipped_silent", started_at);
         return Ok(WavNormalizationOutcome::Skipped);
     }
     if (1.0 - analysis.peak).abs() <= NORMALIZED_PEAK_TOLERANCE {
+        progress(1.0, "Already normalized");
+        log_normalization_phase(path, "total_skipped_normalized", started_at);
         return Ok(WavNormalizationOutcome::Skipped);
     }
 
     let temp_path = temporary_normalized_path(path);
     let backup_path = backup_original_path(path);
-    let result = write_normalized_wav(path, &temp_path, analysis.spec, 1.0 / analysis.peak)
-        .and_then(|()| replace_with_backup(path, &temp_path, &backup_path));
+    let write_started_at = Instant::now();
+    let result = write_normalized_wav(
+        path,
+        &temp_path,
+        analysis.spec,
+        1.0 / analysis.peak,
+        |fraction| {
+            progress(
+                WRITE_PROGRESS_START + fraction * (WRITE_PROGRESS_END - WRITE_PROGRESS_START),
+                "Writing",
+            );
+        },
+    )
+    .inspect(|()| log_normalization_phase(path, "write", write_started_at))
+    .and_then(|()| {
+        progress(REPLACE_PROGRESS, "Replacing");
+        let replace_started_at = Instant::now();
+        replace_with_backup(path, &temp_path, &backup_path)
+            .inspect(|()| log_normalization_phase(path, "replace", replace_started_at))
+    });
     if result.is_err() {
         let _ = std::fs::remove_file(&temp_path);
     }
-    result.map(|()| WavNormalizationOutcome::Normalized)
+    result.map(|()| {
+        progress(1.0, "Done");
+        log_normalization_phase(path, "total_normalized", started_at);
+        WavNormalizationOutcome::Normalized
+    })
 }
 
 fn ensure_normalizable_wav(path: &Path) -> Result<(), String> {
@@ -63,19 +108,22 @@ struct WavPeakAnalysis {
     peak: f32,
 }
 
-fn analyze_wav_peak(path: &Path) -> Result<WavPeakAnalysis, String> {
+fn analyze_wav_peak(path: &Path, mut progress: impl FnMut(f32)) -> Result<WavPeakAnalysis, String> {
     let reader_source = wavecrate::wav_sanitize::open_sanitized_wav(path)?;
     let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
     let mut reader =
         hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
     let spec = reader.spec();
+    let total_samples = reader.duration() as u64;
     let mut sample_count = 0_u64;
     let mut peak = 0.0_f32;
     read_wav_samples_as_f32(&mut reader, spec, |sample| {
         sample_count = sample_count.saturating_add(1);
         peak = peak.max(sample.abs());
+        report_sample_progress(sample_count, total_samples, &mut progress);
         Ok(())
     })?;
+    progress(1.0);
     Ok(WavPeakAnalysis {
         spec,
         sample_count,
@@ -117,18 +165,28 @@ fn write_normalized_wav(
     target_path: &Path,
     spec: hound::WavSpec,
     gain: f32,
+    progress: impl FnMut(f32),
 ) -> Result<(), String> {
     let reader_source = wavecrate::wav_sanitize::open_sanitized_wav(source_path)?;
     let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
     let mut reader =
         hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
+    let total_samples = reader.duration() as u64;
     let file = std::fs::File::create(target_path)
         .map_err(|err| format!("Failed to create normalized temp file: {err}"))?;
     let buf_writer = std::io::BufWriter::with_capacity(1024 * 1024, file);
     let output_spec = normalized_wav_spec(spec);
     let mut writer = hound::WavWriter::new(buf_writer, output_spec)
         .map_err(|err| format!("Failed to write wav: {err}"))?;
-    write_normalized_samples(&mut reader, spec, output_spec, gain, &mut writer)?;
+    write_normalized_samples(
+        &mut reader,
+        spec,
+        output_spec,
+        gain,
+        &mut writer,
+        total_samples,
+        progress,
+    )?;
     writer
         .finalize()
         .map_err(|err| format!("Failed to finalize wav: {err}"))
@@ -157,15 +215,22 @@ fn write_normalized_samples<W: io::Write + io::Seek, R: io::Read>(
     output_spec: hound::WavSpec,
     gain: f32,
     writer: &mut hound::WavWriter<W>,
+    total_samples: u64,
+    mut progress: impl FnMut(f32),
 ) -> Result<(), String> {
+    let mut sample_count = 0_u64;
     match output_spec.sample_format {
         hound::SampleFormat::Float => read_wav_samples_as_f32(reader, source_spec, |sample| {
+            sample_count = sample_count.saturating_add(1);
+            report_sample_progress(sample_count, total_samples, &mut progress);
             writer
                 .write_sample(normalized_float_sample(sample, gain))
                 .map_err(|err| format!("Failed to write sample: {err}"))
         }),
         hound::SampleFormat::Int if output_spec.bits_per_sample <= 16 => {
             read_wav_samples_as_f32(reader, source_spec, |sample| {
+                sample_count = sample_count.saturating_add(1);
+                report_sample_progress(sample_count, total_samples, &mut progress);
                 writer
                     .write_sample(
                         normalized_int_sample(sample, gain, output_spec.bits_per_sample) as i16,
@@ -174,6 +239,8 @@ fn write_normalized_samples<W: io::Write + io::Seek, R: io::Read>(
             })
         }
         hound::SampleFormat::Int => read_wav_samples_as_f32(reader, source_spec, |sample| {
+            sample_count = sample_count.saturating_add(1);
+            report_sample_progress(sample_count, total_samples, &mut progress);
             writer
                 .write_sample(normalized_int_sample(
                     sample,
@@ -182,7 +249,16 @@ fn write_normalized_samples<W: io::Write + io::Seek, R: io::Read>(
                 ))
                 .map_err(|err| format!("Failed to write sample: {err}"))
         }),
+    }?;
+    progress(1.0);
+    Ok(())
+}
+
+fn report_sample_progress(sample_count: u64, total_samples: u64, progress: &mut impl FnMut(f32)) {
+    if total_samples == 0 || !sample_count.is_multiple_of(NORMALIZATION_PROGRESS_SAMPLE_STEP) {
+        return;
     }
+    progress((sample_count as f32 / total_samples as f32).clamp(0.0, 1.0));
 }
 
 fn normalized_float_sample(sample: f32, gain: f32) -> f32 {
@@ -258,4 +334,14 @@ fn sibling_work_path(path: &Path, label: &str, extension: &str) -> PathBuf {
         ".{file_name}.wavecrate-{label}-{}-{stamp}.{extension}",
         std::process::id()
     ))
+}
+
+fn log_normalization_phase(path: &Path, phase: &'static str, started_at: Instant) {
+    tracing::info!(
+        target: "wavecrate::debug::normalization",
+        event = "browser.normalize.worker.phase",
+        phase,
+        elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+        path = %path.display()
+    );
 }
