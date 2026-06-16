@@ -6,7 +6,9 @@ use crate::native_app::app::{
     GuiMessage, NativeAppState, NormalizationProgress, NormalizationQueueItem, NormalizationResult,
     NormalizedWaveformReload, WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };
-use crate::native_app::sample_library::file_actions::normalize_wav_file_in_place;
+use crate::native_app::sample_library::file_actions::{
+    WavNormalizationOutcome, normalize_wav_file_in_place,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn normalize_selected_samples(
@@ -161,7 +163,7 @@ impl NativeAppState {
             self.library.folder_browser.refresh_file_path(path);
         }
 
-        let mut last_error = result.last_error;
+        let last_error = result.last_error;
         if result.normalizing_loaded
             && result
                 .normalized
@@ -172,15 +174,16 @@ impl NativeAppState {
                 start_ratio: result.restart_ratio,
                 span: result.restart_span,
             });
-            if let Err(error) = self.reload_normalized_waveform(NormalizedWaveformReload {
-                path: &result.loaded_path,
-                playback,
-            }) {
-                last_error = Some(error);
-            }
+            self.reload_normalized_waveform(
+                NormalizedWaveformReload {
+                    path: &result.loaded_path,
+                    playback,
+                },
+                context,
+            );
         }
 
-        self.finish_normalization_status(result.normalized, last_error, started_at);
+        self.finish_normalization_status(result.normalized, result.skipped, last_error, started_at);
         self.start_next_queued_normalization(context);
     }
 
@@ -194,14 +197,16 @@ impl NativeAppState {
     fn finish_normalization_status(
         &mut self,
         normalized: Vec<PathBuf>,
+        skipped: Vec<PathBuf>,
         last_error: Option<String>,
         started_at: Instant,
     ) {
         if let Some(error) = last_error {
             self.ui.status.sample = format!(
-                "Normalized {} sample{} | {error}",
+                "Normalized {} sample{} | skipped {} | {error}",
                 normalized.len(),
-                if normalized.len() == 1 { "" } else { "s" }
+                if normalized.len() == 1 { "" } else { "s" },
+                skipped.len()
             );
             emit_gui_action(
                 "browser.normalize_selected_samples",
@@ -214,10 +219,23 @@ impl NativeAppState {
             return;
         }
 
-        self.ui.status.sample = match normalized.as_slice() {
-            [] => String::from("No selected samples were normalized"),
-            [path] => format!("Normalized {}", sample_path_label(path)),
-            _ => format!("Normalized {} samples", normalized.len()),
+        self.ui.status.sample = match (normalized.as_slice(), skipped.as_slice()) {
+            ([], []) => String::from("No selected samples were normalized"),
+            ([], [path]) => format!("Already normalized {}", sample_path_label(path)),
+            ([], skipped) => format!("Already normalized {} samples", skipped.len()),
+            ([path], []) => format!("Normalized {}", sample_path_label(path)),
+            (_, []) => format!("Normalized {} samples", normalized.len()),
+            ([path], skipped) => format!(
+                "Normalized {} | skipped {} sample{}",
+                sample_path_label(path),
+                skipped.len(),
+                if skipped.len() == 1 { "" } else { "s" }
+            ),
+            (normalized, skipped) => format!(
+                "Normalized {} samples | skipped {}",
+                normalized.len(),
+                skipped.len()
+            ),
         };
         emit_gui_action(
             "browser.normalize_selected_samples",
@@ -249,12 +267,14 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
     let total = request.paths.len();
     let label = normalize_progress_label(total);
     let mut normalized = Vec::new();
+    let mut skipped = Vec::new();
     let mut last_error = None;
     for (index, path) in request.paths.iter().enumerate() {
         let detail = sample_path_label(path);
         send_normalization_progress(&request, label.as_str(), index, total, detail.clone());
         match normalize_wav_file_in_place(path) {
-            Ok(()) => normalized.push(path.clone()),
+            Ok(WavNormalizationOutcome::Normalized) => normalized.push(path.clone()),
+            Ok(WavNormalizationOutcome::Skipped) => skipped.push(path.clone()),
             Err(error) => {
                 last_error = Some(format!("{detail}: {error}"));
             }
@@ -269,6 +289,7 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
         restart_ratio: request.restart_ratio,
         restart_span: request.restart_span,
         normalized,
+        skipped,
         last_error,
     }
 }

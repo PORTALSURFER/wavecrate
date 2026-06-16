@@ -15,12 +15,14 @@ use crate::native_app::waveform::{
     },
 };
 
+#[cfg(test)]
 pub(in crate::native_app::waveform) fn load_waveform_file(
     path: PathBuf,
 ) -> Result<WaveformFile, String> {
     load_waveform_file_with_progress(path, |_| {})
 }
 
+#[cfg(test)]
 fn load_waveform_file_with_progress(
     path: PathBuf,
     progress: impl Fn(f32),

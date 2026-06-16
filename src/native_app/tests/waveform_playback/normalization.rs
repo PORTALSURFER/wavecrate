@@ -14,8 +14,12 @@ fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
     let path = root.join("quiet.wav");
     write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
 
-    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+    let outcome = crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
         .expect("normalize wav");
+    assert_eq!(
+        outcome,
+        crate::native_app::test_support::waveform::WavNormalizationOutcome::Normalized
+    );
 
     let spec = hound::WavReader::open(&path)
         .expect("open normalized wav")
@@ -47,8 +51,12 @@ fn normalize_wav_file_in_place_cleans_work_files_after_success() {
     let path = root.join("sample.wav");
     write_test_wav_i16(&path, &[0, 2048, -4096, 8192]);
 
-    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+    let outcome = crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
         .expect("normalize wav");
+    assert_eq!(
+        outcome,
+        crate::native_app::test_support::waveform::WavNormalizationOutcome::Normalized
+    );
 
     let work_files: Vec<_> = fs::read_dir(&root)
         .expect("read temp root")
@@ -189,6 +197,36 @@ fn uncached_sample_load_waits_for_active_normalization() {
 }
 
 #[test]
+fn normalize_wav_file_in_place_skips_already_normalized_wav() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-default-gui-normalize-skip-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let path = root.join("full-scale.wav");
+    write_test_wav_i16(&path, &[0, 32767, -32767, 1234]);
+    let before = fs::read(&path).expect("read wav before normalization");
+
+    let outcome = crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+        .expect("normalize wav");
+
+    assert_eq!(
+        outcome,
+        crate::native_app::test_support::waveform::WavNormalizationOutcome::Skipped
+    );
+    assert_eq!(
+        fs::read(&path).expect("read wav after normalization"),
+        before,
+        "already normalized wavs should not be rewritten"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("normalize-reselect.wav");
@@ -224,6 +262,7 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             restart_ratio: 0.0,
             restart_span: None,
             normalized: vec![path.clone()],
+            skipped: Vec::new(),
             last_error: None,
         },
         &mut context,
@@ -241,18 +280,9 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             .contains(&selected_file),
         "the browser loaded marker should not advertise a stale memory cache entry"
     );
-    let peak = state
-        .waveform
-        .current
-        .playback_samples()
-        .expect("normalized waveform should have playback samples")
-        .iter()
-        .copied()
-        .map(f32::abs)
-        .fold(0.0_f32, f32::max);
     assert!(
-        (peak - 1.0).abs() < 0.000_001,
-        "reloaded waveform peak should stay normalized, got {peak}"
+        active_sample_load_ticket(&state).is_some(),
+        "normalization should reload the edited sample through the background load worker"
     );
 
     state.apply_message(
@@ -270,9 +300,5 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             .active()
             .is_none(),
         "direct reselect should not use the deferred navigation load path"
-    );
-    assert!(
-        active_sample_load_ticket(&state).is_some(),
-        "reselect should queue a fresh foreground decode instead of loading stale pre-normalized memory cache"
     );
 }

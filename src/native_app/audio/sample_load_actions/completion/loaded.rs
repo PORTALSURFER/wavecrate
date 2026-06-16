@@ -163,6 +163,35 @@ impl NativeAppState {
                 }
                 true
             }
+            PendingSamplePlayback::ResumeNormalized { start, end } => {
+                match self.start_playback_current_span(start, end) {
+                    Ok(()) => {
+                        self.record_selected_sample_last_played(context);
+                        self.ui.status.sample = format!("Playing {file_name}");
+                        emit_gui_action(
+                            "browser.normalize_selected_samples",
+                            Some("browser"),
+                            Some(file_name),
+                            "playback_resumed",
+                            started_at,
+                            None,
+                        );
+                    }
+                    Err(err) => {
+                        self.ui.status.sample =
+                            format!("Loaded {file_name} | playback unavailable: {err}");
+                        emit_gui_action(
+                            "browser.normalize_selected_samples",
+                            Some("browser"),
+                            Some(file_name),
+                            "playback_resume_error",
+                            started_at,
+                            Some(&err),
+                        );
+                    }
+                }
+                true
+            }
         }
     }
 }

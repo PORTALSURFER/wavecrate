@@ -4,17 +4,29 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+const NORMALIZED_PEAK_TOLERANCE: f32 = 0.001;
 const REPLACE_RETRY_COUNT: usize = 12;
 const REPLACE_RETRY_DELAY: Duration = Duration::from_millis(75);
 
-pub(in crate::native_app) fn normalize_wav_file_in_place(path: &Path) -> Result<(), String> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum WavNormalizationOutcome {
+    Normalized,
+    Skipped,
+}
+
+pub(in crate::native_app) fn normalize_wav_file_in_place(
+    path: &Path,
+) -> Result<WavNormalizationOutcome, String> {
     ensure_normalizable_wav(path)?;
     let analysis = analyze_wav_peak(path)?;
     if analysis.sample_count == 0 {
         return Err(String::from("No audio data to normalize"));
     }
     if !analysis.peak.is_finite() || analysis.peak <= f32::EPSILON {
-        return Ok(());
+        return Ok(WavNormalizationOutcome::Skipped);
+    }
+    if (1.0 - analysis.peak).abs() <= NORMALIZED_PEAK_TOLERANCE {
+        return Ok(WavNormalizationOutcome::Skipped);
     }
 
     let temp_path = temporary_normalized_path(path);
@@ -24,7 +36,7 @@ pub(in crate::native_app) fn normalize_wav_file_in_place(path: &Path) -> Result<
     if result.is_err() {
         let _ = std::fs::remove_file(&temp_path);
     }
-    result
+    result.map(|()| WavNormalizationOutcome::Normalized)
 }
 
 fn ensure_normalizable_wav(path: &Path) -> Result<(), String> {

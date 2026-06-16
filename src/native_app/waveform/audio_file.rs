@@ -35,9 +35,11 @@ pub(super) use downmix::downmix_to_mono;
 pub(super) use downmix::downmix_to_mono_with_progress_and_cancel;
 pub(super) use extraction::{extract_wav_range_to_folder, extract_wav_range_to_sibling};
 #[cfg(test)]
+pub(super) use loader::load_waveform_file;
+#[cfg(test)]
 pub(super) use loader::load_waveform_file_with_progress_cancel_and_playback_ready;
 pub(super) use loader::{
-    is_wav_path, load_waveform_file, load_waveform_file_for_foreground_audition,
+    is_wav_path, load_waveform_file_for_foreground_audition,
     load_waveform_file_with_progress_and_cancel,
 };
 pub(in crate::native_app) use model::{
