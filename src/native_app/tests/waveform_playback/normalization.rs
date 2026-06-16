@@ -83,8 +83,35 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
         .expect("normalization progress should be visible after queueing");
     assert_eq!(progress.completed, 0);
     assert_eq!(progress.total, 1);
+    assert_eq!(progress.queued, 0);
     assert_eq!(progress.detail, "Queued");
     assert!(state.ui.status.sample.contains("Normalizing 1 sample"));
+}
+
+#[test]
+fn normalize_selected_samples_enqueues_when_worker_is_active() {
+    let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("queued.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
+        &mut context,
+    );
+
+    assert_eq!(state.background.normalization_queue.len(), 1);
+    let progress = state
+        .background
+        .normalization_progress
+        .as_ref()
+        .expect("normalization progress should remain active");
+    assert_eq!(progress.queued, 1);
+    assert!(state.ui.status.sample.contains("1 task waiting"));
 }
 
 #[test]
@@ -109,19 +136,24 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             label: String::from("1 sample"),
             completed: 1,
             total: 1,
+            queued: 0,
             detail: selected_file.clone(),
         },
     );
-    state.finish_normalization(NormalizationResult {
-        task_id: 42,
-        loaded_path: path.clone(),
-        normalizing_loaded: true,
-        was_playing: false,
-        restart_ratio: 0.0,
-        restart_span: None,
-        normalized: vec![path.clone()],
-        last_error: None,
-    });
+    let mut context = ui::UiUpdateContext::default();
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            loaded_path: path.clone(),
+            normalizing_loaded: true,
+            was_playing: false,
+            restart_ratio: 0.0,
+            restart_span: None,
+            normalized: vec![path.clone()],
+            last_error: None,
+        },
+        &mut context,
+    );
 
     assert!(
         !state.waveform.cache.entries.contains_key(&path),
@@ -149,7 +181,6 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
         "reloaded waveform peak should stay normalized, got {peak}"
     );
 
-    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: selected_file,

@@ -6,7 +6,13 @@ pub(in crate::native_app) struct NormalizationProgress {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
+    pub(in crate::native_app) queued: usize,
     pub(in crate::native_app) detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct NormalizationQueueItem {
+    pub(in crate::native_app) paths: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

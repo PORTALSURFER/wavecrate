@@ -1,12 +1,15 @@
-use std::sync::{
-    Arc, Mutex,
-    mpsc::{Receiver, Sender},
+use std::{
+    collections::VecDeque,
+    sync::{
+        Arc, Mutex,
+        mpsc::{Receiver, Sender},
+    },
 };
 
 use radiant::prelude as ui;
 use wavecrate::audio::AudioPlayer;
 
-use crate::native_app::app::{GuiMessage, NormalizationProgress};
+use crate::native_app::app::{GuiMessage, NormalizationProgress, NormalizationQueueItem};
 
 pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) worker_sender: Sender<GuiMessage>,
@@ -20,6 +23,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) folder_tree_refresh_task: ui::LatestTask,
     pub(in crate::native_app) folder_verify_task: ui::LatestTask,
     pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
+    pub(in crate::native_app) normalization_queue: VecDeque<NormalizationQueueItem>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: ui::FrameCadenceMonitor,
 }
@@ -41,6 +45,7 @@ impl BackgroundTaskState {
             folder_tree_refresh_task: ui::LatestTask::new(),
             folder_verify_task: ui::LatestTask::new(),
             normalization_progress: None,
+            normalization_queue: VecDeque::new(),
             progress_tick: 0.0,
             frame_cadence: ui::FrameCadenceMonitor::new(),
         }

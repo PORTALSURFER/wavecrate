@@ -62,6 +62,7 @@ fn bottom_status_bar_reports_normalization_progress() {
             label: String::from("2 samples"),
             completed: 1,
             total: 2,
+            queued: 0,
             detail: String::from("snare.wav"),
         },
     );
@@ -72,6 +73,29 @@ fn bottom_status_bar_reports_normalization_progress() {
         frame
             .paint_plan
             .contains_text("Normalizing 2 samples | 1/2 | snare.wav")
+    );
+}
+
+#[test]
+fn bottom_status_bar_reports_queued_normalization_tasks() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 9,
+            label: String::from("1 sample"),
+            completed: 0,
+            total: 1,
+            queued: 2,
+            detail: String::from("kick.wav"),
+        },
+    );
+    let frame = crate::native_app::test_support::status_bar::bottom_status_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
+
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Normalizing 1 sample | 0/1 | kick.wav | 2 queued")
     );
 }
 
@@ -154,6 +178,7 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
             label: String::from("2 samples"),
             completed: 1,
             total: 2,
+            queued: 0,
             detail: String::from("snare.wav"),
         },
     );

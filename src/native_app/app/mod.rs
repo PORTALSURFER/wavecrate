@@ -18,7 +18,9 @@ pub(in crate::native_app) use loading::{
 pub(in crate::native_app) use message::{
     GuiMessage, MetadataMessage, SettingsMessage, TrashMoveTarget, VolumeSettingsPersistResult,
 };
-pub(in crate::native_app) use progress::{NormalizationProgress, NormalizationResult};
+pub(in crate::native_app) use progress::{
+    NormalizationProgress, NormalizationQueueItem, NormalizationResult,
+};
 pub(in crate::native_app) use settings::{
     AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,
 };

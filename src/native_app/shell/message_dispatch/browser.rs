@@ -49,7 +49,7 @@ impl NativeAppState {
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);
             }
-            GuiMessage::NormalizationFinished(result) => self.finish_normalization(result),
+            GuiMessage::NormalizationFinished(result) => self.finish_normalization(result, context),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
                 self.ui.browser_interaction.context_menu = None;
                 self.select_sample_with_modifiers(path, modifiers, context);

@@ -276,6 +276,67 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
 }
 
 #[test]
+fn active_folder_cache_warm_yields_while_normalization_is_active() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("normalize-yield.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                source_root.path().display().to_string(),
+                Default::default(),
+            ),
+        ),
+        &mut context,
+    );
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 12,
+            label: String::from("1 sample"),
+            completed: 0,
+            total: 1,
+            queued: 0,
+            detail: String::from("normalize-yield.wav"),
+        },
+    );
+
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("folder warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+
+    assert!(
+        active_folder_cache_warm_ticket(&state).is_none(),
+        "normalization should keep active-folder cache warm from starting"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_some(),
+        "cache warm should be delayed for later instead of competing with normalization"
+    );
+}
+
+#[test]
 fn changing_folder_cancels_previous_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

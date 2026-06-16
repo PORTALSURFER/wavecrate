@@ -26,6 +26,8 @@ impl NativeAppState {
             || self.audio.pending_playback_start.is_some()
             || self.audio.early_sample_playback_path.is_some()
             || self.waveform.current.is_playing()
+            || self.background.normalization_progress.is_some()
+            || !self.background.normalization_queue.is_empty()
     }
 
     pub(in crate::native_app) fn yield_sample_cache_warm_for_foreground_load(

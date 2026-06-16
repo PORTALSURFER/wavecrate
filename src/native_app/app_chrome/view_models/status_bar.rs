@@ -52,18 +52,31 @@ fn bottom_status_text(state: &NativeAppState) -> String {
         .as_ref()
         .map(|progress| {
             let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+            let queue = normalization_queue_status(progress.queued);
             if counters.is_indeterminate() {
-                format!("Normalizing {} | {}", progress.label, progress.detail)
+                format!(
+                    "Normalizing {} | {}{}",
+                    progress.label, progress.detail, queue
+                )
             } else {
                 format!(
-                    "Normalizing {} | {} | {}",
+                    "Normalizing {} | {} | {}{}",
                     progress.label,
                     counters.count_label("items found"),
-                    progress.detail
+                    progress.detail,
+                    queue
                 )
             }
         })
         .unwrap_or_else(|| state.ui.status.sample.clone())
+}
+
+fn normalization_queue_status(queued: usize) -> String {
+    if queued == 0 {
+        String::new()
+    } else {
+        format!(" | {queued} queued")
+    }
 }
 
 fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewModel> {

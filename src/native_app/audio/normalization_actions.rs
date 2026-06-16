@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::mpsc::Sender, time::Instant};
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, NormalizationProgress, NormalizationResult,
+    GuiMessage, NativeAppState, NormalizationProgress, NormalizationQueueItem, NormalizationResult,
     NormalizedWaveformReload, WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };
 use crate::native_app::sample_library::file_actions::normalize_wav_file_in_place;
@@ -14,18 +14,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.background.normalization_progress.is_some() {
-            self.ui.status.sample = String::from("Normalization already in progress");
-            emit_gui_action(
-                "browser.normalize_selected_samples",
-                Some("browser"),
-                None,
-                "busy",
-                started_at,
-                None,
-            );
-            return;
-        }
         let paths = self.library.folder_browser.selected_file_paths();
         if paths.is_empty() {
             self.ui.status.sample = String::from("Select a sample to normalize");
@@ -40,13 +28,52 @@ impl NativeAppState {
             return;
         }
 
+        self.pause_active_folder_cache_warm(context);
+        if self.background.normalization_progress.is_some() {
+            self.enqueue_normalization_paths(paths, started_at);
+            return;
+        }
+        self.start_normalization_paths(paths, context, started_at);
+    }
+
+    fn enqueue_normalization_paths(&mut self, paths: Vec<PathBuf>, started_at: Instant) {
+        self.background
+            .normalization_queue
+            .push_back(NormalizationQueueItem { paths });
+        let queued = self.background.normalization_queue.len();
+        if let Some(progress) = self.background.normalization_progress.as_mut() {
+            progress.queued = queued;
+        }
+        self.ui.status.sample = format!(
+            "Queued normalization task | {queued} task{} waiting",
+            if queued == 1 { "" } else { "s" }
+        );
+        emit_gui_action(
+            "browser.normalize_selected_samples",
+            Some("browser"),
+            None,
+            "queued_pending",
+            started_at,
+            None,
+        );
+    }
+
+    fn start_normalization_paths(
+        &mut self,
+        paths: Vec<PathBuf>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
+        self.pause_active_folder_cache_warm(context);
         let request = self.prepare_normalization_request(paths);
         let label = normalize_progress_label(request.paths.len());
+        let queued = self.background.normalization_queue.len();
         self.background.normalization_progress = Some(NormalizationProgress {
             task_id: request.task_id,
             label: label.clone(),
             completed: 0,
             total: request.paths.len(),
+            queued,
             detail: String::from("Queued"),
         });
         self.ui.status.sample = format!("Normalizing {label}");
@@ -99,7 +126,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn apply_normalization_progress(
         &mut self,
-        progress: NormalizationProgress,
+        mut progress: NormalizationProgress,
     ) {
         if self
             .background
@@ -107,11 +134,16 @@ impl NativeAppState {
             .as_ref()
             .is_some_and(|active| active.task_id == progress.task_id)
         {
+            progress.queued = self.background.normalization_queue.len();
             self.background.normalization_progress = Some(progress);
         }
     }
 
-    pub(in crate::native_app) fn finish_normalization(&mut self, result: NormalizationResult) {
+    pub(in crate::native_app) fn finish_normalization(
+        &mut self,
+        result: NormalizationResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         if self
             .background
@@ -149,6 +181,14 @@ impl NativeAppState {
         }
 
         self.finish_normalization_status(result.normalized, last_error, started_at);
+        self.start_next_queued_normalization(context);
+    }
+
+    fn start_next_queued_normalization(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        let Some(next) = self.background.normalization_queue.pop_front() else {
+            return;
+        };
+        self.start_normalization_paths(next.paths, context, Instant::now());
     }
 
     fn finish_normalization_status(
@@ -247,6 +287,7 @@ fn send_normalization_progress(
             label: label.to_string(),
             completed,
             total,
+            queued: 0,
             detail,
         }));
 }
