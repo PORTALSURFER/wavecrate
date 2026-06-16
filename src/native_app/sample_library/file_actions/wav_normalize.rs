@@ -95,6 +95,13 @@ fn read_wav_samples_as_f32<R: std::io::Read>(
             }
             Ok(())
         }
+        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
+            let scale = (1i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
+            for value in reader.samples::<i16>() {
+                sample(value.map_err(|err| format!("Sample error: {err}"))? as f32 / scale)?;
+            }
+            Ok(())
+        }
         hound::SampleFormat::Int => {
             let scale = (1i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
             for value in reader.samples::<i32>() {

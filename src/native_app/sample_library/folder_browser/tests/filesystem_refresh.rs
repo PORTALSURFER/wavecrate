@@ -48,6 +48,49 @@ fn selected_folder_audio_projection_refreshes_after_file_update() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn selected_folder_audio_projection_refreshes_multiple_files_as_one_batch() {
+    let root = temp_source_root("wavecrate-gui-folder-projection-refresh-batch");
+    let drums = root.join("drums");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    let _ = browser.selected_audio_files();
+    assert!(
+        browser.selected_audio_projection_cache_len_for_tests() > 0,
+        "test should start with a warm selected-folder projection"
+    );
+
+    fs::write(&kick, [1_u8; 16]).expect("rewrite kick");
+    fs::write(&snare, [2_u8; 32]).expect("rewrite snare");
+    assert!(browser.refresh_file_paths(&[kick.clone(), snare.clone()]));
+
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        0,
+        "batched refresh should invalidate the projection cache once"
+    );
+    let sizes = browser
+        .selected_audio_files()
+        .iter()
+        .map(|file| (file.name.clone(), file.size_bytes))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        sizes,
+        vec![
+            (String::from("kick.wav"), 16),
+            (String::from("snare.wav"), 32)
+        ]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn targeted_filesystem_refresh_prunes_deleted_cached_file() {
     let root = temp_source_root("wavecrate-gui-targeted-refresh-prune-file");

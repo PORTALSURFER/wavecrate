@@ -160,8 +160,10 @@ impl NativeAppState {
 
         for path in &result.normalized {
             self.evict_waveform_cache_path(path);
-            self.library.folder_browser.refresh_file_path(path);
         }
+        self.library
+            .folder_browser
+            .refresh_file_paths(&result.normalized);
 
         let last_error = result.last_error;
         if result.normalizing_loaded
