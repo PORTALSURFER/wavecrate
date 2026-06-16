@@ -239,3 +239,52 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
         "{sample_texts:?}"
     );
 }
+
+#[test]
+fn full_gui_fast_sample_browser_scroll_keeps_rows_rendered() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    for index in 0..320 {
+        std::fs::write(
+            source_root
+                .path()
+                .join(format!("scroll_sample_{index:03}.wav")),
+            [],
+        )
+        .expect("sample file");
+    }
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let scroll_point = Point::new(list_rect.center().x, list_rect.min.y + 48.0);
+
+    for _ in 0..48 {
+        assert!(
+            runtime.scroll_at(scroll_point, Vector2::new(0.0, 66.0)),
+            "sample browser should accept repeated scroll input"
+        );
+    }
+
+    let frame = runtime.frame_with_default_theme();
+    let rendered_samples = frame
+        .paint_plan
+        .text_runs()
+        .filter(|text| text.text.starts_with("scroll_sample_"))
+        .collect::<Vec<_>>();
+
+    assert!(
+        rendered_samples.len() >= 8,
+        "fast scrolling should keep materialized sample rows visible, got {:?}",
+        frame.paint_plan.text_label_strings()
+    );
+}

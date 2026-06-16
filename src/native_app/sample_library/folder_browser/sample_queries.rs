@@ -183,6 +183,21 @@ impl FolderBrowserState {
         VisibleSampleWindowFiles { total_count, rows }
     }
 
+    pub(super) fn complete_selected_audio_file_window_matching_tags(
+        &self,
+        window: radiant::prelude::VirtualListWindow,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> VisibleSampleWindowFiles<'_> {
+        let files = self.selected_audio_files_matching_tags(tags_by_file);
+        let total_count = files.len();
+        VisibleSampleWindowFiles {
+            total_count,
+            rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
+                .map(|index| files.get(index).copied())
+                .collect(),
+        }
+    }
+
     pub(in crate::native_app) fn selected_audio_file_index_matching_tags(
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,

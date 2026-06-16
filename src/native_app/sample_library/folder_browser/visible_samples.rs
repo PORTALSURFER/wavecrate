@@ -325,14 +325,17 @@ impl FolderBrowserState {
         query: VisibleSampleQuery<'a>,
     ) -> VisibleSampleList<'a> {
         let prepared_window = self.sample_list.prepared_window;
-        let window_files =
+        let mut window_files =
             self.selected_audio_file_window_matching_tags(prepared_window, query.tags_by_file);
         let window = reconcile_visible_sample_window(prepared_window, window_files.total_count);
-        let window_files = if window == prepared_window {
-            window_files
-        } else {
-            self.selected_audio_file_window_matching_tags(window, query.tags_by_file)
-        };
+        if window != prepared_window {
+            window_files =
+                self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
+        }
+        if !window_files_complete(window, &window_files) {
+            window_files =
+                self.complete_selected_audio_file_window_matching_tags(window, query.tags_by_file);
+        }
         let rows = window_files
             .rows
             .into_iter()
@@ -371,6 +374,13 @@ impl FolderBrowserState {
                 .collect(),
         }
     }
+}
+
+fn window_files_complete(
+    window: ui::VirtualListWindow,
+    window_files: &VisibleSampleWindowFiles<'_>,
+) -> bool {
+    window_files.rows.len() == window.window_len() && window_files.rows.iter().all(Option::is_some)
 }
 
 fn reconcile_visible_sample_window(
