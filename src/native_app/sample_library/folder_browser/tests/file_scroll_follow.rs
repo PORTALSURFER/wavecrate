@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use radiant::prelude as ui;
 
 #[test]
@@ -118,6 +119,53 @@ fn file_scroll_tracking_uses_runtime_viewport_rows_after_scrollbar_update() {
     assert_eq!(scrolled.viewport_len(), 18);
     assert_eq!(scrolled.window_start, 36);
     assert_eq!(scrolled.window_end, 62);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_scrollbar_bottom_update_keeps_bottom_rows_materialized() {
+    let root = temp_source_root("wavecrate-gui-file-scrollbar-bottom-window");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..100)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    browser.apply_file_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 2_000.0,
+        row_height: 22.0,
+        window: ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
+            total_items: 100,
+            viewport_len: 8,
+            requested_start: 99,
+            overscan: 4,
+            focused_index: None,
+            previous_start: None,
+            guard_band: 0,
+        }),
+    });
+    let tags_by_file = Default::default();
+    let cached_sample_paths = Default::default();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.window.viewport_start, 92);
+    assert_eq!(visible.window.viewport_end, 100);
+    assert_eq!(visible.rows.len(), visible.window.window_len());
+    assert!(
+        visible
+            .rows
+            .iter()
+            .flatten()
+            .any(|row| row.file.id == path_id(&files[99]))
+    );
     let _ = fs::remove_dir_all(root);
 }
 
