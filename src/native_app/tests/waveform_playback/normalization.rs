@@ -122,6 +122,35 @@ fn normalize_wav_file_in_place_reports_realtime_progress_phases() {
 }
 
 #[test]
+fn normalize_wav_file_in_place_reports_invalid_wav_without_rewrite() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-default-gui-normalize-invalid-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let path = root.join("truncated.wav");
+    fs::write(&path, b"RIFF").expect("write truncated wav");
+
+    let error = crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+        .expect_err("truncated wav should fail");
+
+    assert!(
+        error.starts_with("Invalid WAV:"),
+        "expected invalid WAV error, got {error}"
+    );
+    assert_eq!(
+        fs::read(&path).expect("read truncated wav after failure"),
+        b"RIFF",
+        "failed normalization must not rewrite invalid source files"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("quiet.wav");
     let path = PathBuf::from(&selected_file);
@@ -319,7 +348,7 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             restart_span: None,
             normalized: vec![path.clone()],
             skipped: Vec::new(),
-            last_error: None,
+            failed: Vec::new(),
         },
         &mut context,
     );
@@ -400,7 +429,7 @@ fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalizati
             restart_span: None,
             normalized: vec![PathBuf::from(&selected_file)],
             skipped: Vec::new(),
-            last_error: None,
+            failed: Vec::new(),
         },
         &mut context,
     );
@@ -421,4 +450,48 @@ fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalizati
         state.background.normalization_progress.is_some(),
         "the queued normalization task should still start after scheduling the reload"
     );
+}
+
+#[test]
+fn normalize_finish_reports_failed_file_without_success_count() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("normalize-failed.wav");
+    let path = PathBuf::from(&selected_file);
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 0,
+            detail: selected_file.clone(),
+        },
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            loaded_path: path.clone(),
+            normalizing_loaded: true,
+            was_playing: false,
+            restart_ratio: 0.0,
+            restart_span: None,
+            normalized: Vec::new(),
+            skipped: Vec::new(),
+            failed: vec![crate::native_app::app::NormalizationFailure {
+                path,
+                error: String::from("Invalid WAV: Failed to read enough bytes."),
+            }],
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.ui.status.sample,
+        "Could not normalize normalize-failed.wav | Invalid WAV: Failed to read enough bytes."
+    );
+    assert!(state.background.normalization_progress.is_none());
 }

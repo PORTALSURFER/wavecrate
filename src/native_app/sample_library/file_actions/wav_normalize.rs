@@ -112,7 +112,7 @@ fn analyze_wav_peak(path: &Path, mut progress: impl FnMut(f32)) -> Result<WavPea
     let reader_source = wavecrate::wav_sanitize::open_sanitized_wav(path)?;
     let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
     let mut reader =
-        hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
+        hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid WAV: {err}"))?;
     let spec = reader.spec();
     let total_samples = reader.duration() as u64;
     let mut sample_count = 0_u64;
@@ -139,21 +139,25 @@ fn read_wav_samples_as_f32<R: std::io::Read>(
     match spec.sample_format {
         hound::SampleFormat::Float => {
             for value in reader.samples::<f32>() {
-                sample(value.map_err(|err| format!("Sample error: {err}"))?)?;
+                sample(value.map_err(|err| format!("Invalid WAV sample data: {err}"))?)?;
             }
             Ok(())
         }
         hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
             let scale = (1i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
             for value in reader.samples::<i16>() {
-                sample(value.map_err(|err| format!("Sample error: {err}"))? as f32 / scale)?;
+                sample(
+                    value.map_err(|err| format!("Invalid WAV sample data: {err}"))? as f32 / scale,
+                )?;
             }
             Ok(())
         }
         hound::SampleFormat::Int => {
             let scale = (1i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
             for value in reader.samples::<i32>() {
-                sample(value.map_err(|err| format!("Sample error: {err}"))? as f32 / scale)?;
+                sample(
+                    value.map_err(|err| format!("Invalid WAV sample data: {err}"))? as f32 / scale,
+                )?;
             }
             Ok(())
         }
@@ -170,7 +174,7 @@ fn write_normalized_wav(
     let reader_source = wavecrate::wav_sanitize::open_sanitized_wav(source_path)?;
     let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
     let mut reader =
-        hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
+        hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid WAV: {err}"))?;
     let total_samples = reader.duration() as u64;
     let file = std::fs::File::create(target_path)
         .map_err(|err| format!("Failed to create normalized temp file: {err}"))?;

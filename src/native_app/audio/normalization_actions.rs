@@ -7,8 +7,9 @@ use std::{
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, NormalizationProgress, NormalizationQueueItem, NormalizationResult,
-    NormalizedWaveformReload, WaveformPlaybackResume, emit_gui_action, sample_path_label,
+    GuiMessage, NativeAppState, NormalizationFailure, NormalizationProgress,
+    NormalizationQueueItem, NormalizationResult, NormalizedWaveformReload, WaveformPlaybackResume,
+    emit_gui_action, sample_path_label,
 };
 use crate::native_app::sample_library::file_actions::{
     WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
@@ -175,7 +176,6 @@ impl NativeAppState {
             .folder_browser
             .refresh_file_paths(&result.normalized);
 
-        let last_error = result.last_error;
         if result.normalizing_loaded
             && result
                 .normalized
@@ -195,7 +195,12 @@ impl NativeAppState {
             );
         }
 
-        self.finish_normalization_status(result.normalized, result.skipped, last_error, started_at);
+        self.finish_normalization_status(
+            result.normalized,
+            result.skipped,
+            result.failed,
+            started_at,
+        );
         self.start_next_queued_normalization(context);
     }
 
@@ -210,23 +215,19 @@ impl NativeAppState {
         &mut self,
         normalized: Vec<PathBuf>,
         skipped: Vec<PathBuf>,
-        last_error: Option<String>,
+        failed: Vec<NormalizationFailure>,
         started_at: Instant,
     ) {
-        if let Some(error) = last_error {
-            self.ui.status.sample = format!(
-                "Normalized {} sample{} | skipped {} | {error}",
-                normalized.len(),
-                if normalized.len() == 1 { "" } else { "s" },
-                skipped.len()
-            );
+        if !failed.is_empty() {
+            let error = normalization_failure_status(&normalized, &skipped, &failed);
+            self.ui.status.sample = error.clone();
             emit_gui_action(
                 "browser.normalize_selected_samples",
                 Some("browser"),
                 None,
                 "partial_or_error",
                 started_at,
-                Some(&error),
+                Some(error.as_str()),
             );
             return;
         }
@@ -280,11 +281,11 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
     let label = normalize_progress_label(total);
     let mut normalized = Vec::new();
     let mut skipped = Vec::new();
-    let mut last_error = None;
+    let mut failed = Vec::new();
     for (index, path) in request.paths.iter().enumerate() {
-        let file_label = sample_path_label(path);
         let work_total = normalization_work_total(total);
         let file_started_at = Instant::now();
+        let file_label = sample_path_label(path);
         let mut progress_reporter = NormalizationProgressReporter::new(
             &request,
             label.as_str(),
@@ -312,7 +313,10 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
                     Some(error.as_str()),
                     file_started_at,
                 );
-                last_error = Some(format!("{file_label}: {error}"));
+                failed.push(NormalizationFailure {
+                    path: path.clone(),
+                    error,
+                });
             }
         }
         progress_reporter.emit(index + 1, 0.0, "Done", true);
@@ -326,7 +330,39 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
         restart_span: request.restart_span,
         normalized,
         skipped,
-        last_error,
+        failed,
+    }
+}
+
+fn normalization_failure_status(
+    normalized: &[PathBuf],
+    skipped: &[PathBuf],
+    failed: &[NormalizationFailure],
+) -> String {
+    match failed {
+        [failure] if normalized.is_empty() && skipped.is_empty() => format!(
+            "Could not normalize {} | {}",
+            sample_path_label(&failure.path),
+            failure.error
+        ),
+        [failure] => format!(
+            "Normalized {} | skipped {} | failed 1 | {}: {}",
+            normalized.len(),
+            skipped.len(),
+            sample_path_label(&failure.path),
+            failure.error
+        ),
+        failures => {
+            let last = failures.last().expect("failed is not empty");
+            format!(
+                "Normalized {} | skipped {} | failed {} | last: {}: {}",
+                normalized.len(),
+                skipped.len(),
+                failures.len(),
+                sample_path_label(&last.path),
+                last.error
+            )
+        }
     }
 }
 

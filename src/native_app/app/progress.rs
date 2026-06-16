@@ -17,6 +17,12 @@ pub(in crate::native_app) struct NormalizationQueueItem {
     pub(in crate::native_app) paths: Vec<PathBuf>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct NormalizationFailure {
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) error: String,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct NormalizationResult {
     pub(in crate::native_app) task_id: u64,
@@ -27,5 +33,5 @@ pub(in crate::native_app) struct NormalizationResult {
     pub(in crate::native_app) restart_span: Option<(f32, f32)>,
     pub(in crate::native_app) normalized: Vec<PathBuf>,
     pub(in crate::native_app) skipped: Vec<PathBuf>,
-    pub(in crate::native_app) last_error: Option<String>,
+    pub(in crate::native_app) failed: Vec<NormalizationFailure>,
 }
