@@ -479,6 +479,68 @@ fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalizati
 }
 
 #[test]
+fn normalize_finish_resumes_loaded_playback_when_current_sample_is_skipped() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("normalize-skip-resume.wav");
+    if !install_playback_runtime_for_tests(&mut state) {
+        return;
+    }
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 32767, -32767, 1024]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("sample loads");
+    state
+        .start_playback_current_span(0.20, 0.80)
+        .expect("sample playback starts");
+    state.stop_audio_output_playback();
+    state.waveform.current.stop_playback();
+    state.audio.current_playback_span = None;
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 0,
+            detail: selected_file.clone(),
+        },
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            loaded_path: path.clone(),
+            normalizing_loaded: true,
+            was_playing: true,
+            restart_ratio: 0.35,
+            restart_span: Some((0.20, 0.80)),
+            normalized: Vec::new(),
+            skipped: vec![path],
+            failed: Vec::new(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.waveform.current.is_playing(),
+        "skipped normalization should resume previously playing loaded sample"
+    );
+    assert_eq!(state.audio.current_playback_span, Some((0.35, 0.80)));
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "skipped normalization should reuse the loaded waveform instead of reloading"
+    );
+}
+
+#[test]
 fn normalize_finish_reports_failed_file_without_success_count() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("normalize-failed.wav");

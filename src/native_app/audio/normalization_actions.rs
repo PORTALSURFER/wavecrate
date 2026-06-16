@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::mpsc::Sender,
     time::{Duration, Instant},
 };
@@ -211,12 +211,18 @@ impl NativeAppState {
             .folder_browser
             .refresh_file_paths(&result.normalized);
 
-        if result.normalizing_loaded
+        let normalized_loaded = result.normalizing_loaded
             && result
                 .normalized
                 .iter()
-                .any(|path| path == &result.loaded_path)
-        {
+                .any(|path| path == &result.loaded_path);
+        let skipped_loaded = result.normalizing_loaded
+            && result
+                .skipped
+                .iter()
+                .any(|path| path == &result.loaded_path);
+
+        if normalized_loaded {
             let playback = result.was_playing.then_some(WaveformPlaybackResume {
                 start_ratio: result.restart_ratio,
                 span: result.restart_span,
@@ -228,6 +234,13 @@ impl NativeAppState {
                 },
                 context,
             );
+        } else if skipped_loaded && result.was_playing {
+            self.resume_skipped_normalization_playback(
+                &result.loaded_path,
+                result.restart_ratio,
+                result.restart_span,
+                context,
+            );
         }
 
         self.finish_normalization_status(
@@ -237,6 +250,47 @@ impl NativeAppState {
             started_at,
         );
         self.start_next_queued_normalization(context);
+    }
+
+    fn resume_skipped_normalization_playback(
+        &mut self,
+        loaded_path: &Path,
+        restart_ratio: f32,
+        restart_span: Option<(f32, f32)>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if self.waveform.current.path() != loaded_path || !self.waveform.current.has_loaded_sample()
+        {
+            return;
+        }
+
+        let (_, previous_end) = restart_span.unwrap_or((0.0, 1.0));
+        let start = restart_ratio.clamp(0.0, 1.0);
+        let end = previous_end.max(start).clamp(start, 1.0);
+        match self.start_playback_current_span(start, end) {
+            Ok(()) => {
+                self.record_selected_sample_last_played(context);
+                emit_gui_action(
+                    "browser.normalize_selected_samples.resume_skipped_playback",
+                    Some("browser"),
+                    Some(&self.waveform.current.file_name()),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                emit_gui_action(
+                    "browser.normalize_selected_samples.resume_skipped_playback",
+                    Some("browser"),
+                    Some(&sample_path_label(loaded_path)),
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
     }
 
     fn start_next_queued_normalization(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
