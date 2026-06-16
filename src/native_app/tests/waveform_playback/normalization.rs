@@ -541,6 +541,71 @@ fn normalize_finish_resumes_loaded_playback_when_current_sample_is_skipped() {
 }
 
 #[test]
+fn normalize_finish_resumes_loaded_playback_when_current_sample_fails_before_write() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("normalize-failed-resume.wav");
+    if !install_playback_runtime_for_tests(&mut state) {
+        return;
+    }
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -1024, 0]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("sample loads");
+    state
+        .start_playback_current_span(0.10, 0.90)
+        .expect("sample playback starts");
+    state.stop_audio_output_playback();
+    state.waveform.current.stop_playback();
+    state.audio.current_playback_span = None;
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 0,
+            detail: selected_file.clone(),
+        },
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            loaded_path: path.clone(),
+            normalizing_loaded: true,
+            was_playing: true,
+            restart_ratio: 0.30,
+            restart_span: Some((0.10, 0.90)),
+            normalized: Vec::new(),
+            skipped: Vec::new(),
+            failed: vec![crate::native_app::app::NormalizationFailure {
+                path,
+                error: String::from("Invalid WAV: Failed to read enough bytes."),
+            }],
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.waveform.current.is_playing(),
+        "failed normalization should resume previously playing loaded sample when the file was not rewritten"
+    );
+    assert_eq!(state.audio.current_playback_span, Some((0.30, 0.90)));
+    assert_eq!(
+        state.ui.status.sample,
+        "Could not normalize normalize-failed-resume.wav | Invalid WAV: Failed to read enough bytes."
+    );
+}
+
+#[test]
 fn normalize_finish_reports_failed_file_without_success_count() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("normalize-failed.wav");

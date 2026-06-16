@@ -221,6 +221,11 @@ impl NativeAppState {
                 .skipped
                 .iter()
                 .any(|path| path == &result.loaded_path);
+        let failed_loaded = result.normalizing_loaded
+            && result
+                .failed
+                .iter()
+                .any(|failure| failure.path == result.loaded_path);
 
         if normalized_loaded {
             let playback = result.was_playing.then_some(WaveformPlaybackResume {
@@ -234,8 +239,8 @@ impl NativeAppState {
                 },
                 context,
             );
-        } else if skipped_loaded && result.was_playing {
-            self.resume_skipped_normalization_playback(
+        } else if result.was_playing && (skipped_loaded || failed_loaded) {
+            self.resume_unchanged_normalization_playback(
                 &result.loaded_path,
                 result.restart_ratio,
                 result.restart_span,
@@ -252,7 +257,7 @@ impl NativeAppState {
         self.start_next_queued_normalization(context);
     }
 
-    fn resume_skipped_normalization_playback(
+    fn resume_unchanged_normalization_playback(
         &mut self,
         loaded_path: &Path,
         restart_ratio: f32,
@@ -272,7 +277,7 @@ impl NativeAppState {
             Ok(()) => {
                 self.record_selected_sample_last_played(context);
                 emit_gui_action(
-                    "browser.normalize_selected_samples.resume_skipped_playback",
+                    "browser.normalize_selected_samples.resume_unchanged_playback",
                     Some("browser"),
                     Some(&self.waveform.current.file_name()),
                     "success",
@@ -282,7 +287,7 @@ impl NativeAppState {
             }
             Err(err) => {
                 emit_gui_action(
-                    "browser.normalize_selected_samples.resume_skipped_playback",
+                    "browser.normalize_selected_samples.resume_unchanged_playback",
                     Some("browser"),
                     Some(&sample_path_label(loaded_path)),
                     "error",

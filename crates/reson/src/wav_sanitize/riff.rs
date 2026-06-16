@@ -20,6 +20,14 @@ impl WavChunk {
     pub(super) fn data_size(&self) -> usize {
         self.data_size as usize
     }
+
+    pub(super) fn data_end(&self) -> usize {
+        self.data_end
+    }
+
+    pub(super) fn next_offset(&self) -> usize {
+        self.next_offset
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

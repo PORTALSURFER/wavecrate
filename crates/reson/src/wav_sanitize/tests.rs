@@ -62,6 +62,27 @@ fn padded_fmt_wav(extra_zero_bytes: usize) -> Vec<u8> {
     bad
 }
 
+fn insert_odd_metadata_chunk_before_data(
+    mut bytes: Vec<u8>,
+    id: &[u8; 4],
+    data: Vec<u8>,
+) -> Vec<u8> {
+    assert_eq!(data.len() % 2, 1);
+    let data_offset = bytes
+        .windows(4)
+        .position(|window| window == b"data")
+        .expect("test wav contains data chunk");
+    let mut chunk = Vec::new();
+    chunk.extend_from_slice(id);
+    chunk.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    chunk.extend_from_slice(&data);
+    chunk.push(0);
+    bytes.splice(data_offset..data_offset, chunk);
+    let riff_len = bytes.len();
+    bytes[4..8].copy_from_slice(&((riff_len - 8) as u32).to_le_bytes());
+    bytes
+}
+
 fn read_exact_at(reader: &mut SanitizedWavReader, offset: u64, len: usize) -> Vec<u8> {
     reader.seek(SeekFrom::Start(offset)).unwrap();
     let mut bytes = vec![0u8; len];
@@ -79,6 +100,44 @@ fn fixes_pcm_fmt_chunk_size_20() {
 fn fixes_pcm_fmt_chunk_size_22_with_padding() {
     let fixed = sanitize_wav_bytes(padded_fmt_wav(6));
     assert!(hound::WavReader::new(Cursor::new(fixed.as_slice())).is_ok());
+}
+
+#[test]
+fn removes_odd_pre_data_chunk_padding() {
+    let bad = insert_odd_metadata_chunk_before_data(
+        wav_bytes_pcm_16bit(&[0, 1000, -1000, 0]),
+        b"bext",
+        vec![7; 879],
+    );
+    assert!(hound::WavReader::new(Cursor::new(bad.as_slice())).is_err());
+
+    let fixed = sanitize_wav_bytes(bad);
+    let mut reader = hound::WavReader::new(Cursor::new(fixed)).unwrap();
+    let samples = reader
+        .samples::<i16>()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(samples, vec![0, 0, 1000, 1000, -1000, -1000, 0, 0]);
+}
+
+#[test]
+fn open_sanitized_wav_handles_large_odd_pre_data_chunk() {
+    let bad = insert_odd_metadata_chunk_before_data(
+        wav_bytes_pcm_16bit(&[0, 1000, -1000, 0]),
+        b"PAD ",
+        vec![3; 65_001],
+    );
+    assert!(hound::WavReader::new(Cursor::new(bad.as_slice())).is_err());
+    let file = TempWavFile::new("large_odd_metadata", &bad);
+
+    let mut reader = hound::WavReader::new(open_sanitized_wav(file.path()).unwrap()).unwrap();
+    let samples = reader
+        .samples::<i16>()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(samples, vec![0, 0, 1000, 1000, -1000, -1000, 0, 0]);
 }
 
 #[test]

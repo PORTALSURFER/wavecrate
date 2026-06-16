@@ -9,15 +9,17 @@ mod riff;
 use riff::{WavChunkItem, WavChunkIter};
 
 const MAX_SANITIZED_WAV_BYTES: u64 = 64 * 1024 * 1024;
-const SANITIZE_PROBE_BYTES: u64 = 4096;
+const SANITIZE_PROBE_BYTES: u64 = 256 * 1024;
 
 /// A WAV reader that exposes a logically repaired byte stream.
 ///
 /// The reader inspects only the first `SANITIZE_PROBE_BYTES` bytes and repairs
-/// one narrow class of malformed headers: PCM or IEEE-float `fmt ` chunks whose
-/// declared size is larger than 18 bytes but whose extra bytes are all zero
-/// padding after a zero `cbSize` field. Unsupported malformed inputs are passed
-/// through unchanged and may still fail in downstream decoders.
+/// two narrow classes of malformed headers: PCM or IEEE-float `fmt ` chunks
+/// whose declared size is larger than 18 bytes but whose extra bytes are all
+/// zero padding after a zero `cbSize` field, and odd-sized pre-data chunks whose
+/// RIFF pad byte confuses downstream decoders that do not consume chunk
+/// padding. Unsupported malformed inputs are passed through unchanged and may
+/// still fail in downstream decoders.
 ///
 /// When a repair is applied, [`Read`] and [`Seek`] operate on the sanitized
 /// logical stream, not the original on-disk offsets. In particular, seeking
@@ -119,12 +121,12 @@ impl Seek for SanitizedWavReader {
 }
 
 /// Open a WAV file for streaming reads while repairing the supported malformed
-/// `fmt ` header variants.
+/// header variants.
 ///
 /// The reader probes only the first `SANITIZE_PROBE_BYTES` bytes. If repair is
 /// possible, the returned stream exposes the repaired logical bytes and keeps
-/// `Seek` relative to that repaired stream. If no supported repair applies, the
-/// original file is returned unchanged.
+/// `Seek` relative to that repaired stream. If no supported repair applies,
+/// the original file is returned unchanged.
 pub fn open_sanitized_wav(path: &Path) -> Result<SanitizedWavReader, String> {
     let mut file =
         File::open(path).map_err(|err| format!("Failed to open {}: {err}", path.display()))?;
@@ -159,25 +161,27 @@ pub fn open_sanitized_wav(path: &Path) -> Result<SanitizedWavReader, String> {
     }
 }
 
-/// Attempt to repair a supported malformed `fmt ` chunk inside a buffered WAV
-/// header prefix.
+/// Attempt to repair supported malformed chunks inside a buffered WAV header
+/// prefix.
 ///
 /// The function returns `true` only when the buffer is modified. It never scans
 /// beyond `total_file_len`, and it stops once the `fmt ` chunk falls outside the
 /// buffered prefix because the unsupported bytes cannot be inspected safely.
 fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
+    let mut repaired = false;
     let Ok(chunks) = WavChunkIter::new(bytes, total_file_len) else {
         return false;
     };
     for item in chunks {
         match item {
             WavChunkItem::Chunk(chunk) if chunk.id() == b"fmt " => {
-                return shrink_pcm_fmt_chunk_with_padding(
+                repaired |= shrink_pcm_fmt_chunk_with_padding(
                     bytes,
                     chunk.offset(),
                     chunk.data_size(),
                     total_file_len,
                 );
+                break;
             }
             WavChunkItem::Chunk(_) => {}
             WavChunkItem::IncompletePrefix { .. } => break,
@@ -185,7 +189,8 @@ fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
         }
     }
 
-    false
+    repaired |= remove_pre_data_chunk_padding(bytes, sanitized_total_len(bytes, total_file_len));
+    repaired
 }
 
 /// Read an entire WAV file into memory and apply the same narrow header repair
@@ -266,6 +271,53 @@ fn shrink_pcm_fmt_chunk_with_padding(
     }
 
     true
+}
+
+fn remove_pre_data_chunk_padding(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
+    let Ok(chunks) = WavChunkIter::new(bytes, total_file_len) else {
+        return false;
+    };
+    let mut padding_ranges = Vec::new();
+    for item in chunks {
+        match item {
+            WavChunkItem::Chunk(chunk) if chunk.id() == b"data" => break,
+            WavChunkItem::Chunk(chunk) if chunk.next_offset() > chunk.data_end() => {
+                if chunk.next_offset() <= bytes.len() {
+                    padding_ranges.push(chunk.data_end()..chunk.next_offset());
+                } else {
+                    break;
+                }
+            }
+            WavChunkItem::Chunk(_) => {}
+            WavChunkItem::IncompletePrefix { .. } => break,
+            WavChunkItem::Invalid(_) => return false,
+        }
+    }
+
+    if padding_ranges.is_empty() {
+        return false;
+    }
+    let removed_count: usize = padding_ranges.iter().map(|range| range.len()).sum();
+    for range in padding_ranges.into_iter().rev() {
+        bytes.drain(range);
+    }
+    rewrite_riff_size(bytes, total_file_len.saturating_sub(removed_count as u64));
+    true
+}
+
+fn sanitized_total_len(bytes: &[u8], fallback: u64) -> u64 {
+    if bytes.len() < 8 {
+        return fallback;
+    }
+    let riff_size = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as u64;
+    riff_size.saturating_add(8)
+}
+
+fn rewrite_riff_size(bytes: &mut [u8], total_len: u64) {
+    if bytes.len() < 8 {
+        return;
+    }
+    bytes[4..8].copy_from_slice(&(total_len.saturating_sub(8) as u32).to_le_bytes());
 }
 
 /// Repair the supported malformed `fmt ` chunk variants inside an in-memory WAV
