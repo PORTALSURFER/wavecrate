@@ -1,10 +1,17 @@
-use crate::native_app::app::{NativeAppState, PendingSamplePlayback};
+use std::time::Instant;
+
+use radiant::prelude as ui;
+
+use crate::native_app::{
+    app::{GuiMessage, NativeAppState, PendingSamplePlayback},
+    audio::sample_load_actions::{foreground_sample_load_priority, types::SampleLoadStrategy},
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn reload_normalized_waveform(
         &mut self,
         reload: super::NormalizedWaveformReload<'_>,
-        context: &mut radiant::prelude::UiUpdateContext<crate::native_app::app::GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if let Some(playback) = reload.playback {
             let (_, previous_end) = playback.span.unwrap_or((0.0, 1.0));
@@ -16,6 +23,24 @@ impl NativeAppState {
         self.library
             .folder_browser
             .select_file(reload.path.display().to_string());
-        self.load_sample_without_autoplay(reload.path.display().to_string(), context);
+        self.start_normalized_waveform_reload(reload.path.display().to_string(), context);
+    }
+
+    fn start_normalized_waveform_reload(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        self.yield_sample_cache_warm_for_foreground_load(context);
+        self.cancel_inflight_sample_load();
+        self.prepare_uncached_sample_load(&path, "normalization_reload_queued", started_at);
+        self.start_sample_load_with_priority(
+            path,
+            false,
+            context,
+            foreground_sample_load_priority(),
+            SampleLoadStrategy::Decode,
+        );
     }
 }

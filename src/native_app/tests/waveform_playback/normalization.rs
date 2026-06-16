@@ -358,3 +358,67 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
         "direct reselect should not use the deferred navigation load path"
     );
 }
+
+#[test]
+fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalization() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("normalize-queue-reload.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("sample loads");
+    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+        .expect("normalize wav");
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 1,
+            detail: selected_file.clone(),
+        },
+    );
+    state.background.normalization_queue.push_back(
+        crate::native_app::app::NormalizationQueueItem {
+            paths: vec![path.clone()],
+        },
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            loaded_path: path,
+            normalizing_loaded: true,
+            was_playing: false,
+            restart_ratio: 0.0,
+            restart_span: None,
+            normalized: vec![PathBuf::from(&selected_file)],
+            skipped: Vec::new(),
+            last_error: None,
+        },
+        &mut context,
+    );
+
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "the normalized current sample should reload immediately even when another normalization task is queued"
+    );
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
+        "normalization reload must not enter the retry loop while queued normalization work exists"
+    );
+    assert!(
+        state.background.normalization_progress.is_some(),
+        "the queued normalization task should still start after scheduling the reload"
+    );
+}

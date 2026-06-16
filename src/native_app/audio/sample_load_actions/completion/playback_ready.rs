@@ -44,9 +44,6 @@ impl NativeAppState {
             stale_gate_started_at.elapsed(),
             true,
         );
-        if !ready.autoplay {
-            return;
-        }
         let state_update_started_at = Instant::now();
         self.waveform
             .load
@@ -60,6 +57,9 @@ impl NativeAppState {
             state_update_started_at.elapsed(),
             true,
         );
+        if !ready.autoplay {
+            return;
+        }
         let Some(runtime) = self.audio.playback_runtime.as_ref() else {
             emit_gui_action(
                 "browser.sample_load.playback_ready",
