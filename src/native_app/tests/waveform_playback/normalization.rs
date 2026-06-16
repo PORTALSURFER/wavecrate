@@ -30,6 +30,35 @@ fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
 }
 
 #[test]
+fn normalize_wav_file_in_place_cleans_work_files_after_success() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-default-gui-normalize-cleanup-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let path = root.join("sample.wav");
+    write_test_wav_i16(&path, &[0, 2048, -4096, 8192]);
+
+    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&path)
+        .expect("normalize wav");
+
+    let work_files: Vec<_> = fs::read_dir(&root)
+        .expect("read temp root")
+        .map(|entry| entry.expect("read temp entry").file_name())
+        .filter(|file_name| file_name.to_string_lossy().contains(".wavecrate-normalize"))
+        .collect();
+    assert!(
+        work_files.is_empty(),
+        "normalization should clean temporary and backup files, found {work_files:?}"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("quiet.wav");
     let path = PathBuf::from(&selected_file);
