@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     path::PathBuf,
     sync::mpsc::Sender,
     time::{Duration, Instant},
@@ -18,6 +19,10 @@ use crate::native_app::sample_library::file_actions::{
 const NORMALIZATION_WORK_UNITS_PER_FILE: usize = 1_000;
 const NORMALIZATION_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(80);
 const NORMALIZATION_PROGRESS_MIN_UNITS: usize = 20;
+
+pub(in crate::native_app) fn normalization_priority() -> ui::TaskPriority {
+    ui::TaskPriority::Interactive
+}
 
 impl NativeAppState {
     pub(in crate::native_app) fn normalize_selected_samples(
@@ -41,6 +46,19 @@ impl NativeAppState {
 
         self.pause_active_folder_cache_warm(context);
         if self.background.normalization_progress.is_some() {
+            let paths = self.pending_normalization_paths(paths);
+            if paths.is_empty() {
+                self.ui.status.sample = String::from("Normalization already queued for selection");
+                emit_gui_action(
+                    "browser.normalize_selected_samples",
+                    Some("browser"),
+                    None,
+                    "already_queued",
+                    started_at,
+                    None,
+                );
+                return;
+            }
             self.enqueue_normalization_paths(paths, started_at);
             return;
         }
@@ -79,6 +97,8 @@ impl NativeAppState {
         let request = self.prepare_normalization_request(paths);
         let label = normalize_progress_label(request.paths.len());
         let queued = self.background.normalization_queue.len();
+        self.background.normalization_active_paths =
+            request.paths.iter().cloned().collect::<HashSet<_>>();
         self.background.normalization_progress = Some(NormalizationProgress {
             task_id: request.task_id,
             label: label.clone(),
@@ -92,7 +112,7 @@ impl NativeAppState {
         self.ui.status.sample = format!("Normalizing {label}");
         context
             .business()
-            .background("gui-normalize-selected-samples")
+            .priority("gui-normalize-selected-samples", normalization_priority())
             .run(
                 move |_| run_normalization_worker(request),
                 GuiMessage::NormalizationFinished,
@@ -137,6 +157,20 @@ impl NativeAppState {
         }
     }
 
+    fn pending_normalization_paths(&self, paths: Vec<PathBuf>) -> Vec<PathBuf> {
+        let mut seen = self.background.normalization_active_paths.clone();
+        seen.extend(
+            self.background
+                .normalization_queue
+                .iter()
+                .flat_map(|item| item.paths.iter().cloned()),
+        );
+        paths
+            .into_iter()
+            .filter(|path| seen.insert(path.clone()))
+            .collect()
+    }
+
     pub(in crate::native_app) fn apply_normalization_progress(
         &mut self,
         mut progress: NormalizationProgress,
@@ -167,6 +201,7 @@ impl NativeAppState {
             return;
         }
         self.background.normalization_progress = None;
+        self.background.normalization_active_paths.clear();
         self.background.progress_tick = 0.0;
 
         for path in &result.normalized {

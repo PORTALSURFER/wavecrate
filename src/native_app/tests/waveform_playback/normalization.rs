@@ -183,7 +183,7 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
 }
 
 #[test]
-fn normalize_selected_samples_enqueues_when_worker_is_active() {
+fn normalize_selected_samples_does_not_enqueue_duplicate_active_file() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("queued.wav");
     let path = PathBuf::from(&selected_file);
     write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
@@ -198,14 +198,40 @@ fn normalize_selected_samples_enqueues_when_worker_is_active() {
         &mut context,
     );
 
-    assert_eq!(state.background.normalization_queue.len(), 1);
+    assert!(state.background.normalization_queue.is_empty());
     let progress = state
         .background
         .normalization_progress
         .as_ref()
         .expect("normalization progress should remain active");
-    assert_eq!(progress.queued, 1);
-    assert!(state.ui.status.sample.contains("1 task waiting"));
+    assert_eq!(progress.queued, 0);
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("already queued for selection")
+    );
+}
+
+#[test]
+fn normalize_selected_samples_uses_interactive_worker_priority() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("priority.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
+        &mut context,
+    );
+
+    assert_eq!(
+        business_command_priority(context.into_command(), "gui-normalize-selected-samples"),
+        Some(ui::TaskPriority::Interactive),
+        "normalization must not wait behind low-priority cache warming"
+    );
 }
 
 #[test]

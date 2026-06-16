@@ -269,6 +269,23 @@ fn active_folder_cache_warm_completion(
     }
 }
 
+fn business_command_priority(
+    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
+    name: &'static str,
+) -> Option<ui::TaskPriority> {
+    match command {
+        radiant::runtime::Command::Perform {
+            name: command_name,
+            priority,
+            ..
+        } if command_name == name => Some(priority),
+        radiant::runtime::Command::Batch(commands) => commands
+            .into_iter()
+            .find_map(|command| business_command_priority(command, name)),
+        _ => None,
+    }
+}
+
 fn sample_load_completion(
     ticket: ui::TaskTicket,
     path: String,
