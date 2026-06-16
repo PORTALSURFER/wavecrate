@@ -1,4 +1,6 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
+use std::collections::{HashMap, HashSet};
 
 #[test]
 fn tagged_file_window_materializes_requested_range_without_holes() {
@@ -50,6 +52,65 @@ fn tagged_file_window_materializes_requested_range_without_holes() {
     assert_eq!(
         window_files.rows[13].expect("last file").name,
         "sample_082.wav"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn visible_samples_clamps_stale_scrollbar_window_without_blank_rows() {
+    let root = temp_source_root("wavecrate-gui-stale-scrollbar-window");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..24)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 9_990.0 * 22.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 10_000,
+            viewport_start: 9_990,
+            viewport_end: 10_000,
+            window_start: 9_986,
+            window_end: 10_000,
+        },
+    });
+
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.total_count, 24);
+    assert_eq!(visible.window.viewport_start, 14);
+    assert_eq!(visible.window.window_start, 10);
+    assert_eq!(visible.rows.len(), visible.window.window_len());
+    assert!(
+        visible.rows.iter().all(Option::is_some),
+        "stale scrollbar windows should clamp instead of painting blank row holes"
+    );
+    assert_eq!(
+        visible
+            .rows
+            .first()
+            .and_then(|row| row.as_ref())
+            .map(|row| row.file.name.as_str()),
+        Some("sample_10.wav")
+    );
+    assert_eq!(
+        visible
+            .rows
+            .last()
+            .and_then(|row| row.as_ref())
+            .map(|row| row.file.name.as_str()),
+        Some("sample_23.wav")
     );
     let _ = fs::remove_dir_all(root);
 }

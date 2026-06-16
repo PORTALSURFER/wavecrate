@@ -324,9 +324,15 @@ impl FolderBrowserState {
         &'a self,
         query: VisibleSampleQuery<'a>,
     ) -> VisibleSampleList<'a> {
-        let window = self.sample_list.prepared_window;
+        let prepared_window = self.sample_list.prepared_window;
         let window_files =
-            self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
+            self.selected_audio_file_window_matching_tags(prepared_window, query.tags_by_file);
+        let window = reconcile_visible_sample_window(prepared_window, window_files.total_count);
+        let window_files = if window == prepared_window {
+            window_files
+        } else {
+            self.selected_audio_file_window_matching_tags(window, query.tags_by_file)
+        };
         let rows = window_files
             .rows
             .into_iter()
@@ -367,6 +373,40 @@ impl FolderBrowserState {
     }
 }
 
+fn reconcile_visible_sample_window(
+    window: ui::VirtualListWindow,
+    total_count: usize,
+) -> ui::VirtualListWindow {
+    if window_is_valid_for_total(window, total_count) {
+        return window;
+    }
+
+    let viewport_len = window.viewport_len().max(1);
+    let overscan = window
+        .viewport_start
+        .saturating_sub(window.window_start)
+        .max(window.window_end.saturating_sub(window.viewport_end));
+
+    ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
+        total_items: total_count,
+        viewport_len,
+        requested_start: window.viewport_start,
+        overscan,
+        focused_index: None,
+        previous_start: None,
+        guard_band: 0,
+    })
+}
+
+fn window_is_valid_for_total(window: ui::VirtualListWindow, total_count: usize) -> bool {
+    window.total_items == total_count
+        && window.viewport_start <= window.viewport_end
+        && window.window_start <= window.window_end
+        && window.window_start <= window.viewport_start
+        && window.viewport_end <= window.window_end
+        && window.window_end <= total_count
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,5 +434,24 @@ mod tests {
             VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
             VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 5).key()
         );
+    }
+
+    #[test]
+    fn stale_prepared_window_is_clamped_to_current_total() {
+        let stale = ui::VirtualListWindow {
+            total_items: 10_000,
+            viewport_start: 9_990,
+            viewport_end: 10_000,
+            window_start: 9_986,
+            window_end: 10_000,
+        };
+
+        let reconciled = reconcile_visible_sample_window(stale, 24);
+
+        assert_eq!(reconciled.total_items, 24);
+        assert_eq!(reconciled.viewport_start, 14);
+        assert_eq!(reconciled.viewport_end, 24);
+        assert_eq!(reconciled.window_start, 10);
+        assert_eq!(reconciled.window_end, 24);
     }
 }
