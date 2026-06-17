@@ -225,11 +225,6 @@ impl NativeAppState {
             self.waveform.cache.active_folder_warm_folder_id = None;
             self.waveform.cache.active_folder_warm_completed = 0;
             self.waveform.cache.active_folder_warm_total = 0;
-        } else if self.sample_cache_warm_should_yield() {
-            self.reschedule_active_folder_cache_warm_delay(
-                context,
-                ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
-            );
         } else {
             self.reschedule_active_folder_cache_warm_delay(
                 context,
