@@ -17,7 +17,9 @@ pub(in crate::native_app) struct WaveformCacheWarmResult {
 pub(in crate::native_app) struct ActiveFolderCacheWarmResult {
     pub(in crate::native_app) folder_id: String,
     pub(in crate::native_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
+    pub(in crate::native_app) deferred: Vec<PathBuf>,
     pub(in crate::native_app) processed: usize,
+    pub(in crate::native_app) decoded_source: bool,
     pub(in crate::native_app) cancelled: bool,
 }
 
@@ -43,7 +45,9 @@ impl PartialEq for ActiveFolderCacheWarmResult {
     fn eq(&self, other: &Self) -> bool {
         self.folder_id == other.folder_id
             && self.cancelled == other.cancelled
+            && self.deferred == other.deferred
             && self.processed == other.processed
+            && self.decoded_source == other.decoded_source
             && self
                 .loaded
                 .iter()

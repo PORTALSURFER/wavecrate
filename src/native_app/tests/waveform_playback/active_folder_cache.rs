@@ -156,14 +156,10 @@ fn active_folder_cache_warm_tracks_worker_progress() {
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
-    write_test_wav_i16(
-        &source_root.path().join("first.wav"),
-        &[0, 1024, -2048, 4096],
-    );
-    write_test_wav_i16(
-        &source_root.path().join("second.wav"),
-        &[0, 512, -512, 1024],
-    );
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -193,10 +189,13 @@ fn active_folder_cache_warm_tracks_worker_progress() {
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
-            active_folder_cache_warm_completion(
+            active_folder_cache_warm_completion_with_deferred(
                 running_ticket,
                 source_root.path().display().to_string(),
                 Vec::new(),
+                vec![second],
+                1,
+                true,
                 false,
             ),
         ),
@@ -480,7 +479,8 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
     let folder = source_root.path().join("large-folder");
     fs::create_dir_all(&folder).expect("create folder");
     write_test_wav_i16(&folder.join("first.wav"), &[0, 1024, -2048, 4096]);
-    write_test_wav_i16(&folder.join("second.wav"), &[0, 512, -512, 1024]);
+    let second = folder.join("second.wav");
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -512,10 +512,13 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
     state.waveform.current.start_playback(0.0);
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
-            active_folder_cache_warm_completion(
+            active_folder_cache_warm_completion_with_deferred(
                 running_ticket,
                 source_root.path().display().to_string(),
                 Vec::new(),
+                vec![second],
+                1,
+                true,
                 false,
             ),
         ),
@@ -554,17 +557,57 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
 
     assert!(!crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path));
 
-    let loaded = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
+    let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
+        String::from("source"),
         vec![sample_path.clone()],
         || false,
     );
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
 
-    assert_eq!(loaded.len(), 1);
+    assert_eq!(result.loaded.len(), 1);
+    assert_eq!(result.processed, 1);
+    assert!(result.decoded_source);
+    assert!(result.deferred.is_empty());
     assert!(
         crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
         "active folder warm should persist playback readiness for future selection"
     );
+}
+
+#[test]
+fn active_folder_cache_warm_batches_playback_ready_cache_hits() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("cached-first.wav");
+    let second = source_root.path().join("cached-second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    for path in [&first, &second] {
+        let waveform =
+            crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+                path.clone(),
+                |_| {},
+                || false,
+                |_| {},
+            )
+            .expect("cache sample");
+        crate::native_app::waveform::store_cached_waveform_file_for_tests(&waveform.file());
+        wait_for_playback_ready_cache(path.display().to_string().as_str());
+    }
+
+    let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
+        String::from("source"),
+        vec![first.clone(), second.clone()],
+        || false,
+    );
+
+    assert_eq!(result.loaded.len(), 2);
+    assert_eq!(result.processed, 2);
+    assert!(!result.decoded_source);
+    assert!(result.deferred.is_empty());
 }
 
 #[test]

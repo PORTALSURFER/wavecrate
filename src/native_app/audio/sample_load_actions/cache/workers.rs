@@ -1,9 +1,12 @@
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use crate::native_app::{
-    app::{WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState},
+    app::{
+        ActiveFolderCacheWarmResult, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
+        WaveformState,
+    },
     waveform::{
-        WaveformFile, cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+        cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
         load_cached_waveform_file_for_playback,
     },
 };
@@ -27,27 +30,50 @@ pub(in crate::native_app) fn warm_persisted_waveform_cache(
 }
 
 pub(in crate::native_app) fn warm_active_folder_waveform_cache(
+    folder_id: String,
     paths: Vec<PathBuf>,
     is_cancelled: impl Fn() -> bool,
-) -> Vec<(PathBuf, Arc<WaveformFile>)> {
-    paths
-        .into_iter()
-        .filter_map(|path| {
-            if is_cancelled() {
-                return None;
-            }
+) -> ActiveFolderCacheWarmResult {
+    let mut paths = paths.into_iter();
+    let mut loaded = Vec::new();
+    let mut deferred = Vec::new();
+    let mut processed = 0;
+    let mut decoded_source = false;
+    while let Some(path) = paths.next() {
+        if is_cancelled() {
+            deferred.push(path);
+            break;
+        }
+        processed += 1;
+        if cached_waveform_file_playback_ready_exists(&path) {
             if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
-                return Some((path, Arc::new(file)));
+                loaded.push((path, Arc::new(file)));
             }
-            let waveform = WaveformState::load_path_with_progress_and_cancel(
-                path.clone(),
-                |_| {},
-                &is_cancelled,
-            )
-            .ok()?;
-            Some((path, waveform.file()))
-        })
-        .collect()
+            continue;
+        }
+        if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
+            loaded.push((path, Arc::new(file)));
+            decoded_source = true;
+            deferred.extend(paths);
+            break;
+        }
+        if let Ok(waveform) =
+            WaveformState::load_path_with_progress_and_cancel(path.clone(), |_| {}, &is_cancelled)
+        {
+            loaded.push((path, waveform.file()));
+        }
+        decoded_source = true;
+        deferred.extend(paths);
+        break;
+    }
+    ActiveFolderCacheWarmResult {
+        folder_id,
+        loaded,
+        deferred,
+        processed,
+        decoded_source,
+        cancelled: is_cancelled(),
+    }
 }
 
 pub(super) fn probe_persisted_waveform_cache_indicators(

@@ -7,7 +7,8 @@ use crate::native_app::{
         active_folder_cache_warm_resource_key,
         cache::{
             ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
-            ACTIVE_FOLDER_CACHE_WARM_INITIAL_DELAY, active_folder_cache_warm_priority,
+            ACTIVE_FOLDER_CACHE_WARM_INITIAL_DELAY,
+            ACTIVE_FOLDER_CACHE_WARM_LIGHT_CONTINUATION_DELAY, active_folder_cache_warm_priority,
             logging::log_slow_cache_phase, persisted_warm::take_cache_warm_batch,
             workers::warm_active_folder_waveform_cache,
         },
@@ -127,15 +128,9 @@ impl NativeAppState {
         self.waveform.cache.active_folder_warm_key = Some(key);
         self.waveform.cache.active_folder_warm_cancel = Some(warm.run(
             move |worker_context| {
-                let processed = paths.len();
-                let loaded =
-                    warm_active_folder_waveform_cache(paths, || worker_context.is_cancelled());
-                ActiveFolderCacheWarmResult {
-                    folder_id,
-                    loaded,
-                    processed,
-                    cancelled: worker_context.is_cancelled(),
-                }
+                warm_active_folder_waveform_cache(folder_id, paths, || {
+                    worker_context.is_cancelled()
+                })
             },
             GuiMessage::ActiveFolderCacheWarmFinished,
         ));
@@ -206,6 +201,12 @@ impl NativeAppState {
             let waveform = WaveformState::from_cached_file(file);
             self.remember_waveform(&waveform);
         }
+        for path in result.deferred.iter().rev() {
+            self.waveform
+                .cache
+                .active_folder_warm_pending
+                .push_front(path.clone());
+        }
         self.waveform.cache.active_folder_warm_completed = self
             .waveform
             .cache
@@ -226,10 +227,12 @@ impl NativeAppState {
             self.waveform.cache.active_folder_warm_completed = 0;
             self.waveform.cache.active_folder_warm_total = 0;
         } else {
-            self.reschedule_active_folder_cache_warm_delay(
-                context,
-                ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
-            );
+            let delay = if result.decoded_source {
+                ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY
+            } else {
+                ACTIVE_FOLDER_CACHE_WARM_LIGHT_CONTINUATION_DELAY
+            };
+            self.reschedule_active_folder_cache_warm_delay(context, delay);
         }
     }
 

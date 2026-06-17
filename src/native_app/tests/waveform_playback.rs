@@ -252,13 +252,16 @@ fn active_folder_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTic
     state.waveform.cache.active_folder_warm_tasks.active(key)
 }
 
-fn active_folder_cache_warm_completion(
+fn active_folder_cache_warm_completion_with_deferred(
     ticket: ui::TaskTicket,
     folder_id: String,
     loaded: Vec<(
         PathBuf,
         std::sync::Arc<crate::native_app::waveform::WaveformFile>,
     )>,
+    deferred: Vec<PathBuf>,
+    processed: usize,
+    decoded_source: bool,
     cancelled: bool,
 ) -> ui::KeyedTaskCompletion<ui::ResourceKey, crate::native_app::app::ActiveFolderCacheWarmResult> {
     ui::KeyedTaskCompletion {
@@ -269,7 +272,9 @@ fn active_folder_cache_warm_completion(
         output: crate::native_app::app::ActiveFolderCacheWarmResult {
             folder_id,
             loaded,
-            processed: 1,
+            deferred,
+            processed,
+            decoded_source,
             cancelled,
         },
     }
