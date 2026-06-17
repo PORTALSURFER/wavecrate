@@ -103,6 +103,7 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
         .expanded(folder.expanded)
         .has_children(folder.has_children && !folder.is_source_root)
         .selected(folder.selected)
+        .focused(folder.focused)
         .drag_drop_state(folder_tree_drag_drop_state(folder))
         .row_height(TREE_ROW_HEIGHT)
         .expander_width(FOLDER_EXPANDER_WIDTH)
@@ -344,6 +345,54 @@ mod tests {
         assert_eq!(
             frame.paint_plan.first_text_color("Folder"),
             Some(FOLDER_TREE_HIGHLIGHTED_LABEL)
+        );
+    }
+
+    #[test]
+    fn focused_unselected_folder_rows_paint_hover_fill() {
+        let mut folder = visible_folder_for_tests(false);
+        folder.focused = true;
+
+        let frame = folder_row(&folder, 0)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+        let hover_fill = folder_tree_palette()
+            .hovered
+            .expect("folder tree hover fill");
+
+        assert!(
+            frame.paint_plan.fill_rects().any(|fill| {
+                fill.color == hover_fill && (fill.rect.height() - TREE_ROW_HEIGHT).abs() < 0.5
+            }),
+            "focused folder rows should paint the same fill as pointer hover"
+        );
+    }
+
+    #[test]
+    fn focused_selected_folder_rows_paint_selected_hover_fill_and_marker() {
+        let mut folder = visible_folder_for_tests(false);
+        folder.focused = true;
+        folder.selected = true;
+
+        let frame = folder_row(&folder, 0)
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+        let selected_hover_fill = folder_tree_palette()
+            .selected_hovered
+            .expect("folder tree selected-hover fill");
+        let marker = folder_tree_selected_hover_marker();
+
+        assert!(
+            frame
+                .paint_plan
+                .fill_rects()
+                .any(|fill| fill.color == selected_hover_fill),
+            "focused selected folder rows should paint selected-hover fill"
+        );
+        assert!(
+            frame
+                .paint_plan
+                .fill_rects()
+                .any(|fill| fill.color == marker.color && fill.rect.width() == marker.parts.width),
+            "focused selected folder rows should paint the selected-hover marker"
         );
     }
 
