@@ -48,7 +48,8 @@ impl BrowserSelectionState {
         visible_ids: &[String],
     ) -> Option<bool> {
         let mut selection = self.folder_selection_model();
-        let selected = selection.toggle_focused(visible_ids)?;
+        let outcome = selection.toggle_focused_and_advance(visible_ids)?;
+        let selected = outcome.toggled_selected;
         self.apply_folder_selection_model(selection);
         self.clear_file_selection();
         Some(selected)
@@ -106,6 +107,7 @@ impl BrowserSelectionState {
         self.selected_folder = folder_id;
         self.selected_folder_ids
             .insert(self.selected_folder.clone());
+        self.selected_folder_ids_explicit = false;
         self.folder_selection_anchor
             .get_or_insert_with(|| self.selected_folder.clone());
     }
@@ -114,6 +116,7 @@ impl BrowserSelectionState {
         self.selected_folder = folder_id.clone();
         self.selected_folder_ids.clear();
         self.selected_folder_ids.insert(folder_id.clone());
+        self.selected_folder_ids_explicit = false;
         self.folder_selection_anchor = Some(folder_id);
     }
 
@@ -122,6 +125,7 @@ impl BrowserSelectionState {
             self.selected_folder.clone(),
             self.folder_selection_anchor.clone(),
             self.selected_folder_ids.clone(),
+            self.selected_folder_ids_explicit,
         )
     }
 
@@ -129,5 +133,6 @@ impl BrowserSelectionState {
         self.selected_folder = selection.focused_id().to_owned();
         self.folder_selection_anchor = selection.anchor_id().map(ToOwned::to_owned);
         self.selected_folder_ids = selection.selected_ids().clone();
+        self.selected_folder_ids_explicit = selection.explicit();
     }
 }

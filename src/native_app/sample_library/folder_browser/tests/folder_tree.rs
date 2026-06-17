@@ -179,6 +179,32 @@ fn folder_x_toggle_updates_focused_folder_membership() {
 }
 
 #[test]
+fn folder_x_toggle_marks_focused_folder_and_advances() {
+    let root = temp_source_root("wavecrate-gui-folder-x-mark-advance");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let root_id = path_id(&root);
+    let drums_id = path_id(&drums);
+
+    let result = browser
+        .toggle_focused_folder_selection()
+        .expect("focused folder should toggle");
+
+    assert!(result.selected);
+    assert_eq!(result.folder_id, root_id);
+    assert_eq!(result.selected_count, 1);
+    assert_eq!(browser.selection.selected_folder, drums_id);
+    assert_eq!(
+        browser.selection.selected_folder_ids,
+        folder_set(&[root_id.as_str()])
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn folder_tree_refresh_prunes_deleted_multi_selected_folders() {
     let root = temp_source_root("wavecrate-gui-folder-refresh-prunes-selection");
     let drums = root.join("drums");

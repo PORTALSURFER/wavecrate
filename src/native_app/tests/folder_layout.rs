@@ -66,18 +66,20 @@ fn x_toggle_marks_focused_folder_without_sample_focus() {
     let tempdir = tempfile::tempdir().expect("create temp root");
     let root = tempdir.path().join("wavecrate-folder-x-toggle");
     let drums = root.join("drums");
+    let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
     let mut state = NativeAppStateFixture::default()
         .with_folder_browser(FolderBrowserState::from_root(root.clone()))
         .build();
     let mut context = radiant::prelude::UiUpdateContext::default();
 
-    state.navigate_browser(1, true, false, &mut context);
     state.apply_message(GuiMessage::ToggleSelectedSampleAndAdvance, &mut context);
 
     let visible = state.library.folder_browser.visible_folders();
     let root_id = root.display().to_string();
     let drums_id = drums.display().to_string();
+    let loops_id = loops.display().to_string();
     let root_row = visible
         .iter()
         .find(|folder| folder.id == root_id)
@@ -90,7 +92,24 @@ fn x_toggle_marks_focused_folder_without_sample_focus() {
     assert!(!root_row.focused);
     assert!(!drums_row.selected);
     assert!(drums_row.focused);
-    assert!(state.ui.status.sample.contains("Unmarked"));
+    assert!(state.ui.status.sample.contains("Marked"));
+
+    state.apply_message(GuiMessage::ToggleSelectedSampleAndAdvance, &mut context);
+
+    let visible = state.library.folder_browser.visible_folders();
+    let drums_row = visible
+        .iter()
+        .find(|folder| folder.id == drums_id)
+        .expect("drums row should stay visible");
+    let loops_row = visible
+        .iter()
+        .find(|folder| folder.id == loops_id)
+        .expect("loops row should stay visible");
+    assert!(drums_row.selected);
+    assert!(!drums_row.focused);
+    assert!(!loops_row.selected);
+    assert!(loops_row.focused);
+    assert!(state.ui.status.sample.contains("2 selected"));
 }
 
 fn last_fixed_row_scroll(command: Command<GuiMessage>) -> Option<(usize, f32, usize, usize, i32)> {

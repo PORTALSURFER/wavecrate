@@ -11,6 +11,7 @@ mod reconciliation;
 pub(super) struct BrowserSelectionState {
     pub(super) selected_folder: String,
     pub(super) selected_folder_ids: HashSet<String>,
+    pub(super) selected_folder_ids_explicit: bool,
     pub(super) folder_selection_anchor: Option<String>,
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
@@ -32,6 +33,7 @@ impl BrowserSelectionState {
         Self {
             selected_folder: selected_folder.clone(),
             selected_folder_ids: [selected_folder].into_iter().collect(),
+            selected_folder_ids_explicit: false,
             folder_selection_anchor: None,
             selected_file: None,
             selected_file_ids: HashSet::new(),

@@ -135,7 +135,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.library.folder_browser.selected_file_id().is_none() {
-            self.toggle_focused_folder_selection();
+            self.toggle_focused_folder_selection(context);
             return;
         }
         let started_at = Instant::now();
@@ -296,7 +296,7 @@ impl NativeAppState {
         self.defer_navigation_sample_load(path, context);
     }
 
-    fn toggle_focused_folder_selection(&mut self) {
+    fn toggle_focused_folder_selection(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
         let started_at = Instant::now();
         let Some(result) = self
             .library
@@ -314,6 +314,16 @@ impl NativeAppState {
             );
             return;
         };
+        if let Some(index) = self.library.folder_browser.selected_folder_visible_index() {
+            context.scroll_fixed_row_into_view(
+                FOLDER_TREE_LIST_ID,
+                index,
+                TREE_ROW_HEIGHT,
+                FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                1,
+            );
+        }
         let action = if result.selected {
             "Marked"
         } else {
