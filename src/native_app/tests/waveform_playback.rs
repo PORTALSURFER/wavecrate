@@ -269,6 +269,7 @@ fn active_folder_cache_warm_completion(
         output: crate::native_app::app::ActiveFolderCacheWarmResult {
             folder_id,
             loaded,
+            processed: 1,
             cancelled,
         },
     }

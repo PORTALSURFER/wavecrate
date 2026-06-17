@@ -29,8 +29,12 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
+        let total = paths.len();
         self.waveform.cache.active_folder_warm_folder_id = Some(folder_id);
         self.waveform.cache.active_folder_warm_pending = paths.into();
+        self.waveform.cache.active_folder_warm_completed = 0;
+        self.waveform.cache.active_folder_warm_total = total;
+        self.waveform.cache.active_folder_warm_current = None;
         context.after_latest(
             &mut self.waveform.cache.active_folder_warm_delay_task,
             ACTIVE_FOLDER_CACHE_WARM_DELAY,
@@ -48,6 +52,9 @@ impl NativeAppState {
         }
         self.waveform.cache.active_folder_warm_folder_id = None;
         self.waveform.cache.active_folder_warm_pending.clear();
+        self.waveform.cache.active_folder_warm_completed = 0;
+        self.waveform.cache.active_folder_warm_total = 0;
+        self.waveform.cache.active_folder_warm_current = None;
     }
 
     pub(in crate::native_app) fn start_active_folder_cache_warm_after_delay(
@@ -96,6 +103,9 @@ impl NativeAppState {
         let paths = self.next_active_folder_cache_warm_batch();
         if paths.is_empty() {
             self.waveform.cache.active_folder_warm_folder_id = None;
+            self.waveform.cache.active_folder_warm_completed = 0;
+            self.waveform.cache.active_folder_warm_total = 0;
+            self.waveform.cache.active_folder_warm_current = None;
             return;
         }
         let key = active_folder_cache_warm_resource_key(&folder_id);
@@ -116,11 +126,13 @@ impl NativeAppState {
         self.waveform.cache.active_folder_warm_key = Some(key);
         self.waveform.cache.active_folder_warm_cancel = Some(warm.run(
             move |worker_context| {
+                let processed = paths.len();
                 let loaded =
                     warm_active_folder_waveform_cache(paths, || worker_context.is_cancelled());
                 ActiveFolderCacheWarmResult {
                     folder_id,
                     loaded,
+                    processed,
                     cancelled: worker_context.is_cancelled(),
                 }
             },
@@ -189,6 +201,13 @@ impl NativeAppState {
             let waveform = WaveformState::from_cached_file(file);
             self.remember_waveform(&waveform);
         }
+        self.waveform.cache.active_folder_warm_completed = self
+            .waveform
+            .cache
+            .active_folder_warm_completed
+            .saturating_add(result.processed)
+            .min(self.waveform.cache.active_folder_warm_total);
+        self.waveform.cache.active_folder_warm_current = None;
         if result.cancelled {
             return;
         }
@@ -206,10 +225,12 @@ impl NativeAppState {
 
     fn next_active_folder_cache_warm_batch(&mut self) -> Vec<std::path::PathBuf> {
         let entries = &self.waveform.cache.entries;
-        take_cache_warm_batch(
+        let batch = take_cache_warm_batch(
             &mut self.waveform.cache.active_folder_warm_pending,
             |path| entries.contains_key(path),
             ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES,
-        )
+        );
+        self.waveform.cache.active_folder_warm_current = batch.first().cloned();
+        batch
     }
 }

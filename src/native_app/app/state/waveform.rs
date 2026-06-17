@@ -57,6 +57,9 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) active_folder_warm_cancel: Option<ui::CancellationToken>,
     pub(in crate::native_app) active_folder_warm_folder_id: Option<String>,
     pub(in crate::native_app) active_folder_warm_pending: VecDeque<PathBuf>,
+    pub(in crate::native_app) active_folder_warm_completed: usize,
+    pub(in crate::native_app) active_folder_warm_total: usize,
+    pub(in crate::native_app) active_folder_warm_current: Option<PathBuf>,
     pub(in crate::native_app) cached_sample_paths: HashSet<String>,
 }
 
@@ -77,6 +80,9 @@ impl Default for WaveformCacheState {
             active_folder_warm_cancel: None,
             active_folder_warm_folder_id: None,
             active_folder_warm_pending: Default::default(),
+            active_folder_warm_completed: 0,
+            active_folder_warm_total: 0,
+            active_folder_warm_current: None,
             cached_sample_paths: Default::default(),
         }
     }

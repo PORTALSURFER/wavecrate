@@ -151,6 +151,64 @@ fn folder_activation_queues_entire_source_for_background_cache_warm() {
 }
 
 #[test]
+fn active_folder_cache_warm_tracks_worker_progress() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    write_test_wav_i16(
+        &source_root.path().join("first.wav"),
+        &[0, 1024, -2048, 4096],
+    );
+    write_test_wav_i16(
+        &source_root.path().join("second.wav"),
+        &[0, 512, -512, 1024],
+    );
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.schedule_active_folder_cache_warm(&mut context);
+
+    assert_eq!(state.waveform.cache.active_folder_warm_completed, 0);
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
+
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("source warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+
+    let running_ticket = active_folder_cache_warm_ticket(&state).expect("source warm task");
+    assert_eq!(state.waveform.cache.active_folder_warm_completed, 0);
+    assert!(state.waveform.cache.active_folder_warm_current.is_some());
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
+            active_folder_cache_warm_completion(
+                running_ticket,
+                source_root.path().display().to_string(),
+                Vec::new(),
+                false,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.cache.active_folder_warm_completed, 1);
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
+    assert!(state.waveform.cache.active_folder_warm_current.is_some());
+}
+
+#[test]
 fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");

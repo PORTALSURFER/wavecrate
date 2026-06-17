@@ -46,29 +46,28 @@ fn bottom_status_text(state: &NativeAppState) -> String {
             )
         };
     }
-    state
-        .background
-        .normalization_progress
-        .as_ref()
-        .map(|progress| {
-            let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
-            let queue = normalization_queue_status(progress.queued);
-            if counters.is_indeterminate() {
-                format!(
-                    "Normalizing {} | {}{}",
-                    progress.label, progress.detail, queue
-                )
-            } else {
-                format!(
-                    "Normalizing {} | {} | {}{}",
-                    progress.label,
-                    counters.count_label("items found"),
-                    progress.detail,
-                    queue
-                )
-            }
-        })
-        .unwrap_or_else(|| state.ui.status.sample.clone())
+    if let Some(progress) = state.background.normalization_progress.as_ref() {
+        let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+        let queue = normalization_queue_status(progress.queued);
+        return if counters.is_indeterminate() {
+            format!(
+                "Normalizing {} | {}{}",
+                progress.label, progress.detail, queue
+            )
+        } else {
+            format!(
+                "Normalizing {} | {} | {}{}",
+                progress.label,
+                counters.count_label("items found"),
+                progress.detail,
+                queue
+            )
+        };
+    }
+    if let Some(progress) = WorkerProgressViewModel::from_source_cache_warm(state) {
+        return source_cache_warm_status_text(state, progress);
+    }
+    state.ui.status.sample.clone()
 }
 
 fn normalization_queue_status(queued: usize) -> String {
@@ -91,6 +90,7 @@ fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewMo
                 .as_ref()
                 .map(WorkerProgressViewModel::from_normalization_progress)
         })
+        .or_else(|| WorkerProgressViewModel::from_source_cache_warm(state))
 }
 
 impl WorkerProgressViewModel {
@@ -106,5 +106,39 @@ impl WorkerProgressViewModel {
             completed: progress.work_completed,
             total: progress.work_total,
         }
+    }
+
+    fn from_source_cache_warm(state: &NativeAppState) -> Option<Self> {
+        let cache = &state.waveform.cache;
+        (cache.active_folder_warm_folder_id.is_some() && cache.active_folder_warm_total > 0)
+            .then_some(Self {
+                completed: cache.active_folder_warm_completed,
+                total: cache.active_folder_warm_total,
+            })
+    }
+}
+
+fn source_cache_warm_status_text(
+    state: &NativeAppState,
+    progress: WorkerProgressViewModel,
+) -> String {
+    let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+    let detail = state
+        .waveform
+        .cache
+        .active_folder_warm_current
+        .as_ref()
+        .and_then(|path| path.file_name())
+        .map(|name| name.to_string_lossy().to_string());
+    match detail {
+        Some(detail) => format!(
+            "Caching source samples | {} | {}",
+            counters.count_label("cached"),
+            detail
+        ),
+        None => format!(
+            "Caching source samples | {}",
+            counters.count_label("cached")
+        ),
     }
 }
