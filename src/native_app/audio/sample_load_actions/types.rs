@@ -16,6 +16,7 @@ pub(in crate::native_app) struct WaveformPlaybackResume {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum SampleLoadStrategy {
+    CacheThenDecode,
     Decode,
 }
 
@@ -79,7 +80,7 @@ mod tests {
             String::from("kick.wav"),
             true,
             ui::TaskPriority::Interactive,
-            SampleLoadStrategy::Decode,
+            SampleLoadStrategy::CacheThenDecode,
         );
 
         assert_eq!(request.path(), "kick.wav");

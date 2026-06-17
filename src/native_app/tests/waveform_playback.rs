@@ -231,6 +231,11 @@ fn wait_for_playback_ready_cache(sample_path: &str) {
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    assert!(
+        super::super::waveform::cached_waveform_file_playback_ready_exists(&path),
+        "playback-ready waveform cache marker was not written for {}",
+        path.display()
+    );
 }
 
 fn active_sample_load_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {

@@ -14,10 +14,14 @@ fn sample_selection_starts_foreground_load_for_persisted_cache_row_after_restart
         .map(|name| name.to_string_lossy().to_string())
         .expect("sample file name");
 
-    let waveform = crate::native_app::test_support::state::WaveformState::load_path(
-        sample_path.clone().into(),
-    )
-    .expect("cache sample");
+    let waveform =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone().into(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&sample_path);
@@ -137,8 +141,13 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     let sample_path = PathBuf::from(&sample_path_string);
 
     let waveform =
-        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
-            .expect("cache sample");
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("cache sample");
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&sample_path_string);
@@ -192,11 +201,8 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
             sample_load_completion(
                 ticket,
                 sample_path_string,
-                crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+                crate::native_app::test_support::state::WaveformState::load_persisted_playback_cache(
                     sample_path.clone(),
-                    |_| {},
-                    || false,
-                    |_| {},
                 ),
                 false,
             ),
@@ -206,7 +212,12 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
 
     assert_eq!(state.waveform.current.path(), sample_path);
     assert!(
-        !state.waveform.current.audio_bytes().is_empty(),
-        "foreground selection should decode source bytes instead of hydrating persisted cache payloads"
+        state.waveform.current.audio_bytes().is_empty(),
+        "playback-ready persisted cache should avoid re-reading source WAV bytes"
+    );
+    assert!(
+        state.waveform.current.playback_cache_file().is_some()
+            || state.waveform.current.playback_samples().is_some(),
+        "playback-ready persisted cache should hydrate an immediately playable payload"
     );
 }

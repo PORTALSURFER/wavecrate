@@ -63,13 +63,12 @@ impl FolderBrowserState {
         collect_local_cache_candidate_paths(folder, &name_query, max_files)
     }
 
-    pub(in crate::native_app) fn selected_folder_cache_warm_request(
+    pub(in crate::native_app) fn selected_source_cache_warm_request(
         &self,
-        max_files: usize,
     ) -> Option<(String, Vec<PathBuf>)> {
-        let folder = self.selected_folder()?;
-        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
-        let paths = collect_local_cache_candidate_paths(folder, &name_query, max_files);
+        let folder = self.selected_source_root_folder()?;
+        let mut paths = Vec::new();
+        collect_source_cache_candidate_paths(folder, &mut paths);
         Some((folder.id.clone(), paths))
     }
 
@@ -327,5 +326,19 @@ fn collect_collection_cache_candidate_paths(
             break;
         }
         collect_collection_cache_candidate_paths(child, collection, name_query, max_files, paths);
+    }
+}
+
+fn collect_source_cache_candidate_paths(folder: &FolderEntry, paths: &mut Vec<PathBuf>) {
+    paths.extend(
+        folder
+            .files
+            .iter()
+            .filter(|file| file.is_audio())
+            .map(|file| PathBuf::from(&file.id)),
+    );
+
+    for child in &folder.children {
+        collect_source_cache_candidate_paths(child, paths);
     }
 }

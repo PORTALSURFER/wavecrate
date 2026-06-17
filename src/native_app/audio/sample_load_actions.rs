@@ -21,8 +21,8 @@ mod worker;
 
 #[cfg(test)]
 pub(in crate::native_app) use cache::{
-    ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES, active_folder_cache_warm_priority,
-    warm_active_folder_waveform_cache, warm_persisted_waveform_cache,
+    active_folder_cache_warm_priority, warm_active_folder_waveform_cache,
+    warm_persisted_waveform_cache,
 };
 
 pub(super) use diagnostics::{

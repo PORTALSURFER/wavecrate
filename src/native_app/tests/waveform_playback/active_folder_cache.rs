@@ -112,18 +112,19 @@ fn folder_activation_delays_active_folder_cache_warm() {
 }
 
 #[test]
-fn folder_activation_bounds_active_folder_cache_warm_candidates() {
+fn folder_activation_queues_entire_source_for_background_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");
+    let nested = source_root.path().join("nested");
     fs::create_dir_all(&folder).expect("create folder");
-    let max_candidates =
-        crate::native_app::audio::sample_load_actions::ACTIVE_FOLDER_CACHE_WARM_MAX_PENDING_FILES;
-    for index in 0..max_candidates + 25 {
+    fs::create_dir_all(&nested).expect("create nested folder");
+    for index in 0..8 {
         fs::write(folder.join(format!("sample-{index:03}.wav")), []).expect("write sample");
     }
+    fs::write(nested.join("nested.wav"), []).expect("write nested sample");
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -144,8 +145,8 @@ fn folder_activation_bounds_active_folder_cache_warm_candidates() {
 
     assert_eq!(
         state.waveform.cache.active_folder_warm_pending.len(),
-        max_candidates,
-        "background cache warming must not enqueue every file in a large folder"
+        9,
+        "background cache warming should cover the whole selected source, not only the active folder"
     );
 }
 
@@ -394,12 +395,12 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         active_folder_cache_warm_ticket(&state).is_none(),
         "changing folders should cancel the active warm worker"
     );
-    let second_folder_id = second_folder.display().to_string();
+    let source_warm_id = source_root.path().display().to_string();
     assert_eq!(
         state.waveform.cache.active_folder_warm_folder_id.as_deref(),
-        Some(second_folder_id.as_str())
+        Some(source_warm_id.as_str())
     );
-    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 1);
+    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 2);
 }
 
 #[test]
@@ -442,7 +443,7 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
         crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
             active_folder_cache_warm_completion(
                 running_ticket,
-                folder.display().to_string(),
+                source_root.path().display().to_string(),
                 Vec::new(),
                 false,
             ),
@@ -583,8 +584,29 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
     );
     assert_eq!(
         state.waveform.current.path(),
-        PathBuf::from("synthetic-waveform"),
-        "selection should wait for the normal loading pipeline instead of hydrating a partial cache"
+        PathBuf::new(),
+        "selection should wait for worker completion instead of hydrating a partial cache on the UI thread"
+    );
+
+    let ticket = active_sample_load_ticket(&state).expect("foreground load queued");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                sample_path_string,
+                crate::native_app::test_support::state::WaveformState::load_persisted_playback_cache(
+                    sample_path.clone(),
+                ),
+                false,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.current.path(), sample_path);
+    assert!(
+        state.waveform.current.playback_samples().is_some(),
+        "summary-only persisted cache should be upgraded to playback-ready in the foreground worker"
     );
 }
 

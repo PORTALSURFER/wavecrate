@@ -130,7 +130,7 @@ impl NativeAppState {
             autoplay,
             context,
             ui::TaskPriority::Interactive,
-            SampleLoadStrategy::Decode,
+            SampleLoadStrategy::CacheThenDecode,
         );
     }
 

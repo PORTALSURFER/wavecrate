@@ -67,10 +67,37 @@ impl SampleLoadWorker {
         progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
     ) -> Result<WaveformState, String> {
         match self.request.strategy() {
+            SampleLoadStrategy::CacheThenDecode => {
+                self.load_cached_sample_or_decode(context, events, progress_reporter)
+            }
             SampleLoadStrategy::Decode => {
                 self.load_decoded_sample(context, events, progress_reporter)
             }
         }
+    }
+
+    fn load_cached_sample_or_decode(
+        &self,
+        context: &radiant::runtime::BusinessWorkContext,
+        events: &ui::BusinessEventSink<SampleLoadWorkerEvent>,
+        progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
+    ) -> Result<WaveformState, String> {
+        let phase_started_at = Instant::now();
+        if let Ok(waveform) =
+            WaveformState::load_persisted_playback_cache(PathBuf::from(self.request.path()))
+        {
+            log_sample_load_timing(
+                "browser.sample_load.worker.persisted_playback_cache",
+                self.request.path(),
+                phase_started_at.elapsed(),
+                true,
+            );
+            let result = Ok(waveform);
+            log_loaded_sample_metadata(self.request.path(), &result, "persisted_playback_cache");
+            return result;
+        }
+
+        self.load_decoded_sample(context, events, progress_reporter)
     }
 
     fn load_decoded_sample(
