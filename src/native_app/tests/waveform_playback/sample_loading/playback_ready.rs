@@ -102,6 +102,7 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         Some(sample_path_string.as_str())
     );
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert!(!state.waveform.current.has_loaded_sample());
     assert!(
         !state.waveform.current.is_playing(),
         "waveform visuals should wait for full waveform completion"
@@ -124,4 +125,54 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
     assert_eq!(state.audio.early_sample_playback_path, None);
     assert!(state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+}
+
+#[test]
+fn uncached_sample_load_clears_previous_waveform_until_current_waveform_finishes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let previous_path = source_root.path().join("previous.wav");
+    let selected_path = source_root.path().join("selected.wav");
+    write_test_wav_i16(&previous_path, &[0, 256, -256, 512]);
+    write_test_wav_i16(&selected_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let selected_path_string = selected_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(previous_path)
+            .expect("previous waveform loads");
+    assert!(state.waveform.current.has_loaded_sample());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: selected_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(selected_path_string.as_str())
+    );
+    assert!(
+        !state.waveform.current.has_loaded_sample(),
+        "starting an uncached load must not keep drawing the previous sample waveform"
+    );
+    assert_eq!(state.waveform.load.label.as_deref(), Some("selected.wav"));
+    assert!(state.waveform_input_blocked_by_sample_load());
+    let frame = crate::native_app::test_support::state::view(&mut state)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(900.0, 620.0));
+    assert!(
+        frame.paint_plan.contains_text("Loading selected.wav"),
+        "waveform panel should identify the current sample loading state"
+    );
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "uncached sample selection should queue foreground sample loading"
+    );
 }

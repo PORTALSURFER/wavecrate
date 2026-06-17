@@ -12,7 +12,7 @@ pub(in crate::native_app) fn waveform_panel(
 ) -> ui::View<GuiMessage> {
     ui::column([
         waveform_panel_header(model.waveform),
-        ui::text_line(waveform_title(model.waveform), 18.0),
+        ui::text_line(waveform_title(model.waveform, model.loading_label), 18.0),
         waveform_viewport_with_loading_state(&model),
         waveform_scrollbar(model.waveform),
     ])
@@ -83,7 +83,10 @@ fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
         .height(WAVEFORM_VIEW_HEIGHT)
 }
 
-fn waveform_title(waveform: &WaveformState) -> String {
+fn waveform_title(waveform: &WaveformState, loading_label: Option<&str>) -> String {
+    if let Some(label) = loading_label {
+        return format!("Loading {label}");
+    }
     if !waveform.has_loaded_sample() {
         return String::from("No sample loaded");
     }

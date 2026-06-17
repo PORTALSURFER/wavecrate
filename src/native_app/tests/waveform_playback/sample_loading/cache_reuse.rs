@@ -2,15 +2,19 @@ use super::*;
 
 #[test]
 fn sample_selection_loads_selected_file_into_waveform() {
-    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
-        .with_synthetic_waveform()
-        .with_sample_status("")
-        .build();
-    let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("selected.wav");
+    write_test_wav_i16(&sample, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path = sample.display().to_string();
     let sample_name = PathBuf::from(&sample_path)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .expect("sample file name");
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
 
     let mut context = ui::UiUpdateContext::default();
     state.apply_message(

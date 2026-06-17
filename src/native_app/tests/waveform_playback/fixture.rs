@@ -18,19 +18,24 @@ impl WaveformPlaybackScenario {
     }
 
     pub(super) fn default_loaded_with_player() -> Option<Self> {
-        let mut state = gui_state_for_span_tests();
+        let (mut state, source_root, selected_file) =
+            native_app_state_with_temp_sample("loaded-playback.wav");
+        write_test_wav_i16(
+            &PathBuf::from(&selected_file),
+            &[0, 1024, -2048, 4096, -1024, 512],
+        );
         if !install_playback_runtime_for_tests(&mut state) {
             return None;
         }
-        let sample_path = first_visible_asset_file_path(&state.library.folder_browser);
-        state.waveform.current =
-            crate::native_app::test_support::state::WaveformState::load_path(sample_path.into())
-                .expect("test sample loads");
+        state.waveform.current = crate::native_app::test_support::state::WaveformState::load_path(
+            PathBuf::from(&selected_file),
+        )
+        .expect("test sample loads");
         Some(Self {
             state,
             context: ui::UiUpdateContext::default(),
-            _source_root: None,
-            selected_file: None,
+            _source_root: Some(source_root),
+            selected_file: Some(selected_file),
         })
     }
 

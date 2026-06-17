@@ -33,17 +33,6 @@ mod transactions;
 mod waveform_playback;
 mod window_chrome;
 
-fn first_visible_asset_file_path(
-    browser: &super::test_support::state::FolderBrowserState,
-) -> String {
-    browser
-        .selected_audio_files()
-        .first()
-        .unwrap_or_else(|| panic!("expected at least one visible audio sample"))
-        .id
-        .clone()
-}
-
 fn gui_state_for_span_tests() -> NativeAppState {
     super::test_support::state::NativeAppStateFixture::default()
         .with_synthetic_waveform()

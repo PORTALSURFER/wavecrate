@@ -107,6 +107,7 @@ impl NativeAppState {
         started_at: Instant,
     ) {
         self.stop_current_sample_playback_for_load();
+        self.replace_waveform_deferred(crate::native_app::app::WaveformState::empty());
         self.ui.status.sample = format!("Loading {}", sample_path_label(path));
         let label = sample_path_label(path);
         self.waveform.load.label = Some(label.clone());
