@@ -33,7 +33,7 @@ fn wav_load_reports_playback_ready_before_waveform_summary_completion() {
 }
 
 #[test]
-fn playback_ready_message_starts_audio_before_full_waveform_finish() {
+fn playback_ready_message_waits_for_waveform_before_starting_audio() {
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;
     };
@@ -97,16 +97,15 @@ fn playback_ready_message_starts_audio_before_full_waveform_finish() {
         &mut context,
     );
 
-    assert_eq!(
-        state.audio.early_sample_playback_path.as_deref(),
-        Some(sample_path_string.as_str())
-    );
-    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.current_playback_span, None);
+    assert!(state.audio.pending_runtime_start.is_none());
     assert!(!state.waveform.current.has_loaded_sample());
     assert!(
         !state.waveform.current.is_playing(),
         "waveform visuals should wait for full waveform completion"
     );
+    assert_eq!(state.ui.status.sample, "Preparing early-message.wav");
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
