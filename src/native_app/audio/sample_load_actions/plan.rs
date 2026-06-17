@@ -106,8 +106,14 @@ impl NativeAppState {
         outcome: &'static str,
         started_at: Instant,
     ) {
+        let keep_audible_waveform_visible = self.waveform.current.is_playing()
+            || self.audio.current_playback_span.is_some()
+            || self.audio.pending_runtime_start.is_some()
+            || self.audio.early_sample_playback_path.is_some();
         self.stop_current_sample_playback_for_load();
-        self.replace_waveform_deferred(crate::native_app::app::WaveformState::empty());
+        if !keep_audible_waveform_visible {
+            self.replace_waveform_deferred(crate::native_app::app::WaveformState::empty());
+        }
         self.ui.status.sample = format!("Loading {}", sample_path_label(path));
         let label = sample_path_label(path);
         self.waveform.load.label = Some(label.clone());
