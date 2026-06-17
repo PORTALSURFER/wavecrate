@@ -6,9 +6,10 @@ use crate::native_app::{
     audio::sample_load_actions::{
         active_folder_cache_warm_resource_key,
         cache::{
-            ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_DELAY,
-            active_folder_cache_warm_priority, logging::log_slow_cache_phase,
-            persisted_warm::take_cache_warm_batch, workers::warm_active_folder_waveform_cache,
+            ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
+            ACTIVE_FOLDER_CACHE_WARM_INITIAL_DELAY, active_folder_cache_warm_priority,
+            logging::log_slow_cache_phase, persisted_warm::take_cache_warm_batch,
+            workers::warm_active_folder_waveform_cache,
         },
     },
 };
@@ -37,7 +38,7 @@ impl NativeAppState {
         self.waveform.cache.active_folder_warm_current = None;
         context.after_latest(
             &mut self.waveform.cache.active_folder_warm_delay_task,
-            ACTIVE_FOLDER_CACHE_WARM_DELAY,
+            ACTIVE_FOLDER_CACHE_WARM_INITIAL_DELAY,
             GuiMessage::ActiveFolderCacheWarmReady,
         );
     }
@@ -150,12 +151,16 @@ impl NativeAppState {
         if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
             self.waveform.cache.active_folder_warm_tasks.cancel(&key);
         }
-        self.reschedule_active_folder_cache_warm_delay(context);
+        self.reschedule_active_folder_cache_warm_delay(
+            context,
+            ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
+        );
     }
 
     fn reschedule_active_folder_cache_warm_delay(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
+        delay: std::time::Duration,
     ) {
         if self.waveform.cache.active_folder_warm_folder_id.is_none()
             || self.waveform.cache.active_folder_warm_pending.is_empty()
@@ -170,7 +175,7 @@ impl NativeAppState {
         }
         context.after_latest(
             &mut self.waveform.cache.active_folder_warm_delay_task,
-            ACTIVE_FOLDER_CACHE_WARM_DELAY,
+            delay,
             GuiMessage::ActiveFolderCacheWarmReady,
         );
     }
@@ -216,10 +221,20 @@ impl NativeAppState {
             Path::new(&result.folder_id),
             started_at,
         );
-        if self.sample_cache_warm_should_yield() {
-            self.reschedule_active_folder_cache_warm_delay(context);
+        if self.waveform.cache.active_folder_warm_pending.is_empty() {
+            self.waveform.cache.active_folder_warm_folder_id = None;
+            self.waveform.cache.active_folder_warm_completed = 0;
+            self.waveform.cache.active_folder_warm_total = 0;
+        } else if self.sample_cache_warm_should_yield() {
+            self.reschedule_active_folder_cache_warm_delay(
+                context,
+                ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
+            );
         } else {
-            self.maybe_start_active_folder_cache_warm(context);
+            self.reschedule_active_folder_cache_warm_delay(
+                context,
+                ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
+            );
         }
     }
 

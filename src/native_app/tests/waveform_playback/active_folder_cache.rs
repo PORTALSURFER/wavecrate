@@ -205,7 +205,20 @@ fn active_folder_cache_warm_tracks_worker_progress() {
 
     assert_eq!(state.waveform.cache.active_folder_warm_completed, 1);
     assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
-    assert!(state.waveform.cache.active_folder_warm_current.is_some());
+    assert!(state.waveform.cache.active_folder_warm_current.is_none());
+    assert!(
+        active_folder_cache_warm_ticket(&state).is_none(),
+        "cache warm should cool down between files instead of chaining immediately"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_some(),
+        "cache warm should schedule the next file after a delay"
+    );
 }
 
 #[test]
