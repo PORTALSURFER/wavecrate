@@ -12,6 +12,18 @@ pub(crate) struct EmbeddingUpsert<'a> {
     pub(crate) created_at: i64,
 }
 
+/// Typed inputs for inserting or replacing one aspect descriptor row.
+pub(crate) struct AspectDescriptorUpsert<'a> {
+    pub(crate) sample_id: &'a str,
+    pub(crate) model_id: &'a str,
+    pub(crate) dim: i64,
+    pub(crate) dtype: &'a str,
+    pub(crate) l2_normed: bool,
+    pub(crate) valid_mask: u32,
+    pub(crate) vec_blob: &'a [u8],
+    pub(crate) created_at: i64,
+}
+
 pub(crate) fn invalidate_analysis_artifacts(
     conn: &mut Connection,
     sample_ids: &[String],
@@ -38,6 +50,9 @@ pub(crate) fn invalidate_analysis_artifacts_in_tx(
     let mut stmt_embeddings = tx
         .prepare("DELETE FROM embeddings WHERE sample_id = ?1")
         .map_err(|err| format!("Failed to prepare analysis invalidation statement: {err}"))?;
+    let mut stmt_aspects = tx
+        .prepare("DELETE FROM similarity_aspect_descriptors WHERE sample_id = ?1")
+        .map_err(|err| format!("Failed to prepare analysis invalidation statement: {err}"))?;
     let mut stmt_legacy_features = tx
         .prepare("DELETE FROM analysis_features WHERE sample_id = ?1")
         .map_err(|err| format!("Failed to prepare analysis invalidation statement: {err}"))?;
@@ -48,12 +63,16 @@ pub(crate) fn invalidate_analysis_artifacts_in_tx(
         stmt_embeddings
             .execute(params![sample_id])
             .map_err(|err| format!("Failed to invalidate embeddings: {err}"))?;
+        stmt_aspects
+            .execute(params![sample_id])
+            .map_err(|err| format!("Failed to invalidate aspect descriptors: {err}"))?;
         stmt_legacy_features
             .execute(params![sample_id])
             .map_err(|err| format!("Failed to invalidate analysis features: {err}"))?;
     }
     drop(stmt_features);
     drop(stmt_embeddings);
+    drop(stmt_aspects);
     drop(stmt_legacy_features);
     Ok(())
 }
@@ -114,5 +133,36 @@ pub(crate) fn upsert_embedding(
         ],
     )
     .map_err(|err| format!("Failed to upsert embedding: {err}"))?;
+    Ok(())
+}
+
+pub(crate) fn upsert_aspect_descriptors(
+    conn: &Connection,
+    descriptors: AspectDescriptorUpsert<'_>,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO similarity_aspect_descriptors
+            (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(sample_id) DO UPDATE SET
+            model_id = excluded.model_id,
+            dim = excluded.dim,
+            dtype = excluded.dtype,
+            l2_normed = excluded.l2_normed,
+            valid_mask = excluded.valid_mask,
+            vec = excluded.vec,
+            created_at = excluded.created_at",
+        params![
+            descriptors.sample_id,
+            descriptors.model_id,
+            descriptors.dim,
+            descriptors.dtype,
+            descriptors.l2_normed,
+            i64::from(descriptors.valid_mask),
+            descriptors.vec_blob,
+            descriptors.created_at
+        ],
+    )
+    .map_err(|err| format!("Failed to upsert aspect descriptors: {err}"))?;
     Ok(())
 }

@@ -16,7 +16,7 @@ pub use analysis::{
     flush_ann_index, infer_embedding, light_dsp_from_features_v1, preprocess_mono_for_embedding,
     rebuild_ann_index, write_layout_report,
 };
-pub use analysis::{ann_index, hdbscan, similarity, umap, vector};
+pub use analysis::{ann_index, aspects, hdbscan, similarity, umap, vector};
 
 /// Fixed sample rate used during analysis.
 pub use analysis::audio::ANALYSIS_SAMPLE_RATE;

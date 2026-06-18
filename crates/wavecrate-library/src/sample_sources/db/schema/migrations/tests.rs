@@ -88,3 +88,31 @@ fn collection_membership_schema_backfills_legacy_collection_column() {
         .unwrap();
     assert_eq!(collection, 2);
 }
+
+#[test]
+fn aspect_descriptor_schema_creates_current_and_cache_tables() {
+    let conn = Connection::open_in_memory().unwrap();
+
+    ensure_aspect_descriptor_tables(&conn).unwrap();
+
+    let current_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_master
+             WHERE type = 'table' AND name = 'similarity_aspect_descriptors'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let cache_exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_master
+             WHERE type = 'table' AND name = 'analysis_cache_aspect_descriptors'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(current_exists, 1);
+    assert_eq!(cache_exists, 1);
+}

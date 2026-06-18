@@ -42,6 +42,7 @@ pub(crate) fn run_analysis_job(
                 content_hash,
                 features,
                 embedding,
+                cache.aspect_descriptors.as_ref(),
                 embedding_vec,
                 context.analysis_version,
             )?;

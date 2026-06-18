@@ -16,11 +16,13 @@ mod types;
 mod tests;
 
 pub(crate) use self::artifacts::{
-    AnalysisMetadataUpdate, CachedEmbedding, CachedEmbeddingUpsert, CachedFeatures,
-    CachedFeaturesUpsert, EmbeddingUpsert, cached_embedding_by_hash, cached_features_by_hash,
-    invalidate_analysis_artifacts_in_tx, update_analysis_metadata, update_sample_duration,
-    update_sample_long_mark, upsert_analysis_features, upsert_cached_embedding,
-    upsert_cached_features, upsert_embedding,
+    AnalysisMetadataUpdate, AspectDescriptorUpsert, CachedAspectDescriptors,
+    CachedAspectDescriptorsUpsert, CachedEmbedding, CachedEmbeddingUpsert, CachedFeatures,
+    CachedFeaturesUpsert, EmbeddingUpsert, cached_aspect_descriptors_by_hash,
+    cached_embedding_by_hash, cached_features_by_hash, invalidate_analysis_artifacts_in_tx,
+    update_analysis_metadata, update_sample_duration, update_sample_long_mark,
+    upsert_analysis_features, upsert_aspect_descriptors, upsert_cached_aspect_descriptors,
+    upsert_cached_embedding, upsert_cached_features, upsert_embedding,
 };
 pub(crate) use ann_index::{
     clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,

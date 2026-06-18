@@ -164,3 +164,59 @@ fn upsert_analysis_features_overwrites_existing() {
     assert_eq!(rms, Some(0.5));
     assert_eq!(computed_at, 200);
 }
+
+#[test]
+fn upsert_aspect_descriptors_overwrites_existing() {
+    let db = TestDb::new();
+    upsert_aspect_descriptors(
+        &db.conn,
+        AspectDescriptorUpsert {
+            sample_id: "s::a.wav",
+            model_id: "model-a",
+            dim: 2,
+            dtype: "f32",
+            l2_normed: true,
+            valid_mask: 0b0011,
+            vec_blob: b"one",
+            created_at: 100,
+        },
+    )
+    .unwrap();
+    upsert_aspect_descriptors(
+        &db.conn,
+        AspectDescriptorUpsert {
+            sample_id: "s::a.wav",
+            model_id: "model-b",
+            dim: 3,
+            dtype: "f32",
+            l2_normed: true,
+            valid_mask: 0b1111,
+            vec_blob: b"two",
+            created_at: 200,
+        },
+    )
+    .unwrap();
+    let (model, dim, mask, blob, computed_at): (String, i64, i64, Vec<u8>, i64) = db
+        .conn
+        .query_row(
+            "SELECT model_id, dim, valid_mask, vec, created_at
+             FROM similarity_aspect_descriptors
+             WHERE sample_id = 's::a.wav'",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .unwrap();
+    assert_eq!(model, "model-b");
+    assert_eq!(dim, 3);
+    assert_eq!(mask, 0b1111);
+    assert_eq!(blob, b"two");
+    assert_eq!(computed_at, 200);
+}

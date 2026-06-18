@@ -97,6 +97,14 @@ impl TestDb {
                 params![sample_id],
             )
             .unwrap();
+        self.conn
+            .execute(
+                "INSERT INTO similarity_aspect_descriptors
+                    (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+                 VALUES (?1, 'm', 1, 'f32', 1, 1, x'00', 0)",
+                params![sample_id],
+            )
+            .unwrap();
     }
 }
 
@@ -250,6 +258,16 @@ const SCHEMA_SQL: &str = "CREATE TABLE analysis_jobs (
         dim INTEGER NOT NULL,
         dtype TEXT NOT NULL,
         l2_normed INTEGER NOT NULL,
+        vec BLOB NOT NULL,
+        created_at INTEGER NOT NULL
+    ) WITHOUT ROWID;
+    CREATE TABLE similarity_aspect_descriptors (
+        sample_id TEXT PRIMARY KEY,
+        model_id TEXT NOT NULL,
+        dim INTEGER NOT NULL,
+        dtype TEXT NOT NULL,
+        l2_normed INTEGER NOT NULL,
+        valid_mask INTEGER NOT NULL,
         vec BLOB NOT NULL,
         created_at INTEGER NOT NULL
     ) WITHOUT ROWID;

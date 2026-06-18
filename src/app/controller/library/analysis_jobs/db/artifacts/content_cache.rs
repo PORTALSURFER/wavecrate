@@ -19,6 +19,16 @@ pub(crate) struct CachedEmbedding {
     pub(crate) created_at: i64,
 }
 
+pub(crate) struct CachedAspectDescriptors {
+    pub(crate) model_id: String,
+    pub(crate) dim: i64,
+    pub(crate) dtype: String,
+    pub(crate) l2_normed: bool,
+    pub(crate) valid_mask: u32,
+    pub(crate) vec_blob: Vec<u8>,
+    pub(crate) created_at: i64,
+}
+
 /// Typed inputs for caching reusable feature vectors by content hash.
 pub(crate) struct CachedFeaturesUpsert<'a> {
     pub(crate) content_hash: &'a str,
@@ -40,6 +50,19 @@ pub(crate) struct CachedEmbeddingUpsert<'a> {
     pub(crate) dim: i64,
     pub(crate) dtype: &'a str,
     pub(crate) l2_normed: bool,
+    pub(crate) vec_blob: &'a [u8],
+    pub(crate) created_at: i64,
+}
+
+/// Typed inputs for caching reusable aspect descriptors by content hash and model.
+pub(crate) struct CachedAspectDescriptorsUpsert<'a> {
+    pub(crate) content_hash: &'a str,
+    pub(crate) analysis_version: &'a str,
+    pub(crate) model_id: &'a str,
+    pub(crate) dim: i64,
+    pub(crate) dtype: &'a str,
+    pub(crate) l2_normed: bool,
+    pub(crate) valid_mask: u32,
     pub(crate) vec_blob: &'a [u8],
     pub(crate) created_at: i64,
 }
@@ -95,6 +118,33 @@ pub(crate) fn cached_embedding_by_hash(
     )
     .optional()
     .map_err(|err| format!("Failed to load cached embedding for {content_hash}: {err}"))
+}
+
+pub(crate) fn cached_aspect_descriptors_by_hash(
+    conn: &Connection,
+    content_hash: &str,
+    analysis_version: &str,
+    model_id: &str,
+) -> Result<Option<CachedAspectDescriptors>, String> {
+    conn.query_row(
+        "SELECT model_id, dim, dtype, l2_normed, valid_mask, vec, created_at
+         FROM analysis_cache_aspect_descriptors
+         WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?3",
+        params![content_hash, analysis_version, model_id],
+        |row| {
+            Ok(CachedAspectDescriptors {
+                model_id: row.get(0)?,
+                dim: row.get(1)?,
+                dtype: row.get(2)?,
+                l2_normed: row.get::<_, i64>(3)? != 0,
+                valid_mask: row.get::<_, i64>(4)? as u32,
+                vec_blob: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|err| format!("Failed to load cached aspect descriptors for {content_hash}: {err}"))
 }
 
 pub(crate) fn upsert_cached_features(
@@ -157,5 +207,37 @@ pub(crate) fn upsert_cached_embedding(
         ],
     )
     .map_err(|err| format!("Failed to upsert cached embedding: {err}"))?;
+    Ok(())
+}
+
+pub(crate) fn upsert_cached_aspect_descriptors(
+    conn: &Connection,
+    descriptors: CachedAspectDescriptorsUpsert<'_>,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO analysis_cache_aspect_descriptors
+            (content_hash, analysis_version, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+         ON CONFLICT(content_hash, model_id) DO UPDATE SET
+            analysis_version = excluded.analysis_version,
+            dim = excluded.dim,
+            dtype = excluded.dtype,
+            l2_normed = excluded.l2_normed,
+            valid_mask = excluded.valid_mask,
+            vec = excluded.vec,
+            created_at = excluded.created_at",
+        params![
+            descriptors.content_hash,
+            descriptors.analysis_version,
+            descriptors.model_id,
+            descriptors.dim,
+            descriptors.dtype,
+            descriptors.l2_normed,
+            i64::from(descriptors.valid_mask),
+            descriptors.vec_blob,
+            descriptors.created_at
+        ],
+    )
+    .map_err(|err| format!("Failed to upsert cached aspect descriptors: {err}"))?;
     Ok(())
 }

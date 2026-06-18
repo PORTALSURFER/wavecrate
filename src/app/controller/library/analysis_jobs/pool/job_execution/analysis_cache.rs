@@ -5,6 +5,7 @@ use super::support::load_embedding_vec_optional;
 pub(crate) struct CacheLookup {
     pub(crate) features: Option<db::CachedFeatures>,
     pub(crate) embedding: Option<db::CachedEmbedding>,
+    pub(crate) aspect_descriptors: Option<db::CachedAspectDescriptors>,
     pub(crate) embedding_vec: Option<Vec<f32>>,
 }
 
@@ -25,6 +26,12 @@ pub(crate) fn lookup_cache_by_hash(
         analysis_version,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     )?;
+    let aspect_descriptors = db::cached_aspect_descriptors_by_hash(
+        conn,
+        content_hash,
+        analysis_version,
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+    )?;
     let embedding_vec = embedding
         .as_ref()
         .and_then(|embedding| wavecrate_analysis::decode_f32_le_blob(&embedding.vec_blob).ok())
@@ -32,6 +39,7 @@ pub(crate) fn lookup_cache_by_hash(
     Ok(CacheLookup {
         features,
         embedding,
+        aspect_descriptors,
         embedding_vec,
     })
 }

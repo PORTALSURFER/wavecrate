@@ -11,6 +11,7 @@ pub(crate) fn apply_cached_features_and_embedding(
     content_hash: &str,
     features: &db::CachedFeatures,
     embedding: &db::CachedEmbedding,
+    aspect_descriptors: Option<&db::CachedAspectDescriptors>,
     embedding_vec: &[f32],
     analysis_version: &str,
 ) -> Result<(), String> {
@@ -21,6 +22,7 @@ pub(crate) fn apply_cached_features_and_embedding(
         content_hash,
         features,
         embedding,
+        aspect_descriptors,
         analysis_version,
     )? {
         return Ok(());
@@ -152,8 +154,10 @@ fn persist_decoded_analysis_write_in_tx(
         wavecrate_analysis::vector::FEATURE_VERSION_V1,
         write.computed_at,
     )?;
+    db::upsert_aspect_descriptors(conn, write.aspect_descriptor_upsert())?;
     db::upsert_cached_features(conn, write.cached_features_upsert())?;
     db::upsert_cached_embedding(conn, write.cached_embedding_upsert())?;
+    db::upsert_cached_aspect_descriptors(conn, write.cached_aspect_descriptor_upsert())?;
     Ok(true)
 }
 
@@ -164,8 +168,10 @@ fn persist_cached_analysis_write(
     content_hash: &str,
     features: &db::CachedFeatures,
     embedding: &db::CachedEmbedding,
+    aspect_descriptors: Option<&db::CachedAspectDescriptors>,
     analysis_version: &str,
 ) -> Result<bool, String> {
+    let aspect_write = cached_aspect_descriptor_write(features, aspect_descriptors)?;
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_persist_cached")
         .map_err(|err| format!("Failed to start cached analysis transaction: {err}"))?;
     if db::sample_content_hash(&tx, &job.sample_id)?.as_deref() != Some(content_hash) {
@@ -204,10 +210,72 @@ fn persist_cached_analysis_write(
             created_at: embedding.created_at,
         },
     )?;
+    db::upsert_aspect_descriptors(
+        &tx,
+        db::AspectDescriptorUpsert {
+            sample_id: &job.sample_id,
+            model_id: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+            dim: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+            dtype: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            l2_normed: true,
+            valid_mask: aspect_write.valid_mask,
+            vec_blob: &aspect_write.vec_blob,
+            created_at: aspect_write.created_at,
+        },
+    )?;
+    db::upsert_cached_aspect_descriptors(
+        &tx,
+        db::CachedAspectDescriptorsUpsert {
+            content_hash,
+            analysis_version,
+            model_id: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+            dim: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+            dtype: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            l2_normed: true,
+            valid_mask: aspect_write.valid_mask,
+            vec_blob: &aspect_write.vec_blob,
+            created_at: aspect_write.created_at,
+        },
+    )?;
     telemetry::commit_transaction(tx, "analysis_persist_cached")
         .map_err(|err| format!("Failed to commit cached analysis transaction: {err}"))?;
     maybe_checkpoint_source_db(source_root);
     Ok(true)
+}
+
+struct AspectDescriptorWrite {
+    vec_blob: Vec<u8>,
+    valid_mask: u32,
+    created_at: i64,
+}
+
+fn cached_aspect_descriptor_write(
+    features: &db::CachedFeatures,
+    cached: Option<&db::CachedAspectDescriptors>,
+) -> Result<AspectDescriptorWrite, String> {
+    if let Some(cached) = cached.filter(|cached| cached_aspect_descriptor_is_current(cached)) {
+        return Ok(AspectDescriptorWrite {
+            vec_blob: cached.vec_blob.clone(),
+            valid_mask: cached.valid_mask,
+            created_at: cached.created_at,
+        });
+    }
+    let feature_values = wavecrate_analysis::decode_f32_le_blob(&features.vec_blob)?;
+    let descriptors =
+        wavecrate_analysis::aspects::aspect_descriptors_from_features_v1(&feature_values)?;
+    Ok(AspectDescriptorWrite {
+        vec_blob: wavecrate_analysis::vector::encode_f32_le_blob(descriptors.packed()),
+        valid_mask: descriptors.valid_mask(),
+        created_at: features.computed_at,
+    })
+}
+
+fn cached_aspect_descriptor_is_current(cached: &db::CachedAspectDescriptors) -> bool {
+    cached.model_id == wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID
+        && cached.dim == wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64
+        && cached.dtype == wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32
+        && cached.l2_normed
+        && cached.vec_blob.len() == wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4
 }
 
 fn maybe_checkpoint_source_db(source_root: Option<&Path>) {

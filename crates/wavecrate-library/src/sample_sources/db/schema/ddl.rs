@@ -128,6 +128,19 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         created_at INTEGER NOT NULL
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS idx_embeddings_model_id ON embeddings (model_id);
+    CREATE TABLE IF NOT EXISTS similarity_aspect_descriptors (
+        sample_id TEXT PRIMARY KEY,
+        model_id TEXT NOT NULL,
+        dim INTEGER NOT NULL,
+        dtype TEXT NOT NULL,
+        l2_normed INTEGER NOT NULL,
+        valid_mask INTEGER NOT NULL,
+        vec BLOB NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY(sample_id) REFERENCES samples(sample_id) ON DELETE CASCADE
+    ) WITHOUT ROWID;
+    CREATE INDEX IF NOT EXISTS idx_similarity_aspect_descriptors_model_id
+        ON similarity_aspect_descriptors (model_id);
     CREATE TABLE IF NOT EXISTS analysis_cache_features (
         content_hash TEXT PRIMARY KEY,
         analysis_version TEXT NOT NULL,
@@ -152,6 +165,20 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS idx_cache_embeddings_model_id
         ON analysis_cache_embeddings (model_id);
+    CREATE TABLE IF NOT EXISTS analysis_cache_aspect_descriptors (
+        content_hash TEXT NOT NULL,
+        analysis_version TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        dim INTEGER NOT NULL,
+        dtype TEXT NOT NULL,
+        l2_normed INTEGER NOT NULL,
+        valid_mask INTEGER NOT NULL,
+        vec BLOB NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (content_hash, model_id)
+    ) WITHOUT ROWID;
+    CREATE INDEX IF NOT EXISTS idx_cache_aspect_descriptors_model_id
+        ON analysis_cache_aspect_descriptors (model_id);
     CREATE TABLE IF NOT EXISTS ann_index_meta (
         model_id TEXT PRIMARY KEY,
         index_path TEXT NOT NULL,

@@ -2,6 +2,8 @@
 
 /// Approximate nearest neighbor index helpers for similarity search.
 pub mod ann_index;
+/// Aspect descriptor helpers for similarity feedback.
+pub mod aspects;
 pub(crate) mod audio;
 pub(crate) mod audio_decode;
 pub(crate) mod features;

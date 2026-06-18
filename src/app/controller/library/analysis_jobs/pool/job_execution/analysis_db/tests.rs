@@ -19,7 +19,9 @@ fn decoded_analysis_write_rolls_back_on_late_failure() {
     );
     assert_eq!(count_rows(&conn, "features"), 0);
     assert_eq!(count_rows(&conn, "embeddings"), 0);
+    assert_eq!(count_rows(&conn, "similarity_aspect_descriptors"), 0);
     assert_eq!(count_rows(&conn, "analysis_cache_features"), 0);
+    assert_eq!(count_rows(&conn, "analysis_cache_aspect_descriptors"), 0);
 }
 
 #[test]
@@ -52,8 +54,10 @@ fn decoded_analysis_batch_rolls_back_all_items_on_second_item_failure() {
     );
     assert_eq!(count_rows(&conn, "features"), 0);
     assert_eq!(count_rows(&conn, "embeddings"), 0);
+    assert_eq!(count_rows(&conn, "similarity_aspect_descriptors"), 0);
     assert_eq!(count_rows(&conn, "analysis_cache_features"), 0);
     assert_eq!(count_rows(&conn, "analysis_cache_embeddings"), 0);
+    assert_eq!(count_rows(&conn, "analysis_cache_aspect_descriptors"), 0);
 }
 
 fn test_write(sample_id: &str, content_hash: &str) -> DecodedAnalysisWrite {
@@ -69,6 +73,9 @@ fn test_write(sample_id: &str, content_hash: &str) -> DecodedAnalysisWrite {
         computed_at: 10,
         embedding_blob: vec![7, 8, 9],
         embedding_created_at: 11,
+        aspect_descriptor_blob: vec![10, 11, 12],
+        aspect_descriptor_valid_mask: wavecrate_analysis::aspects::all_aspect_mask(),
+        aspect_descriptor_created_at: 12,
         needs_embedding_upsert: true,
         ann_embedding: vec![0.1; wavecrate_analysis::similarity::SIMILARITY_DIM],
     }
@@ -101,6 +108,16 @@ fn test_connection(extra_sql: &str) -> Connection {
              vec BLOB NOT NULL,
              created_at INTEGER NOT NULL
          ) WITHOUT ROWID;
+         CREATE TABLE similarity_aspect_descriptors (
+             sample_id TEXT PRIMARY KEY,
+             model_id TEXT NOT NULL,
+             dim INTEGER NOT NULL,
+             dtype TEXT NOT NULL,
+             l2_normed INTEGER NOT NULL,
+             valid_mask INTEGER NOT NULL,
+             vec BLOB NOT NULL,
+             created_at INTEGER NOT NULL
+         ) WITHOUT ROWID;
          CREATE TABLE analysis_cache_features (
              content_hash TEXT PRIMARY KEY,
              analysis_version TEXT NOT NULL,
@@ -119,6 +136,18 @@ fn test_connection(extra_sql: &str) -> Connection {
              dim INTEGER NOT NULL,
              dtype TEXT NOT NULL,
              l2_normed INTEGER NOT NULL,
+             vec BLOB NOT NULL,
+             created_at INTEGER NOT NULL,
+             PRIMARY KEY (content_hash, model_id)
+         );
+         CREATE TABLE analysis_cache_aspect_descriptors (
+             content_hash TEXT NOT NULL,
+             analysis_version TEXT NOT NULL,
+             model_id TEXT NOT NULL,
+             dim INTEGER NOT NULL,
+             dtype TEXT NOT NULL,
+             l2_normed INTEGER NOT NULL,
+             valid_mask INTEGER NOT NULL,
              vec BLOB NOT NULL,
              created_at INTEGER NOT NULL,
              PRIMARY KEY (content_hash, model_id)
