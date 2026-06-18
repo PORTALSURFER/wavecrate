@@ -4,7 +4,9 @@ use super::WaveformFile;
 use diagnostics::log_stale_cache_entry;
 use format::{CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION_V2};
 use identity::CacheIdentity;
-pub(in crate::native_app) use playback_load::load_cached_waveform_file_for_playback;
+pub(in crate::native_app) use playback_load::{
+    load_cached_waveform_file_for_playback, load_cached_waveform_file_summary,
+};
 pub(in crate::native_app) use read::{
     cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
 };

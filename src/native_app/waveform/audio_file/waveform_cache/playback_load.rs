@@ -45,6 +45,9 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
         store_cached_waveform_file_in_background(&file);
         return Some(file);
     }
+    if super::super::should_use_file_backed_wav_decode(&path) {
+        return None;
+    }
 
     let cached = read_cached_waveform_file(&path, &identity)?;
 
@@ -64,4 +67,18 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     }
     log_slow_cache_phase("browser.sample_cache.load_for_playback", &path, started_at);
     file.playback_samples.is_some().then_some(file)
+}
+
+pub(in crate::native_app) fn load_cached_waveform_file_summary(
+    path: PathBuf,
+) -> Option<WaveformFile> {
+    let started_at = Instant::now();
+    let identity = CacheIdentity::for_path(&path).ok()?;
+    let cached = read_cached_waveform_file(&path, &identity)?;
+    let Some(file) = cached.into_summary_waveform_file(path.clone(), identity) else {
+        log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
+        return None;
+    };
+    log_slow_cache_phase("browser.sample_cache.load_summary", &path, started_at);
+    Some(file)
 }

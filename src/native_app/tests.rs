@@ -281,6 +281,44 @@ fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
     writer.finalize().expect("finalize wav");
 }
 
+fn write_sparse_test_wav_i16(path: &std::path::Path, channels: u16, frames: u32) {
+    let channels = channels.max(1);
+    let sample_rate = 48_000_u32;
+    let bits_per_sample = 16_u16;
+    let block_align = channels * (bits_per_sample / 8);
+    let byte_rate = sample_rate * u32::from(block_align);
+    let data_bytes = frames
+        .checked_mul(u32::from(block_align))
+        .expect("test wav data size");
+    let riff_size = 36_u32.checked_add(data_bytes).expect("test wav riff size");
+    let mut file = fs::File::create(path).expect("create sparse wav");
+    use std::io::Write;
+    file.write_all(b"RIFF").expect("write riff");
+    file.write_all(&riff_size.to_le_bytes())
+        .expect("write riff size");
+    file.write_all(b"WAVE").expect("write wave");
+    file.write_all(b"fmt ").expect("write fmt");
+    file.write_all(&16_u32.to_le_bytes())
+        .expect("write fmt size");
+    file.write_all(&1_u16.to_le_bytes())
+        .expect("write pcm format");
+    file.write_all(&channels.to_le_bytes())
+        .expect("write channels");
+    file.write_all(&sample_rate.to_le_bytes())
+        .expect("write sample rate");
+    file.write_all(&byte_rate.to_le_bytes())
+        .expect("write byte rate");
+    file.write_all(&block_align.to_le_bytes())
+        .expect("write block align");
+    file.write_all(&bits_per_sample.to_le_bytes())
+        .expect("write bits");
+    file.write_all(b"data").expect("write data chunk");
+    file.write_all(&data_bytes.to_le_bytes())
+        .expect("write data size");
+    file.set_len(44_u64 + u64::from(data_bytes))
+        .expect("extend sparse wav");
+}
+
 fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
     let mut reader = hound::WavReader::open(path).expect("open wav");
     let spec = reader.spec();

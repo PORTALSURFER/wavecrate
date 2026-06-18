@@ -95,7 +95,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
-fn foreground_sample_load_does_not_persist_waveform_cache() {
+fn foreground_sample_load_persists_waveform_cache() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -111,16 +111,17 @@ fn foreground_sample_load_does_not_persist_waveform_cache() {
             |_| {},
         )
         .expect("foreground sample load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
 
     assert_eq!(loaded.path(), sample_path);
     assert!(
-        !crate::native_app::waveform::cached_waveform_file_exists(&sample_path),
-        "foreground audition loads must not enqueue persistent cache writes on the hot selection path"
+        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "foreground audition should persist playback-ready cache for future selection"
     );
 }
 
 #[test]
-fn foreground_sample_load_ignores_persisted_cache_payloads() {
+fn foreground_sample_load_reuses_persisted_playback_cache() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -146,8 +147,64 @@ fn foreground_sample_load_ignores_persisted_cache_payloads() {
 
     assert_eq!(loaded.path(), sample_path);
     assert!(
-        !loaded.audio_bytes().is_empty(),
-        "foreground audition should decode from source bytes instead of hydrating persisted cache payloads"
+        loaded.audio_bytes().is_empty(),
+        "foreground audition should hydrate persisted playback cache without rereading source bytes"
+    );
+    assert!(
+        loaded.playback_cache_file().is_some(),
+        "foreground audition should use the persisted PCM sidecar"
+    );
+}
+
+#[test]
+fn large_foreground_sample_load_reuses_file_backed_summary_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-foreground.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("large foreground sample load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+
+    assert_eq!(loaded.path(), sample_path);
+    assert!(loaded.audio_bytes().is_empty());
+    assert!(loaded.playback_samples().is_none());
+    assert_eq!(
+        loaded.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
+    );
+    assert!(crate::native_app::waveform::cached_waveform_file_exists(
+        &sample_path
+    ));
+    assert!(
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "large foreground load should persist a summary cache without a full playback sidecar"
+    );
+
+    let reloaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("large foreground summary cache reload");
+
+    assert_eq!(reloaded.path(), sample_path);
+    assert!(reloaded.audio_bytes().is_empty());
+    assert!(reloaded.playback_samples().is_none());
+    assert_eq!(
+        reloaded.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
     );
 }
 

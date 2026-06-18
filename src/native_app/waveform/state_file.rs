@@ -58,11 +58,17 @@ impl WaveformState {
         !self.file.path.as_os_str().is_empty()
             && (!self.file.audio_bytes.is_empty()
                 || self.file.playback_samples.is_some()
-                || self.file.playback_cache_file.is_some())
+                || self.file.playback_cache_file.is_some()
+                || self.file_backed_playback_available())
     }
 
     pub(in crate::native_app) fn audio_bytes(&self) -> Arc<[u8]> {
         Arc::clone(&self.file.audio_bytes)
+    }
+
+    pub(in crate::native_app) fn playback_source_file(&self) -> Option<PathBuf> {
+        self.file_backed_playback_available()
+            .then(|| self.file.path.clone())
     }
 
     pub(in crate::native_app) fn playback_samples(&self) -> Option<Arc<[f32]>> {
@@ -73,5 +79,15 @@ impl WaveformState {
         &self,
     ) -> Option<super::audio_file::PersistedPlaybackCacheFile> {
         self.file.playback_cache_file.clone()
+    }
+
+    fn file_backed_playback_available(&self) -> bool {
+        self.file.audio_bytes.is_empty()
+            && self.file.playback_samples.is_none()
+            && self.file.playback_cache_file.is_none()
+            && self.file.sample_rate != 0
+            && self.file.channels != 0
+            && self.file.frames != 0
+            && self.file.path.is_file()
     }
 }

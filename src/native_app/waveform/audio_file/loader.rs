@@ -9,11 +9,21 @@ use crate::native_app::waveform::{
     audio_file::{
         WaveformFile, WaveformPlaybackReady,
         construction::waveform_file_from_mono_samples_with_progress_and_cancel,
-        diagnostics::log_audio_load_timing, downmix::downmix_to_mono_with_progress_and_cancel,
-        file_io::read_audio_file_with_progress, wav_decode,
-        wav_decode::load_wav_waveform_file_with_progress, waveform_cache,
+        diagnostics::log_audio_load_timing,
+        downmix::downmix_to_mono_with_progress_and_cancel,
+        file_io::read_audio_file_with_progress,
+        wav_decode,
+        wav_decode::{
+            load_wav_waveform_file_with_progress, load_wav_waveform_summary_from_path_with_progress,
+        },
+        waveform_cache,
     },
 };
+
+#[cfg(test)]
+pub(in crate::native_app) const FILE_BACKED_WAV_DECODE_MIN_BYTES: u64 = 1024;
+#[cfg(not(test))]
+pub(in crate::native_app) const FILE_BACKED_WAV_DECODE_MIN_BYTES: u64 = 16 * 1024 * 1024;
 
 #[cfg(test)]
 pub(in crate::native_app::waveform) fn load_waveform_file(
@@ -65,8 +75,8 @@ pub(in crate::native_app::waveform) fn load_waveform_file_for_foreground_auditio
         progress,
         cancelled,
         playback_ready,
-        false,
-        false,
+        true,
+        true,
     )
 }
 
@@ -93,6 +103,33 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
             progress(0.99);
             return Ok(file);
         }
+    }
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
+    if read_cache
+        && should_use_file_backed_wav_decode(&path)
+        && let Some(file) = waveform_cache::load_cached_waveform_file_summary(path.clone())
+    {
+        progress(0.99);
+        return Ok(file);
+    }
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
+    if should_use_file_backed_wav_decode(&path) {
+        let stream_started_at = Instant::now();
+        let file =
+            load_wav_waveform_summary_from_path_with_progress(path.clone(), &progress, &cancelled)?;
+        log_audio_load_timing(
+            "browser.audio_file.load.file_backed_wav_summary",
+            &path,
+            stream_started_at.elapsed(),
+        );
+        if persist_cache {
+            waveform_cache::store_cached_waveform_file_in_background(&file);
+        }
+        return Ok(file);
     }
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -186,6 +223,13 @@ fn complete_wav_playback_ready_from_summary_cache(
 
 fn summary_cache_can_attempt_wav_playback_ready(file: &WaveformFile, path: &Path) -> bool {
     file.playback_samples.is_none() && is_wav_path(path)
+}
+
+pub(in crate::native_app::waveform) fn should_use_file_backed_wav_decode(path: &Path) -> bool {
+    is_wav_path(path)
+        && path
+            .metadata()
+            .is_ok_and(|metadata| metadata.len() > FILE_BACKED_WAV_DECODE_MIN_BYTES)
 }
 
 fn load_with_fallback_decoder(

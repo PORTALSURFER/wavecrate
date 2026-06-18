@@ -50,6 +50,13 @@ pub enum PlaybackRuntimeSource {
         sample_rate: u32,
         channels: usize,
     },
+    /// Encoded audio file path with caller-provided timing metadata.
+    AudioFile {
+        path: PathBuf,
+        duration: f32,
+        sample_rate: u32,
+        channels: usize,
+    },
     /// Original encoded bytes plus pre-decoded interleaved f32 playback samples.
     DecodedSamples {
         audio_bytes: Arc<[u8]>,
@@ -77,6 +84,12 @@ impl PlaybackRuntimeSource {
                 sample_rate,
                 channels,
             } => player.set_audio_with_metadata(data, duration, sample_rate, channels),
+            Self::AudioFile {
+                path,
+                duration,
+                sample_rate,
+                channels,
+            } => player.set_audio_file_with_metadata(path, duration, sample_rate, channels),
             Self::DecodedSamples {
                 audio_bytes,
                 samples,

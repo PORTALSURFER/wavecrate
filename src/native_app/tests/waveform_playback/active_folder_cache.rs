@@ -126,13 +126,7 @@ fn folder_activation_queues_entire_source_for_background_cache_warm() {
     }
     fs::write(nested.join("nested.wav"), []).expect("write nested sample");
     let large_file = source_root.path().join("large-source.wav");
-    let file = fs::File::create(&large_file).expect("create large source sample");
-    file.set_len(
-        crate::native_app::audio::sample_load_actions::ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES
-            + 1,
-    )
-    .expect("size large source sample");
-    drop(file);
+    write_sparse_test_wav_i16(&large_file, 1, 700);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -153,8 +147,8 @@ fn folder_activation_queues_entire_source_for_background_cache_warm() {
 
     assert_eq!(
         state.waveform.cache.active_folder_warm_pending.len(),
-        9,
-        "background cache warming should cover safe-size files across the source, not only the active folder"
+        10,
+        "background cache warming should cover the whole selected source, not only the active folder"
     );
 }
 
@@ -583,19 +577,13 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
 }
 
 #[test]
-fn active_folder_cache_warm_skips_large_uncached_source_files() {
+fn active_folder_cache_warm_builds_summary_cache_for_large_uncached_source_files() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
-    let sample_path = source_root.path().join("too-large.wav");
-    let file = fs::File::create(&sample_path).expect("create large wav");
-    file.set_len(
-        crate::native_app::audio::sample_load_actions::ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES
-            + 1,
-    )
-    .expect("size large wav");
-    drop(file);
+    let sample_path = source_root.path().join("large-summary.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
     let sample_path = PathBuf::from(sample_path.display().to_string());
 
     let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
@@ -603,14 +591,26 @@ fn active_folder_cache_warm_skips_large_uncached_source_files() {
         vec![sample_path.clone()],
         || false,
     );
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
 
-    assert_eq!(result.loaded.len(), 0);
+    assert_eq!(result.loaded.len(), 1);
     assert_eq!(result.processed, 1);
-    assert!(!result.decoded_source);
+    assert!(result.decoded_source);
     assert!(result.deferred.is_empty());
+    let (_path, file) = result.loaded.into_iter().next().expect("loaded summary");
+    let waveform = crate::native_app::test_support::state::WaveformState::from_cached_file(file);
+    assert_eq!(
+        waveform.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
+    );
+    assert!(waveform.playback_samples().is_none());
+    assert!(
+        crate::native_app::waveform::cached_waveform_file_exists(&sample_path),
+        "large source files should persist a reusable waveform summary"
+    );
     assert!(
         !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
-        "oversize source files should not be decoded by background source warming"
+        "large source files should avoid full playback sidecar warming"
     );
 }
 

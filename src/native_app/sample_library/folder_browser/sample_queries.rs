@@ -1,7 +1,5 @@
 use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
-use crate::native_app::audio::sample_load_actions::ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES;
-
 use super::{
     FileEntry, FolderBrowserState, FolderEntry,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
@@ -336,9 +334,7 @@ fn collect_source_cache_candidate_paths(folder: &FolderEntry, paths: &mut Vec<Pa
         folder
             .files
             .iter()
-            .filter(|file| {
-                file.is_audio() && file.size_bytes <= ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES
-            })
+            .filter(|file| file.is_audio())
             .map(|file| PathBuf::from(&file.id)),
     );
 

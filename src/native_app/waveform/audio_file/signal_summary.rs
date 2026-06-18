@@ -53,6 +53,60 @@ pub(in crate::native_app::waveform) fn gpu_signal_summary_with_progress_and_canc
     })
 }
 
+pub(in crate::native_app::waveform) fn gpu_signal_summary_from_base_buckets_with_progress_and_cancel(
+    frames: usize,
+    band_count: usize,
+    base_bucket_frames: usize,
+    base_buckets: Arc<[GpuSignalSummaryBucket]>,
+    start: f32,
+    end: f32,
+    progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
+) -> Result<GpuSignalSummary, String> {
+    let band_count = band_count.max(1);
+    let frames = frames.max(1);
+    let mut bucket_frames = base_bucket_frames.max(1);
+    let mut levels = Vec::with_capacity(signal_summary_level_count(
+        frames.div_ceil(bucket_frames).max(1),
+    ));
+    let mut previous_buckets = Arc::clone(&base_buckets);
+    levels.push(GpuSignalSummaryLevel {
+        bucket_frames,
+        buckets: base_buckets,
+    });
+    let total_levels = signal_summary_level_count(frames.div_ceil(bucket_frames).max(1)).max(1);
+    while bucket_frames < frames {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
+        let level_index = levels.len();
+        let level_start = start + (end - start) * (level_index as f32 / total_levels as f32);
+        let level_end = start + (end - start) * ((level_index + 1) as f32 / total_levels as f32);
+        bucket_frames = bucket_frames.saturating_mul(2).max(bucket_frames + 1);
+        let buckets = merge_signal_summary_level_with_progress(MergeSignalSummaryLevelInput {
+            previous: &previous_buckets,
+            start: level_start,
+            end: level_end,
+            frames,
+            band_count,
+            bucket_frames,
+            progress,
+            cancelled,
+        })?;
+        levels.push(GpuSignalSummaryLevel {
+            bucket_frames,
+            buckets: Arc::clone(&buckets),
+        });
+        previous_buckets = buckets;
+    }
+    progress(end);
+    Ok(GpuSignalSummary {
+        frames,
+        band_count,
+        levels,
+    })
+}
+
 struct SignalSummaryLevelInput<'a> {
     samples: &'a [f32],
     previous: Option<&'a [GpuSignalSummaryBucket]>,

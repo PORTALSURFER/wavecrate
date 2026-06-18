@@ -112,6 +112,31 @@ impl CachedWaveformFile {
         })
     }
 
+    pub(super) fn into_summary_waveform_file(
+        self,
+        path: PathBuf,
+        identity: CacheIdentity,
+    ) -> Option<WaveformFile> {
+        if !self.matches_identity(&path, &identity) {
+            return None;
+        }
+        let cache_path = cache_path_for_identity(&path, &identity).ok()?;
+        Some(WaveformFile {
+            path,
+            audio_bytes: Arc::from([]),
+            playback_samples: None,
+            playback_cache_file: self
+                .playback_cache
+                .as_ref()
+                .and_then(|_| self.playback_cache_file(&cache_path)),
+            content_revision: self.content_revision,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            frames: self.frames,
+            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
+        })
+    }
+
     pub(super) fn into_playback_ready_waveform_file(
         self,
         path: PathBuf,

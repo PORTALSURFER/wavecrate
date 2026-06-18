@@ -243,6 +243,13 @@ impl NativeAppState {
                 sample_rate: self.waveform.current.sample_rate(),
                 channels: self.waveform.current.channels(),
             }
+        } else if let Some(path) = self.waveform.current.playback_source_file() {
+            PlaybackRuntimeSource::AudioFile {
+                path,
+                duration,
+                sample_rate: self.waveform.current.sample_rate(),
+                channels: self.waveform.current.channels(),
+            }
         } else {
             PlaybackRuntimeSource::AudioBytes {
                 data: self.waveform.current.audio_bytes(),

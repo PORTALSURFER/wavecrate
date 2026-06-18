@@ -22,6 +22,7 @@ fn sample_selection_starts_foreground_load_for_persisted_cache_row_after_restart
             |_| {},
         )
         .expect("cache sample");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&sample_path);
@@ -148,6 +149,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
             |_| {},
         )
         .expect("cache sample");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     let file = waveform.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&sample_path_string);

@@ -256,9 +256,9 @@ pub(super) struct CachedWaveformStoreJob {
 impl CachedWaveformStoreJob {
     pub(super) fn new(file: &WaveformFile) -> Option<Self> {
         if file.path.as_os_str().is_empty()
-            || (file.audio_bytes.is_empty()
-                && file.playback_samples.is_none()
-                && file.playback_cache_file.is_none())
+            || file.sample_rate == 0
+            || file.channels == 0
+            || file.frames == 0
         {
             return None;
         }

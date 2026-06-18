@@ -19,7 +19,6 @@ mod reload;
 mod types;
 mod worker;
 
-pub(in crate::native_app) use cache::ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES;
 #[cfg(test)]
 pub(in crate::native_app) use cache::{
     active_folder_cache_warm_priority, warm_active_folder_waveform_cache,

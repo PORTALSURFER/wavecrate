@@ -176,7 +176,11 @@ impl WaveformWidget {
         !self.file.path.as_os_str().is_empty()
             && (!self.file.audio_bytes.is_empty()
                 || self.file.playback_samples.is_some()
-                || self.file.playback_cache_file.is_some())
+                || self.file.playback_cache_file.is_some()
+                || (self.file.sample_rate != 0
+                    && self.file.channels != 0
+                    && self.file.frames != 0
+                    && self.file.path.is_file()))
     }
 }
 

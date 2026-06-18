@@ -1,8 +1,4 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use crate::native_app::{
     app::{
@@ -14,8 +10,6 @@ use crate::native_app::{
         load_cached_waveform_file_for_playback,
     },
 };
-
-use super::ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES;
 
 pub(in crate::native_app) fn warm_persisted_waveform_cache(
     paths: Vec<PathBuf>,
@@ -51,9 +45,6 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
             break;
         }
         processed += 1;
-        if !active_folder_cache_auto_warm_allowed(&path) {
-            continue;
-        }
         if cached_waveform_file_playback_ready_exists(&path) {
             if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
                 loaded.push((path, Arc::new(file)));
@@ -83,12 +74,6 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
         decoded_source,
         cancelled: is_cancelled(),
     }
-}
-
-fn active_folder_cache_auto_warm_allowed(path: &Path) -> bool {
-    std::fs::metadata(path)
-        .map(|metadata| metadata.len() <= ACTIVE_FOLDER_CACHE_WARM_MAX_SOURCE_FILE_BYTES)
-        .unwrap_or(false)
 }
 
 pub(super) fn probe_persisted_waveform_cache_indicators(
