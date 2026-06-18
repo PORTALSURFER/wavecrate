@@ -32,6 +32,26 @@ pub(in crate::native_app) struct ActiveFolderCacheWarmProgress {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct ActiveFolderCacheWarmRequest {
+    pub(in crate::native_app) folder_id: String,
+    pub(in crate::native_app) paths: Vec<PathBuf>,
+}
+
+impl ActiveFolderCacheWarmRequest {
+    pub(in crate::native_app) fn new(folder_id: String, paths: Vec<PathBuf>) -> Self {
+        Self { folder_id, paths }
+    }
+
+    pub(in crate::native_app) fn total(&self) -> usize {
+        self.paths.len()
+    }
+
+    pub(in crate::native_app) fn is_empty(&self) -> bool {
+        self.paths.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct ActiveFolderCacheWarmPlanProgress {
     pub(in crate::native_app) folder_id: String,
     pub(in crate::native_app) path: PathBuf,

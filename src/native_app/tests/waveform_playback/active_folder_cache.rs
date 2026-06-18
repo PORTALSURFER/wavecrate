@@ -183,6 +183,30 @@ fn active_folder_cache_plan_is_visible_before_decode_batches_start() {
 }
 
 #[test]
+fn active_folder_cache_plan_uses_blocking_io_lane() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.schedule_active_folder_cache_warm(&mut context);
+
+    assert_eq!(
+        business_command_priority(context.into_command(), "gui-active-folder-cache-warm-plan"),
+        Some(ui::TaskPriority::BlockingIo),
+        "cache probing should use the limited blocking-IO lane instead of ordinary background work"
+    );
+}
+
+#[test]
 fn folder_activation_queues_entire_source_for_background_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
@@ -911,8 +935,10 @@ fn active_folder_cache_warm_generates_playback_ready_cache_for_uncached_file() {
     assert!(!crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path));
 
     let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
-        String::from("source"),
-        vec![sample_path.clone()],
+        crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+            String::from("source"),
+            vec![sample_path.clone()],
+        ),
         || false,
     );
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
@@ -938,8 +964,10 @@ fn active_folder_cache_warm_builds_summary_cache_for_large_uncached_source_files
     let sample_path = PathBuf::from(sample_path.display().to_string());
 
     let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
-        String::from("source"),
-        vec![sample_path.clone()],
+        crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+            String::from("source"),
+            vec![sample_path.clone()],
+        ),
         || false,
     );
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
@@ -991,8 +1019,10 @@ fn active_folder_cache_warm_batches_playback_ready_cache_hits() {
     }
 
     let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
-        String::from("source"),
-        vec![first.clone(), second.clone()],
+        crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+            String::from("source"),
+            vec![first.clone(), second.clone()],
+        ),
         || false,
     );
 
@@ -1069,8 +1099,10 @@ fn active_folder_cache_warm_resumes_from_persisted_playback_ready_cache_after_re
 
     let folder_id = source_root.path().display().to_string();
     let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
-        folder_id.clone(),
-        vec![uncached.clone()],
+        crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+            folder_id.clone(),
+            vec![uncached.clone()],
+        ),
         || false,
     );
     assert!(result.playback_ready.is_empty());
@@ -1150,8 +1182,7 @@ fn active_folder_cache_plan_skips_decode_when_entire_source_is_processed() {
         .expect("source warm request");
     let plan =
         crate::native_app::audio::sample_load_actions::plan_active_folder_waveform_cache_warm(
-            folder_id.clone(),
-            paths,
+            crate::native_app::app::ActiveFolderCacheWarmRequest::new(folder_id.clone(), paths),
             || false,
         );
     assert_eq!(plan.playback_ready, vec![first.clone(), second.clone()]);
@@ -1231,8 +1262,10 @@ fn active_folder_cache_plan_only_reprocesses_changed_files_after_normalize() {
 
     let plan =
         crate::native_app::audio::sample_load_actions::plan_active_folder_waveform_cache_warm(
-            source_root.path().display().to_string(),
-            vec![processed.clone(), changed.clone()],
+            crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+                source_root.path().display().to_string(),
+                vec![processed.clone(), changed.clone()],
+            ),
             || false,
         );
 

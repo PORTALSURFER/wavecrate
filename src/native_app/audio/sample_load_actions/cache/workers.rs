@@ -10,8 +10,9 @@ use std::{
 use crate::native_app::{
     app::{
         ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
-        ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
-        WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
+        ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmRequest, ActiveFolderCacheWarmResult,
+        ActiveFolderCacheWarmStage, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
+        WaveformState,
     },
     waveform::{
         cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
@@ -47,27 +48,25 @@ pub(in crate::native_app) fn warm_persisted_waveform_cache(
 
 #[cfg(test)]
 pub(in crate::native_app) fn warm_active_folder_waveform_cache(
-    folder_id: String,
-    paths: Vec<PathBuf>,
+    request: ActiveFolderCacheWarmRequest,
     is_cancelled: impl Fn() -> bool,
 ) -> ActiveFolderCacheWarmResult {
-    warm_active_folder_waveform_cache_with_progress(folder_id, paths, is_cancelled, |_| {})
+    warm_active_folder_waveform_cache_with_progress(request, is_cancelled, |_| {})
 }
 
 pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm(
-    folder_id: String,
-    paths: Vec<PathBuf>,
+    request: ActiveFolderCacheWarmRequest,
     is_cancelled: impl Fn() -> bool,
 ) -> ActiveFolderCacheWarmPlanResult {
-    plan_active_folder_waveform_cache_warm_with_progress(folder_id, paths, is_cancelled, |_| {})
+    plan_active_folder_waveform_cache_warm_with_progress(request, is_cancelled, |_| {})
 }
 
 pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm_with_progress(
-    folder_id: String,
-    paths: Vec<PathBuf>,
+    request: ActiveFolderCacheWarmRequest,
     is_cancelled: impl Fn() -> bool,
     progress: impl Fn(ActiveFolderCacheWarmPlanProgress),
 ) -> ActiveFolderCacheWarmPlanResult {
+    let ActiveFolderCacheWarmRequest { folder_id, paths } = request;
     let total = paths.len();
     let mut progress_gate = ui::ProgressUpdateGate::new(
         ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_INTERVAL,
@@ -145,11 +144,11 @@ fn report_active_folder_cache_plan_progress(
 }
 
 pub(super) fn warm_active_folder_waveform_cache_with_progress(
-    folder_id: String,
-    paths: Vec<PathBuf>,
+    request: ActiveFolderCacheWarmRequest,
     is_cancelled: impl Fn() -> bool,
     progress: impl Fn(ActiveFolderCacheWarmProgress),
 ) -> ActiveFolderCacheWarmResult {
+    let ActiveFolderCacheWarmRequest { folder_id, paths } = request;
     let mut paths = paths.into_iter();
     let mut loaded = Vec::new();
     let mut playback_ready = Vec::new();

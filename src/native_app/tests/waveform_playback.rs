@@ -319,6 +319,11 @@ fn business_command_priority(
             priority,
             ..
         } if command_name == name => Some(priority),
+        radiant::runtime::Command::PerformStream {
+            name: command_name,
+            priority,
+            ..
+        } if command_name == name => Some(priority),
         radiant::runtime::Command::Batch(commands) => commands
             .into_iter()
             .find_map(|command| business_command_priority(command, name)),
