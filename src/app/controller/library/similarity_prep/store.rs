@@ -6,6 +6,7 @@ pub(crate) trait SimilarityPrepStore {
     fn read_scan_timestamp(&self, source: &SampleSource) -> Option<i64>;
     fn read_prep_timestamp(&self, source: &SampleSource) -> Option<i64>;
     fn source_has_embeddings(&self, source: &SampleSource) -> bool;
+    fn source_has_aspect_descriptors(&self, source: &SampleSource) -> bool;
     /// Handles record prep scan timestamp.
     fn record_prep_scan_timestamp(
         &self,
@@ -46,6 +47,10 @@ impl SimilarityPrepStore for DbSimilarityPrepStore {
 
     fn source_has_embeddings(&self, source: &SampleSource) -> bool {
         db::source_has_embeddings(source)
+    }
+
+    fn source_has_aspect_descriptors(&self, source: &SampleSource) -> bool {
+        db::source_has_aspect_descriptors(source)
     }
 
     /// Handles record prep scan timestamp.

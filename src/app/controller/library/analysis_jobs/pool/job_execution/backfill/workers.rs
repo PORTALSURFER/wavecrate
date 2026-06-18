@@ -5,7 +5,7 @@ use crate::app::controller::library::analysis_jobs::pool::job_execution::support
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, mpsc::Receiver, mpsc::channel};
 
-use super::model::{EmbeddingComputation, EmbeddingResult, EmbeddingWork};
+use super::model::{AspectDescriptorData, EmbeddingComputation, EmbeddingResult, EmbeddingWork};
 
 pub(super) fn run_embedding_workers(
     work: Vec<EmbeddingWork>,
@@ -38,6 +38,7 @@ pub(super) fn expand_computations(computed: Vec<EmbeddingComputation>) -> Vec<Em
                 sample_id,
                 content_hash: item.content_hash.clone(),
                 embedding: item.embedding.clone(),
+                aspect_descriptors: item.aspect_descriptors.clone(),
                 created_at: item.created_at,
             });
         }
@@ -124,10 +125,17 @@ fn compute_embedding(
     .map_err(|err| format!("Feature extraction failed for {path}: {err}"))?;
     let embedding = wavecrate_analysis::similarity::embedding_from_features(&features)
         .map_err(|err| format!("Embedding build failed for {path}: {err}"))?;
+    let aspect_descriptors =
+        wavecrate_analysis::aspects::aspect_descriptors_from_features_v1(&features)
+            .map_err(|err| format!("Aspect descriptor build failed for {path}: {err}"))?;
     Ok(EmbeddingComputation {
         content_hash: work.content_hash,
         sample_ids: work.sample_ids,
         embedding,
+        aspect_descriptors: AspectDescriptorData {
+            vec_blob: wavecrate_analysis::vector::encode_f32_le_blob(aspect_descriptors.packed()),
+            valid_mask: aspect_descriptors.valid_mask(),
+        },
         created_at: now_epoch_seconds(),
     })
 }

@@ -18,6 +18,7 @@ struct SimilarityPrepFacts {
     scan_completed_at: Option<i64>,
     prep_completed_at: Option<i64>,
     has_embeddings: bool,
+    has_aspects: bool,
     has_layout: bool,
     failures: Option<SimilarityPrepFailureCounts>,
 }
@@ -37,6 +38,7 @@ fn resolve_similarity_prep_status(facts: SimilarityPrepFacts) -> MapSimilarityPr
     let prep_up_to_date = facts.scan_completed_at.is_some()
         && facts.scan_completed_at == facts.prep_completed_at
         && facts.has_embeddings
+        && facts.has_aspects
         && facts.has_layout;
     if prep_up_to_date {
         return MapSimilarityPrepStatus::UpToDate;
@@ -54,6 +56,7 @@ fn resolve_similarity_prep_status(facts: SimilarityPrepFacts) -> MapSimilarityPr
     }
     MapSimilarityPrepStatus::MissingArtifacts {
         missing_embeddings: !facts.has_embeddings,
+        missing_aspects: !facts.has_aspects,
         missing_layout: !facts.has_layout,
     }
 }
@@ -64,21 +67,27 @@ fn action_outcome(status: &MapSimilarityPrepStatus) -> &'static str {
         MapSimilarityPrepStatus::Outdated => "outdated",
         MapSimilarityPrepStatus::Blocked { .. } => "blocked_failed_rows",
         MapSimilarityPrepStatus::MissingArtifacts {
-            missing_embeddings: true,
-            missing_layout: true,
-        } => "missing_embeddings_and_layout",
-        MapSimilarityPrepStatus::MissingArtifacts {
-            missing_embeddings: true,
-            missing_layout: false,
-        } => "missing_embeddings",
-        MapSimilarityPrepStatus::MissingArtifacts {
-            missing_embeddings: false,
-            missing_layout: true,
-        } => "missing_layout",
-        MapSimilarityPrepStatus::MissingArtifacts {
-            missing_embeddings: false,
-            missing_layout: false,
-        } => "missing_artifacts",
+            missing_embeddings,
+            missing_aspects,
+            missing_layout,
+        } => missing_artifacts_outcome(*missing_embeddings, *missing_aspects, *missing_layout),
+    }
+}
+
+fn missing_artifacts_outcome(
+    missing_embeddings: bool,
+    missing_aspects: bool,
+    missing_layout: bool,
+) -> &'static str {
+    match (missing_embeddings, missing_aspects, missing_layout) {
+        (true, true, true) => "missing_embeddings_aspects_and_layout",
+        (true, true, false) => "missing_embeddings_and_aspects",
+        (true, false, true) => "missing_embeddings_and_layout",
+        (true, false, false) => "missing_embeddings",
+        (false, true, true) => "missing_aspects_and_layout",
+        (false, true, false) => "missing_aspects",
+        (false, false, true) => "missing_layout",
+        (false, false, false) => "missing_artifacts",
     }
 }
 
@@ -127,6 +136,7 @@ impl AppController {
             scan_completed_at: super::db::read_source_scan_timestamp(source),
             prep_completed_at: super::db::read_source_prep_timestamp(source),
             has_embeddings: super::db::source_has_embeddings(source),
+            has_aspects: super::db::source_has_aspect_descriptors(source),
             has_layout: super::db::source_has_layout(source, self.ui.map.umap_version.as_str()),
             failures,
         })
@@ -143,6 +153,7 @@ mod tests {
             scan_completed_at: Some(20),
             prep_completed_at: Some(10),
             has_embeddings: false,
+            has_aspects: false,
             has_layout: false,
             failures: Some(SimilarityPrepFailureCounts {
                 failed_count: 3,
@@ -165,6 +176,7 @@ mod tests {
             scan_completed_at: Some(20),
             prep_completed_at: Some(10),
             has_embeddings: true,
+            has_aspects: true,
             has_layout: true,
             failures: None,
         });
@@ -178,6 +190,7 @@ mod tests {
             scan_completed_at: Some(20),
             prep_completed_at: Some(20),
             has_embeddings: true,
+            has_aspects: false,
             has_layout: false,
             failures: None,
         });
@@ -186,6 +199,7 @@ mod tests {
             status,
             MapSimilarityPrepStatus::MissingArtifacts {
                 missing_embeddings: false,
+                missing_aspects: true,
                 missing_layout: true,
             }
         );
@@ -197,6 +211,7 @@ mod tests {
             scan_completed_at: Some(20),
             prep_completed_at: Some(20),
             has_embeddings: true,
+            has_aspects: true,
             has_layout: true,
             failures: Some(SimilarityPrepFailureCounts {
                 failed_count: 0,

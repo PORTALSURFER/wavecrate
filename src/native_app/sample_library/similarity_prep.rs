@@ -33,6 +33,7 @@ pub(in crate::native_app) enum NativeSimilarityPrepStatus {
     },
     MissingArtifacts {
         missing_embeddings: bool,
+        missing_aspects: bool,
         missing_layout: bool,
     },
 }

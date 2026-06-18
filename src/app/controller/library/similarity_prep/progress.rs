@@ -142,7 +142,11 @@ impl AppController {
             source.id.as_str()
         );
         if embed_progress.pending > 0 || embed_progress.running > 0 {
-            self.show_similarity_embedding_progress(&embed_progress);
+            self.show_similarity_artifact_progress(
+                &embed_progress,
+                store.source_has_embeddings(&source),
+                store.source_has_aspect_descriptors(&source),
+            );
             return;
         }
         if !store.source_has_embeddings(&source) {
@@ -152,6 +156,16 @@ impl AppController {
             );
             self.ensure_similarity_prep_progress(0, true);
             self.set_similarity_embedding_detail();
+            self.enqueue_similarity_backfill(source, false);
+            return;
+        }
+        if !store.source_has_aspect_descriptors(&source) {
+            info!(
+                "Similarity prep enqueueing aspect descriptor backfill (source_id={})",
+                source.id.as_str()
+            );
+            self.ensure_similarity_prep_progress(0, true);
+            self.set_similarity_aspect_descriptor_detail();
             self.enqueue_similarity_backfill(source, false);
             return;
         }
@@ -180,9 +194,18 @@ impl AppController {
         );
     }
 
-    fn show_similarity_embedding_progress(&mut self, progress: &AnalysisProgress) {
+    fn show_similarity_artifact_progress(
+        &mut self,
+        progress: &AnalysisProgress,
+        has_embeddings: bool,
+        has_aspects: bool,
+    ) {
         self.ensure_similarity_prep_progress(progress.total(), true);
-        self.set_similarity_embedding_detail();
+        if has_embeddings && !has_aspects {
+            self.set_similarity_aspect_descriptor_detail();
+        } else {
+            self.set_similarity_embedding_detail();
+        }
         self.ui.progress.set_task_counts(
             ProgressTaskKind::Analysis,
             progress.total(),
@@ -190,7 +213,14 @@ impl AppController {
         );
         let jobs_completed = progress.completed();
         let jobs_total = progress.total();
-        let mut detail = format!("Embedding backfill… Jobs {jobs_completed}/{jobs_total}");
+        let action = if has_embeddings && !has_aspects {
+            "Preparing similarity columns"
+        } else if !has_embeddings && !has_aspects {
+            "Preparing similarity artifacts"
+        } else {
+            "Embedding backfill"
+        };
+        let mut detail = format!("{action}… Jobs {jobs_completed}/{jobs_total}");
         if progress.failed > 0 {
             detail.push_str(&format!(" • {} failed", progress.failed));
         }

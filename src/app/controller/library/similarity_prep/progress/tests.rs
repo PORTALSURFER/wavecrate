@@ -21,6 +21,10 @@ impl SimilarityPrepStore for EmbeddingProgressErrorStore {
         panic!("embedding coverage must not be checked when progress is unavailable")
     }
 
+    fn source_has_aspect_descriptors(&self, _source: &SampleSource) -> bool {
+        panic!("aspect coverage must not be checked when progress is unavailable")
+    }
+
     fn record_prep_scan_timestamp(
         &self,
         _source: &SampleSource,

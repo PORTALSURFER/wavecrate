@@ -15,6 +15,7 @@ fn failed_samples_for_source_conn(
     source_id: &crate::sample_sources::SourceId,
 ) -> Result<HashMap<PathBuf, String>, String> {
     let embedding_model = wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
+    let aspect_model = wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID;
     let analysis_version = wavecrate_analysis::analysis_version();
     let mut stmt = conn
         .prepare(
@@ -25,6 +26,12 @@ fn failed_samples_for_source_conn(
                 ON f.sample_id = aj.sample_id AND f.feat_version = ?2
              LEFT JOIN embeddings e
                 ON e.sample_id = aj.sample_id AND e.model_id = ?3
+             LEFT JOIN similarity_aspect_descriptors a
+                ON a.sample_id = aj.sample_id
+               AND a.model_id = ?5
+               AND a.dim = ?6
+               AND a.dtype = ?7
+               AND a.l2_normed = 1
              WHERE aj.status = 'failed'
                AND aj.source_id = ?1
                AND (
@@ -32,6 +39,7 @@ fn failed_samples_for_source_conn(
                   OR s.analysis_version IS NULL
                   OR s.analysis_version != ?4
                   OR e.sample_id IS NULL
+                  OR a.sample_id IS NULL
                )
              ORDER BY aj.relative_path ASC",
         )
@@ -39,7 +47,15 @@ fn failed_samples_for_source_conn(
     let mut out = HashMap::new();
     let rows = stmt
         .query_map(
-            params![source_id.as_str(), 1i64, embedding_model, analysis_version],
+            params![
+                source_id.as_str(),
+                1i64,
+                embedding_model,
+                analysis_version,
+                aspect_model,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            ],
             |row| {
                 let relative_path: String = row.get(0)?;
                 let last_error: Option<String> = row.get(1)?;
@@ -78,7 +94,8 @@ mod tests {
             "DELETE FROM analysis_jobs;
              DELETE FROM samples;
              DELETE FROM features;
-             DELETE FROM embeddings;",
+             DELETE FROM embeddings;
+             DELETE FROM similarity_aspect_descriptors;",
         )
         .unwrap();
         conn.execute(
@@ -115,6 +132,19 @@ mod tests {
             "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
              VALUES ('s1::Pack/a.wav', ?1, 1, 'f32', 1, X'00', 0)",
             params![wavecrate_analysis::similarity::SIMILARITY_MODEL_ID],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO similarity_aspect_descriptors
+             (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+             VALUES ('s1::Pack/a.wav', ?1, ?2, ?3, 1, ?4, ?5, 0)",
+            params![
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+                wavecrate_analysis::aspects::all_aspect_mask() as i64,
+                vec![0_u8; wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4],
+            ],
         )
         .unwrap();
 

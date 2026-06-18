@@ -100,6 +100,7 @@ fn backfill_full_enqueues_even_when_up_to_date() {
             &sample_id,
             wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         );
+        insert_aspect_descriptors_row(&conn, &sample_id);
     }
 
     let (inserted, _progress) = enqueue_jobs_for_source_backfill_full(&env.source).unwrap();
@@ -126,6 +127,7 @@ fn hard_sync_skips_failed_jobs_but_force_requeue_restores() {
         &sample_id,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
+    insert_aspect_descriptors_row(&conn, &sample_id);
     conn.execute(
         "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, content_hash, status, attempts, created_at, last_error)
          VALUES (?1, ?2, ?3, ?4, ?5, 'failed', 1, 0, 'boom')",
@@ -220,6 +222,7 @@ fn embedding_backfill_enqueues_missing_or_mismatched() {
         &b,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
+    insert_aspect_descriptors_row(&conn, &b);
     insert_embeddings_row(&conn, &c, "old_model");
 
     let (inserted, _progress) = enqueue_jobs_for_embedding_backfill(&env.source).unwrap();

@@ -14,6 +14,7 @@ pub(super) struct EmbeddingComputation {
     pub(super) content_hash: String,
     pub(super) sample_ids: Vec<String>,
     pub(super) embedding: Vec<f32>,
+    pub(super) aspect_descriptors: AspectDescriptorData,
     pub(super) created_at: i64,
 }
 
@@ -22,13 +23,22 @@ pub(super) struct EmbeddingResult {
     pub(super) sample_id: String,
     pub(super) content_hash: String,
     pub(super) embedding: Vec<f32>,
+    pub(super) aspect_descriptors: AspectDescriptorData,
     pub(super) created_at: i64,
+}
+
+/// Packed aspect descriptor payload for one sample/content hash.
+#[derive(Clone)]
+pub(super) struct AspectDescriptorData {
+    pub(super) vec_blob: Vec<u8>,
+    pub(super) valid_mask: u32,
 }
 
 /// Embedding payload reused from caches or derived features.
 #[derive(Clone)]
 pub(super) struct EmbeddingData {
     pub(super) embedding: Vec<f32>,
+    pub(super) aspect_descriptors: AspectDescriptorData,
     pub(super) created_at: i64,
 }
 

@@ -70,7 +70,9 @@ fn clear_analysis_tables(conn: &Connection) {
         "DELETE FROM analysis_jobs;
          DELETE FROM samples;
          DELETE FROM features;
-         DELETE FROM embeddings;",
+         DELETE FROM embeddings;
+         DELETE FROM similarity_aspect_descriptors;
+         DELETE FROM analysis_cache_aspect_descriptors;",
     )
     .unwrap();
 }
@@ -115,6 +117,23 @@ fn insert_embeddings_row(conn: &Connection, sample_id: &str, model_id: &str) {
             model_id,
             wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
             wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32
+        ],
+    )
+    .unwrap();
+}
+
+fn insert_aspect_descriptors_row(conn: &Connection, sample_id: &str) {
+    conn.execute(
+        "INSERT INTO similarity_aspect_descriptors
+         (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, 0)",
+        params![
+            sample_id,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            wavecrate_analysis::aspects::all_aspect_mask() as i64,
+            vec![0_u8; wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4]
         ],
     )
     .unwrap();

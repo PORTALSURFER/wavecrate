@@ -2,6 +2,7 @@
 
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::pool::job_execution::support::load_embedding_vec_optional;
+use crate::app::controller::library::analysis_jobs::pool::job_execution::support::now_epoch_seconds;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::warn;
@@ -9,7 +10,7 @@ use tracing::warn;
 use super::model::{BackfillPlan, EmbeddingData, EmbeddingResult, EmbeddingWork, WorkEntry};
 use super::repository::{
     cached_embedding_data, cached_feature_embedding_data, embedding_data_from_features,
-    load_features_vec_optional,
+    load_features_vec_optional, sample_has_current_aspect_descriptors,
 };
 
 pub(super) fn parse_backfill_payload(job: &db::ClaimedJob) -> Result<Vec<String>, String> {
@@ -37,14 +38,15 @@ pub(super) fn build_backfill_plan(
     };
 
     for sample_id in sample_ids {
-        if load_embedding_vec_optional(
+        let has_embedding = load_embedding_vec_optional(
             conn,
             sample_id,
             wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
             wavecrate_analysis::similarity::SIMILARITY_DIM,
         )?
-        .is_some()
-        {
+        .is_some();
+        let has_aspects = sample_has_current_aspect_descriptors(conn, sample_id)?;
+        if has_embedding && has_aspects {
             continue;
         }
         plan_sample(conn, job, sample_id, &mut state)?;
@@ -127,16 +129,16 @@ fn load_ready_embedding(
     use_cache: bool,
     analysis_version: &str,
 ) -> Result<Option<EmbeddingData>, String> {
-    if use_cache && let Some(data) = cached_embedding_data(conn, content_hash, analysis_version)? {
-        return Ok(Some(data));
-    }
     if let Some(features) = load_features_vec_optional(conn, sample_id)?
-        && let Ok(data) = embedding_data_from_features(&features)
+        && let Ok(data) = embedding_data_from_features(&features, now_epoch_seconds())
     {
         return Ok(Some(data));
     }
     if use_cache {
-        return cached_feature_embedding_data(conn, content_hash, analysis_version);
+        if let Some(data) = cached_feature_embedding_data(conn, content_hash, analysis_version)? {
+            return Ok(Some(data));
+        }
+        return cached_embedding_data(conn, content_hash, analysis_version);
     }
     Ok(None)
 }
@@ -184,6 +186,7 @@ fn materialize_result(
         sample_id: sample_id.to_string(),
         content_hash: content_hash.to_string(),
         embedding: data.embedding.clone(),
+        aspect_descriptors: data.aspect_descriptors.clone(),
         created_at: data.created_at,
     }
 }

@@ -24,6 +24,10 @@ fn collect_results_limits_error_list() {
         content_hash: "hash-a".to_string(),
         sample_ids: vec!["a".to_string()],
         embedding: vec![0.0_f32; 2],
+        aspect_descriptors: model::AspectDescriptorData {
+            vec_blob: vec![0; wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4],
+            valid_mask: 0,
+        },
         created_at: 1,
     }))
     .unwrap();

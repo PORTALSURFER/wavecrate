@@ -20,6 +20,8 @@ pub enum MapSimilarityPrepStatus {
     MissingArtifacts {
         /// True when embeddings for the source are still missing.
         missing_embeddings: bool,
+        /// True when aspect descriptors for row-level similarity feedback are missing.
+        missing_aspects: bool,
         /// True when the selected UMAP layout has not been built yet.
         missing_layout: bool,
     },

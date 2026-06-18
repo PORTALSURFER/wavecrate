@@ -19,6 +19,7 @@ fn enqueue_invalidates_when_analysis_version_stale() {
         &sample_id,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
+    insert_aspect_descriptors_row(&conn, &sample_id);
 
     let changed_samples = vec![ChangedSample {
         relative_path: PathBuf::from("Pack/a.wav"),
@@ -43,9 +44,17 @@ fn enqueue_invalidates_when_analysis_version_stale() {
             |row| row.get(0),
         )
         .unwrap();
+    let aspect_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM similarity_aspect_descriptors WHERE sample_id = ?1",
+            params![&sample_id],
+            |row| row.get(0),
+        )
+        .unwrap();
 
     assert_eq!(feature_count, 0);
     assert_eq!(embedding_count, 0);
+    assert_eq!(aspect_count, 0);
 }
 
 #[test]
@@ -67,6 +76,7 @@ fn enqueue_invalidates_when_content_hash_changes() {
         &sample_id,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
+    insert_aspect_descriptors_row(&conn, &sample_id);
 
     let changed_samples = vec![ChangedSample {
         relative_path: PathBuf::from("Pack/a.wav"),
@@ -91,9 +101,17 @@ fn enqueue_invalidates_when_content_hash_changes() {
             |row| row.get(0),
         )
         .unwrap();
+    let aspect_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM similarity_aspect_descriptors WHERE sample_id = ?1",
+            params![&sample_id],
+            |row| row.get(0),
+        )
+        .unwrap();
 
     assert_eq!(feature_count, 0);
     assert_eq!(embedding_count, 0);
+    assert_eq!(aspect_count, 0);
 }
 
 #[test]
@@ -118,6 +136,7 @@ fn backfill_invalidates_when_analysis_version_stale() {
         &sample_id,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
+    insert_aspect_descriptors_row(&conn, &sample_id);
 
     let (_inserted, _progress) = enqueue_jobs_for_source_backfill(&env.source).unwrap();
 
@@ -135,9 +154,17 @@ fn backfill_invalidates_when_analysis_version_stale() {
             |row| row.get(0),
         )
         .unwrap();
+    let aspect_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM similarity_aspect_descriptors WHERE sample_id = ?1",
+            params![&sample_id],
+            |row| row.get(0),
+        )
+        .unwrap();
 
     assert_eq!(feature_count, 0);
     assert_eq!(embedding_count, 0);
+    assert_eq!(aspect_count, 0);
 }
 
 #[test]
@@ -162,6 +189,7 @@ fn backfill_invalidates_when_content_hash_changes() {
         &sample_id,
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
     );
+    insert_aspect_descriptors_row(&conn, &sample_id);
 
     let (_inserted, _progress) = enqueue_jobs_for_source_backfill(&env.source).unwrap();
 
@@ -179,6 +207,13 @@ fn backfill_invalidates_when_content_hash_changes() {
             |row| row.get(0),
         )
         .unwrap();
+    let aspect_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM similarity_aspect_descriptors WHERE sample_id = ?1",
+            params![&sample_id],
+            |row| row.get(0),
+        )
+        .unwrap();
     let pending: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM analysis_jobs WHERE sample_id = ?1 AND status = 'pending'",
@@ -189,5 +224,6 @@ fn backfill_invalidates_when_content_hash_changes() {
 
     assert_eq!(feature_count, 0);
     assert_eq!(embedding_count, 0);
+    assert_eq!(aspect_count, 0);
     assert_eq!(pending, 1);
 }

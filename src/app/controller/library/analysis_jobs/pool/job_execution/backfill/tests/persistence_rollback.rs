@@ -22,12 +22,14 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
             sample_id: "s::a.wav".to_string(),
             content_hash: "hash-a".to_string(),
             embedding: vec![0.0; wavecrate_analysis::similarity::SIMILARITY_DIM],
+            aspect_descriptors: dummy_aspects(),
             created_at: 1,
         },
         model::EmbeddingResult {
             sample_id: "s::b.wav".to_string(),
             content_hash: "hash-b".to_string(),
             embedding: vec![0.0; wavecrate_analysis::similarity::SIMILARITY_DIM],
+            aspect_descriptors: dummy_aspects(),
             created_at: 2,
         },
     ];
@@ -36,5 +38,14 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
 
     assert!(err.contains("synthetic backfill cache failure"));
     assert_eq!(count_rows(&conn, "embeddings"), 0);
+    assert_eq!(count_rows(&conn, "similarity_aspect_descriptors"), 0);
     assert_eq!(count_rows(&conn, "analysis_cache_embeddings"), 0);
+    assert_eq!(count_rows(&conn, "analysis_cache_aspect_descriptors"), 0);
+}
+
+fn dummy_aspects() -> model::AspectDescriptorData {
+    model::AspectDescriptorData {
+        vec_blob: vec![0; wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4],
+        valid_mask: 0,
+    }
 }

@@ -98,11 +98,12 @@ fn unavailable_labels(
         ),
         Some(MapSimilarityPrepStatus::MissingArtifacts {
             missing_embeddings,
+            missing_aspects,
             missing_layout,
         }) => (
             String::from("Similarity prep artifacts are missing"),
             String::from("Action: run similarity prep for this source"),
-            missing_artifacts_reason(*missing_embeddings, *missing_layout),
+            missing_artifacts_reason(*missing_embeddings, *missing_aspects, *missing_layout),
             String::from("State: no completed prep artifacts yet"),
         ),
         Some(MapSimilarityPrepStatus::UpToDate) => (
@@ -120,12 +121,26 @@ fn unavailable_labels(
     }
 }
 
-fn missing_artifacts_reason(missing_embeddings: bool, missing_layout: bool) -> String {
-    match (missing_embeddings, missing_layout) {
-        (true, true) => String::from("Reason: embeddings and layout artifacts are missing"),
-        (true, false) => String::from("Reason: embeddings are missing"),
-        (false, true) => String::from("Reason: map layout artifacts are missing"),
-        (false, false) => String::from("Reason: prep artifacts are unavailable"),
+fn missing_artifacts_reason(
+    missing_embeddings: bool,
+    missing_aspects: bool,
+    missing_layout: bool,
+) -> String {
+    match (missing_embeddings, missing_aspects, missing_layout) {
+        (true, true, true) => {
+            String::from("Reason: embeddings, similarity columns, and layout are missing")
+        }
+        (true, true, false) => {
+            String::from("Reason: embeddings and similarity columns are missing")
+        }
+        (true, false, true) => String::from("Reason: embeddings and layout artifacts are missing"),
+        (true, false, false) => String::from("Reason: embeddings are missing"),
+        (false, true, true) => {
+            String::from("Reason: similarity columns and map layout are missing")
+        }
+        (false, true, false) => String::from("Reason: similarity columns are missing"),
+        (false, false, true) => String::from("Reason: map layout artifacts are missing"),
+        (false, false, false) => String::from("Reason: prep artifacts are unavailable"),
     }
 }
 

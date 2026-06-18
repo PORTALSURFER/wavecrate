@@ -24,6 +24,16 @@ pub(super) fn conn_with_schema() -> Connection {
             vec BLOB NOT NULL,
             created_at INTEGER NOT NULL
         ) WITHOUT ROWID;
+        CREATE TABLE similarity_aspect_descriptors (
+            sample_id TEXT PRIMARY KEY,
+            model_id TEXT NOT NULL,
+            dim INTEGER NOT NULL,
+            dtype TEXT NOT NULL,
+            l2_normed INTEGER NOT NULL,
+            valid_mask INTEGER NOT NULL,
+            vec BLOB NOT NULL,
+            created_at INTEGER NOT NULL
+        ) WITHOUT ROWID;
         CREATE TABLE features (
             sample_id TEXT PRIMARY KEY,
             feat_version INTEGER NOT NULL,
@@ -51,6 +61,18 @@ pub(super) fn conn_with_schema() -> Connection {
             dim INTEGER NOT NULL,
             dtype TEXT NOT NULL,
             l2_normed INTEGER NOT NULL,
+            vec BLOB NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (content_hash, model_id)
+        );
+        CREATE TABLE analysis_cache_aspect_descriptors (
+            content_hash TEXT NOT NULL,
+            analysis_version TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            dim INTEGER NOT NULL,
+            dtype TEXT NOT NULL,
+            l2_normed INTEGER NOT NULL,
+            valid_mask INTEGER NOT NULL,
             vec BLOB NOT NULL,
             created_at INTEGER NOT NULL,
             PRIMARY KEY (content_hash, model_id)

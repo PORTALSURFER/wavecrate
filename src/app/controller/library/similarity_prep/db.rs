@@ -69,6 +69,20 @@ pub(crate) fn source_has_layout(source: &SampleSource, umap_version: &str) -> bo
     .unwrap_or(false)
 }
 
+pub(crate) fn source_has_aspect_descriptors(source: &SampleSource) -> bool {
+    let Ok(sample_ids) = current_present_sample_ids(source) else {
+        return false;
+    };
+    if sample_ids.is_empty() {
+        return true;
+    }
+    let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
+        return false;
+    };
+    let sample_id_prefix = format!("{}::%", source.id.as_str());
+    sample_ids_covered_by_aspect_descriptors(&conn, &sample_id_prefix, &sample_ids).unwrap_or(false)
+}
+
 /// Handles current present sample ids.
 fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, String> {
     let source_db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
@@ -112,6 +126,32 @@ fn sample_ids_covered_by_layout(
          WHERE model_id = ?1 AND umap_version = ?2 AND sample_id LIKE ?3",
         rusqlite::params![model_id, umap_version, sample_id_prefix],
         "Load layout coverage failed",
+    )?;
+    Ok(sample_ids
+        .iter()
+        .all(|sample_id| covered.contains(sample_id)))
+}
+
+fn sample_ids_covered_by_aspect_descriptors(
+    conn: &rusqlite::Connection,
+    sample_id_prefix: &str,
+    sample_ids: &[String],
+) -> Result<bool, String> {
+    let covered = covered_sample_ids(
+        conn,
+        "SELECT sample_id FROM similarity_aspect_descriptors
+         WHERE model_id = ?1
+           AND dim = ?2
+           AND dtype = ?3
+           AND l2_normed = 1
+           AND sample_id LIKE ?4",
+        rusqlite::params![
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            sample_id_prefix,
+        ],
+        "Load aspect descriptor coverage failed",
     )?;
     Ok(sample_ids
         .iter()
@@ -214,6 +254,26 @@ mod tests {
     }
 
     #[test]
+    /// Verifies source has aspect descriptors requires current sample identity coverage.
+    fn source_has_aspect_descriptors_requires_current_sample_identity_coverage() {
+        let (_dir, source) = source_with_stale_similarity_rows();
+
+        assert!(
+            !source_has_aspect_descriptors(&source),
+            "stale aspect rows must not satisfy current samples"
+        );
+
+        insert_aspect_descriptors(&source, "current-a.wav");
+        assert!(
+            !source_has_aspect_descriptors(&source),
+            "partial current aspect coverage is still incomplete"
+        );
+
+        insert_aspect_descriptors(&source, "current-b.wav");
+        assert!(source_has_aspect_descriptors(&source));
+    }
+
+    #[test]
     /// Handles record similarity prep scan timestamp returns source db errors.
     fn record_similarity_prep_scan_timestamp_returns_source_db_errors() {
         let dir = tempdir().unwrap();
@@ -238,6 +298,8 @@ mod tests {
         insert_embedding(&source, "old-a.wav");
         insert_embedding(&source, "old-b.wav");
         insert_layout(&source, "old-a.wav");
+        insert_aspect_descriptors(&source, "old-a.wav");
+        insert_aspect_descriptors(&source, "old-b.wav");
         db.remove_file(std::path::Path::new("old-a.wav")).unwrap();
         db.remove_file(std::path::Path::new("old-b.wav")).unwrap();
         db.upsert_file(std::path::Path::new("current-a.wav"), 1, 1)
@@ -280,6 +342,25 @@ mod tests {
                 sample_id(source, relative_path),
                 wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
                 UMAP_VERSION,
+            ],
+        )
+        .unwrap();
+    }
+
+    /// Handles insert aspect descriptors.
+    fn insert_aspect_descriptors(source: &SampleSource, relative_path: &str) {
+        let conn = analysis_jobs::open_source_db(&source.root).unwrap();
+        ensure_sample_row(&conn, &sample_id(source, relative_path));
+        conn.execute(
+            "INSERT OR REPLACE INTO similarity_aspect_descriptors
+             (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+             VALUES (?1, ?2, ?3, 'f32', 1, ?4, ?5, 0)",
+            rusqlite::params![
+                sample_id(source, relative_path),
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                wavecrate_analysis::aspects::all_aspect_mask() as i64,
+                vec![0_u8; wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4],
             ],
         )
         .unwrap();

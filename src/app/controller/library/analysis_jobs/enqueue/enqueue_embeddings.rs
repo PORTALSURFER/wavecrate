@@ -91,15 +91,24 @@ fn enqueue_embedding_backfill(
                  FROM samples s
                  LEFT JOIN embeddings e
                    ON e.sample_id = s.sample_id AND e.model_id = ?1
+                 LEFT JOIN similarity_aspect_descriptors a
+                   ON a.sample_id = s.sample_id
+                  AND a.model_id = ?3
+                  AND a.dim = ?4
+                  AND a.dtype = ?5
+                  AND a.l2_normed = 1
                  WHERE s.sample_id LIKE ?2
-                   AND e.sample_id IS NULL
+                   AND (e.sample_id IS NULL OR a.sample_id IS NULL)
                  ORDER BY s.sample_id",
             )
             .map_err(|err| format!("Prepare embedding backfill query failed: {err}"))?;
         let mut rows = stmt
             .query(params![
                 wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
-                format!("{}::%", request.source.id)
+                format!("{}::%", request.source.id),
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
             ])
             .map_err(|err| format!("Failed to query embedding backfill rows: {err}"))?;
         while let Some(row) = rows

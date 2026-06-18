@@ -5,10 +5,12 @@ use crate::sample_sources::scanner::ScanMode;
 const SCAN_PROGRESS_LABEL: &str = "Scanning source";
 const SIMILARITY_ANALYSIS_LABEL: &str = "Analyzing samples";
 const SIMILARITY_EMBEDDING_LABEL: &str = "Embedding similarity";
+const SIMILARITY_ASPECT_DESCRIPTOR_LABEL: &str = "Preparing similarity columns";
 const SIMILARITY_FINALIZE_LABEL: &str = "Finalizing similarity prep";
 const SIMILARITY_SCAN_DETAIL: &str = "Scanning source…";
 const SIMILARITY_ANALYSIS_DETAIL: &str = "Analyzing…";
 const SIMILARITY_EMBEDDING_DETAIL: &str = "Embedding backfill…";
+const SIMILARITY_ASPECT_DESCRIPTOR_DETAIL: &str = "Preparing similarity aspect descriptors…";
 const SIMILARITY_FINALIZE_DETAIL: &str =
     "Building similarity map layout, clustering, and ANN index…";
 const WAV_LOAD_LABEL: &str = "Loading samples";
@@ -97,6 +99,19 @@ impl AppController {
             self.update_progress_detail_for_task(
                 ProgressTaskKind::Analysis,
                 SIMILARITY_EMBEDDING_DETAIL,
+            );
+        }
+    }
+
+    pub(crate) fn set_similarity_aspect_descriptor_detail(&mut self) {
+        if self.ui.progress.has_task(ProgressTaskKind::Analysis) {
+            self.update_status_progress_title(
+                ProgressTaskKind::Analysis,
+                SIMILARITY_ASPECT_DESCRIPTOR_LABEL,
+            );
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::Analysis,
+                SIMILARITY_ASPECT_DESCRIPTOR_DETAIL,
             );
         }
     }

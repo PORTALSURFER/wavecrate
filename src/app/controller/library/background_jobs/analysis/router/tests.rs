@@ -124,7 +124,7 @@ fn failure_messages_route_to_status_actions() {
     assert_eq!(
         actions,
         vec![AnalysisProgressRouteAction::SetStatus {
-            text: "Embedding backfill enqueue failed: database locked".to_string(),
+            text: "Similarity artifact backfill enqueue failed: database locked".to_string(),
             tone: StatusTone::Error,
         }]
     );

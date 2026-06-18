@@ -60,7 +60,7 @@ impl AnalysisProgressRouter {
             } => route_enqueue_finished(context, inserted, progress, true, announce),
             AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err) => {
                 vec![AnalysisProgressRouteAction::SetStatus {
-                    text: format!("Embedding backfill enqueue failed: {err}"),
+                    text: format!("Similarity artifact backfill enqueue failed: {err}"),
                     tone: StatusTone::Error,
                 }]
             }
@@ -123,7 +123,7 @@ fn route_enqueue_finished(
     let mut actions = vec![AnalysisProgressRouteAction::ResumeAnalysis];
     if inserted > 0 && announce {
         let label = if embedding_backfill {
-            "embedding backfill jobs"
+            "similarity artifact jobs"
         } else {
             "analysis jobs"
         };

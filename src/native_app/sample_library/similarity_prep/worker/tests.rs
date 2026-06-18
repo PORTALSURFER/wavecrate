@@ -8,6 +8,7 @@ fn native_similarity_status_resolves_core_states() {
             scan_completed_at: Some(20),
             prep_completed_at: Some(20),
             has_embeddings: true,
+            has_aspects: true,
             has_layout: true,
             failures: Some(SimilarityPrepFailureCounts {
                 failed_count: 0,
@@ -21,6 +22,7 @@ fn native_similarity_status_resolves_core_states() {
             scan_completed_at: Some(20),
             prep_completed_at: Some(10),
             has_embeddings: true,
+            has_aspects: true,
             has_layout: true,
             failures: None,
         }),
@@ -31,6 +33,7 @@ fn native_similarity_status_resolves_core_states() {
             scan_completed_at: Some(20),
             prep_completed_at: Some(10),
             has_embeddings: false,
+            has_aspects: false,
             has_layout: false,
             failures: Some(SimilarityPrepFailureCounts {
                 failed_count: 2,
@@ -171,6 +174,19 @@ fn seed_current_analysis_artifacts(source: &SampleSource, relative_path: &str) {
         ],
     )
     .expect("insert embedding");
+    conn.execute(
+        "INSERT OR REPLACE INTO similarity_aspect_descriptors
+         (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+         VALUES (?1, ?2, ?3, 'f32', 1, ?4, ?5, 0)",
+        rusqlite::params![
+            &sample_id,
+            ASPECT_DESCRIPTOR_MODEL_ID,
+            ASPECT_DESCRIPTOR_DIM as i64,
+            wavecrate_analysis::aspects::all_aspect_mask() as i64,
+            vec![0_u8; ASPECT_DESCRIPTOR_DIM * 4]
+        ],
+    )
+    .expect("insert aspect descriptors");
 }
 
 fn seed_failed_analysis_job(source: &SampleSource, relative_path: &str) {

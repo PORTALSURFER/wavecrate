@@ -18,12 +18,13 @@ pub(crate) fn plan_similarity_prep_start(
     let prep_scan_at = store.read_prep_timestamp(source);
     let skip_scan = scan_completed_at.is_some() && scan_completed_at == prep_scan_at;
     let needs_embeddings = !store.source_has_embeddings(source);
+    let needs_aspects = !store.source_has_aspect_descriptors(source);
     let state = state::build_initial_state(state::SimilarityPrepInit {
         source_id: source.id.clone(),
         umap_version,
         scan_completed_at,
         skip_scan,
-        skip_backfill: !needs_embeddings,
+        skip_backfill: !needs_embeddings && !needs_aspects,
         force_full_analysis,
     });
     SimilarityPrepStartPlan { skip_scan, state }
@@ -40,6 +41,7 @@ mod tests {
         scan_completed_at: Option<i64>,
         prep_completed_at: Option<i64>,
         has_embeddings: bool,
+        has_aspects: bool,
     }
 
     impl SimilarityPrepStore for FakeStore {
@@ -53,6 +55,10 @@ mod tests {
 
         fn source_has_embeddings(&self, _source: &SampleSource) -> bool {
             self.has_embeddings
+        }
+
+        fn source_has_aspect_descriptors(&self, _source: &SampleSource) -> bool {
+            self.has_aspects
         }
 
         /// Handles record prep scan timestamp.
@@ -106,6 +112,7 @@ mod tests {
             scan_completed_at: Some(10),
             prep_completed_at: Some(10),
             has_embeddings: true,
+            has_aspects: true,
         };
         let plan = plan_similarity_prep_start(&store, &sample_source(), "v1".to_string(), false);
         assert!(plan.skip_scan);
@@ -115,6 +122,17 @@ mod tests {
             scan_completed_at: Some(10),
             prep_completed_at: Some(10),
             has_embeddings: false,
+            has_aspects: true,
+        };
+        let plan = plan_similarity_prep_start(&store, &sample_source(), "v1".to_string(), false);
+        assert!(plan.skip_scan);
+        assert!(!plan.state.skip_backfill);
+
+        let store = FakeStore {
+            scan_completed_at: Some(10),
+            prep_completed_at: Some(10),
+            has_embeddings: true,
+            has_aspects: false,
         };
         let plan = plan_similarity_prep_start(&store, &sample_source(), "v1".to_string(), false);
         assert!(plan.skip_scan);

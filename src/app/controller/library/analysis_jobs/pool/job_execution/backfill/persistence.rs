@@ -128,6 +128,33 @@ fn write_backfill_chunk(
                 created_at: result.created_at,
             },
         )?;
+        db::upsert_aspect_descriptors(
+            &tx,
+            db::AspectDescriptorUpsert {
+                sample_id: &result.sample_id,
+                model_id: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                dim: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                dtype: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+                l2_normed: true,
+                valid_mask: result.aspect_descriptors.valid_mask,
+                vec_blob: &result.aspect_descriptors.vec_blob,
+                created_at: result.created_at,
+            },
+        )?;
+        db::upsert_cached_aspect_descriptors(
+            &tx,
+            db::CachedAspectDescriptorsUpsert {
+                content_hash: &result.content_hash,
+                analysis_version,
+                model_id: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                dim: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                dtype: wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+                l2_normed: true,
+                valid_mask: result.aspect_descriptors.valid_mask,
+                vec_blob: &result.aspect_descriptors.vec_blob,
+                created_at: result.created_at,
+            },
+        )?;
     }
     telemetry::commit_transaction(tx, "embedding_backfill_chunk")
         .map_err(|err| format!("Commit embedding backfill tx failed: {err}"))?;

@@ -4,7 +4,11 @@ use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::{META_LAST_SCAN_COMPLETED_AT, META_LAST_SIMILARITY_PREP_SCAN_AT},
 };
-use wavecrate_analysis::{self as analysis, similarity::SIMILARITY_MODEL_ID};
+use wavecrate_analysis::{
+    self as analysis,
+    aspects::{ASPECT_DESCRIPTOR_DIM, ASPECT_DESCRIPTOR_DTYPE_F32, ASPECT_DESCRIPTOR_MODEL_ID},
+    similarity::SIMILARITY_MODEL_ID,
+};
 
 use super::{NativeSimilarityPrepStatus, SimilarityPrepEnqueueSummary};
 
@@ -45,7 +49,7 @@ pub(super) fn enqueue_similarity_prep_inner(
 }
 
 fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
-    if !source_has_embeddings(source)? {
+    if !source_has_embeddings(source)? || !source_has_aspect_descriptors(source)? {
         return Ok(false);
     }
     let mut conn = open_source_db(&source.root)?;
@@ -98,6 +102,7 @@ pub(super) fn resolve_similarity_prep_status(
         scan_completed_at: read_source_scan_timestamp(source)?,
         prep_completed_at: read_source_prep_timestamp(source)?,
         has_embeddings: source_has_embeddings(source)?,
+        has_aspects: source_has_aspect_descriptors(source)?,
         has_layout: source_has_layout(source)?,
         failures: similarity_failure_counts(source)?,
     };
@@ -109,6 +114,7 @@ struct SimilarityPrepFacts {
     scan_completed_at: Option<i64>,
     prep_completed_at: Option<i64>,
     has_embeddings: bool,
+    has_aspects: bool,
     has_layout: bool,
     failures: Option<SimilarityPrepFailureCounts>,
 }
@@ -123,6 +129,7 @@ fn resolve_similarity_prep_facts(facts: SimilarityPrepFacts) -> NativeSimilarity
     if facts.scan_completed_at.is_some()
         && facts.scan_completed_at == facts.prep_completed_at
         && facts.has_embeddings
+        && facts.has_aspects
         && facts.has_layout
     {
         return NativeSimilarityPrepStatus::UpToDate;
@@ -140,6 +147,7 @@ fn resolve_similarity_prep_facts(facts: SimilarityPrepFacts) -> NativeSimilarity
     }
     NativeSimilarityPrepStatus::MissingArtifacts {
         missing_embeddings: !facts.has_embeddings,
+        missing_aspects: !facts.has_aspects,
         missing_layout: !facts.has_layout,
     }
 }
@@ -220,6 +228,31 @@ fn source_has_layout(source: &SampleSource) -> Result<bool, String> {
     )
 }
 
+fn source_has_aspect_descriptors(source: &SampleSource) -> Result<bool, String> {
+    let sample_ids = current_present_sample_ids(source)?;
+    if sample_ids.is_empty() {
+        return Ok(true);
+    }
+    let conn = open_source_db(&source.root)?;
+    let sample_id_prefix = format!("{}::%", source.id.as_str());
+    sample_ids_covered(
+        &conn,
+        "SELECT sample_id FROM similarity_aspect_descriptors
+         WHERE model_id = ?1
+           AND dim = ?2
+           AND dtype = ?3
+           AND l2_normed = 1
+           AND sample_id LIKE ?4",
+        rusqlite::params![
+            ASPECT_DESCRIPTOR_MODEL_ID,
+            ASPECT_DESCRIPTOR_DIM as i64,
+            ASPECT_DESCRIPTOR_DTYPE_F32,
+            sample_id_prefix,
+        ],
+        &sample_ids,
+    )
+}
+
 fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, String> {
     let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
     let entries = db.list_files().map_err(|err| err.to_string())?;
@@ -257,7 +290,7 @@ fn enqueue_embedding_backfill(source: &SampleSource) -> Result<usize, String> {
     if active_jobs_exist(&conn, source.id.as_str(), EMBEDDING_BACKFILL_JOB_TYPE)? {
         return Ok(0);
     }
-    let sample_ids = sample_ids_missing_embeddings(&conn, source)?;
+    let sample_ids = sample_ids_missing_similarity_artifacts(&conn, source)?;
     if sample_ids.is_empty() {
         return Ok(0);
     }
@@ -337,7 +370,7 @@ fn upsert_analysis_job(
     .map_err(|err| format!("Enqueue analysis job failed: {err}"))
 }
 
-fn sample_ids_missing_embeddings(
+fn sample_ids_missing_similarity_artifacts(
     conn: &rusqlite::Connection,
     source: &SampleSource,
 ) -> Result<Vec<String>, String> {
@@ -348,13 +381,25 @@ fn sample_ids_missing_embeddings(
              FROM samples s
              LEFT JOIN embeddings e
                ON e.sample_id = s.sample_id AND e.model_id = ?1
+             LEFT JOIN similarity_aspect_descriptors a
+               ON a.sample_id = s.sample_id
+              AND a.model_id = ?3
+              AND a.dim = ?4
+              AND a.dtype = ?5
+              AND a.l2_normed = 1
              WHERE s.sample_id LIKE ?2
-               AND e.sample_id IS NULL
+               AND (e.sample_id IS NULL OR a.sample_id IS NULL)
              ORDER BY s.sample_id",
         )
         .map_err(|err| format!("Prepare embedding backfill query failed: {err}"))?;
     stmt.query_map(
-        rusqlite::params![SIMILARITY_MODEL_ID, sample_id_prefix],
+        rusqlite::params![
+            SIMILARITY_MODEL_ID,
+            sample_id_prefix,
+            ASPECT_DESCRIPTOR_MODEL_ID,
+            ASPECT_DESCRIPTOR_DIM as i64,
+            ASPECT_DESCRIPTOR_DTYPE_F32,
+        ],
         |row| row.get::<_, String>(0),
     )
     .map_err(|err| format!("Query embedding backfill rows failed: {err}"))?
@@ -375,6 +420,12 @@ fn failed_samples_for_source(
                 ON f.sample_id = aj.sample_id AND f.feat_version = ?2
              LEFT JOIN embeddings e
                 ON e.sample_id = aj.sample_id AND e.model_id = ?3
+             LEFT JOIN similarity_aspect_descriptors a
+                ON a.sample_id = aj.sample_id
+               AND a.model_id = ?5
+               AND a.dim = ?6
+               AND a.dtype = ?7
+               AND a.l2_normed = 1
              WHERE aj.status = 'failed'
                AND aj.source_id = ?1
                AND (
@@ -382,6 +433,7 @@ fn failed_samples_for_source(
                   OR s.analysis_version IS NULL
                   OR s.analysis_version != ?4
                   OR e.sample_id IS NULL
+                  OR a.sample_id IS NULL
                )
              ORDER BY aj.relative_path ASC",
         )
@@ -393,6 +445,9 @@ fn failed_samples_for_source(
                 1i64,
                 SIMILARITY_MODEL_ID,
                 wavecrate_analysis::analysis_version(),
+                ASPECT_DESCRIPTOR_MODEL_ID,
+                ASPECT_DESCRIPTOR_DIM as i64,
+                ASPECT_DESCRIPTOR_DTYPE_F32,
             ],
             |row| {
                 let relative_path: String = row.get(0)?;

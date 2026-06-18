@@ -224,6 +224,7 @@ fn invalidate_native_analysis_artifacts(
         for table in [
             "features",
             "embeddings",
+            "similarity_aspect_descriptors",
             "layout_umap",
             "hdbscan_clusters",
             "analysis_features",
