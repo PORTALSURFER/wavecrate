@@ -66,7 +66,14 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn selected_source_cache_warm_request(
         &self,
     ) -> Option<(String, Vec<PathBuf>)> {
-        let folder = self.selected_source_root_folder()?;
+        self.source_cache_warm_request(self.source.selected_source.as_str())
+    }
+
+    pub(in crate::native_app) fn source_cache_warm_request(
+        &self,
+        source_id: &str,
+    ) -> Option<(String, Vec<PathBuf>)> {
+        let folder = self.source_root_folder(source_id)?;
         let mut paths = Vec::new();
         collect_source_cache_candidate_paths(folder, &mut paths);
         Some((folder.id.clone(), paths))
@@ -236,6 +243,14 @@ impl FolderBrowserState {
                 .find(|source| source.id == self.source.selected_source)
                 .and_then(|source| source.root_folder.as_ref())
         })
+    }
+
+    fn source_root_folder(&self, source_id: &str) -> Option<&FolderEntry> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .and_then(|source| source.root_folder.as_ref())
     }
 
     fn selected_folder_audio_files<'a>(&self, folder: &'a FolderEntry) -> Vec<&'a FileEntry> {

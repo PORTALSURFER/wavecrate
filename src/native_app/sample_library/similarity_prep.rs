@@ -110,10 +110,19 @@ impl NativeAppState {
         source_id: &str,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.prepare_similarity_for_source(source_id, SimilarityPrepTrigger::Automatic, context);
+    }
+
+    pub(in crate::native_app) fn prepare_similarity_for_source(
+        &mut self,
+        source_id: &str,
+        trigger: SimilarityPrepTrigger,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let Some(source) = self.similarity_prep_source_for_id(source_id) else {
             return;
         };
-        self.queue_similarity_prep_for_source(source, SimilarityPrepTrigger::Automatic, context);
+        self.queue_similarity_prep_for_source(source, trigger, context);
     }
 
     fn queue_similarity_prep_for_source(

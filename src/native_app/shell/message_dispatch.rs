@@ -101,6 +101,7 @@ impl NativeAppState {
             | GuiMessage::TrashMoveFinished { .. }
             | GuiMessage::ContextTargetOpenFinished { .. }
             | GuiMessage::RefreshContextSource
+            | GuiMessage::ProcessContextSource
             | GuiMessage::RemoveContextSource
             | GuiMessage::CloseContextMenu
             | GuiMessage::ExternalWaveformFileDropFinished { .. }

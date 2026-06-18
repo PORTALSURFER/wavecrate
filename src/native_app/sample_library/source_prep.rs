@@ -3,9 +3,11 @@ use std::time::Instant;
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::similarity_prep::SimilarityPrepTrigger;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum SourcePrepTrigger {
+    UserRequested,
     SourceSelected,
     FolderActivated,
     SourceVerified,
@@ -16,12 +18,17 @@ pub(in crate::native_app) enum SourcePrepTrigger {
 impl SourcePrepTrigger {
     fn action_label(self) -> &'static str {
         match self {
+            Self::UserRequested => "user_requested",
             Self::SourceSelected => "source_selected",
             Self::FolderActivated => "folder_activated",
             Self::SourceVerified => "source_verified",
             Self::SourceScanFinished => "source_scan_finished",
             Self::FilesystemChanged => "filesystem_changed",
         }
+    }
+
+    fn process_unselected_cache(self) -> bool {
+        matches!(self, Self::UserRequested)
     }
 }
 
@@ -44,10 +51,27 @@ impl NativeAppState {
         let started_at = Instant::now();
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
         self.refresh_persisted_metadata_tags_for_source(&source_id);
-        self.prepare_similarity_for_source_automatically(&source_id, context);
+        if trigger == SourcePrepTrigger::UserRequested {
+            self.prepare_similarity_for_source(
+                &source_id,
+                SimilarityPrepTrigger::UserRequested,
+                context,
+            );
+        } else {
+            self.prepare_similarity_for_source_automatically(&source_id, context);
+        }
         if selected_source {
             self.schedule_persisted_waveform_cache_indicator_refresh(context);
-            self.schedule_active_folder_cache_warm(context);
+        }
+        let cache_scheduled = if selected_source {
+            self.schedule_active_folder_cache_warm(context)
+        } else if trigger.process_unselected_cache() {
+            self.schedule_source_cache_warm(&source_id, context)
+        } else {
+            false
+        };
+        if trigger == SourcePrepTrigger::UserRequested && !cache_scheduled {
+            self.ui.status.sample = String::from("Source processing queued");
         }
         emit_gui_action(
             "source_prep.queue",

@@ -75,6 +75,7 @@ impl NativeAppState {
                 self.finish_context_target_open(kind, path, result);
             }
             GuiMessage::RefreshContextSource => self.refresh_context_source(context),
+            GuiMessage::ProcessContextSource => self.process_context_source(context),
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
                 self.ui.browser_interaction.context_menu = None;

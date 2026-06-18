@@ -415,12 +415,12 @@ fn source_prep_trigger_queues_cache_warm_and_similarity_jobs() {
         &mut context,
     );
 
-    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 2);
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
     assert!(
         state
             .waveform
             .cache
-            .active_folder_warm_delay_task
+            .active_folder_warm_plan_task
             .active()
             .is_some()
     );

@@ -3,6 +3,7 @@ use std::time::Instant;
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
     pub(in crate::native_app) fn select_source(
@@ -98,6 +99,48 @@ impl NativeAppState {
             return;
         };
         self.refresh_source(source_id, context);
+    }
+
+    pub(in crate::native_app) fn process_context_source(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.clone() else {
+            return;
+        };
+        let Some(source_id) = menu.source_id else {
+            self.ui.browser_interaction.context_menu = None;
+            self.ui.status.sample = String::from("Source is unavailable");
+            return;
+        };
+        self.ui.browser_interaction.context_menu = None;
+        if self
+            .library
+            .folder_browser
+            .source_root_path(&source_id)
+            .is_none()
+        {
+            self.ui.status.sample = String::from("Source is unavailable");
+            emit_gui_action(
+                "folder_browser.source.process",
+                Some("sources"),
+                Some(&source_id),
+                "error",
+                started_at,
+                Some("source_unavailable"),
+            );
+            return;
+        }
+        self.queue_source_prep(source_id.clone(), SourcePrepTrigger::UserRequested, context);
+        emit_gui_action(
+            "folder_browser.source.process",
+            Some("sources"),
+            Some(&source_id),
+            "queued",
+            started_at,
+            None,
+        );
     }
 
     pub(in crate::native_app) fn maybe_startup_source_scan(

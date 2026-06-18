@@ -174,6 +174,7 @@ pub(in crate::native_app) enum GuiMessage {
         result: Result<Vec<PathBuf>, String>,
     },
     RefreshContextSource,
+    ProcessContextSource,
     RemoveContextSource,
     CloseContextMenu,
     ToggleJobDetails,

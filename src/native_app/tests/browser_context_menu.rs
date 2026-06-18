@@ -96,6 +96,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
+    assert!(frame.paint_plan.contains_text("Process Source"));
     assert!(frame.paint_plan.contains_text("New Folder"));
     assert!(!frame.paint_plan.contains_text("Delete Folder"));
     assert!(frame.paint_plan.contains_text("Remove Source"));
@@ -117,9 +118,82 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Refresh Source"));
+    assert!(frame.paint_plan.contains_text("Process Source"));
     assert!(frame.paint_plan.contains_text("New Folder"));
     assert!(!frame.paint_plan.contains_text("Delete Folder"));
     assert!(!frame.paint_plan.contains_text("Remove Source"));
+}
+
+#[test]
+fn source_context_menu_processes_context_source_without_selecting_it() {
+    let first_root = tempfile::tempdir().expect("first source root");
+    let second_root = tempfile::tempdir().expect("second source root");
+    fs::write(first_root.path().join("first.wav"), []).expect("write first sample");
+    fs::write(second_root.path().join("second.wav"), []).expect("write second sample");
+    let first_source_id = String::from("first-source");
+    let second_source_id = String::from("second-source");
+    let first_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(first_source_id.clone()),
+        first_root.path().to_path_buf(),
+    );
+    let second_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(second_source_id.clone()),
+        second_root.path().to_path_buf(),
+    );
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            first_source,
+            second_source,
+        ]);
+    let second_scan = state
+        .library
+        .folder_browser
+        .begin_source_scan(second_source_id.clone(), 42)
+        .expect("second source scan should queue");
+    let second_scan_result =
+        crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+            second_scan,
+            |_| {},
+            |_| {},
+        );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .apply_scan_finished(second_scan_result)
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_source_id(),
+        first_source_id
+    );
+    state.open_source_context_menu(second_source_id.clone(), Point::new(40.0, 120.0));
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ProcessContextSource,
+        &mut context,
+    );
+
+    assert!(state.ui.browser_interaction.context_menu.is_none());
+    assert_eq!(
+        state.library.folder_browser.selected_source_id(),
+        first_source_id
+    );
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_folder_id.as_deref(),
+        Some(second_root.path().to_string_lossy().as_ref())
+    );
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 1);
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_plan_task
+            .active()
+            .is_some(),
+        "processing a context source should queue cache warm planning for that source"
+    );
 }
 
 #[test]

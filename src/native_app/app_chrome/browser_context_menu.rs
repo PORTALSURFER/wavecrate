@@ -59,6 +59,10 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             "Refresh Source",
             GuiMessage::RefreshContextSource,
         ));
+        actions.push(ui::MenuCommand::new(
+            "Process Source",
+            GuiMessage::ProcessContextSource,
+        ));
         if menu.source_removable {
             actions.push(
                 ui::MenuCommand::new("Remove Source", GuiMessage::RemoveContextSource).danger(),

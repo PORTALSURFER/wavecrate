@@ -33,18 +33,43 @@ impl NativeAppState {
     pub(in crate::native_app) fn schedule_active_folder_cache_warm(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
+    ) -> bool {
         self.cancel_active_folder_cache_warm();
         let Some((folder_id, paths)) = self
             .library
             .folder_browser
             .selected_source_cache_warm_request()
         else {
-            return;
+            return false;
         };
+        self.schedule_source_cache_warm_request(folder_id, paths, context)
+    }
+
+    pub(in crate::native_app) fn schedule_source_cache_warm(
+        &mut self,
+        source_id: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> bool {
+        self.cancel_active_folder_cache_warm();
+        let Some((folder_id, paths)) = self
+            .library
+            .folder_browser
+            .source_cache_warm_request(source_id)
+        else {
+            return false;
+        };
+        self.schedule_source_cache_warm_request(folder_id, paths, context)
+    }
+
+    fn schedule_source_cache_warm_request(
+        &mut self,
+        folder_id: String,
+        paths: Vec<std::path::PathBuf>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> bool {
         let request = ActiveFolderCacheWarmRequest::new(folder_id.clone(), paths);
         if request.is_empty() {
-            return;
+            return false;
         }
         self.waveform
             .cache
@@ -71,6 +96,7 @@ impl NativeAppState {
                 GuiMessage::ActiveFolderCacheWarmPlanProgress,
                 GuiMessage::ActiveFolderCacheWarmPlanned,
             ));
+        true
     }
 
     pub(in crate::native_app) fn cancel_active_folder_cache_warm(&mut self) {
