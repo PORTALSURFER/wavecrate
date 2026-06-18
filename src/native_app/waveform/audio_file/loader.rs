@@ -9,14 +9,10 @@ use crate::native_app::waveform::{
     audio_file::{
         WaveformFile, WaveformPlaybackReady,
         construction::waveform_file_from_mono_samples_with_progress_and_cancel,
-        diagnostics::log_audio_load_timing,
-        downmix::downmix_to_mono_with_progress_and_cancel,
-        file_io::read_audio_file_with_progress,
-        wav_decode,
-        wav_decode::{
-            load_wav_waveform_file_with_progress, load_wav_waveform_summary_from_path_with_progress,
-        },
-        waveform_cache,
+        diagnostics::log_audio_load_timing, downmix::downmix_to_mono_with_progress_and_cancel,
+        file_io::read_audio_file_with_progress, wav_decode,
+        wav_decode::load_wav_waveform_file_with_progress,
+        wav_summary::load_wav_waveform_summary_from_path_with_progress, waveform_cache,
     },
 };
 

@@ -10,6 +10,10 @@ mod progress;
 mod signal_summary;
 mod visual_bands;
 mod wav_decode;
+mod wav_format;
+mod wav_summary;
+mod wav_summary_builder;
+mod wav_summary_hound;
 mod waveform_cache;
 
 pub(in crate::native_app) use cache_facade::{
