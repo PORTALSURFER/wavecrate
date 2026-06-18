@@ -153,7 +153,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             ACTIVE_FOLDER_CACHE_PROGRESS_MIN_DELTA,
         ));
         let decode_path = path.clone();
-        if let Ok(waveform) = WaveformState::load_path_with_progress_and_cancel(
+        match WaveformState::load_path_with_progress_and_cancel(
             path.clone(),
             |fraction| {
                 let Some(fraction) = progress_gate.borrow_mut().accept(fraction) else {
@@ -173,19 +173,25 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             },
             &is_cancelled,
         ) {
-            loaded.push((path.clone(), waveform.file()));
-            processed += 1;
-            report_active_folder_cache_progress(
-                &folder_id,
-                &decode_path,
-                processed,
-                1.0,
-                ActiveFolderCacheWarmStage::Ready,
-                true,
-                &progress,
-            );
-        } else {
-            processed += 1;
+            Ok(waveform) => {
+                loaded.push((path.clone(), waveform.file()));
+                processed += 1;
+                report_active_folder_cache_progress(
+                    &folder_id,
+                    &decode_path,
+                    processed,
+                    1.0,
+                    ActiveFolderCacheWarmStage::Ready,
+                    true,
+                    &progress,
+                );
+            }
+            Err(_) if is_cancelled() => {
+                deferred.push(path.clone());
+            }
+            Err(_) => {
+                processed += 1;
+            }
         }
         decoded_source = true;
         deferred.extend(paths);

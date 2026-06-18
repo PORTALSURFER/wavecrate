@@ -63,6 +63,21 @@ fn loading_frame_repaints_surface_when_loading_state_changes() {
 }
 
 #[test]
+fn source_cache_progress_frame_repaints_surface_for_status_bar_animation() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
+    state.waveform.cache.active_folder_warm_total = 10;
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        !state.frame_can_use_paint_only(before),
+        "source-cache status animation changes the status surface and must not be paint-only"
+    );
+}
+
+#[test]
 fn playback_frame_repaints_surface_when_playback_state_changes() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);

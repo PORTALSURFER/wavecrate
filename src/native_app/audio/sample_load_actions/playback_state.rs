@@ -22,10 +22,13 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn sample_cache_warm_should_yield(&self) -> bool {
+        self.sample_cache_warm_should_pause_active() || self.waveform.current.is_playing()
+    }
+
+    pub(in crate::native_app) fn sample_cache_warm_should_pause_active(&self) -> bool {
         self.waveform_sample_load_active()
             || self.audio.pending_playback_start.is_some()
             || self.audio.early_sample_playback_path.is_some()
-            || self.waveform.current.is_playing()
             || self.normalization_work_active()
     }
 

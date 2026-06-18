@@ -488,7 +488,7 @@ fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
 }
 
 #[test]
-fn sample_selection_cancels_running_active_folder_cache_warm() {
+fn sample_selection_pauses_running_active_folder_cache_warm_without_hiding_progress() {
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");
     fs::create_dir_all(&folder).expect("create folder");
@@ -517,7 +517,7 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
         &mut context,
         source_root.path().display().to_string(),
         Vec::new(),
-        vec![first.clone(), second],
+        vec![first.clone(), second.clone()],
     );
     let warm_ticket = state
         .waveform
@@ -529,10 +529,8 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
         crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
         &mut context,
     );
-    assert!(
-        active_folder_cache_warm_ticket(&state).is_some(),
-        "test setup should start active-folder cache warming"
-    );
+    let running_ticket = active_folder_cache_warm_ticket(&state)
+        .expect("test setup should start active-folder cache warming");
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
@@ -543,16 +541,62 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
     );
 
     assert!(
-        active_folder_cache_warm_ticket(&state).is_none(),
-        "foreground sample selection must cancel an already-running active-folder cache warm"
+        active_folder_cache_warm_ticket(&state).is_some(),
+        "foreground selection should keep the draining cache worker tracked until it reports cancellation"
     );
     assert!(
         state.waveform.cache.active_folder_warm_cancel.is_none(),
-        "foreground selection must cancel the active-folder worker token"
+        "foreground selection must request cooperative cancellation for background cache work"
     );
     assert!(
         active_sample_load_ticket(&state).is_some(),
         "foreground sample load should be queued after cancelling background warm work"
+    );
+    let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+    assert!(
+        status
+            .status_text
+            .starts_with("Caching source samples | 0/2"),
+        "cache progress should remain visible instead of being replaced by the sample load status: {}",
+        status.status_text
+    );
+    assert!(
+        status.worker_progress.is_some(),
+        "status bar should keep the worker progress bar while the cache worker drains"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
+            active_folder_cache_warm_completion_with_deferred(
+                running_ticket,
+                source_root.path().display().to_string(),
+                Vec::new(),
+                vec![first, second],
+                0,
+                false,
+                true,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert!(
+        active_folder_cache_warm_ticket(&state).is_none(),
+        "cancelled cache worker should finish and release its tracked task"
+    );
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_pending.len(),
+        2,
+        "cancelled cache worker should return unprocessed files to the warm queue"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_some(),
+        "active folder cache warm should retry after foreground work yields"
     );
 }
 

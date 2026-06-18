@@ -35,6 +35,7 @@ pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     play_selection_flash_active: bool,
     folder_progress_active: bool,
     normalization_progress_active: bool,
+    source_cache_progress_active: bool,
     waveform_loading_active: bool,
     sample_loading: bool,
     audio_opening: bool,
@@ -357,6 +358,11 @@ impl FrameRepaintScopeSnapshot {
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
             folder_progress_active: state.library.folder_scan_active(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
+            source_cache_progress_active: state
+                .waveform
+                .cache
+                .active_folder_warm_folder_id
+                .is_some(),
             waveform_loading_active: state.waveform.load.label.is_some(),
             sample_loading: state.active_sample_load_task().is_some(),
             audio_opening: state.background.audio_open.active().is_some(),
@@ -370,6 +376,7 @@ impl FrameRepaintScopeSnapshot {
         self.play_selection_flash_active
             || self.folder_progress_active
             || self.normalization_progress_active
+            || self.source_cache_progress_active
             || self.sample_loading
             || self.audio_opening
             || self.startup_source_scan_pending
@@ -382,6 +389,7 @@ impl FrameRepaintScopeSnapshot {
             && self.play_selection_flash_active == after.play_selection_flash_active
             && self.folder_progress_active == after.folder_progress_active
             && self.normalization_progress_active == after.normalization_progress_active
+            && self.source_cache_progress_active == after.source_cache_progress_active
             && self.waveform_loading_active == after.waveform_loading_active
             && self.sample_loading == after.sample_loading
             && self.audio_opening == after.audio_opening

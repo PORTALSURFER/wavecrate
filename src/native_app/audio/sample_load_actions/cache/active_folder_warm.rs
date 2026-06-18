@@ -140,6 +140,19 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if self
+            .waveform
+            .cache
+            .active_folder_warm_key
+            .as_ref()
+            .and_then(|key| self.waveform.cache.active_folder_warm_tasks.active(key))
+            .is_some()
+        {
+            if self.sample_cache_warm_should_pause_active() {
+                self.pause_active_folder_cache_warm(context);
+            }
+            return;
+        }
         if self.sample_cache_warm_should_yield() {
             self.pause_active_folder_cache_warm(context);
             return;
@@ -150,13 +163,6 @@ impl NativeAppState {
             .active_folder_warm_delay_task
             .active()
             .is_some()
-            || self
-                .waveform
-                .cache
-                .active_folder_warm_key
-                .as_ref()
-                .and_then(|key| self.waveform.cache.active_folder_warm_tasks.active(key))
-                .is_some()
         {
             return;
         }
@@ -248,8 +254,18 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let running = self
+            .waveform
+            .cache
+            .active_folder_warm_key
+            .as_ref()
+            .and_then(|key| self.waveform.cache.active_folder_warm_tasks.active(key))
+            .is_some();
         if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
+        }
+        if running {
+            return;
         }
         if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
             self.waveform.cache.active_folder_warm_tasks.cancel(&key);
@@ -334,6 +350,17 @@ impl NativeAppState {
         self.waveform.cache.active_folder_warm_current_progress = 0.0;
         self.waveform.cache.active_folder_warm_current_stage = None;
         if result.cancelled {
+            if self.waveform.cache.active_folder_warm_pending.is_empty() {
+                self.waveform.cache.active_folder_warm_folder_id = None;
+                self.waveform.cache.active_folder_warm_completed = 0;
+                self.waveform.cache.active_folder_warm_total = 0;
+                self.waveform.cache.active_folder_warm_batch_base_completed = 0;
+            } else {
+                self.reschedule_active_folder_cache_warm_delay(
+                    context,
+                    ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
+                );
+            }
             return;
         }
         log_slow_cache_phase(

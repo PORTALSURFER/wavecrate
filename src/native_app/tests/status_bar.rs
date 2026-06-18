@@ -291,6 +291,41 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
 }
 
 #[test]
+fn status_bar_view_model_restores_source_cache_progress_after_playback_status() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Playing kick.wav");
+    state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
+    state.waveform.cache.active_folder_warm_completed = 3;
+    state.waveform.cache.active_folder_warm_total = 10;
+    state.waveform.cache.active_folder_warm_current = Some("kicks/cache-target.wav".into());
+    state.waveform.cache.active_folder_warm_current_progress = 0.51;
+    state.waveform.cache.active_folder_warm_current_stage =
+        Some(crate::native_app::test_support::state::ActiveFolderCacheWarmStage::Decoding);
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert!(
+        model.status_text.contains("Caching source samples | 3/10"),
+        "worker status should reclaim the status bar after transient playback text: {}",
+        model.status_text
+    );
+    assert!(
+        model.status_text.contains("decoding 51%"),
+        "worker status should keep per-file progress visible: {}",
+        model.status_text
+    );
+    assert_eq!(
+        model.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 3,
+            total: 10,
+            current_fraction: Some(0.51),
+            active_animation: true,
+        }
+    );
+}
+
+#[test]
 fn status_bar_view_model_keeps_normalization_priority_over_source_cache_warm() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
