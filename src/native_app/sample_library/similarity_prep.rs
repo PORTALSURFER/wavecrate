@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::VecDeque, path::PathBuf};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleSource, SourceId};
@@ -12,7 +12,15 @@ use worker::{enqueue_similarity_prep_inner, resolve_similarity_prep_status};
 pub(in crate::native_app) struct NativeSimilarityPrepState {
     pub(in crate::native_app) status: Option<NativeSimilarityPrepStatus>,
     pub(in crate::native_app) running: bool,
+    pub(in crate::native_app) running_source_id: Option<String>,
+    pub(in crate::native_app) pending_source_ids: VecDeque<String>,
     pub(in crate::native_app) summary: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum SimilarityPrepTrigger {
+    Automatic,
+    UserRequested,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,6 +46,7 @@ pub(in crate::native_app) struct SimilarityPrepStatusResult {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct SimilarityPrepEnqueueResult {
     pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) trigger: SimilarityPrepTrigger,
     pub(in crate::native_app) result: Result<SimilarityPrepEnqueueSummary, String>,
 }
 
@@ -84,18 +93,53 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if self.library.similarity_prep.running {
-            self.ui.status.sample = String::from("Similarity prep already running");
-            return;
-        }
         let Some(source) = self.selected_similarity_prep_source() else {
             self.ui.status.sample = String::from("Select a source before preparing similarity");
             return;
         };
+        self.queue_similarity_prep_for_source(
+            source,
+            SimilarityPrepTrigger::UserRequested,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn prepare_similarity_for_source_automatically(
+        &mut self,
+        source_id: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(source) = self.similarity_prep_source_for_id(source_id) else {
+            return;
+        };
+        self.queue_similarity_prep_for_source(source, SimilarityPrepTrigger::Automatic, context);
+    }
+
+    fn queue_similarity_prep_for_source(
+        &mut self,
+        source: SimilarityPrepSource,
+        trigger: SimilarityPrepTrigger,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.library.similarity_prep.running {
+            if trigger == SimilarityPrepTrigger::UserRequested {
+                self.ui.status.sample = String::from("Similarity prep already running");
+            }
+            self.queue_pending_similarity_prep_source(source.id.as_str());
+            return;
+        }
+        let source_id = source.id.as_str().to_string();
+        let selected_source = source_id == self.library.folder_browser.selected_source_id();
         self.library.similarity_prep.running = true;
-        self.library.similarity_prep.summary = Some(String::from("Similarity prep queued"));
+        self.library.similarity_prep.running_source_id = Some(source_id);
+        if selected_source || trigger == SimilarityPrepTrigger::UserRequested {
+            self.library.similarity_prep.summary = Some(match trigger {
+                SimilarityPrepTrigger::Automatic => String::from("Source prep checking similarity"),
+                SimilarityPrepTrigger::UserRequested => String::from("Similarity prep queued"),
+            });
+        }
         context.business().background("gui-similarity-prep").run(
-            move |_| enqueue_similarity_prep(source),
+            move |_| enqueue_similarity_prep(source, trigger),
             GuiMessage::SimilarityPrepEnqueueFinished,
         );
     }
@@ -124,39 +168,100 @@ impl NativeAppState {
         result: SimilarityPrepEnqueueResult,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if result.source_id != self.library.folder_browser.selected_source_id() {
+        self.finish_running_similarity_prep(&result.source_id);
+        let selected_source = result.source_id == self.library.folder_browser.selected_source_id();
+        match result.result {
+            Ok(summary) => {
+                if selected_source {
+                    let has_work = summary.has_work();
+                    let message = summary.message();
+                    self.library.similarity_prep.status = Some(summary.status);
+                    self.library.similarity_prep.summary = Some(message.clone());
+                    if result.trigger == SimilarityPrepTrigger::UserRequested || has_work {
+                        self.ui.status.sample = message;
+                    }
+                    self.refresh_selected_similarity_prep_status(context);
+                }
+            }
+            Err(error) => {
+                if selected_source {
+                    self.library.similarity_prep.summary =
+                        Some(format!("Similarity prep failed: {error}"));
+                    self.ui.status.sample = format!("Similarity prep failed: {error}");
+                    emit_gui_action(
+                        "similarity_prep.native.enqueue",
+                        Some("browser"),
+                        Some(result.source_id.as_str()),
+                        "error",
+                        std::time::Instant::now(),
+                        Some(&error),
+                    );
+                }
+            }
+        }
+        self.start_next_pending_similarity_prep(context);
+    }
+
+    fn finish_running_similarity_prep(&mut self, source_id: &str) {
+        if self
+            .library
+            .similarity_prep
+            .running_source_id
+            .as_deref()
+            .is_some_and(|running| running != source_id)
+        {
             return;
         }
         self.library.similarity_prep.running = false;
-        match result.result {
-            Ok(summary) => {
-                let message = summary.message();
-                self.library.similarity_prep.status = Some(summary.status);
-                self.library.similarity_prep.summary = Some(message.clone());
-                self.ui.status.sample = message;
-                self.refresh_selected_similarity_prep_status(context);
-            }
-            Err(error) => {
-                self.library.similarity_prep.summary =
-                    Some(format!("Similarity prep failed: {error}"));
-                self.ui.status.sample = format!("Similarity prep failed: {error}");
-                emit_gui_action(
-                    "similarity_prep.native.enqueue",
-                    Some("browser"),
-                    Some(result.source_id.as_str()),
-                    "error",
-                    std::time::Instant::now(),
-                    Some(&error),
-                );
-            }
+        self.library.similarity_prep.running_source_id = None;
+    }
+
+    fn queue_pending_similarity_prep_source(&mut self, source_id: &str) {
+        if self.library.similarity_prep.running_source_id.as_deref() == Some(source_id)
+            || self
+                .library
+                .similarity_prep
+                .pending_source_ids
+                .iter()
+                .any(|pending| pending == source_id)
+        {
+            return;
+        }
+        self.library
+            .similarity_prep
+            .pending_source_ids
+            .push_back(source_id.to_string());
+    }
+
+    fn start_next_pending_similarity_prep(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.library.similarity_prep.running {
+            return;
+        }
+        while let Some(source_id) = self.library.similarity_prep.pending_source_ids.pop_front() {
+            let Some(source) = self.similarity_prep_source_for_id(&source_id) else {
+                continue;
+            };
+            self.queue_similarity_prep_for_source(
+                source,
+                SimilarityPrepTrigger::Automatic,
+                context,
+            );
+            break;
         }
     }
 
     fn selected_similarity_prep_source(&self) -> Option<SimilarityPrepSource> {
         let source_id = self.library.folder_browser.selected_source_id().to_string();
+        self.similarity_prep_source_for_id(&source_id)
+    }
+
+    fn similarity_prep_source_for_id(&self, source_id: &str) -> Option<SimilarityPrepSource> {
         let root = self.library.folder_browser.source_root_path(&source_id)?;
         Some(SimilarityPrepSource {
-            id: SourceId::from_string(source_id),
+            id: SourceId::from_string(source_id.to_string()),
             root,
         })
     }
@@ -178,6 +283,10 @@ impl NativeSimilarityPrepStatus {
 }
 
 impl SimilarityPrepEnqueueSummary {
+    fn has_work(&self) -> bool {
+        self.finalized || self.analysis_inserted > 0 || self.embedding_inserted > 0
+    }
+
     fn message(&self) -> String {
         if self.finalized {
             return String::from("Similarity ready");
@@ -202,10 +311,17 @@ fn resolve_status_result(source: SimilarityPrepSource) -> SimilarityPrepStatusRe
     }
 }
 
-fn enqueue_similarity_prep(source: SimilarityPrepSource) -> SimilarityPrepEnqueueResult {
+fn enqueue_similarity_prep(
+    source: SimilarityPrepSource,
+    trigger: SimilarityPrepTrigger,
+) -> SimilarityPrepEnqueueResult {
     let source_id = source.id.as_str().to_string();
     SimilarityPrepEnqueueResult {
         source_id,
-        result: enqueue_similarity_prep_inner(&source.sample_source()),
+        trigger,
+        result: enqueue_similarity_prep_inner(
+            &source.sample_source(),
+            trigger == SimilarityPrepTrigger::Automatic,
+        ),
     }
 }

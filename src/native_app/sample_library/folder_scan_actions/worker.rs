@@ -5,6 +5,7 @@ use radiant::prelude as ui;
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, SourceScanFinish, emit_gui_action, run_folder_scan_worker},
     sample_library::folder_browser::scan::{FolderScanRequest, FolderScanResult},
+    sample_library::source_prep::SourcePrepTrigger,
 };
 
 impl NativeAppState {
@@ -99,10 +100,11 @@ impl NativeAppState {
             started_at,
             None,
         );
-        self.refresh_persisted_metadata_tags_for_source(&source_id);
-        self.refresh_selected_similarity_prep_status(context);
-        self.schedule_persisted_waveform_cache_indicator_refresh(context);
-        self.schedule_active_folder_cache_warm(context);
+        self.queue_source_prep(
+            source_id.clone(),
+            SourcePrepTrigger::SourceScanFinished,
+            context,
+        );
         self.persist_user_configuration("folder_browser.sources.persist", started_at);
         self.sync_source_watcher();
     }

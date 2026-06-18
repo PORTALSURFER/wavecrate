@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, emit_gui_action},
-    sample_library::folder_browser::scan,
+    sample_library::{folder_browser::scan, source_prep::SourcePrepTrigger},
 };
 
 impl NativeAppState {
@@ -44,6 +44,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_folder_tree_refresh(
         &mut self,
         completion: ui::TaskCompletion<scan::FolderTreeRefreshResult>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if !self
@@ -61,6 +62,11 @@ impl NativeAppState {
         if changed {
             self.persist_user_configuration("folder_browser.folder_tree_refresh", started_at);
         }
+        self.queue_source_prep(
+            source_id.clone(),
+            SourcePrepTrigger::SourceVerified,
+            context,
+        );
         emit_gui_action(
             "folder_browser.folder_tree_refresh",
             Some("folder_browser"),

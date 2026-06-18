@@ -36,9 +36,11 @@ impl NativeAppState {
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result, context),
             GuiMessage::FolderTreeRefreshFinished(completion) => {
-                self.finish_folder_tree_refresh(completion);
+                self.finish_folder_tree_refresh(completion, context);
             }
-            GuiMessage::SelectedFolderVerifyFinished(ticket) => self.finish_folder_verify(ticket),
+            GuiMessage::SelectedFolderVerifyFinished(ticket) => {
+                self.finish_folder_verify(ticket, context)
+            }
             GuiMessage::SourceFilesystemChanged {
                 source_id,
                 paths,

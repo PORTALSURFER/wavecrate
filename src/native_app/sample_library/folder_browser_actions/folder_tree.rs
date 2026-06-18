@@ -7,6 +7,7 @@ use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMe
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
 };
+use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
     pub(super) fn activate_folder_browser_folder(
@@ -21,8 +22,7 @@ impl NativeAppState {
             .folder_browser
             .apply_message(FolderBrowserMessage::ActivateFolder(folder_id, modifiers));
         self.queue_selected_folder_verify_after_activation(context);
-        self.schedule_persisted_waveform_cache_indicator_refresh(context);
-        self.schedule_active_folder_cache_warm(context);
+        self.queue_selected_source_prep(SourcePrepTrigger::FolderActivated, context);
         emit_gui_action(
             "folder_browser.activate_folder",
             Some("folder_browser"),

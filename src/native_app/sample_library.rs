@@ -20,5 +20,6 @@ pub(in crate::native_app) mod sample_ratings;
 pub(in crate::native_app) mod selected_file_actions;
 pub(in crate::native_app) mod similarity_prep;
 pub(in crate::native_app) mod similarity_scores;
+pub(in crate::native_app) mod source_prep;
 pub(in crate::native_app) mod source_watcher;
 pub(in crate::native_app) mod trash_actions;

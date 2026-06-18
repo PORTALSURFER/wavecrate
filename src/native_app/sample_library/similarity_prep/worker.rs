@@ -8,6 +8,10 @@ use wavecrate_analysis::{self as analysis, similarity::SIMILARITY_MODEL_ID};
 
 use super::{NativeSimilarityPrepStatus, SimilarityPrepEnqueueSummary};
 
+mod analysis_enqueue;
+
+use analysis_enqueue::enqueue_analysis_backfill;
+
 const NATIVE_SIMILARITY_UMAP_VERSION: &str = "v1";
 const NATIVE_SIMILARITY_CLUSTER_MIN_SIZE: usize = 10;
 const ANALYZE_SAMPLE_JOB_TYPE: &str = "wav_metadata_v1";
@@ -15,7 +19,19 @@ const EMBEDDING_BACKFILL_JOB_TYPE: &str = "embedding_backfill_v1";
 
 pub(super) fn enqueue_similarity_prep_inner(
     source: &SampleSource,
+    automatic: bool,
 ) -> Result<SimilarityPrepEnqueueSummary, String> {
+    let initial_status = resolve_similarity_prep_status(source)?;
+    if initial_status == NativeSimilarityPrepStatus::UpToDate
+        || (automatic && matches!(initial_status, NativeSimilarityPrepStatus::Blocked { .. }))
+    {
+        return Ok(SimilarityPrepEnqueueSummary {
+            analysis_inserted: 0,
+            embedding_inserted: 0,
+            finalized: false,
+            status: initial_status,
+        });
+    }
     let analysis_inserted = enqueue_analysis_backfill(source)?;
     let embedding_inserted = enqueue_embedding_backfill(source)?;
     let finalized = finalize_if_ready(source)?;
@@ -236,52 +252,6 @@ where
         .all(|sample_id| covered.contains(sample_id)))
 }
 
-fn enqueue_analysis_backfill(source: &SampleSource) -> Result<usize, String> {
-    let samples = current_present_samples(source)?;
-    if samples.is_empty() {
-        return Ok(0);
-    }
-    let mut conn = open_source_db(&source.root)?;
-    if active_jobs_exist(&conn, source.id.as_str(), ANALYZE_SAMPLE_JOB_TYPE)? {
-        return Ok(0);
-    }
-    let created_at = now_epoch_seconds();
-    let tx = conn
-        .transaction()
-        .map_err(|err| format!("Start analysis enqueue transaction failed: {err}"))?;
-    for sample in &samples {
-        tx.execute(
-            "INSERT INTO samples
-             (sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version, bpm, long_sample_mark)
-             VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, NULL, NULL)
-             ON CONFLICT(sample_id) DO UPDATE SET
-               content_hash = excluded.content_hash,
-               size = excluded.size,
-               mtime_ns = excluded.mtime_ns",
-            rusqlite::params![
-                sample.sample_id,
-                sample.content_hash,
-                i64::try_from(sample.file_size).unwrap_or(i64::MAX),
-                sample.modified_ns,
-            ],
-        )
-        .map_err(|err| format!("Stage analysis sample failed: {err}"))?;
-        upsert_analysis_job(
-            &tx,
-            &sample.sample_id,
-            source.id.as_str(),
-            &sample.relative_path,
-            ANALYZE_SAMPLE_JOB_TYPE,
-            &sample.content_hash,
-            created_at,
-        )?;
-    }
-    let inserted = samples.len();
-    tx.commit()
-        .map_err(|err| format!("Commit analysis enqueue failed: {err}"))?;
-    Ok(inserted)
-}
-
 fn enqueue_embedding_backfill(source: &SampleSource) -> Result<usize, String> {
     let mut conn = open_source_db(&source.root)?;
     if active_jobs_exist(&conn, source.id.as_str(), EMBEDDING_BACKFILL_JOB_TYPE)? {
@@ -367,36 +337,6 @@ fn upsert_analysis_job(
     .map_err(|err| format!("Enqueue analysis job failed: {err}"))
 }
 
-#[derive(Clone, Debug)]
-struct NativeAnalysisSample {
-    sample_id: String,
-    relative_path: PathBuf,
-    file_size: u64,
-    modified_ns: i64,
-    content_hash: String,
-}
-
-fn current_present_samples(source: &SampleSource) -> Result<Vec<NativeAnalysisSample>, String> {
-    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
-    let entries = db.list_files().map_err(|err| err.to_string())?;
-    Ok(entries
-        .into_iter()
-        .filter(|entry| !entry.missing)
-        .map(|entry| {
-            let content_hash = entry
-                .content_hash
-                .unwrap_or_else(|| fast_content_hash(entry.file_size, entry.modified_ns));
-            NativeAnalysisSample {
-                sample_id: build_sample_id(source.id.as_str(), &entry.relative_path),
-                relative_path: entry.relative_path,
-                file_size: entry.file_size,
-                modified_ns: entry.modified_ns,
-                content_hash,
-            }
-        })
-        .collect())
-}
-
 fn sample_ids_missing_embeddings(
     conn: &rusqlite::Connection,
     source: &SampleSource,
@@ -479,10 +419,6 @@ fn build_sample_id(source_id: &str, relative_path: &std::path::Path) -> String {
         source_id,
         relative_path.to_string_lossy().replace('\\', "/")
     )
-}
-
-fn fast_content_hash(size: u64, modified_ns: i64) -> String {
-    format!("fast-{size}-{modified_ns}")
 }
 
 fn now_epoch_seconds() -> i64 {

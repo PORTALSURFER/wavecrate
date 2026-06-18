@@ -5,6 +5,7 @@ use radiant::prelude as ui;
 use crate::native_app::app::{
     GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceRefreshRequest, emit_gui_action,
 };
+use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
     pub(in crate::native_app) fn refresh_source_after_filesystem_change(
@@ -36,9 +37,11 @@ impl NativeAppState {
             } => {
                 if changed {
                     self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
-                    self.refresh_persisted_metadata_tags_for_source(&source_id);
-                    self.schedule_persisted_waveform_cache_indicator_refresh(context);
-                    self.schedule_active_folder_cache_warm(context);
+                    self.queue_source_prep(
+                        source_id.clone(),
+                        SourcePrepTrigger::FilesystemChanged,
+                        context,
+                    );
                     self.persist_user_configuration(
                         "folder_browser.source.filesystem_patch",
                         started_at,

@@ -2,6 +2,7 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
     pub(super) fn select_folder_browser_source(
@@ -13,8 +14,7 @@ impl NativeAppState {
         let source = id.clone();
         self.ui.browser_interaction.context_menu = None;
         self.select_source(id, context);
-        self.refresh_selected_similarity_prep_status(context);
-        self.schedule_active_folder_cache_warm(context);
+        self.queue_selected_source_prep(SourcePrepTrigger::SourceSelected, context);
         emit_gui_action(
             "folder_browser.select_source",
             Some("folder_browser"),

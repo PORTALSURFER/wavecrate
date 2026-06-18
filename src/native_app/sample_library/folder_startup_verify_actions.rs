@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::scan;
+use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
     pub(in crate::native_app) fn maybe_startup_visible_folder_verify(
@@ -38,8 +39,13 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_folder_verify(
         &mut self,
         completion: ui::TaskCompletion<scan::FolderVerifyResult>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.finish_folder_verify_with_action(completion, "folder_browser.selected_folder_verify");
+        self.finish_folder_verify_with_action(
+            completion,
+            "folder_browser.selected_folder_verify",
+            context,
+        );
     }
 
     fn queue_selected_folder_verify(
@@ -75,6 +81,7 @@ impl NativeAppState {
         &mut self,
         completion: ui::TaskCompletion<scan::FolderVerifyResult>,
         action: &'static str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
         if !self.background.folder_verify_task.finish(completion.ticket) {
@@ -86,7 +93,11 @@ impl NativeAppState {
             .folder_browser
             .apply_direct_folder_verify_result(completion.output);
         if changed {
-            self.refresh_persisted_metadata_tags_for_source(&source_id);
+            self.queue_source_prep(
+                source_id.clone(),
+                SourcePrepTrigger::FilesystemChanged,
+                context,
+            );
             self.persist_user_configuration(action, started_at);
         }
         emit_gui_action(
