@@ -32,6 +32,15 @@ pub(in crate::native_app) struct ActiveFolderCacheWarmProgress {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct ActiveFolderCacheWarmPlanProgress {
+    pub(in crate::native_app) folder_id: String,
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) checked: usize,
+    pub(in crate::native_app) total: usize,
+    pub(in crate::native_app) playback_ready: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct ActiveFolderCacheWarmPlanResult {
     pub(in crate::native_app) folder_id: String,
     pub(in crate::native_app) playback_ready: Vec<PathBuf>,

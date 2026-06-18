@@ -67,6 +67,15 @@ fn bottom_status_text(state: &NativeAppState) -> String {
         };
     }
     if let Some(progress) = WorkerProgressViewModel::from_source_cache_warm(state) {
+        if state
+            .waveform
+            .cache
+            .active_folder_warm_plan_task
+            .active()
+            .is_some()
+        {
+            return source_cache_plan_status_text(state, progress);
+        }
         return source_cache_warm_status_text(state, progress);
     }
     state.ui.status.sample.clone()
@@ -175,6 +184,38 @@ fn source_cache_warm_status_text(
         (None, None) => format!(
             "Caching source samples | {}",
             counters.count_label("cached")
+        ),
+    }
+}
+
+fn source_cache_plan_status_text(
+    state: &NativeAppState,
+    progress: WorkerProgressViewModel,
+) -> String {
+    let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+    let detail = state
+        .waveform
+        .cache
+        .active_folder_warm_current
+        .as_ref()
+        .and_then(|path| path.file_name())
+        .map(|name| name.to_string_lossy().to_string());
+    let percent = (state
+        .waveform
+        .cache
+        .active_folder_warm_current_progress
+        .clamp(0.0, 1.0)
+        * 100.0)
+        .round() as usize;
+    match detail {
+        Some(detail) => format!(
+            "Checking source samples | {} | {percent}% | {}",
+            counters.count_label("checked"),
+            detail
+        ),
+        None => format!(
+            "Checking source samples | {}",
+            counters.count_label("checked")
         ),
     }
 }

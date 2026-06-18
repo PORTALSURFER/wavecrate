@@ -7,10 +7,10 @@ use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
 use wavecrate_analysis::aspects::SimilarityAspect;
 
 use crate::native_app::app::{
-    ActiveFolderCacheWarmPlanResult, ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult,
-    AppSettingsTab, AudioOpenTaskCompletion, NormalizationProgress, NormalizationResult,
-    SampleLoadResult, SamplePlaybackReady, WaveformCacheIndicatorRefreshResult,
-    WaveformCacheWarmResult,
+    ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
+    ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
+    AudioOpenTaskCompletion, NormalizationProgress, NormalizationResult, SampleLoadResult,
+    SamplePlaybackReady, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -97,6 +97,7 @@ pub(in crate::native_app) enum GuiMessage {
     SampleLoadFinished(ui::KeyedTaskCompletion<ui::ResourceKey, SampleLoadResult>),
     WaveformCacheIndicatorRefreshFinished(ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>),
     WaveformCacheWarmFinished(ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>),
+    ActiveFolderCacheWarmPlanProgress(ui::TaskCompletion<ActiveFolderCacheWarmPlanProgress>),
     ActiveFolderCacheWarmPlanned(ui::TaskCompletion<ActiveFolderCacheWarmPlanResult>),
     ActiveFolderCacheWarmReady(ui::TaskTicket),
     ActiveFolderCacheWarmProgress(

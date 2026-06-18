@@ -9,8 +9,8 @@ use std::{
 
 use crate::native_app::{
     app::{
-        ActiveFolderCacheWarmPlanResult, ActiveFolderCacheWarmProgress,
-        ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
+        ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
+        ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
         WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
     },
     waveform::{
@@ -21,6 +21,8 @@ use crate::native_app::{
 
 const ACTIVE_FOLDER_CACHE_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
 const ACTIVE_FOLDER_CACHE_PROGRESS_MIN_DELTA: f32 = 0.01;
+const ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
+const ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_DELTA: f32 = 0.005;
 const ACTIVE_FOLDER_CACHE_LOADING_PROGRESS: f32 = 0.18;
 const ACTIVE_FOLDER_CACHE_DECODE_PROGRESS_START: f32 = 0.2;
 const ACTIVE_FOLDER_CACHE_DECODE_PROGRESS_RANGE: f32 = 0.795;
@@ -57,9 +59,24 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm(
     paths: Vec<PathBuf>,
     is_cancelled: impl Fn() -> bool,
 ) -> ActiveFolderCacheWarmPlanResult {
+    plan_active_folder_waveform_cache_warm_with_progress(folder_id, paths, is_cancelled, |_| {})
+}
+
+pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm_with_progress(
+    folder_id: String,
+    paths: Vec<PathBuf>,
+    is_cancelled: impl Fn() -> bool,
+    progress: impl Fn(ActiveFolderCacheWarmPlanProgress),
+) -> ActiveFolderCacheWarmPlanResult {
+    let total = paths.len();
+    let mut progress_gate = ui::ProgressUpdateGate::new(
+        ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_INTERVAL,
+        ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_DELTA,
+    );
     let mut playback_ready = Vec::new();
     let mut pending = Vec::new();
-    for path in paths {
+    for (index, path) in paths.into_iter().enumerate() {
+        let checked = index.saturating_add(1);
         if is_cancelled() {
             pending.push(path);
             return ActiveFolderCacheWarmPlanResult {
@@ -70,8 +87,26 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm(
             };
         }
         if cached_waveform_file_playback_ready_exists(&path) {
+            report_active_folder_cache_plan_progress(
+                &folder_id,
+                &path,
+                checked,
+                total,
+                true,
+                &mut progress_gate,
+                &progress,
+            );
             playback_ready.push(path);
         } else {
+            report_active_folder_cache_plan_progress(
+                &folder_id,
+                &path,
+                checked,
+                total,
+                false,
+                &mut progress_gate,
+                &progress,
+            );
             pending.push(path);
         }
     }
@@ -81,6 +116,32 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm(
         pending,
         cancelled: false,
     }
+}
+
+fn report_active_folder_cache_plan_progress(
+    folder_id: &str,
+    path: &Path,
+    checked: usize,
+    total: usize,
+    playback_ready: bool,
+    progress_gate: &mut ui::ProgressUpdateGate,
+    progress: &impl Fn(ActiveFolderCacheWarmPlanProgress),
+) {
+    let fraction = if total == 0 {
+        1.0
+    } else {
+        checked as f32 / total as f32
+    };
+    if progress_gate.accept(fraction).is_none() {
+        return;
+    }
+    progress(ActiveFolderCacheWarmPlanProgress {
+        folder_id: folder_id.to_owned(),
+        path: path.to_path_buf(),
+        checked,
+        total,
+        playback_ready,
+    });
 }
 
 pub(super) fn warm_active_folder_waveform_cache_with_progress(

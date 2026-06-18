@@ -118,6 +118,71 @@ fn folder_activation_delays_active_folder_cache_warm() {
 }
 
 #[test]
+fn active_folder_cache_plan_is_visible_before_decode_batches_start() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.schedule_active_folder_cache_warm(&mut context);
+
+    let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+    assert_eq!(
+        status.status_text, "Checking source samples | 0/2",
+        "starting source prep should show cache-plan progress immediately"
+    );
+    assert_eq!(
+        status.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 0,
+            total: 2,
+            current_fraction: None,
+            active_animation: true,
+        }
+    );
+
+    let ticket = active_folder_cache_warm_plan_ticket(&state).expect("source warm plan");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmPlanProgress(
+            ui::TaskCompletion {
+                ticket,
+                output: crate::native_app::test_support::state::ActiveFolderCacheWarmPlanProgress {
+                    folder_id: source_root.path().display().to_string(),
+                    path: first,
+                    checked: 1,
+                    total: 2,
+                    playback_ready: false,
+                },
+            },
+        ),
+        &mut context,
+    );
+
+    let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+    assert_eq!(
+        status.status_text,
+        "Checking source samples | 1/2 | 50% | first.wav"
+    );
+    assert_eq!(
+        status.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 1,
+            total: 2,
+            current_fraction: Some(0.5),
+            active_animation: true,
+        }
+    );
+}
+
+#[test]
 fn folder_activation_queues_entire_source_for_background_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

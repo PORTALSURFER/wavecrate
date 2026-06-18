@@ -291,6 +291,35 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
 }
 
 #[test]
+fn status_bar_view_model_reports_source_cache_plan_progress() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.waveform.cache.active_folder_warm_plan_task.begin();
+    state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
+    state.waveform.cache.active_folder_warm_completed = 42;
+    state.waveform.cache.active_folder_warm_total = 100;
+    state.waveform.cache.active_folder_warm_current = Some("kicks/plan-target.wav".into());
+    state.waveform.cache.active_folder_warm_current_progress = 0.42;
+    state.waveform.cache.active_folder_warm_current_stage =
+        Some(crate::native_app::test_support::state::ActiveFolderCacheWarmStage::CheckingCache);
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert_eq!(
+        model.status_text,
+        "Checking source samples | 42/100 | 42% | plan-target.wav"
+    );
+    assert_eq!(
+        model.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 42,
+            total: 100,
+            current_fraction: Some(0.42),
+            active_animation: true,
+        }
+    );
+}
+
+#[test]
 fn status_bar_view_model_restores_source_cache_progress_after_playback_status() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.status.sample = String::from("Playing kick.wav");

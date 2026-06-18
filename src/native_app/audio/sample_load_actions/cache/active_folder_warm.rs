@@ -7,8 +7,9 @@ use std::{
 
 use crate::native_app::{
     app::{
-        ActiveFolderCacheWarmPlanResult, ActiveFolderCacheWarmProgress,
-        ActiveFolderCacheWarmResult, GuiMessage, NativeAppState, WaveformState,
+        ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
+        ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, GuiMessage, NativeAppState,
+        WaveformState,
     },
     audio::sample_load_actions::{
         active_folder_cache_warm_resource_key,
@@ -19,7 +20,7 @@ use crate::native_app::{
             logging::log_slow_cache_phase,
             persisted_warm::take_cache_warm_batch,
             workers::{
-                plan_active_folder_waveform_cache_warm,
+                plan_active_folder_waveform_cache_warm_with_progress,
                 warm_active_folder_waveform_cache_with_progress,
             },
         },
@@ -44,23 +45,46 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
-        context
+        let total = paths.len();
+        self.waveform.cache.active_folder_warm_folder_id = Some(folder_id.clone());
+        self.waveform.cache.active_folder_warm_pending.clear();
+        self.waveform.cache.active_folder_warm_completed = 0;
+        self.waveform.cache.active_folder_warm_total = total;
+        self.waveform.cache.active_folder_warm_current = None;
+        self.waveform.cache.active_folder_warm_current_progress = 0.0;
+        self.waveform.cache.active_folder_warm_current_stage =
+            Some(crate::native_app::app::ActiveFolderCacheWarmStage::CheckingCache);
+        self.waveform.cache.active_folder_warm_batch_base_completed = 0;
+        self.waveform.cache.active_folder_warm_plan_cancel = Some(context
             .business()
             .background("gui-active-folder-cache-warm-plan")
             .cancellable()
             .latest(&mut self.waveform.cache.active_folder_warm_plan_task)
-            .run(
-                move |worker_context| {
-                    plan_active_folder_waveform_cache_warm(folder_id, paths, || {
-                        worker_context.is_cancelled()
-                    })
+            .stream(
+                move |worker_context: BusinessWorkContext,
+                      events: BusinessEventSink<ActiveFolderCacheWarmPlanProgress>| {
+                    let progress_events = events.clone();
+                    plan_active_folder_waveform_cache_warm_with_progress(
+                        folder_id,
+                        paths,
+                        || worker_context.is_cancelled(),
+                        |progress| {
+                            let _ = worker_context
+                                .yield_if_elapsed(ACTIVE_FOLDER_CACHE_PROGRESS_YIELD_INTERVAL);
+                            let _ = progress_events.emit(progress);
+                        },
+                    )
                 },
+                GuiMessage::ActiveFolderCacheWarmPlanProgress,
                 GuiMessage::ActiveFolderCacheWarmPlanned,
-            );
+            ));
     }
 
     pub(in crate::native_app) fn cancel_active_folder_cache_warm(&mut self) {
         self.waveform.cache.active_folder_warm_plan_task.cancel();
+        if let Some(token) = self.waveform.cache.active_folder_warm_plan_cancel.take() {
+            token.cancel();
+        }
         self.waveform.cache.active_folder_warm_delay_task.cancel();
         if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
             self.waveform.cache.active_folder_warm_tasks.cancel(&key);
@@ -78,6 +102,42 @@ impl NativeAppState {
         self.waveform.cache.active_folder_warm_batch_base_completed = 0;
     }
 
+    pub(in crate::native_app) fn apply_active_folder_cache_warm_plan_progress(
+        &mut self,
+        completion: ui::TaskCompletion<ActiveFolderCacheWarmPlanProgress>,
+    ) {
+        if !self
+            .waveform
+            .cache
+            .active_folder_warm_plan_task
+            .is_active(completion.ticket)
+        {
+            return;
+        }
+        let progress = completion.output;
+        if self.waveform.cache.active_folder_warm_folder_id.as_deref()
+            != Some(progress.folder_id.as_str())
+        {
+            return;
+        }
+        self.waveform.cache.active_folder_warm_completed = progress.checked.min(progress.total);
+        self.waveform.cache.active_folder_warm_total = progress.total;
+        self.waveform.cache.active_folder_warm_current = Some(progress.path.clone());
+        self.waveform.cache.active_folder_warm_current_progress = if progress.total == 0 {
+            1.0
+        } else {
+            progress.checked as f32 / progress.total as f32
+        };
+        self.waveform.cache.active_folder_warm_current_stage =
+            Some(crate::native_app::app::ActiveFolderCacheWarmStage::CheckingCache);
+        if progress.playback_ready {
+            self.waveform
+                .cache
+                .cached_sample_paths
+                .insert(progress.path.display().to_string());
+        }
+    }
+
     pub(in crate::native_app) fn finish_active_folder_cache_warm_plan(
         &mut self,
         completion: ui::TaskCompletion<ActiveFolderCacheWarmPlanResult>,
@@ -91,8 +151,16 @@ impl NativeAppState {
         {
             return;
         }
+        self.waveform.cache.active_folder_warm_plan_cancel = None;
         let result = completion.output;
         if result.cancelled {
+            self.waveform.cache.active_folder_warm_folder_id = None;
+            self.waveform.cache.active_folder_warm_completed = 0;
+            self.waveform.cache.active_folder_warm_total = 0;
+            self.waveform.cache.active_folder_warm_current = None;
+            self.waveform.cache.active_folder_warm_current_progress = 0.0;
+            self.waveform.cache.active_folder_warm_current_stage = None;
+            self.waveform.cache.active_folder_warm_batch_base_completed = 0;
             return;
         }
         for path in result.playback_ready {
@@ -102,6 +170,13 @@ impl NativeAppState {
                 .insert(path.display().to_string());
         }
         if result.pending.is_empty() {
+            self.waveform.cache.active_folder_warm_folder_id = None;
+            self.waveform.cache.active_folder_warm_completed = 0;
+            self.waveform.cache.active_folder_warm_total = 0;
+            self.waveform.cache.active_folder_warm_current = None;
+            self.waveform.cache.active_folder_warm_current_progress = 0.0;
+            self.waveform.cache.active_folder_warm_current_stage = None;
+            self.waveform.cache.active_folder_warm_batch_base_completed = 0;
             return;
         }
         let total = result.pending.len();

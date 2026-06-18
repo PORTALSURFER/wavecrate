@@ -44,6 +44,9 @@ impl NativeAppState {
             GuiMessage::WaveformCacheWarmFinished(result) => {
                 self.finish_waveform_cache_warm(result)
             }
+            GuiMessage::ActiveFolderCacheWarmPlanProgress(progress) => {
+                self.apply_active_folder_cache_warm_plan_progress(progress);
+            }
             GuiMessage::ActiveFolderCacheWarmPlanned(result) => {
                 self.finish_active_folder_cache_warm_plan(result, context);
             }

@@ -59,6 +59,7 @@ impl NativeAppState {
             | GuiMessage::SampleLoadFinished(_)
             | GuiMessage::WaveformCacheIndicatorRefreshFinished(_)
             | GuiMessage::WaveformCacheWarmFinished(_)
+            | GuiMessage::ActiveFolderCacheWarmPlanProgress(_)
             | GuiMessage::ActiveFolderCacheWarmPlanned(_)
             | GuiMessage::ActiveFolderCacheWarmReady(_)
             | GuiMessage::ActiveFolderCacheWarmProgress(_)
