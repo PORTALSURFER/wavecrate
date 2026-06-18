@@ -3,10 +3,11 @@ use crate::native_app::app_chrome::status_bar as chrome_status_bar;
 use crate::native_app::app_chrome::view_models::status_bar::StatusBarViewModel;
 use radiant::prelude as ui;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct WorkerProgressProjection {
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
+    pub(in crate::native_app) bar_fraction: Option<f32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,6 +42,7 @@ pub(in crate::native_app) fn status_bar_projection(state: &NativeAppState) -> St
             .map(|progress| WorkerProgressProjection {
                 completed: progress.completed,
                 total: progress.total,
+                bar_fraction: progress.bar_fraction,
             }),
     }
 }

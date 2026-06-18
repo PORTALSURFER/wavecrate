@@ -1,15 +1,28 @@
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use radiant::prelude as ui;
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use crate::native_app::{
     app::{
-        ActiveFolderCacheWarmResult, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
-        WaveformState,
+        ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
+        WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
     },
     waveform::{
         cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
         load_cached_waveform_file_for_playback,
     },
 };
+
+const ACTIVE_FOLDER_CACHE_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
+const ACTIVE_FOLDER_CACHE_PROGRESS_MIN_DELTA: f32 = 0.01;
+const ACTIVE_FOLDER_CACHE_LOADING_PROGRESS: f32 = 0.18;
+const ACTIVE_FOLDER_CACHE_DECODE_PROGRESS_START: f32 = 0.2;
+const ACTIVE_FOLDER_CACHE_DECODE_PROGRESS_RANGE: f32 = 0.795;
 
 pub(in crate::native_app) fn warm_persisted_waveform_cache(
     paths: Vec<PathBuf>,
@@ -29,10 +42,20 @@ pub(in crate::native_app) fn warm_persisted_waveform_cache(
     WaveformCacheWarmResult { loaded }
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn warm_active_folder_waveform_cache(
     folder_id: String,
     paths: Vec<PathBuf>,
     is_cancelled: impl Fn() -> bool,
+) -> ActiveFolderCacheWarmResult {
+    warm_active_folder_waveform_cache_with_progress(folder_id, paths, is_cancelled, |_| {})
+}
+
+pub(super) fn warm_active_folder_waveform_cache_with_progress(
+    folder_id: String,
+    paths: Vec<PathBuf>,
+    is_cancelled: impl Fn() -> bool,
+    progress: impl Fn(ActiveFolderCacheWarmProgress),
 ) -> ActiveFolderCacheWarmResult {
     let mut paths = paths.into_iter();
     let mut loaded = Vec::new();
@@ -44,24 +67,95 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
             deferred.push(path);
             break;
         }
-        processed += 1;
+        report_active_folder_cache_progress(
+            &folder_id,
+            &path,
+            processed,
+            0.0,
+            ActiveFolderCacheWarmStage::CheckingCache,
+            &progress,
+        );
         if cached_waveform_file_playback_ready_exists(&path) {
+            report_active_folder_cache_progress(
+                &folder_id,
+                &path,
+                processed,
+                ACTIVE_FOLDER_CACHE_LOADING_PROGRESS,
+                ActiveFolderCacheWarmStage::LoadingCache,
+                &progress,
+            );
             if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
-                loaded.push((path, Arc::new(file)));
+                loaded.push((path.clone(), Arc::new(file)));
             }
+            processed += 1;
+            report_active_folder_cache_progress(
+                &folder_id,
+                &path,
+                processed,
+                1.0,
+                ActiveFolderCacheWarmStage::Ready,
+                &progress,
+            );
             continue;
         }
+        report_active_folder_cache_progress(
+            &folder_id,
+            &path,
+            processed,
+            ACTIVE_FOLDER_CACHE_LOADING_PROGRESS,
+            ActiveFolderCacheWarmStage::LoadingCache,
+            &progress,
+        );
         if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
+            processed += 1;
+            report_active_folder_cache_progress(
+                &folder_id,
+                &path,
+                processed,
+                1.0,
+                ActiveFolderCacheWarmStage::Ready,
+                &progress,
+            );
             loaded.push((path, Arc::new(file)));
             decoded_source = true;
             deferred.extend(paths);
             break;
         }
-        if let Ok(waveform) =
-            WaveformState::load_path_with_progress_and_cancel(path.clone(), |_| {}, &is_cancelled)
-        {
+        let progress_gate = RefCell::new(ui::ProgressUpdateGate::new(
+            ACTIVE_FOLDER_CACHE_PROGRESS_MIN_INTERVAL,
+            ACTIVE_FOLDER_CACHE_PROGRESS_MIN_DELTA,
+        ));
+        let decode_path = path.clone();
+        if let Ok(waveform) = WaveformState::load_path_with_progress_and_cancel(
+            path.clone(),
+            |fraction| {
+                let Some(fraction) = progress_gate.borrow_mut().accept(fraction) else {
+                    return;
+                };
+                let file_progress = ACTIVE_FOLDER_CACHE_DECODE_PROGRESS_START
+                    + fraction * ACTIVE_FOLDER_CACHE_DECODE_PROGRESS_RANGE;
+                report_active_folder_cache_progress(
+                    &folder_id,
+                    &decode_path,
+                    processed,
+                    file_progress,
+                    ActiveFolderCacheWarmStage::Decoding,
+                    &progress,
+                );
+            },
+            &is_cancelled,
+        ) {
             loaded.push((path, waveform.file()));
         }
+        processed += 1;
+        report_active_folder_cache_progress(
+            &folder_id,
+            &decode_path,
+            processed,
+            1.0,
+            ActiveFolderCacheWarmStage::Ready,
+            &progress,
+        );
         decoded_source = true;
         deferred.extend(paths);
         break;
@@ -74,6 +168,23 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
         decoded_source,
         cancelled: is_cancelled(),
     }
+}
+
+fn report_active_folder_cache_progress(
+    folder_id: &str,
+    path: &Path,
+    processed: usize,
+    current_progress: f32,
+    stage: ActiveFolderCacheWarmStage,
+    progress: &impl Fn(ActiveFolderCacheWarmProgress),
+) {
+    progress(ActiveFolderCacheWarmProgress {
+        folder_id: folder_id.to_owned(),
+        path: path.to_path_buf(),
+        processed,
+        current_progress: current_progress.clamp(0.0, 1.0),
+        stage,
+    });
 }
 
 pub(super) fn probe_persisted_waveform_cache_indicators(

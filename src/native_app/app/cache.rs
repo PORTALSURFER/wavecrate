@@ -2,6 +2,34 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use crate::native_app::waveform::WaveformFile;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum ActiveFolderCacheWarmStage {
+    CheckingCache,
+    LoadingCache,
+    Decoding,
+    Ready,
+}
+
+impl ActiveFolderCacheWarmStage {
+    pub(in crate::native_app) fn label(self) -> &'static str {
+        match self {
+            Self::CheckingCache => "checking",
+            Self::LoadingCache => "loading cache",
+            Self::Decoding => "decoding",
+            Self::Ready => "cached",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct ActiveFolderCacheWarmProgress {
+    pub(in crate::native_app) folder_id: String,
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) processed: usize,
+    pub(in crate::native_app) current_progress: f32,
+    pub(in crate::native_app) stage: ActiveFolderCacheWarmStage,
+}
+
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformCacheEntry {
     pub(in crate::native_app) byte_len: usize,

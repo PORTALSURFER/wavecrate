@@ -56,6 +56,7 @@ impl NativeAppState {
             | GuiMessage::WaveformCacheIndicatorRefreshFinished(_)
             | GuiMessage::WaveformCacheWarmFinished(_)
             | GuiMessage::ActiveFolderCacheWarmReady(_)
+            | GuiMessage::ActiveFolderCacheWarmProgress(_)
             | GuiMessage::ActiveFolderCacheWarmFinished(_) => {
                 self.apply_sample_loading_dispatch(message, context);
             }

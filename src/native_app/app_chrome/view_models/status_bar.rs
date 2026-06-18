@@ -20,10 +20,11 @@ impl StatusBarViewModel {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) struct WorkerProgressViewModel {
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
+    pub(in crate::native_app) bar_fraction: Option<f32>,
 }
 
 fn bottom_status_text(state: &NativeAppState) -> String {
@@ -98,6 +99,7 @@ impl WorkerProgressViewModel {
         Self {
             completed: progress.completed,
             total: progress.total,
+            bar_fraction: None,
         }
     }
 
@@ -105,6 +107,7 @@ impl WorkerProgressViewModel {
         Self {
             completed: progress.work_completed,
             total: progress.work_total,
+            bar_fraction: None,
         }
     }
 
@@ -114,6 +117,10 @@ impl WorkerProgressViewModel {
             .then_some(Self {
                 completed: cache.active_folder_warm_completed,
                 total: cache.active_folder_warm_total,
+                bar_fraction: cache
+                    .active_folder_warm_current
+                    .as_ref()
+                    .map(|_| cache.active_folder_warm_current_progress.clamp(0.0, 1.0)),
             })
     }
 }
@@ -130,13 +137,38 @@ fn source_cache_warm_status_text(
         .as_ref()
         .and_then(|path| path.file_name())
         .map(|name| name.to_string_lossy().to_string());
-    match detail {
-        Some(detail) => format!(
+    let stage = state
+        .waveform
+        .cache
+        .active_folder_warm_current_stage
+        .map(|stage| {
+            let percent = (state
+                .waveform
+                .cache
+                .active_folder_warm_current_progress
+                .clamp(0.0, 1.0)
+                * 100.0)
+                .round() as usize;
+            format!("{} {percent}%", stage.label())
+        });
+    match (stage, detail) {
+        (Some(stage), Some(detail)) => format!(
+            "Caching source samples | {} | {} | {}",
+            counters.count_label("cached"),
+            stage,
+            detail
+        ),
+        (None, Some(detail)) => format!(
             "Caching source samples | {} | {}",
             counters.count_label("cached"),
             detail
         ),
-        None => format!(
+        (Some(stage), None) => format!(
+            "Caching source samples | {} | {}",
+            counters.count_label("cached"),
+            stage
+        ),
+        (None, None) => format!(
             "Caching source samples | {}",
             counters.count_label("cached")
         ),

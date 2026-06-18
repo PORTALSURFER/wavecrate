@@ -43,7 +43,10 @@ pub(in crate::native_app) fn worker_progress_bar(
         return ui::empty().width(0.0).height(10.0);
     };
     let track_width = 180.0;
-    let progress_bar = ui::progress_bar_for_snapshot(progress.snapshot(), progress_tick)
+    let progress_bar = progress
+        .bar_fraction
+        .map(ui::determinate_progress_bar)
+        .unwrap_or_else(|| ui::progress_bar_for_snapshot(progress.snapshot(), progress_tick))
         .colors(
             ui::Rgba8::new(48, 50, 51, 210),
             ui::Rgba8::new(255, 112, 86, 210),

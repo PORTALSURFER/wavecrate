@@ -207,6 +207,17 @@ fn active_folder_cache_warm_tracks_worker_progress() {
     assert_eq!(state.waveform.cache.active_folder_warm_completed, 1);
     assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
     assert!(state.waveform.cache.active_folder_warm_current.is_none());
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_current_progress,
+        0.0
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_current_stage
+            .is_none()
+    );
     assert!(
         active_folder_cache_warm_ticket(&state).is_none(),
         "cache warm should cool down between files instead of chaining immediately"
@@ -219,6 +230,73 @@ fn active_folder_cache_warm_tracks_worker_progress() {
             .active()
             .is_some(),
         "cache warm should schedule the next file after a delay"
+    );
+}
+
+#[test]
+fn active_folder_cache_warm_progress_updates_statusbar_realtime() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.schedule_active_folder_cache_warm(&mut context);
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("source warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    let running_ticket = active_folder_cache_warm_ticket(&state).expect("source warm task");
+    let folder_id = source_root.path().display().to_string();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmProgress(
+            ui::KeyedTaskCompletion {
+                key: crate::native_app::audio::sample_load_actions::active_folder_cache_warm_resource_key(
+                    folder_id.as_str(),
+                ),
+                ticket: running_ticket,
+                output: crate::native_app::test_support::state::ActiveFolderCacheWarmProgress {
+                    folder_id,
+                    path: first.clone(),
+                    processed: 0,
+                    current_progress: 0.42,
+                    stage: crate::native_app::test_support::state::ActiveFolderCacheWarmStage::Decoding,
+                },
+            },
+        ),
+        &mut context,
+    );
+
+    let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+    let worker = status.worker_progress.expect("source warm progress");
+    assert_eq!(worker.completed, 0);
+    assert_eq!(worker.total, 2);
+    assert_eq!(worker.bar_fraction, Some(0.42));
+    assert!(
+        status.status_text.contains("decoding 42%"),
+        "status should expose the current cache phase and file progress: {}",
+        status.status_text
+    );
+    assert!(
+        status.status_text.contains("first.wav"),
+        "status should name the file currently being cached: {}",
+        status.status_text
     );
 }
 

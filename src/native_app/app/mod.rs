@@ -7,8 +7,8 @@ mod settings;
 mod state;
 
 pub(in crate::native_app) use cache::{
-    ActiveFolderCacheWarmResult, WaveformCacheEntry, WaveformCacheIndicatorRefreshResult,
-    WaveformCacheWarmResult,
+    ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
+    WaveformCacheEntry, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 pub(in crate::native_app) use drop::NativeFileDropHover;
 pub(in crate::native_app) use loading::{

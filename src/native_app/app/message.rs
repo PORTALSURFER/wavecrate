@@ -6,9 +6,9 @@ use std::{path::PathBuf, time::Instant};
 use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
 
 use crate::native_app::app::{
-    ActiveFolderCacheWarmResult, AppSettingsTab, AudioOpenTaskCompletion, NormalizationProgress,
-    NormalizationResult, SampleLoadResult, SamplePlaybackReady,
-    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
+    ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
+    AudioOpenTaskCompletion, NormalizationProgress, NormalizationResult, SampleLoadResult,
+    SamplePlaybackReady, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -96,6 +96,9 @@ pub(in crate::native_app) enum GuiMessage {
     WaveformCacheIndicatorRefreshFinished(ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>),
     WaveformCacheWarmFinished(ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>),
     ActiveFolderCacheWarmReady(ui::TaskTicket),
+    ActiveFolderCacheWarmProgress(
+        ui::KeyedTaskCompletion<ui::ResourceKey, ActiveFolderCacheWarmProgress>,
+    ),
     ActiveFolderCacheWarmFinished(
         ui::KeyedTaskCompletion<ui::ResourceKey, ActiveFolderCacheWarmResult>,
     ),

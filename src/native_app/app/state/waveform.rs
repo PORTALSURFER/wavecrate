@@ -5,7 +5,9 @@ use std::{
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::{SampleSelectionLoadState, WaveformCacheEntry};
+use crate::native_app::app::{
+    ActiveFolderCacheWarmStage, SampleSelectionLoadState, WaveformCacheEntry,
+};
 use crate::native_app::waveform::WaveformState;
 
 pub(in crate::native_app) struct WaveformAppState {
@@ -60,6 +62,9 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) active_folder_warm_completed: usize,
     pub(in crate::native_app) active_folder_warm_total: usize,
     pub(in crate::native_app) active_folder_warm_current: Option<PathBuf>,
+    pub(in crate::native_app) active_folder_warm_current_progress: f32,
+    pub(in crate::native_app) active_folder_warm_current_stage: Option<ActiveFolderCacheWarmStage>,
+    pub(in crate::native_app) active_folder_warm_batch_base_completed: usize,
     pub(in crate::native_app) cached_sample_paths: HashSet<String>,
 }
 
@@ -83,6 +88,9 @@ impl Default for WaveformCacheState {
             active_folder_warm_completed: 0,
             active_folder_warm_total: 0,
             active_folder_warm_current: None,
+            active_folder_warm_current_progress: 0.0,
+            active_folder_warm_current_stage: None,
+            active_folder_warm_batch_base_completed: 0,
             cached_sample_paths: Default::default(),
         }
     }

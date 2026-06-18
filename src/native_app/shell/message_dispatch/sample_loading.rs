@@ -47,6 +47,9 @@ impl NativeAppState {
             GuiMessage::ActiveFolderCacheWarmReady(ticket) => {
                 self.start_active_folder_cache_warm_after_delay(ticket, context);
             }
+            GuiMessage::ActiveFolderCacheWarmProgress(progress) => {
+                self.apply_active_folder_cache_warm_progress(progress);
+            }
             GuiMessage::ActiveFolderCacheWarmFinished(result) => {
                 self.finish_active_folder_cache_warm(result, context);
             }

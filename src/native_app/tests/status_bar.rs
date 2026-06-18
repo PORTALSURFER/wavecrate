@@ -198,6 +198,7 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 2,
             total: 5,
+            bar_fraction: None,
         }
     );
 }
@@ -229,6 +230,7 @@ fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 420,
             total: 1_000,
+            bar_fraction: None,
         }
     );
 }
@@ -252,6 +254,7 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 3,
             total: 10,
+            bar_fraction: Some(0.0),
         }
     );
 }
@@ -286,6 +289,7 @@ fn status_bar_view_model_keeps_normalization_priority_over_source_cache_warm() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 420,
             total: 1_000,
+            bar_fraction: None,
         }
     );
 }
