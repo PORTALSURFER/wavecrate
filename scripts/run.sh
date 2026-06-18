@@ -3,8 +3,15 @@
 set -euo pipefail
 
 usage() {
-  cat <<'EOF'
-Usage: scripts/run.sh <sandbox|clean|logs|bug-bundle> [args...]
+  local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
+  cat <<EOF
+Usage: ${entrypoint} <sandbox|clean|logs|bug-bundle> [args...]
+
+Commands:
+  sandbox      Run Wavecrate with an isolated sandbox profile.
+  clean        Delete the repo-local sandbox profile.
+  logs         Print the newest resolved Wavecrate log.
+  bug-bundle   Create a small diagnostic bundle.
 EOF
 }
 
@@ -23,7 +30,7 @@ case "$command" in
   clean) exec "$script_dir/clean_sandbox.sh" "$@" ;;
   logs) exec "$script_dir/latest_log.sh" "$@" ;;
   bug-bundle) exec "$script_dir/bug_bundle.sh" "$@" ;;
-  -h|--help) usage ;;
+  -h|--help|-Help|help) usage ;;
   *)
     echo "Unknown run command: $command" >&2
     usage >&2

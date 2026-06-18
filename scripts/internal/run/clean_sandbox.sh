@@ -9,6 +9,29 @@
 
 set -euo pipefail
 
+usage() {
+  local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
+  cat <<EOF
+Usage: ${entrypoint} clean
+
+Deletes the repo-local sandbox used by ${entrypoint} sandbox.
+EOF
+}
+
+if (( $# > 0 )); then
+  case "$1" in
+    -h|--help|-Help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[clean_sandbox] Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 
@@ -22,4 +45,3 @@ fi
 echo "[clean_sandbox] removing: $SANDBOX_DIR"
 rm -rf "$SANDBOX_DIR"
 echo "[clean_sandbox] OK"
-

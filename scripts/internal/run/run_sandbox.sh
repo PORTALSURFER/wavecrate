@@ -20,12 +20,13 @@ WRITE_DB=0
 ALLOW_USER_LIBRARY_DB_WRITE=0
 
 usage() {
-  cat <<'EOF'
-Usage: scripts/run.sh sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--write-db] [--allow-user-library-db-write] [--] [app args...]
+  local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
+  cat <<EOF
+Usage: ${entrypoint} sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--write-db] [--allow-user-library-db-write] [--] [app args...]
 
-Runs `cargo run --release` with:
-- `WAVECRATE_CONFIG_HOME` set to an isolated sandbox base directory
-- `WAVECRATE_CONFIG_PROFILE=sandbox`
+Runs cargo run --release with:
+- WAVECRATE_CONFIG_HOME set to an isolated sandbox base directory
+- WAVECRATE_CONFIG_PROFILE=sandbox
 
 Derived paths:
 - app root:  <WAVECRATE_CONFIG_HOME>/.wavecrate/profiles/sandbox

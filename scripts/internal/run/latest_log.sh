@@ -19,19 +19,20 @@ LINES=200
 USE_SANDBOX=0
 
 usage() {
-  cat <<'EOF'
-Usage: scripts/run.sh logs [--lines <n>] [--sandbox]
+  local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
+  cat <<EOF
+Usage: ${entrypoint} logs [--lines <n>] [--sandbox]
 
 Prints:
-- resolved `.wavecrate` root (best-effort)
+- resolved .wavecrate root (best-effort)
 - resolved logs dir
-- newest `*.log` file under logs dir (if any)
+- newest *.log file under logs dir (if any)
 - tail snippet from that newest log (default: 200 lines)
 
 Sandbox behavior:
-- If `WAVECRATE_CONFIG_HOME` is set, it is always used.
-- Otherwise, if `<repo>/.sandbox/wavecrate` exists, this script prefers it.
-- Pass `--sandbox` to force using `<repo>/.sandbox/wavecrate`.
+- If WAVECRATE_CONFIG_HOME is set, it is always used.
+- Otherwise, if <repo>/.sandbox/wavecrate exists, this script prefers it.
+- Pass --sandbox to force using <repo>/.sandbox/wavecrate.
 EOF
 }
 

@@ -37,7 +37,8 @@ USAGE
 }
 
 is_truthy() {
-  local value="${1,,}"
+  local value
+  value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
   [[ "$value" == "1" || "$value" == "true" || "$value" == "yes" || "$value" == "on" ]]
 }
 

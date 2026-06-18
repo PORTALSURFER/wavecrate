@@ -48,15 +48,19 @@ STARTUP_LOCK_ENV_IN="${WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_IN:-$ROOT_DIR/scrip
 FRAME_QUALITY_LOCK_ENV_OUT="${WAVECRATE_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT:-}"
 CARGO_BIN="${CARGO_BIN:-cargo}"
 
+lowercase() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 startup_profile_enabled=0
-case "${STARTUP_PROFILE_RAW,,}" in
+case "$(lowercase "$STARTUP_PROFILE_RAW")" in
   1|true|yes|on)
     startup_profile_enabled=1
     ;;
 esac
 
 startup_require_valid_runs=0
-case "${STARTUP_REQUIRE_VALID_RAW,,}" in
+case "$(lowercase "$STARTUP_REQUIRE_VALID_RAW")" in
   1|true|yes|on)
     startup_require_valid_runs=1
     ;;
