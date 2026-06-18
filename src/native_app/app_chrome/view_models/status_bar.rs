@@ -24,7 +24,8 @@ impl StatusBarViewModel {
 pub(in crate::native_app) struct WorkerProgressViewModel {
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
-    pub(in crate::native_app) bar_fraction: Option<f32>,
+    pub(in crate::native_app) current_fraction: Option<f32>,
+    pub(in crate::native_app) active_animation: bool,
 }
 
 fn bottom_status_text(state: &NativeAppState) -> String {
@@ -99,7 +100,8 @@ impl WorkerProgressViewModel {
         Self {
             completed: progress.completed,
             total: progress.total,
-            bar_fraction: None,
+            current_fraction: None,
+            active_animation: false,
         }
     }
 
@@ -107,7 +109,8 @@ impl WorkerProgressViewModel {
         Self {
             completed: progress.work_completed,
             total: progress.work_total,
-            bar_fraction: None,
+            current_fraction: None,
+            active_animation: false,
         }
     }
 
@@ -117,10 +120,11 @@ impl WorkerProgressViewModel {
             .then_some(Self {
                 completed: cache.active_folder_warm_completed,
                 total: cache.active_folder_warm_total,
-                bar_fraction: cache
+                current_fraction: cache
                     .active_folder_warm_current
                     .as_ref()
                     .map(|_| cache.active_folder_warm_current_progress.clamp(0.0, 1.0)),
+                active_animation: true,
             })
     }
 }

@@ -7,7 +7,8 @@ use radiant::prelude as ui;
 pub(in crate::native_app) struct WorkerProgressProjection {
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
-    pub(in crate::native_app) bar_fraction: Option<f32>,
+    pub(in crate::native_app) current_fraction: Option<f32>,
+    pub(in crate::native_app) active_animation: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,7 +43,8 @@ pub(in crate::native_app) fn status_bar_projection(state: &NativeAppState) -> St
             .map(|progress| WorkerProgressProjection {
                 completed: progress.completed,
                 total: progress.total,
-                bar_fraction: progress.bar_fraction,
+                current_fraction: progress.current_fraction,
+                active_animation: progress.active_animation,
             }),
     }
 }

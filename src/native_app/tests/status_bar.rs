@@ -142,6 +142,34 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
 }
 
 #[test]
+fn bottom_status_source_cache_progress_bar_shows_overall_and_activity() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.progress_tick = 0.5;
+    state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
+    state.waveform.cache.active_folder_warm_completed = 3;
+    state.waveform.cache.active_folder_warm_total = 10;
+    state.waveform.cache.active_folder_warm_current = Some("kicks/kick-01.wav".into());
+    state.waveform.cache.active_folder_warm_current_progress = 0.42;
+
+    let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 12.0));
+
+    assert_eq!(frame.paint_plan.fill_rects().count(), 6);
+    assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
+}
+
+#[test]
+fn source_cache_warm_advances_activity_tick_on_frame() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
+    state.waveform.cache.active_folder_warm_total = 10;
+
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(state.background.progress_tick, 0.035);
+}
+
+#[test]
 fn job_details_popover_reports_active_scan_progress() {
     let progress = crate::native_app::test_support::state::FolderScanProgress {
         task_id: 7,
@@ -198,7 +226,8 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 2,
             total: 5,
-            bar_fraction: None,
+            current_fraction: None,
+            active_animation: false,
         }
     );
 }
@@ -230,7 +259,8 @@ fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 420,
             total: 1_000,
-            bar_fraction: None,
+            current_fraction: None,
+            active_animation: false,
         }
     );
 }
@@ -254,7 +284,8 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 3,
             total: 10,
-            bar_fraction: Some(0.0),
+            current_fraction: Some(0.0),
+            active_animation: true,
         }
     );
 }
@@ -289,7 +320,8 @@ fn status_bar_view_model_keeps_normalization_priority_over_source_cache_warm() {
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
             completed: 420,
             total: 1_000,
-            bar_fraction: None,
+            current_fraction: None,
+            active_animation: false,
         }
     );
 }

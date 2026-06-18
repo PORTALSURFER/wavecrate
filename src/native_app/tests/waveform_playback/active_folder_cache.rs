@@ -287,7 +287,8 @@ fn active_folder_cache_warm_progress_updates_statusbar_realtime() {
     let worker = status.worker_progress.expect("source warm progress");
     assert_eq!(worker.completed, 0);
     assert_eq!(worker.total, 2);
-    assert_eq!(worker.bar_fraction, Some(0.42));
+    assert_eq!(worker.current_fraction, Some(0.42));
+    assert!(worker.active_animation);
     assert!(
         status.status_text.contains("decoding 42%"),
         "status should expose the current cache phase and file progress: {}",

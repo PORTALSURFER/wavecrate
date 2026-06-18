@@ -129,7 +129,10 @@ impl NativeAppState {
         let playback_started_at = Instant::now();
         self.refresh_playback_progress();
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
-        if self.library.folder_scan_active() || self.background.normalization_progress.is_some() {
+        if self.library.folder_scan_active()
+            || self.background.normalization_progress.is_some()
+            || self.waveform.cache.active_folder_warm_folder_id.is_some()
+        {
             self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
         }
         if self.waveform.load.label.is_some() {
