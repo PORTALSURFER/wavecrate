@@ -188,10 +188,14 @@ impl NativeAppState {
             .active_folder_warm_batch_base_completed
             .saturating_add(progress.processed)
             .min(self.waveform.cache.active_folder_warm_total);
+        let cached_file_id = progress.cached.then(|| progress.path.display().to_string());
         self.waveform.cache.active_folder_warm_current = Some(progress.path);
         self.waveform.cache.active_folder_warm_current_progress =
             progress.current_progress.clamp(0.0, 1.0);
         self.waveform.cache.active_folder_warm_current_stage = Some(progress.stage);
+        if let Some(file_id) = cached_file_id {
+            self.waveform.cache.cached_sample_paths.insert(file_id);
+        }
     }
 
     pub(in crate::native_app) fn pause_active_folder_cache_warm(

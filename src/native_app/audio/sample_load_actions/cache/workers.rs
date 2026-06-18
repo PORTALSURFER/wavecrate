@@ -74,6 +74,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             processed,
             0.0,
             ActiveFolderCacheWarmStage::CheckingCache,
+            false,
             &progress,
         );
         if cached_waveform_file_playback_ready_exists(&path) {
@@ -85,6 +86,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
                 processed,
                 1.0,
                 ActiveFolderCacheWarmStage::Ready,
+                true,
                 &progress,
             );
             continue;
@@ -95,6 +97,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             processed,
             ACTIVE_FOLDER_CACHE_LOADING_PROGRESS,
             ActiveFolderCacheWarmStage::LoadingCache,
+            false,
             &progress,
         );
         if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
@@ -105,6 +108,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
                 processed,
                 1.0,
                 ActiveFolderCacheWarmStage::Ready,
+                true,
                 &progress,
             );
             loaded.push((path, Arc::new(file)));
@@ -131,22 +135,26 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
                     processed,
                     file_progress,
                     ActiveFolderCacheWarmStage::Decoding,
+                    false,
                     &progress,
                 );
             },
             &is_cancelled,
         ) {
-            loaded.push((path, waveform.file()));
+            loaded.push((path.clone(), waveform.file()));
+            processed += 1;
+            report_active_folder_cache_progress(
+                &folder_id,
+                &decode_path,
+                processed,
+                1.0,
+                ActiveFolderCacheWarmStage::Ready,
+                true,
+                &progress,
+            );
+        } else {
+            processed += 1;
         }
-        processed += 1;
-        report_active_folder_cache_progress(
-            &folder_id,
-            &decode_path,
-            processed,
-            1.0,
-            ActiveFolderCacheWarmStage::Ready,
-            &progress,
-        );
         decoded_source = true;
         deferred.extend(paths);
         break;
@@ -168,6 +176,7 @@ fn report_active_folder_cache_progress(
     processed: usize,
     current_progress: f32,
     stage: ActiveFolderCacheWarmStage,
+    cached: bool,
     progress: &impl Fn(ActiveFolderCacheWarmProgress),
 ) {
     progress(ActiveFolderCacheWarmProgress {
@@ -176,6 +185,7 @@ fn report_active_folder_cache_progress(
         processed,
         current_progress: current_progress.clamp(0.0, 1.0),
         stage,
+        cached,
     });
 }
 

@@ -277,6 +277,7 @@ fn active_folder_cache_warm_progress_updates_statusbar_realtime() {
                     processed: 0,
                     current_progress: 0.42,
                     stage: crate::native_app::test_support::state::ActiveFolderCacheWarmStage::Decoding,
+                    cached: false,
                 },
             },
         ),
@@ -298,6 +299,81 @@ fn active_folder_cache_warm_progress_updates_statusbar_realtime() {
         status.status_text.contains("first.wav"),
         "status should name the file currently being cached: {}",
         status.status_text
+    );
+}
+
+#[test]
+fn active_folder_cache_progress_promotes_completed_row_immediately() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("ready-row.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let theme = radiant::theme::ThemeTokens::default();
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+    let unloaded_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
+        .view_frame_at_size(Vector2::new(720.0, 360.0), &theme);
+    assert_eq!(
+        unloaded_frame.paint_plan.first_text_color("ready-row"),
+        Some(theme.text_muted),
+        "uncached rows should start muted"
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.schedule_active_folder_cache_warm(&mut context);
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("source warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    let running_ticket = active_folder_cache_warm_ticket(&state).expect("source warm task");
+    let folder_id = source_root.path().display().to_string();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmProgress(
+            ui::KeyedTaskCompletion {
+                key: crate::native_app::audio::sample_load_actions::active_folder_cache_warm_resource_key(
+                    folder_id.as_str(),
+                ),
+                ticket: running_ticket,
+                output: crate::native_app::test_support::state::ActiveFolderCacheWarmProgress {
+                    folder_id,
+                    path: sample_path.clone(),
+                    processed: 1,
+                    current_progress: 1.0,
+                    stage: crate::native_app::test_support::state::ActiveFolderCacheWarmStage::Ready,
+                    cached: true,
+                },
+            },
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state
+            .waveform
+            .cache
+            .cached_sample_paths
+            .contains(&sample_path_string),
+        "ready progress should mark the row as cached before the worker finishes"
+    );
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+    let loaded_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
+        .view_frame_at_size(Vector2::new(720.0, 360.0), &theme);
+    assert_eq!(
+        loaded_frame.paint_plan.first_text_color("ready-row"),
+        Some(theme.text_primary),
+        "ready progress should repaint the row with loaded text"
     );
 }
 

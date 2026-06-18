@@ -28,6 +28,7 @@ pub(in crate::native_app) struct ActiveFolderCacheWarmProgress {
     pub(in crate::native_app) processed: usize,
     pub(in crate::native_app) current_progress: f32,
     pub(in crate::native_app) stage: ActiveFolderCacheWarmStage,
+    pub(in crate::native_app) cached: bool,
 }
 
 #[derive(Clone, Debug)]
