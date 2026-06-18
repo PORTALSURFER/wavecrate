@@ -19,18 +19,19 @@ OUT_DIR="dist/bug_bundles"
 USE_SANDBOX=0
 
 usage() {
-  cat <<'EOF'
-Usage: scripts/run.sh bug-bundle [--out-dir <dir>] [--logs <n>] [--sandbox]
+  local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
+  cat <<EOF
+Usage: ${entrypoint} bug-bundle [--out-dir <dir>] [--logs <n>] [--sandbox]
 
 Creates an archive under <out-dir> containing:
 - the newest N log files (default: 5)
-- `config.toml` (if present)
+- config.toml (if present)
 - version/system info
 
 Sandbox behavior:
-- If `WAVECRATE_CONFIG_HOME` is set, it is always used.
-- Otherwise, if `<repo>/.sandbox/wavecrate` exists, this script prefers it.
-- Pass `--sandbox` to force using `<repo>/.sandbox/wavecrate`.
+- If WAVECRATE_CONFIG_HOME is set, it is always used.
+- Otherwise, if <repo>/.sandbox/wavecrate exists, this script prefers it.
+- Pass --sandbox to force using <repo>/.sandbox/wavecrate.
 EOF
 }
 
@@ -164,8 +165,11 @@ fi
 
 if [[ -d "$logs_dir" ]]; then
   mkdir -p "${bundle_dir}/logs"
-  mapfile -t logs < <(ls -1t "$logs_dir"/*.log 2>/dev/null | head -n "$MAX_LOGS" || true)
-  for log_file in "${logs[@]:-}"; do
+  logs=()
+  while IFS= read -r log_file; do
+    logs+=("$log_file")
+  done < <(ls -1t "$logs_dir"/*.log 2>/dev/null | head -n "$MAX_LOGS" || true)
+  for log_file in "${logs[@]}"; do
     [[ -f "$log_file" ]] || continue
     cp "$log_file" "${bundle_dir}/logs/$(basename "$log_file")"
   done
