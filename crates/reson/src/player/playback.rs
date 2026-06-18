@@ -11,7 +11,7 @@ use super::{
 
 use lazy_sources::{
     InterleavedF32FileRepeatingSpanSource, InterleavedF32FileSpanSource, LazyRepeatingSpanSource,
-    LazySpanSource,
+    LazySpanSource, PcmWavFileRepeatingSpanSource, PcmWavFileSpanSource,
 };
 mod lazy_sources;
 #[cfg(test)]
@@ -393,6 +393,15 @@ fn span_source_for_audio_source(
         AudioPlaybackSource::InterleavedF32File { path, sample_count } => Ok(Box::new(
             InterleavedF32FileSpanSource::new(path, plan, sample_count),
         )),
+        AudioPlaybackSource::File(path) => {
+            match PcmWavFileSpanSource::try_new(path.clone(), plan) {
+                Ok(source) => Ok(Box::new(source)),
+                Err(_) => Ok(Box::new(LazySpanSource::new(
+                    AudioPlaybackSource::File(path),
+                    plan,
+                ))),
+            }
+        }
         source => Ok(Box::new(LazySpanSource::new(source, plan))),
     }
 }
@@ -405,6 +414,15 @@ fn repeating_source_for_audio_source(
         AudioPlaybackSource::InterleavedF32File { path, sample_count } => Ok(Box::new(
             InterleavedF32FileRepeatingSpanSource::new(path, plan, sample_count),
         )),
+        AudioPlaybackSource::File(path) => {
+            match PcmWavFileRepeatingSpanSource::try_new(path.clone(), plan) {
+                Ok(source) => Ok(Box::new(source)),
+                Err(_) => Ok(Box::new(LazyRepeatingSpanSource::new(
+                    AudioPlaybackSource::File(path),
+                    plan,
+                ))),
+            }
+        }
         source => Ok(Box::new(LazyRepeatingSpanSource::new(source, plan))),
     }
 }

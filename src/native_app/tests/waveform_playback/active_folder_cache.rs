@@ -634,6 +634,7 @@ fn active_folder_cache_warm_batches_playback_ready_cache_hits() {
                 |_| {},
             )
             .expect("cache sample");
+        crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
         crate::native_app::waveform::store_cached_waveform_file_for_tests(&waveform.file());
         wait_for_playback_ready_cache(path.display().to_string().as_str());
     }

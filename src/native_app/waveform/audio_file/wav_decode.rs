@@ -205,8 +205,7 @@ impl StreamingWavSummaryBuilder {
         }
     }
 
-    fn push_frame(&mut self, samples: &[f32]) {
-        let mono = downmix_frame_to_peak(samples);
+    fn push_peak(&mut self, mono: f32) {
         let bands = self.processor.process(mono);
         for (bucket, value) in self.current_bucket.iter_mut().zip(bands) {
             bucket.min = bucket.min.min(value);
@@ -272,16 +271,6 @@ fn empty_summary_bucket() -> Vec<GpuSignalSummaryBucket> {
     ]
 }
 
-fn downmix_frame_to_peak(samples: &[f32]) -> f32 {
-    let mut peak = 0.0_f32;
-    for sample in samples.iter().copied() {
-        if sample.abs() > peak.abs() {
-            peak = sample;
-        }
-    }
-    peak.clamp(-1.0, 1.0)
-}
-
 fn read_wav_summary_with_progress<R: std::io::Read>(
     reader: &mut hound::WavReader<R>,
     spec: hound::WavSpec,
@@ -290,22 +279,17 @@ fn read_wav_summary_with_progress<R: std::io::Read>(
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<(), String> {
-    let total_samples = reader.duration() as usize * channels;
+    let total_frames = reader.duration() as usize;
     match spec.sample_format {
-        hound::SampleFormat::Float => read_float_summary(
-            reader,
-            channels,
-            builder,
-            total_samples,
-            progress,
-            cancelled,
-        ),
+        hound::SampleFormat::Float => {
+            read_float_summary(reader, channels, builder, total_frames, progress, cancelled)
+        }
         hound::SampleFormat::Int if spec.bits_per_sample <= 16 => read_i16_summary(
             reader,
             channels,
             spec.bits_per_sample,
             builder,
-            total_samples,
+            total_frames,
             progress,
             cancelled,
         ),
@@ -314,7 +298,7 @@ fn read_wav_summary_with_progress<R: std::io::Read>(
             channels,
             spec.bits_per_sample,
             builder,
-            total_samples,
+            total_frames,
             progress,
             cancelled,
         ),
@@ -325,24 +309,22 @@ fn read_float_summary<R: std::io::Read>(
     reader: &mut hound::WavReader<R>,
     channels: usize,
     builder: &mut StreamingWavSummaryBuilder,
-    total_samples: usize,
+    total_frames: usize,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<(), String> {
-    let mut frame = Vec::with_capacity(channels);
-    for (index, sample) in reader.samples::<f32>().enumerate() {
+    let mut samples = reader.samples::<f32>();
+    for frame_index in 0..total_frames {
         if cancelled() {
             return Err(String::from("cancelled"));
         }
-        let sample = sample
-            .map(|value| value.clamp(-1.0, 1.0))
-            .map_err(|err| format!("failed to read float sample: {err}"))?;
-        push_summary_sample(sample, channels, &mut frame, builder);
+        let peak = read_float_frame_peak(&mut samples, channels)?;
+        builder.push_peak(peak);
         report_phase_progress_throttled(
             0.0,
             STREAMING_WAV_SUMMARY_READ_END,
-            index + 1,
-            total_samples,
+            frame_index + 1,
+            total_frames,
             progress,
         );
     }
@@ -355,25 +337,23 @@ fn read_i16_summary<R: std::io::Read>(
     channels: usize,
     bits_per_sample: u16,
     builder: &mut StreamingWavSummaryBuilder,
-    total_samples: usize,
+    total_frames: usize,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<(), String> {
     let max = integer_sample_max_i32(bits_per_sample);
-    let mut frame = Vec::with_capacity(channels);
-    for (index, sample) in reader.samples::<i16>().enumerate() {
+    let mut samples = reader.samples::<i16>();
+    for frame_index in 0..total_frames {
         if cancelled() {
             return Err(String::from("cancelled"));
         }
-        let sample = sample
-            .map(|value| (f32::from(value) / max).clamp(-1.0, 1.0))
-            .map_err(|err| format!("failed to read integer sample: {err}"))?;
-        push_summary_sample(sample, channels, &mut frame, builder);
+        let peak = read_i16_frame_peak(&mut samples, channels, max)?;
+        builder.push_peak(peak);
         report_phase_progress_throttled(
             0.0,
             STREAMING_WAV_SUMMARY_READ_END,
-            index + 1,
-            total_samples,
+            frame_index + 1,
+            total_frames,
             progress,
         );
     }
@@ -386,25 +366,23 @@ fn read_i32_summary<R: std::io::Read>(
     channels: usize,
     bits_per_sample: u16,
     builder: &mut StreamingWavSummaryBuilder,
-    total_samples: usize,
+    total_frames: usize,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<(), String> {
     let max = integer_sample_max_i64(bits_per_sample);
-    let mut frame = Vec::with_capacity(channels);
-    for (index, sample) in reader.samples::<i32>().enumerate() {
+    let mut samples = reader.samples::<i32>();
+    for frame_index in 0..total_frames {
         if cancelled() {
             return Err(String::from("cancelled"));
         }
-        let sample = sample
-            .map(|value| ((value as f32) / max).clamp(-1.0, 1.0))
-            .map_err(|err| format!("failed to read integer sample: {err}"))?;
-        push_summary_sample(sample, channels, &mut frame, builder);
+        let peak = read_i32_frame_peak(&mut samples, channels, max)?;
+        builder.push_peak(peak);
         report_phase_progress_throttled(
             0.0,
             STREAMING_WAV_SUMMARY_READ_END,
-            index + 1,
-            total_samples,
+            frame_index + 1,
+            total_frames,
             progress,
         );
     }
@@ -412,17 +390,63 @@ fn read_i32_summary<R: std::io::Read>(
     Ok(())
 }
 
-fn push_summary_sample(
-    sample: f32,
+fn read_float_frame_peak<R: std::io::Read>(
+    samples: &mut hound::WavSamples<'_, R, f32>,
     channels: usize,
-    frame: &mut Vec<f32>,
-    builder: &mut StreamingWavSummaryBuilder,
-) {
-    frame.push(sample);
-    if frame.len() >= channels {
-        builder.push_frame(frame);
-        frame.clear();
+) -> Result<f32, String> {
+    let mut peak = 0.0_f32;
+    for _ in 0..channels {
+        let sample = samples
+            .next()
+            .transpose()
+            .map_err(|err| format!("failed to read float sample: {err}"))?
+            .ok_or_else(|| String::from("WAV ended before declared frame count"))?
+            .clamp(-1.0, 1.0);
+        if sample.abs() > peak.abs() {
+            peak = sample;
+        }
     }
+    Ok(peak.clamp(-1.0, 1.0))
+}
+
+fn read_i16_frame_peak<R: std::io::Read>(
+    samples: &mut hound::WavSamples<'_, R, i16>,
+    channels: usize,
+    max: f32,
+) -> Result<f32, String> {
+    let mut peak = 0.0_f32;
+    for _ in 0..channels {
+        let sample = samples
+            .next()
+            .transpose()
+            .map_err(|err| format!("failed to read integer sample: {err}"))?
+            .ok_or_else(|| String::from("WAV ended before declared frame count"))
+            .map(|value| (f32::from(value) / max).clamp(-1.0, 1.0))?;
+        if sample.abs() > peak.abs() {
+            peak = sample;
+        }
+    }
+    Ok(peak.clamp(-1.0, 1.0))
+}
+
+fn read_i32_frame_peak<R: std::io::Read>(
+    samples: &mut hound::WavSamples<'_, R, i32>,
+    channels: usize,
+    max: f32,
+) -> Result<f32, String> {
+    let mut peak = 0.0_f32;
+    for _ in 0..channels {
+        let sample = samples
+            .next()
+            .transpose()
+            .map_err(|err| format!("failed to read integer sample: {err}"))?
+            .ok_or_else(|| String::from("WAV ended before declared frame count"))
+            .map(|value| ((value as f32) / max).clamp(-1.0, 1.0))?;
+        if sample.abs() > peak.abs() {
+            peak = sample;
+        }
+    }
+    Ok(peak.clamp(-1.0, 1.0))
 }
 
 fn content_revision_for_path_metadata(
@@ -558,6 +582,8 @@ fn integer_sample_max_i64(bits_per_sample: u16) -> f32 {
 #[cfg(test)]
 mod tests {
     use std::{
+        cell::RefCell,
+        path::Path,
         path::PathBuf,
         sync::{
             Arc,
@@ -588,6 +614,20 @@ mod tests {
         Arc::from(cursor.into_inner())
     }
 
+    fn write_wav_i16(path: &Path, channels: u16, samples: &[i16]) {
+        let spec = hound::WavSpec {
+            channels,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).expect("test wav writer");
+        for sample in samples {
+            writer.write_sample(*sample).expect("write sample");
+        }
+        writer.finalize().expect("finalize wav");
+    }
+
     #[test]
     fn cancellation_after_playback_ready_stops_waveform_summary() {
         let bytes = wav_bytes_i16(2, &[0, 0, 1000, -1000, 2000, -2000, 0, 0]);
@@ -607,5 +647,35 @@ mod tests {
 
         assert!(matches!(result, Err(error) if error == "cancelled"));
         assert!(playback_ready_called.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn streaming_wav_summary_keeps_large_file_playback_file_backed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("large-summary.wav");
+        write_wav_i16(
+            &path,
+            2,
+            &[0, 0, 1_000, -4_000, 6_000, -2_000, 0, 0, -8_000, 4_000],
+        );
+        let progress_values = RefCell::new(Vec::new());
+
+        let file = load_wav_waveform_summary_from_path_with_progress(
+            path.clone(),
+            &|progress| progress_values.borrow_mut().push(progress),
+            &|| false,
+        )
+        .expect("streaming summary");
+
+        assert_eq!(file.path, path);
+        assert_eq!(file.sample_rate, 48_000);
+        assert_eq!(file.channels, 2);
+        assert_eq!(file.frames, 5);
+        assert!(file.audio_bytes.is_empty());
+        assert!(file.playback_samples.is_none());
+        assert!(file.playback_cache_file.is_none());
+        assert_eq!(file.gpu_signal_summary.frames, 5);
+        assert!(!file.gpu_signal_summary.levels.is_empty());
+        assert!(progress_values.borrow().iter().any(|value| *value >= 0.99));
     }
 }

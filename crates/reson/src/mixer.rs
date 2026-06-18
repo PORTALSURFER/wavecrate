@@ -34,14 +34,46 @@ pub(crate) fn wav_spec_from_bytes(bytes: &Arc<[u8]>) -> Option<(f32, u32, u16)> 
     let reader = hound::WavReader::new(Cursor::new(bytes.clone())).ok()?;
     let spec = reader.spec();
     let sample_rate = spec.sample_rate as f32;
-    let channels = spec.channels.max(1) as f32;
     if sample_rate <= 0.0 {
         return None;
     }
-    let duration = reader.duration() as f32 / (sample_rate * channels);
+    let duration = reader.duration() as f32 / sample_rate;
     Some((duration, spec.sample_rate, spec.channels.max(1)))
 }
 
 pub(crate) fn map_seek_error(error: String) -> String {
     format!("Audio seek failed: {error}")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{io::Cursor, sync::Arc};
+
+    use super::wav_spec_from_bytes;
+
+    #[test]
+    fn wav_spec_duration_is_frame_based_for_stereo_files() {
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = hound::WavWriter::new(&mut cursor, spec).expect("writer");
+            for _ in 0..48_000 {
+                writer.write_sample(0_i16).expect("left sample");
+                writer.write_sample(0_i16).expect("right sample");
+            }
+            writer.finalize().expect("finalize wav");
+        }
+        let bytes = Arc::<[u8]>::from(cursor.into_inner());
+
+        let (duration, sample_rate, channels) = wav_spec_from_bytes(&bytes).expect("wav spec");
+
+        assert_eq!(sample_rate, 48_000);
+        assert_eq!(channels, 2);
+        assert!((duration - 1.0).abs() < 0.000_001);
+    }
 }

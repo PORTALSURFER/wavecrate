@@ -1,6 +1,8 @@
 mod decoder_source;
 mod f32_cursor;
 mod f32_file;
+mod pcm_wav_cursor;
+mod pcm_wav_file;
 mod repeating_source;
 mod span_source;
 
@@ -10,6 +12,7 @@ use super::super::PlaybackSpanPlan;
 use crate::timebase::duration_for_frames;
 
 pub(super) use f32_file::{InterleavedF32FileRepeatingSpanSource, InterleavedF32FileSpanSource};
+pub(super) use pcm_wav_file::{PcmWavFileRepeatingSpanSource, PcmWavFileSpanSource};
 pub(super) use repeating_source::LazyRepeatingSpanSource;
 pub(super) use span_source::LazySpanSource;
 
