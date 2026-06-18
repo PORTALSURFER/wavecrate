@@ -17,7 +17,7 @@ pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY: Dur
     Duration::from_millis(350);
 pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_LIGHT_CONTINUATION_DELAY: Duration =
     Duration::from_millis(75);
-pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES: usize = 8;
+pub(in crate::native_app) const ACTIVE_FOLDER_CACHE_WARM_SCAN_MAX_FILES: usize = 128;
 
 pub(in crate::native_app) fn active_folder_cache_warm_priority() -> ui::TaskPriority {
     ui::TaskPriority::Idle

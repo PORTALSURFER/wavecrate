@@ -59,6 +59,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
 ) -> ActiveFolderCacheWarmResult {
     let mut paths = paths.into_iter();
     let mut loaded = Vec::new();
+    let mut playback_ready = Vec::new();
     let mut deferred = Vec::new();
     let mut processed = 0;
     let mut decoded_source = false;
@@ -76,17 +77,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             &progress,
         );
         if cached_waveform_file_playback_ready_exists(&path) {
-            report_active_folder_cache_progress(
-                &folder_id,
-                &path,
-                processed,
-                ACTIVE_FOLDER_CACHE_LOADING_PROGRESS,
-                ActiveFolderCacheWarmStage::LoadingCache,
-                &progress,
-            );
-            if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
-                loaded.push((path.clone(), Arc::new(file)));
-            }
+            playback_ready.push(path.clone());
             processed += 1;
             report_active_folder_cache_progress(
                 &folder_id,
@@ -163,6 +154,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
     ActiveFolderCacheWarmResult {
         folder_id,
         loaded,
+        playback_ready,
         deferred,
         processed,
         decoded_source,

@@ -13,9 +13,9 @@ use crate::native_app::{
     audio::sample_load_actions::{
         active_folder_cache_warm_resource_key,
         cache::{
-            ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES, ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY,
-            ACTIVE_FOLDER_CACHE_WARM_INITIAL_DELAY,
-            ACTIVE_FOLDER_CACHE_WARM_LIGHT_CONTINUATION_DELAY, active_folder_cache_warm_priority,
+            ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY, ACTIVE_FOLDER_CACHE_WARM_INITIAL_DELAY,
+            ACTIVE_FOLDER_CACHE_WARM_LIGHT_CONTINUATION_DELAY,
+            ACTIVE_FOLDER_CACHE_WARM_SCAN_MAX_FILES, active_folder_cache_warm_priority,
             logging::log_slow_cache_phase, persisted_warm::take_cache_warm_batch,
             workers::warm_active_folder_waveform_cache_with_progress,
         },
@@ -262,6 +262,12 @@ impl NativeAppState {
             let waveform = WaveformState::from_cached_file(file);
             self.remember_waveform(&waveform);
         }
+        for path in result.playback_ready {
+            self.waveform
+                .cache
+                .cached_sample_paths
+                .insert(path.display().to_string());
+        }
         for path in result.deferred.iter().rev() {
             self.waveform
                 .cache
@@ -309,7 +315,7 @@ impl NativeAppState {
         let batch = take_cache_warm_batch(
             &mut self.waveform.cache.active_folder_warm_pending,
             |path| entries.contains_key(path),
-            ACTIVE_FOLDER_CACHE_WARM_BATCH_MAX_FILES,
+            ACTIVE_FOLDER_CACHE_WARM_SCAN_MAX_FILES,
         );
         self.waveform.cache.active_folder_warm_current = batch.first().cloned();
         batch

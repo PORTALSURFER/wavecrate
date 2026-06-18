@@ -724,10 +724,121 @@ fn active_folder_cache_warm_batches_playback_ready_cache_hits() {
         || false,
     );
 
-    assert_eq!(result.loaded.len(), 2);
+    assert!(result.loaded.is_empty());
+    assert_eq!(result.playback_ready, vec![first, second]);
     assert_eq!(result.processed, 2);
     assert!(!result.decoded_source);
     assert!(result.deferred.is_empty());
+}
+
+#[test]
+fn active_folder_cache_warm_resumes_from_persisted_playback_ready_cache_after_restart() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let cached_first = source_root.path().join("cached-first.wav");
+    let cached_second = source_root.path().join("cached-second.wav");
+    let uncached = source_root.path().join("uncached-after-restart.wav");
+    write_test_wav_i16(&cached_first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&cached_second, &[0, 512, -512, 1024]);
+    write_test_wav_i16(&uncached, &[0, 256, -256, 512]);
+
+    for path in [&cached_first, &cached_second] {
+        let waveform =
+            crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+                path.clone(),
+                |_| {},
+                || false,
+                |_| {},
+            )
+            .expect("cache sample before restart");
+        crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+        crate::native_app::waveform::store_cached_waveform_file_for_tests(&waveform.file());
+        wait_for_playback_ready_cache(path.display().to_string().as_str());
+    }
+
+    let mut restarted_state = gui_state_for_span_tests();
+    restarted_state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    restarted_state.schedule_active_folder_cache_warm(&mut context);
+    assert_eq!(restarted_state.waveform.cache.active_folder_warm_total, 3);
+
+    let warm_ticket = restarted_state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("source warm delay");
+    restarted_state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    let running_ticket =
+        active_folder_cache_warm_ticket(&restarted_state).expect("source warm task");
+    assert!(
+        restarted_state
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .is_empty(),
+        "restart warm should scan cached files and the next uncached candidate in one worker batch"
+    );
+
+    let folder_id = source_root.path().display().to_string();
+    let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
+        folder_id.clone(),
+        vec![
+            cached_first.clone(),
+            cached_second.clone(),
+            uncached.clone(),
+        ],
+        || false,
+    );
+    assert_eq!(
+        result.playback_ready,
+        vec![cached_first.clone(), cached_second.clone()]
+    );
+    assert_eq!(result.loaded.len(), 1);
+    assert_eq!(result.processed, 3);
+    assert!(result.decoded_source);
+    assert!(result.deferred.is_empty());
+
+    restarted_state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
+            ui::KeyedTaskCompletion {
+                key: crate::native_app::audio::sample_load_actions::active_folder_cache_warm_resource_key(
+                    folder_id.as_str(),
+                ),
+                ticket: running_ticket,
+                output: result,
+            },
+        ),
+        &mut context,
+    );
+
+    assert!(
+        restarted_state
+            .waveform
+            .cache
+            .active_folder_warm_folder_id
+            .is_none(),
+        "finished restart warm should not continue scheduling already cached files"
+    );
+    for path in [&cached_first, &cached_second, &uncached] {
+        assert!(
+            restarted_state
+                .waveform
+                .cache
+                .cached_sample_paths
+                .contains(&path.display().to_string()),
+            "completed restart warm should mark {} as cached",
+            path.display()
+        );
+    }
 }
 
 #[test]

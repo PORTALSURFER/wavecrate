@@ -272,6 +272,7 @@ fn active_folder_cache_warm_completion_with_deferred(
         output: crate::native_app::app::ActiveFolderCacheWarmResult {
             folder_id,
             loaded,
+            playback_ready: Vec::new(),
             deferred,
             processed,
             decoded_source,
