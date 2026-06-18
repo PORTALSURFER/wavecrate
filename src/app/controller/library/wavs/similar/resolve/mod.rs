@@ -5,10 +5,14 @@ use std::path::PathBuf;
 mod ranking;
 mod repository;
 
-pub(crate) use ranking::{cosine_similarity, is_effectively_silent, normalize_l2, rerank_with_dsp};
+pub(crate) use ranking::{
+    cosine_similarity, is_effectively_silent, normalize_l2, rerank_with_dsp,
+    similarity_aspect_score_row,
+};
 pub(crate) use repository::{
-    load_embeddings_for_samples, load_feature_metrics_for_samples, load_query_similarity_inputs,
-    load_rms_for_samples, open_source_db_for_id, resolve_sample_id_for_visible_row,
+    load_aspect_descriptors_for_samples, load_embeddings_for_samples,
+    load_feature_metrics_for_samples, load_query_similarity_inputs, load_rms_for_samples,
+    open_source_db_for_id, resolve_sample_id_for_visible_row,
 };
 
 /// Ranked similarity matches resolved for one query sample.
@@ -21,6 +25,10 @@ pub(crate) struct ResolvedSimilarity {
     pub indices: Vec<usize>,
     /// Similarity scores aligned with `indices`.
     pub scores: Vec<f32>,
+    /// Per-aspect raw similarity scores aligned with `indices`.
+    pub aspect_scores: Vec<crate::app::state::SimilarityAspectScoreRow>,
+    /// Self-similarity aspect row for the query sample.
+    pub anchor_aspect_scores: crate::app::state::SimilarityAspectScoreRow,
 }
 
 /// Resolve and rerank the visible matches for a specific sample identifier.
@@ -51,14 +59,24 @@ pub(crate) fn resolve_similarity_for_sample_id(
         query.embedding.as_deref(),
         query.light_dsp.as_deref(),
     )?;
-    let (indices, scores) =
-        ranking::filter_ranked_candidates(&conn, ranked, &source_id, score_cutoff, |path| {
-            controller.wav_index_for_path(path)
-        })?;
+    let filtered = ranking::filter_ranked_candidates(
+        &conn,
+        ranked,
+        &source_id,
+        score_cutoff,
+        query.aspect_descriptors.as_ref(),
+        |path| controller.wav_index_for_path(path),
+    )?;
+    let anchor_aspect_scores = ranking::similarity_aspect_score_row(
+        query.aspect_descriptors.as_ref(),
+        query.aspect_descriptors.as_ref(),
+    );
     Ok(ResolvedSimilarity {
         sample_id: sample_id.to_string(),
         relative_path,
-        indices,
-        scores,
+        indices: filtered.indices,
+        scores: filtered.scores,
+        aspect_scores: filtered.aspect_scores,
+        anchor_aspect_scores,
     })
 }

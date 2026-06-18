@@ -172,7 +172,7 @@ fn error_label(count: usize) -> &'static str {
 mod tests {
     use super::*;
     use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
-    use crate::app::state::{SampleBrowserSort, SimilarQuery};
+    use crate::app::state::{SampleBrowserSort, SimilarQuery, empty_similarity_aspect_score_rows};
     use crate::sample_sources::Rating;
     use std::path::Path;
 
@@ -195,6 +195,7 @@ mod tests {
             label: "c.wav".to_string(),
             indices: vec![2],
             scores: vec![1.0],
+            aspect_scores: empty_similarity_aspect_score_rows(1),
             anchor_index: Some(2),
         });
         controller.ui.browser.search.sort = SampleBrowserSort::Similarity;

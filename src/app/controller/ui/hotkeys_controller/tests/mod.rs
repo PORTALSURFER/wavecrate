@@ -3,7 +3,7 @@ use crate::app::controller::test_support::{
     load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
 use crate::app::controller::ui::hotkeys;
-use crate::app::state::SimilarQuery;
+use crate::app::state::{SimilarQuery, empty_similarity_aspect_score_rows};
 use crate::sample_sources::Rating;
 use crate::selection::SelectionRange;
 use std::path::{Path, PathBuf};
@@ -35,6 +35,7 @@ fn seed_similarity_query_with_different_focus(controller: &mut AppController) ->
         label: String::from("kick_one.wav"),
         indices: vec![0],
         scores: vec![1.0],
+        aspect_scores: empty_similarity_aspect_score_rows(1),
         anchor_index: Some(0),
     });
     controller.focus_browser_row_only(1);

@@ -82,6 +82,7 @@ impl AppController {
                     payload.sample_id,
                     payload.paths,
                     payload.scores,
+                    payload.aspect_scores,
                     payload.anchor_index,
                     |path| self.wav_index_for_path(path),
                 )

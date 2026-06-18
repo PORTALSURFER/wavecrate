@@ -25,3 +25,19 @@ pub(super) fn embedding_query_values(sample_ids: &[String]) -> Vec<Value> {
     params.extend(sample_ids.iter().cloned().map(Value::from));
     params
 }
+
+pub(super) fn aspect_descriptor_query_values(sample_ids: &[String]) -> Vec<Value> {
+    let mut params = Vec::with_capacity(sample_ids.len() + 4);
+    params.push(Value::from(
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID.to_string(),
+    ));
+    params.push(Value::from(
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+    ));
+    params.push(Value::from(
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32.to_string(),
+    ));
+    params.push(Value::from(1_i64));
+    params.extend(sample_ids.iter().cloned().map(Value::from));
+    params
+}

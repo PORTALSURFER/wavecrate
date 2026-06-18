@@ -1,11 +1,13 @@
 //! Batched SQLite loaders for similarity embeddings and feature metrics.
 
+mod aspect_descriptor_loader;
 mod batch;
 mod embedding_loader;
 mod feature_metrics_loader;
 mod query_inputs;
 mod rms_loader;
 
+pub(crate) use aspect_descriptor_loader::load_aspect_descriptors_for_samples;
 #[cfg(test)]
 pub(crate) use batch::SQLITE_IN_BATCH_SIZE;
 pub(crate) use embedding_loader::load_embeddings_for_samples;

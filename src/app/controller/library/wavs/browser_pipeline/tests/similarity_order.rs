@@ -13,6 +13,7 @@ fn similarity_sort_reuses_pipeline_lookup_scratch() {
         label: "anchor".to_string(),
         indices: vec![0, 1, 2],
         scores: vec![1.0, 0.8, 0.3],
+        aspect_scores: empty_similarity_aspect_score_rows(3),
         anchor_index: Some(0),
     });
 
@@ -38,6 +39,7 @@ fn similarity_sort_reuses_pipeline_lookup_scratch() {
         label: "anchor".to_string(),
         indices: vec![0, 2, 1],
         scores: vec![1.0, 0.9, 0.2],
+        aspect_scores: empty_similarity_aspect_score_rows(3),
         anchor_index: Some(0),
     });
     let (visible, _, _) = build_visible_rows(&mut controller, Some(0), None);
@@ -72,6 +74,7 @@ fn similarity_sort_keeps_sparse_lookup_compact() {
         label: "anchor".to_string(),
         indices: vec![3, 1],
         scores: vec![0.9, 0.4],
+        aspect_scores: empty_similarity_aspect_score_rows(2),
         anchor_index: None,
     });
 

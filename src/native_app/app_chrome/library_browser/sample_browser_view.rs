@@ -23,7 +23,8 @@ use rows::sample_browser_rows;
 const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = widget_ids::SAMPLE_HEADER_SORT_DRAG_ID;
 const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
 const SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH: f32 = 22.0;
-pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 58.0;
+pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 190.0;
+const SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH: f32 = 14.0;
 const SAMPLE_BROWSER_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const SAMPLE_BROWSER_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
 
@@ -247,11 +248,26 @@ fn sample_header_cells(
 }
 
 fn sample_similarity_header_cell() -> ui::View<GuiMessage> {
-    ui::compact_details_cell(
+    let mut header_parts = Vec::with_capacity(wavecrate_analysis::aspects::ASPECT_COUNT + 1);
+    for label in ["O", "S", "T", "P", "A"] {
+        header_parts.push(
+            ui::text(label)
+                .muted_text()
+                .align_text(ui::TextAlign::Center)
+                .key(format!("sample-header-similarity-aspect-{label}"))
+                .height(20.0)
+                .width(SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH),
+        );
+    }
+    header_parts.push(
         ui::text("Sim")
             .muted_text()
             .key("sample-header-similarity-label")
-            .height(20.0),
+            .height(20.0)
+            .fill_width(),
+    );
+    ui::compact_details_cell(
+        ui::row(header_parts).spacing(3.0).height(20.0).fill_width(),
         Some(SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH),
     )
     .key("sample-header-similarity")

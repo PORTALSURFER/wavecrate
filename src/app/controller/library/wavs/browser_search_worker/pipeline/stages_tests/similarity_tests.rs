@@ -1,7 +1,7 @@
 use super::super::stages::{BuildVisibleRowsParams, build_visible_rows_for_job};
 use super::super::*;
 use super::support::make_search_job;
-use crate::app::state::SimilarQuery;
+use crate::app::state::{SimilarQuery, empty_similarity_aspect_score_rows};
 use std::sync::Arc;
 
 #[test]
@@ -51,6 +51,7 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
             label: "anchor".to_string(),
             indices: vec![3, 1],
             scores: vec![0.9, 0.4],
+            aspect_scores: empty_similarity_aspect_score_rows(2),
             anchor_index: None,
         }),
         ..make_search_job("")

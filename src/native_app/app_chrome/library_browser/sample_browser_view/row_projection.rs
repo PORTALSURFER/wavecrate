@@ -7,7 +7,7 @@ use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::audio::playback::tagged_playback_mode_for_tags;
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::model::{
-    FileColumn, FileColumnKind, FileEntry,
+    FileColumn, FileColumnKind, FileEntry, SimilarityAspectStrengths,
 };
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleRow;
 use crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey;
@@ -32,12 +32,18 @@ pub(super) struct SampleColumnDisplay<'a> {
 }
 
 pub(super) enum SampleColumnContent {
-    Text { value: String, cached: bool },
+    Text {
+        value: String,
+        cached: bool,
+    },
     Rename(FileRenameView),
     Rating(RatingIndicator),
     PlaybackType(Option<&'static str>),
     Collection(Vec<ui::Rgba8>),
-    Similarity(Option<f32>),
+    Similarity {
+        overall: Option<f32>,
+        aspects: SimilarityAspectStrengths,
+    },
 }
 
 pub(super) fn sample_row_display<'a>(
@@ -100,7 +106,10 @@ fn similarity_column_display<'a>(
         file_id: file.id.as_str(),
         id: "similarity",
         width: SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH,
-        content: SampleColumnContent::Similarity(row.similarity_strength),
+        content: SampleColumnContent::Similarity {
+            overall: row.similarity_strength,
+            aspects: row.similarity_aspect_strengths,
+        },
     }
 }
 
@@ -275,6 +284,8 @@ mod tests {
             rename: None,
             similarity_anchor: false,
             similarity_strength: None,
+            similarity_aspect_strengths:
+                crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
             collection_colors: vec![ui::Rgba8::new(1, 2, 3, 255), ui::Rgba8::new(4, 5, 6, 255)],
         };
         let column = FileColumn::for_tests("collection", "Collection", 80.0);
@@ -307,6 +318,8 @@ mod tests {
             rename: None,
             similarity_anchor: false,
             similarity_strength: None,
+            similarity_aspect_strengths:
+                crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
             collection_colors: Vec::new(),
         };
         let column = FileColumn::for_tests("playback_type", "Type", 76.0);
@@ -340,6 +353,8 @@ mod tests {
             rename: None,
             similarity_anchor: false,
             similarity_strength: None,
+            similarity_aspect_strengths:
+                crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
             collection_colors: Vec::new(),
         };
         let column = FileColumn::for_tests("playback_type", "Type", 76.0);

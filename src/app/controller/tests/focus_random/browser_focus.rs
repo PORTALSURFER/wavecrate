@@ -66,6 +66,7 @@ fn find_similar_from_map_switches_to_browser_list() {
         label: "map.wav".to_string(),
         indices: vec![0],
         scores: vec![1.0],
+        aspect_scores: crate::app::state::empty_similarity_aspect_score_rows(1),
         anchor_index: Some(0),
     });
     let action = hotkeys::iter_actions()

@@ -2,11 +2,21 @@ use std::{collections::HashMap, path::PathBuf};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SourceDatabase, SourceDatabaseConnectionRole, SourceId};
-use wavecrate_analysis::{decode_f32_le_blob, similarity::SIMILARITY_MODEL_ID};
+use wavecrate_analysis::{
+    aspects::{
+        ASPECT_DESCRIPTOR_DIM, ASPECT_DESCRIPTOR_DTYPE_F32, ASPECT_DESCRIPTOR_MODEL_ID,
+        AspectDescriptorSet, SimilarityAspect,
+    },
+    decode_f32_le_blob,
+    similarity::SIMILARITY_MODEL_ID,
+};
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, emit_gui_action},
     sample_library::file_actions::sample_path_label,
+    sample_library::folder_browser::model::{
+        EMPTY_SIMILARITY_ASPECT_STRENGTHS, SimilarityAspectStrengths,
+    },
 };
 
 const SQLITE_IN_BATCH_SIZE: usize = 900;
@@ -14,7 +24,13 @@ const SQLITE_IN_BATCH_SIZE: usize = 900;
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct SimilarityScoresResult {
     pub(in crate::native_app) anchor_id: String,
-    pub(in crate::native_app) result: Result<HashMap<String, f32>, String>,
+    pub(in crate::native_app) result: Result<SimilarityScoresPayload, String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SimilarityScoresPayload {
+    pub(in crate::native_app) scores_by_file: HashMap<String, f32>,
+    pub(in crate::native_app) aspect_scores_by_file: HashMap<String, SimilarityAspectStrengths>,
 }
 
 #[derive(Clone, Debug)]
@@ -61,10 +77,14 @@ impl NativeAppState {
         }
         match result.result {
             Ok(scores) => {
-                let count = scores.len().saturating_sub(1);
+                let count = scores.scores_by_file.len().saturating_sub(1);
                 self.library
                     .folder_browser
-                    .set_similarity_scores(result.anchor_id.clone(), scores);
+                    .set_similarity_scores_with_aspects(
+                        result.anchor_id.clone(),
+                        scores.scores_by_file,
+                        scores.aspect_scores_by_file,
+                    );
                 self.ui.status.sample = format!(
                     "Resolved {count} similar sample{}",
                     if count == 1 { "" } else { "s" }
@@ -131,7 +151,7 @@ fn resolve_similarity_scores(request: SimilarityScoresRequest) -> SimilarityScor
 
 fn resolve_similarity_scores_inner(
     request: &SimilarityScoresRequest,
-) -> Result<HashMap<String, f32>, String> {
+) -> Result<SimilarityScoresPayload, String> {
     let conn = SourceDatabase::open_connection_with_role(
         &request.source_root,
         SourceDatabaseConnectionRole::UiRead,
@@ -148,11 +168,20 @@ fn resolve_similarity_scores_inner(
     sample_ids.push(anchor_sample_id.clone());
     sample_ids.extend(candidate_sample_ids.iter().cloned());
     let mut embeddings = load_embeddings(&conn, &sample_ids)?;
+    let mut aspect_descriptors = load_aspect_descriptors(&conn, &sample_ids)?;
     let anchor = embeddings
         .remove(&anchor_sample_id)
         .ok_or_else(|| String::from("anchor embedding is missing"))?;
+    let anchor_aspects = aspect_descriptors.remove(&anchor_sample_id);
     let mut scores = HashMap::new();
+    let mut aspect_scores = HashMap::new();
     scores.insert(request.anchor_id.clone(), 1.0);
+    if let Some(anchor_aspects) = anchor_aspects.as_ref() {
+        aspect_scores.insert(
+            request.anchor_id.clone(),
+            similarity_aspect_score_row(Some(anchor_aspects), Some(anchor_aspects)),
+        );
+    }
     for (candidate, sample_id) in request.candidates.iter().zip(candidate_sample_ids.iter()) {
         let Some(candidate_embedding) = embeddings.get(sample_id) else {
             continue;
@@ -161,8 +190,15 @@ fn resolve_similarity_scores_inner(
             candidate.file_id.clone(),
             cosine_similarity(&anchor, candidate_embedding).clamp(-1.0, 1.0),
         );
+        aspect_scores.insert(
+            candidate.file_id.clone(),
+            similarity_aspect_score_row(anchor_aspects.as_ref(), aspect_descriptors.get(sample_id)),
+        );
     }
-    Ok(scores)
+    Ok(SimilarityScoresPayload {
+        scores_by_file: scores,
+        aspect_scores_by_file: aspect_scores,
+    })
 }
 
 fn load_embeddings(
@@ -213,6 +249,90 @@ fn load_embedding_batch(
         embeddings.insert(sample_id, decode_f32_le_blob(&blob)?);
     }
     Ok(())
+}
+
+fn load_aspect_descriptors(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+) -> Result<HashMap<String, AspectDescriptorSet>, String> {
+    let mut descriptors = HashMap::new();
+    for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
+        load_aspect_descriptor_batch(conn, batch, &mut descriptors)?;
+    }
+    Ok(descriptors)
+}
+
+fn load_aspect_descriptor_batch(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+    descriptors: &mut HashMap<String, AspectDescriptorSet>,
+) -> Result<(), String> {
+    if sample_ids.is_empty() {
+        return Ok(());
+    }
+    let placeholders = std::iter::repeat_n("?", sample_ids.len())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "SELECT sample_id, valid_mask, vec FROM similarity_aspect_descriptors
+         WHERE model_id = ?
+           AND dim = ?
+           AND dtype = ?
+           AND l2_normed = 1
+           AND sample_id IN ({placeholders})"
+    );
+    let mut params = Vec::<rusqlite::types::Value>::with_capacity(sample_ids.len() + 4);
+    params.push(rusqlite::types::Value::from(
+        ASPECT_DESCRIPTOR_MODEL_ID.to_string(),
+    ));
+    params.push(rusqlite::types::Value::from(ASPECT_DESCRIPTOR_DIM as i64));
+    params.push(rusqlite::types::Value::from(
+        ASPECT_DESCRIPTOR_DTYPE_F32.to_string(),
+    ));
+    params.extend(sample_ids.iter().cloned().map(rusqlite::types::Value::from));
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|err| format!("Prepare aspect descriptor lookup failed: {err}"))?;
+    let mut rows = stmt
+        .query(rusqlite::params_from_iter(params))
+        .map_err(|err| format!("Query aspect descriptors failed: {err}"))?;
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Read aspect descriptor row failed: {err}"))?
+    {
+        let sample_id: String = row
+            .get(0)
+            .map_err(|err| format!("Decode aspect descriptor sample id failed: {err}"))?;
+        let valid_mask = row
+            .get::<_, i64>(1)
+            .map_err(|err| format!("Decode aspect descriptor mask failed: {err}"))?
+            as u32;
+        let blob: Vec<u8> = row
+            .get(2)
+            .map_err(|err| format!("Decode aspect descriptor blob failed: {err}"))?;
+        let values = decode_f32_le_blob(&blob)?;
+        descriptors.insert(
+            sample_id,
+            AspectDescriptorSet::from_parts(values, valid_mask)?,
+        );
+    }
+    Ok(())
+}
+
+fn similarity_aspect_score_row(
+    query: Option<&AspectDescriptorSet>,
+    candidate: Option<&AspectDescriptorSet>,
+) -> SimilarityAspectStrengths {
+    let (Some(query), Some(candidate)) = (query, candidate) else {
+        return EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+    };
+    let mut row = EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+    for aspect in SimilarityAspect::ORDER {
+        row[aspect.index()] = query
+            .cosine_with(candidate, aspect)
+            .map(|score| score.clamp(-1.0, 1.0));
+    }
+    row
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {

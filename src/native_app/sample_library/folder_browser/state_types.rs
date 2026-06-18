@@ -2,6 +2,12 @@ use std::path::PathBuf;
 
 use super::FolderEntry;
 
+pub(in crate::native_app) type SimilarityAspectStrengths =
+    [Option<f32>; wavecrate_analysis::aspects::ASPECT_COUNT];
+
+pub(in crate::native_app) const EMPTY_SIMILARITY_ASPECT_STRENGTHS: SimilarityAspectStrengths =
+    [None; wavecrate_analysis::aspects::ASPECT_COUNT];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct SourceEntry {
     pub(in crate::native_app) id: String,
@@ -175,7 +181,9 @@ pub(super) enum FolderBrowserDrag {
 pub(in crate::native_app) struct SimilarityBrowserState {
     anchor_id: String,
     scores_by_file: std::collections::HashMap<String, f32>,
+    aspect_scores_by_file: std::collections::HashMap<String, SimilarityAspectStrengths>,
     score_bounds: Option<(f32, f32)>,
+    aspect_score_bounds: [Option<(f32, f32)>; wavecrate_analysis::aspects::ASPECT_COUNT],
 }
 
 impl SimilarityBrowserState {
@@ -185,15 +193,27 @@ impl SimilarityBrowserState {
 
     pub(in crate::native_app) fn with_scores(
         anchor_id: String,
+        scores_by_file: std::collections::HashMap<String, f32>,
+    ) -> Self {
+        Self::with_scores_and_aspects(anchor_id, scores_by_file, std::collections::HashMap::new())
+    }
+
+    pub(in crate::native_app) fn with_scores_and_aspects(
+        anchor_id: String,
         mut scores_by_file: std::collections::HashMap<String, f32>,
+        mut aspect_scores_by_file: std::collections::HashMap<String, SimilarityAspectStrengths>,
     ) -> Self {
         scores_by_file.retain(|_, score| score.is_finite());
+        aspect_scores_by_file.retain(|_, row| row.iter().any(Option::is_some));
         scores_by_file.insert(anchor_id.clone(), 1.0);
         let score_bounds = score_bounds(scores_by_file.values().copied());
+        let aspect_score_bounds = aspect_score_bounds(aspect_scores_by_file.values());
         Self {
             anchor_id,
             scores_by_file,
+            aspect_scores_by_file,
             score_bounds,
+            aspect_score_bounds,
         }
     }
 
@@ -208,6 +228,31 @@ impl SimilarityBrowserState {
     pub(in crate::native_app) fn display_strength_for(&self, file_id: &str) -> Option<f32> {
         let score = self.raw_score_for(file_id)?.clamp(-1.0, 1.0);
         let (min_score, max_score) = self.score_bounds?;
+        let range = max_score - min_score;
+        if range <= f32::EPSILON {
+            return Some(absolute_display_strength(score));
+        }
+        Some(((score - min_score) / range).clamp(0.0, 1.0))
+    }
+
+    pub(in crate::native_app) fn aspect_display_strengths_for(
+        &self,
+        file_id: &str,
+    ) -> SimilarityAspectStrengths {
+        let Some(row) = self.aspect_scores_by_file.get(file_id) else {
+            return EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+        };
+        let mut strengths = EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+        for aspect in wavecrate_analysis::aspects::SimilarityAspect::ORDER {
+            let index = aspect.index();
+            strengths[index] = self.aspect_display_strength(index, row[index]);
+        }
+        strengths
+    }
+
+    fn aspect_display_strength(&self, index: usize, score: Option<f32>) -> Option<f32> {
+        let score = score?.clamp(-1.0, 1.0);
+        let (min_score, max_score) = self.aspect_score_bounds[index]?;
         let range = max_score - min_score;
         if range <= f32::EPSILON {
             return Some(absolute_display_strength(score));
@@ -273,6 +318,13 @@ fn score_bounds(scores: impl IntoIterator<Item = f32>) -> Option<(f32, f32)> {
         max_score = max_score.max(score);
     }
     Some((min_score, max_score))
+}
+
+fn aspect_score_bounds<'a>(
+    rows: impl IntoIterator<Item = &'a SimilarityAspectStrengths>,
+) -> [Option<(f32, f32)>; wavecrate_analysis::aspects::ASPECT_COUNT] {
+    let rows = rows.into_iter().collect::<Vec<_>>();
+    std::array::from_fn(|index| score_bounds(rows.iter().filter_map(|row| row[index])))
 }
 
 fn absolute_display_strength(score: f32) -> f32 {

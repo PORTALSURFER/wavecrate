@@ -1,5 +1,7 @@
 use super::*;
-use crate::app::state::FocusedSimilarity;
+use crate::app::state::{
+    EMPTY_SIMILARITY_ASPECT_SCORE_ROW, FocusedSimilarity, SimilarityAspectScoreRow,
+};
 use crate::app::view_model;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -170,18 +172,26 @@ pub(crate) fn focused_similarity_from_paths(
     sample_id: String,
     paths: Vec<PathBuf>,
     scores: Vec<f32>,
+    aspect_scores: Vec<SimilarityAspectScoreRow>,
     anchor_index: Option<usize>,
     mut resolve_index: impl FnMut(&Path) -> Option<usize>,
 ) -> Option<FocusedSimilarity> {
     let mut indices = Vec::new();
     let mut mapped_scores = Vec::new();
-    for (path, score) in paths.into_iter().zip(scores.into_iter()) {
+    let mut mapped_aspect_scores = Vec::new();
+    for (position, (path, score)) in paths.into_iter().zip(scores.into_iter()).enumerate() {
         if let Some(index) = resolve_index(&path) {
             if anchor_index == Some(index) {
                 continue;
             }
             indices.push(index);
             mapped_scores.push(score);
+            mapped_aspect_scores.push(
+                aspect_scores
+                    .get(position)
+                    .copied()
+                    .unwrap_or(EMPTY_SIMILARITY_ASPECT_SCORE_ROW),
+            );
         }
     }
     if indices.is_empty() {
@@ -191,6 +201,7 @@ pub(crate) fn focused_similarity_from_paths(
         sample_id,
         indices,
         scores: mapped_scores,
+        aspect_scores: mapped_aspect_scores,
         anchor_index,
     })
 }
@@ -201,16 +212,25 @@ fn focused_similarity_from_resolved(
 ) -> Option<FocusedSimilarity> {
     let mut indices = Vec::new();
     let mut scores = Vec::new();
-    for (index, score) in resolved
+    let mut aspect_scores = Vec::new();
+    for (position, (index, score)) in resolved
         .indices
         .into_iter()
         .zip(resolved.scores.into_iter())
+        .enumerate()
     {
         if anchor_index == Some(index) {
             continue;
         }
         indices.push(index);
         scores.push(score);
+        aspect_scores.push(
+            resolved
+                .aspect_scores
+                .get(position)
+                .copied()
+                .unwrap_or(EMPTY_SIMILARITY_ASPECT_SCORE_ROW),
+        );
     }
     if indices.is_empty() {
         return None;
@@ -219,6 +239,7 @@ fn focused_similarity_from_resolved(
         sample_id: resolved.sample_id,
         indices,
         scores,
+        aspect_scores,
         anchor_index,
     })
 }
@@ -235,6 +256,12 @@ mod tests {
             relative_path: PathBuf::from("a.wav"),
             indices: vec![1, 2, 3],
             scores: vec![0.99, 0.98, 0.97],
+            aspect_scores: vec![
+                EMPTY_SIMILARITY_ASPECT_SCORE_ROW,
+                EMPTY_SIMILARITY_ASPECT_SCORE_ROW,
+                EMPTY_SIMILARITY_ASPECT_SCORE_ROW,
+            ],
+            anchor_aspect_scores: EMPTY_SIMILARITY_ASPECT_SCORE_ROW,
         };
         let highlight = focused_similarity_from_resolved(resolved, Some(2)).expect("highlight");
         assert_eq!(highlight.indices, vec![1, 3]);
@@ -249,6 +276,8 @@ mod tests {
             relative_path: PathBuf::from("a.wav"),
             indices: vec![4],
             scores: vec![0.99],
+            aspect_scores: vec![EMPTY_SIMILARITY_ASPECT_SCORE_ROW],
+            anchor_aspect_scores: EMPTY_SIMILARITY_ASPECT_SCORE_ROW,
         };
         let highlight = focused_similarity_from_resolved(resolved, Some(4));
         assert!(highlight.is_none());

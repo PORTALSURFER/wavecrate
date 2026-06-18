@@ -1,9 +1,12 @@
 use super::super::resolve::{
-    is_effectively_silent, load_query_similarity_inputs, load_rms_for_samples, rerank_with_dsp,
+    is_effectively_silent, load_aspect_descriptors_for_samples, load_query_similarity_inputs,
+    load_rms_for_samples, rerank_with_dsp, similarity_aspect_score_row,
 };
 use super::super::*;
 use crate::app::controller::jobs::FocusedSimilarityPaths;
+use crate::app::state::SimilarityAspectScoreRow;
 use crate::sample_sources::SourceId;
+use std::collections::HashMap;
 use std::{path::PathBuf, sync::Arc};
 
 /// Background request to refresh focused near-duplicate highlights.
@@ -62,19 +65,21 @@ pub(crate) fn compute_focused_similarity(
         query.embedding.as_deref(),
         query.light_dsp.as_deref(),
     )?;
-    let (paths, scores) = filter_ranked_candidate_paths(
+    let filtered = filter_ranked_candidate_paths(
         &conn,
         ranked,
         &job.source_id,
         Some(DUPLICATE_SCORE_THRESHOLD),
+        query.aspect_descriptors.as_ref(),
     )?;
-    if paths.is_empty() {
+    if filtered.paths.is_empty() {
         return Ok(None);
     }
     Ok(Some(FocusedSimilarityPaths {
         sample_id: job.sample_id,
-        paths,
-        scores,
+        paths: filtered.paths,
+        scores: filtered.scores,
+        aspect_scores: filtered.aspect_scores,
         anchor_index: job.anchor_index,
     }))
 }
@@ -98,7 +103,8 @@ fn filter_ranked_candidate_paths(
     ranked: impl IntoIterator<Item = (String, f32)>,
     source_id: &SourceId,
     score_cutoff: Option<f32>,
-) -> Result<(Vec<PathBuf>, Vec<f32>), String> {
+    query_aspects: Option<&wavecrate_analysis::aspects::AspectDescriptorSet>,
+) -> Result<FilteredSimilarityPaths, String> {
     let mut ranked_candidates = Vec::new();
     let apply_duplicate_filters = score_cutoff.is_some();
     for (candidate_id, score) in ranked {
@@ -123,10 +129,22 @@ fn filter_ranked_candidate_paths(
                 .collect::<Vec<_>>(),
         )?
     } else {
-        std::collections::HashMap::new()
+        HashMap::new()
+    };
+    let aspect_descriptors_by_sample = if query_aspects.is_some() {
+        load_aspect_descriptors_for_samples(
+            conn,
+            &ranked_candidates
+                .iter()
+                .map(|(candidate_id, _, _)| candidate_id.clone())
+                .collect::<Vec<_>>(),
+        )?
+    } else {
+        HashMap::new()
     };
     let mut paths = Vec::new();
     let mut scores = Vec::new();
+    let mut aspect_scores = Vec::new();
     for (candidate_id, relative_path, score) in ranked_candidates {
         if apply_duplicate_filters
             && let Some(rms) = rms_by_sample.get(&candidate_id).copied()
@@ -134,13 +152,28 @@ fn filter_ranked_candidate_paths(
         {
             continue;
         }
+        let aspect_row = similarity_aspect_score_row(
+            query_aspects,
+            aspect_descriptors_by_sample.get(&candidate_id),
+        );
         paths.push(relative_path);
         scores.push(score);
+        aspect_scores.push(aspect_row);
         if paths.len() >= DEFAULT_SIMILAR_COUNT {
             break;
         }
     }
-    Ok((paths, scores))
+    Ok(FilteredSimilarityPaths {
+        paths,
+        scores,
+        aspect_scores,
+    })
+}
+
+struct FilteredSimilarityPaths {
+    paths: Vec<PathBuf>,
+    scores: Vec<f32>,
+    aspect_scores: Vec<SimilarityAspectScoreRow>,
 }
 
 #[cfg(test)]

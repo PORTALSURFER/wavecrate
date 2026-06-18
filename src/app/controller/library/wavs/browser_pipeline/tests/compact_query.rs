@@ -121,6 +121,7 @@ fn similar_query_branch_applies_similarity_order_after_filters() {
         label: String::from("keep"),
         indices: vec![0, 1, 2],
         scores: vec![0.4, 1.0, 0.9],
+        aspect_scores: empty_similarity_aspect_score_rows(3),
         anchor_index: None,
     });
 

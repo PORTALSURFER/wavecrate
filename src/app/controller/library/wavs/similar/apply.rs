@@ -174,6 +174,7 @@ fn parse_query_anchor_path(
 mod tests {
     use super::*;
     use crate::app::controller::test_support::dummy_controller;
+    use crate::app::state::empty_similarity_aspect_score_rows;
     use crate::sample_sources::SourceId;
     use std::path::Path;
 
@@ -192,6 +193,7 @@ mod tests {
             label: "Sample".to_string(),
             indices: vec![0],
             scores: vec![0.5],
+            aspect_scores: empty_similarity_aspect_score_rows(1),
             anchor_index: Some(2),
         };
         apply_similarity_query(&mut controller, query);
@@ -231,6 +233,7 @@ mod tests {
             label: "a.wav".to_string(),
             indices: vec![0, 1, 2],
             scores: vec![1.0, 0.9, 0.8],
+            aspect_scores: empty_similarity_aspect_score_rows(3),
             anchor_index: Some(0),
         };
         let deleted_paths = HashSet::from([PathBuf::from("a.wav")]);

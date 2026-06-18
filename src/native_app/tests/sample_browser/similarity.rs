@@ -127,6 +127,14 @@ fn sample_browser_similarity_anchor_resolves_production_scores() {
         state
             .library
             .folder_browser
+            .similarity_aspect_display_strengths_for_file(near_id.as_str())
+            [wavecrate_analysis::aspects::SimilarityAspect::Spectrum.index()]
+        .is_some_and(|strength| (strength - 1.0).abs() < 1e-5)
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
             .similarity_display_strength_for_file(missing_id.as_str())
             .is_none()
     );
@@ -291,6 +299,8 @@ fn similarity_state_with_embeddings() -> (
     seed_similarity_embedding(source_root.path(), "drums/anchor.wav", &[1.0, 0.0]);
     seed_similarity_embedding(source_root.path(), "drums/near.wav", &[0.8, 0.6]);
     seed_similarity_embedding(source_root.path(), "drums/far.wav", &[0.0, 1.0]);
+    seed_similarity_aspects(source_root.path(), "drums/anchor.wav");
+    seed_similarity_aspects(source_root.path(), "drums/near.wav");
     state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new_with_id(
@@ -360,4 +370,42 @@ fn seed_similarity_embedding(source_root: &std::path::Path, relative_path: &str,
         ],
     )
     .expect("insert embedding");
+}
+
+fn seed_similarity_aspects(source_root: &std::path::Path, relative_path: &str) {
+    let _db = wavecrate::sample_sources::SourceDatabase::open(source_root).expect("source db");
+    let conn = wavecrate::sample_sources::SourceDatabase::open_connection_with_role(
+        source_root,
+        wavecrate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("source db connection");
+    let sample_id = format!("{SIMILARITY_TEST_SOURCE_ID}::{relative_path}");
+    let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
+    for (index, value) in features.iter_mut().enumerate() {
+        *value = index as f32 + 1.0;
+    }
+    let descriptors =
+        wavecrate_analysis::aspects::AspectDescriptorSet::from_feature_vector_v1(&features)
+            .expect("aspect descriptors");
+    let blob = wavecrate_analysis::vector::encode_f32_le_blob(descriptors.packed());
+    conn.execute(
+        "INSERT OR IGNORE INTO samples (sample_id, content_hash, size, mtime_ns)
+         VALUES (?1, 'test-hash', 0, 0)",
+        rusqlite::params![sample_id],
+    )
+    .expect("insert sample row");
+    conn.execute(
+        "INSERT OR REPLACE INTO similarity_aspect_descriptors
+         (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, 0)",
+        rusqlite::params![
+            sample_id,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            descriptors.valid_mask() as i64,
+            blob
+        ],
+    )
+    .expect("insert aspect descriptors");
 }

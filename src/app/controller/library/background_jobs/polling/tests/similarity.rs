@@ -3,7 +3,7 @@ use crate::app::controller::jobs::{
     FocusedSimilarityPaths, FocusedSimilarityResult, LoadedSimilarityQueryResult,
 };
 use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
-use crate::app::state::{SampleBrowserSort, SimilarQuery};
+use crate::app::state::{SampleBrowserSort, SimilarQuery, empty_similarity_aspect_score_rows};
 use crate::sample_sources::Rating;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,6 +33,7 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
                 sample_id: format!("{}::one.wav", source.id.as_str()),
                 paths: vec![PathBuf::from("two.wav")],
                 scores: vec![0.98],
+                aspect_scores: empty_similarity_aspect_score_rows(1),
                 anchor_index: Some(0),
             })),
         },
@@ -56,6 +57,7 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
                 sample_id: format!("{}::one.wav", source.id.as_str()),
                 paths: vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")],
                 scores: vec![0.99, 0.98],
+                aspect_scores: empty_similarity_aspect_score_rows(2),
                 anchor_index: Some(0),
             })),
         },
@@ -124,6 +126,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
                         label: "Loaded: one.wav".to_string(),
                         indices: vec![0, 1],
                         scores: vec![1.0, 0.8],
+                        aspect_scores: empty_similarity_aspect_score_rows(2),
                         anchor_index: Some(0),
                     },
                     source_snapshot:
@@ -153,6 +156,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
                         label: "Loaded: one.wav".to_string(),
                         indices: vec![0, 1],
                         scores: vec![1.0, 0.8],
+                        aspect_scores: empty_similarity_aspect_score_rows(2),
                         anchor_index: Some(0),
                     },
                     source_snapshot:

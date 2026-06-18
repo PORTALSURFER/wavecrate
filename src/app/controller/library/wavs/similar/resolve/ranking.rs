@@ -1,14 +1,25 @@
 //! Reranking and filtering helpers for similarity resolution.
 
 use super::repository::{
-    load_embeddings_for_samples, load_feature_metrics_for_samples, load_rms_for_samples,
+    load_aspect_descriptors_for_samples, load_embeddings_for_samples,
+    load_feature_metrics_for_samples, load_rms_for_samples,
 };
+use crate::app::state::{EMPTY_SIMILARITY_ASPECT_SCORE_ROW, SimilarityAspectScoreRow};
 use crate::sample_sources::SourceId;
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::Path;
+use wavecrate_analysis::aspects::{AspectDescriptorSet, SimilarityAspect};
 
 use super::super::{DEFAULT_SIMILAR_COUNT, DSP_WEIGHT, DUPLICATE_RMS_MIN, EMBED_WEIGHT};
+
+/// Filtered ranked candidates aligned to browser entry indices.
+pub(crate) struct FilteredSimilarityCandidates {
+    pub(crate) sample_ids: Vec<String>,
+    pub(crate) indices: Vec<usize>,
+    pub(crate) scores: Vec<f32>,
+    pub(crate) aspect_scores: Vec<SimilarityAspectScoreRow>,
+}
 
 /// Blend ANN and lightweight DSP similarity into the final candidate ordering.
 pub(crate) fn rerank_with_dsp(
@@ -103,11 +114,10 @@ pub(super) fn filter_ranked_candidates(
     ranked: impl IntoIterator<Item = (String, f32)>,
     source_id: &SourceId,
     score_cutoff: Option<f32>,
+    query_aspects: Option<&AspectDescriptorSet>,
     mut resolve_index: impl FnMut(&Path) -> Option<usize>,
-) -> Result<(Vec<usize>, Vec<f32>), String> {
+) -> Result<FilteredSimilarityCandidates, String> {
     let mut ranked_candidates = Vec::new();
-    let mut indices = Vec::new();
-    let mut scores = Vec::new();
     let apply_duplicate_filters = score_cutoff.is_some();
     for (candidate_id, score) in ranked {
         if let Some(cutoff) = score_cutoff
@@ -133,6 +143,21 @@ pub(super) fn filter_ranked_candidates(
     } else {
         HashMap::new()
     };
+    let aspect_descriptors_by_sample = if query_aspects.is_some() {
+        load_aspect_descriptors_for_samples(
+            conn,
+            &ranked_candidates
+                .iter()
+                .map(|(candidate_id, _, _)| candidate_id.clone())
+                .collect::<Vec<_>>(),
+        )?
+    } else {
+        HashMap::new()
+    };
+    let mut sample_ids = Vec::new();
+    let mut indices = Vec::new();
+    let mut scores = Vec::new();
+    let mut aspect_scores = Vec::new();
     for (candidate_id, relative_path, score) in ranked_candidates {
         if apply_duplicate_filters
             && let Some(rms) = rms_by_sample.get(&candidate_id).copied()
@@ -141,14 +166,42 @@ pub(super) fn filter_ranked_candidates(
             continue;
         }
         if let Some(index) = resolve_index(&relative_path) {
+            let row = similarity_aspect_score_row(
+                query_aspects,
+                aspect_descriptors_by_sample.get(&candidate_id),
+            );
+            sample_ids.push(candidate_id);
             indices.push(index);
             scores.push(score);
+            aspect_scores.push(row);
             if indices.len() >= DEFAULT_SIMILAR_COUNT {
                 break;
             }
         }
     }
-    Ok((indices, scores))
+    Ok(FilteredSimilarityCandidates {
+        sample_ids,
+        indices,
+        scores,
+        aspect_scores,
+    })
+}
+
+/// Compute one sparse aspect-score row from two descriptor sets.
+pub(crate) fn similarity_aspect_score_row(
+    query: Option<&AspectDescriptorSet>,
+    candidate: Option<&AspectDescriptorSet>,
+) -> SimilarityAspectScoreRow {
+    let (Some(query), Some(candidate)) = (query, candidate) else {
+        return EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+    };
+    let mut row = EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+    for aspect in SimilarityAspect::ORDER {
+        row[aspect.index()] = query
+            .cosine_with(candidate, aspect)
+            .map(|score| score.clamp(-1.0, 1.0));
+    }
+    row
 }
 
 #[cfg(test)]
@@ -208,16 +261,17 @@ mod tests {
         let mut lookup = HashMap::new();
         lookup.insert(PathBuf::from("a.wav"), 0);
         lookup.insert(PathBuf::from("b.wav"), 1);
-        let (indices, scores) = filter_ranked_candidates(
+        let filtered = filter_ranked_candidates(
             &conn,
             ranked,
             &source_id,
             Some(DUPLICATE_SCORE_THRESHOLD),
+            None,
             |path| lookup.get(path).copied(),
         )
         .unwrap();
-        assert_eq!(indices, vec![0]);
-        assert_eq!(scores.len(), 1);
+        assert_eq!(filtered.indices, vec![0]);
+        assert_eq!(filtered.scores.len(), 1);
     }
 
     #[test]
@@ -241,16 +295,17 @@ mod tests {
         let mut lookup = HashMap::new();
         lookup.insert(PathBuf::from("silent.wav"), 0);
         lookup.insert(PathBuf::from("loud.wav"), 1);
-        let (indices, scores) = filter_ranked_candidates(
+        let filtered = filter_ranked_candidates(
             &conn,
             ranked,
             &source_id,
             Some(DUPLICATE_SCORE_THRESHOLD),
+            None,
             |path| lookup.get(path).copied(),
         )
         .unwrap();
-        assert_eq!(indices, vec![1]);
-        assert_eq!(scores.len(), 1);
+        assert_eq!(filtered.indices, vec![1]);
+        assert_eq!(filtered.scores.len(), 1);
     }
 
     #[test]
@@ -275,16 +330,17 @@ mod tests {
         let mut lookup = HashMap::new();
         lookup.insert(PathBuf::from("keep.wav"), 0);
         lookup.insert(PathBuf::from("skip.wav"), 1);
-        let (indices, scores) = filter_ranked_candidates(
+        let filtered = filter_ranked_candidates(
             &conn,
             ranked,
             &source_id,
             Some(DUPLICATE_SCORE_THRESHOLD),
+            None,
             |path| lookup.get(path).copied(),
         )
         .unwrap();
-        assert_eq!(indices, vec![0]);
-        assert_eq!(scores.len(), 1);
+        assert_eq!(filtered.indices, vec![0]);
+        assert_eq!(filtered.scores.len(), 1);
     }
 
     #[test]
@@ -292,10 +348,10 @@ mod tests {
         let conn = in_memory_conn();
         let source_id = SourceId::from_string("source-a");
         let ranked: Vec<(String, f32)> = Vec::new();
-        let (indices, scores) =
-            filter_ranked_candidates(&conn, ranked, &source_id, None, |_| Some(0)).unwrap();
-        assert!(indices.is_empty());
-        assert!(scores.is_empty());
+        let filtered =
+            filter_ranked_candidates(&conn, ranked, &source_id, None, None, |_| Some(0)).unwrap();
+        assert!(filtered.indices.is_empty());
+        assert!(filtered.scores.is_empty());
     }
 
     #[test]
@@ -307,16 +363,17 @@ mod tests {
             Path::new("skip.wav"),
         );
         let ranked = vec![(sample_id, DUPLICATE_SCORE_THRESHOLD - 0.01)];
-        let (indices, scores) = filter_ranked_candidates(
+        let filtered = filter_ranked_candidates(
             &conn,
             ranked,
             &source_id,
             Some(DUPLICATE_SCORE_THRESHOLD),
+            None,
             |_| Some(0),
         )
         .unwrap();
-        assert!(indices.is_empty());
-        assert!(scores.is_empty());
+        assert!(filtered.indices.is_empty());
+        assert!(filtered.scores.is_empty());
     }
 
     #[test]
@@ -328,9 +385,32 @@ mod tests {
             Path::new("missing.wav"),
         );
         let ranked = vec![(sample_id, DUPLICATE_SCORE_THRESHOLD + 0.01)];
-        let (indices, scores) =
-            filter_ranked_candidates(&conn, ranked, &source_id, None, |_| None).unwrap();
-        assert!(indices.is_empty());
-        assert!(scores.is_empty());
+        let filtered =
+            filter_ranked_candidates(&conn, ranked, &source_id, None, None, |_| None).unwrap();
+        assert!(filtered.indices.is_empty());
+        assert!(filtered.scores.is_empty());
+    }
+
+    #[test]
+    fn similarity_aspect_score_row_reports_valid_aspects_and_missing_descriptors() {
+        let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
+        for (index, feature) in features.iter_mut().enumerate() {
+            *feature = index as f32 + 1.0;
+        }
+        let descriptors =
+            wavecrate_analysis::aspects::aspect_descriptors_from_features_v1(&features).unwrap();
+
+        let row = similarity_aspect_score_row(Some(&descriptors), Some(&descriptors));
+
+        for aspect in SimilarityAspect::ORDER {
+            assert!(
+                row[aspect.index()].is_some_and(|score| (score - 1.0).abs() < 1e-5),
+                "aspect {aspect:?} should self-score near one"
+            );
+        }
+        assert_eq!(
+            similarity_aspect_score_row(Some(&descriptors), None),
+            EMPTY_SIMILARITY_ASPECT_SCORE_ROW
+        );
     }
 }

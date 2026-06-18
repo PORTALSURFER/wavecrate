@@ -14,6 +14,7 @@ fn dummy_similar_query() -> SimilarQuery {
         label: String::from("kick_one.wav"),
         indices: vec![0, 1],
         scores: vec![1.0, 0.95],
+        aspect_scores: crate::app::state::empty_similarity_aspect_score_rows(2),
         anchor_index: Some(0),
     }
 }

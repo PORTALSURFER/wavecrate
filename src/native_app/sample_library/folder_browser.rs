@@ -67,9 +67,10 @@ use rename_workflow::BrowserRenameState;
 
 mod state_types;
 use state_types::{
-    FileColumn, FileColumnKind, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit,
-    FolderRenameKind, FolderSelectionToggleResult, SimilarityBrowserState, SourceEntry,
-    VisibleFolder, default_file_columns,
+    EMPTY_SIMILARITY_ASPECT_STRENGTHS, FileColumn, FileColumnKind, FileRenameEdit,
+    FolderBrowserDrag, FolderRenameEdit, FolderRenameKind, FolderSelectionToggleResult,
+    SimilarityAspectStrengths, SimilarityBrowserState, SourceEntry, VisibleFolder,
+    default_file_columns,
 };
 
 mod state;
@@ -127,7 +128,10 @@ pub(in crate::native_app) mod commands {
 pub(in crate::native_app) mod model {
     pub(in crate::native_app) use super::{
         file_model::FileEntry,
-        state_types::{FileColumn, FileColumnKind, SourceEntry, VisibleFolder},
+        state_types::{
+            EMPTY_SIMILARITY_ASPECT_STRENGTHS, FileColumn, FileColumnKind,
+            SimilarityAspectStrengths, SourceEntry, VisibleFolder,
+        },
     };
 }
 

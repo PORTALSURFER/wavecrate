@@ -1,3 +1,4 @@
+use super::LoadedQueryVectors;
 use super::*;
 use crate::app::controller::state::runtime::{
     LoadedSimilarityQueryCache, LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate,
@@ -27,18 +28,33 @@ pub(super) fn build_loaded_similarity_query_data(
         .entry_paths
         .iter()
         .position(|path| path == &request.relative_path);
-    let (query_embedding, query_dsp) =
+    let query_vectors =
         load_query_vectors_for_request(conn, request, &source_snapshot, anchor_index)?;
-    let (indices, scores) =
-        score_loaded_similarity_snapshot(&source_snapshot, &query_embedding, query_dsp.as_deref());
+    let (indices, scores, aspect_scores) = score_loaded_similarity_snapshot(
+        &source_snapshot,
+        &query_vectors.embedding,
+        query_vectors.light_dsp.as_deref(),
+        query_vectors.aspect_descriptors.as_ref(),
+    );
     let label = view_model::sample_display_label(&request.relative_path);
-    let (indices, scores) = ensure_anchor_similarity_result(indices, scores, anchor_index);
+    let anchor_aspect_scores = super::super::resolve::similarity_aspect_score_row(
+        query_vectors.aspect_descriptors.as_ref(),
+        query_vectors.aspect_descriptors.as_ref(),
+    );
+    let (indices, scores, aspect_scores) = ensure_anchor_similarity_result(
+        indices,
+        scores,
+        aspect_scores,
+        anchor_index,
+        anchor_aspect_scores,
+    );
     Ok(LoadedSimilarityQueryData {
         query: SimilarQuery {
             sample_id: request.sample_id.clone(),
             label: format!("Loaded: {label}"),
             indices,
             scores,
+            aspect_scores,
             anchor_index,
         },
         source_snapshot,
@@ -60,6 +76,8 @@ fn build_loaded_similarity_source_snapshot(
         })
         .collect::<Vec<_>>();
     let mut embeddings = super::super::resolve::load_embeddings_for_samples(conn, &sample_ids)?;
+    let mut aspect_descriptors =
+        super::super::resolve::load_aspect_descriptors_for_samples(conn, &sample_ids)?;
     let mut feature_metrics =
         super::super::resolve::load_feature_metrics_for_samples(conn, &sample_ids)?;
     let candidates = sample_ids
@@ -70,9 +88,11 @@ fn build_loaded_similarity_source_snapshot(
                 .remove(&sample_id)
                 .and_then(|metrics| metrics.light_dsp)
                 .map(Arc::<[f32]>::from);
+            let aspect_descriptors = aspect_descriptors.remove(&sample_id).map(Arc::new);
             LoadedSimilaritySourceCandidate {
                 embedding,
                 light_dsp,
+                aspect_descriptors,
             }
         })
         .collect::<Vec<_>>();
@@ -88,7 +108,7 @@ fn load_query_vectors_for_request(
     request: &LoadedSimilarityQueryRequest<'_>,
     source_snapshot: &LoadedSimilaritySourceSnapshot,
     anchor_index: Option<usize>,
-) -> Result<(Vec<f32>, Option<Vec<f32>>), String> {
+) -> Result<LoadedQueryVectors, String> {
     if let Some(anchor_index) = anchor_index
         && let Some(candidate) = source_snapshot.candidates.get(anchor_index)
         && let Some(embedding) = candidate.embedding.as_ref()
@@ -98,7 +118,15 @@ fn load_query_vectors_for_request(
             .light_dsp
             .as_ref()
             .map(|light_dsp| light_dsp.iter().copied().collect());
-        return Ok((embedding, query_dsp));
+        let aspect_descriptors = candidate
+            .aspect_descriptors
+            .as_ref()
+            .map(|aspects| aspects.as_ref().clone());
+        return Ok(LoadedQueryVectors {
+            embedding,
+            light_dsp: query_dsp,
+            aspect_descriptors,
+        });
     }
     super::load_query_vectors(conn, &request.sample_id)
 }
@@ -107,9 +135,15 @@ fn score_loaded_similarity_snapshot(
     source_snapshot: &LoadedSimilaritySourceSnapshot,
     query_embedding: &[f32],
     query_dsp: Option<&[f32]>,
-) -> (Vec<usize>, Vec<f32>) {
+    query_aspects: Option<&wavecrate_analysis::aspects::AspectDescriptorSet>,
+) -> (
+    Vec<usize>,
+    Vec<f32>,
+    Vec<crate::app::state::SimilarityAspectScoreRow>,
+) {
     let mut indices = Vec::with_capacity(source_snapshot.candidates.len());
     let mut scores = Vec::with_capacity(source_snapshot.candidates.len());
+    let mut aspect_scores = Vec::with_capacity(source_snapshot.candidates.len());
     for (index, candidate) in source_snapshot.candidates.iter().enumerate() {
         indices.push(index);
         let score = candidate
@@ -120,8 +154,12 @@ fn score_loaded_similarity_snapshot(
             })
             .unwrap_or(MISSING_SIMILARITY_SCORE);
         scores.push(score);
+        aspect_scores.push(super::super::resolve::similarity_aspect_score_row(
+            query_aspects,
+            candidate.aspect_descriptors.as_deref(),
+        ));
     }
-    (indices, scores)
+    (indices, scores, aspect_scores)
 }
 
 fn score_loaded_similarity_candidate(

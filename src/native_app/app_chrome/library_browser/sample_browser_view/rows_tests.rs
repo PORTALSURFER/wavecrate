@@ -202,8 +202,11 @@ fn missing_playback_type_cell_paints_muted_dash() {
 fn similarity_score_cell_paints_progress_fill() {
     let theme = ThemeTokens::default();
     let file = file_entry();
-    let frame = sample_similarity_cell(Some(0.65), 58.0, file.id.as_str())
-        .view_frame_at_size(Vector2::new(58.0, 20.0), &theme);
+    let mut aspects =
+        crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+    aspects[wavecrate_analysis::aspects::SimilarityAspect::Spectrum.index()] = Some(0.8);
+    let frame = sample_similarity_cell(Some(0.65), aspects, 190.0, file.id.as_str())
+        .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
 
     assert!(
         frame
@@ -212,6 +215,12 @@ fn similarity_score_cell_paints_progress_fill() {
             .any(|fill| fill.color == SIMILARITY_SCORE_FILL && fill.rect.width() > 20.0),
         "available similarity scores should paint a progress fill"
     );
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == similarity_aspect_color(wavecrate_analysis::aspects::SimilarityAspect::Spectrum)
+            && fill.rect.width() > 4.0),
+        "available aspect scores should paint their compact aspect fill"
+    );
 }
 
 #[test]
@@ -219,8 +228,13 @@ fn similarity_score_cell_paints_progress_fill() {
 fn missing_similarity_score_cell_paints_na_label() {
     let theme = ThemeTokens::default();
     let file = file_entry();
-    let frame = sample_similarity_cell(None, 58.0, file.id.as_str())
-        .view_frame_at_size(Vector2::new(58.0, 20.0), &theme);
+    let frame = sample_similarity_cell(
+        None,
+        crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
+        190.0,
+        file.id.as_str(),
+    )
+    .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
 
     assert!(
         frame

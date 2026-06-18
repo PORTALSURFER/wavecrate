@@ -28,6 +28,13 @@ pub(super) struct LoadedSimilarityQueryRequest<'a> {
     pub(super) entry_paths: &'a [PathBuf],
 }
 
+/// Query vectors needed to score one loaded-sample similarity request.
+pub(super) struct LoadedQueryVectors {
+    pub(super) embedding: Vec<f32>,
+    pub(super) light_dsp: Option<Vec<f32>>,
+    pub(super) aspect_descriptors: Option<wavecrate_analysis::aspects::AspectDescriptorSet>,
+}
+
 /// Build a loaded-sample similarity query plus reusable source snapshot data.
 pub(crate) fn build_loaded_similarity_query_data_with_cache(
     conn: &Connection,
@@ -105,12 +112,16 @@ pub(crate) fn build_loaded_similarity_query_cache(
 pub(super) fn load_query_vectors(
     conn: &Connection,
     sample_id: &str,
-) -> Result<(Vec<f32>, Option<Vec<f32>>), String> {
+) -> Result<LoadedQueryVectors, String> {
     let query = load_query_similarity_inputs(conn, sample_id)?;
     let query_embedding = query
         .embedding
         .ok_or_else(|| "Similarity data missing for the loaded sample".to_string())?;
-    Ok((query_embedding, query.light_dsp))
+    Ok(LoadedQueryVectors {
+        embedding: query_embedding,
+        light_dsp: query.light_dsp,
+        aspect_descriptors: query.aspect_descriptors,
+    })
 }
 
 #[cfg(test)]
@@ -181,8 +192,14 @@ mod tests {
         for (left, right) in sync_query.scores.iter().zip(background_query.scores.iter()) {
             assert!((*left - *right).abs() < f32::EPSILON);
         }
+        assert_eq!(sync_query.aspect_scores, background_query.aspect_scores);
         assert_eq!(background_query.indices, vec![0, 1, 2]);
         assert_eq!(background_query.scores[0], 1.0);
+        assert!(
+            background_query.aspect_scores[0]
+                [wavecrate_analysis::aspects::SimilarityAspect::Overall.index()]
+            .is_some_and(|score| (score - 1.0).abs() < 1e-5)
+        );
         assert_eq!(background_query.scores[2], MISSING_SIMILARITY_SCORE);
     }
 
@@ -210,6 +227,7 @@ mod tests {
                 label: "Loaded: one.wav".to_string(),
                 indices: vec![0, 1],
                 scores: vec![1.0, 0.4],
+                aspect_scores: crate::app::state::empty_similarity_aspect_score_rows(2),
                 anchor_index: Some(0),
             },
             source_snapshot: source_snapshot.clone(),
@@ -305,16 +323,40 @@ mod tests {
                 params![sample_id],
             )
             .expect("clear features");
+            let features = feature_values(dsp_triplet);
             conn.execute(
                 "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
                  VALUES (?1, ?2, ?3, 0)",
                 params![
                     sample_id,
                     wavecrate_analysis::FEATURE_VERSION_V1,
-                    feature_blob(dsp_triplet),
+                    encode_f32_le_blob(&features),
                 ],
             )
             .expect("insert features");
+            let aspects =
+                wavecrate_analysis::aspects::aspect_descriptors_from_features_v1(&features)
+                    .expect("aspect descriptors");
+            conn.execute(
+                "INSERT OR IGNORE INTO samples (sample_id, content_hash, size, mtime_ns)
+                 VALUES (?1, 'test-hash', 0, 0)",
+                params![sample_id],
+            )
+            .expect("insert sample row");
+            conn.execute(
+                "INSERT OR REPLACE INTO similarity_aspect_descriptors
+                 (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+                 VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, 0)",
+                params![
+                    sample_id,
+                    wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                    wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                    wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+                    aspects.valid_mask() as i64,
+                    encode_f32_le_blob(aspects.packed()),
+                ],
+            )
+            .expect("insert aspect descriptors");
         }
     }
 
@@ -334,9 +376,9 @@ mod tests {
         encode_f32_le_blob(&embedding)
     }
 
-    fn feature_blob(dsp_triplet: &[f32]) -> Vec<u8> {
+    fn feature_values(dsp_triplet: &[f32]) -> Vec<f32> {
         let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
         features[..dsp_triplet.len()].copy_from_slice(dsp_triplet);
-        encode_f32_le_blob(&features)
+        features
     }
 }

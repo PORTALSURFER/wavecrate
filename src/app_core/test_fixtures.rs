@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use crate::app::state::empty_similarity_aspect_score_rows;
 use crate::app_core::state::{
     ActiveAudioOutput, AudioDeviceView, AudioHostView, BrowserDuplicateCleanupState,
     ProgressTaskKind, SampleBrowserIndex, SimilarQuery, TriageFlagColumn, VisibleRows,
@@ -91,6 +92,7 @@ pub(crate) fn similar_query(
         sample_id: sample_id.into(),
         label: label.into(),
         indices,
+        aspect_scores: empty_similarity_aspect_score_rows(scores.len()),
         scores,
         anchor_index,
     }

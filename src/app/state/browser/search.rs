@@ -15,7 +15,11 @@ pub use sidebar::{
     BrowserKeyFacet, BrowserSidebarFilterFacet, BrowserSidebarFilterOption,
     BrowserSidebarFilterState,
 };
-pub use similarity::{FocusedSimilarity, SimilarQuery};
+#[allow(unused_imports)]
+pub use similarity::{
+    EMPTY_SIMILARITY_ASPECT_SCORE_ROW, FocusedSimilarity, SimilarQuery, SimilarityAspectScoreRow,
+    empty_similarity_aspect_score_rows,
+};
 
 /// Search, filter, and similarity state for the sample browser.
 #[derive(Clone, Debug)]
@@ -142,9 +146,10 @@ pub enum SampleBrowserSort {
 mod tests {
     use super::{
         BrowserBpmFacet, BrowserFormatFacet, BrowserSidebarFilterOption, BrowserSidebarFilterState,
-        SimilarQuery,
+        SimilarQuery, empty_similarity_aspect_score_rows,
     };
     use std::path::Path;
+    use wavecrate_analysis::aspects::SimilarityAspect;
 
     #[test]
     fn similarity_display_strength_uses_query_relative_score_spread() {
@@ -153,6 +158,7 @@ mod tests {
             label: String::from("anchor"),
             indices: vec![0, 1, 2],
             scores: vec![1.0, 0.92, 0.84],
+            aspect_scores: empty_similarity_aspect_score_rows(3),
             anchor_index: Some(0),
         };
 
@@ -174,6 +180,7 @@ mod tests {
             label: String::from("anchor"),
             indices: vec![0, 1, 2],
             scores: vec![1.0, 0.2, -2.0],
+            aspect_scores: empty_similarity_aspect_score_rows(3),
             anchor_index: Some(0),
         };
 
@@ -188,12 +195,47 @@ mod tests {
             label: String::from("anchor"),
             indices: vec![0, 1],
             scores: vec![0.25, 0.25],
+            aspect_scores: empty_similarity_aspect_score_rows(2),
             anchor_index: Some(0),
         };
 
         let expected = ((0.25_f32 + 1.0) * 0.5).powf(2.0);
         assert_eq!(query.display_strength_for_index(0), Some(expected));
         assert_eq!(query.display_strength_for_index(1), Some(expected));
+    }
+
+    #[test]
+    fn similarity_aspect_strength_uses_query_relative_aspect_spread() {
+        let mut rows = empty_similarity_aspect_score_rows(3);
+        rows[0][SimilarityAspect::Spectrum.index()] = Some(1.0);
+        rows[1][SimilarityAspect::Spectrum.index()] = Some(0.5);
+        rows[2][SimilarityAspect::Spectrum.index()] = Some(-0.5);
+        let query = SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor"),
+            indices: vec![0, 1, 2],
+            scores: vec![1.0, 0.7, 0.4],
+            aspect_scores: rows,
+            anchor_index: Some(0),
+        };
+
+        assert_eq!(
+            query.aspect_score_for_index(SimilarityAspect::Spectrum, 1),
+            Some(0.5)
+        );
+        assert_eq!(
+            query.aspect_display_strength_for_index(SimilarityAspect::Spectrum, 0),
+            Some(1.0)
+        );
+        assert!(
+            query
+                .aspect_display_strength_for_index(SimilarityAspect::Spectrum, 1)
+                .is_some_and(|strength| strength > 0.6 && strength < 0.7)
+        );
+        assert_eq!(
+            query.aspect_display_strength_for_index(SimilarityAspect::Timbre, 1),
+            None
+        );
     }
 
     #[test]

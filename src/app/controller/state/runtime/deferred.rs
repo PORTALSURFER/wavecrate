@@ -119,6 +119,8 @@ pub(crate) struct LoadedSimilaritySourceCandidate {
     pub(crate) embedding: Option<Arc<[f32]>>,
     /// Lightweight DSP summary decoded for this browser entry when feature data exists.
     pub(crate) light_dsp: Option<Arc<[f32]>>,
+    /// Aspect descriptors decoded for this browser entry when similarity prep has produced them.
+    pub(crate) aspect_descriptors: Option<Arc<wavecrate_analysis::aspects::AspectDescriptorSet>>,
 }
 
 /// Fully built loaded-similarity query plus the retained source snapshot used to build it.

@@ -3,8 +3,9 @@ use std::path::PathBuf;
 
 use super::{
     BrowserDragDropState, BrowserFilterState, BrowserPanelLayoutState, BrowserRenameState,
-    BrowserSelectionState, BrowserSourceState, CollectionPanelState, FolderBrowserMessage,
-    FolderEntry, FolderSelectionToggleResult, FolderTreeState, SampleListState,
+    BrowserSelectionState, BrowserSourceState, CollectionPanelState,
+    EMPTY_SIMILARITY_ASPECT_STRENGTHS, FolderBrowserMessage, FolderEntry,
+    FolderSelectionToggleResult, FolderTreeState, SampleListState, SimilarityAspectStrengths,
     SimilarityBrowserState, SourceEntry, default_root_path, load_root_folder, placeholder_folder,
 };
 
@@ -147,6 +148,17 @@ impl FolderBrowserState {
             .and_then(|similarity| similarity.display_strength_for(file_id))
     }
 
+    pub(in crate::native_app) fn similarity_aspect_display_strengths_for_file(
+        &self,
+        file_id: &str,
+    ) -> SimilarityAspectStrengths {
+        self.sample_list
+            .similarity
+            .as_ref()
+            .map(|similarity| similarity.aspect_display_strengths_for(file_id))
+            .unwrap_or(EMPTY_SIMILARITY_ASPECT_STRENGTHS)
+    }
+
     pub(in crate::native_app) fn toggle_similarity_anchor(&mut self, file_id: String) {
         if self.file_is_similarity_anchor(&file_id) {
             self.sample_list.similarity = None;
@@ -156,14 +168,16 @@ impl FolderBrowserState {
         self.bump_file_content_revision();
     }
 
-    pub(in crate::native_app) fn set_similarity_scores(
+    pub(in crate::native_app) fn set_similarity_scores_with_aspects(
         &mut self,
         anchor_id: String,
         scores_by_file: HashMap<String, f32>,
+        aspect_scores_by_file: HashMap<String, SimilarityAspectStrengths>,
     ) {
-        self.sample_list.similarity = Some(SimilarityBrowserState::with_scores(
+        self.sample_list.similarity = Some(SimilarityBrowserState::with_scores_and_aspects(
             anchor_id,
             scores_by_file,
+            aspect_scores_by_file,
         ));
         self.bump_file_content_revision();
     }
@@ -174,7 +188,7 @@ impl FolderBrowserState {
         anchor_id: String,
         scores_by_file: HashMap<String, f32>,
     ) {
-        self.set_similarity_scores(anchor_id, scores_by_file);
+        self.set_similarity_scores_with_aspects(anchor_id, scores_by_file, HashMap::new());
     }
 
     pub(in crate::native_app) fn folder_path(&self, folder_id: &str) -> Option<PathBuf> {

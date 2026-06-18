@@ -1,6 +1,8 @@
 use super::resolve::{ResolvedSimilarity, normalize_l2, open_source_db_for_id, rerank_with_dsp};
 use super::*;
-use crate::app::state::SimilarQuery;
+use crate::app::state::{
+    EMPTY_SIMILARITY_ASPECT_SCORE_ROW, SimilarQuery, SimilarityAspectScoreRow,
+};
 
 pub(crate) fn build_similar_query_for_sample_id(
     controller: &mut AppController,
@@ -67,6 +69,8 @@ pub(crate) fn build_similarity_query_for_audio_path(
     let features = wavecrate_analysis::compute_feature_vector_v1_for_path(path)?;
     let embedding = wavecrate_analysis::similarity::embedding_from_features(&features)?;
     let query_dsp = wavecrate_analysis::light_dsp_from_features_v1(&features).map(normalize_l2);
+    let query_aspects =
+        wavecrate_analysis::aspects::aspect_descriptors_from_features_v1(&features)?;
     let conn = open_source_db_for_id(controller, &source_id)?;
     let neighbours = wavecrate_analysis::ann_index::find_similar_for_embedding(
         &conn,
@@ -75,6 +79,7 @@ pub(crate) fn build_similarity_query_for_audio_path(
     )?;
     let ranked = rerank_with_dsp(&conn, neighbours, Some(&embedding), query_dsp.as_deref())?;
 
+    let mut candidate_ids = Vec::new();
     let mut indices = Vec::new();
     let mut scores = Vec::new();
     for (candidate_id, score) in ranked {
@@ -84,6 +89,7 @@ pub(crate) fn build_similarity_query_for_audio_path(
             continue;
         }
         if let Some(index) = controller.wav_index_for_path(&relative_path) {
+            candidate_ids.push(candidate_id);
             indices.push(index);
             scores.push(score);
             if indices.len() >= DEFAULT_SIMILAR_COUNT {
@@ -91,6 +97,8 @@ pub(crate) fn build_similarity_query_for_audio_path(
             }
         }
     }
+    let aspect_scores =
+        aspect_scores_for_candidate_ids(&conn, Some(&query_aspects), &candidate_ids)?;
     if indices.is_empty() {
         return Err("No similar samples found in the current source".to_string());
     }
@@ -104,6 +112,7 @@ pub(crate) fn build_similarity_query_for_audio_path(
         label,
         indices,
         scores,
+        aspect_scores,
         anchor_index: None,
     })
 }
@@ -115,13 +124,19 @@ fn build_similar_query_from_resolved(
     anchor_override: Option<usize>,
 ) -> SimilarQuery {
     let anchor_index = resolve_anchor_index(controller, &resolved.relative_path, anchor_override);
-    let (indices, scores) =
-        ensure_anchor_similarity_result(resolved.indices, resolved.scores, anchor_index);
+    let (indices, scores, aspect_scores) = ensure_anchor_similarity_result(
+        resolved.indices,
+        resolved.scores,
+        resolved.aspect_scores,
+        anchor_index,
+        resolved.anchor_aspect_scores,
+    );
     SimilarQuery {
         sample_id: resolved.sample_id,
         label: label_builder(&resolved.relative_path),
         indices,
         scores,
+        aspect_scores,
         anchor_index,
     }
 }
@@ -138,31 +153,58 @@ fn resolve_anchor_index(
 pub(super) fn ensure_anchor_similarity_result(
     mut indices: Vec<usize>,
     mut scores: Vec<f32>,
+    mut aspect_scores: Vec<SimilarityAspectScoreRow>,
     anchor_index: Option<usize>,
-) -> (Vec<usize>, Vec<f32>) {
+    anchor_aspect_scores: SimilarityAspectScoreRow,
+) -> (Vec<usize>, Vec<f32>, Vec<SimilarityAspectScoreRow>) {
+    aspect_scores.resize(scores.len(), EMPTY_SIMILARITY_ASPECT_SCORE_ROW);
     let Some(anchor_index) = anchor_index else {
-        return (indices, scores);
+        return (indices, scores, aspect_scores);
     };
     let Some(existing_position) = indices.iter().position(|index| *index == anchor_index) else {
         indices.insert(0, anchor_index);
         scores.insert(0, 1.0);
-        return (indices, scores);
+        aspect_scores.insert(0, anchor_aspect_scores);
+        return (indices, scores, aspect_scores);
     };
     if existing_position != 0 {
         indices.remove(existing_position);
         scores.remove(existing_position);
+        aspect_scores.remove(existing_position);
         indices.insert(0, anchor_index);
         scores.insert(0, 1.0);
+        aspect_scores.insert(0, anchor_aspect_scores);
     } else if let Some(anchor_score) = scores.get_mut(0) {
         *anchor_score = 1.0;
+        if let Some(row) = aspect_scores.get_mut(0) {
+            *row = anchor_aspect_scores;
+        }
     }
-    (indices, scores)
+    (indices, scores, aspect_scores)
+}
+
+fn aspect_scores_for_candidate_ids(
+    conn: &rusqlite::Connection,
+    query_aspects: Option<&wavecrate_analysis::aspects::AspectDescriptorSet>,
+    candidate_ids: &[String],
+) -> Result<Vec<SimilarityAspectScoreRow>, String> {
+    if query_aspects.is_none() {
+        return Ok(vec![EMPTY_SIMILARITY_ASPECT_SCORE_ROW; candidate_ids.len()]);
+    }
+    let descriptors = super::resolve::load_aspect_descriptors_for_samples(conn, candidate_ids)?;
+    Ok(candidate_ids
+        .iter()
+        .map(|sample_id| {
+            super::resolve::similarity_aspect_score_row(query_aspects, descriptors.get(sample_id))
+        })
+        .collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+    use crate::app::state::empty_similarity_aspect_score_rows;
 
     #[test]
     fn resolve_anchor_index_prefers_override() {
@@ -176,18 +218,43 @@ mod tests {
 
     #[test]
     fn ensure_anchor_similarity_result_inserts_missing_anchor_at_front() {
-        let (indices, scores) =
-            ensure_anchor_similarity_result(vec![3, 5], vec![0.7, 0.4], Some(2));
+        let mut anchor_aspects = EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+        anchor_aspects[0] = Some(1.0);
+        let (indices, scores, aspect_scores) = ensure_anchor_similarity_result(
+            vec![3, 5],
+            vec![0.7, 0.4],
+            empty_similarity_aspect_score_rows(2),
+            Some(2),
+            anchor_aspects,
+        );
         assert_eq!(indices, vec![2, 3, 5]);
         assert_eq!(scores, vec![1.0, 0.7, 0.4]);
+        assert_eq!(aspect_scores[0], anchor_aspects);
     }
 
     #[test]
     fn ensure_anchor_similarity_result_moves_existing_anchor_to_front() {
-        let (indices, scores) =
-            ensure_anchor_similarity_result(vec![3, 2, 5], vec![0.7, 0.98, 0.4], Some(2));
+        let mut anchor_aspects = EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+        anchor_aspects[0] = Some(1.0);
+        let mut row_for_three = EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+        row_for_three[0] = Some(0.7);
+        let mut row_for_two = EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+        row_for_two[0] = Some(0.98);
+        let mut row_for_five = EMPTY_SIMILARITY_ASPECT_SCORE_ROW;
+        row_for_five[0] = Some(0.4);
+        let (indices, scores, aspect_scores) = ensure_anchor_similarity_result(
+            vec![3, 2, 5],
+            vec![0.7, 0.98, 0.4],
+            vec![row_for_three, row_for_two, row_for_five],
+            Some(2),
+            anchor_aspects,
+        );
         assert_eq!(indices, vec![2, 3, 5]);
         assert_eq!(scores, vec![1.0, 0.7, 0.4]);
+        assert_eq!(
+            aspect_scores,
+            vec![anchor_aspects, row_for_three, row_for_five]
+        );
     }
 
     #[test]
@@ -219,6 +286,7 @@ mod tests {
             label: "Loaded: cached.wav".to_string(),
             indices: vec![0],
             scores: vec![1.0],
+            aspect_scores: empty_similarity_aspect_score_rows(1),
             anchor_index: Some(0),
         };
         controller.runtime.similarity.loaded_query_cache = Some(

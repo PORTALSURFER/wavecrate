@@ -54,6 +54,8 @@ pub(crate) struct FocusedSimilarityPaths {
     pub(crate) paths: Vec<PathBuf>,
     /// Similarity scores aligned to [`Self::paths`].
     pub(crate) scores: Vec<f32>,
+    /// Per-aspect similarity scores aligned to [`Self::paths`].
+    pub(crate) aspect_scores: Vec<crate::app::state::SimilarityAspectScoreRow>,
     /// Focused entry index captured when the request was queued.
     pub(crate) anchor_index: Option<usize>,
 }

@@ -6,8 +6,8 @@ use std::{
 };
 
 use super::{
-    FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityBrowserState,
-    default_file_columns,
+    FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityAspectStrengths,
+    SimilarityBrowserState, default_file_columns,
 };
 
 #[derive(Clone, Copy)]
@@ -48,6 +48,7 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) rename: Option<FileRenameView>,
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) similarity_strength: Option<f32>,
+    pub(in crate::native_app) similarity_aspect_strengths: SimilarityAspectStrengths,
     pub(in crate::native_app) collection_colors: Vec<ui::Rgba8>,
 }
 
@@ -367,6 +368,8 @@ impl FolderBrowserState {
             rename: self.file_rename_view(&file.id),
             similarity_anchor: self.file_is_similarity_anchor(&file.id),
             similarity_strength: self.similarity_display_strength_for_file(&file.id),
+            similarity_aspect_strengths: self
+                .similarity_aspect_display_strengths_for_file(&file.id),
             collection_colors: file
                 .collection_memberships()
                 .into_iter()
