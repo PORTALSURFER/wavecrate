@@ -54,6 +54,7 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
     warm_active_folder_waveform_cache_with_progress(request, is_cancelled, |_| {})
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm(
     request: ActiveFolderCacheWarmRequest,
     is_cancelled: impl Fn() -> bool,
