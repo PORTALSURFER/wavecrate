@@ -247,6 +247,34 @@ fn persisted_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTicket>
     state.waveform.cache.warm_tasks.active(key)
 }
 
+fn active_folder_cache_warm_plan_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
+    state.waveform.cache.active_folder_warm_plan_task.active()
+}
+
+fn finish_active_folder_cache_warm_plan(
+    state: &mut NativeAppState,
+    context: &mut ui::UiUpdateContext<crate::native_app::test_support::state::GuiMessage>,
+    folder_id: String,
+    playback_ready: Vec<PathBuf>,
+    pending: Vec<PathBuf>,
+) {
+    let ticket = active_folder_cache_warm_plan_ticket(state).expect("source warm plan task");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmPlanned(
+            ui::TaskCompletion {
+                ticket,
+                output: crate::native_app::app::ActiveFolderCacheWarmPlanResult {
+                    folder_id,
+                    playback_ready,
+                    pending,
+                    cancelled: false,
+                },
+            },
+        ),
+        context,
+    );
+}
+
 fn active_folder_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     let key = state.waveform.cache.active_folder_warm_key.as_ref()?;
     state.waveform.cache.active_folder_warm_tasks.active(key)

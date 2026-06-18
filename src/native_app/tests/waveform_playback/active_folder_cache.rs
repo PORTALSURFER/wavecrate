@@ -41,7 +41,6 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
         ),
         &mut context,
     );
-
     assert!(
         state
             .waveform
@@ -94,6 +93,13 @@ fn folder_activation_delays_active_folder_cache_warm() {
         ),
         &mut context,
     );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first, second],
+    );
 
     assert!(
         state
@@ -144,6 +150,18 @@ fn folder_activation_queues_entire_source_for_background_cache_warm() {
         ),
         &mut context,
     );
+    let (_folder_id, pending) = state
+        .library
+        .folder_browser
+        .selected_source_cache_warm_request()
+        .expect("source warm request");
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        pending,
+    );
 
     assert_eq!(
         state.waveform.cache.active_folder_warm_pending.len(),
@@ -170,6 +188,13 @@ fn active_folder_cache_warm_tracks_worker_progress() {
         ]);
     let mut context = ui::UiUpdateContext::default();
     state.schedule_active_folder_cache_warm(&mut context);
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first.clone(), second.clone()],
+    );
 
     assert_eq!(state.waveform.cache.active_folder_warm_completed, 0);
     assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
@@ -251,6 +276,13 @@ fn active_folder_cache_warm_progress_updates_statusbar_realtime() {
         ]);
     let mut context = ui::UiUpdateContext::default();
     state.schedule_active_folder_cache_warm(&mut context);
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first.clone(), second],
+    );
     let warm_ticket = state
         .waveform
         .cache
@@ -326,6 +358,13 @@ fn active_folder_cache_progress_promotes_completed_row_immediately() {
 
     let mut context = ui::UiUpdateContext::default();
     state.schedule_active_folder_cache_warm(&mut context);
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![sample_path.clone()],
+    );
     let warm_ticket = state
         .waveform
         .cache
@@ -402,6 +441,13 @@ fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
         ),
         &mut context,
     );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first.clone(), second.clone()],
+    );
     let warm_ticket = state
         .waveform
         .cache
@@ -466,6 +512,13 @@ fn sample_selection_cancels_running_active_folder_cache_warm() {
         ),
         &mut context,
     );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first.clone(), second],
+    );
     let warm_ticket = state
         .waveform
         .cache
@@ -526,6 +579,13 @@ fn active_folder_cache_warm_yields_while_normalization_is_active() {
             ),
         ),
         &mut context,
+    );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![sample_path.clone()],
     );
     state.background.normalization_progress = Some(
         crate::native_app::test_support::state::NormalizationProgress {
@@ -594,6 +654,16 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         ),
         &mut context,
     );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![
+            first_folder.join("first.wav"),
+            second_folder.join("second.wav"),
+        ],
+    );
     let first_ticket = state
         .waveform
         .cache
@@ -616,6 +686,16 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
             ),
         ),
         &mut context,
+    );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![
+            first_folder.join("first.wav"),
+            second_folder.join("second.wav"),
+        ],
     );
 
     assert!(
@@ -653,6 +733,13 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
             ),
         ),
         &mut context,
+    );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![folder.join("first.wav"), second.clone()],
     );
     let warm_ticket = state
         .waveform
@@ -841,7 +928,14 @@ fn active_folder_cache_warm_resumes_from_persisted_playback_ready_cache_after_re
         ]);
     let mut context = ui::UiUpdateContext::default();
     restarted_state.schedule_active_folder_cache_warm(&mut context);
-    assert_eq!(restarted_state.waveform.cache.active_folder_warm_total, 3);
+    finish_active_folder_cache_warm_plan(
+        &mut restarted_state,
+        &mut context,
+        source_root.path().display().to_string(),
+        vec![cached_first.clone(), cached_second.clone()],
+        vec![uncached.clone()],
+    );
+    assert_eq!(restarted_state.waveform.cache.active_folder_warm_total, 1);
 
     let warm_ticket = restarted_state
         .waveform
@@ -867,19 +961,12 @@ fn active_folder_cache_warm_resumes_from_persisted_playback_ready_cache_after_re
     let folder_id = source_root.path().display().to_string();
     let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
         folder_id.clone(),
-        vec![
-            cached_first.clone(),
-            cached_second.clone(),
-            uncached.clone(),
-        ],
+        vec![uncached.clone()],
         || false,
     );
-    assert_eq!(
-        result.playback_ready,
-        vec![cached_first.clone(), cached_second.clone()]
-    );
+    assert!(result.playback_ready.is_empty());
     assert_eq!(result.loaded.len(), 1);
-    assert_eq!(result.processed, 3);
+    assert_eq!(result.processed, 1);
     assert!(result.decoded_source);
     assert!(result.deferred.is_empty());
 
@@ -915,6 +1002,142 @@ fn active_folder_cache_warm_resumes_from_persisted_playback_ready_cache_after_re
             path.display()
         );
     }
+}
+
+#[test]
+fn active_folder_cache_plan_skips_decode_when_entire_source_is_processed() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("cached-first.wav");
+    let second = source_root.path().join("cached-second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    for path in [&first, &second] {
+        let waveform =
+            crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+                path.clone(),
+                |_| {},
+                || false,
+                |_| {},
+            )
+            .expect("cache sample before restart");
+        crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+        crate::native_app::waveform::store_cached_waveform_file_for_tests(&waveform.file());
+        wait_for_playback_ready_cache(path.display().to_string().as_str());
+    }
+
+    let mut restarted_state = gui_state_for_span_tests();
+    restarted_state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let (folder_id, paths) = restarted_state
+        .library
+        .folder_browser
+        .selected_source_cache_warm_request()
+        .expect("source warm request");
+    let plan =
+        crate::native_app::audio::sample_load_actions::plan_active_folder_waveform_cache_warm(
+            folder_id.clone(),
+            paths,
+            || false,
+        );
+    assert_eq!(plan.playback_ready, vec![first.clone(), second.clone()]);
+    assert!(plan.pending.is_empty());
+
+    let mut context = ui::UiUpdateContext::default();
+    restarted_state.schedule_active_folder_cache_warm(&mut context);
+    let ticket = active_folder_cache_warm_plan_ticket(&restarted_state).expect("source warm plan");
+    restarted_state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmPlanned(
+            ui::TaskCompletion {
+                ticket,
+                output: plan,
+            },
+        ),
+        &mut context,
+    );
+
+    assert!(
+        restarted_state
+            .waveform
+            .cache
+            .active_folder_warm_delay_task
+            .active()
+            .is_none(),
+        "all-processed sources should not show or start a decode cache-warm job"
+    );
+    assert!(
+        restarted_state
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .is_empty()
+    );
+    for path in [first, second] {
+        assert!(
+            restarted_state
+                .waveform
+                .cache
+                .cached_sample_paths
+                .contains(&path.display().to_string())
+        );
+    }
+}
+
+#[test]
+fn active_folder_cache_plan_only_reprocesses_changed_files_after_normalize() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let processed = source_root.path().join("processed.wav");
+    let changed = source_root.path().join("changed-by-normalize.wav");
+    write_test_wav_i16(&processed, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&changed, &[0, 512, -512, 1024]);
+
+    for path in [&processed, &changed] {
+        let waveform =
+            crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+                path.clone(),
+                |_| {},
+                || false,
+                |_| {},
+            )
+            .expect("cache sample before edit");
+        crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+        crate::native_app::waveform::store_cached_waveform_file_for_tests(&waveform.file());
+        wait_for_playback_ready_cache(path.display().to_string().as_str());
+    }
+
+    write_test_wav_i16(&changed, &[0, 256, -256, 512]);
+    filetime::set_file_mtime(
+        &changed,
+        filetime::FileTime::from_unix_time(4_000_000_000, 0),
+    )
+    .expect("force changed file identity");
+
+    let plan =
+        crate::native_app::audio::sample_load_actions::plan_active_folder_waveform_cache_warm(
+            source_root.path().display().to_string(),
+            vec![processed.clone(), changed.clone()],
+            || false,
+        );
+
+    assert_eq!(
+        plan.playback_ready,
+        vec![processed],
+        "unchanged processed files should stay out of the fresh work pile"
+    );
+    assert_eq!(
+        plan.pending,
+        vec![changed],
+        "edited files with stale cache identity should be the only fresh work"
+    );
+    assert!(!plan.cancelled);
 }
 
 #[test]

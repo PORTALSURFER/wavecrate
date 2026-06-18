@@ -31,6 +31,14 @@ pub(in crate::native_app) struct ActiveFolderCacheWarmProgress {
     pub(in crate::native_app) cached: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct ActiveFolderCacheWarmPlanResult {
+    pub(in crate::native_app) folder_id: String,
+    pub(in crate::native_app) playback_ready: Vec<PathBuf>,
+    pub(in crate::native_app) pending: Vec<PathBuf>,
+    pub(in crate::native_app) cancelled: bool,
+}
+
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformCacheEntry {
     pub(in crate::native_app) byte_len: usize,

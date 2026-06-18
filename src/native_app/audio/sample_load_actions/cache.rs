@@ -25,5 +25,6 @@ pub(in crate::native_app) fn active_folder_cache_warm_priority() -> ui::TaskPrio
 
 #[cfg(test)]
 pub(in crate::native_app) use workers::{
-    warm_active_folder_waveform_cache, warm_persisted_waveform_cache,
+    plan_active_folder_waveform_cache_warm, warm_active_folder_waveform_cache,
+    warm_persisted_waveform_cache,
 };

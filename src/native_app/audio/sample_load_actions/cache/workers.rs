@@ -9,7 +9,8 @@ use std::{
 
 use crate::native_app::{
     app::{
-        ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
+        ActiveFolderCacheWarmPlanResult, ActiveFolderCacheWarmProgress,
+        ActiveFolderCacheWarmResult, ActiveFolderCacheWarmStage,
         WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult, WaveformState,
     },
     waveform::{
@@ -49,6 +50,37 @@ pub(in crate::native_app) fn warm_active_folder_waveform_cache(
     is_cancelled: impl Fn() -> bool,
 ) -> ActiveFolderCacheWarmResult {
     warm_active_folder_waveform_cache_with_progress(folder_id, paths, is_cancelled, |_| {})
+}
+
+pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm(
+    folder_id: String,
+    paths: Vec<PathBuf>,
+    is_cancelled: impl Fn() -> bool,
+) -> ActiveFolderCacheWarmPlanResult {
+    let mut playback_ready = Vec::new();
+    let mut pending = Vec::new();
+    for path in paths {
+        if is_cancelled() {
+            pending.push(path);
+            return ActiveFolderCacheWarmPlanResult {
+                folder_id,
+                playback_ready,
+                pending,
+                cancelled: true,
+            };
+        }
+        if cached_waveform_file_playback_ready_exists(&path) {
+            playback_ready.push(path);
+        } else {
+            pending.push(path);
+        }
+    }
+    ActiveFolderCacheWarmPlanResult {
+        folder_id,
+        playback_ready,
+        pending,
+        cancelled: false,
+    }
 }
 
 pub(super) fn warm_active_folder_waveform_cache_with_progress(
