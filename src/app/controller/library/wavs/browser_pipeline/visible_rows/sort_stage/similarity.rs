@@ -15,6 +15,7 @@ pub(super) fn ensure_sorted_stage_for_similar(
         filtered_fingerprint,
         helpers::sort_key(sort_mode),
         helpers::similarity_fingerprint(similar),
+        controller.settings.similarity.cache_key(),
     ));
     if controller.ui_cache.browser.pipeline.sorted_fingerprint == Some(sorted_fingerprint) {
         return;

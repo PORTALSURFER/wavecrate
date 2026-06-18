@@ -193,6 +193,7 @@ impl AppController {
                 audio_write_format: self.settings.audio_write_format.clone(),
                 volume: self.ui.volume,
                 controls: self.settings.controls.clone(),
+                similarity: self.settings.similarity.clone(),
                 default_identifier: self.settings.default_identifier.clone(),
                 tag_dictionary: self.settings.tag_dictionary.clone(),
             },

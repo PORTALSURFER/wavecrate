@@ -1,4 +1,6 @@
 use super::*;
+use std::time::{Duration, Instant};
+use wavecrate_analysis::aspects::SimilarityAspect;
 
 const SIMILARITY_TEST_SOURCE_ID: &str = "native-similarity-test";
 
@@ -77,6 +79,214 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
     let active_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     assert!(active_frame.paint_plan.contains_text("Sim"));
+    assert!(active_frame.paint_plan.contains_text("Weight"));
+}
+
+#[test]
+fn sample_browser_similarity_controls_emit_control_messages() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let anchor = drums.join("anchor.wav");
+    fs::write(&anchor, []).expect("write anchor");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ToggleSimilarityAnchor(
+            anchor.display().to_string(),
+        ),
+    );
+    prepare_sample_browser_view(&mut state);
+
+    let surface =
+        crate::native_app::test_support::sample_browser::sample_browser(&state).into_surface();
+    assert_eq!(
+        surface.dispatch_widget_output(
+            crate::native_app::ui::ids::SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ToggleMessage::ValueChanged {
+                checked: true
+            },),
+        ),
+        Some(
+            crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectWeightingEnabled(
+                true
+            )
+        )
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            radiant::widgets::stable_widget_id(
+                crate::native_app::ui::ids::SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
+                "spectrum",
+            ),
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ToggleMessage::ValueChanged {
+                checked: false
+            },),
+        ),
+        Some(
+            crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectEnabled {
+                aspect: SimilarityAspect::Spectrum,
+                enabled: false,
+            },
+        )
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            radiant::widgets::stable_widget_id(
+                crate::native_app::ui::ids::SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
+                "spectrum",
+            ),
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::SliderMessage::ValueChanged {
+                value: 0.25
+            },),
+        ),
+        Some(
+            crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectWeight {
+                aspect: SimilarityAspect::Spectrum,
+                weight: 0.25,
+            },
+        )
+    );
+}
+
+#[test]
+fn sample_browser_similarity_controls_reorder_and_mute_disabled_aspects() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let anchor = drums.join("anchor.wav");
+    let raw_near = drums.join("raw_near.wav");
+    let spectrum_near = drums.join("spectrum_near.wav");
+    for path in [&anchor, &raw_near, &spectrum_near] {
+        fs::write(path, []).expect("write sample");
+    }
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ),
+    );
+    let anchor_id = anchor.display().to_string();
+    let raw_near_id = raw_near.display().to_string();
+    let spectrum_near_id = spectrum_near.display().to_string();
+    let mut raw_near_aspects =
+        crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+    raw_near_aspects[SimilarityAspect::Spectrum.index()] = Some(0.1);
+    raw_near_aspects[SimilarityAspect::Timbre.index()] = Some(0.9);
+    let mut spectrum_near_aspects =
+        crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+    spectrum_near_aspects[SimilarityAspect::Spectrum.index()] = Some(0.95);
+    spectrum_near_aspects[SimilarityAspect::Timbre.index()] = Some(0.9);
+    state
+        .library
+        .folder_browser
+        .set_similarity_scores_with_aspects(
+            anchor_id.clone(),
+            [(raw_near_id.clone(), 0.9), (spectrum_near_id.clone(), 0.2)]
+                .into_iter()
+                .collect(),
+            [
+                (raw_near_id.clone(), raw_near_aspects),
+                (spectrum_near_id.clone(), spectrum_near_aspects),
+            ]
+            .into_iter()
+            .collect(),
+        );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            anchor_id.clone(),
+            raw_near_id.clone(),
+            spectrum_near_id.clone()
+        ]
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    for message in [
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectWeightingEnabled(
+            true,
+        ),
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectEnabled {
+            aspect: SimilarityAspect::Overall,
+            enabled: false,
+        },
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectEnabled {
+            aspect: SimilarityAspect::Timbre,
+            enabled: false,
+        },
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectEnabled {
+            aspect: SimilarityAspect::Pitch,
+            enabled: false,
+        },
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectEnabled {
+            aspect: SimilarityAspect::Amplitude,
+            enabled: false,
+        },
+    ] {
+        state.apply_message(message, &mut context);
+    }
+
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>(),
+        vec![anchor_id, spectrum_near_id.clone(), raw_near_id]
+    );
+    let strengths = state
+        .library
+        .folder_browser
+        .similarity_aspect_display_strengths_for_file(spectrum_near_id.as_str());
+    assert!(strengths[SimilarityAspect::Spectrum.index()].is_some());
+    assert_eq!(strengths[SimilarityAspect::Timbre.index()], None);
+}
+
+#[test]
+fn sample_browser_similarity_controls_persist_after_debounce() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectWeightingEnabled(
+            true,
+        ),
+        &mut context,
+    );
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("load config");
+    assert!(!loaded.core.similarity.weighting_enabled);
+    assert!(state.ui.settings.similarity_persist_deadline.is_some());
+
+    state.ui.settings.similarity_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
+    state.advance_frame(&mut context);
+    let radiant::runtime::Command::Perform { priority, work, .. } = context.into_command() else {
+        panic!("expected similarity settings persist background command");
+    };
+    assert_eq!(priority, radiant::prelude::TaskPriority::BlockingIo);
+    state.apply_message(work(), &mut radiant::prelude::UiUpdateContext::default());
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!(loaded.core.similarity.weighting_enabled);
+    assert!(!state.ui.settings.similarity_persist_inflight);
 }
 
 #[test]

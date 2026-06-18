@@ -148,6 +148,7 @@ mod tests {
         BrowserBpmFacet, BrowserFormatFacet, BrowserSidebarFilterOption, BrowserSidebarFilterState,
         SimilarQuery, empty_similarity_aspect_score_rows,
     };
+    use crate::sample_sources::config::SimilarityAspectSettings;
     use std::path::Path;
     use wavecrate_analysis::aspects::SimilarityAspect;
 
@@ -235,6 +236,34 @@ mod tests {
         assert_eq!(
             query.aspect_display_strength_for_index(SimilarityAspect::Timbre, 1),
             None
+        );
+    }
+
+    #[test]
+    fn effective_similarity_score_uses_enabled_aspect_controls() {
+        let mut rows = empty_similarity_aspect_score_rows(2);
+        rows[0][SimilarityAspect::Spectrum.index()] = Some(0.1);
+        rows[1][SimilarityAspect::Spectrum.index()] = Some(0.9);
+        let query = SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor"),
+            indices: vec![0, 1],
+            scores: vec![0.95, 0.2],
+            aspect_scores: rows,
+            anchor_index: Some(0),
+        };
+        let mut controls = SimilarityAspectSettings::default();
+        controls.set_weighting_enabled(true);
+        controls.set_aspect_enabled(SimilarityAspect::Overall, false);
+        controls.set_aspect_enabled(SimilarityAspect::Timbre, false);
+        controls.set_aspect_enabled(SimilarityAspect::Pitch, false);
+        controls.set_aspect_enabled(SimilarityAspect::Amplitude, false);
+
+        assert_eq!(query.effective_score_for_index(0, &controls), Some(0.1));
+        assert_eq!(query.effective_score_for_index(1, &controls), Some(0.9));
+        assert_eq!(
+            query.display_strength_for_index_with_controls(1, &controls),
+            Some(1.0)
         );
     }
 

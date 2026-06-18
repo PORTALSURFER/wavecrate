@@ -19,6 +19,18 @@ impl NativeAppState {
             GuiMessage::PrepareSimilarityForSelectedSource => {
                 self.prepare_similarity_for_selected_source(context);
             }
+            GuiMessage::SetSimilarityAspectWeightingEnabled(enabled) => {
+                self.set_similarity_aspect_weighting_enabled(enabled);
+            }
+            GuiMessage::SetSimilarityAspectEnabled { aspect, enabled } => {
+                self.set_similarity_aspect_enabled(aspect, enabled);
+            }
+            GuiMessage::SetSimilarityAspectWeight { aspect, weight } => {
+                self.set_similarity_aspect_weight(aspect, weight);
+            }
+            GuiMessage::SimilaritySettingsPersisted(result) => {
+                self.finish_similarity_settings_persist(result);
+            }
             GuiMessage::SimilarityPrepStatusResolved(result) => {
                 self.finish_similarity_prep_status(result);
             }

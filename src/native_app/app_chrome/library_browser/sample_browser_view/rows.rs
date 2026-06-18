@@ -1,11 +1,11 @@
 use radiant::prelude as ui;
 use std::collections::HashMap;
 
-use super::SampleFileHitTarget;
 use super::row_projection::{
     SampleColumnContent, SampleColumnDisplay, SampleRowDisplay, sample_row_display,
 };
 use super::row_widgets::RatingIndicator;
+use super::{SampleFileHitTarget, similarity_aspect_color};
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -20,6 +20,7 @@ const SIMILARITY_TOGGLE_SIZE: f32 = 18.0;
 const SIMILARITY_SCORE_TRACK: ui::Rgba8 = ui::Rgba8::new(64, 68, 72, 150);
 const SIMILARITY_SCORE_FILL: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
 const SIMILARITY_ASPECT_TRACK: ui::Rgba8 = ui::Rgba8::new(38, 42, 46, 190);
+const SIMILARITY_ASPECT_DISABLED_TRACK: ui::Rgba8 = ui::Rgba8::new(24, 26, 28, 210);
 const SIMILARITY_ASPECT_WIDTH: f32 = 14.0;
 
 pub(super) fn sample_browser_rows(
@@ -42,6 +43,7 @@ pub(super) fn sample_browser_rows(
             row,
             &visible_samples.columns,
             visible_samples.similarity_mode_active,
+            visible_samples.similarity_controls.aspect_enabled_flags(),
             name_view_mode,
             metadata_tags_by_file,
         ))
@@ -138,9 +140,17 @@ fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
         SampleColumnContent::Collection(colors) => {
             sample_collection_cell(colors, column.width, column.file_id)
         }
-        SampleColumnContent::Similarity { overall, aspects } => {
-            sample_similarity_cell(overall, aspects, column.width, column.file_id)
-        }
+        SampleColumnContent::Similarity {
+            overall,
+            aspects,
+            aspect_enabled,
+        } => sample_similarity_cell(
+            overall,
+            aspects,
+            aspect_enabled,
+            column.width,
+            column.file_id,
+        ),
     }
 }
 
@@ -209,6 +219,7 @@ fn sample_collection_cell(
 fn sample_similarity_cell(
     overall: Option<f32>,
     aspects: SimilarityAspectStrengths,
+    aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
     width: f32,
     file_id: &str,
 ) -> ui::View<GuiMessage> {
@@ -218,6 +229,7 @@ fn sample_similarity_cell(
             cells.push(sample_similarity_aspect_indicator(
                 aspect,
                 aspects[aspect.index()],
+                aspect_enabled[aspect.index()],
                 file_id,
             ));
         }
@@ -244,16 +256,25 @@ fn sample_similarity_cell(
 fn sample_similarity_aspect_indicator(
     aspect: wavecrate_analysis::aspects::SimilarityAspect,
     strength: Option<f32>,
+    enabled: bool,
     file_id: &str,
 ) -> ui::View<GuiMessage> {
-    let fill = similarity_aspect_color(aspect);
-    let fill = if strength.is_some() {
-        fill
+    let (track, fill, value) = if enabled {
+        let fill = if strength.is_some() {
+            similarity_aspect_color(aspect)
+        } else {
+            SIMILARITY_ASPECT_TRACK
+        };
+        (SIMILARITY_ASPECT_TRACK, fill, strength.unwrap_or(0.0))
     } else {
-        SIMILARITY_ASPECT_TRACK
+        (
+            SIMILARITY_ASPECT_DISABLED_TRACK,
+            SIMILARITY_ASPECT_DISABLED_TRACK,
+            0.0,
+        )
     };
-    ui::determinate_progress_bar(strength.unwrap_or(0.0))
-        .colors(SIMILARITY_ASPECT_TRACK, fill)
+    ui::determinate_progress_bar(value)
+        .colors(track, fill)
         .max_track_height(10.0)
         .mapped(|_| GuiMessage::CloseContextMenu)
         .key(format!(
@@ -262,22 +283,6 @@ fn sample_similarity_aspect_indicator(
         ))
         .height(12.0)
         .width(SIMILARITY_ASPECT_WIDTH)
-}
-
-fn similarity_aspect_color(aspect: wavecrate_analysis::aspects::SimilarityAspect) -> ui::Rgba8 {
-    match aspect {
-        wavecrate_analysis::aspects::SimilarityAspect::Overall => {
-            ui::Rgba8::new(105, 172, 116, 230)
-        }
-        wavecrate_analysis::aspects::SimilarityAspect::Spectrum => {
-            ui::Rgba8::new(233, 211, 98, 235)
-        }
-        wavecrate_analysis::aspects::SimilarityAspect::Timbre => ui::Rgba8::new(235, 149, 73, 235),
-        wavecrate_analysis::aspects::SimilarityAspect::Pitch => ui::Rgba8::new(226, 82, 111, 235),
-        wavecrate_analysis::aspects::SimilarityAspect::Amplitude => {
-            ui::Rgba8::new(93, 158, 221, 235)
-        }
-    }
 }
 
 fn similarity_anchor_icon(active: bool, available: bool) -> ui::SvgIcon {

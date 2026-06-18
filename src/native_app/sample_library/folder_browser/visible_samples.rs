@@ -9,6 +9,7 @@ use super::{
     FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityAspectStrengths,
     SimilarityBrowserState, default_file_columns,
 };
+use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct VisibleSampleQuery<'a> {
@@ -31,6 +32,7 @@ pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) columns: Vec<&'a FileColumn>,
     pub(in crate::native_app) sort: &'a ui::DetailsSort,
     pub(in crate::native_app) similarity_mode_active: bool,
+    pub(in crate::native_app) similarity_controls: &'a SimilarityAspectSettings,
 }
 
 pub(super) struct VisibleSampleWindowFiles<'a> {
@@ -58,6 +60,7 @@ pub(super) struct SampleListState {
     pub(super) file_sort: ui::DetailsSort,
     pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
+    pub(super) similarity_controls: SimilarityAspectSettings,
     pub(super) similarity: Option<SimilarityBrowserState>,
     pub(super) random_navigation: RandomNavigationState,
     pub(super) view_controller: ui::VirtualListController,
@@ -75,6 +78,7 @@ impl SampleListState {
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
+            similarity_controls: SimilarityAspectSettings::default(),
             similarity: None,
             random_navigation: RandomNavigationState::default(),
             view_controller: ui::VirtualListController::default(),
@@ -350,6 +354,7 @@ impl FolderBrowserState {
             columns: self.visible_file_columns(),
             sort: self.file_sort(),
             similarity_mode_active: self.similarity_mode_active(),
+            similarity_controls: self.similarity_controls(),
         }
     }
 

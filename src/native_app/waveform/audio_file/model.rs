@@ -42,6 +42,23 @@ impl PersistedPlaybackCacheFile {
 }
 
 impl WaveformFile {
+    pub(in crate::native_app::waveform) fn has_loaded_sample_metadata(&self) -> bool {
+        !self.path.as_os_str().is_empty()
+            && (!self.audio_bytes.is_empty()
+                || self.playback_samples.is_some()
+                || self.playback_cache_file.is_some()
+                || self.file_backed_playback_metadata_available())
+    }
+
+    pub(in crate::native_app::waveform) fn file_backed_playback_metadata_available(&self) -> bool {
+        self.audio_bytes.is_empty()
+            && self.playback_samples.is_none()
+            && self.playback_cache_file.is_none()
+            && self.sample_rate != 0
+            && self.channels != 0
+            && self.frames != 0
+    }
+
     pub(in crate::native_app::waveform) fn path_hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.path.hash(&mut hasher);

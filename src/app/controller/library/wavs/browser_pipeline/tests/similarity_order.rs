@@ -89,3 +89,49 @@ fn similarity_sort_keeps_sparse_lookup_compact() {
         vec![(1, 0.4), (3, 0.9)]
     );
 }
+
+#[test]
+fn similarity_sort_uses_weighted_aspect_controls() {
+    let entries = vec![
+        search_entry("anchor.wav", Rating::NEUTRAL, None),
+        search_entry("raw-near.wav", Rating::NEUTRAL, None),
+        search_entry("spectrum-near.wav", Rating::NEUTRAL, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
+    let mut aspect_scores = empty_similarity_aspect_score_rows(3);
+    aspect_scores[1][wavecrate_analysis::aspects::SimilarityAspect::Spectrum.index()] = Some(0.1);
+    aspect_scores[2][wavecrate_analysis::aspects::SimilarityAspect::Spectrum.index()] = Some(0.9);
+    controller.ui.browser.search.similar_query = Some(SimilarQuery {
+        sample_id: "source::anchor.wav".to_string(),
+        label: "anchor".to_string(),
+        indices: vec![0, 1, 2],
+        scores: vec![1.0, 0.95, 0.2],
+        aspect_scores,
+        anchor_index: Some(0),
+    });
+    controller.settings.similarity.set_weighting_enabled(true);
+    controller.settings.similarity.set_aspect_enabled(
+        wavecrate_analysis::aspects::SimilarityAspect::Overall,
+        false,
+    );
+    controller
+        .settings
+        .similarity
+        .set_aspect_enabled(wavecrate_analysis::aspects::SimilarityAspect::Timbre, false);
+    controller
+        .settings
+        .similarity
+        .set_aspect_enabled(wavecrate_analysis::aspects::SimilarityAspect::Pitch, false);
+    controller.settings.similarity.set_aspect_enabled(
+        wavecrate_analysis::aspects::SimilarityAspect::Amplitude,
+        false,
+    );
+
+    let (visible, _, _) = build_visible_rows(&mut controller, Some(0), None);
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[0usize, 2usize, 1usize]),
+        VisibleRows::All { total } => panic!("expected similarity-sorted rows, got all {total}"),
+    }
+}

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use wavecrate::sample_sources::config::SimilarityAspectSettings;
+
 use super::{
     BrowserDragDropState, BrowserFilterState, BrowserPanelLayoutState, BrowserRenameState,
     BrowserSelectionState, BrowserSourceState, CollectionPanelState,
@@ -119,6 +121,29 @@ impl FolderBrowserState {
         self.sample_list.similarity.is_some()
     }
 
+    pub(in crate::native_app) fn similarity_controls(&self) -> &SimilarityAspectSettings {
+        self.sample_list
+            .similarity
+            .as_ref()
+            .map(SimilarityBrowserState::controls)
+            .unwrap_or(&self.sample_list.similarity_controls)
+    }
+
+    pub(in crate::native_app) fn set_similarity_controls(
+        &mut self,
+        controls: SimilarityAspectSettings,
+    ) {
+        let controls = controls.normalized();
+        let changed = self.sample_list.similarity_controls != controls;
+        self.sample_list.similarity_controls = controls.clone();
+        if let Some(similarity) = self.sample_list.similarity.as_mut() {
+            similarity.set_controls(controls);
+        }
+        if changed {
+            self.bump_file_content_revision();
+        }
+    }
+
     pub(in crate::native_app) fn random_navigation_enabled(&self) -> bool {
         self.sample_list.random_navigation.enabled
     }
@@ -163,7 +188,10 @@ impl FolderBrowserState {
         if self.file_is_similarity_anchor(&file_id) {
             self.sample_list.similarity = None;
         } else {
-            self.sample_list.similarity = Some(SimilarityBrowserState::new(file_id));
+            self.sample_list.similarity = Some(SimilarityBrowserState::new(
+                file_id,
+                self.sample_list.similarity_controls.clone(),
+            ));
         }
         self.bump_file_content_revision();
     }
@@ -176,6 +204,7 @@ impl FolderBrowserState {
     ) {
         self.sample_list.similarity = Some(SimilarityBrowserState::with_scores_and_aspects(
             anchor_id,
+            self.sample_list.similarity_controls.clone(),
             scores_by_file,
             aspect_scores_by_file,
         ));

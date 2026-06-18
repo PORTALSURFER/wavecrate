@@ -1,3 +1,5 @@
+use crate::sample_sources::config::SimilarityAspectSettings;
+
 /// Per-aspect raw similarity scores aligned to one similarity result row.
 pub type SimilarityAspectScoreRow = [Option<f32>; wavecrate_analysis::aspects::ASPECT_COUNT];
 
@@ -36,6 +38,32 @@ impl SimilarQuery {
     pub fn score_for_index(&self, entry_index: usize) -> Option<f32> {
         let position = self.indices.iter().position(|idx| *idx == entry_index)?;
         self.scores.get(position).copied()
+    }
+
+    /// Return the configured effective similarity score for a given entry index.
+    pub fn effective_score_for_index(
+        &self,
+        entry_index: usize,
+        controls: &SimilarityAspectSettings,
+    ) -> Option<f32> {
+        let position = self.indices.iter().position(|idx| *idx == entry_index)?;
+        self.effective_score_at(position, controls)
+    }
+
+    /// Return a normalized configured similarity strength for UI display.
+    pub fn display_strength_for_index_with_controls(
+        &self,
+        entry_index: usize,
+        controls: &SimilarityAspectSettings,
+    ) -> Option<f32> {
+        let position = self.indices.iter().position(|idx| *idx == entry_index)?;
+        let score = self.effective_score_at(position, controls)?;
+        let (min_score, max_score) = self.effective_score_bounds(controls)?;
+        let range = max_score - min_score;
+        if range <= f32::EPSILON {
+            return Some(Self::absolute_display_strength(score));
+        }
+        Some(((score - min_score) / range).clamp(0.0, 1.0))
     }
 
     /// Return a normalized similarity strength for UI display.
@@ -93,12 +121,38 @@ impl SimilarQuery {
             .map(|score| score.clamp(-1.0, 1.0))
     }
 
+    fn effective_score_at(
+        &self,
+        position: usize,
+        controls: &SimilarityAspectSettings,
+    ) -> Option<f32> {
+        let raw_score = self.scores.get(position).copied();
+        let row = self
+            .aspect_scores
+            .get(position)
+            .unwrap_or(&EMPTY_SIMILARITY_ASPECT_SCORE_ROW);
+        controls.effective_score(raw_score, row)
+    }
+
     fn clamped_score_bounds(&self) -> Option<(f32, f32)> {
         let mut scores = self
             .scores
             .iter()
             .copied()
             .map(|score| score.clamp(-1.0, 1.0));
+        let first = scores.next()?;
+        let mut min_score = first;
+        let mut max_score = first;
+        for score in scores {
+            min_score = min_score.min(score);
+            max_score = max_score.max(score);
+        }
+        Some((min_score, max_score))
+    }
+
+    fn effective_score_bounds(&self, controls: &SimilarityAspectSettings) -> Option<(f32, f32)> {
+        let mut scores = (0..self.scores.len())
+            .filter_map(|position| self.effective_score_at(position, controls));
         let first = scores.next()?;
         let mut min_score = first;
         let mut max_score = first;

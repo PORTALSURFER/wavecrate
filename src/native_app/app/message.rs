@@ -4,6 +4,7 @@ use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{path::PathBuf, time::Instant};
 use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
+use wavecrate_analysis::aspects::SimilarityAspect;
 
 use crate::native_app::app::{
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
@@ -114,6 +115,16 @@ pub(in crate::native_app) enum GuiMessage {
     StopPlayback,
     ToggleLoopPlayback,
     PrepareSimilarityForSelectedSource,
+    SetSimilarityAspectWeightingEnabled(bool),
+    SetSimilarityAspectEnabled {
+        aspect: SimilarityAspect,
+        enabled: bool,
+    },
+    SetSimilarityAspectWeight {
+        aspect: SimilarityAspect,
+        weight: f32,
+    },
+    SimilaritySettingsPersisted(SimilaritySettingsPersistResult),
     SimilarityPrepStatusResolved(SimilarityPrepStatusResult),
     SimilarityPrepEnqueueFinished(SimilarityPrepEnqueueResult),
     SimilarityScoresResolved(SimilarityScoresResult),
@@ -200,6 +211,18 @@ pub(in crate::native_app) enum GuiMessage {
 pub(in crate::native_app) struct VolumeSettingsPersistResult {
     pub(in crate::native_app) persisted: AppSettingsCore,
     pub(in crate::native_app) result: Result<(), String>,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::native_app) struct SimilaritySettingsPersistResult {
+    pub(in crate::native_app) persisted: AppSettingsCore,
+    pub(in crate::native_app) result: Result<(), String>,
+}
+
+impl PartialEq for SimilaritySettingsPersistResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.result == other.result && self.persisted.similarity == other.persisted.similarity
+    }
 }
 
 impl PartialEq for VolumeSettingsPersistResult {

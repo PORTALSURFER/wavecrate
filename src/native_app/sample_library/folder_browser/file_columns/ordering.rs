@@ -145,8 +145,8 @@ fn similarity_file_ref_order(
         _ => {}
     }
     match (
-        similarity.raw_score_for(&left.id),
-        similarity.raw_score_for(&right.id),
+        similarity.effective_score_for(&left.id),
+        similarity.effective_score_for(&right.id),
     ) {
         (Some(left_score), Some(right_score)) => {
             right_score.total_cmp(&left_score).then_with(|| {

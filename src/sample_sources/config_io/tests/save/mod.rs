@@ -3,7 +3,8 @@ use super::super::super::config_types::AppSettings;
 use super::super::super::config_types::{
     AnalysisSettings, AppSettingsCore, AudioWriteChannelBehavior, AudioWriteDither,
     AudioWriteFormatConfig, AudioWriteSampleFormat, AudioWriteSampleRate, DropTargetColor,
-    DropTargetConfig, FeatureFlags, InteractionOptions, TooltipMode, UpdateChannel, UpdateSettings,
+    DropTargetConfig, FeatureFlags, InteractionOptions, SimilarityAspectSettings, TooltipMode,
+    UpdateChannel, UpdateSettings,
 };
 use super::super::load::load_settings_from;
 #[cfg(unix)]
@@ -78,6 +79,7 @@ fn saves_settings_with_nested_section_ownership() {
     assert!(root.get("library").is_some());
     assert!(root.get("audio").is_some());
     assert!(root.get("interaction").is_some());
+    assert!(root.get("similarity").is_some());
     assert!(root.get("naming").is_some());
     assert!(root.get("tags").is_some());
     assert!(

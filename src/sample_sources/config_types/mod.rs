@@ -3,6 +3,7 @@ mod app;
 mod audio_write;
 mod errors;
 mod interaction;
+mod similarity;
 mod updates;
 
 pub use analysis::AnalysisSettings;
@@ -14,4 +15,5 @@ pub use audio_write::{
 };
 pub use errors::ConfigError;
 pub use interaction::{InteractionOptions, TooltipMode};
+pub use similarity::{SimilarityAspectControl, SimilarityAspectSettings};
 pub use updates::{UpdateChannel, UpdateSettings};

@@ -205,8 +205,14 @@ fn similarity_score_cell_paints_progress_fill() {
     let mut aspects =
         crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
     aspects[wavecrate_analysis::aspects::SimilarityAspect::Spectrum.index()] = Some(0.8);
-    let frame = sample_similarity_cell(Some(0.65), aspects, 190.0, file.id.as_str())
-        .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
+    let frame = sample_similarity_cell(
+        Some(0.65),
+        aspects,
+        [true; wavecrate_analysis::aspects::ASPECT_COUNT],
+        190.0,
+        file.id.as_str(),
+    )
+    .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
 
     assert!(
         frame
@@ -231,6 +237,7 @@ fn missing_similarity_score_cell_paints_na_label() {
     let frame = sample_similarity_cell(
         None,
         crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
+        [true; wavecrate_analysis::aspects::ASPECT_COUNT],
         190.0,
         file.id.as_str(),
     )
@@ -242,5 +249,34 @@ fn missing_similarity_score_cell_paints_na_label() {
             .text_runs()
             .any(|run| run.text == "N/A" && run.color == theme.text_muted),
         "missing similarity scores should paint a muted N/A label"
+    );
+}
+
+#[test]
+/// Verifies disabled aspects use the explicit disabled track color instead of an active fill.
+fn disabled_similarity_aspect_paints_disabled_track() {
+    let theme = ThemeTokens::default();
+    let file = file_entry();
+    let mut aspects =
+        crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
+    aspects[wavecrate_analysis::aspects::SimilarityAspect::Pitch.index()] = Some(0.9);
+    let mut enabled = [true; wavecrate_analysis::aspects::ASPECT_COUNT];
+    enabled[wavecrate_analysis::aspects::SimilarityAspect::Pitch.index()] = false;
+
+    let frame = sample_similarity_cell(Some(0.65), aspects, enabled, 190.0, file.id.as_str())
+        .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == SIMILARITY_ASPECT_DISABLED_TRACK),
+        "disabled aspects should paint the disabled track"
+    );
+    assert!(
+        !frame.paint_plan.fill_rects().any(|fill| fill.color
+            == similarity_aspect_color(wavecrate_analysis::aspects::SimilarityAspect::Pitch)
+            && fill.rect.width() > 4.0),
+        "disabled aspects should not paint their active fill"
     );
 }

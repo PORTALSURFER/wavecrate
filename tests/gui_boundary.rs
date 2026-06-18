@@ -576,7 +576,7 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "rating persistence scheduling boundary",
         ),
         (
-            "src/native_app/sample_library/similarity_prep/worker.rs",
+            "src/native_app/sample_library/similarity_prep/worker",
             "similarity preparation worker",
         ),
         (

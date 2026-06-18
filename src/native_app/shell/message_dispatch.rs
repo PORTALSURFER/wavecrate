@@ -34,6 +34,10 @@ impl NativeAppState {
             | GuiMessage::AddSourceDialogFinished(_)
             | GuiMessage::FolderBrowser(_)
             | GuiMessage::PrepareSimilarityForSelectedSource
+            | GuiMessage::SetSimilarityAspectWeightingEnabled(_)
+            | GuiMessage::SetSimilarityAspectEnabled { .. }
+            | GuiMessage::SetSimilarityAspectWeight { .. }
+            | GuiMessage::SimilaritySettingsPersisted(_)
             | GuiMessage::SimilarityPrepStatusResolved(_)
             | GuiMessage::SimilarityPrepEnqueueFinished(_)
             | GuiMessage::SimilarityScoresResolved(_)

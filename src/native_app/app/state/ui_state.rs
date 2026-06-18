@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::config::AppSettingsCore;
@@ -66,6 +66,8 @@ impl Default for SettingsUiState {
 pub(in crate::native_app) struct SettingsAppState {
     pub(in crate::native_app) persisted: AppSettingsCore,
     pub(in crate::native_app) ui: SettingsUiState,
+    pub(in crate::native_app) similarity_persist_deadline: Option<Instant>,
+    pub(in crate::native_app) similarity_persist_inflight: bool,
 }
 
 impl SettingsAppState {
@@ -73,6 +75,8 @@ impl SettingsAppState {
         Self {
             persisted,
             ui: SettingsUiState::default(),
+            similarity_persist_deadline: None,
+            similarity_persist_inflight: false,
         }
     }
 }

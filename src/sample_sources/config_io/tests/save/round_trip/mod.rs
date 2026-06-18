@@ -7,6 +7,7 @@ mod interaction;
 mod naming;
 mod paths;
 mod runtime;
+mod similarity;
 
 struct SettingsRoundTripFixture {
     expected: AppConfig,
@@ -93,6 +94,19 @@ fn settings_round_trip_fixture() -> SettingsRoundTripFixture {
                 advance_after_rating: true,
                 tooltip_mode: TooltipMode::Regular,
                 loop_lock_enabled: true,
+            },
+            similarity: {
+                let mut settings = SimilarityAspectSettings::default();
+                settings.set_weighting_enabled(true);
+                settings.set_aspect_enabled(
+                    wavecrate_analysis::aspects::SimilarityAspect::Pitch,
+                    false,
+                );
+                settings.set_aspect_weight(
+                    wavecrate_analysis::aspects::SimilarityAspect::Spectrum,
+                    0.35,
+                );
+                settings
             },
             default_identifier: String::from("artist"),
             tag_dictionary: std::collections::BTreeMap::from([(

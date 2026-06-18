@@ -106,6 +106,7 @@ fn write_legacy_config(path: &std::path::Path, source_path: &str) {
             audio_write_format: AudioWriteFormatConfig::default(),
             volume: 0.9,
             controls: InteractionOptions::default(),
+            similarity: Default::default(),
             default_identifier: String::from("legacy"),
             tag_dictionary: Default::default(),
         },

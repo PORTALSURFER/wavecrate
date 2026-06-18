@@ -23,7 +23,8 @@ impl NativeAppState {
         let config = wavecrate::sample_sources::config::load_or_default()
             .map_err(|err| format!("load app configuration: {err}"))?;
         let has_configured_sources = !config.sources.is_empty();
-        let folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
+        let mut folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
+        folder_browser.set_similarity_controls(config.core.similarity.clone());
         let startup_source_scan_pending =
             has_configured_sources && !folder_browser.selected_source_loaded();
         let startup_folder_verify_pending =
@@ -143,7 +144,8 @@ impl NativeAppState {
         }
         let persist_started_at = Instant::now();
         self.flush_pending_volume_persist(context);
-        log_slow_frame_phase("ui.frame.update.persist_volume", persist_started_at);
+        self.flush_pending_similarity_settings_persist(context);
+        log_slow_frame_phase("ui.frame.update.persist_settings", persist_started_at);
         log_slow_frame_phase("ui.frame.update.total", frame_update_started_at);
     }
 
@@ -269,6 +271,7 @@ impl NativeAppState {
         AppSettingsCore {
             audio_output: self.audio.output_config.clone(),
             volume: self.audio.volume,
+            similarity: self.library.folder_browser.similarity_controls().clone(),
             tag_dictionary: self.metadata.tag_dictionary.clone(),
             ..self.ui.settings.persisted.clone()
         }

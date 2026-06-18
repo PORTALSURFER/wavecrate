@@ -43,6 +43,7 @@ pub(super) enum SampleColumnContent {
     Similarity {
         overall: Option<f32>,
         aspects: SimilarityAspectStrengths,
+        aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
     },
 }
 
@@ -50,6 +51,7 @@ pub(super) fn sample_row_display<'a>(
     row: &'a VisibleSampleRow<'a>,
     columns: &[&'a FileColumn],
     similarity_mode_active: bool,
+    similarity_aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> SampleRowDisplay<'a> {
@@ -68,6 +70,7 @@ pub(super) fn sample_row_display<'a>(
             row,
             columns,
             similarity_mode_active,
+            similarity_aspect_enabled,
             name_view_mode,
             metadata_tags_by_file,
         ),
@@ -79,6 +82,7 @@ fn sample_column_displays<'a>(
     row: &'a VisibleSampleRow<'a>,
     columns: &[&'a FileColumn],
     similarity_mode_active: bool,
+    similarity_aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> Vec<SampleColumnDisplay<'a>> {
@@ -92,7 +96,11 @@ fn sample_column_displays<'a>(
             metadata_tags_by_file,
         ));
         if column.kind() == FileColumnKind::Name && similarity_mode_active {
-            displays.push(similarity_column_display(file, row));
+            displays.push(similarity_column_display(
+                file,
+                row,
+                similarity_aspect_enabled,
+            ));
         }
     }
     displays
@@ -101,6 +109,7 @@ fn sample_column_displays<'a>(
 fn similarity_column_display<'a>(
     file: &'a FileEntry,
     row: &VisibleSampleRow<'_>,
+    aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
 ) -> SampleColumnDisplay<'a> {
     SampleColumnDisplay {
         file_id: file.id.as_str(),
@@ -109,6 +118,7 @@ fn similarity_column_display<'a>(
         content: SampleColumnContent::Similarity {
             overall: row.similarity_strength,
             aspects: row.similarity_aspect_strengths,
+            aspect_enabled,
         },
     }
 }

@@ -16,15 +16,27 @@ pub(super) fn apply_sort_for_similar(
     match sort_mode {
         SampleBrowserSort::Similarity => {
             let entries_len = controller.wav_entries_len();
+            let controls = controller.settings.similarity.clone();
             controller
                 .ui_cache
                 .browser
                 .pipeline
                 .prepare_similar_lookup_scratch(similar.indices.len());
             let lookup = &mut controller.ui_cache.browser.pipeline.similar_lookup_scratch;
-            for (&index, &score) in similar.indices.iter().zip(similar.scores.iter()) {
+            for (position, (&index, &score)) in similar
+                .indices
+                .iter()
+                .zip(similar.scores.iter())
+                .enumerate()
+            {
                 if index < entries_len {
-                    lookup.push((index, score));
+                    let row = similar
+                        .aspect_scores
+                        .get(position)
+                        .unwrap_or(&crate::app::state::EMPTY_SIMILARITY_ASPECT_SCORE_ROW);
+                    if let Some(effective_score) = controls.effective_score(Some(score), row) {
+                        lookup.push((index, effective_score));
+                    }
                 }
             }
             lookup.sort_unstable_by_key(|(index, _)| *index);
@@ -184,6 +196,11 @@ pub(super) fn similarity_fingerprint(query: &crate::app::state::SimilarQuery) ->
             .iter()
             .map(|score| score.to_bits())
             .collect::<Vec<u32>>(),
+        query
+            .aspect_scores
+            .iter()
+            .map(|row| row.map(|score| score.map(f32::to_bits)))
+            .collect::<Vec<_>>(),
         query.anchor_index,
     ))
 }

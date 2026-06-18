@@ -5,7 +5,6 @@
 
 use std::path::PathBuf;
 
-use crate::app::state::empty_similarity_aspect_score_rows;
 use crate::app_core::state::{
     ActiveAudioOutput, AudioDeviceView, AudioHostView, BrowserDuplicateCleanupState,
     ProgressTaskKind, SampleBrowserIndex, SimilarQuery, TriageFlagColumn, VisibleRows,
@@ -96,6 +95,12 @@ pub(crate) fn similar_query(
         scores,
         anchor_index,
     }
+}
+
+fn empty_similarity_aspect_score_rows(
+    len: usize,
+) -> Vec<[Option<f32>; wavecrate_analysis::aspects::ASPECT_COUNT]> {
+    vec![[None; wavecrate_analysis::aspects::ASPECT_COUNT]; len]
 }
 
 /// Build a duplicate-cleanup fixture for browser projection tests.

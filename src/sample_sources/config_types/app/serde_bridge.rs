@@ -8,7 +8,10 @@ use crate::{
 };
 
 use super::{
-    super::{AnalysisSettings, AudioWriteFormatConfig, InteractionOptions, UpdateSettings},
+    super::{
+        AnalysisSettings, AudioWriteFormatConfig, InteractionOptions, SimilarityAspectSettings,
+        UpdateSettings,
+    },
     drop_targets::{DropTargetConfig, deserialize_optional_drop_targets},
     model::{AppSettingsCore, FeatureFlags},
     sections::{
@@ -28,6 +31,7 @@ struct AppSettingsCorePersisted<'a> {
     library: LibrarySettings,
     audio: AudioSettings,
     interaction: InteractionSettings,
+    similarity: &'a SimilarityAspectSettings,
     naming: NamingSettings,
     tags: TagDictionarySettings,
 }
@@ -54,6 +58,8 @@ struct AppSettingsCoreWire {
     audio: AudioSettings,
     #[serde(default)]
     interaction: InteractionSettings,
+    #[serde(default)]
+    similarity: SimilarityAspectSettings,
     #[serde(default)]
     naming: NamingSettings,
     #[serde(default)]
@@ -85,6 +91,8 @@ struct AppSettingsCoreWire {
     volume: Option<f32>,
     #[serde(default)]
     controls: Option<InteractionOptions>,
+    #[serde(default)]
+    similarity_aspects: Option<SimilarityAspectSettings>,
     #[serde(default)]
     default_identifier: Option<String>,
     #[serde(default)]
@@ -118,6 +126,7 @@ impl AppSettingsCoreWire {
             audio_write_format: self.audio_write_format.unwrap_or(self.audio.write_format),
             volume: self.volume.unwrap_or(self.audio.volume),
             controls: self.controls.unwrap_or(self.interaction.controls),
+            similarity: self.similarity_aspects.unwrap_or(self.similarity),
             default_identifier: self
                 .default_identifier
                 .unwrap_or(self.naming.default_identifier),
@@ -158,6 +167,7 @@ impl Serialize for AppSettingsCore {
             interaction: InteractionSettings {
                 controls: self.controls.clone(),
             },
+            similarity: &self.similarity,
             naming: NamingSettings {
                 default_identifier: self.default_identifier.clone(),
             },

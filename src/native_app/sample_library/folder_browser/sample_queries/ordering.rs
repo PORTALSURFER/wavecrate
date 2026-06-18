@@ -57,8 +57,8 @@ fn similarity_file_order(
     }
 
     match (
-        similarity.raw_score_for(&left_file.id),
-        similarity.raw_score_for(&right_file.id),
+        similarity.effective_score_for(&left_file.id),
+        similarity.effective_score_for(&right_file.id),
     ) {
         (Some(left_score), Some(right_score)) => right_score
             .total_cmp(&left_score)

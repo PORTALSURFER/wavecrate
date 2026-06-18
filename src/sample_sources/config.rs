@@ -12,6 +12,6 @@ pub use config_io::{
 pub use config_types::{
     AnalysisSettings, AppConfig, AppSettingsCore, AudioWriteChannelBehavior, AudioWriteDither,
     AudioWriteFormatConfig, AudioWriteSampleFormat, AudioWriteSampleRate, ConfigError,
-    DropTargetColor, DropTargetConfig, FeatureFlags, InteractionOptions, TooltipMode,
-    UpdateChannel, UpdateSettings,
+    DropTargetColor, DropTargetConfig, FeatureFlags, InteractionOptions, SimilarityAspectControl,
+    SimilarityAspectSettings, TooltipMode, UpdateChannel, UpdateSettings,
 };

@@ -1,7 +1,9 @@
 //! Persistent settings state for the controller.
 
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
-use crate::sample_sources::config::{AudioWriteFormatConfig, DropTargetConfig};
+use crate::sample_sources::config::{
+    AudioWriteFormatConfig, DropTargetConfig, SimilarityAspectSettings,
+};
 use std::{collections::BTreeMap, path::PathBuf};
 
 pub(crate) struct AppSettingsState {
@@ -15,6 +17,7 @@ pub(crate) struct AppSettingsState {
     pub(crate) audio_input: AudioInputConfig,
     pub(crate) audio_write_format: AudioWriteFormatConfig,
     pub(crate) controls: crate::sample_sources::config::InteractionOptions,
+    pub(crate) similarity: SimilarityAspectSettings,
     pub(crate) trash_folder: Option<PathBuf>,
     pub(crate) drop_targets: Vec<DropTargetConfig>,
     /// Global creator or artist identifier used by sample auto-rename.
@@ -35,6 +38,7 @@ impl AppSettingsState {
             audio_input: AudioInputConfig::default(),
             audio_write_format: AudioWriteFormatConfig::default(),
             controls: crate::sample_sources::config::InteractionOptions::default(),
+            similarity: SimilarityAspectSettings::default(),
             trash_folder: None,
             drop_targets: Vec::new(),
             default_identifier: String::from("portal"),

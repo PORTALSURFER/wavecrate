@@ -28,6 +28,7 @@ impl AppController {
         self.ui.audio.input_selected = self.settings.audio_input.clone();
         self.settings.audio_write_format = core.audio_write_format.clone();
         self.ui.audio.write_format = self.settings.audio_write_format.clone();
+        self.settings.similarity = core.similarity.clone().normalized();
         self.settings.default_identifier = default_identifier(&core.default_identifier);
         self.ui.options_panel.default_identifier = self.settings.default_identifier.clone();
         self.settings.tag_dictionary = core.tag_dictionary.clone();

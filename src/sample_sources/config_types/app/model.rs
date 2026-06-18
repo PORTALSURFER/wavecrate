@@ -15,7 +15,8 @@ use super::{
             default_audio_input, default_audio_output, default_job_message_queue_capacity,
             default_true, default_volume,
         },
-        AnalysisSettings, AudioWriteFormatConfig, InteractionOptions, UpdateSettings,
+        AnalysisSettings, AudioWriteFormatConfig, InteractionOptions, SimilarityAspectSettings,
+        UpdateSettings,
     },
     defaults::default_identifier,
     drop_targets::DropTargetConfig,
@@ -27,7 +28,8 @@ use super::{
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
 /// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
 /// `volume`, `audio_output`, `audio_input`, `audio_write_format`, `controls`,
-/// `job_message_queue_capacity`, `default_identifier`, `tag_dictionary`.
+/// `job_message_queue_capacity`, `default_identifier`, `tag_dictionary`,
+/// `similarity`.
 ///
 /// `sources` are stored in the library database.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -110,6 +112,8 @@ pub struct AppSettingsCore {
     pub volume: f32,
     /// Interaction option defaults.
     pub controls: InteractionOptions,
+    /// Similarity aspect controls and ranking preferences.
+    pub similarity: SimilarityAspectSettings,
     /// Global creator or artist identifier used by sample auto-rename.
     pub default_identifier: String,
     /// Global user-authored tag dictionary, keyed by normalized tag value with fixed category ids.
@@ -123,6 +127,7 @@ impl AppSettingsCore {
             clamp_analysis_worker_count(self.analysis.analysis_worker_count);
         self.job_message_queue_capacity =
             clamp_job_message_queue_capacity(self.job_message_queue_capacity);
+        self.similarity = self.similarity.normalized();
         self
     }
 }
@@ -146,6 +151,7 @@ impl Default for AppSettingsCore {
             audio_write_format: AudioWriteFormatConfig::default(),
             volume: default_volume(),
             controls: InteractionOptions::default(),
+            similarity: SimilarityAspectSettings::default(),
             default_identifier: default_identifier(),
             tag_dictionary: BTreeMap::new(),
         }

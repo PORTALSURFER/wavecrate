@@ -46,6 +46,12 @@ pub(in crate::native_app) const SAMPLE_HEADER_SORT_DRAG_ID: u64 = SAMPLE_BROWSER
 pub(in crate::native_app) const SAMPLE_HEADER_RESIZE_ID: u64 = SAMPLE_BROWSER_HEADER.id(2);
 pub(in crate::native_app) const SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID: u64 =
     SAMPLE_BROWSER_HEADER.id(3);
+pub(in crate::native_app) const SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID: u64 =
+    SAMPLE_BROWSER_HEADER.id(4);
+pub(in crate::native_app) const SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE: u64 =
+    SAMPLE_BROWSER_HEADER.id(20);
+pub(in crate::native_app) const SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE: u64 =
+    SAMPLE_BROWSER_HEADER.id(21);
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = AUDIO_SETTINGS.id(0);
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = AUDIO_SETTINGS.id(100);
@@ -158,6 +164,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         SampleBrowserHeader,
         SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID,
         "sample_browser.random_navigation_toggle"
+    ),
+    registered_widget_id!(
+        SampleBrowserHeader,
+        SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID,
+        "sample_browser.similarity_weighting_toggle"
     ),
     registered_widget_id!(
         AudioSettings,
