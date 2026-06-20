@@ -253,6 +253,31 @@ jobs:
               -f ref="refs/tags/nightly" \
               -f sha="${GITHUB_SHA}"
           fi
+      - name: Remove stale nightly assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "${RELEASE_TAG:-}" != "nightly" ]]; then
+            exit 0
+          fi
+          current_assets="$(mktemp)"
+          for asset_path in dist/release/*; do
+            basename "$asset_path"
+          done | sort > "$current_assets"
+          if ! gh release view nightly --json assets --jq '.assets[].name' >/tmp/nightly-assets.txt 2>/dev/null; then
+            rm -f "$current_assets"
+            exit 0
+          fi
+          while IFS= read -r asset_name; do
+            if [[ -z "$asset_name" ]]; then
+              continue
+            fi
+            if ! grep -Fxq "$asset_name" "$current_assets"; then
+              gh release delete-asset nightly "$asset_name" --yes
+            fi
+          done </tmp/nightly-assets.txt
+          rm -f "$current_assets" /tmp/nightly-assets.txt
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
