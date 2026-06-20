@@ -138,6 +138,7 @@ jobs:
             --arch "${{ matrix.arch }}" \
             --channel "${RELEASE_CHANNEL}" \
             ${RELEASE_VERSION:+--version "${RELEASE_VERSION}"} \
+            --build-number "${GITHUB_RUN_NUMBER}" \
             --out-dir dist/release
       - name: Uniquify checksums entry
         shell: bash

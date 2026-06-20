@@ -11,6 +11,7 @@ PLATFORM=""
 ARCH=""
 CHANNEL=""
 VERSION=""
+BUILD_NUMBER=""
 
 is_truthy() {
   local value
@@ -23,7 +24,7 @@ is_truthy() {
 
 usage() {
   cat <<'EOF'
-Usage: build_release_zip.sh --target <triple> --platform <label> --arch <label> --channel <stable|nightly> [--version <x.y.z>] [--out-dir <path>]
+Usage: build_release_zip.sh --target <triple> --platform <label> --arch <label> --channel <stable|nightly> [--version <x.y.z>] [--build-number <n>] [--out-dir <path>]
 EOF
 }
 
@@ -49,6 +50,10 @@ while [[ $# -gt 0 ]]; do
       VERSION="$2"
       shift 2
       ;;
+    --build-number)
+      BUILD_NUMBER="$2"
+      shift 2
+      ;;
     --out-dir)
       OUT_DIR="$2"
       shift 2
@@ -70,16 +75,26 @@ if [[ -z "$TARGET" || -z "$PLATFORM" || -z "$ARCH" || -z "$CHANNEL" ]]; then
   exit 1
 fi
 
+BUILD_LABEL=""
+if [[ -n "$BUILD_NUMBER" ]]; then
+  BUILD_NUMBER="${BUILD_NUMBER#b}"
+  if [[ -z "$BUILD_NUMBER" || ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+    echo "Build number must be numeric." >&2
+    exit 1
+  fi
+  BUILD_LABEL="-b${BUILD_NUMBER}"
+fi
+
 case "$CHANNEL" in
   stable)
     if [[ -z "$VERSION" ]]; then
       echo "Stable releases require --version." >&2
       exit 1
     fi
-    ZIP_NAME="${APP_NAME}-v${VERSION}-${PLATFORM}-${ARCH}.zip"
+    ZIP_NAME="${APP_NAME}-v${VERSION}${BUILD_LABEL}-${PLATFORM}-${ARCH}.zip"
     ;;
   nightly)
-    ZIP_NAME="${APP_NAME}-nightly-${PLATFORM}-${ARCH}.zip"
+    ZIP_NAME="${APP_NAME}-nightly${BUILD_LABEL}-${PLATFORM}-${ARCH}.zip"
     ;;
   *)
     echo "Unknown channel: $CHANNEL" >&2
