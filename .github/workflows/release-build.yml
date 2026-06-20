@@ -131,11 +131,14 @@ jobs:
           WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD }}
         run: |
           if (-not $env:WAVECRATE_WINDOWS_SIGN_PFX_BASE64) {
-            throw "Missing WAVECRATE_WINDOWS_SIGN_PFX_BASE64 secret."
+            "Missing WAVECRATE_WINDOWS_SIGN_PFX_BASE64 secret; publishing unsigned Windows binaries."
+            exit 0
           }
           if (-not $env:WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD) {
-            throw "Missing WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD secret."
+            "Missing WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD secret; publishing unsigned Windows binaries."
+            exit 0
           }
+          "WAVECRATE_WINDOWS_SIGNED=1" >> $env:GITHUB_ENV
           $targetDir = Join-Path $env:GITHUB_WORKSPACE "target/${{ matrix.target }}/release"
           $binaries = @(
             (Join-Path $targetDir "wavecrate.exe"),
@@ -163,6 +166,10 @@ jobs:
         if: ${{ matrix.platform == 'windows' }}
         shell: pwsh
         run: |
+          if ($env:WAVECRATE_WINDOWS_SIGNED -ne "1") {
+            "Windows signing was skipped; skipping Authenticode verification."
+            exit 0
+          }
           $targetDir = Join-Path $env:GITHUB_WORKSPACE "target/${{ matrix.target }}/release"
           $binaries = @(
             (Join-Path $targetDir "wavecrate.exe"),
@@ -187,6 +194,10 @@ jobs:
           WAVECRATE_SKIP_BUILD: "1"
         shell: bash
         run: |
+          if [[ "${WAVECRATE_WINDOWS_SIGNED:-}" != "1" ]]; then
+            echo "Windows signing was skipped; keeping the unsigned release zip."
+            exit 0
+          fi
           scripts/internal/release/build_release_zip.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
@@ -238,7 +249,7 @@ jobs:
           cat "${entries[@]}" > "dist/release/${CHECKSUMS_NAME}"
       - name: Sign checksums
         env:
-          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY }}
+          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
         run: |
           if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
             echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY secret." >&2
@@ -254,7 +265,7 @@ jobs:
           rm -f "$key_path"
       - name: Verify checksums signature
         env:
-          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY }}
+          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
         run: |
           if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
             echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY secret." >&2
@@ -282,3 +293,129 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: dist/release/*
+
+  publish-frontend:
+    name: Upload PortalSurfer Wavecrate downloads
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: Verify PortalSurfer upload secret
+        env:
+          UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$UPLOAD_TOKEN" ]]; then
+            echo "Missing required secret: PORTALSURFER_RELEASE_UPLOAD_TOKEN" >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/artifacts
+          pattern: release-*
+          merge-multiple: true
+      - name: Upload Wavecrate downloads
+        shell: bash
+        env:
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at || '' }}
+          UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
+          UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/artifacts/*.zip)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No release zip files found in downloaded artifacts." >&2
+            exit 1
+          fi
+
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          if [[ -z "$tag" ]]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+          if [[ "$tag" == "nightly" ]]; then
+            version="nightly"
+          else
+            version="${tag#v}"
+          fi
+          safe_tag="$(printf '%s' "$tag" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g')"
+          if [[ -z "$safe_tag" ]]; then
+            echo "Release tag did not produce a safe build id component: $tag" >&2
+            exit 1
+          fi
+          short_sha="${GITHUB_SHA::8}"
+          build_id="wavecrate-${safe_tag}-${short_sha}"
+          released_at="${RELEASE_PUBLISHED_AT:-}"
+          if [[ -z "$released_at" ]]; then
+            released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          fi
+
+          upload_base="${UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
+          upload_base="${upload_base%/}"
+          if [[ "$upload_base" != */release-uploads ]]; then
+            echo "PORTALSURFER_RELEASE_UPLOAD_URL must end with /release-uploads." >&2
+            exit 1
+          fi
+          catalog_url="${upload_base%/release-uploads}/releases"
+          response_dir="$(mktemp -d)"
+          uploaded_names=()
+
+          for file in "${files[@]}"; do
+            file_name="$(basename "$file")"
+            if [[ ! -s "$file" ]]; then
+              echo "Release file is empty: $file" >&2
+              exit 1
+            fi
+            sha256="$(sha256sum "$file" | awk '{ print $1 }')"
+            encoded_name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$file_name")"
+            response_file="$response_dir/$file_name.json"
+            curl --fail-with-body --retry 3 --retry-delay 2 \
+              --request PUT \
+              --header "Authorization: Bearer $UPLOAD_TOKEN" \
+              --header "Content-Type: application/zip" \
+              --header "X-Wavecrate-Build-Number: ${GITHUB_RUN_NUMBER}" \
+              --header "X-Wavecrate-Release-Version: $version" \
+              --header "X-Wavecrate-Released-At: $released_at" \
+              --header "X-Wavecrate-Sha256: $sha256" \
+              --data-binary "@$file" \
+              "$upload_base/$build_id/files/$encoded_name" > "$response_file"
+            python3 - "$response_file" "$build_id" "$file_name" "$sha256" <<'PY'
+          import json
+          import sys
+
+          response_path, expected_build, expected_name, expected_sha = sys.argv[1:]
+          response = json.loads(open(response_path, encoding="utf-8").read())
+          release = response.get("release") or {}
+          file = response.get("file") or {}
+          if release.get("build_id") != expected_build:
+              raise SystemExit(f"Uploaded release id mismatch: {release.get('build_id')} != {expected_build}")
+          if file.get("name") != expected_name:
+              raise SystemExit(f"Uploaded file name mismatch: {file.get('name')} != {expected_name}")
+          if file.get("sha256") != expected_sha:
+              raise SystemExit(f"Uploaded file sha mismatch: {file.get('sha256')} != {expected_sha}")
+          if not isinstance(file.get("size_bytes"), int) or file["size_bytes"] <= 0:
+              raise SystemExit("Uploaded file size was not recorded")
+          PY
+            uploaded_names+=("$file_name")
+          done
+
+          catalog_file="$response_dir/releases.json"
+          curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
+          python3 - "$catalog_file" "$build_id" "${uploaded_names[@]}" <<'PY'
+          import json
+          import sys
+
+          catalog_path = sys.argv[1]
+          expected_build = sys.argv[2]
+          expected_files = set(sys.argv[3:])
+          catalog = json.loads(open(catalog_path, encoding="utf-8").read())
+          releases = catalog.get("releases") or []
+          release = next((item for item in releases if item.get("build_id") == expected_build), None)
+          if release is None:
+              raise SystemExit(f"Release catalog does not list {expected_build}")
+          catalog_files = {item.get("name") for item in release.get("files") or []}
+          missing = sorted(expected_files - catalog_files)
+          if missing:
+              raise SystemExit(f"Release catalog is missing files: {', '.join(missing)}")
+          print(f"Uploaded {len(expected_files)} Wavecrate release file(s) to {expected_build}")
+          PY
