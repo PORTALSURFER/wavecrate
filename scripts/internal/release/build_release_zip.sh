@@ -89,16 +89,11 @@ esac
 
 if ! is_truthy "$SKIP_BUILD"; then
   "$BUILD_CARGO_BIN" build --release -p "$APP_NAME" --bin "$APP_NAME" --target "$TARGET"
-  if [[ "$TARGET" == *windows* ]]; then
-    "$BUILD_CARGO_BIN" build --release -p "${APP_NAME}-updater-helper" --bin "${APP_NAME}-updater" --target "$TARGET"
-  fi
 fi
 
 BIN_NAME="$APP_NAME"
-UPDATER_NAME=""
 if [[ "$TARGET" == *windows* ]]; then
   BIN_NAME="${APP_NAME}.exe"
-  UPDATER_NAME="${APP_NAME}-updater.exe"
 fi
 
 WORK_DIR="$(mktemp -d)"
@@ -107,49 +102,6 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 ROOT_DIR="${WORK_DIR}/${APP_NAME}"
 mkdir -p "$ROOT_DIR"
 cp "target/${TARGET}/release/${BIN_NAME}" "${ROOT_DIR}/${BIN_NAME}"
-if [[ -n "$UPDATER_NAME" ]]; then
-  cp "target/${TARGET}/release/${UPDATER_NAME}" "${ROOT_DIR}/${UPDATER_NAME}"
-fi
-MANIFEST_PATH="${ROOT_DIR}/update-manifest.json"
-FILES=()
-if [[ -n "$UPDATER_NAME" ]]; then
-  FILES+=("$UPDATER_NAME")
-fi
-FILES+=("$BIN_NAME" "update-manifest.json")
-
-PYTHON_BIN="python3"
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  PYTHON_BIN="python"
-fi
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo "python is required to write update-manifest.json" >&2
-  exit 1
-fi
-
-"$PYTHON_BIN" - "$MANIFEST_PATH" "$APP_NAME" "$CHANNEL" "$TARGET" "$PLATFORM" "$ARCH" "${FILES[@]}" <<'PY'
-import json
-import sys
-
-manifest_path = sys.argv[1]
-app, channel, target, platform, arch = sys.argv[2:7]
-files = sys.argv[7:]
-
-with open(manifest_path, "w", encoding="utf-8") as handle:
-    json.dump(
-        {
-            "app": app,
-            "channel": channel,
-            "target": target,
-            "platform": platform,
-            "arch": arch,
-            "files": files,
-        },
-        handle,
-        indent=2,
-        sort_keys=False,
-    )
-    handle.write("\n")
-PY
 
 mkdir -p "$OUT_DIR"
 ZIP_PATH="${REPO_ROOT}/${OUT_DIR}/${ZIP_NAME}"
