@@ -1,0 +1,104 @@
+use radiant::prelude as ui;
+
+use crate::native_app::app::GuiMessage;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::ui::ids as widget_ids;
+
+const ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
+const ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(220, 225, 232, 255);
+const ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(104, 110, 118, 255);
+
+pub(super) fn selected_folder_status(
+    label: String,
+    include_subfolders_available: bool,
+    include_subfolders: bool,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
+    ui::row([
+        ui::text(label).height(20.0).fill_width(),
+        help_tooltip(
+            include_subfolders_button(include_subfolders_available, include_subfolders),
+            help_tooltips_enabled,
+            "Include samples from subfolders in the sample list.",
+        ),
+    ])
+    .spacing(4.0)
+    .padding_x(3.0)
+    .fill_width()
+    .height(24.0)
+}
+
+fn help_tooltip(
+    view: ui::View<GuiMessage>,
+    enabled: bool,
+    tooltip: &'static str,
+) -> ui::View<GuiMessage> {
+    if enabled { view.tooltip(tooltip) } else { view }
+}
+
+fn include_subfolders_button(available: bool, active: bool) -> ui::View<GuiMessage> {
+    ui::icon_button(include_subfolders_icon(available, active))
+        .enabled(available)
+        .active(active)
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::ToggleFolderSubtreeListing,
+        ))
+        .id(widget_ids::FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID)
+        .key("folder-tree-include-subfolders-toggle")
+        .size(24.0, 20.0)
+}
+
+fn include_subfolders_icon(available: bool, active: bool) -> ui::SvgIcon {
+    let color = if !available {
+        ICON_DISABLED_COLOR
+    } else if active {
+        ICON_ACTIVE_COLOR
+    } else {
+        ICON_ENABLED_COLOR
+    };
+    INCLUDE_SUBFOLDERS_ICON.icon(color)
+}
+
+static INCLUDE_SUBFOLDERS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 3.25v8.5" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+  <path d="M4 5.25h3.2M4 10.75h3.2" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+  <rect x="8.2" y="3.65" width="4.55" height="3.2" rx=".6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+  <rect x="8.2" y="9.15" width="4.55" height="3.2" rx=".6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+</svg>"#,
+);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::prelude::IntoView;
+    use radiant::widgets::ButtonMessage;
+
+    #[test]
+    fn selected_folder_status_projects_subfolder_toggle_button() {
+        let frame = selected_folder_status(
+            String::from("drums | 2 audio incl subfolders | 1 item"),
+            true,
+            true,
+            false,
+        )
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(260.0, 24.0));
+
+        assert!(
+            frame
+                .paint_plan
+                .first_widget_rect(widget_ids::FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID)
+                .is_some()
+        );
+        assert_eq!(
+            selected_folder_status(String::from("drums | 1 audio | 1 item"), true, false, false)
+                .view_dispatch_widget_output(
+                    widget_ids::FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID,
+                    ui::WidgetOutput::typed(ButtonMessage::Activate),
+                ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ToggleFolderSubtreeListing
+            ))
+        );
+    }
+}

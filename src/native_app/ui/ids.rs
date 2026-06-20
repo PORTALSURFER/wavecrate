@@ -40,6 +40,7 @@ pub(in crate::native_app) const WAVEFORM_SIGNAL_WIDGET_ID: u64 = WAVEFORM.id(11)
 pub(in crate::native_app) const WAVEFORM_WIDGET_ID: u64 = WAVEFORM.id(12);
 
 pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = FOLDER_TREE.id(0);
+pub(in crate::native_app) const FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID: u64 = FOLDER_TREE.id(1);
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
 pub(in crate::native_app) const SAMPLE_HEADER_SORT_DRAG_ID: u64 = SAMPLE_BROWSER_HEADER.id(1);
@@ -159,6 +160,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     ),
     registered_widget_id!(Waveform, WAVEFORM_WIDGET_ID, "waveform.interaction_widget"),
     registered_widget_id!(FolderTree, FOLDER_TREE_LIST_ID, "folder_tree.list"),
+    registered_widget_id!(
+        FolderTree,
+        FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID,
+        "folder_tree.include_subfolders_toggle"
+    ),
     registered_widget_id!(SampleBrowser, SAMPLE_BROWSER_LIST_ID, "sample_browser.list"),
     registered_widget_id!(
         SampleBrowserHeader,

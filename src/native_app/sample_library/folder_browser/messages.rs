@@ -17,6 +17,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     ClearDropTargetUnless(String, Point),
     ClearDropTarget(Point),
     DropOnFolder(String),
+    ToggleFolderSubtreeListing,
     ResizeCollectionsPanel(DragHandleMessage),
     ResizeFilterPanel(DragHandleMessage),
     ResizeMetadataPanel(DragHandleMessage),

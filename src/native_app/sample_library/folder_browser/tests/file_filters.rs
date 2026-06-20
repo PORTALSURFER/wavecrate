@@ -267,6 +267,117 @@ fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn folder_subtree_listing_includes_descendant_samples_when_enabled() {
+    let root = temp_source_root("wavecrate-gui-subtree-listing");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    let loops = root.join("loops");
+    fs::create_dir_all(&kicks).expect("create nested kicks folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    let loop_file = loops.join("loop.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&kick, &loop_file, &snare] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&drums),
+        Default::default(),
+    ));
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+
+    assert!(!browser.folder_subtree_listing_enabled());
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["snare.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+
+    assert!(browser.folder_subtree_listing_enabled());
+    assert!(
+        browser
+            .selected_folder_status_label()
+            .contains("2 audio incl subfolders")
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav", "snare.wav"]
+    );
+    assert_eq!(
+        browser
+            .visible_samples(VisibleSampleQuery {
+                tags_by_file: &tags_by_file,
+                cached_sample_paths: &cached_sample_paths,
+            })
+            .total_count,
+        2
+    );
+
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&root),
+        Default::default(),
+    ));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav", "loop.wav", "snare.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn disabling_folder_subtree_listing_drops_hidden_nested_file_selection() {
+    let root = temp_source_root("wavecrate-gui-subtree-listing-selection");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    fs::create_dir_all(&kicks).expect("create nested kicks folder");
+    let kick = kicks.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&kick, &snare] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&drums),
+        Default::default(),
+    ));
+    browser.apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    browser.select_file(path_id(&kick));
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
+
+    browser.apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+
+    assert!(!browser.folder_subtree_listing_enabled());
+    assert_eq!(browser.selected_file_id(), None);
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["snare.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn tag_filter_limits_selected_audio_files_and_clears_hidden_selection() {
     let root = temp_source_root("wavecrate-gui-tag-filter");

@@ -26,10 +26,18 @@ const FOLDER_TREE_SELECTED_HOVER_ALPHA: u8 = 174;
 const FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA: u8 = 245;
 const FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH: f32 = 3.0;
 
+mod status;
+use status::selected_folder_status;
+
 pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
     ui::column([
         folder_tree_view(model.visible_folders, model.window, model.drag_revision),
-        selected_folder_status(model.selected_folder_status_label),
+        selected_folder_status(
+            model.selected_folder_status_label,
+            model.include_subfolders_available,
+            model.include_subfolders,
+            model.help_tooltips_enabled,
+        ),
     ])
     .spacing(0.0)
     .fill_width()
@@ -246,10 +254,6 @@ fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
             )
         })
         .collect()
-}
-
-fn selected_folder_status(label: String) -> ui::View<GuiMessage> {
-    ui::text_line(label, 20.0)
 }
 
 #[cfg(test)]

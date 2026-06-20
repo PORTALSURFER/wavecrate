@@ -29,6 +29,7 @@ pub(in crate::native_app) struct VisibleSampleWindowPolicy<'a> {
 
 pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) total_count: usize,
+    pub(in crate::native_app) includes_subfolders: bool,
     pub(in crate::native_app) window: ui::VirtualListWindow,
     pub(in crate::native_app) rows: Vec<VisibleSampleRow<'a>>,
     pub(in crate::native_app) columns: Vec<&'a FileColumn>,
@@ -66,6 +67,7 @@ pub(super) struct SampleListState {
     pub(super) similarity_controls: SimilarityAspectSettings,
     pub(super) similarity: Option<SimilarityBrowserState>,
     pub(super) random_navigation: RandomNavigationState,
+    pub(super) include_subfolders: bool,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
     pub(super) prepared_window: ui::VirtualListWindow,
@@ -86,6 +88,7 @@ impl SampleListState {
             similarity_controls: SimilarityAspectSettings::default(),
             similarity: None,
             random_navigation: RandomNavigationState::default(),
+            include_subfolders: false,
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
             prepared_window: ui::VirtualListWindow::default(),
@@ -210,6 +213,7 @@ impl RandomNavigationState {
 #[derive(Clone, Debug, Default)]
 pub(super) struct VisibleSampleProjectionCache {
     entries: RefCell<HashMap<VisibleSampleProjectionKey, Vec<usize>>>,
+    id_entries: RefCell<HashMap<VisibleSampleProjectionKey, Vec<String>>>,
 }
 
 impl VisibleSampleProjectionCache {
@@ -229,19 +233,39 @@ impl VisibleSampleProjectionCache {
         })
     }
 
+    pub(super) fn audio_ids(
+        &self,
+        request: VisibleSampleProjectionRequest<'_>,
+        build: impl FnOnce() -> Vec<String>,
+    ) -> Ref<'_, Vec<String>> {
+        let key = request.key();
+        if !self.id_entries.borrow().contains_key(&key) {
+            self.id_entries.borrow_mut().insert(key.clone(), build());
+        }
+        Ref::map(self.id_entries.borrow(), |entries| {
+            entries
+                .get(&key)
+                .expect("visible sample id projection cache should contain computed key")
+        })
+    }
+
     pub(super) fn invalidate_for_content_revision(&mut self, content_revision: u64) {
         self.entries
+            .get_mut()
+            .retain(|key, _| key.content_revision == content_revision);
+        self.id_entries
             .get_mut()
             .retain(|key, _| key.content_revision == content_revision);
     }
 
     pub(super) fn clear(&self) {
         self.entries.borrow_mut().clear();
+        self.id_entries.borrow_mut().clear();
     }
 
     #[cfg(test)]
     pub(super) fn len(&self) -> usize {
-        self.entries.borrow().len()
+        self.entries.borrow().len() + self.id_entries.borrow().len()
     }
 }
 
@@ -401,6 +425,7 @@ impl FolderBrowserState {
 
         VisibleSampleList {
             total_count: window_files.total_count,
+            includes_subfolders: self.folder_subtree_listing_enabled(),
             window,
             rows,
             columns: self.visible_file_columns(),

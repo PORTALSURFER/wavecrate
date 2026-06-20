@@ -154,19 +154,47 @@ impl FolderBrowserState {
         })
     }
 
+    pub(in crate::native_app) fn folder_subtree_listing_available(&self) -> bool {
+        self.selected_folder().is_some()
+    }
+
+    pub(in crate::native_app) fn folder_subtree_listing_enabled(&self) -> bool {
+        self.sample_list.include_subfolders && self.folder_subtree_listing_available()
+    }
+
+    pub(in crate::native_app) fn toggle_folder_subtree_listing(&mut self) -> bool {
+        if !self.folder_subtree_listing_available() {
+            return self.sample_list.include_subfolders;
+        }
+        self.sample_list.include_subfolders = !self.sample_list.include_subfolders;
+        let visible_ids = self
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<HashSet<_>>();
+        self.selection.retain_visible_files(&visible_ids);
+        self.reset_file_view();
+        self.sample_list.include_subfolders
+    }
+
     pub(in crate::native_app) fn selected_folder_status_label(&self) -> String {
         let Some(folder) = self.selected_folder() else {
             return String::from("No folder selected");
         };
         let file_count = self.selected_files().len();
         let audio_count = self.selected_folder_audio_file_count();
+        let scope = if self.folder_subtree_listing_enabled() {
+            " incl subfolders"
+        } else {
+            ""
+        };
         let folder_name = if self.selected_folder_is_source_root() {
             "."
         } else {
             folder.name.as_str()
         };
         format!(
-            "{} | {audio_count} audio | {file_count} item{}",
+            "{} | {audio_count} audio{scope} | {file_count} item{}",
             folder_name,
             super::plural(file_count)
         )

@@ -70,7 +70,10 @@ pub(in crate::native_app) fn sample_browser(
         )
         .fill(),
     );
-    sections.push(sample_browser_status(model.visible_samples.total_count));
+    sections.push(sample_browser_status(
+        model.visible_samples.total_count,
+        model.visible_samples.includes_subfolders,
+    ));
     ui::column(sections)
         .spacing(0.0)
         .style(ui::WidgetStyle::default())
@@ -416,11 +419,16 @@ fn similarity_aspect_key(aspect: SimilarityAspect) -> &'static str {
     }
 }
 
-fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
+fn sample_browser_status(audio_count: usize, includes_subfolders: bool) -> ui::View<GuiMessage> {
+    let scope = if includes_subfolders {
+        "selected folder + subfolders"
+    } else {
+        "selected folder"
+    };
     ui::row([
         ui::text("Listed").height(20.0).width(90.0),
         ui::text(format!(
-            "{audio_count} audio file{} in selected folder",
+            "{audio_count} audio file{} in {scope}",
             if audio_count == 1 { "" } else { "s" }
         ))
         .height(20.0)

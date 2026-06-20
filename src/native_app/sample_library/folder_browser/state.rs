@@ -278,8 +278,11 @@ impl FolderBrowserState {
             | FolderBrowserMessage::BeginRenameSelected
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)
-            | FolderBrowserMessage::DropOnFolder(_)
             | FolderBrowserMessage::DropOnCollection(_) => {}
+            FolderBrowserMessage::DropOnFolder(_) => {}
+            FolderBrowserMessage::ToggleFolderSubtreeListing => {
+                self.toggle_folder_subtree_listing();
+            }
             FolderBrowserMessage::NameFilterInput(message) => {
                 self.apply_name_filter_input(message);
             }

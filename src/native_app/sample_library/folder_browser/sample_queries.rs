@@ -8,6 +8,7 @@ use super::{
 mod cache_warming;
 mod filters;
 mod ordering;
+mod subtree;
 mod traversal;
 
 impl FolderBrowserState {
@@ -31,6 +32,9 @@ impl FolderBrowserState {
         let Some(folder) = self.selected_folder() else {
             return Vec::new();
         };
+        if self.folder_subtree_listing_enabled() {
+            return self.selected_folder_recursive_audio_files(folder);
+        }
         self.selected_folder_audio_files(folder)
     }
 
@@ -60,6 +64,13 @@ impl FolderBrowserState {
         let Some(folder) = self.selected_folder() else {
             return Vec::new();
         };
+        if self.folder_subtree_listing_enabled() {
+            return subtree::collect_recursive_cache_candidate_paths(
+                folder,
+                &name_query,
+                max_files,
+            );
+        }
         collect_local_cache_candidate_paths(folder, &name_query, max_files)
     }
 
@@ -111,6 +122,20 @@ impl FolderBrowserState {
                 })
                 .unwrap_or_default();
         }
+        if self.folder_subtree_listing_enabled() {
+            return self
+                .selected_folder()
+                .map(|folder| {
+                    traversal::count_matching_audio_files_in_folder(
+                        folder,
+                        &name_query,
+                        &required_tags,
+                        tags_by_file,
+                        None,
+                    )
+                })
+                .unwrap_or_default();
+        }
 
         self.selected_files()
             .iter()
@@ -129,6 +154,11 @@ impl FolderBrowserState {
         let Some(folder) = self.selected_folder() else {
             return 0;
         };
+        if self.folder_subtree_listing_enabled() {
+            return self
+                .selected_folder_recursive_audio_file_ids_ref(folder)
+                .len();
+        }
         self.selected_folder_audio_file_indices_ref(folder).len()
     }
 
@@ -154,6 +184,13 @@ impl FolderBrowserState {
                 rows: Vec::new(),
             };
         };
+        if self.folder_subtree_listing_enabled() {
+            return self.selected_folder_recursive_audio_file_window_matching_tags(
+                folder,
+                window,
+                tags_by_file,
+            );
+        }
 
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let indices = self.selected_folder_audio_file_indices_ref(folder);
@@ -208,7 +245,7 @@ impl FolderBrowserState {
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<&FileEntry> {
-        if self.selection.selected_collection.is_some() {
+        if self.selection.selected_collection.is_some() || self.folder_subtree_listing_enabled() {
             return self.selected_audio_files_matching_tags(tags_by_file);
         }
 
@@ -236,7 +273,7 @@ impl FolderBrowserState {
     ) -> Option<usize> {
         let selected = self.selection.selected_file.as_deref()?;
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        if self.selection.selected_collection.is_some() {
+        if self.selection.selected_collection.is_some() || self.folder_subtree_listing_enabled() {
             return self
                 .selected_audio_files_matching_tags(tags_by_file)
                 .iter()

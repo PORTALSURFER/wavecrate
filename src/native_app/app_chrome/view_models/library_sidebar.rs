@@ -37,6 +37,9 @@ pub(in crate::native_app) struct FolderTreeViewModel {
     pub(in crate::native_app) window: ui::VirtualListWindow,
     pub(in crate::native_app) drag_revision: u64,
     pub(in crate::native_app) selected_folder_status_label: String,
+    pub(in crate::native_app) include_subfolders_available: bool,
+    pub(in crate::native_app) include_subfolders: bool,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
 pub(in crate::native_app) struct CollectionsSectionViewModel {
@@ -76,7 +79,10 @@ impl LibrarySidebarViewModel {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
             source_selector: SourceSelectorViewModel::from_folder_browser(folder_browser),
-            folder_tree: FolderTreeViewModel::from_folder_browser(folder_browser),
+            folder_tree: FolderTreeViewModel::from_folder_browser(
+                folder_browser,
+                state.ui.chrome.help_tooltips_enabled,
+            ),
             collections: CollectionsSectionViewModel::from_folder_browser(folder_browser),
             filter: FilterSectionViewModel::from_folder_browser(folder_browser),
             tag_editor: TagEditorViewModel::from_app_state(state),
@@ -109,7 +115,10 @@ impl SourceRowViewModel {
 }
 
 impl FolderTreeViewModel {
-    fn from_folder_browser(folder_browser: &FolderBrowserState) -> Self {
+    fn from_folder_browser(
+        folder_browser: &FolderBrowserState,
+        help_tooltips_enabled: bool,
+    ) -> Self {
         let visible_folders = folder_browser.visible_folders();
         let window = folder_browser.tree_view_window(
             &visible_folders,
@@ -123,6 +132,9 @@ impl FolderTreeViewModel {
             window,
             drag_revision: folder_browser.drag_revision(),
             selected_folder_status_label: folder_browser.selected_folder_status_label(),
+            include_subfolders_available: folder_browser.folder_subtree_listing_available(),
+            include_subfolders: folder_browser.folder_subtree_listing_enabled(),
+            help_tooltips_enabled,
         }
     }
 }
