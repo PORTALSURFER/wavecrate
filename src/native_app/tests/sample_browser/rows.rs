@@ -90,10 +90,14 @@ fn sample_browser_projection_window_matches_rendered_row_order() {
 }
 
 #[test]
-fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
+fn sample_browser_keyboard_scroll_context_matches_selection_follow() {
     assert_eq!(
         crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
         2
+    );
+    assert_eq!(
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS + 1
     );
     assert_eq!(
         crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT,
@@ -279,12 +283,357 @@ fn full_gui_fast_sample_browser_scroll_keeps_rows_rendered() {
     let rendered_samples = frame
         .paint_plan
         .text_runs()
-        .filter(|text| text.text.starts_with("scroll_sample_"))
+        .filter(|text| {
+            text.text.starts_with("scroll_sample_")
+                && list_rect.contains(Point::new(text.rect.center().x, text.rect.center().y))
+        })
         .collect::<Vec<_>>();
+    let expected_visible_rows = (list_rect.height()
+        / crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT)
+        .floor()
+        .max(1.0) as usize;
+    let mut row_tops = rendered_samples
+        .iter()
+        .map(|text| text.rect.min.y)
+        .collect::<Vec<_>>();
+    row_tops.sort_by(|left, right| left.total_cmp(right));
+    row_tops.dedup_by(|left, right| (*left - *right).abs() < 0.5);
 
     assert!(
-        rendered_samples.len() >= 8,
-        "fast scrolling should keep materialized sample rows visible, got {:?}",
+        rendered_samples.len() >= expected_visible_rows.saturating_sub(2),
+        "fast scrolling should keep visible sample rows materialized, got {:?}",
         frame.paint_plan.text_label_strings()
     );
+    assert!(
+        row_tops.windows(2).all(|pair| {
+            (pair[1] - pair[0])
+                <= crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT * 1.5
+        }),
+        "fast scrolling should not leave blank row-height gaps: {row_tops:?}"
+    );
+}
+
+#[test]
+fn full_gui_bottom_keyboard_navigation_keeps_sample_window_stable() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_paths = (0..160)
+        .map(|index| {
+            let path = source_root
+                .path()
+                .join(format!("bottom_nav_sample_{index:03}.wav"));
+            std::fs::write(&path, []).expect("sample file");
+            path
+        })
+        .collect::<Vec<_>>();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let scroll_point = Point::new(list_rect.center().x, list_rect.min.y + 48.0);
+    for _ in 0..64 {
+        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+    }
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_paths[150].display().to_string(),
+            modifiers: PointerModifiers::default(),
+        },
+    );
+
+    let mut starts = vec![
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .file_view_start(),
+    ];
+    for _ in 0..14 {
+        runtime.dispatch_message(
+            crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+                delta: 1,
+                extend: false,
+                preserve_selection: false,
+            },
+        );
+        starts.push(
+            runtime
+                .bridge()
+                .state()
+                .library
+                .folder_browser
+                .file_view_start(),
+        );
+    }
+
+    assert!(
+        starts.windows(2).all(|pair| pair[1] >= pair[0]),
+        "bottom navigation should not bounce the sample window: {starts:?}"
+    );
+    let selected = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .selected_file_id()
+        .expect("sample selection should remain active");
+    assert_eq!(selected, sample_paths[159].display().to_string());
+    let last = *starts.last().expect("at least one window start");
+    for _ in 0..3 {
+        runtime.dispatch_message(
+            crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+                delta: 1,
+                extend: false,
+                preserve_selection: false,
+            },
+        );
+        assert_eq!(
+            runtime
+                .bridge()
+                .state()
+                .library
+                .folder_browser
+                .file_view_start(),
+            last,
+            "edge navigation at the bottom should leave the sample window stable"
+        );
+    }
+}
+
+#[test]
+fn full_gui_bottom_pointer_selection_does_not_jump_sample_window() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_paths = (0..160)
+        .map(|index| {
+            let path = source_root
+                .path()
+                .join(format!("bottom_click_sample_{index:03}.wav"));
+            std::fs::write(&path, []).expect("sample file");
+            path
+        })
+        .collect::<Vec<_>>();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let scroll_point = Point::new(list_rect.center().x, list_rect.min.y + 48.0);
+    for _ in 0..64 {
+        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+    }
+
+    let before = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .file_view_start();
+    let viewport_rows = (list_rect.height()
+        / crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT)
+        .ceil()
+        .max(1.0) as usize;
+    let bottom_visible_row = (before + viewport_rows.saturating_sub(1)).min(sample_paths.len() - 1);
+    let bottom_visible_stem = sample_paths[bottom_visible_row]
+        .file_stem()
+        .expect("sample file stem")
+        .to_string_lossy()
+        .to_string();
+    let frame = runtime.frame_with_default_theme();
+
+    runtime.dispatch_primary_click(text_center(&frame, &bottom_visible_stem));
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
+        Some(
+            sample_paths[bottom_visible_row]
+                .display()
+                .to_string()
+                .as_str()
+        ),
+        "bottom row click should select the intended sample"
+    );
+
+    let mut starts = vec![
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .file_view_start(),
+    ];
+    let mut selected_row_tops = vec![text_top(
+        &runtime.frame_with_default_theme(),
+        &bottom_visible_stem,
+    )];
+    for _ in 0..4 {
+        runtime.refresh();
+        starts.push(
+            runtime
+                .bridge()
+                .state()
+                .library
+                .folder_browser
+                .file_view_start(),
+        );
+        selected_row_tops.push(text_top(
+            &runtime.frame_with_default_theme(),
+            &bottom_visible_stem,
+        ));
+    }
+
+    assert_eq!(
+        starts,
+        vec![before; starts.len()],
+        "clicking a bottom-visible row should not move an already settled bottom viewport"
+    );
+    assert!(
+        selected_row_tops
+            .windows(2)
+            .all(|pair| (pair[0] - pair[1]).abs() < 0.5),
+        "clicking a bottom-visible row should not repaint it at a different y position: {selected_row_tops:?}"
+    );
+}
+
+#[test]
+fn full_gui_lower_pointer_selection_preserves_manual_scroll_window() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_paths = (0..160)
+        .map(|index| {
+            let path = source_root
+                .path()
+                .join(format!("lower_click_sample_{index:03}.wav"));
+            std::fs::write(&path, []).expect("sample file");
+            path
+        })
+        .collect::<Vec<_>>();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let scroll_point = Point::new(list_rect.center().x, list_rect.min.y + 48.0);
+    for _ in 0..64 {
+        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+    }
+
+    let before = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .file_view_start();
+    let viewport_rows = (list_rect.height()
+        / crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT)
+        .ceil()
+        .max(1.0) as usize;
+    let lower_visible_row = (before
+        + viewport_rows.saturating_sub(
+            crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+        ))
+    .min(sample_paths.len() - 1);
+    let lower_visible_stem = sample_paths[lower_visible_row]
+        .file_stem()
+        .expect("sample file stem")
+        .to_string_lossy()
+        .to_string();
+    let frame = runtime.frame_with_default_theme();
+
+    runtime.dispatch_primary_click(text_center(&frame, &lower_visible_stem));
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
+        Some(
+            sample_paths[lower_visible_row]
+                .display()
+                .to_string()
+                .as_str()
+        ),
+        "lower visible row click should select the intended sample"
+    );
+
+    let mut starts = vec![
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .file_view_start(),
+    ];
+    let mut selected_row_tops = vec![text_top(
+        &runtime.frame_with_default_theme(),
+        &lower_visible_stem,
+    )];
+    for _ in 0..4 {
+        runtime.refresh();
+        starts.push(
+            runtime
+                .bridge()
+                .state()
+                .library
+                .folder_browser
+                .file_view_start(),
+        );
+        selected_row_tops.push(text_top(
+            &runtime.frame_with_default_theme(),
+            &lower_visible_stem,
+        ));
+    }
+
+    assert_eq!(
+        starts,
+        vec![before; starts.len()],
+        "clicking a lower visible row after manual scroll should preserve the viewport"
+    );
+    assert!(
+        selected_row_tops
+            .windows(2)
+            .all(|pair| (pair[0] - pair[1]).abs() < 0.5),
+        "clicking a lower visible row should not repaint it at a different y position: {selected_row_tops:?}"
+    );
+}
+
+fn text_top(frame: &radiant::runtime::SurfaceFrame, label: &str) -> f32 {
+    frame
+        .paint_plan
+        .text_runs()
+        .find(|text| text.text.as_str() == label)
+        .map(|text| text.rect.min.y)
+        .unwrap_or_else(|| panic!("{label} should paint"))
 }

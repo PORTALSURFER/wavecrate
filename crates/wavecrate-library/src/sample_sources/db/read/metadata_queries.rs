@@ -44,15 +44,17 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(None);
         };
+        let filter = crate::sample_sources::supported_audio_where_clause();
+        let sql = format!(
+            "SELECT
+                (SELECT COUNT(*) FROM wav_files WHERE {filter} AND path < ?1) AS offset,
+                EXISTS(SELECT 1 FROM wav_files WHERE {filter} AND path = ?1) AS path_exists"
+        );
         let (offset, exists): (i64, i64) = self
             .connection
-            .query_row(
-                "SELECT
-                    (SELECT COUNT(*) FROM wav_files WHERE path < ?1) AS offset,
-                    EXISTS(SELECT 1 FROM wav_files WHERE path = ?1) AS path_exists",
-                rusqlite::params![path_str.as_str()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
+            .query_row(&sql, rusqlite::params![path_str.as_str()], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
             .map_err(map_sql_error)?;
         if exists == 0 {
             return Ok(None);

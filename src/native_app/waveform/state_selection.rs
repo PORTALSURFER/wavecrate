@@ -6,6 +6,15 @@ use super::{
 type SelectionRange = wavecrate::selection::SelectionRange;
 
 impl WaveformState {
+    pub(in crate::native_app) fn destructive_edit_selection(&self) -> Option<SelectionRange> {
+        self.edit_selection
+            .filter(|selection| selection.width() > 0.0)
+            .or_else(|| {
+                self.play_selection
+                    .filter(|selection| selection.width() > 0.0)
+            })
+    }
+
     pub(super) fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
         let anchor_ratio = drag.anchor_ratio();
         let range = super::interaction::selection_from_normalized_range(drag.range());
@@ -36,6 +45,12 @@ impl WaveformState {
             WaveformSelectionKind::Play => self.play_selection,
             WaveformSelectionKind::Edit => self.edit_selection,
         }
+    }
+
+    pub(in crate::native_app) fn set_play_selection_range(&mut self, start: f32, end: f32) {
+        let selection = SelectionRange::new(start, end);
+        self.set_selection_for_kind(WaveformSelectionKind::Play, selection.start(), selection);
+        self.record_current_play_selection_mark();
     }
 
     pub(super) fn record_current_play_selection_mark(&mut self) {

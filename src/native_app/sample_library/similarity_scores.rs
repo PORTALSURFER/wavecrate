@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SourceDatabase, SourceDatabaseConnectionRole, SourceId};
@@ -77,6 +80,8 @@ impl NativeAppState {
         }
         match result.result {
             Ok(scores) => {
+                let scores = self
+                    .filter_similarity_scores_to_active_scope(result.anchor_id.as_str(), scores);
                 let count = scores.scores_by_file.len().saturating_sub(1);
                 self.library
                     .folder_browser
@@ -114,10 +119,23 @@ impl NativeAppState {
             .folder_browser
             .source_relative_file_path(&anchor_path)?;
         let source_id = SourceId::from_string(self.library.folder_browser.selected_source_id());
-        let candidates = self
-            .library
+        let candidates = self.active_similarity_score_candidates(&source_root);
+        Some(SimilarityScoresRequest {
+            source_id,
+            source_root,
+            anchor_id,
+            anchor_relative_path,
+            candidates,
+        })
+    }
+
+    fn active_similarity_score_candidates(
+        &self,
+        source_root: &Path,
+    ) -> Vec<SimilarityScoreCandidate> {
+        self.library
             .folder_browser
-            .selected_source_audio_files()
+            .selected_audio_files_matching_tags(&self.metadata.tags_by_file)
             .into_iter()
             .filter_map(|file| {
                 let file_path = PathBuf::from(&file.id);
@@ -130,14 +148,43 @@ impl NativeAppState {
                     relative_path,
                 })
             })
-            .collect::<Vec<_>>();
-        Some(SimilarityScoresRequest {
-            source_id,
-            source_root,
-            anchor_id,
-            anchor_relative_path,
-            candidates,
-        })
+            .collect()
+    }
+
+    fn filter_similarity_scores_to_active_scope(
+        &self,
+        anchor_id: &str,
+        mut scores: SimilarityScoresPayload,
+    ) -> SimilarityScoresPayload {
+        let anchor_path = PathBuf::from(anchor_id);
+        let Some((source_root, _)) = self
+            .library
+            .folder_browser
+            .source_relative_file_path(&anchor_path)
+        else {
+            return scores;
+        };
+        let active_ids = self
+            .active_similarity_score_candidates(&source_root)
+            .into_iter()
+            .map(|candidate| candidate.file_id)
+            .collect::<HashSet<_>>();
+        if !active_ids.contains(anchor_id) {
+            scores
+                .scores_by_file
+                .retain(|file_id, _| file_id == anchor_id);
+            scores
+                .aspect_scores_by_file
+                .retain(|file_id, _| file_id == anchor_id);
+            return scores;
+        }
+        scores
+            .scores_by_file
+            .retain(|file_id, _| file_id == anchor_id || active_ids.contains(file_id));
+        scores
+            .aspect_scores_by_file
+            .retain(|file_id, _| file_id == anchor_id || active_ids.contains(file_id));
+        scores
     }
 }
 

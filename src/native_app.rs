@@ -11,6 +11,7 @@ mod test_support;
 mod transaction_history;
 mod ui;
 mod waveform;
+mod waveform_edits;
 mod workflows;
 
 pub(crate) use shell::run;

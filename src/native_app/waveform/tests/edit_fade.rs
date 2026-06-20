@@ -103,6 +103,63 @@ fn edit_fade_outer_handles_set_crossfade_lengths_without_resizing_selection() {
 }
 
 #[test]
+fn edit_fade_outer_gain_drag_maps_top_to_unity_and_center_to_zero() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_in_mute(0.25)
+            .with_fade_out(0.25, 0.7)
+            .with_fade_out_mute(0.25),
+    );
+
+    state.apply_interaction(WaveformInteraction::BeginEditFadeOuterGain {
+        handle: WaveformEditFadeOuterGainHandle::In,
+        vertical_ratio: 0.0,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateEditFadeOuterGain {
+        vertical_ratio: 0.5,
+    });
+
+    let selection = state.edit_selection().expect("edit selection");
+    let fade_in = selection.fade_in().expect("fade-in");
+    assert!((fade_in.outer_gain - 0.0).abs() < 0.001);
+    assert!((fade_in.length - 0.25).abs() < 0.001);
+    assert!((fade_in.mute - 0.25).abs() < 0.001);
+
+    state.apply_interaction(WaveformInteraction::FinishEditFadeOuterGain {
+        vertical_ratio: 0.0,
+    });
+
+    let selection = state.edit_selection().expect("edit selection");
+    let fade_in = selection.fade_in().expect("fade-in");
+    assert!((fade_in.outer_gain - 1.0).abs() < 0.001);
+}
+
+#[test]
+fn edit_fade_outer_gain_drag_updates_fade_out_independently() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_in_mute(0.25)
+            .with_fade_out(0.25, 0.7)
+            .with_fade_out_mute(0.25),
+    );
+
+    state.apply_interaction(WaveformInteraction::BeginEditFadeOuterGain {
+        handle: WaveformEditFadeOuterGainHandle::Out,
+        vertical_ratio: 0.25,
+    });
+
+    let selection = state.edit_selection().expect("edit selection");
+    let fade_in = selection.fade_in().expect("fade-in");
+    let fade_out = selection.fade_out().expect("fade-out");
+    assert!((fade_in.outer_gain - 1.0).abs() < 0.001);
+    assert!((fade_out.outer_gain - 0.5).abs() < 0.001);
+}
+
+#[test]
 fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection =

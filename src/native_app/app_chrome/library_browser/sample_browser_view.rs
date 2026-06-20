@@ -9,7 +9,6 @@ use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserVie
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
-use crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepState;
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 use wavecrate_analysis::aspects::SimilarityAspect;
@@ -55,6 +54,7 @@ pub(in crate::native_app) fn sample_browser(
         model.random_navigation_enabled,
         model.visible_samples.similarity_mode_active,
         model.visible_samples.similarity_controls,
+        model.help_tooltips_enabled,
     ));
     if model.visible_samples.similarity_mode_active {
         sections.push(sample_similarity_controls_bar(
@@ -66,13 +66,11 @@ pub(in crate::native_app) fn sample_browser(
             &model.visible_samples,
             model.name_view_mode,
             model.metadata_tags_by_file,
+            model.help_tooltips_enabled,
         )
         .fill(),
     );
-    sections.push(sample_browser_status(
-        model.visible_samples.total_count,
-        model.similarity_prep,
-    ));
+    sections.push(sample_browser_status(model.visible_samples.total_count));
     ui::column(sections)
         .spacing(0.0)
         .style(ui::WidgetStyle::default())
@@ -135,6 +133,7 @@ fn sample_browser_header_bar(
     random_navigation_enabled: bool,
     similarity_mode_active: bool,
     similarity_controls: &SimilarityAspectSettings,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::row([
         sample_browser_header(
@@ -145,12 +144,28 @@ fn sample_browser_header_bar(
             similarity_controls,
         )
         .fill_width(),
-        random_navigation_button(random_navigation_enabled),
-        sample_name_view_mode_button(mode),
+        sample_browser_help_tooltip(
+            random_navigation_button(random_navigation_enabled),
+            help_tooltips_enabled,
+            "Random audition within the selected folder or active filter.",
+        ),
+        sample_browser_help_tooltip(
+            sample_name_view_mode_button(mode),
+            help_tooltips_enabled,
+            "Switch sample names between disk filenames and metadata labels.",
+        ),
     ])
     .fill_width()
     .height(24.0)
     .spacing(6.0)
+}
+
+fn sample_browser_help_tooltip(
+    view: ui::View<GuiMessage>,
+    enabled: bool,
+    tooltip: &'static str,
+) -> ui::View<GuiMessage> {
+    if enabled { view.tooltip(tooltip) } else { view }
 }
 
 fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
@@ -185,12 +200,12 @@ fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage
 
 static DICE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <rect x="3" y="3" width="10" height="10" rx="1.5"/>
-  <circle cx="6" cy="6" r="1"/>
-  <circle cx="10" cy="6" r="1"/>
-  <circle cx="8" cy="8" r="1"/>
-  <circle cx="6" cy="10" r="1"/>
-  <circle cx="10" cy="10" r="1"/>
+  <rect x="2.75" y="2.75" width="10.5" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="5.4" cy="5.4" r="1.15" fill="currentColor"/>
+  <circle cx="10.6" cy="5.4" r="1.15" fill="currentColor"/>
+  <circle cx="8" cy="8" r="1.15" fill="currentColor"/>
+  <circle cx="5.4" cy="10.6" r="1.15" fill="currentColor"/>
+  <circle cx="10.6" cy="10.6" r="1.15" fill="currentColor"/>
 </svg>"#,
 );
 
@@ -401,19 +416,7 @@ fn similarity_aspect_key(aspect: SimilarityAspect) -> &'static str {
     }
 }
 
-fn sample_browser_status(
-    audio_count: usize,
-    similarity_prep: &NativeSimilarityPrepState,
-) -> ui::View<GuiMessage> {
-    let similarity_status = similarity_prep
-        .summary
-        .as_deref()
-        .unwrap_or("Similarity status unknown");
-    let prepare_enabled = !similarity_prep.running
-        && similarity_prep
-            .status
-            .as_ref()
-            .is_some_and(|status| status.can_prepare());
+fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     ui::row([
         ui::text("Listed").height(20.0).width(90.0),
         ui::text(format!(
@@ -422,26 +425,8 @@ fn sample_browser_status(
         ))
         .height(20.0)
         .fill_width(),
-        ui::text(similarity_status)
-            .muted_text()
-            .height(20.0)
-            .width(190.0),
-        similarity_prep_button(prepare_enabled),
     ])
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
-}
-
-fn similarity_prep_button(enabled: bool) -> ui::View<GuiMessage> {
-    if enabled {
-        ui::button("Prepare")
-            .message(GuiMessage::PrepareSimilarityForSelectedSource)
-            .key("sample-browser-similarity-prepare")
-            .size(86.0, 22.0)
-    } else {
-        ui::text("")
-            .key("sample-browser-similarity-prepare-spacer")
-            .width(86.0)
-    }
 }

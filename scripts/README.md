@@ -5,21 +5,9 @@ is the checked inventory for public entrypoints, compatibility wrappers, and
 dispatcher maps. These are the public entrypoints people should run directly:
 
 - `bootstrap.{sh,ps1}`: set up the repo and install hooks.
-- `registered-run.ps1`: build a registered Wavecrate release binary,
-  stage/deploy it through a local `portalsurfer.org` checkout, then launch the
-  built app with forwarded args. The script finds `portalsurfer.org` beside the
-  Wavecrate checkout, or you can set `WAVECRATE_PORTALSURFER_ROOT` / pass
-  `-PortalSurferRoot`. Build ids use the server-side build counter format
-  `wavecrate-b<N>-<timestamp>-<gitsha>`. Example:
-  `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -AppArgs --log`.
-  For local-only testing, add `-Internal` to build without registration,
-  staging, or deployment. Examples:
-  `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -Internal -AppArgs --log`
-  and
-  `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -Internal -Profile debug -AppArgs --log`.
-- `internal-run.ps1`: run a release-profile internal Wavecrate build with
-  registration disabled and logging enabled. It runs from the repo root and does
-  not need the website checkout. Example:
+- `internal-run.ps1`: run a release-profile Wavecrate build with logging
+  enabled. It runs from the repo root and does not need any private website or
+  release checkout. Example:
   `powershell -ExecutionPolicy Bypass -File scripts/internal-run.ps1`.
 - `run.ps1 logs debug-overlays` or `run.ps1 logs debug-layout`: convenience
   aliases for the internal non-sandbox run path with logging enabled and debug

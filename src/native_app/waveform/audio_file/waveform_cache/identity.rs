@@ -34,17 +34,9 @@ pub(super) fn cache_path_for_identity(
     path: &Path,
     identity: &CacheIdentity,
 ) -> Result<PathBuf, String> {
-    cache_path_for_identity_with_version(path, identity, CACHE_FORMAT_VERSION)
-}
-
-pub(super) fn cache_path_for_identity_with_version(
-    path: &Path,
-    identity: &CacheIdentity,
-    version: u32,
-) -> Result<PathBuf, String> {
     let dir = wavecrate::app_dirs::waveform_cache_dir().map_err(|err| err.to_string())?;
     let mut hasher = DefaultHasher::new();
-    version.hash(&mut hasher);
+    CACHE_FORMAT_VERSION.hash(&mut hasher);
     path.to_string_lossy().hash(&mut hasher);
     identity.file_len.hash(&mut hasher);
     identity.modified_ns.hash(&mut hasher);
@@ -53,6 +45,10 @@ pub(super) fn cache_path_for_identity_with_version(
 
 pub(super) fn playback_ready_marker_path(cache_path: &Path) -> PathBuf {
     cache_path.with_extension("ready")
+}
+
+pub(super) fn source_warm_marker_path(cache_path: &Path) -> PathBuf {
+    cache_path.with_extension("source-ready")
 }
 
 pub(super) fn playback_sidecar_path(cache_path: &Path) -> PathBuf {

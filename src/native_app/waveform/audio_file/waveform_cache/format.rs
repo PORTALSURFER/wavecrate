@@ -13,7 +13,6 @@ use crate::native_app::waveform::audio_file::{
 };
 
 pub(super) const CACHE_FORMAT_VERSION: u32 = 3;
-pub(super) const CACHE_FORMAT_VERSION_V2: u32 = 2;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct CachedWaveformFile {
@@ -27,20 +26,6 @@ pub(super) struct CachedWaveformFile {
     frames: usize,
     summary: CachedGpuSignalSummary,
     pub(super) playback_cache: Option<CachedPlaybackCacheFile>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(super) struct CachedWaveformFileV2 {
-    pub(super) version: u32,
-    pub(super) path: PathBuf,
-    pub(super) file_len: u64,
-    pub(super) modified_ns: u128,
-    pub(super) content_revision: u64,
-    pub(super) sample_rate: u32,
-    pub(super) channels: usize,
-    pub(super) frames: usize,
-    pub(super) summary: CachedGpuSignalSummary,
-    pub(super) playback_samples: Option<Vec<f32>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -186,62 +171,22 @@ impl CachedWaveformFile {
         }
         PersistedPlaybackCacheFile::new(sidecar_path, playback_cache.sample_count)
     }
-}
 
-impl CachedWaveformFileV2 {
-    pub(super) fn into_waveform_file(
-        self,
-        path: PathBuf,
-        audio_bytes: Arc<[u8]>,
-        identity: CacheIdentity,
-    ) -> Option<WaveformFile> {
-        if !self.matches_identity(&path, &identity)
-            || self.content_revision != content_revision_for_audio_bytes(&audio_bytes)
-        {
+    pub(super) fn into_moved_path(
+        mut self,
+        old_path: &Path,
+        new_path: &Path,
+        identity: &CacheIdentity,
+    ) -> Option<Self> {
+        if !self.matches_identity(old_path, identity) {
             return None;
         }
-        Some(WaveformFile {
-            path,
-            audio_bytes,
-            playback_samples: self.playback_samples.map(Arc::from),
-            playback_cache_file: None,
-            content_revision: self.content_revision,
-            sample_rate: self.sample_rate,
-            channels: self.channels,
-            frames: self.frames,
-            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
-        })
+        self.path = new_path.to_path_buf();
+        Some(self)
     }
 
-    pub(super) fn into_playback_ready_waveform_file(
-        self,
-        path: PathBuf,
-        identity: CacheIdentity,
-    ) -> Option<WaveformFile> {
-        if !self.matches_identity(&path, &identity) || self.playback_samples.is_none() {
-            return None;
-        }
-        Some(WaveformFile {
-            path,
-            audio_bytes: Arc::from([]),
-            playback_samples: self.playback_samples.map(Arc::from),
-            playback_cache_file: None,
-            content_revision: self.content_revision,
-            sample_rate: self.sample_rate,
-            channels: self.channels,
-            frames: self.frames,
-            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
-        })
-    }
-
-    fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {
-        self.version == CACHE_FORMAT_VERSION_V2
-            && self.path == path
-            && self.file_len == identity.file_len
-            && self.modified_ns == identity.modified_ns
-            && self.sample_rate != 0
-            && self.channels != 0
-            && self.frames != 0
+    pub(super) fn clear_playback_cache(&mut self) {
+        self.playback_cache = None;
     }
 }
 

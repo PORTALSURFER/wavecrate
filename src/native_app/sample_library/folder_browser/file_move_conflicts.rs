@@ -64,6 +64,10 @@ impl FolderBrowserState {
     ) -> Result<FolderDropResult, String> {
         if !success.moved_paths.is_empty() {
             self.relocate_moved_files(&success.moved_paths, &success.batch.target_folder)?;
+            if let Some(collection) = success.batch.remove_from_collection {
+                self.remove_moved_file_collection_states(&success.moved_paths, collection);
+            }
+            self.reconcile_file_view_after_content_change();
         }
         let status = conflict_resolution_status(
             &success.batch,
@@ -75,7 +79,7 @@ impl FolderBrowserState {
         }
         Ok(FolderDropResult {
             moved_paths: success.moved_paths,
-            status: Some(status),
+            status: Some(status_with_metadata_error(status, success.metadata_error)),
         })
     }
 
@@ -85,9 +89,16 @@ impl FolderBrowserState {
     ) -> Result<FolderDropResult, String> {
         if !failure.moved_paths.is_empty() {
             self.relocate_moved_files(&failure.moved_paths, &failure.batch.target_folder)?;
+            if let Some(collection) = failure.batch.remove_from_collection {
+                self.remove_moved_file_collection_states(&failure.moved_paths, collection);
+            }
+            self.reconcile_file_view_after_content_change();
         }
         self.drag_drop.pending_file_move_conflicts = Some(failure.batch);
-        Err(failure.error)
+        Err(status_with_metadata_error(
+            failure.error,
+            failure.metadata_error,
+        ))
     }
 }
 
@@ -137,5 +148,12 @@ fn conflict_resolution_action_status(
         (FileMoveConflictResolution::Rename, 1) => "Moved file with a new name",
         (FileMoveConflictResolution::Skip, _) => "Skipped conflicting file",
         _ => "Resolved file conflict",
+    }
+}
+
+fn status_with_metadata_error(status: String, metadata_error: Option<String>) -> String {
+    match metadata_error {
+        Some(error) => format!("{status}; metadata update failed: {error}"),
+        None => status,
     }
 }

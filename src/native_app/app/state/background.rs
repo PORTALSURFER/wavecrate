@@ -10,7 +10,9 @@ use std::{
 use radiant::prelude as ui;
 use wavecrate::audio::AudioPlayer;
 
-use crate::native_app::app::{GuiMessage, NormalizationProgress, NormalizationQueueItem};
+use crate::native_app::app::{
+    FileMoveProgress, GuiMessage, NormalizationProgress, NormalizationQueueItem,
+};
 
 pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) worker_sender: Sender<GuiMessage>,
@@ -26,6 +28,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
     pub(in crate::native_app) normalization_active_paths: HashSet<PathBuf>,
     pub(in crate::native_app) normalization_queue: VecDeque<NormalizationQueueItem>,
+    pub(in crate::native_app) file_move_progress: Option<FileMoveProgress>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: ui::FrameCadenceMonitor,
 }
@@ -49,6 +52,7 @@ impl BackgroundTaskState {
             normalization_progress: None,
             normalization_active_paths: HashSet::new(),
             normalization_queue: VecDeque::new(),
+            file_move_progress: None,
             progress_tick: 0.0,
             frame_cadence: ui::FrameCadenceMonitor::new(),
         }

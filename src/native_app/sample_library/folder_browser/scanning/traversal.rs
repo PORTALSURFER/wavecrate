@@ -101,6 +101,7 @@ pub(super) fn read_sorted_entries(path: &Path) -> Option<Vec<PathBuf>> {
     let mut entries = read_dir
         .filter_map(Result::ok)
         .map(|entry| entry.path())
+        .filter(|path| !wavecrate_library::sample_sources::is_apple_double_sidecar(path))
         .collect::<Vec<_>>();
     entries.sort_by(|a, b| {
         file_label(a)

@@ -8,13 +8,11 @@ use serde::de::DeserializeOwned;
 
 use super::{
     diagnostics::log_slow_cache_phase,
-    format::{
-        CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION_V2, CachedWaveformFile, CachedWaveformFileV2,
-    },
+    format::{CACHE_FORMAT_VERSION, CachedWaveformFile},
     identity::{
-        CacheIdentity, cache_path_for_identity, cache_path_for_identity_with_version,
-        playback_ready_marker_path,
+        CacheIdentity, cache_path_for_identity, playback_ready_marker_path, source_warm_marker_path,
     },
+    write::mark_source_warm_ready_for_cache_path,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -112,31 +110,52 @@ pub(in crate::native_app) fn cached_waveform_file_exists(path: &Path) -> bool {
     let Ok(identity) = CacheIdentity::for_path(path) else {
         return false;
     };
-    cache_path_for_identity(path, &identity).is_ok_and(|path| path.is_file())
-        || cache_path_for_identity_with_version(path, &identity, CACHE_FORMAT_VERSION_V2)
-            .is_ok_and(|path| path.is_file())
+    cached_waveform_file_v3_exists(path, &identity)
 }
 
+fn cached_waveform_file_v3_exists(path: &Path, identity: &CacheIdentity) -> bool {
+    cache_path_for_identity(path, identity).is_ok_and(|path| path.is_file())
+}
+
+#[cfg(test)]
 pub(in crate::native_app) fn cached_waveform_file_playback_ready_exists(path: &Path) -> bool {
+    let Ok(identity) = CacheIdentity::for_path(path) else {
+        return false;
+    };
+    cached_waveform_file_v3_playback_ready_exists(path, &identity)
+}
+
+fn cached_waveform_file_v3_playback_ready_exists(path: &Path, identity: &CacheIdentity) -> bool {
+    let Ok(cache_path) = cache_path_for_identity(path, identity) else {
+        return false;
+    };
+    if cache_path.is_file()
+        && playback_ready_marker_path(&cache_path).is_file()
+        && read_cached_waveform_file(path, identity)
+            .and_then(|cached| cached.playback_cache_file(&cache_path))
+            .is_some()
+    {
+        return true;
+    }
+    false
+}
+
+pub(in crate::native_app) fn cached_waveform_file_source_ready_exists(path: &Path) -> bool {
     let Ok(identity) = CacheIdentity::for_path(path) else {
         return false;
     };
     let Ok(cache_path) = cache_path_for_identity(path, &identity) else {
         return false;
     };
-    if cache_path.is_file()
-        && playback_ready_marker_path(&cache_path).is_file()
-        && read_cached_waveform_file(path, &identity)
-            .and_then(|cached| cached.playback_cache_file(&cache_path))
-            .is_some()
-    {
+    if source_warm_marker_path(&cache_path).is_file() {
         return true;
     }
-    cache_path_for_identity_with_version(path, &identity, CACHE_FORMAT_VERSION_V2).is_ok_and(
-        |v2_cache_path| {
-            v2_cache_path.is_file() && playback_ready_marker_path(&v2_cache_path).is_file()
-        },
-    )
+    let source_ready = cached_waveform_file_v3_playback_ready_exists(path, &identity)
+        || (super::super::should_use_file_backed_wav_decode(path) && cache_path.is_file());
+    if source_ready {
+        mark_source_warm_ready_for_cache_path(&cache_path);
+    }
+    source_ready
 }
 
 pub(super) fn read_cached_waveform_file(
@@ -161,39 +180,6 @@ pub(super) fn read_cached_waveform_file_outcome(
         cache_path,
         "browser.sample_cache.metadata_read",
         "browser.sample_cache.metadata_deserialize",
-    )
-}
-
-pub(super) fn read_cached_waveform_file_v2(
-    path: &Path,
-    identity: &CacheIdentity,
-) -> Option<CachedWaveformFileV2> {
-    let outcome = read_cached_waveform_file_v2_outcome(path, identity);
-    outcome.log_if_unusable(path, CACHE_FORMAT_VERSION_V2);
-    outcome.into_hit()
-}
-
-pub(super) fn read_cached_waveform_file_v2_outcome(
-    path: &Path,
-    identity: &CacheIdentity,
-) -> CacheReadOutcome<CachedWaveformFileV2> {
-    let cache_path =
-        match cache_path_for_identity_with_version(path, identity, CACHE_FORMAT_VERSION_V2) {
-            Ok(cache_path) => cache_path,
-            Err(err) => return CacheReadOutcome::io_error(path.to_path_buf(), err),
-        };
-    read_cached_waveform_file_v2_at(path, cache_path)
-}
-
-pub(super) fn read_cached_waveform_file_v2_at(
-    source_path: &Path,
-    cache_path: PathBuf,
-) -> CacheReadOutcome<CachedWaveformFileV2> {
-    read_cache_file(
-        source_path,
-        cache_path,
-        "browser.sample_cache.v2_read",
-        "browser.sample_cache.v2_deserialize",
     )
 }
 

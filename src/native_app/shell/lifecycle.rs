@@ -24,6 +24,7 @@ impl NativeAppState {
             .map_err(|err| format!("load app configuration: {err}"))?;
         let has_configured_sources = !config.sources.is_empty();
         let mut folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
+        folder_browser.apply_collection_names(&config.core.collection_names);
         folder_browser.set_similarity_controls(config.core.similarity.clone());
         let startup_source_scan_pending =
             has_configured_sources && !folder_browser.selected_source_loaded();
@@ -120,6 +121,7 @@ impl NativeAppState {
         self.waveform
             .current
             .apply_interaction(WaveformInteraction::Frame);
+        self.library.folder_browser.advance_copy_flash_frame();
         log_slow_frame_phase("ui.frame.update.waveform_interaction", waveform_started_at);
         let playback_events_started_at = Instant::now();
         self.drain_playback_runtime_events();
@@ -132,6 +134,7 @@ impl NativeAppState {
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
         if self.library.folder_scan_active()
             || self.background.normalization_progress.is_some()
+            || self.background.file_move_progress.is_some()
             || self.waveform.cache.active_folder_warm_folder_id.is_some()
         {
             self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
@@ -166,6 +169,7 @@ impl NativeAppState {
         let audio_opening = self.background.audio_open.active().is_some();
         let folder_scanning = self.library.folder_scan_active();
         let normalizing = self.background.normalization_progress.is_some();
+        let moving_files = self.background.file_move_progress.is_some();
         let waveform_loading = self.waveform_sample_load_active();
         let playing = self.waveform.current.is_playing();
         let pending_playback = self.audio.pending_playback_start.is_some();
@@ -173,6 +177,7 @@ impl NativeAppState {
             || audio_opening
             || folder_scanning
             || normalizing
+            || moving_files
             || waveform_loading
             || pending_playback;
         let cadence_context = if interaction_active {
@@ -272,6 +277,7 @@ impl NativeAppState {
             audio_output: self.audio.output_config.clone(),
             volume: self.audio.volume,
             similarity: self.library.folder_browser.similarity_controls().clone(),
+            collection_names: self.library.folder_browser.custom_collection_names(),
             tag_dictionary: self.metadata.tag_dictionary.clone(),
             ..self.ui.settings.persisted.clone()
         }

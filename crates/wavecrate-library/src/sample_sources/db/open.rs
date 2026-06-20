@@ -22,7 +22,7 @@ pub(super) fn open_source_database_for_role(
     allow_user_library_write: bool,
     role: SourceDatabaseConnectionRole,
 ) -> Result<SourceDatabase, SourceDbError> {
-    if role.uses_read_only_connection() {
+    if role.uses_read_only_connection() || should_open_source_db_read_only() {
         return open_read_only_source_database(root, role);
     }
     open_source_database_with_flags(
@@ -220,4 +220,5 @@ pub(super) fn should_open_source_db_read_only() -> bool {
 
 pub(super) fn allow_user_library_db_write() -> bool {
     crate::env_flags::env_var_truthy(SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV)
+        || !should_open_source_db_read_only()
 }

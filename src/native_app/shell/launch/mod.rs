@@ -15,7 +15,7 @@ pub(in crate::native_app) use args::{
 };
 pub(in crate::native_app) use logging::emit_gui_action;
 #[cfg(test)]
-pub(in crate::native_app) use options::DEFAULT_WINDOW_TITLE;
+pub(in crate::native_app) use options::default_window_title;
 
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {

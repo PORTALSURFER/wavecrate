@@ -54,6 +54,7 @@ pub(in crate::native_app) const SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE: u64 =
     SAMPLE_BROWSER_HEADER.id(21);
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = AUDIO_SETTINGS.id(0);
+pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = AUDIO_SETTINGS.id(90);
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = AUDIO_SETTINGS.id(100);
 pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = AUDIO_SETTINGS.id(110);
 
@@ -64,22 +65,31 @@ pub(in crate::native_app) const TOOLBAR_LOOP_ID: u64 = TOOLBAR.id(1);
 pub(in crate::native_app) const TOOLBAR_PLAY_ID: u64 = TOOLBAR.id(2);
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = TOOLBAR.id(3);
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = TOOLBAR.id(4);
+pub(in crate::native_app) const TOOLBAR_BEAT_GUIDES_ID: u64 = TOOLBAR.id(5);
+pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_DECREMENT_ID: u64 = TOOLBAR.id(6);
+pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_INCREMENT_ID: u64 = TOOLBAR.id(7);
 
 #[cfg(test)]
 pub(in crate::native_app) const FILTER_SECTION_NODE_ID: u64 = FOLDER_FILTERS.id(1);
 pub(in crate::native_app) const NAME_FILTER_INPUT_ID: u64 = FOLDER_FILTERS.id(2);
 pub(in crate::native_app) const TAG_FILTER_INPUT_ID: u64 = FOLDER_FILTERS.id(3);
+pub(in crate::native_app) const FILTER_SECTION_SCROLL_NODE_ID: u64 = FOLDER_FILTERS.id(4);
+pub(in crate::native_app) const NAME_FILTER_CLEAR_BUTTON_ID: u64 = FOLDER_FILTERS.id(5);
+pub(in crate::native_app) const TAG_FILTER_CLEAR_BUTTON_ID: u64 = FOLDER_FILTERS.id(6);
+pub(in crate::native_app) const FILTER_RESIZE_HEADER_ID: u64 = FOLDER_FILTERS.id(7);
 
 pub(in crate::native_app) const COLLECTIONS_SECTION_NODE_ID: u64 = COLLECTIONS.id(2);
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = COLLECTIONS.id(3);
 #[cfg(test)]
 pub(in crate::native_app) const EMPTY_COLLECTION_COUNT_NODE_ID: u64 = COLLECTIONS.id(4);
+pub(in crate::native_app) const COLLECTIONS_RESIZE_HEADER_ID: u64 = COLLECTIONS.id(5);
 
 pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = METADATA_TAGS.id(7);
 #[cfg(test)]
 pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 = METADATA_TAGS.id(8);
 #[cfg(test)]
 pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 = METADATA_TAGS.id(9);
+pub(in crate::native_app) const METADATA_RESIZE_HEADER_ID: u64 = METADATA_TAGS.id(10);
 
 #[cfg(test)]
 #[derive(Clone, Copy)]
@@ -177,6 +187,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     ),
     registered_widget_id!(
         AudioSettings,
+        HELP_TOOLTIPS_BUTTON_ID,
+        "audio_settings.help_tooltips_button"
+    ),
+    registered_widget_id!(
+        AudioSettings,
         AUDIO_ENGINE_PILL_ID,
         "audio_settings.engine_pill"
     ),
@@ -195,6 +210,17 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     registered_widget_id!(Toolbar, TOOLBAR_PLAY_ID, "toolbar.play"),
     registered_widget_id!(Toolbar, TOOLBAR_STOP_ID, "toolbar.stop"),
     registered_widget_id!(Toolbar, TOOLBAR_RANDOM_ID, "toolbar.random"),
+    registered_widget_id!(Toolbar, TOOLBAR_BEAT_GUIDES_ID, "toolbar.beat_guides"),
+    registered_widget_id!(
+        Toolbar,
+        TOOLBAR_BEAT_GUIDE_DECREMENT_ID,
+        "toolbar.beat_guide_decrement"
+    ),
+    registered_widget_id!(
+        Toolbar,
+        TOOLBAR_BEAT_GUIDE_INCREMENT_ID,
+        "toolbar.beat_guide_increment"
+    ),
     registered_widget_id!(
         FolderFilters,
         FILTER_SECTION_NODE_ID,
@@ -211,6 +237,26 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         "folder_filters.tag_input"
     ),
     registered_widget_id!(
+        FolderFilters,
+        FILTER_SECTION_SCROLL_NODE_ID,
+        "folder_filters.scroll"
+    ),
+    registered_widget_id!(
+        FolderFilters,
+        NAME_FILTER_CLEAR_BUTTON_ID,
+        "folder_filters.name_clear_button"
+    ),
+    registered_widget_id!(
+        FolderFilters,
+        TAG_FILTER_CLEAR_BUTTON_ID,
+        "folder_filters.tag_clear_button"
+    ),
+    registered_widget_id!(
+        FolderFilters,
+        FILTER_RESIZE_HEADER_ID,
+        "folder_filters.resize_header"
+    ),
+    registered_widget_id!(
         Collections,
         COLLECTIONS_SECTION_NODE_ID,
         "collections.section"
@@ -225,6 +271,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         EMPTY_COLLECTION_COUNT_NODE_ID,
         "collections.empty_count"
     ),
+    registered_widget_id!(
+        Collections,
+        COLLECTIONS_RESIZE_HEADER_ID,
+        "collections.resize_header"
+    ),
     registered_widget_id!(MetadataTags, METADATA_TAG_INPUT_ID, "metadata_tags.input"),
     registered_widget_id!(
         MetadataTags,
@@ -235,6 +286,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         MetadataTags,
         METADATA_TAG_LIBRARY_TOGGLE_ID,
         "metadata_tags.library_toggle"
+    ),
+    registered_widget_id!(
+        MetadataTags,
+        METADATA_RESIZE_HEADER_ID,
+        "metadata_tags.resize_header"
     ),
 ];
 

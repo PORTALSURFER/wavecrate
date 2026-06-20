@@ -15,15 +15,21 @@ Audio sample triage tool built with Rust.
 
 ## Downloads
 
-- GitHub Releases publish Windows, Linux, and macOS assets.
-- Windows is the primary supported release platform today; Linux and macOS assets are also published for the workflow targets in `.github/workflows/release-build.yml`.
+- GitHub Releases publish Windows and macOS assets.
+- Windows is the primary supported release platform today; macOS assets are also published for the workflow targets in `.github/workflows/release-build.yml`.
+- When the PortalSurfer release-upload secret is configured, the release
+  workflow also uploads the built zips through the scoped PortalSurfer upload
+  API and exposes them through the `/wavecrate/` frontend.
 - Publishing a release triggers a workflow that regenerates `CHANGELOG.md` via `git-cliff` and opens a PR (since `main` is protected).
 
 ## Build from source
 
 - Requires Rust (stable toolchain) and `cargo`.
 - Initialize submodules after clone: `git submodule update --init --recursive`.
-- For the fastest local app loop from the project root: `cargo run-fast`.
+- For the fastest local app loop from the project root: `./run.sh`. On macOS,
+  local checkouts with the dev-app helper available will stage and open
+  `target/dev-app/Wavecrate.app`; otherwise the script falls back to
+  `cargo run -r`.
 - For exact shipping-profile behavior: `cargo run -p wavecrate --bin wavecrate --release`.
 - Or build once and run the shipping binary: `cargo build -p wavecrate --release` then `target/release/wavecrate`.
 - Playback uses your default audio output device.

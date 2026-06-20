@@ -3,8 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use wavecrate::sample_sources::SourceDatabase;
-
 use super::{
     FolderBrowserState,
     path_helpers::{path_id, rewrite_path_id},
@@ -18,19 +16,6 @@ impl FolderBrowserState {
         new_path: &Path,
         target_parent: &Path,
     ) -> Result<(), String> {
-        let Some(source_root) = self
-            .source
-            .sources
-            .iter()
-            .find(|source| source.id == self.source.selected_source)
-            .map(|source| source.root.clone())
-        else {
-            return Err(String::from(
-                "Folder move failed: selected source is unavailable",
-            ));
-        };
-        persist_moved_folder_metadata(&source_root, old_path, new_path)?;
-
         let old_id = path_id(old_path);
         let target_parent_id = path_id(target_parent);
         let Some(source) = self
@@ -90,8 +75,6 @@ impl FolderBrowserState {
                 "File move failed: selected source is unavailable",
             ));
         };
-        persist_moved_file_metadata(&source_root, moves)?;
-
         let old_ids = moves
             .iter()
             .map(|(old_path, _)| path_id(old_path))
@@ -146,18 +129,19 @@ impl FolderBrowserState {
             .collect::<Vec<_>>();
         self.selection
             .select_moved_files(target_parent_id.clone(), &moved_file_ids);
-        self.reset_file_view();
         self.tree.expanded_folders.insert(target_parent_id);
         self.bump_file_content_revision();
         Ok(())
     }
 }
 
-fn persist_moved_folder_metadata(
+pub(super) fn persist_moved_folder_metadata(
     source_root: &Path,
     old_path: &Path,
     new_path: &Path,
 ) -> Result<(), String> {
+    use wavecrate::sample_sources::SourceDatabase;
+
     let old_relative = old_path
         .strip_prefix(source_root)
         .map_err(|_| String::from("Folder move metadata update failed: source folder mismatch"))?;
@@ -194,10 +178,13 @@ fn persist_moved_folder_metadata(
         .map_err(|err| format!("Folder move metadata update failed: {err}"))
 }
 
-fn persist_moved_file_metadata(
+pub(super) fn persist_moved_file_metadata(
     source_root: &Path,
     moves: &[(PathBuf, PathBuf)],
+    remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
 ) -> Result<(), String> {
+    use wavecrate::sample_sources::SourceDatabase;
+
     let remaps = moves
         .iter()
         .filter_map(|(old_path, new_path)| {
@@ -222,6 +209,11 @@ fn persist_moved_file_metadata(
         batch
             .remap_analysis_sample_identity(&old_relative, &new_relative)
             .map_err(|err| format!("File move metadata update failed: {err}"))?;
+        if let Some(collection) = remove_from_collection {
+            batch
+                .remove_collection(&new_relative, collection)
+                .map_err(|err| format!("File move metadata update failed: {err}"))?;
+        }
     }
     batch
         .commit()

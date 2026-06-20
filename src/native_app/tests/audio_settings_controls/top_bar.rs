@@ -1,4 +1,5 @@
 use super::*;
+use radiant::runtime::{Event, SurfaceRuntime};
 
 #[test]
 fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
@@ -25,6 +26,106 @@ fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
     assert!(texts.iter().any(|text| text == "48 kHz"), "{texts:?}");
     assert!(!texts.iter().any(|text| text == "Audio"), "{texts:?}");
     assert!(slider_fills >= 2, "expected track and fill rects");
+}
+
+#[test]
+fn top_control_bar_places_help_button_before_volume_slider() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let frame = crate::native_app::test_support::settings::top_control_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+    let help = frame
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::settings::HELP_TOOLTIPS_BUTTON_ID)
+        .expect("help button should lay out");
+    let volume = frame
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::settings::VOLUME_SLIDER_ID)
+        .expect("volume slider should lay out");
+
+    assert!(
+        help.max.x <= volume.min.x,
+        "help button should precede volume slider"
+    );
+    assert!(help.width() <= 12.0);
+}
+
+#[test]
+fn top_help_tooltips_button_paints_as_bare_question_mark() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let frame = crate::native_app::test_support::settings::top_control_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+    let help_id = crate::native_app::test_support::settings::HELP_TOOLTIPS_BUTTON_ID;
+
+    let icon_rect = frame
+        .paint_plan
+        .first_svg_rect_for_widget(help_id)
+        .expect("help button should paint the question mark icon");
+    assert!(icon_rect.width() <= 12.0);
+    assert!(
+        !frame
+            .paint_plan
+            .contains_visible_fill_polygon_for_widget(help_id),
+        "help button should not paint resting button fill"
+    );
+}
+
+#[test]
+fn enabled_help_tooltips_paint_when_control_is_hovered() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.chrome.help_tooltips_enabled = true;
+    let bridge = radiant::runtime::DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| crate::native_app::test_support::settings::top_control_bar(state).into_surface(),
+        |_, _| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 30.0));
+    let volume = *runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::test_support::settings::VOLUME_SLIDER_ID)
+        .expect("volume slider should lay out");
+
+    runtime.dispatch_event(Event::pointer_move(volume.center()));
+
+    assert!(
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .contains_text("Preview volume for sample audition playback.")
+    );
+}
+
+#[test]
+fn focused_top_volume_slider_does_not_paint_border() {
+    let slider_id = crate::native_app::test_support::settings::VOLUME_SLIDER_ID;
+    let mut surface = crate::native_app::test_support::settings::volume_slider(0.25).into_surface();
+    let slider_bounds = radiant::gui::types::Rect::from_min_size(
+        radiant::gui::types::Point::default(),
+        Vector2::new(92.0, 14.0),
+    );
+
+    surface.dispatch_widget_input(
+        slider_id,
+        slider_bounds,
+        radiant::widgets::WidgetInput::FocusChanged(true),
+    );
+    let frame = surface.frame_at_size_with_default_theme(Vector2::new(92.0, 14.0));
+
+    assert_eq!(
+        frame.paint_plan.stroke_rects_for_widget(slider_id).count(),
+        0,
+        "focused top volume slider should not paint a focus border"
+    );
+    assert!(
+        frame
+            .paint_plan
+            .visible_fill_rects_for_widget(slider_id)
+            .count()
+            >= 2,
+        "focused top volume slider should still paint track and fill"
+    );
 }
 
 #[test]

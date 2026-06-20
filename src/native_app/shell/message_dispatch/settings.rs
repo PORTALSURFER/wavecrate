@@ -10,6 +10,7 @@ impl NativeAppState {
     ) {
         match message {
             SettingsMessage::SetVolume(volume) => self.set_volume(volume),
+            SettingsMessage::ToggleHelpTooltips => self.toggle_help_tooltips(),
             SettingsMessage::ToggleAudioSettings => self.toggle_audio_settings(),
             SettingsMessage::OpenGeneralSettings => self.open_general_settings(),
             SettingsMessage::SelectSettingsTab(tab) => self.select_settings_tab(tab),
@@ -33,6 +34,10 @@ impl NativeAppState {
 
     fn toggle_audio_backend_dropdown(&mut self) {
         self.toggle_audio_settings_dropdown(AudioSettingsDropdown::Backend);
+    }
+
+    fn toggle_help_tooltips(&mut self) {
+        self.ui.chrome.help_tooltips_enabled = !self.ui.chrome.help_tooltips_enabled;
     }
 
     fn toggle_audio_output_dropdown(&mut self) {

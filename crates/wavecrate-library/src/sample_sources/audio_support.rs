@@ -5,6 +5,9 @@ pub const SUPPORTED_AUDIO_EXTENSIONS: [&str; 1] = ["wav"];
 
 /// Return true if the path has a supported audio extension.
 pub fn is_supported_audio(path: &Path) -> bool {
+    if is_apple_double_sidecar(path) {
+        return false;
+    }
     let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
         return false;
     };
@@ -13,13 +16,23 @@ pub fn is_supported_audio(path: &Path) -> bool {
         .any(|supported| ext.eq_ignore_ascii_case(supported))
 }
 
+/// Return true for macOS AppleDouble sidecars such as `._kick.wav`.
+pub fn is_apple_double_sidecar(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("._"))
+}
+
 /// Build a SQL WHERE clause that filters for supported audio extensions.
 pub fn supported_audio_where_clause() -> String {
     let exts: Vec<String> = SUPPORTED_AUDIO_EXTENSIONS
         .iter()
         .map(|ext| format!("'{}'", ext))
         .collect();
-    format!("extension IN ({})", exts.join(", "))
+    format!(
+        "extension IN ({}) AND path NOT GLOB '._*' AND path NOT GLOB '*/._*'",
+        exts.join(", ")
+    )
 }
 
 #[cfg(test)]
@@ -30,6 +43,8 @@ mod tests {
     fn supported_audio_is_wav_first_only() {
         assert!(is_supported_audio(Path::new("kick.wav")));
         assert!(is_supported_audio(Path::new("KICK.WAV")));
+        assert!(!is_supported_audio(Path::new("._kick.wav")));
+        assert!(!is_supported_audio(Path::new("drums/._kick.wav")));
 
         for unsupported in ["loop.aif", "loop.aiff", "loop.flac", "loop.mp3"] {
             assert!(
@@ -41,6 +56,17 @@ mod tests {
 
     #[test]
     fn supported_audio_sql_filter_is_wav_only() {
-        assert_eq!(supported_audio_where_clause(), "extension IN ('wav')");
+        assert_eq!(
+            supported_audio_where_clause(),
+            "extension IN ('wav') AND path NOT GLOB '._*' AND path NOT GLOB '*/._*'"
+        );
+    }
+
+    #[test]
+    fn apple_double_sidecars_are_detected_by_basename() {
+        assert!(is_apple_double_sidecar(Path::new("._kick.wav")));
+        assert!(is_apple_double_sidecar(Path::new("drums/._kick.wav")));
+        assert!(!is_apple_double_sidecar(Path::new("drums/kick._wav")));
+        assert!(!is_apple_double_sidecar(Path::new("drums/kick.wav")));
     }
 }

@@ -126,6 +126,73 @@ fn similarity_anchor_toggle_sets_replaces_and_clears_active_anchor() {
 
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn similarity_anchor_clears_when_selected_folder_changes() {
+    let root = temp_source_root("wavecrate-gui-similarity-anchor-folder-change");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let anchor = drums.join("anchor.wav");
+    fs::write(&anchor, []).expect("write anchor");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let drums_id = path_id(&drums);
+    let loops_id = path_id(&loops);
+    let anchor_id = path_id(&anchor);
+
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        drums_id.clone(),
+        Default::default(),
+    ));
+    browser.apply_message(FolderBrowserMessage::ToggleSimilarityAnchor(
+        anchor_id.clone(),
+    ));
+    assert_eq!(browser.similarity_anchor_id(), Some(anchor_id.as_str()));
+
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        drums_id,
+        Default::default(),
+    ));
+    assert_eq!(
+        browser.similarity_anchor_id(),
+        Some(anchor_id.as_str()),
+        "reselecting the same folder should not clear similarity mode"
+    );
+
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        loops_id,
+        Default::default(),
+    ));
+    assert_eq!(browser.similarity_anchor_id(), None);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn similarity_anchor_clears_when_folder_keyboard_navigation_moves_focus() {
+    let root = temp_source_root("wavecrate-gui-similarity-anchor-folder-keyboard");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let anchor = drums.join("anchor.wav");
+    fs::write(&anchor, []).expect("write anchor");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let drums_id = path_id(&drums);
+    let loops_id = path_id(&loops);
+    let anchor_id = path_id(&anchor);
+
+    browser.activate_folder(drums_id);
+    browser.apply_message(FolderBrowserMessage::ToggleSimilarityAnchor(anchor_id));
+    assert!(browser.navigate_selected_folder(1, false, false));
+
+    assert_eq!(browser.selection.selected_folder, loops_id);
+    assert_eq!(browser.similarity_anchor_id(), None);
+
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn similarity_mode_pins_anchor_and_sorts_scores_descending() {
     let root = temp_source_root("wavecrate-gui-similarity-sort");

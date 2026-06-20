@@ -61,6 +61,14 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
         WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),
+        WaveformInteraction::BeginEditFadeOuterGain { .. } => {
+            Some("waveform.edit_fade_outer_gain.begin")
+        }
+        WaveformInteraction::FinishEditFadeOuterGain { .. } => {
+            Some("waveform.edit_fade_outer_gain.finish")
+        }
+        WaveformInteraction::BeginEditGain { .. } => Some("waveform.edit_gain.begin"),
+        WaveformInteraction::FinishEditGain { .. } => Some("waveform.edit_gain.finish"),
         WaveformInteraction::ClearEditFadeSilence { .. } => {
             Some("waveform.edit_fade.clear_silence")
         }
@@ -75,6 +83,9 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
             ui::DragHandlePhase::Cancelled => None,
         },
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
-        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
+        WaveformInteraction::UpdateSelection { .. }
+        | WaveformInteraction::UpdateEditFadeOuterGain { .. }
+        | WaveformInteraction::UpdateEditGain { .. }
+        | WaveformInteraction::Frame => None,
     }
 }

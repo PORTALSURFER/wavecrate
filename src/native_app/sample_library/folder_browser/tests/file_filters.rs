@@ -41,18 +41,8 @@ fn tagged_file_window_materializes_requested_range_without_holes() {
 
     assert_eq!(window_files.total_count, 45);
     assert_eq!(window_files.rows.len(), 14);
-    assert!(
-        window_files.rows.iter().all(Option::is_some),
-        "filtered virtual windows should not paint blank row holes while scrolling"
-    );
-    assert_eq!(
-        window_files.rows[0].expect("first file").name,
-        "sample_056.wav"
-    );
-    assert_eq!(
-        window_files.rows[13].expect("last file").name,
-        "sample_082.wav"
-    );
+    assert_eq!(window_files.rows[0].name, "sample_056.wav");
+    assert_eq!(window_files.rows[13].name, "sample_082.wav");
     let _ = fs::remove_dir_all(root);
 }
 
@@ -92,26 +82,141 @@ fn visible_samples_clamps_stale_scrollbar_window_without_blank_rows() {
     assert_eq!(visible.window.viewport_start, 14);
     assert_eq!(visible.window.window_start, 10);
     assert_eq!(visible.rows.len(), visible.window.window_len());
-    assert!(
-        visible.rows.iter().all(Option::is_some),
-        "stale scrollbar windows should clamp instead of painting blank row holes"
-    );
     assert_eq!(
-        visible
-            .rows
-            .first()
-            .and_then(|row| row.as_ref())
-            .map(|row| row.file.name.as_str()),
+        visible.rows.first().map(|row| row.file.name.as_str()),
         Some("sample_10.wav")
     );
     assert_eq!(
-        visible
-            .rows
-            .last()
-            .and_then(|row| row.as_ref())
-            .map(|row| row.file.name.as_str()),
+        visible.rows.last().map(|row| row.file.name.as_str()),
         Some("sample_23.wav")
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn visible_samples_repairs_stale_projection_cache_without_blank_rows() {
+    let root = temp_source_root("wavecrate-gui-stale-row-projection");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..8)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let drums_id = path_id(&drums);
+    browser.activate_folder(drums_id.clone());
+    let _ = browser.selected_audio_files();
+
+    let folder = browser
+        .tree
+        .folders
+        .first_mut()
+        .and_then(|root| root.find_mut(&drums_id))
+        .expect("selected test folder should exist");
+    folder.files.remove(3);
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 0.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 8,
+            viewport_start: 0,
+            viewport_end: 8,
+            window_start: 0,
+            window_end: 8,
+        },
+    });
+
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.total_count, 7);
+    assert_eq!(visible.window.total_items, 7);
+    assert_eq!(visible.rows.len(), visible.window.window_len());
+    assert_eq!(
+        visible
+            .rows
+            .iter()
+            .map(|row| row.file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "sample_00.wav",
+            "sample_01.wav",
+            "sample_02.wav",
+            "sample_04.wav",
+            "sample_05.wav",
+            "sample_06.wav",
+            "sample_07.wav",
+        ]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn copied_file_flash_projects_to_visible_rows_and_clears() {
+    let root = temp_source_root("wavecrate-gui-copy-flash-visible-row");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    for file in [&hat, &kick] {
+        fs::write(file, [0_u8; 8]).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 0.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 2,
+            viewport_start: 0,
+            viewport_end: 2,
+            window_start: 0,
+            window_end: 2,
+        },
+    });
+
+    browser.flash_copied_file_paths([hat.clone()]);
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert!(
+        visible
+            .rows
+            .iter()
+            .any(|row| row.file.id == path_id(&hat) && row.copy_flash)
+    );
+    assert!(
+        visible
+            .rows
+            .iter()
+            .any(|row| row.file.id == path_id(&kick) && !row.copy_flash)
+    );
+
+    let mut frames = 0;
+    while browser.copy_flash_active() {
+        frames += 1;
+        assert!(
+            frames <= 12,
+            "copy flash should clear after its frame budget"
+        );
+        browser.advance_copy_flash_frame();
+    }
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert!(visible.rows.iter().all(|row| !row.copy_flash));
     let _ = fs::remove_dir_all(root);
 }
 

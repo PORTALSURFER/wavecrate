@@ -57,7 +57,7 @@
     },
     {
       "path": "scripts/internal-run.ps1",
-      "role": "Run a release-profile internal Wavecrate build with registration disabled and logging enabled.",
+      "role": "Run a release-profile Wavecrate build with logging enabled.",
       "windows_supported": true
     },
     {
@@ -69,11 +69,6 @@
       "path": "scripts/perf.sh",
       "role": "Runtime performance helpers, including bash-only calibration.",
       "windows_supported": false
-    },
-    {
-      "path": "scripts/registered-run.ps1",
-      "role": "Build, register, deploy, and launch one Wavecrate release binary, or build and launch an explicit internal binary with registration disabled.",
-      "windows_supported": true
     },
     {
       "path": "scripts/run.ps1",

@@ -178,7 +178,9 @@ impl NativeAppState {
         priority: ui::TaskPriority,
         strategy: SampleLoadStrategy,
     ) {
-        let request = SampleLoadRequest::new(path, autoplay, priority, strategy);
+        let require_decoded_playback = autoplay && self.loop_playback_for_path_after_policy(&path);
+        let request =
+            SampleLoadRequest::new(path, autoplay, priority, strategy, require_decoded_playback);
         let key = sample_resource_key(request.path());
         self.background.active_sample_load_key = Some(key.clone());
         let load = context

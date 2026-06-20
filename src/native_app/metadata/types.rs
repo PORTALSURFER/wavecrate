@@ -44,6 +44,28 @@ pub(in crate::native_app) struct MetadataTagDisplayCategory {
     pub(in crate::native_app) category_id: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) enum MetadataTagSelectionState {
+    #[default]
+    None,
+    Mixed,
+    All,
+}
+
+impl MetadataTagSelectionState {
+    pub(in crate::native_app) fn is_assigned(self) -> bool {
+        matches!(self, Self::Mixed | Self::All)
+    }
+
+    pub(in crate::native_app) fn is_mixed(self) -> bool {
+        matches!(self, Self::Mixed)
+    }
+
+    pub(in crate::native_app) fn is_all(self) -> bool {
+        matches!(self, Self::All)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) enum MetadataTagInputMode {
     #[default]

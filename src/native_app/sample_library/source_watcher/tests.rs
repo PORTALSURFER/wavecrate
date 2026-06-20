@@ -38,6 +38,21 @@ fn wavecrate_metadata_files_do_not_trigger_source_refresh() {
 }
 
 #[test]
+fn apple_double_sidecars_do_not_trigger_source_refresh() {
+    let root = PathBuf::from(r"C:\samples");
+    assert!(!path_is_source_refresh_candidate(
+        &root.join("._kick.wav"),
+        EventKind::Modify(notify::event::ModifyKind::Data(
+            notify::event::DataChange::Any
+        )),
+    ));
+    assert!(!path_is_source_refresh_candidate(
+        &root.join("drums").join("._snare.wav"),
+        EventKind::Create(notify::event::CreateKind::File),
+    ));
+}
+
+#[test]
 fn source_root_event_overflows_to_full_refresh() {
     let root = PathBuf::from(r"C:\samples");
     let source =

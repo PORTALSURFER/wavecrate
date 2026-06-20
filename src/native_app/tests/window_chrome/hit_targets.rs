@@ -34,9 +34,9 @@ fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
-    assert_ratio_near(
+    assert_eq!(
         runtime.bridge().state().waveform.current.play_mark_ratio(),
-        0.42,
+        None
     );
 }
 
@@ -66,9 +66,9 @@ fn stale_waveform_drop_hover_does_not_mask_waveform_hit_target() {
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
-    assert_ratio_near(
+    assert_eq!(
         runtime.bridge().state().waveform.current.edit_mark_ratio(),
-        0.38,
+        None
     );
 }
 

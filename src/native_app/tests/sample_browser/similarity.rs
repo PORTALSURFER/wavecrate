@@ -83,6 +83,47 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
 }
 
 #[test]
+fn sample_browser_hides_similarity_prep_footer_text_and_button() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    state.library.similarity_prep.status = Some(
+        crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepStatus::UpToDate,
+    );
+    state.library.similarity_prep.summary = Some(String::from("Similarity ready"));
+    prepare_sample_browser_view(&mut state);
+
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+
+    assert!(
+        !frame.paint_plan.contains_text("Similarity ready"),
+        "ready similarity state should not paint footer text"
+    );
+
+    state.library.similarity_prep.status = Some(
+        crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepStatus::Blocked {
+            failed_count: 1,
+            unsupported_count: 0,
+        },
+    );
+    state.library.similarity_prep.summary = Some(String::from("Similarity prep blocked"));
+    prepare_sample_browser_view(&mut state);
+
+    let blocked_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+
+    assert!(
+        !blocked_frame
+            .paint_plan
+            .contains_text("Similarity prep blocked"),
+        "blocked similarity state should not paint footer text"
+    );
+    assert!(
+        !blocked_frame.paint_plan.contains_text("Prepare"),
+        "blocked similarity state should not paint the footer Prepare button"
+    );
+}
+
+#[test]
 fn sample_browser_similarity_controls_emit_control_messages() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
@@ -351,6 +392,83 @@ fn sample_browser_similarity_anchor_resolves_production_scores() {
 }
 
 #[test]
+fn sample_browser_similarity_anchor_scores_only_active_folder_scope() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let anchor = drums.join("anchor.wav");
+    let local_near = drums.join("local_near.wav");
+    let outside_near = loops.join("outside_near.wav");
+    for path in [&anchor, &local_near, &outside_near] {
+        fs::write(path, []).expect("write sample");
+    }
+    seed_similarity_embedding(source_root.path(), "drums/anchor.wav", &[1.0, 0.0]);
+    seed_similarity_embedding(source_root.path(), "drums/local_near.wav", &[0.8, 0.6]);
+    seed_similarity_embedding(source_root.path(), "loops/outside_near.wav", &[0.99, 0.01]);
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new_with_id(
+                wavecrate::sample_sources::SourceId::from_string(SIMILARITY_TEST_SOURCE_ID),
+                source_root.path().to_path_buf(),
+            ),
+        ]);
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ),
+    );
+    let anchor_id = anchor.display().to_string();
+    let local_near_id = local_near.display().to_string();
+    let outside_near_id = outside_near.display().to_string();
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ToggleSimilarityAnchor(
+            anchor_id.clone(),
+        ),
+    );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.queue_similarity_score_resolution(anchor_id.clone(), &mut context);
+    super::super::run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .similarity_display_strength_for_file(local_near_id.as_str())
+            .is_some(),
+        "active-folder candidates should receive similarity scores"
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .similarity_display_strength_for_file(outside_near_id.as_str()),
+        None,
+        "similarity scores must not bleed into other folders in the same source"
+    );
+
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+            Default::default(),
+        ),
+    );
+
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .similarity_display_strength_for_file(outside_near_id.as_str()),
+        None,
+        "changing folders should not reveal scores from an anchor scoped elsewhere"
+    );
+}
+
+#[test]
 fn sample_browser_similarity_ignores_stale_score_results() {
     let (mut state, _source_root, anchor_id, near_id, _far_id, _missing_id) =
         similarity_state_with_embeddings();
@@ -383,15 +501,15 @@ fn sample_browser_similarity_ignores_stale_score_results() {
 }
 
 #[test]
-fn source_prep_trigger_queues_cache_warm_and_similarity_jobs() {
+fn source_prep_trigger_drains_similarity_jobs_after_queueing_them() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
     let drums = source_root.path().join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let first = drums.join("first.wav");
     let second = drums.join("second.wav");
-    fs::write(&first, []).expect("write first sample");
-    fs::write(&second, []).expect("write second sample");
+    write_similarity_test_wav(&first, 220.0);
+    write_similarity_test_wav(&second, 440.0);
     seed_source_scan_row(source_root.path(), "drums/first.wav");
     seed_source_scan_row(source_root.path(), "drums/second.wav");
 
@@ -415,6 +533,10 @@ fn source_prep_trigger_queues_cache_warm_and_similarity_jobs() {
         &mut context,
     );
 
+    assert_eq!(
+        state.library.similarity_prep.summary, None,
+        "automatic source prep should not show transient similarity prep footer text"
+    );
     assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
     assert!(
         state
@@ -427,13 +549,31 @@ fn source_prep_trigger_queues_cache_warm_and_similarity_jobs() {
 
     super::super::run_command_for_tests(&mut state, context.into_command());
 
+    assert_ne!(
+        state.ui.status.sample, "Similarity ready",
+        "automatic source prep should not leave ready text in the bottom status bar"
+    );
     assert_eq!(
-        pending_source_jobs(source_root.path(), "wav_metadata_v1"),
+        source_jobs_by_status(source_root.path(), "wav_metadata_v1", "pending"),
+        0
+    );
+    assert_eq!(
+        source_jobs_by_status(source_root.path(), "embedding_backfill_v1", "pending"),
+        0
+    );
+    assert_eq!(
+        source_jobs_by_status(source_root.path(), "wav_metadata_v1", "done"),
         2
     );
     assert_eq!(
-        pending_source_jobs(source_root.path(), "embedding_backfill_v1"),
+        source_jobs_by_status(source_root.path(), "embedding_backfill_v1", "done"),
         1
+    );
+    assert_eq!(source_artifact_rows(source_root.path(), "features"), 2);
+    assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 2);
+    assert_eq!(
+        source_artifact_rows(source_root.path(), "similarity_aspect_descriptors"),
+        2
     );
     assert!(!state.library.similarity_prep.running);
 }
@@ -536,7 +676,10 @@ fn similarity_state_with_embeddings() -> (
 
 fn seed_source_scan_row(source_root: &std::path::Path, relative_path: &str) {
     let db = wavecrate::sample_sources::SourceDatabase::open(source_root).expect("source db");
-    db.upsert_file(std::path::Path::new(relative_path), 0, 10)
+    let size = fs::metadata(source_root.join(relative_path))
+        .expect("source sample metadata")
+        .len();
+    db.upsert_file(std::path::Path::new(relative_path), size, 10)
         .expect("file row");
     db.set_metadata(
         wavecrate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT,
@@ -545,18 +688,54 @@ fn seed_source_scan_row(source_root: &std::path::Path, relative_path: &str) {
     .expect("scan timestamp");
 }
 
-fn pending_source_jobs(source_root: &std::path::Path, job_type: &str) -> i64 {
+fn write_similarity_test_wav(path: &std::path::Path, frequency_hz: f32) {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+    for index in 0..wavecrate_analysis::ANALYSIS_SAMPLE_RATE / 10 {
+        let phase = index as f32 / wavecrate_analysis::ANALYSIS_SAMPLE_RATE as f32;
+        let sample = (phase * frequency_hz * std::f32::consts::TAU).sin() * i16::MAX as f32 * 0.2;
+        writer
+            .write_sample(sample as i16)
+            .expect("write wav sample");
+    }
+    writer.finalize().expect("finalize wav");
+}
+
+fn source_jobs_by_status(source_root: &std::path::Path, job_type: &str, status: &str) -> i64 {
     let conn = wavecrate::sample_sources::SourceDatabase::open_connection_with_role(
         source_root,
         wavecrate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
     )
     .expect("source db connection");
     conn.query_row(
-        "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1 AND status = 'pending'",
-        [job_type],
+        "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1 AND status = ?2",
+        [job_type, status],
         |row| row.get(0),
     )
-    .expect("pending job count")
+    .expect("job count")
+}
+
+fn source_artifact_rows(source_root: &std::path::Path, table: &str) -> i64 {
+    let conn = wavecrate::sample_sources::SourceDatabase::open_connection_with_role(
+        source_root,
+        wavecrate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("source db connection");
+    let table = match table {
+        "features" => "features",
+        "embeddings" => "embeddings",
+        "similarity_aspect_descriptors" => "similarity_aspect_descriptors",
+        _ => panic!("unexpected source artifact table"),
+    };
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get(0)
+    })
+    .expect("artifact row count")
 }
 
 fn seed_similarity_embedding(source_root: &std::path::Path, relative_path: &str, values: &[f32]) {

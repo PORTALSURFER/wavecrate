@@ -70,6 +70,86 @@ fn file_delete_blocks_hard_delete_and_keeps_selection() {
 }
 
 #[test]
+fn trashed_selected_file_focuses_next_sample_without_clearing_file_selection() {
+    let root = temp_source_root("wavecrate-gui-file-trash-focus-next");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+
+    assert!(browser.discard_trashed_file_paths(&[kick.clone()]));
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![snare.clone()]);
+    assert!(
+        !browser
+            .selected_files()
+            .iter()
+            .any(|file| file.id == path_id(&kick))
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn trashed_last_selected_file_focuses_previous_sample() {
+    let root = temp_source_root("wavecrate-gui-file-trash-focus-previous");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&snare));
+
+    assert!(browser.discard_trashed_file_paths(&[snare.clone()]));
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![kick.clone()]);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn trashed_explicit_file_selection_focuses_next_sample_after_focused_row() {
+    let root = temp_source_root("wavecrate-gui-file-trash-focus-explicit");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let tom = drums.join("tom.wav");
+    for file in [&hat, &kick, &snare, &tom] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+    browser.select_file_with_modifiers(
+        path_id(&kick),
+        PointerModifiers {
+            shift: true,
+            ..PointerModifiers::default()
+        },
+    );
+
+    assert!(browser.discard_trashed_file_paths(&[hat.clone(), kick.clone()]));
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![snare.clone()]);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn root_folder_delete_is_rejected_from_tree() {
     let root = temp_source_root("wavecrate-gui-root-delete");
     let browser = FolderBrowserState::from_root(root.clone());

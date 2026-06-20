@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     CollectionRowViewModel, CollectionsSectionViewModel,
@@ -8,7 +9,7 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
-    COLLECTIONS_PANEL_HEADER_HEIGHT, COLLECTIONS_PANEL_PADDING, SampleCollectionView,
+    COLLECTIONS_PANEL_PADDING, SampleCollectionView,
 };
 use crate::native_app::ui::ids as widget_ids;
 
@@ -17,33 +18,37 @@ const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
 const COLLECTIONS_SECTION_NODE_ID: u64 = widget_ids::COLLECTIONS_SECTION_NODE_ID;
 /// Stable layout node id for the collection rows scroll viewport.
 const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = widget_ids::COLLECTIONS_LIST_SCROLL_NODE_ID;
+const COLLECTIONS_RESIZE_HEADER_ID: u64 = widget_ids::COLLECTIONS_RESIZE_HEADER_ID;
 
 pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
     let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
-    ui::panel_section_from_parts(
-        ui::PanelSectionParts::new(
-            "Collections",
-            ui::scroll(
-                ui::column(rows)
-                    .spacing(COLLECTION_ROW_SPACING)
-                    .fill_width()
-                    .height(model.list_height),
-            )
-            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-            .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
-            .fill_width()
-            .fill_height(),
+    ui::column([
+        collections_resize_header(),
+        ui::scroll(
+            ui::column(rows)
+                .spacing(COLLECTION_ROW_SPACING)
+                .fill_width()
+                .height(model.list_height),
         )
-        .trailing_resize_handle("collections-resize-handle", |message| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
-        })
-        .padding(COLLECTIONS_PANEL_PADDING)
-        .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
-        .title_height(COLLECTIONS_PANEL_HEADER_HEIGHT)
-        .height(model.panel_height),
-    )
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+        .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
+        .fill_width()
+        .fill_height(),
+    ])
+    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+    .padding(COLLECTIONS_PANEL_PADDING)
+    .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
+    .height(model.panel_height)
     .id(COLLECTIONS_SECTION_NODE_ID)
     .fill_width()
+}
+
+fn collections_resize_header() -> ui::View<GuiMessage> {
+    sidebar_resize_header(
+        "collections-resize-header",
+        COLLECTIONS_RESIZE_HEADER_ID,
+        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message)),
+    )
 }
 
 fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessage> {
@@ -297,6 +302,38 @@ mod tests {
             .expect("collections section layout rect");
 
         assert_eq!(section.height(), state.collections_panel_height());
+    }
+
+    #[test]
+    fn collections_resize_header_uses_full_width_hit_target() {
+        let state = FolderBrowserState::load_default();
+        let model = CollectionsSectionViewModel::from_folder_browser(&state);
+        let layout =
+            collections_section(&model).view_layout_at_size(ui::Vector2::new(240.0, 180.0));
+        let section = layout
+            .rects
+            .get(&COLLECTIONS_SECTION_NODE_ID)
+            .expect("collections section layout rect");
+        let header = layout
+            .rects
+            .get(&COLLECTIONS_RESIZE_HEADER_ID)
+            .expect("collections resize header layout rect");
+        let drag =
+            ui::DragHandleMessage::started(ui::Point::new(header.center().x, header.center().y));
+
+        assert!(
+            header.width() >= section.width() - COLLECTIONS_PANEL_PADDING * 2.0,
+            "collections resize header should span the useful panel width, section={section:?}, header={header:?}"
+        );
+        assert_eq!(
+            collections_section(&model).view_dispatch_widget_output(
+                COLLECTIONS_RESIZE_HEADER_ID,
+                ui::WidgetOutput::typed(drag.clone()),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ResizeCollectionsPanel(drag)
+            ))
+        );
     }
 
     #[test]

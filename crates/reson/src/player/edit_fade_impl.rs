@@ -14,15 +14,23 @@ pub struct FadeParams {
     pub curve: f32,
     /// Outer mute/fade extension as a fraction of the faded span.
     pub mute: f32,
+    /// Gain at the outer edge of the extension.
+    pub outer_gain: f32,
 }
 
 impl FadeParams {
     /// Create fade parameters with explicit length, curve, and extension.
     pub fn new(length: f32, curve: f32, mute: f32) -> Self {
+        Self::with_outer_gain(length, curve, mute, 1.0)
+    }
+
+    /// Create fade parameters with explicit length, curve, extension, and outer gain.
+    pub fn with_outer_gain(length: f32, curve: f32, mute: f32, outer_gain: f32) -> Self {
         Self {
             length: length.clamp(0.0, 1.0),
             curve: curve.clamp(0.0, 1.0),
             mute: mute.max(0.0),
+            outer_gain: outer_gain.clamp(0.0, 1.0),
         }
     }
 }
@@ -302,11 +310,12 @@ fn extension_gain(
     } else {
         normalized_t(position, end, end + extension_len)?
     };
-    Some(if fade_in {
+    let extension_gain = if fade_in {
         1.0 - fade_curve_value(t, fade.curve)
     } else {
         fade_curve_value(t, fade.curve)
-    })
+    };
+    Some((fade.outer_gain * extension_gain).clamp(0.0, 1.0))
 }
 
 fn inner_fade_gain(
@@ -361,5 +370,30 @@ where
     #[inline]
     fn total_duration(&self) -> Option<Duration> {
         self.inner.total_duration()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn outer_gain_scales_realtime_extension_fades() {
+        let fade_in = FadeParams::with_outer_gain(0.25, 0.0, 0.25, 0.5);
+        let fade_out = FadeParams::with_outer_gain(0.25, 0.0, 0.25, 0.25);
+
+        let left_outer_start =
+            fade_gain_at_position(0.1, 0.2, 0.6, 1.0, Some(fade_in), Some(fade_out), 0.0);
+        let left_selection_edge =
+            fade_gain_at_position(0.2, 0.2, 0.6, 1.0, Some(fade_in), Some(fade_out), 0.0);
+        let right_selection_edge =
+            fade_gain_at_position(0.6, 0.2, 0.6, 1.0, Some(fade_in), Some(fade_out), 0.0);
+        let right_outer_end =
+            fade_gain_at_position(0.7, 0.2, 0.6, 1.0, Some(fade_in), Some(fade_out), 0.0);
+
+        assert!((left_outer_start - 0.5).abs() < 1e-6);
+        assert!(left_selection_edge.abs() < 1e-6);
+        assert!(right_selection_edge.abs() < 1e-6);
+        assert!((right_outer_end - 0.25).abs() < 1e-6);
     }
 }

@@ -1,10 +1,12 @@
 use radiant::prelude as ui;
+use radiant::widgets::PointerModifiers;
 use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
+use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::folder_browser::commands::{
-    RenameCommitCompletion, RenameCommitResult, RenameInputResult, RenamePathRemap,
-    execute_rename_commit_request,
+    FolderBrowserMessage, RenameCommitCompletion, RenameCommitResult, RenameInputResult,
+    RenamePathRemap, execute_rename_commit_request,
 };
 
 impl NativeAppState {
@@ -26,14 +28,9 @@ impl NativeAppState {
                 "Folder browser rename requested"
             );
         }
-        let renaming_file = self.library.folder_browser.selected_file_id().is_some();
         match self.library.folder_browser.begin_rename_selected() {
             Ok(Some(input_id)) => {
-                self.ui.status.sample = if renaming_file {
-                    String::from("Renaming selected file")
-                } else {
-                    String::from("Renaming selected folder")
-                };
+                self.ui.status.sample = rename_begin_status(target.kind);
                 context.after(
                     Duration::from_millis(1),
                     GuiMessage::FocusRenameInput(input_id),
@@ -70,6 +67,39 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    pub(in crate::native_app) fn rename_context_folder(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            self.ui.status.sample = String::from("Select a folder to rename");
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Folder {
+            self.ui.status.sample = String::from("Select a folder to rename");
+            return;
+        }
+
+        let folder_id = menu.path.to_string_lossy().to_string();
+        if self
+            .library
+            .folder_browser
+            .folder_path(&folder_id)
+            .is_none()
+        {
+            self.ui.status.sample = String::from("Folder is unavailable");
+            return;
+        }
+
+        self.library
+            .folder_browser
+            .apply_message(FolderBrowserMessage::ActivateFolder(
+                folder_id,
+                PointerModifiers::default(),
+            ));
+        self.begin_folder_browser_rename(context);
     }
 
     pub(in crate::native_app) fn begin_folder_browser_subfolder_creation(
@@ -125,8 +155,20 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let input_action = rename_input_action(&message);
+        let collection_names_before = input_action
+            .is_some()
+            .then(|| self.library.folder_browser.custom_collection_names());
         if let Some(result) = self.library.folder_browser.apply_rename_input(message) {
             self.apply_folder_browser_rename_result(result, context);
+        }
+        if let Some(before) = collection_names_before {
+            let after = self.library.folder_browser.custom_collection_names();
+            if after != before {
+                self.persist_user_configuration(
+                    "folder_browser.collection_names.persist",
+                    started_at,
+                );
+            }
         }
         if let Some(action) = input_action {
             emit_gui_action(
@@ -183,6 +225,15 @@ impl NativeAppState {
             .current
             .rewrite_path_prefix(&remap.old_path, &remap.new_path);
         self.remap_renamed_waveform_cache_path(&remap.old_path, &remap.new_path);
+    }
+}
+
+fn rename_begin_status(target_kind: &str) -> String {
+    match target_kind {
+        "file" => String::from("Renaming selected file"),
+        "collection" => String::from("Renaming selected collection"),
+        "folder" => String::from("Renaming selected folder"),
+        _ => String::from("Renaming selection"),
     }
 }
 

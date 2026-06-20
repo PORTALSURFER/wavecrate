@@ -1,51 +1,33 @@
 use super::*;
 
 #[test]
-fn waveform_cache_migrates_v2_embedded_payload_to_v3_sidecar() {
+fn source_warm_marker_keeps_pruned_identity_from_rewarming() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
-    let path = dir.path().join("legacy.wav");
+    let path = dir.path().join("budgeted.wav");
     fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
     let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
-    let mut file = waveform_file_from_mono_samples(
+    let file = waveform_file_from_mono_samples(
         path.clone(),
         Arc::clone(&audio_bytes),
         48_000,
         1,
         vec![0.0, 0.5, -0.5, 0.25],
     );
-    file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.5, -0.5, 0.25]));
     let identity = CacheIdentity::for_path(&path).expect("identity");
-    let v2_cache_path =
-        cache_path_for_identity_with_version(&path, &identity, CACHE_FORMAT_VERSION_V2)
-            .expect("v2 cache path");
-    fs::create_dir_all(v2_cache_path.parent().expect("cache dir")).expect("cache dir");
-    let legacy = CachedWaveformFileV2 {
-        version: CACHE_FORMAT_VERSION_V2,
-        path: path.clone(),
-        file_len: identity.file_len,
-        modified_ns: identity.modified_ns,
-        content_revision: file.content_revision,
-        sample_rate: file.sample_rate,
-        channels: file.channels,
-        frames: file.frames,
-        summary: CachedGpuSignalSummary::from_summary(&file.gpu_signal_summary),
-        playback_samples: Some(vec![0.0_f32, 0.5, -0.5, 0.25]),
-    };
-    fs::write(
-        &v2_cache_path,
-        bincode::serialize(&legacy).expect("serialize v2"),
-    )
-    .expect("write v2");
-    update_playback_ready_marker(&v2_cache_path, true);
+    let cache_path = cache_path_for_identity(&path, &identity).expect("cache path");
 
-    let migrated_once = load_cached_waveform_file_for_playback(path.clone()).expect("v2 cache hit");
-    assert!(migrated_once.playback_samples.is_some());
-    flush_background_waveform_cache_stores_for_shutdown();
+    store_cached_waveform_file(&file);
+    assert!(source_warm_marker_path(&cache_path).is_file());
 
-    let migrated = load_cached_waveform_file_for_playback(path).expect("v3 playback cache hit");
-    assert!(migrated.playback_samples.is_none());
-    assert!(migrated.playback_cache_file.is_some());
+    fs::remove_file(&cache_path).expect("simulate cache budget pruning");
+    let _ = fs::remove_file(playback_sidecar_path(&cache_path));
+    let _ = fs::remove_file(playback_ready_marker_path(&cache_path));
+
+    assert!(
+        cached_waveform_file_source_ready_exists(&path),
+        "source prep should not rewarm an unchanged file solely because the heavy cache was pruned"
+    );
 }
 
 #[test]

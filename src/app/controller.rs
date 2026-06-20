@@ -16,7 +16,7 @@ mod formatting;
 /// Deterministic GUI fixture builders used by GUI test scenarios.
 mod gui_fixtures;
 mod history;
-mod library;
+pub(crate) mod library;
 mod playback;
 mod source_watcher;
 mod startup_source_repair;

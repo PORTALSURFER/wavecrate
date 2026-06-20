@@ -96,6 +96,7 @@ impl FolderBrowserState {
         if self.rename_active() || self.selection.selected_collection.is_some() {
             return None;
         }
+        let previous_folder_id = self.selection.selected_folder.clone();
         let visible_ids = self
             .visible_folders()
             .into_iter()
@@ -103,6 +104,7 @@ impl FolderBrowserState {
             .collect::<Vec<_>>();
         let folder_id = self.selection.selected_folder.clone();
         let selected = self.selection.toggle_focused_folder(&visible_ids)?;
+        self.clear_similarity_anchor_after_folder_change(&previous_folder_id);
         Some(FolderSelectionToggleResult {
             folder_id,
             selected,
@@ -186,14 +188,28 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn toggle_similarity_anchor(&mut self, file_id: String) {
         if self.file_is_similarity_anchor(&file_id) {
-            self.sample_list.similarity = None;
+            self.clear_similarity_anchor();
         } else {
             self.sample_list.similarity = Some(SimilarityBrowserState::new(
                 file_id,
                 self.sample_list.similarity_controls.clone(),
             ));
+            self.bump_file_content_revision();
         }
-        self.bump_file_content_revision();
+    }
+
+    pub(in crate::native_app) fn clear_similarity_anchor(&mut self) -> bool {
+        let had_anchor = self.sample_list.similarity.take().is_some();
+        if had_anchor {
+            self.bump_file_content_revision();
+        }
+        had_anchor
+    }
+
+    pub(super) fn clear_similarity_anchor_after_folder_change(&mut self, previous_folder_id: &str) {
+        if self.selection.selected_folder != previous_folder_id {
+            self.clear_similarity_anchor();
+        }
     }
 
     pub(in crate::native_app) fn set_similarity_scores_with_aspects(

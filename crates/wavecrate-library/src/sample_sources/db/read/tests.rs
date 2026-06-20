@@ -12,6 +12,8 @@ fn list_files_page_orders_supported_audio_and_applies_offsets() {
     for name in [
         "delta.wav",
         "alpha.wav",
+        "._appledouble.wav",
+        "drums/._nested.wav",
         "notes.txt",
         "charlie.wav",
         "bravo.wav",
@@ -28,6 +30,42 @@ fn list_files_page_orders_supported_audio_and_applies_offsets() {
     assert_eq!(
         paths,
         vec![PathBuf::from("bravo.wav"), PathBuf::from("charlie.wav")]
+    );
+}
+
+#[test]
+fn audio_queries_ignore_appledouble_sidecars() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    for name in [
+        "._alpha.wav",
+        "alpha.wav",
+        "drums/._kick.wav",
+        "drums/kick.wav",
+    ] {
+        db.upsert_file(Path::new(name), 10, 5).unwrap();
+    }
+
+    let paths = db
+        .list_files()
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.relative_path)
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        paths,
+        vec![PathBuf::from("alpha.wav"), PathBuf::from("drums/kick.wav")]
+    );
+    assert!(
+        db.entry_for_path(Path::new("._alpha.wav"))
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(db.index_for_path(Path::new("alpha.wav")).unwrap(), Some(0));
+    assert_eq!(
+        db.index_for_path(Path::new("drums/kick.wav")).unwrap(),
+        Some(1)
     );
 }
 

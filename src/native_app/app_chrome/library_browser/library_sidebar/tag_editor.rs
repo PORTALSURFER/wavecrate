@@ -1,10 +1,14 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, MetadataMessage};
+use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
 use crate::native_app::app_chrome::view_models::library_sidebar::TagEditorViewModel;
-use crate::native_app::metadata::MetadataTagDisplayCategory;
-use crate::native_app::metadata::{metadata_tag_category_is_pinned, metadata_tag_pill_style};
+use crate::native_app::metadata::{
+    MetadataTagDisplayCategory, metadata_tag_category_is_pinned, metadata_tag_pill_selection_style,
+    metadata_tag_pill_style,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
@@ -23,12 +27,10 @@ pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 =
 #[cfg(test)]
 pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 =
     widget_ids::METADATA_TAG_LIBRARY_TOGGLE_ID;
+const METADATA_RESIZE_HEADER_ID: u64 = widget_ids::METADATA_RESIZE_HEADER_ID;
 const METADATA_PANEL_PADDING: f32 = 6.0;
-const METADATA_PANEL_TITLE_HEIGHT: f32 = 20.0;
-const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
-const METADATA_HEADER_TRAILING_HEIGHT: f32 = 20.0;
-const METADATA_HEADER_RESIZE_HANDLE_WIDTH: f32 = 26.0;
-const METADATA_HEADER_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
+const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
+const METADATA_TAG_LIBRARY_TOGGLE_WIDTH: f32 = 22.0;
 
 struct TagEditorFieldParts<'a> {
     draft: &'a str,
@@ -37,6 +39,7 @@ struct TagEditorFieldParts<'a> {
     input_placeholder: &'a str,
     completion_suffix: Option<&'a str>,
     tags: &'a [String],
+    mixed_tags: &'a [String],
     display_categories: &'a [MetadataTagDisplayCategory],
     selected_tag: Option<&'a str>,
     content_width: f32,
@@ -51,6 +54,7 @@ impl<'a> TagEditorFieldParts<'a> {
             input_placeholder: model.input_placeholder.as_str(),
             completion_suffix: model.completion_suffix.as_deref(),
             tags: model.tags.as_slice(),
+            mixed_tags: model.mixed_tags.as_slice(),
             display_categories: model.display_categories.as_slice(),
             selected_tag: model.selected_tag.as_deref(),
             content_width,
@@ -67,6 +71,7 @@ impl<'a> TagEditorFieldParts<'a> {
             tags: self.tags,
             display_categories: self.display_categories,
             content_width: self.content_width,
+            library_toggle_width: Some(METADATA_TAG_LIBRARY_TOGGLE_WIDTH),
         }
     }
 }
@@ -117,6 +122,7 @@ fn tag_entry_field(field: &TagEditorFieldParts<'_>, height: f32) -> ui::View<Gui
                     field.input_placeholder,
                     field.completion_suffix,
                     field.selected_tag,
+                    field.mixed_tags,
                     row_index,
                 )
             })
@@ -171,6 +177,7 @@ fn tag_entry_row(
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
     selected_metadata_tag: Option<&str>,
+    mixed_metadata_tags: &[String],
     row_index: usize,
 ) -> ui::View<GuiMessage> {
     ui::row(
@@ -180,6 +187,7 @@ fn tag_entry_row(
                     tag.as_str(),
                     metadata_tag_category_id_for_display(tag.as_str(), tag_display_categories),
                     selected_metadata_tag == Some(tag.as_str()),
+                    mixed_metadata_tags.iter().any(|mixed| mixed == &tag),
                 ),
                 TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
                 TagEntryRowItem::Input(width) => tag_text_input(
@@ -188,6 +196,7 @@ fn tag_entry_row(
                     tag_completion_suffix,
                     width,
                 ),
+                TagEntryRowItem::LibraryToggle(width) => metadata_tag_library_toggle(width),
             })
             .collect::<Vec<_>>(),
     )
@@ -197,9 +206,23 @@ fn tag_entry_row(
     .spacing(TAG_FIELD_ITEM_GAP)
 }
 
-fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<GuiMessage> {
-    let active = selected || metadata_tag_category_is_pinned(category_id);
-    let style = metadata_tag_pill_style(category_id, active);
+fn accepted_tag_token(
+    tag: &str,
+    category_id: &str,
+    selected: bool,
+    mixed: bool,
+) -> ui::View<GuiMessage> {
+    let active = !mixed && (selected || metadata_tag_category_is_pinned(category_id));
+    let style = if active {
+        metadata_tag_pill_style(category_id, true)
+    } else if mixed {
+        metadata_tag_pill_selection_style(
+            category_id,
+            crate::native_app::metadata::MetadataTagSelectionState::Mixed,
+        )
+    } else {
+        metadata_tag_pill_style(category_id, false)
+    };
     let tag_for_input = tag.to_string();
     ui::interactive_badge(tag.to_string())
         .style(style)
@@ -231,12 +254,15 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
 
 fn metadata_sidebar_panel(
     content: ui::View<GuiMessage>,
-    tag_count: Option<usize>,
+    _tag_count: Option<usize>,
     height: f32,
 ) -> ui::View<GuiMessage> {
-    let panel =
-        ui::panel_section_from_parts(metadata_sidebar_panel_parts(content, tag_count, height))
-            .fill_width();
+    let panel = ui::column([metadata_resize_header(), content])
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+        .padding(METADATA_PANEL_PADDING)
+        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
+        .height(height)
+        .fill_width();
     #[cfg(test)]
     {
         panel.id(METADATA_SIDEBAR_PANEL_ID)
@@ -247,51 +273,21 @@ fn metadata_sidebar_panel(
     }
 }
 
-fn metadata_sidebar_panel_parts(
-    content: ui::View<GuiMessage>,
-    tag_count: Option<usize>,
-    height: f32,
-) -> ui::PanelSectionParts<GuiMessage> {
-    ui::PanelSectionParts::new("Tags", content)
-        .trailing(metadata_header_trailing(tag_count))
-        .padding(METADATA_PANEL_PADDING)
-        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
-        .title_height(METADATA_PANEL_TITLE_HEIGHT)
-        .height(height)
+fn metadata_resize_header() -> ui::View<GuiMessage> {
+    sidebar_resize_header(
+        "metadata-resize-header",
+        METADATA_RESIZE_HEADER_ID,
+        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message)),
+    )
 }
 
-fn metadata_header_trailing(tag_count: Option<usize>) -> ui::View<GuiMessage> {
-    let mut controls = Vec::new();
-    if let Some(count) = tag_count {
-        controls.push(
-            ui::text(format!("({count})"))
-                .height(METADATA_HEADER_TRAILING_HEIGHT)
-                .width(32.0),
-        );
-        controls.push(metadata_tag_library_toggle());
-    }
-    controls.push(
-        ui::drag_handle_mapped(|message| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message))
-        })
-        .key("metadata-resize-handle")
-        .size(
-            METADATA_HEADER_RESIZE_HANDLE_WIDTH,
-            METADATA_HEADER_RESIZE_HANDLE_HEIGHT,
-        ),
-    );
-    ui::row(controls)
-        .spacing(4.0)
-        .height(METADATA_HEADER_TRAILING_HEIGHT)
-}
-
-fn metadata_tag_library_toggle() -> ui::View<GuiMessage> {
+fn metadata_tag_library_toggle(width: f32) -> ui::View<GuiMessage> {
     let toggle = ui::disclosure_button(false)
         .message(GuiMessage::Metadata(
             MetadataMessage::ToggleMetadataTagLibrary,
         ))
         .key("metadata-tag-library-toggle")
-        .size(24.0, 20.0);
+        .size(width, TAG_FIELD_CONTROL_HEIGHT);
     #[cfg(test)]
     {
         toggle.id(METADATA_TAG_LIBRARY_TOGGLE_ID)

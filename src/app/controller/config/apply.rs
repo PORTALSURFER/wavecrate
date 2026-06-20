@@ -22,6 +22,7 @@ impl AppController {
         self.settings.app_data_dir = core.app_data_dir.clone();
         self.settings.trash_folder = core.trash_folder.clone();
         self.settings.drop_targets = core.drop_targets.clone();
+        self.settings.collection_names = core.collection_names.clone();
         self.settings.audio_output = core.audio_output.clone();
         self.ui.audio.selected = self.settings.audio_output.clone();
         self.settings.audio_input = core.audio_input.clone();

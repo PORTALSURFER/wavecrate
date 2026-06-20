@@ -45,6 +45,10 @@ fn save_paths_and_library_selection_round_trip() {
         fixture.expected.core.active_folder_pane
     );
     assert_eq!(
+        fixture.actual.core.collection_names,
+        fixture.expected.core.collection_names
+    );
+    assert_eq!(
         fixture
             .actual
             .sources

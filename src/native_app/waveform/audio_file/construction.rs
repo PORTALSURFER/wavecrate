@@ -136,9 +136,11 @@ pub(in crate::native_app::waveform) fn gain_preview_for_selection(
         fade_in_length: fade_in.map(|fade| fade.length).unwrap_or(0.0),
         fade_in_curve: fade_in.map(|fade| fade.curve).unwrap_or(0.5),
         fade_in_mute: fade_in.map(|fade| fade.mute).unwrap_or(0.0),
+        fade_in_outer_gain: fade_in.map(|fade| fade.outer_gain).unwrap_or(1.0),
         fade_out_length: fade_out.map(|fade| fade.length).unwrap_or(0.0),
         fade_out_curve: fade_out.map(|fade| fade.curve).unwrap_or(0.5),
         fade_out_mute: fade_out.map(|fade| fade.mute).unwrap_or(0.0),
+        fade_out_outer_gain: fade_out.map(|fade| fade.outer_gain).unwrap_or(1.0),
     })
 }
 

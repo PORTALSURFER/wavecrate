@@ -15,10 +15,6 @@ impl NativeAppState {
             .retain(|cached| cached != path);
         self.waveform
             .cache
-            .active_folder_warm_pending
-            .retain(|cached| cached != path);
-        self.waveform
-            .cache
             .cached_sample_paths
             .remove(&path.display().to_string());
     }

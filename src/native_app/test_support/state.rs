@@ -1,10 +1,11 @@
 pub(in crate::native_app) use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmStage,
     AppSettingsTab, AudioAppState, AudioSettingsDropdown, BackgroundTaskState, ChromeUiState,
-    DEFAULT_VOLUME, GuiMessage, LibraryAppState, MetadataAppState, MetadataMessage, NativeAppState,
-    NativeFileDropHover, NormalizationProgress, PendingSamplePlayback, SampleLoadResult,
-    SamplePlaybackReady, SettingsAppState, StartupState, StatusState, UiAppState, WaveformAppState,
-    default_gui_shortcuts, format_sample_rate_label, view,
+    DEFAULT_VOLUME, FileMoveProgress, GuiMessage, LibraryAppState, MetadataAppState,
+    MetadataMessage, NativeAppState, NativeFileDropHover, NormalizationProgress,
+    PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady, SettingsAppState, StartupState,
+    StatusState, UiAppState, WaveformAppState, default_gui_shortcuts, format_sample_rate_label,
+    shortcut_help_sections, view,
 };
 use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
 pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
@@ -53,7 +54,9 @@ impl NativeAppStateFixture {
         self
     }
 
-    pub(in crate::native_app) fn build(self) -> NativeAppState {
+    pub(in crate::native_app) fn build(mut self) -> NativeAppState {
+        self.folder_browser
+            .apply_collection_names(&self.persisted_settings.collection_names);
         NativeAppState {
             ui: UiAppState::new(
                 ChromeUiState::new(DEFAULT_FOLDER_WIDTH),

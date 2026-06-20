@@ -64,6 +64,7 @@ pub(in crate::native_app) struct TagEditorViewModel {
     pub(in crate::native_app) input_placeholder: String,
     pub(in crate::native_app) completion_suffix: Option<String>,
     pub(in crate::native_app) tags: Vec<String>,
+    pub(in crate::native_app) mixed_tags: Vec<String>,
     pub(in crate::native_app) display_categories: Vec<MetadataTagDisplayCategory>,
     pub(in crate::native_app) selected_tag: Option<String>,
 }
@@ -165,7 +166,8 @@ impl TagEditorViewModel {
                 .map(str::to_string),
             input_placeholder: state.metadata_tag_input_placeholder().to_string(),
             completion_suffix: state.metadata_tag_completion_suffix(),
-            tags: state.selected_metadata_tags().to_vec(),
+            tags: state.selected_metadata_tags_for_display(),
+            mixed_tags: state.mixed_selected_metadata_tags_for_display(),
             display_categories: state.selected_metadata_tag_display_categories(),
             selected_tag: state.metadata.selected_tag.clone(),
         }

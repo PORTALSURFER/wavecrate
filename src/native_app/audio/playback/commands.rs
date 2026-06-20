@@ -2,8 +2,9 @@ use radiant::prelude as ui;
 use rand::Rng;
 use std::{path::Path, time::Instant};
 
+use super::intent::PlaybackIntent;
 use super::random_audition::{
-    RandomAuditionSource, RandomAuditionSpan, random_audition_span_for_unit,
+    RandomAuditionSource, RandomAuditionSpan, RandomAuditionUnits, random_audition_span_for_units,
 };
 use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingSamplePlayback, emit_gui_action, sample_path_label,
@@ -77,7 +78,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        match self.start_playback_current_span(start_ratio, 1.0) {
+        match self.start_playback_intent(PlaybackIntent::new(start_ratio, 1.0)) {
             Ok(()) => {
                 let file_name = self.waveform.current.file_name();
                 self.record_selected_sample_last_played(context);
@@ -106,18 +107,30 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn play_from_current_play_start(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !self.waveform.current.has_loaded_sample() {
+            self.play_selected_sample(context);
+            return;
+        }
+        let start_ratio = self.waveform.current.play_mark_ratio().unwrap_or(0.0);
+        self.play_waveform_from_ratio(start_ratio, context);
+    }
+
     pub(in crate::native_app) fn play_random_sample_range(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let mut rng = rand::rng();
-        self.play_random_sample_range_with_unit(rng.random::<f32>(), context);
+        let units = RandomAuditionUnits::new(rng.random::<f32>(), rng.random::<f32>());
+        self.play_random_sample_range_with_units(units, context);
     }
 
-    #[cfg_attr(test, allow(dead_code))]
-    pub(in crate::native_app) fn play_random_sample_range_with_unit(
+    pub(in crate::native_app) fn play_random_sample_range_with_units(
         &mut self,
-        unit: f32,
+        units: RandomAuditionUnits,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -137,14 +150,19 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.audio.pending_sample_playback =
-                Some(PendingSamplePlayback::RandomAudition { unit });
+            self.audio.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition {
+                start_unit: units.start,
+                length_unit: units.length,
+            });
             self.load_sample_without_autoplay(path, context);
             return;
         }
 
         if !self.waveform.current.has_loaded_sample()
-            && let Some(path) = self.library.folder_browser.random_playback_candidate(unit)
+            && let Some(path) = self
+                .library
+                .folder_browser
+                .random_playback_candidate(units.start)
         {
             let label = sample_path_label(&path);
             emit_gui_action(
@@ -155,8 +173,10 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.audio.pending_sample_playback =
-                Some(PendingSamplePlayback::RandomAudition { unit });
+            self.audio.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition {
+                start_unit: units.start,
+                length_unit: units.length,
+            });
             self.library
                 .folder_browser
                 .focus_file_across_sources(Path::new(&path));
@@ -164,10 +184,9 @@ impl NativeAppState {
             return;
         }
         let file_name = self.waveform.current.file_name();
-        let span = self.random_audition_span_for_loaded_waveform(unit);
-        self.prepare_random_audition_mode_for_loaded_sample();
+        let span = self.random_audition_span_for_loaded_waveform(units);
 
-        match self.start_playback_current_span(span.start, span.end) {
+        match self.start_random_audition_span(span) {
             Ok(()) => {
                 self.record_selected_sample_last_played(context);
                 self.ui.status.sample = span.status_message(&file_name);
@@ -195,27 +214,26 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn random_audition_span_for_loaded_waveform(
-        &mut self,
-        unit: f32,
+        &self,
+        units: RandomAuditionUnits,
     ) -> RandomAuditionSpan {
-        if let Some(range) = self
-            .waveform
-            .current
-            .select_marked_play_range_for_random_audition(unit)
-        {
-            return RandomAuditionSpan {
-                start: range.start(),
-                end: range.end(),
-                source: RandomAuditionSource::MarkedRange,
-            };
-        }
         let (start, end) =
-            random_audition_span_for_unit(self.waveform.current.duration_seconds(), unit);
+            random_audition_span_for_units(self.waveform.current.duration_seconds(), units);
         RandomAuditionSpan {
             start,
             end,
-            source: RandomAuditionSource::FixedWindow,
+            source: RandomAuditionSource::WholeSample,
         }
+    }
+
+    pub(in crate::native_app) fn start_random_audition_span(
+        &mut self,
+        span: RandomAuditionSpan,
+    ) -> Result<(), String> {
+        self.waveform
+            .current
+            .set_play_selection_range(span.start, span.end);
+        self.start_playback_intent(PlaybackIntent::random_region(span.start, span.end))
     }
 
     pub(in crate::native_app) fn stop_playback(&mut self) {

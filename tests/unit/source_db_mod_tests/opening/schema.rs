@@ -68,7 +68,7 @@ fn applies_workload_pragmas_and_indices() {
         .optional()
         .unwrap();
     assert_eq!(idx.as_deref(), Some("idx_wav_files_missing"));
-    assert_eq!(schema_version(conn), 4);
+    assert_eq!(schema_version(conn), current_schema_version());
 }
 
 #[test]
@@ -88,7 +88,10 @@ fn stale_schema_stamp_reassures_legacy_files_on_open() {
     drop(conn);
 
     let reopened = SourceDatabase::open(dir.path()).unwrap();
-    assert_eq!(schema_version(&reopened.connection), 4);
+    assert_eq!(
+        schema_version(&reopened.connection),
+        current_schema_version()
+    );
 }
 
 #[test]

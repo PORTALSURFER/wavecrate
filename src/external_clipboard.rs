@@ -1,17 +1,22 @@
 //! Platform helpers for copying file paths and text through the system clipboard.
 //!
 //! On Windows this publishes `CF_HDROP` for file paste targets such as Explorer
-//! and `CF_UNICODETEXT` for plain text. Other platforms return unsupported
-//! errors through the same public facade.
+//! and `CF_UNICODETEXT` for plain text. On macOS this publishes both modern
+//! pasteboard file URLs and the legacy filename-list flavor that older DAW
+//! paste targets still consume.
 
 use std::path::PathBuf;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
 mod unsupported;
 #[cfg(target_os = "windows")]
 mod windows;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+use macos as platform;
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
 use unsupported as platform;
 #[cfg(target_os = "windows")]
 use windows as platform;

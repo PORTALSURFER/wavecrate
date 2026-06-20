@@ -36,6 +36,7 @@ pub(in crate::native_app) struct PendingRuntimePlaybackStart {
     pub(in crate::native_app) id: PlaybackRequestId,
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) span: (f32, f32),
+    pub(in crate::native_app) show_start_marker: bool,
 }
 
 impl AudioAppState {

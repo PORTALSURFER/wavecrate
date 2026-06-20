@@ -1,5 +1,26 @@
 use super::*;
 
+fn runtime_overlay_plan(widget: &WaveformWidget, bounds: Rect) -> SurfacePaintPlan {
+    let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+    widget.append_runtime_overlay_paint(
+        &mut plan.primitives,
+        bounds,
+        &radiant::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    plan
+}
+
+fn assert_no_white_hover_border(plan: &SurfacePaintPlan) {
+    assert!(
+        !plan.stroke_rects().any(|stroke| {
+            (stroke.color.r, stroke.color.g, stroke.color.b) == (255, 255, 255)
+                && stroke.color.a >= 200
+        }),
+        "handle hover should use a brighter colored fill, not a white border"
+    );
+}
+
 #[test]
 fn overlay_paint_projects_play_edit_and_playhead_markers() {
     let mut state = WaveformState::synthetic_for_tests();
@@ -21,8 +42,7 @@ fn overlay_paint_projects_play_edit_and_playhead_markers() {
     let fills = fill_rects(&plan);
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b) == (255, 142, 92)
-            && fill.color.a == 230
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.375).abs() < 0.01
@@ -62,13 +82,7 @@ fn hover_cursor_paints_thin_white_overlay_line() {
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(100.0, 40.0)));
     assert!(output.is_none());
 
-    let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
-    widget.append_runtime_overlay_paint(
-        &mut plan.primitives,
-        bounds,
-        &radiant::layout::LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let plan = runtime_overlay_plan(&widget, bounds);
 
     let cursor = fill_rects(&plan)
         .into_iter()
@@ -81,6 +95,236 @@ fn hover_cursor_paints_thin_white_overlay_line() {
 }
 
 #[test]
+fn playmark_slide_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 3.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 49.0).abs() < 0.001
+            && (fill.rect.max.x - 111.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 7.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 255)
+    }));
+    assert!(!fills.iter().any(
+        |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 255, 255, 210)
+    ));
+}
+
+#[test]
+fn playmark_resize_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(120.0, 8.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 116.5).abs() < 0.001
+            && (fill.rect.max.x - 123.5).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 22.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 255)
+    }));
+    assert!(!fills.iter().any(|fill| {
+        (fill.rect.min.x - 112.5).abs() < 0.001
+            && (fill.rect.max.x - 127.5).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 22.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 180)
+    }));
+    assert_no_white_hover_border(&plan);
+}
+
+#[test]
+fn playmark_export_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(118.0, 76.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 104.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.rect.min.y - 64.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 255)
+    }));
+    assert!(!fills.iter().any(|fill| {
+        (fill.rect.min.x - 100.0).abs() < 0.001
+            && (fill.rect.max.x - 124.0).abs() < 0.001
+            && (fill.rect.min.y - 60.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 180)
+    }));
+    assert!(!fills.iter().any(
+        |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 255, 255, 210)
+    ));
+    assert_no_white_hover_border(&plan);
+}
+
+#[test]
+fn editmark_slide_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 3.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 49.0).abs() < 0.001
+            && (fill.rect.max.x - 111.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 7.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+}
+
+#[test]
+fn editmark_gain_handle_hover_paints_bright_center_tab() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 5.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+    assert!(widget.hovered_edit_gain_handle);
+    assert_eq!(widget.hovered_selection_handle, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 74.0).abs() < 0.001
+            && (fill.rect.max.x - 86.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 10.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+}
+
+#[test]
+fn editmark_gain_handle_paints_on_base_edit_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 74.0).abs() < 0.001
+            && (fill.rect.max.x - 86.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 10.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 225)
+    }));
+}
+
+#[test]
+fn edit_fade_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection =
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 5.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 55.0).abs() < 0.001
+            && (fill.rect.max.x - 65.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 10.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+}
+
+#[test]
+fn edit_fade_outer_gain_handle_paints_at_current_gain_height() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_in_mute(0.25)
+            .with_fade_in_outer_gain(0.0),
+    );
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 15.0).abs() < 0.001
+            && (fill.rect.max.x - 25.0).abs() < 0.001
+            && (fill.rect.min.y - 35.0).abs() < 0.001
+            && (fill.rect.max.y - 45.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 205)
+    }));
+}
+
+#[test]
+fn edit_fade_outer_gain_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_in_mute(0.25),
+    );
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 5.0)));
+    assert!(output.is_none());
+    assert_eq!(
+        widget.hovered_edit_fade_outer_gain_handle,
+        Some(WaveformEditFadeOuterGainHandle::In)
+    );
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 15.0).abs() < 0.001
+            && (fill.rect.max.x - 25.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 10.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+}
+
+#[test]
 fn play_start_marker_is_hidden_at_sample_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.0);
@@ -89,14 +333,14 @@ fn play_start_marker_is_hidden_at_sample_start() {
 
     assert!(
         !fill_rects(&plan).iter().any(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
         }),
         "play-start marker should be implicit when playback starts at sample head"
     );
 }
 
 #[test]
-fn play_start_marker_paints_when_start_deviates_from_sample_start() {
+fn play_start_marker_paints_cyan_white_when_start_deviates_from_sample_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.125);
     let widget = waveform_widget_for_state(&state);
@@ -104,7 +348,88 @@ fn play_start_marker_paints_when_start_deviates_from_sample_start() {
 
     assert!(fill_rects(&plan).iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+    }));
+}
+
+#[test]
+fn play_start_marker_paints_even_when_play_selection_exists() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.start_playback(0.4);
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+
+    assert!(fill_rects(&plan).iter().any(|fill| {
+        (fill.rect.center().x / 400.0 - 0.4).abs() < 0.01
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+    }));
+}
+
+#[test]
+fn beat_guides_paint_internal_lines_inside_play_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let guides = fill_rects(&plan)
+        .into_iter()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(guides.len(), 3);
+    for expected_x in [60.0, 80.0, 100.0] {
+        assert!(
+            guides.iter().any(|fill| {
+                (fill.rect.center().x - expected_x).abs() < 0.01
+                    && (fill.rect.min.y - 11.0).abs() < 0.01
+                    && (fill.rect.max.y - 69.0).abs() < 0.01
+            }),
+            "expected beat guide at x={expected_x}, got {guides:?}"
+        );
+    }
+}
+
+#[test]
+fn beat_guides_paint_internal_lines_inside_edit_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let guides = fill_rects(&plan)
+        .into_iter()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(guides.len(), 3);
+    for expected_x in [60.0, 80.0, 100.0] {
+        assert!(
+            guides.iter().any(|fill| {
+                (fill.rect.center().x - expected_x).abs() < 0.01
+                    && (fill.rect.min.y - 11.0).abs() < 0.01
+                    && (fill.rect.max.y - 69.0).abs() < 0.01
+            }),
+            "expected beat guide at x={expected_x}, got {guides:?}"
+        );
+    }
+}
+
+#[test]
+fn beat_guides_do_not_paint_when_toggle_is_off() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.3, 0.7));
+    let widget = waveform_widget_for_state_with_beat_guides(&state, false, 4);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    assert!(!fill_rects(&plan).iter().any(|fill| {
+        (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
     }));
 }
 
@@ -213,15 +538,15 @@ fn edit_selection_paints_start_and_end_boundary_lines() {
 #[test]
 fn edit_fade_curve_paints_volume_trace_as_polyline() {
     let mut state = WaveformState::synthetic_for_tests();
-    state.edit_selection = Some(
+    let selection =
         wavecrate::selection::SelectionRange::new(0.2, 0.6)
             .with_fade_in(0.5, 0.8)
-            .with_fade_out(0.25, 0.0),
-    );
+            .with_fade_out(0.25, 0.0);
+    state.edit_selection = Some(selection);
     let widget = waveform_widget_for_state(&state);
     let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
 
-    let curve_points = stroke_polylines(&plan)
+    let curves = stroke_polylines(&plan)
         .into_iter()
         .filter(|stroke| {
             (
@@ -233,9 +558,46 @@ fn edit_fade_curve_paints_volume_trace_as_polyline() {
                 && stroke.width == 2.0
                 && stroke.points.len() >= 10
         })
-        .count();
-    assert!(
-        curve_points >= 2,
-        "expected visible fade curve trace polylines, got {curve_points}"
+        .collect::<Vec<_>>();
+    assert_eq!(
+        curves.len(),
+        2,
+        "expected leading and trailing fade curve strokes"
     );
+
+    let leading = curves
+        .iter()
+        .find(|stroke| {
+            let points = stroke.points.as_ref();
+            (points[0].x - 40.0).abs() < 0.001
+                && (points.last().expect("last leading fade point").x - 80.0).abs() < 0.001
+        })
+        .expect("leading fade curve stroke");
+    let leading_points = leading.points.as_ref();
+    let leading_bend = leading_points[2];
+    let leading_expected_y = 80.0 - 80.0 * selection.gain_at_position(0.24, 0.0);
+    assert!((leading_points[0].y - 80.0).abs() < 0.001);
+    assert!((leading_points.last().expect("last leading fade point").y - 0.0).abs() < 0.001);
+    assert!((leading_bend.x - 48.0).abs() < 0.001);
+    assert!((leading_bend.y - leading_expected_y).abs() < 0.001);
+    assert!(
+        leading_bend.y > 70.0,
+        "high-curve fade-in should paint the eased bend, not a straight ramp"
+    );
+
+    let trailing = curves
+        .iter()
+        .find(|stroke| {
+            let points = stroke.points.as_ref();
+            (points[0].x - 100.0).abs() < 0.001
+                && (points.last().expect("last trailing fade point").x - 120.0).abs() < 0.001
+        })
+        .expect("trailing fade curve stroke");
+    let trailing_points = trailing.points.as_ref();
+    let trailing_mid = trailing_points[5];
+    let trailing_expected_y = 80.0 - 80.0 * selection.gain_at_position(0.55, 0.0);
+    assert!((trailing_points[0].y - 0.0).abs() < 0.001);
+    assert!((trailing_points.last().expect("last trailing fade point").y - 80.0).abs() < 0.001);
+    assert!((trailing_mid.x - 110.0).abs() < 0.001);
+    assert!((trailing_mid.y - trailing_expected_y).abs() < 0.001);
 }

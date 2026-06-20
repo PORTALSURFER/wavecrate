@@ -18,11 +18,12 @@ pub(in crate::native_app) use loading::{
     SampleSelectionLoadState,
 };
 pub(in crate::native_app) use message::{
-    GuiMessage, MetadataMessage, SettingsMessage, SimilaritySettingsPersistResult, TrashMoveTarget,
-    VolumeSettingsPersistResult,
+    GuiMessage, MetadataMessage, SettingsMessage, SimilaritySettingsPersistResult,
+    SourceFilesystemSyncResult, TrashMoveTarget, VolumeSettingsPersistResult,
 };
 pub(in crate::native_app) use progress::{
-    NormalizationFailure, NormalizationProgress, NormalizationQueueItem, NormalizationResult,
+    FileMoveProgress, NormalizationFailure, NormalizationProgress, NormalizationQueueItem,
+    NormalizationResult,
 };
 pub(in crate::native_app) use settings::{
     AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,
@@ -31,10 +32,12 @@ pub(in crate::native_app) use settings::{
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::{
     AudioAppState, AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,
-    ChromeUiState, LibraryAppState, MetadataAppState, NativeAppState, PendingFolderDelete,
-    PendingRuntimePlaybackStart, SettingsAppState, SourceFilesystemChangePlan,
+    ChromeUiState, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT, MetadataAppState,
+    NativeAppState, PendingFolderDelete, PendingRuntimePlaybackStart,
+    PendingWaveformDestructiveEdit, SettingsAppState, SourceFilesystemChangePlan,
     SourceRefreshRequest, SourceScanFinish, StartupState, StatusState, UiAppState,
-    WaveformAppState, run_folder_scan_worker,
+    WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;
@@ -48,7 +51,9 @@ pub(super) use crate::native_app::sample_library::folder_browser::commands::{
 };
 pub(super) use crate::native_app::sample_library::folder_browser::scan::FolderScanProgress;
 pub(super) use crate::native_app::shell::emit_gui_action;
-pub(super) use crate::native_app::shell::shortcuts::default_gui_shortcuts;
+pub(super) use crate::native_app::shell::shortcuts::{
+    ShortcutHelpItem, ShortcutHelpSection, default_gui_shortcuts, shortcut_help_sections,
+};
 pub(super) use crate::native_app::ui::display::format_sample_rate_label;
 pub(super) use crate::native_app::waveform::{
     WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState,

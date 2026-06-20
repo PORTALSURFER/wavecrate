@@ -10,6 +10,8 @@ pub struct FadeParams {
     /// Outer crossfade extension length as a fraction of selection width.
     /// This region extends outward from the selection edge.
     pub mute: f32,
+    /// Gain at the outer edge of the extension (1.0 = original sample level).
+    pub outer_gain: f32,
 }
 
 impl FadeParams {
@@ -19,6 +21,7 @@ impl FadeParams {
             length: length.clamp(0.0, 1.0),
             curve: 0.5,
             mute: 0.0,
+            outer_gain: 1.0,
         }
     }
 
@@ -28,15 +31,27 @@ impl FadeParams {
             length: length.clamp(0.0, 1.0),
             curve: curve.clamp(0.0, 1.0),
             mute: 0.0,
+            outer_gain: 1.0,
         }
     }
 
     /// Create fade parameters with custom curve and outer extension length.
     pub fn with_curve_and_mute(length: f32, curve: f32, mute: f32) -> Self {
+        Self::with_curve_mute_and_outer_gain(length, curve, mute, 1.0)
+    }
+
+    /// Create fade parameters with custom curve, outer extension, and outer-edge gain.
+    pub fn with_curve_mute_and_outer_gain(
+        length: f32,
+        curve: f32,
+        mute: f32,
+        outer_gain: f32,
+    ) -> Self {
         Self {
             length: length.clamp(0.0, 1.0),
             curve: curve.clamp(0.0, 1.0),
             mute: mute.max(0.0),
+            outer_gain: clamp_outer_gain(outer_gain),
         }
     }
 }
@@ -118,13 +133,11 @@ fn extension_gain(
         FadeEdge::In => extension_t(position, span.start - extension_len, span.start)?,
         FadeEdge::Out => extension_t(position, span.end, span.end + extension_len)?,
     };
-    Some(
-        match edge {
-            FadeEdge::In => 1.0 - fade_curve_value(t, fade.curve),
-            FadeEdge::Out => fade_curve_value(t, fade.curve),
-        }
-        .clamp(0.0, 1.0),
-    )
+    let extension_gain = match edge {
+        FadeEdge::In => 1.0 - fade_curve_value(t, fade.curve),
+        FadeEdge::Out => fade_curve_value(t, fade.curve),
+    };
+    Some((fade.outer_gain * extension_gain).clamp(0.0, 1.0))
 }
 
 fn extension_t(position: f32, start: f32, end: f32) -> Option<f32> {
@@ -187,6 +200,10 @@ pub(crate) fn clamp_mute_length(mute: f32, max_mute: f32) -> f32 {
 
 pub(crate) fn clamp_gain(gain: f32) -> f32 {
     gain.clamp(0.0, 4.0)
+}
+
+pub(crate) fn clamp_outer_gain(gain: f32) -> f32 {
+    gain.clamp(0.0, 1.0)
 }
 
 fn round_fade_length(value: f32) -> f32 {

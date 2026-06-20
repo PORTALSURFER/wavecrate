@@ -1,10 +1,15 @@
 use crate::native_app::{
     app::{
         FileMoveConflictResolution, FileMoveConflictResolutionRequest, GuiMessage, NativeAppState,
+        ShortcutHelpItem, ShortcutHelpSection, shortcut_help_sections,
     },
     transaction_history::{TRANSACTION_LIST_MODAL_ID, TransactionListItem, TransactionListState},
 };
 use radiant::prelude as ui;
+
+const SHORTCUT_HELP_MODAL_WIDTH: f32 = 860.0;
+const SHORTCUT_HELP_MODAL_HEIGHT: f32 = 640.0;
+const SHORTCUT_HELP_KEY_WIDTH: f32 = 190.0;
 
 pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::View<GuiMessage> {
     let items = state.transactions.history.list_items();
@@ -50,6 +55,49 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
     )
     .key("transaction-list-modal")
     .id(TRANSACTION_LIST_MODAL_ID)
+}
+
+pub(in crate::native_app) fn shortcut_help(state: &NativeAppState) -> ui::View<GuiMessage> {
+    let sections = shortcut_help_sections(state);
+    let body = ui::scroll(
+        ui::column(
+            sections
+                .into_iter()
+                .map(shortcut_help_section_view)
+                .collect::<Vec<_>>(),
+        )
+        .spacing(8.0)
+        .fill_width(),
+    )
+    .fill_width()
+    .fill_height();
+    let content = ui::column([
+        ui::text_line(
+            "Context-aware keyboard shortcuts. Press Esc or Command-/ to close.",
+            20.0,
+        )
+        .muted_text()
+        .fill_width(),
+        body,
+    ])
+    .spacing(6.0)
+    .fill_width()
+    .fill_height();
+
+    ui::closeable_panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Shortcuts", content)
+                .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
+                .padding(8.0)
+                .spacing(6.0)
+                .title_height(24.0),
+            ui::Vector2::new(SHORTCUT_HELP_MODAL_WIDTH, SHORTCUT_HELP_MODAL_HEIGHT),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::Center)
+        .vertical(ui::LayerVerticalAnchor::Center),
+        GuiMessage::CloseShortcutHelp,
+    )
+    .key("shortcut-help-modal")
 }
 
 pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::View<GuiMessage> {
@@ -191,6 +239,53 @@ pub(in crate::native_app) fn folder_delete_confirmation(
     .key("folder-delete-confirmation-modal")
 }
 
+pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .as_ref()
+        .expect("waveform destructive modal requires pending edit state");
+    let content = ui::column([
+        ui::text_line(pending.prompt.title.clone(), 24.0).fill_width(),
+        ui::text_line(pending.prompt.message.clone(), 20.0).fill_width(),
+        ui::row([
+            ui::button("Apply Edit")
+                .danger()
+                .message(GuiMessage::ConfirmPendingWaveformDestructiveEdit)
+                .width(92.0)
+                .height(24.0),
+            ui::button("Cancel")
+                .message(GuiMessage::CancelPendingWaveformDestructiveEdit)
+                .width(72.0)
+                .height(24.0),
+        ])
+        .spacing(6.0)
+        .fill_width()
+        .height(26.0),
+    ])
+    .spacing(6.0)
+    .fill_width()
+    .fill_height();
+
+    ui::closeable_panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Destructive Edit", content)
+                .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
+                .padding(8.0)
+                .spacing(6.0)
+                .title_height(24.0),
+            ui::Vector2::new(500.0, 190.0),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::Center)
+        .vertical(ui::LayerVerticalAnchor::Center),
+        GuiMessage::CancelPendingWaveformDestructiveEdit,
+    )
+    .key("waveform-destructive-edit-modal")
+}
+
 fn transaction_list_summary(state: &NativeAppState) -> ui::View<GuiMessage> {
     let undo = if state.transactions.history.can_undo() {
         "undo ready"
@@ -210,6 +305,40 @@ fn transaction_list_summary(state: &NativeAppState) -> ui::View<GuiMessage> {
     ui::text_line(format!("{undo} | {redo} | {active}"), 20.0)
         .key("transaction-list-summary")
         .fill_width()
+}
+
+fn shortcut_help_section_view(section: ShortcutHelpSection) -> ui::View<GuiMessage> {
+    ui::column([
+        ui::text_line(section.title, 20.0)
+            .style(ui::WidgetStyle::strong(ui::WidgetTone::Accent))
+            .fill_width(),
+        ui::column(
+            section
+                .items
+                .into_iter()
+                .map(shortcut_help_row)
+                .collect::<Vec<_>>(),
+        )
+        .spacing(2.0)
+        .fill_width(),
+    ])
+    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+    .padding(6.0)
+    .spacing(4.0)
+    .fill_width()
+}
+
+fn shortcut_help_row(item: ShortcutHelpItem) -> ui::View<GuiMessage> {
+    ui::row([
+        ui::passive_badge(item.keys)
+            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+            .width(SHORTCUT_HELP_KEY_WIDTH)
+            .height(20.0),
+        ui::text_line(item.action, 20.0).fill_width(),
+    ])
+    .spacing(6.0)
+    .fill_width()
+    .height(22.0)
 }
 
 fn transaction_list_row(item: TransactionListItem) -> ui::View<GuiMessage> {

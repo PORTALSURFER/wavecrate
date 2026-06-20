@@ -57,8 +57,16 @@ pub(super) fn file_move_plan_to_folder(
     Ok(plan)
 }
 
+#[cfg(test)]
 pub(super) fn rename_files_with_rollback(
     moves: &[(PathBuf, PathBuf)],
+) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    rename_files_with_rollback_and_progress(moves, |_, _| {})
+}
+
+pub(super) fn rename_files_with_rollback_and_progress(
+    moves: &[(PathBuf, PathBuf)],
+    mut progress: impl FnMut(usize, &Path),
 ) -> Result<Vec<(PathBuf, PathBuf)>, String> {
     let mut completed = Vec::new();
     for (old_path, new_path) in moves {
@@ -67,6 +75,7 @@ pub(super) fn rename_files_with_rollback(
             return Err(format!("File move failed: {error}"));
         }
         completed.push((old_path.clone(), new_path.clone()));
+        progress(completed.len(), new_path);
     }
     Ok(completed)
 }

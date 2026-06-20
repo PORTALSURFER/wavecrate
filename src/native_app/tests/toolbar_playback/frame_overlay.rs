@@ -195,6 +195,43 @@ fn scene_installs_playback_cursor_transient_overlay() {
     );
 }
 
+#[test]
+fn shortcut_help_modal_suppresses_waveform_transient_overlay() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.ui.chrome.shortcut_help_open = true;
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+    let theme = radiant::theme::ThemeTokens::default();
+    let frame = runtime.frame(&theme);
+    let mut primitives = Vec::new();
+
+    runtime.bridge_mut().paint_transient_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+    assert!(
+        !primitives
+            .iter()
+            .filter_map(|primitive| primitive.fill_rect())
+            .any(|fill| {
+                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+                    && fill.color.r == 71
+                    && fill.color.g == 220
+                    && fill.color.b == 255
+            }),
+        "shortcut help should keep live playback cursor overlays behind the modal"
+    );
+}
+
 fn apply_gui_message_for_presentation_test(
     state: &mut NativeAppState,
     message: GuiMessage,

@@ -390,6 +390,124 @@ hr {
   fill: var(--accent-warning);
 }
 
+.appshot {
+  margin: 28px 0 32px;
+}
+
+.appshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--grid-strong);
+  box-shadow: var(--shadow-strong);
+  background: #000;
+}
+
+.appshot figcaption {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.quick-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 18px 0 28px;
+}
+
+.quick-guide section {
+  min-height: 150px;
+  padding: 16px;
+  border: 1px solid var(--grid-strong);
+  background: linear-gradient(180deg, rgba(25, 25, 25, 0.92), rgba(13, 13, 13, 0.88));
+  box-shadow: inset 0 0 0 1px var(--grid-soft);
+}
+
+.quick-guide h3 {
+  margin-top: 0;
+  color: var(--accent-ice);
+}
+
+.quick-guide p {
+  margin-bottom: 0;
+  color: var(--text-muted);
+}
+
+.hotkey-note {
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.hotkey-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin: 18px 0 4px;
+}
+
+.hotkey-card {
+  padding: 16px;
+  border: 1px solid var(--grid-strong);
+  background: linear-gradient(180deg, rgba(20, 20, 20, 0.94), rgba(13, 13, 13, 0.9));
+  box-shadow: inset 0 0 0 1px var(--grid-soft);
+}
+
+.hotkey-card h3 {
+  margin-top: 0;
+  color: var(--accent-ice);
+}
+
+.hotkey-card dl {
+  margin: 0;
+}
+
+.hotkey-row {
+  display: grid;
+  grid-template-columns: minmax(132px, 0.8fr) 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(74, 74, 74, 0.45);
+}
+
+.hotkey-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.hotkey-row:last-child {
+  padding-bottom: 0;
+}
+
+.hotkey-row dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.hotkey-row dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.85em;
+  padding: 2px 6px;
+  border: 1px solid var(--grid-strong);
+  background: var(--bg-tertiary);
+  color: var(--accent-mint);
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  line-height: 1.35;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.55);
+}
+
 @media (max-width: 960px) {
   .masthead {
     grid-template-columns: 1fr;
@@ -407,6 +525,13 @@ hr {
 
   .frame-body {
     padding: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  .hotkey-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }
 

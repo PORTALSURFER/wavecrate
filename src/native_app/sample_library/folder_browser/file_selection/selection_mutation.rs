@@ -65,7 +65,7 @@ impl FolderBrowserState {
             .selection
             .selected_collection_active_without_file_focus()
         {
-            self.navigate_into_active_file_list_matching_tags(1, tags_by_file)?;
+            self.focus_first_active_collection_file_matching_tags(tags_by_file)?;
         }
         let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         let outcome = self.selection.toggle_focused_file_and_advance(&file_ids)?;
@@ -78,5 +78,15 @@ impl FolderBrowserState {
 
     fn select_audio_file_ids(&mut self, ids: Vec<String>) -> usize {
         self.selection.select_all_files(ids)
+    }
+
+    fn focus_first_active_collection_file_matching_tags(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<String> {
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        let target = file_ids.first()?.clone();
+        self.selection.select_single_file(target.clone(), &file_ids);
+        Some(target)
     }
 }

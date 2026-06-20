@@ -1,7 +1,9 @@
 use crate::native_app::{
     app::{GuiMessage, MetadataMessage, NativeAppState},
     metadata::metadata_tag_pill_width,
-    metadata::{MetadataTagCategoryGroup, metadata_tag_pill_style},
+    metadata::{
+        MetadataTagCategoryGroup, MetadataTagSelectionState, metadata_tag_pill_selection_style,
+    },
 };
 use radiant::prelude as ui;
 
@@ -9,14 +11,13 @@ const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
 const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
 
 pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let selected_tags = state.selected_metadata_tags();
     let drag_active = state.metadata_tag_drag_active();
     let drop_hover = state.metadata_tag_drop_hover();
     let dragged_tag = state.dragged_metadata_tag();
     let groups = state
         .categorized_metadata_tags()
         .into_iter()
-        .map(|group| category_group(group, selected_tags, drag_active, drop_hover, dragged_tag))
+        .map(|group| category_group(state, group, drag_active, drop_hover, dragged_tag))
         .collect::<Vec<_>>();
     ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
@@ -41,8 +42,8 @@ pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessag
 }
 
 fn category_group(
+    state: &NativeAppState,
     group: MetadataTagCategoryGroup,
-    selected_tags: &[String],
     drag_active: bool,
     drop_hover: Option<&str>,
     dragged_tag: Option<&str>,
@@ -87,11 +88,12 @@ fn category_group(
         } else {
             let pills = group.tags.into_iter().map(|tag| {
                 let drag_source = dragged_tag == Some(tag.as_str());
+                let selection_state = state.metadata_tag_selection_state(&tag);
                 tag_row(
                     tag,
                     category_id.as_str(),
                     locked,
-                    selected_tags,
+                    selection_state,
                     drag_active,
                     drag_source,
                     category_hovered,
@@ -184,19 +186,18 @@ fn tag_row(
     tag: String,
     category_id: &str,
     locked: bool,
-    selected_tags: &[String],
+    selection_state: MetadataTagSelectionState,
     drag_active: bool,
     drag_source: bool,
     active_drop_target: bool,
 ) -> ui::View<GuiMessage> {
-    let selected = selected_tags.iter().any(|selected| selected == &tag);
-    let style = metadata_tag_pill_style(category_id, selected);
+    let style = metadata_tag_pill_selection_style(category_id, selection_state);
     let width = metadata_tag_pill_width(&tag);
     let tag_for_input = tag.clone();
     let category_for_input = category_id.to_string();
     let mut badge = ui::interactive_badge(tag.clone())
         .style(style)
-        .active(selected);
+        .active(selection_state.is_all());
 
     if !locked {
         badge = badge

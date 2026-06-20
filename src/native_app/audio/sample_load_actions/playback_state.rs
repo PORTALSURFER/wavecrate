@@ -41,6 +41,13 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.yield_sample_cache_warm_for_user_handoff(context);
+    }
+
+    pub(in crate::native_app) fn yield_sample_cache_warm_for_user_handoff(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         self.cancel_waveform_cache_warm();
         self.pause_active_folder_cache_warm(context);
     }

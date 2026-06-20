@@ -107,6 +107,7 @@ fn write_legacy_config(path: &std::path::Path, source_path: &str) {
             volume: 0.9,
             controls: InteractionOptions::default(),
             similarity: Default::default(),
+            collection_names: Default::default(),
             default_identifier: String::from("legacy"),
             tag_dictionary: Default::default(),
         },

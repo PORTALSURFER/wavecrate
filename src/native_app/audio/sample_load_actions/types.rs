@@ -26,6 +26,7 @@ pub(super) struct SampleLoadRequest {
     autoplay: bool,
     priority: ui::TaskPriority,
     strategy: SampleLoadStrategy,
+    require_decoded_playback: bool,
     queued_at: Instant,
 }
 
@@ -35,12 +36,14 @@ impl SampleLoadRequest {
         autoplay: bool,
         priority: ui::TaskPriority,
         strategy: SampleLoadStrategy,
+        require_decoded_playback: bool,
     ) -> Self {
         Self {
             path,
             autoplay,
             priority,
             strategy,
+            require_decoded_playback,
             queued_at: Instant::now(),
         }
     }
@@ -65,6 +68,10 @@ impl SampleLoadRequest {
         self.strategy
     }
 
+    pub(super) fn require_decoded_playback(&self) -> bool {
+        self.require_decoded_playback
+    }
+
     pub(super) fn queue_wait(&self, now: Instant) -> Duration {
         now.saturating_duration_since(self.queued_at)
     }
@@ -81,11 +88,13 @@ mod tests {
             true,
             ui::TaskPriority::Interactive,
             SampleLoadStrategy::CacheThenDecode,
+            true,
         );
 
         assert_eq!(request.path(), "kick.wav");
         assert!(request.autoplay());
         assert_eq!(request.priority(), ui::TaskPriority::Interactive);
-        assert_eq!(request.strategy(), SampleLoadStrategy::Decode);
+        assert_eq!(request.strategy(), SampleLoadStrategy::CacheThenDecode);
+        assert!(request.require_decoded_playback());
     }
 }

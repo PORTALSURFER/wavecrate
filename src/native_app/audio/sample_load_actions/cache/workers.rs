@@ -15,8 +15,8 @@ use crate::native_app::{
         WaveformState,
     },
     waveform::{
-        cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
-        load_cached_waveform_file_for_playback,
+        cached_waveform_file_exists, cached_waveform_file_source_ready_exists,
+        load_cached_waveform_file_for_playback, mark_cached_waveform_file_source_warm_attempted,
     },
 };
 
@@ -86,7 +86,7 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm_with_progres
                 cancelled: true,
             };
         }
-        if cached_waveform_file_playback_ready_exists(&path) {
+        if cached_waveform_file_source_ready_exists(&path) {
             report_active_folder_cache_plan_progress(
                 &folder_id,
                 &path,
@@ -170,7 +170,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             false,
             &progress,
         );
-        if cached_waveform_file_playback_ready_exists(&path) {
+        if cached_waveform_file_source_ready_exists(&path) {
             playback_ready.push(path.clone());
             processed += 1;
             report_active_folder_cache_progress(
@@ -235,6 +235,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             &is_cancelled,
         ) {
             Ok(waveform) => {
+                mark_cached_waveform_file_source_warm_attempted(&path);
                 loaded.push((path.clone(), waveform.file()));
                 processed += 1;
                 report_active_folder_cache_progress(
@@ -251,6 +252,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
                 deferred.push(path.clone());
             }
             Err(_) => {
+                mark_cached_waveform_file_source_warm_attempted(&path);
                 processed += 1;
             }
         }
@@ -298,7 +300,7 @@ pub(super) fn probe_persisted_waveform_cache_indicators(
         if is_cancelled() {
             break;
         }
-        if cached_waveform_file_playback_ready_exists(path) {
+        if cached_waveform_file_source_ready_exists(path) {
             playback_ready_paths.insert(path.clone());
         } else if cached_waveform_file_exists(path) {
             warm_candidate_paths.insert(path.clone());

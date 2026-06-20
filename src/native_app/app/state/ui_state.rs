@@ -1,10 +1,16 @@
 use std::{collections::HashSet, path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
+use wavecrate::sample_sources::SampleSource;
 use wavecrate::sample_sources::config::AppSettingsCore;
+use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover};
 use crate::native_app::sample_library::context_menu_target::BrowserContextMenu;
+
+pub(in crate::native_app) const DEFAULT_BEAT_GUIDE_COUNT: u8 = 4;
+pub(in crate::native_app) const MIN_BEAT_GUIDE_COUNT: u8 = 1;
+pub(in crate::native_app) const MAX_BEAT_GUIDE_COUNT: u8 = 64;
 
 pub(in crate::native_app) struct UiAppState {
     pub(in crate::native_app) chrome: ChromeUiState,
@@ -35,6 +41,11 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) folder_panel: ui::PanelResizeState,
     pub(in crate::native_app) job_details_open: bool,
     pub(in crate::native_app) transaction_list_open: bool,
+    pub(in crate::native_app) shortcut_help_open: bool,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
+    pub(in crate::native_app) sticky_random_sample_range_playback: bool,
+    pub(in crate::native_app) beat_guides_enabled: bool,
+    pub(in crate::native_app) beat_guide_count: u8,
 }
 
 impl ChromeUiState {
@@ -43,7 +54,20 @@ impl ChromeUiState {
             folder_panel: ui::PanelResizeState::new(folder_width),
             job_details_open: false,
             transaction_list_open: false,
+            shortcut_help_open: false,
+            help_tooltips_enabled: false,
+            sticky_random_sample_range_playback: false,
+            beat_guides_enabled: false,
+            beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,
         }
+    }
+
+    pub(in crate::native_app) fn adjust_beat_guide_count(&mut self, delta: i8) {
+        let next = i16::from(self.beat_guide_count) + i16::from(delta);
+        self.beat_guide_count = next.clamp(
+            i16::from(MIN_BEAT_GUIDE_COUNT),
+            i16::from(MAX_BEAT_GUIDE_COUNT),
+        ) as u8;
     }
 }
 
@@ -97,6 +121,8 @@ impl StatusState {
 pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::native_app) pending_folder_delete: Option<PendingFolderDelete>,
+    pub(in crate::native_app) pending_waveform_destructive_edit:
+        Option<PendingWaveformDestructiveEdit>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
     pub(in crate::native_app) file_move_conflict_apply_to_remaining: bool,
@@ -106,6 +132,29 @@ pub(in crate::native_app) struct BrowserInteractionState {
 pub(in crate::native_app) struct PendingFolderDelete {
     pub(in crate::native_app) path: PathBuf,
     pub(in crate::native_app) name: String,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::native_app) struct PendingWaveformDestructiveEdit {
+    pub(in crate::native_app) prompt: WaveformDestructiveEditPrompt,
+    pub(in crate::native_app) source: SampleSource,
+    pub(in crate::native_app) relative_path: PathBuf,
+    pub(in crate::native_app) absolute_path: PathBuf,
+    pub(in crate::native_app) selection: SelectionRange,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum WaveformDestructiveEditKind {
+    CropSelection,
+    TrimSelection,
+    ExtractAndTrimSelection,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct WaveformDestructiveEditPrompt {
+    pub(in crate::native_app) edit: WaveformDestructiveEditKind,
+    pub(in crate::native_app) title: String,
+    pub(in crate::native_app) message: String,
 }
 
 pub(in crate::native_app) struct StartupState {

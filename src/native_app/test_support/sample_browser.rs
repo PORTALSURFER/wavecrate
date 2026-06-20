@@ -12,6 +12,7 @@ pub(in crate::native_app) use crate::native_app::sample_library::folder_browser:
 };
 pub(in crate::native_app) use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
+    SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,7 +39,7 @@ pub(in crate::native_app) fn sample_file_hit_target(
     drag_source: bool,
     cached: bool,
 ) -> SampleFileHitTarget {
-    SampleFileHitTarget::new(path, selected, drag_active, drag_source, cached)
+    SampleFileHitTarget::new(path, selected, false, drag_active, drag_source, cached)
 }
 
 pub(in crate::native_app) fn sample_browser_window_projection(
@@ -58,7 +59,7 @@ pub(in crate::native_app) fn sample_browser_window_projection(
             .rows
             .iter()
             .take(take)
-            .filter_map(|row| row.as_ref().map(|row| row.file.stem.clone()))
+            .map(|row| row.file.stem.clone())
             .collect(),
     }
 }

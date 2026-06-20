@@ -45,6 +45,10 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         ));
     }
     if menu.kind == BrowserContextTargetKind::Folder {
+        actions.push(ui::MenuCommand::new(
+            "Rename Folder",
+            GuiMessage::RenameContextFolder,
+        ));
         actions.push(
             ui::MenuCommand::new("Delete Folder", GuiMessage::RequestDeleteContextFolder).danger(),
         );

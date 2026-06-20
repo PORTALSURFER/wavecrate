@@ -20,22 +20,25 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    assert!(frame.paint_plan.contains_text("Filter"));
-    assert!(frame.paint_plan.contains_text("Tags"));
+    assert!(!frame.paint_plan.contains_text("Filter"));
+    assert!(!frame.paint_plan.contains_text("Tags"));
     assert!(!frame.paint_plan.contains_text("Metadata"));
     assert!(!frame.paint_plan.contains_text("Tags (1)"));
     assert!(!frame.paint_plan.contains_text("Tagging"));
     assert!(frame.paint_plan.contains_text("kick"));
-    let tag_count = frame
+    assert!(!frame.paint_plan.contains_text("(1)"));
+    let toggle_rect = frame
         .paint_plan
-        .first_text_rect("(1)")
-        .expect("metadata tag count should paint");
+        .first_widget_rect(
+            crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
+        )
+        .expect("metadata tag library toggle should paint");
     assert!(
         frame
             .paint_plan
             .svgs()
-            .any(|svg| svg.rect.min.x > tag_count.max.x && svg.rect.min.y <= tag_count.max.y),
-        "metadata tag library disclosure icon should paint beside the tag count"
+            .any(|svg| svg.rect.intersects(toggle_rect)),
+        "metadata tag library disclosure icon should paint inside the compact toggle"
     );
 }
 
@@ -163,6 +166,62 @@ fn metadata_tag_chips_display_playback_tags_first() {
     assert!(loop_rect.min.x < hat_rect.min.x);
     assert!(one_shot_rect.min.x < hat_rect.min.x);
     assert!(hat_rect.min.x < warm_rect.min.x);
+}
+
+#[test]
+fn metadata_tag_chips_show_mixed_tags_for_multi_selection() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    fs::write(&first, []).expect("first sample");
+    fs::write(&second, []).expect("second sample");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state.library.folder_browser.select_file(first_id.clone());
+    state.library.folder_browser.select_file_with_modifiers(
+        second_id.clone(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    state
+        .metadata
+        .tags_by_file
+        .insert(first_id, vec![String::from("bass")]);
+    state
+        .metadata
+        .tags_by_file
+        .insert(second_id, vec![String::from("dry")]);
+    let theme = radiant::theme::ThemeTokens::default();
+    let expected = radiant::widgets::resolve_widget_visual_tokens(
+        &theme,
+        crate::native_app::metadata::metadata_tag_pill_selection_style(
+            "sound-type",
+            crate::native_app::metadata::MetadataTagSelectionState::Mixed,
+        ),
+        radiant::widgets::WidgetState::default(),
+    );
+
+    let frame = crate::native_app::test_support::state::view(&mut state)
+        .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
+    let bass_rect = frame
+        .paint_plan
+        .first_text_rect("bass")
+        .expect("mixed bass tag should paint");
+
+    assert!(frame.paint_plan.contains_text("dry"));
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == expected.fill && fill.rect.intersects(bass_rect)),
+        "mixed inline tag should paint the partial-assignment pill fill"
+    );
 }
 
 #[test]

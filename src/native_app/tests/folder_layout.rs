@@ -1,9 +1,15 @@
+use super::native_runtime_for_tests;
+use crate::native_app::sample_library::folder_browser::view_contract::FOLDER_TREE_SELECTION_CONTEXT_ROWS;
 use crate::native_app::test_support::{
     sample_browser::{DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH},
     state::{FolderBrowserState, GuiMessage, NativeAppStateFixture},
 };
 use radiant::runtime::Command;
-use radiant::{gui::types::Point, widgets::DragHandleMessage};
+use radiant::{
+    gui::types::{Point, Vector2},
+    runtime::SurfaceFrame,
+    widgets::DragHandleMessage,
+};
 use std::fs;
 
 #[test]
@@ -57,7 +63,109 @@ fn keyboard_folder_navigation_keeps_selected_folder_in_tree_view() {
     );
     assert_eq!(
         last_fixed_row_scroll(context.into_command()),
-        Some((12, 23.0, 2, 2, 1))
+        Some((
+            12,
+            23.0,
+            FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+            FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+            1,
+        ))
+    );
+}
+
+#[test]
+fn full_gui_folder_tree_pointer_selection_preserves_manual_scroll_window() {
+    let tempdir = tempfile::tempdir().expect("create temp root");
+    let root = tempdir
+        .path()
+        .join("wavecrate-folder-tree-pointer-stability");
+    fs::create_dir_all(&root).expect("create source root");
+    for index in 0..100 {
+        let folder = root.join(format!("folder_{index:02}"));
+        fs::create_dir_all(&folder).expect("create folder");
+        fs::write(folder.join("sample.wav"), []).expect("write sample");
+    }
+    let state = NativeAppStateFixture::default()
+        .with_folder_browser(FolderBrowserState::from_root(root))
+        .build();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let tree_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::FOLDER_TREE_LIST_ID)
+        .copied()
+        .expect("folder tree list should be laid out");
+    let scroll_point = Point::new(tree_rect.center().x, tree_rect.min.y + 48.0);
+    for _ in 0..24 {
+        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+    }
+
+    let before = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .tree_view_start();
+    let viewport_rows = (tree_rect.height()
+        / crate::native_app::sample_library::folder_browser::view_contract::TREE_ROW_HEIGHT)
+        .ceil()
+        .max(1.0) as usize;
+    let visible_folders = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .visible_folders();
+    let target_index = (before + viewport_rows.saturating_sub(3)).min(visible_folders.len() - 1);
+    let target_id = visible_folders[target_index].id.clone();
+    let target_label = visible_folders[target_index].name.clone();
+    let frame = runtime.frame_with_default_theme();
+
+    runtime.dispatch_primary_click(text_center(&frame, &target_label));
+
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_folder_id(),
+        Some(target_id.as_str()),
+        "folder tree click should select the intended folder"
+    );
+
+    let mut starts = vec![
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .tree_view_start(),
+    ];
+    let mut selected_row_tops = vec![text_top(&runtime.frame_with_default_theme(), &target_label)];
+    for _ in 0..4 {
+        runtime.refresh();
+        starts.push(
+            runtime
+                .bridge()
+                .state()
+                .library
+                .folder_browser
+                .tree_view_start(),
+        );
+        selected_row_tops.push(text_top(&runtime.frame_with_default_theme(), &target_label));
+    }
+
+    assert_eq!(
+        starts,
+        vec![before; starts.len()],
+        "clicking a visible folder should not move the manually scrolled tree viewport"
+    );
+    assert!(
+        selected_row_tops
+            .windows(2)
+            .all(|pair| (pair[0] - pair[1]).abs() < 0.5),
+        "clicking a visible folder should not repaint it at a different y position: {selected_row_tops:?}"
     );
 }
 
@@ -110,6 +218,24 @@ fn x_toggle_marks_focused_folder_without_sample_focus() {
     assert!(!loops_row.selected);
     assert!(loops_row.focused);
     assert!(state.ui.status.sample.contains("2 selected"));
+}
+
+fn text_center(frame: &SurfaceFrame, label: &str) -> Point {
+    frame
+        .paint_plan
+        .text_runs()
+        .find(|text| text.text.as_str() == label)
+        .map(|text| text.rect.center())
+        .unwrap_or_else(|| panic!("{label} should paint"))
+}
+
+fn text_top(frame: &SurfaceFrame, label: &str) -> f32 {
+    frame
+        .paint_plan
+        .text_runs()
+        .find(|text| text.text.as_str() == label)
+        .map(|text| text.rect.min.y)
+        .unwrap_or_else(|| panic!("{label} should paint"))
 }
 
 fn last_fixed_row_scroll(command: Command<GuiMessage>) -> Option<(usize, f32, usize, usize, i32)> {

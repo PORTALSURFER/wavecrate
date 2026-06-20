@@ -16,9 +16,6 @@ impl NativeAppState {
             GuiMessage::FolderBrowser(message) => {
                 self.apply_folder_browser_message(message, context);
             }
-            GuiMessage::PrepareSimilarityForSelectedSource => {
-                self.prepare_similarity_for_selected_source(context);
-            }
             GuiMessage::SetSimilarityAspectWeightingEnabled(enabled) => {
                 self.set_similarity_aspect_weighting_enabled(enabled);
             }
@@ -59,6 +56,9 @@ impl NativeAppState {
                 overflowed,
             } => {
                 self.refresh_source_after_filesystem_change(source_id, paths, overflowed, context);
+            }
+            GuiMessage::SourceFilesystemSyncFinished(result) => {
+                self.finish_source_filesystem_sync(result);
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);

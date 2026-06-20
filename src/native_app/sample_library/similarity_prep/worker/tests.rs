@@ -10,6 +10,7 @@ fn native_similarity_status_resolves_core_states() {
             has_embeddings: true,
             has_aspects: true,
             has_layout: true,
+            has_active_jobs: false,
             failures: Some(SimilarityPrepFailureCounts {
                 failed_count: 0,
                 unsupported_count: 0,
@@ -24,6 +25,7 @@ fn native_similarity_status_resolves_core_states() {
             has_embeddings: true,
             has_aspects: true,
             has_layout: true,
+            has_active_jobs: false,
             failures: None,
         }),
         NativeSimilarityPrepStatus::Outdated
@@ -35,6 +37,7 @@ fn native_similarity_status_resolves_core_states() {
             has_embeddings: false,
             has_aspects: false,
             has_layout: false,
+            has_active_jobs: false,
             failures: Some(SimilarityPrepFailureCounts {
                 failed_count: 2,
                 unsupported_count: 1,
@@ -44,6 +47,25 @@ fn native_similarity_status_resolves_core_states() {
             failed_count: 2,
             unsupported_count: 1,
         }
+    );
+}
+
+#[test]
+fn native_similarity_status_is_outdated_while_jobs_are_pending() {
+    assert_eq!(
+        resolve_similarity_prep_facts(SimilarityPrepFacts {
+            scan_completed_at: Some(20),
+            prep_completed_at: Some(20),
+            has_embeddings: true,
+            has_aspects: true,
+            has_layout: true,
+            has_active_jobs: true,
+            failures: Some(SimilarityPrepFailureCounts {
+                failed_count: 0,
+                unsupported_count: 0,
+            }),
+        }),
+        NativeSimilarityPrepStatus::Outdated
     );
 }
 
@@ -104,6 +126,146 @@ fn automatic_native_similarity_prepare_does_not_retry_blocked_failures() {
     assert_eq!(count_jobs_by_status(&source, "pending"), 0);
 }
 
+#[test]
+fn native_similarity_prepare_skips_unchanged_unsupported_files() {
+    let (_dir, source) = source_with_file("unsupported.wav");
+    seed_failed_analysis_job_with_error(
+        &source,
+        "unsupported.wav",
+        "unsupported feature: no suitable format reader found",
+    );
+
+    let summary = enqueue_similarity_prep_inner(&source, false).expect("enqueue");
+
+    assert_eq!(summary.analysis_inserted, 0);
+    assert_eq!(summary.embedding_inserted, 0);
+    assert_eq!(summary.status, NativeSimilarityPrepStatus::UpToDate);
+    assert_eq!(count_jobs_by_status(&source, "failed"), 1);
+}
+
+#[test]
+fn native_similarity_prepare_retries_unsupported_files_after_content_changes() {
+    let (dir, source) = source_with_file("unsupported.wav");
+    seed_failed_analysis_job_with_error(
+        &source,
+        "unsupported.wav",
+        "unsupported feature: no suitable format reader found",
+    );
+    std::fs::write(dir.path().join("unsupported.wav"), [1_u8; 9]).expect("rewrite sample");
+    let db = SourceDatabase::open(&source.root).expect("source db");
+    db.upsert_file(std::path::Path::new("unsupported.wav"), 9, 11)
+        .expect("update file row");
+
+    let summary = enqueue_similarity_prep_inner(&source, false).expect("enqueue");
+
+    assert_eq!(summary.analysis_inserted, 1);
+    assert_eq!(
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "pending"),
+        1
+    );
+}
+
+#[test]
+fn automatic_native_similarity_finish_drains_jobs_even_when_artifacts_exist() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (dir, source) = source_with_valid_wav("covered-a.wav");
+    write_valid_wav_with_frequency(&dir.path().join("covered-b.wav"), 660.0);
+    write_valid_wav_with_frequency(&dir.path().join("covered-c.wav"), 880.0);
+    write_valid_wav_with_frequency(&dir.path().join("covered-d.wav"), 990.0);
+    ensure_source_database_scanned(&source).expect("scan source");
+    seed_similarity_artifacts_without_features(&source, "covered-a.wav");
+    seed_similarity_artifacts_without_features(&source, "covered-b.wav");
+    seed_similarity_artifacts_without_features(&source, "covered-c.wav");
+    seed_similarity_artifacts_without_features(&source, "covered-d.wav");
+
+    let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
+    let finished = super::super::finish_similarity_prep(
+        summary,
+        &source,
+        super::super::SimilarityPrepTrigger::Automatic,
+    )
+    .expect("finish automatic prep");
+
+    assert!(finished.jobs_processed >= 1);
+    assert_eq!(count_jobs_by_status(&source, "pending"), 0);
+    assert_eq!(
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "done"),
+        4
+    );
+    assert_eq!(finished.status, NativeSimilarityPrepStatus::UpToDate);
+}
+
+#[test]
+fn automatic_native_similarity_finish_drains_pending_jobs_when_other_jobs_failed() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (dir, source) = source_with_valid_wav("valid-a.wav");
+    write_valid_wav_with_frequency(&dir.path().join("valid-b.wav"), 330.0);
+    write_valid_wav_with_frequency(&dir.path().join("valid-c.wav"), 550.0);
+    write_valid_wav_with_frequency(&dir.path().join("valid-d.wav"), 770.0);
+    enqueue_similarity_prep_inner(&source, false).expect("initial enqueue");
+    seed_failed_analysis_job(&source, "failed.wav");
+
+    let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
+    let finished = super::super::finish_similarity_prep(
+        summary,
+        &source,
+        super::super::SimilarityPrepTrigger::Automatic,
+    )
+    .expect("finish automatic prep");
+
+    assert!(finished.jobs_processed >= 1);
+    assert_eq!(count_jobs_by_status(&source, "pending"), 0);
+    assert_eq!(count_jobs_by_status(&source, "failed"), 1);
+    assert_eq!(
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "done"),
+        4
+    );
+    assert!(count_similarity_embeddings(&source, "valid-a.wav") >= 1);
+    assert!(count_similarity_embeddings(&source, "valid-b.wav") >= 1);
+    assert!(count_similarity_embeddings(&source, "valid-c.wav") >= 1);
+    assert!(count_similarity_embeddings(&source, "valid-d.wav") >= 1);
+    assert!(count_similarity_aspects(&source, "valid-a.wav") >= 1);
+    assert!(count_similarity_aspects(&source, "valid-b.wav") >= 1);
+    assert!(count_similarity_aspects(&source, "valid-c.wav") >= 1);
+    assert!(count_similarity_aspects(&source, "valid-d.wav") >= 1);
+    assert_eq!(finished.status, NativeSimilarityPrepStatus::UpToDate);
+}
+
+#[test]
+fn native_similarity_prep_recognizes_transient_database_busy_errors() {
+    assert!(is_transient_database_busy("Database is busy, please retry"));
+    assert!(is_transient_database_busy(
+        "Open source DB failed: database is locked"
+    ));
+    assert!(is_transient_database_busy(
+        "SQLITE_BUSY during schema check"
+    ));
+    assert!(!is_transient_database_busy("Unsupported WAV encoding"));
+}
+
+#[test]
+fn native_similarity_user_drain_processes_valid_wav_jobs() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (_dir, source) = source_with_valid_wav("valid.wav");
+
+    let summary = enqueue_similarity_prep_inner(&source, false).expect("enqueue");
+    let drain = drain_similarity_prep_jobs(&source).expect("drain jobs");
+
+    assert_eq!(summary.analysis_inserted, 1);
+    assert_eq!(summary.embedding_inserted, 1);
+    assert_eq!(drain.failed, 0);
+    assert!(drain.processed >= 1);
+    assert!(count_similarity_embeddings(&source, "valid.wav") >= 1);
+    assert!(count_similarity_aspects(&source, "valid.wav") >= 1);
+    assert_eq!(
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "done"),
+        1
+    );
+}
+
 fn source_with_file(name: &str) -> (tempfile::TempDir, SampleSource) {
     let dir = tempfile::tempdir().expect("temp source");
     std::fs::write(dir.path().join(name), [0_u8; 8]).expect("sample file");
@@ -114,6 +276,35 @@ fn source_with_file(name: &str) -> (tempfile::TempDir, SampleSource) {
     db.set_metadata(META_LAST_SCAN_COMPLETED_AT, "20")
         .expect("scan timestamp");
     (dir, source)
+}
+
+fn source_with_valid_wav(name: &str) -> (tempfile::TempDir, SampleSource) {
+    let dir = tempfile::tempdir().expect("temp source");
+    write_valid_wav(&dir.path().join(name));
+    let source = SampleSource::new_with_id(SourceId::from_string("native"), dir.path().into());
+    (dir, source)
+}
+
+fn write_valid_wav(path: &std::path::Path) {
+    write_valid_wav_with_frequency(path, 440.0);
+}
+
+fn write_valid_wav_with_frequency(path: &std::path::Path, frequency_hz: f32) {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+    for index in 0..wavecrate_analysis::ANALYSIS_SAMPLE_RATE / 10 {
+        let phase = index as f32 / wavecrate_analysis::ANALYSIS_SAMPLE_RATE as f32;
+        let sample = (phase * frequency_hz * std::f32::consts::TAU).sin() * i16::MAX as f32 * 0.2;
+        writer
+            .write_sample(sample as i16)
+            .expect("write wav sample");
+    }
+    writer.finalize().expect("finalize wav");
 }
 
 fn count_jobs(source: &SampleSource) -> i64 {
@@ -132,6 +323,16 @@ fn count_jobs_by_type(source: &SampleSource, job_type: &str) -> i64 {
     .expect("job count")
 }
 
+fn count_jobs_by_type_and_status(source: &SampleSource, job_type: &str, status: &str) -> i64 {
+    let conn = open_source_db(&source.root).expect("analysis db");
+    conn.query_row(
+        "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1 AND status = ?2",
+        [job_type, status],
+        |row| row.get(0),
+    )
+    .expect("job count")
+}
+
 fn count_jobs_by_status(source: &SampleSource, status: &str) -> i64 {
     let conn = open_source_db(&source.root).expect("analysis db");
     conn.query_row(
@@ -140,6 +341,29 @@ fn count_jobs_by_status(source: &SampleSource, status: &str) -> i64 {
         |row| row.get(0),
     )
     .expect("job count")
+}
+
+fn count_similarity_embeddings(source: &SampleSource, relative_path: &str) -> i64 {
+    let conn = open_source_db(&source.root).expect("analysis db");
+    let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
+    conn.query_row(
+        "SELECT COUNT(*) FROM embeddings WHERE sample_id = ?1 AND model_id = ?2",
+        rusqlite::params![sample_id, SIMILARITY_MODEL_ID],
+        |row| row.get(0),
+    )
+    .expect("embedding count")
+}
+
+fn count_similarity_aspects(source: &SampleSource, relative_path: &str) -> i64 {
+    let conn = open_source_db(&source.root).expect("analysis db");
+    let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
+    conn.query_row(
+        "SELECT COUNT(*) FROM similarity_aspect_descriptors
+         WHERE sample_id = ?1 AND model_id = ?2",
+        rusqlite::params![sample_id, ASPECT_DESCRIPTOR_MODEL_ID],
+        |row| row.get(0),
+    )
+    .expect("aspect count")
 }
 
 fn seed_current_analysis_artifacts(source: &SampleSource, relative_path: &str) {
@@ -189,18 +413,41 @@ fn seed_current_analysis_artifacts(source: &SampleSource, relative_path: &str) {
     .expect("insert aspect descriptors");
 }
 
+fn seed_similarity_artifacts_without_features(source: &SampleSource, relative_path: &str) {
+    seed_current_analysis_artifacts(source, relative_path);
+    let conn = open_source_db(&source.root).expect("analysis db");
+    let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
+    conn.execute(
+        "DELETE FROM features WHERE sample_id = ?1 AND feat_version = 1",
+        rusqlite::params![&sample_id],
+    )
+    .expect("delete features");
+    conn.execute(
+        "INSERT OR REPLACE INTO layout_umap
+         (sample_id, model_id, umap_version, x, y, created_at)
+         VALUES (?1, ?2, 'v1', 0.0, 0.0, 0)",
+        rusqlite::params![&sample_id, SIMILARITY_MODEL_ID],
+    )
+    .expect("insert layout");
+}
+
 fn seed_failed_analysis_job(source: &SampleSource, relative_path: &str) {
+    seed_failed_analysis_job_with_error(source, relative_path, "decode failed");
+}
+
+fn seed_failed_analysis_job_with_error(source: &SampleSource, relative_path: &str, error: &str) {
     let conn = open_source_db(&source.root).expect("analysis db");
     let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
     conn.execute(
         "INSERT INTO analysis_jobs
          (sample_id, source_id, relative_path, job_type, content_hash, status, attempts, created_at, last_error)
-         VALUES (?1, ?2, ?3, ?4, 'fast-8-10', 'failed', 1, 0, 'decode failed')",
+         VALUES (?1, ?2, ?3, ?4, 'fast-8-10', 'failed', 1, 0, ?5)",
         rusqlite::params![
             sample_id,
             source.id.as_str(),
             relative_path,
             ANALYZE_SAMPLE_JOB_TYPE,
+            error,
         ],
     )
     .expect("insert failed job");

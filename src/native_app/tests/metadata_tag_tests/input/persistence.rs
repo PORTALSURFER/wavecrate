@@ -89,3 +89,55 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
     assert!(state.metadata.tags_by_file.is_empty());
     assert_eq!(state.metadata.tag_draft, "kick, warm tone");
 }
+
+#[test]
+fn metadata_tag_input_adds_tag_to_all_selected_samples() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    fs::write(&first, []).expect("first sample");
+    fs::write(&second, []).expect("second sample");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state.library.folder_browser.select_file(first_id.clone());
+    state.library.folder_browser.select_file_with_modifiers(
+        second_id.clone(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    state
+        .metadata
+        .tags_by_file
+        .insert(first_id.clone(), vec![String::from("warm")]);
+    state
+        .metadata
+        .tags_by_file
+        .insert(second_id.clone(), vec![String::from("dry")]);
+    state
+        .metadata
+        .tags_by_file
+        .insert(String::from("known.wav"), vec![String::from("bright")]);
+
+    state.apply_message(
+        metadata_tag_input(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("bright"),
+        }),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata.tags_by_file.get(&first_id),
+        Some(&vec![String::from("warm"), String::from("bright")])
+    );
+    assert_eq!(
+        state.metadata.tags_by_file.get(&second_id),
+        Some(&vec![String::from("dry"), String::from("bright")])
+    );
+    assert_eq!(state.ui.status.sample, "Added tag bright to 2 samples");
+}

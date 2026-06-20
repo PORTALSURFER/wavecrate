@@ -176,6 +176,12 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
             .expect("sample loads");
     let loaded = state.waveform.current.clone();
     state.remember_waveform(&loaded);
+    state
+        .waveform
+        .cache
+        .active_folder_warm_pending
+        .push_back(old_path.clone());
+    state.waveform.cache.active_folder_warm_current = Some(old_path.clone());
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
@@ -211,6 +217,19 @@ fn folder_rename_remaps_loaded_waveform_and_cache_without_reload() {
             .cache
             .cached_sample_paths
             .contains(&old_path.display().to_string())
+    );
+    assert_eq!(
+        state.waveform.cache.active_folder_warm_current.as_deref(),
+        Some(new_path.as_path())
+    );
+    assert_eq!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .iter()
+            .collect::<Vec<_>>(),
+        vec![&new_path]
     );
     assert!(
         state
@@ -447,6 +466,157 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
         (0.24..=0.35).contains(&progress),
         "spacebar playback should start inside the playmark selection, got {progress}"
     );
+}
+
+#[test]
+fn playmark_selection_copy_uses_interactive_handoff_worker() {
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("playmark-copy.wav", &[0, 1024, -1024, 512]);
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let warm_cancel = ui::CancellationToken::new();
+    scenario.state.waveform.cache.active_folder_warm_cancel = Some(warm_cancel.clone());
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.copy_selected_files(&mut context);
+
+    assert!(warm_cancel.is_cancelled());
+    assert!(
+        scenario
+            .state
+            .waveform
+            .cache
+            .active_folder_warm_cancel
+            .is_none()
+    );
+    assert_eq!(
+        business_command_priority(context.into_command(), "gui-copy-waveform-selection"),
+        Some(ui::TaskPriority::Interactive),
+        "playmark clipboard staging must not queue behind cache warm workers"
+    );
+}
+
+#[test]
+fn playmark_selection_copy_flashes_on_submit_and_ready() {
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("playmark-copy-ready.wav", &[0, 1024, -1024, 512]);
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.copy_selected_files(&mut context);
+
+    assert!(
+        scenario
+            .state
+            .waveform
+            .current
+            .play_selection_flash_active()
+    );
+    drain_play_selection_flash(&mut scenario.state);
+    assert!(
+        !scenario
+            .state
+            .waveform
+            .current
+            .play_selection_flash_active()
+    );
+
+    let source_path = scenario.state.waveform.current.path();
+    let selection = scenario
+        .state
+        .waveform
+        .current
+        .play_selection()
+        .expect("play selection");
+    scenario.state.finish_waveform_selection_copy(
+        source_path,
+        selection,
+        std::time::Instant::now(),
+        Ok(PathBuf::from("/tmp/wavecrate-staged-clip.wav")),
+    );
+
+    assert!(
+        scenario
+            .state
+            .waveform
+            .current
+            .play_selection_flash_active()
+    );
+}
+
+#[test]
+fn playmark_selection_copy_ready_flash_ignores_stale_range() {
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("playmark-copy-stale.wav", &[0, 1024, -1024, 512]);
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let source_path = scenario.state.waveform.current.path();
+    let copied_selection = scenario
+        .state
+        .waveform
+        .current
+        .play_selection()
+        .expect("play selection");
+    drain_play_selection_flash(&mut scenario.state);
+
+    scenario
+        .state
+        .waveform
+        .current
+        .set_play_selection_range(0.10, 0.20);
+    scenario.state.finish_waveform_selection_copy(
+        source_path,
+        copied_selection,
+        std::time::Instant::now(),
+        Ok(PathBuf::from("/tmp/wavecrate-staged-clip.wav")),
+    );
+
+    assert!(
+        !scenario
+            .state
+            .waveform
+            .current
+            .play_selection_flash_active()
+    );
+}
+
+#[test]
+fn whole_file_copy_uses_interactive_handoff_worker() {
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav("whole-file-copy.wav", &[0, 1024]);
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.copy_selected_files(&mut context);
+
+    assert_eq!(
+        business_command_priority(context.into_command(), "gui-copy-selected-files"),
+        Some(ui::TaskPriority::Interactive),
+        "whole-file clipboard handoff must not queue behind cache warm workers"
+    );
+}
+
+fn load_selected_sample_into_waveform(scenario: &mut WaveformPlaybackScenario) {
+    let selected_file = scenario
+        .state
+        .library
+        .folder_browser
+        .selected_file_id()
+        .map(ToOwned::to_owned)
+        .expect("scenario should have a selected sample");
+    scenario.state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(PathBuf::from(
+            selected_file,
+        ))
+        .expect("test sample loads");
+}
+
+fn drain_play_selection_flash(state: &mut NativeAppState) {
+    for _ in 0..32 {
+        state
+            .waveform
+            .current
+            .apply_interaction(WaveformInteraction::Frame);
+    }
 }
 
 #[test]

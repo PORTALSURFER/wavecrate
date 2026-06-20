@@ -15,6 +15,20 @@ pub(super) fn persist_metadata_tag_assignment(
     }
 }
 
+pub(super) fn persist_metadata_tag_assignments(
+    requests: Vec<MetadataTagPersistRequest>,
+) -> MetadataTagPersistResult {
+    let tags = unique_request_tags(&requests);
+    let result = requests
+        .iter()
+        .try_for_each(persist_metadata_tag_assignment_inner);
+    MetadataTagPersistResult {
+        tags,
+        assigned: true,
+        result,
+    }
+}
+
 pub(super) fn persist_metadata_tag_deletions(
     requests: Vec<MetadataTagPersistRequest>,
 ) -> MetadataTagPersistResult {
@@ -30,6 +44,18 @@ pub(super) fn persist_metadata_tag_deletions(
         assigned: false,
         result,
     }
+}
+
+fn unique_request_tags(requests: &[MetadataTagPersistRequest]) -> Vec<String> {
+    let mut tags = Vec::new();
+    for request in requests {
+        for tag in &request.tags {
+            if !tags.iter().any(|existing| existing == tag) {
+                tags.push(tag.clone());
+            }
+        }
+    }
+    tags
 }
 
 fn persist_metadata_tag_assignment_inner(

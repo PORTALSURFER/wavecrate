@@ -188,9 +188,7 @@ impl NativeAppState {
 }
 
 fn supported_waveform_drop_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+    wavecrate_library::sample_sources::is_supported_audio(path)
 }
 
 fn file_name_or_path(path: &Path) -> String {
@@ -259,5 +257,17 @@ fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
     match (left.canonicalize(), right.canonicalize()) {
         (Ok(left), Ok(right)) => left == right,
         _ => left == right,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn waveform_drop_rejects_appledouble_sidecars() {
+        assert!(supported_waveform_drop_file(Path::new("kick.wav")));
+        assert!(!supported_waveform_drop_file(Path::new("._kick.wav")));
+        assert!(!supported_waveform_drop_file(Path::new("drums/._kick.wav")));
     }
 }

@@ -102,6 +102,36 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
 }
 
 #[test]
+fn selecting_missing_sample_prunes_row_without_queueing_load() {
+    let (mut state, source_root, selected_file) = native_app_state_with_temp_sample("missing.wav");
+    fs::remove_file(source_root.path().join("missing.wav")).expect("remove sample");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: selected_file.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .is_empty(),
+        "selecting a missing listed sample should remove it from the visible file list"
+    );
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
+    assert!(
+        matches!(context.into_command(), Command::None),
+        "missing sample selection should not queue a foreground load"
+    );
+    assert!(state.ui.status.sample.contains("Removed missing"));
+}
+
+#[test]
 fn rapid_last_played_records_only_latest_delayed_persist() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("first.wav");

@@ -3,10 +3,7 @@ use radiant::{
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
-    runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
-        PaintPrimitive,
-    },
+    runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive},
     theme::ThemeTokens,
     widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
@@ -17,26 +14,43 @@ use crate::native_app::ui::ids as widget_ids;
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 
 use super::{
-    WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformFile, WaveformInteraction,
-    WaveformState, WaveformViewport, audio_file::gain_preview_for_selection,
-    edit_preview_for_selection,
+    WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformEditFadeHandle,
+    WaveformEditFadeOuterGainHandle, WaveformFile, WaveformInteraction, WaveformState,
+    WaveformViewport, audio_file::gain_preview_for_selection, edit_preview_for_selection,
+    widget_geometry::WaveformSelectionHandleHover,
 };
 
-pub(in crate::native_app) fn waveform_viewport_view(state: &WaveformState) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
+    state: &WaveformState,
+    tooltip: Option<&'static str>,
+    beat_guides_enabled: bool,
+    beat_guide_count: u8,
+) -> ui::View<GuiMessage> {
+    let interaction = ui::custom_widget(
+        WaveformWidget::new(WaveformWidgetProps::from_state(
+            state,
+            beat_guides_enabled,
+            beat_guide_count,
+        )),
+        |output| {
+            output
+                .typed_copied::<WaveformInteraction>()
+                .map(GuiMessage::Waveform)
+        },
+    )
+    .id(WAVEFORM_WIDGET_ID)
+    .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32);
+    let interaction = if let Some(tooltip) = tooltip {
+        interaction.tooltip(tooltip)
+    } else {
+        interaction
+    };
+
     ui::stack([
         waveform_signal_surface_view(state.file(), state.viewport(), state.edit_selection())
             .id(WAVEFORM_SIGNAL_WIDGET_ID)
             .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
-        ui::custom_widget(
-            WaveformWidget::new(WaveformWidgetProps::from_state(state)),
-            |output| {
-                output
-                    .typed_copied::<WaveformInteraction>()
-                    .map(GuiMessage::Waveform)
-            },
-        )
-        .id(WAVEFORM_WIDGET_ID)
-        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
+        interaction,
     ])
     .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
@@ -62,17 +76,7 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
         .capabilities(GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
-            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
-                GpuSurfaceLineStyle {
-                    color: ui::Rgba8 {
-                        r: 255,
-                        g: 255,
-                        b: 255,
-                        a: 235,
-                    },
-                    width: 1.0,
-                },
-            ),
+            runtime_overlays: Default::default(),
         }),
     )
 }
@@ -87,14 +91,24 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
     hover_cursor_ratio: Option<f32>,
+    hovered_selection_handle: Option<WaveformSelectionHandleHover>,
+    hovered_edit_fade_handle: Option<WaveformEditFadeHandle>,
+    hovered_edit_fade_outer_gain_handle: Option<WaveformEditFadeOuterGainHandle>,
+    hovered_edit_gain_handle: bool,
     extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
+    beat_guides_enabled: bool,
+    beat_guide_count: u8,
     playing: bool,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
 impl WaveformWidgetProps {
-    pub(super) fn from_state(state: &WaveformState) -> Self {
+    pub(super) fn from_state(
+        state: &WaveformState,
+        beat_guides_enabled: bool,
+        beat_guide_count: u8,
+    ) -> Self {
         Self {
             file: state.file(),
             viewport: state.viewport(),
@@ -104,8 +118,14 @@ impl WaveformWidgetProps {
             play_selection: state.play_selection(),
             edit_selection: state.edit_selection(),
             hover_cursor_ratio: None,
+            hovered_selection_handle: None,
+            hovered_edit_fade_handle: None,
+            hovered_edit_fade_outer_gain_handle: None,
+            hovered_edit_gain_handle: false,
             extracted_ranges: state.extracted_ranges().to_vec(),
             play_selection_flash_frames: state.play_selection_flash_frames(),
+            beat_guides_enabled,
+            beat_guide_count,
             playing: state.is_playing(),
             active_drag_kind: state.active_drag_kind(),
         }
@@ -124,8 +144,14 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) play_selection: Option<wavecrate::selection::SelectionRange>,
     pub(super) edit_selection: Option<wavecrate::selection::SelectionRange>,
     pub(super) hover_cursor_ratio: Option<f32>,
+    pub(super) hovered_selection_handle: Option<WaveformSelectionHandleHover>,
+    pub(super) hovered_edit_fade_handle: Option<WaveformEditFadeHandle>,
+    pub(super) hovered_edit_fade_outer_gain_handle: Option<WaveformEditFadeOuterGainHandle>,
+    pub(super) hovered_edit_gain_handle: bool,
     pub(super) extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) play_selection_flash_frames: u8,
+    pub(super) beat_guides_enabled: bool,
+    pub(super) beat_guide_count: u8,
     pub(super) playing: bool,
     pub(super) edit_preview: TimelineEditPreview,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
@@ -142,8 +168,14 @@ impl WaveformWidget {
             play_selection,
             edit_selection,
             hover_cursor_ratio,
+            hovered_selection_handle,
+            hovered_edit_fade_handle,
+            hovered_edit_fade_outer_gain_handle,
+            hovered_edit_gain_handle,
             extracted_ranges,
             play_selection_flash_frames,
+            beat_guides_enabled,
+            beat_guide_count,
             playing,
             active_drag_kind,
         } = props;
@@ -164,8 +196,14 @@ impl WaveformWidget {
             play_selection,
             edit_selection,
             hover_cursor_ratio,
+            hovered_selection_handle,
+            hovered_edit_fade_handle,
+            hovered_edit_fade_outer_gain_handle,
+            hovered_edit_gain_handle,
             extracted_ranges,
             play_selection_flash_frames,
+            beat_guides_enabled,
+            beat_guide_count,
             playing,
             edit_preview: edit_preview_for_selection(edit_selection),
             active_drag_kind,
@@ -220,6 +258,9 @@ impl Widget for WaveformWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        self.append_hover_edit_fade_handle_paint(primitives, bounds);
+        self.append_hover_edit_fade_outer_gain_handle_paint(primitives, bounds);
+        self.append_hover_selection_handle_paint(primitives, bounds);
         self.append_hover_cursor_paint(primitives, bounds);
     }
 }

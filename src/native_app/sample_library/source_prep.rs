@@ -30,6 +30,13 @@ impl SourcePrepTrigger {
     fn process_unselected_cache(self) -> bool {
         matches!(self, Self::UserRequested)
     }
+
+    fn force_cache_restart(self) -> bool {
+        matches!(
+            self,
+            Self::UserRequested | Self::SourceScanFinished | Self::FilesystemChanged
+        )
+    }
 }
 
 impl NativeAppState {
@@ -63,8 +70,10 @@ impl NativeAppState {
         if selected_source {
             self.schedule_persisted_waveform_cache_indicator_refresh(context);
         }
-        let cache_scheduled = if selected_source {
+        let cache_scheduled = if selected_source && trigger.force_cache_restart() {
             self.schedule_active_folder_cache_warm(context)
+        } else if selected_source {
+            self.schedule_active_folder_cache_warm_if_needed(context)
         } else if trigger.process_unselected_cache() {
             self.schedule_source_cache_warm(&source_id, context)
         } else {

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use wavecrate::sample_sources::config::SimilarityAspectSettings;
+use wavecrate::sample_sources::{SampleCollection, config::SimilarityAspectSettings};
 
 use super::FolderEntry;
 
@@ -172,11 +172,22 @@ impl FileColumnKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(super) enum FolderBrowserDrag {
-    Folder { folder_id: String },
-    Files { file_ids: Vec<String> },
-    ExtractedFile { path: PathBuf },
+    Folder {
+        folder_id: String,
+    },
+    Files {
+        file_ids: Vec<String>,
+        remove_from_collection: Option<SampleCollection>,
+    },
+    ExtractedFile {
+        path: PathBuf,
+    },
+    WaveformExtraction {
+        request: crate::native_app::waveform::WaveformExtractionRequest,
+        label: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

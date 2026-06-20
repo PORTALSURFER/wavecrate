@@ -441,8 +441,8 @@ fn active_folder_cache_progress_promotes_completed_row_immediately() {
         .view_frame_at_size(Vector2::new(720.0, 360.0), &theme);
     assert_eq!(
         unloaded_frame.paint_plan.first_text_color("ready-row"),
-        Some(theme.text_muted),
-        "uncached rows should start muted"
+        Some(theme.text_primary),
+        "uncached rows should remain readable"
     );
 
     let mut context = ui::UiUpdateContext::default();
@@ -760,7 +760,7 @@ fn active_folder_cache_warm_yields_while_normalization_is_active() {
 }
 
 #[test]
-fn changing_folder_cancels_previous_active_folder_cache_warm() {
+fn changing_folder_in_same_source_keeps_active_source_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -809,7 +809,8 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         ),
         &mut context,
     );
-    assert!(active_folder_cache_warm_ticket(&state).is_some());
+    let running_ticket =
+        active_folder_cache_warm_ticket(&state).expect("source warm should be running");
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FolderBrowser(
@@ -820,27 +821,25 @@ fn changing_folder_cancels_previous_active_folder_cache_warm() {
         ),
         &mut context,
     );
-    finish_active_folder_cache_warm_plan(
-        &mut state,
-        &mut context,
-        source_root.path().display().to_string(),
-        Vec::new(),
-        vec![
-            first_folder.join("first.wav"),
-            second_folder.join("second.wav"),
-        ],
-    );
 
+    assert_eq!(
+        active_folder_cache_warm_ticket(&state),
+        Some(running_ticket),
+        "same-source folder navigation should not restart a source-wide warm worker"
+    );
     assert!(
-        active_folder_cache_warm_ticket(&state).is_none(),
-        "changing folders should cancel the active warm worker"
+        active_folder_cache_warm_plan_ticket(&state).is_none(),
+        "same-source folder navigation should not queue a replacement cache plan"
     );
     let source_warm_id = source_root.path().display().to_string();
     assert_eq!(
         state.waveform.cache.active_folder_warm_folder_id.as_deref(),
         Some(source_warm_id.as_str())
     );
-    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 2);
+    assert!(
+        state.waveform.cache.active_folder_warm_current.is_some(),
+        "the original warm worker should keep its current file"
+    );
 }
 
 #[test]
@@ -990,6 +989,54 @@ fn active_folder_cache_warm_builds_summary_cache_for_large_uncached_source_files
     assert!(
         !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
         "large source files should avoid full playback sidecar warming"
+    );
+}
+
+#[test]
+fn active_folder_cache_plan_treats_large_summary_cache_as_processed() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-summary-restart.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path = PathBuf::from(sample_path.display().to_string());
+
+    let warm_result =
+        crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
+            crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+                String::from("source"),
+                vec![sample_path.clone()],
+            ),
+            || false,
+        );
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    assert_eq!(warm_result.loaded.len(), 1);
+    assert!(crate::native_app::waveform::cached_waveform_file_exists(
+        &sample_path
+    ));
+    assert!(
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "test setup should produce a summary-only cache"
+    );
+
+    let plan =
+        crate::native_app::audio::sample_load_actions::plan_active_folder_waveform_cache_warm(
+            crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+                source_root.path().display().to_string(),
+                vec![sample_path.clone()],
+            ),
+            || false,
+        );
+
+    assert_eq!(
+        plan.playback_ready,
+        vec![sample_path],
+        "large summary caches are source-prep ready even without playback sidecars"
+    );
+    assert!(
+        plan.pending.is_empty(),
+        "source warm should not requeue a large file once its summary cache exists"
     );
 }
 
@@ -1283,7 +1330,142 @@ fn active_folder_cache_plan_only_reprocesses_changed_files_after_normalize() {
 }
 
 #[test]
-fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
+fn normalize_finish_keeps_changed_file_in_active_folder_cache_warm_queue() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("normalize-rewarm.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096]);
+    let sample_id = sample_path.display().to_string();
+    let source_id = source_root.path().display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                source_root.path().display().to_string(),
+                Default::default(),
+            ),
+        ),
+        &mut context,
+    );
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_id.clone(),
+        Vec::new(),
+        vec![sample_path.clone()],
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .contains(&sample_path)
+    );
+
+    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&sample_path)
+        .expect("normalize wav");
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 0,
+            detail: sample_id.clone(),
+        },
+    );
+    state.finish_normalization(
+        crate::native_app::app::NormalizationResult {
+            task_id: 42,
+            loaded_path: sample_path.clone(),
+            normalizing_loaded: false,
+            was_playing: false,
+            restart_ratio: 0.0,
+            restart_span: None,
+            normalized: vec![sample_path.clone()],
+            skipped: Vec::new(),
+            failed: Vec::new(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .contains(&sample_path),
+        "normalization should leave the edited file queued for active-folder recache"
+    );
+    assert!(
+        !state
+            .waveform
+            .cache
+            .cached_sample_paths
+            .contains(&sample_id),
+        "normalization should still clear the stale cache-ready row marker"
+    );
+
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("folder warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    let running_ticket =
+        active_folder_cache_warm_ticket(&state).expect("source warm should restart");
+    let result = crate::native_app::audio::sample_load_actions::warm_active_folder_waveform_cache(
+        crate::native_app::app::ActiveFolderCacheWarmRequest::new(
+            source_id.clone(),
+            vec![sample_path.clone()],
+        ),
+        || false,
+    );
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
+            ui::KeyedTaskCompletion {
+                key: crate::native_app::audio::sample_load_actions::active_folder_cache_warm_resource_key(
+                    source_id.as_str(),
+                ),
+                ticket: running_ticket,
+                output: result,
+            },
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state.waveform.cache.active_folder_warm_pending.is_empty(),
+        "edited file should leave the active-folder cache queue after recache"
+    );
+    assert_eq!(state.waveform.cache.active_folder_warm_folder_id, None);
+    assert!(
+        state
+            .waveform
+            .cache
+            .cached_sample_paths
+            .contains(&sample_id),
+        "recache should restore the cache-ready row marker"
+    );
+}
+
+#[test]
+fn source_warm_marker_keeps_summary_cache_out_of_background_warm_queue() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -1308,17 +1490,17 @@ fn summary_only_persisted_cache_is_not_marked_playback_ready_after_restart() {
     state.refresh_persisted_waveform_cache_indicators();
 
     assert!(
-        !state
+        state
             .waveform
             .cache
             .cached_sample_paths
             .contains(&sample_path_string),
-        "summary-only persisted cache must not paint the row as playback-ready"
+        "source-warm markers should keep prepared rows visually cache-ready"
     );
     assert_eq!(
         state.waveform.cache.warm_pending.iter().collect::<Vec<_>>(),
-        vec![&sample_path],
-        "summary-only persisted cache should still be warmed in the background"
+        Vec::<&PathBuf>::new(),
+        "source-warm markers should not be queued for repeated background warming"
     );
 }
 

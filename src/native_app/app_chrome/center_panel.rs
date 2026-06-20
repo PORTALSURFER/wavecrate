@@ -79,7 +79,9 @@ pub(in crate::native_app) fn sample_workspace_overlays(
             GuiMessage::CloseContextMenu,
         )
         .blocking_modal_opt(folder_delete_confirmation_overlay(state))
+        .blocking_modal_opt(waveform_destructive_edit_overlay(state))
         .blocking_modal_opt(file_move_conflict_overlay(state))
+        .blocking_modal_opt(shortcut_help_overlay(state))
 }
 
 fn browser_context_menu_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
@@ -107,4 +109,21 @@ fn folder_delete_confirmation_overlay(state: &NativeAppState) -> Option<ui::View
         .pending_folder_delete
         .is_some()
         .then(|| modals::folder_delete_confirmation(state))
+}
+
+fn waveform_destructive_edit_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .is_some()
+        .then(|| modals::waveform_destructive_edit_confirmation(state))
+}
+
+fn shortcut_help_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    state
+        .ui
+        .chrome
+        .shortcut_help_open
+        .then(|| modals::shortcut_help(state))
 }

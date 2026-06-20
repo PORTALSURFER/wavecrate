@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     path::PathBuf,
     sync::{
         Arc,
@@ -380,8 +381,9 @@ fn run_playback_runtime(
     commands: Receiver<PlaybackRuntimeCommand>,
     events: mpsc::Sender<PlaybackRuntimeEvent>,
 ) {
-    while let Ok(command) = commands.recv() {
-        match coalesce_command(command, &commands, &events) {
+    let mut pending = VecDeque::new();
+    while let Some(command) = next_runtime_command(&commands, &mut pending) {
+        match coalesce_command(command, &commands, &events, &mut pending) {
             CoalescedCommand::Play { id, request } => {
                 let event = match executor.play(request) {
                     Ok(started) => PlaybackRuntimeEvent::Started(PlaybackRuntimeStarted {
@@ -414,6 +416,13 @@ fn run_playback_runtime(
     }
 }
 
+fn next_runtime_command(
+    commands: &Receiver<PlaybackRuntimeCommand>,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+) -> Option<PlaybackRuntimeCommand> {
+    pending.pop_front().or_else(|| commands.recv().ok())
+}
+
 enum CoalescedCommand {
     Play {
         id: PlaybackRequestId,
@@ -435,38 +444,103 @@ fn coalesce_command(
     command: PlaybackRuntimeCommand,
     commands: &Receiver<PlaybackRuntimeCommand>,
     events: &mpsc::Sender<PlaybackRuntimeEvent>,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
 ) -> CoalescedCommand {
-    let mut current = command;
     loop {
         match commands.try_recv() {
-            Ok(next) => current = supersede(current, next, events),
-            Err(TryRecvError::Empty) => return command_to_coalesced(current),
+            Ok(next) => pending.push_back(next),
+            Err(TryRecvError::Empty) => {
+                return command_to_coalesced(coalesce_pending_command(command, pending, events));
+            }
             Err(TryRecvError::Disconnected) => {
-                cancel_command(current, PlaybackRuntimeCancellation::Shutdown, events);
+                cancel_command(command, PlaybackRuntimeCancellation::Shutdown, events);
+                cancel_pending_commands(pending, PlaybackRuntimeCancellation::Shutdown, events);
                 return CoalescedCommand::Shutdown;
             }
         }
     }
 }
 
-fn supersede(
-    current: PlaybackRuntimeCommand,
-    next: PlaybackRuntimeCommand,
+fn coalesce_pending_command(
+    command: PlaybackRuntimeCommand,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
     events: &mpsc::Sender<PlaybackRuntimeEvent>,
 ) -> PlaybackRuntimeCommand {
-    match (&current, &next) {
-        (PlaybackRuntimeCommand::Play { id, .. }, PlaybackRuntimeCommand::Play { .. }) => {
-            send_cancelled(*id, PlaybackRuntimeCancellation::Superseded, events);
+    match command {
+        current @ PlaybackRuntimeCommand::Play { .. } => {
+            coalesce_play_command(current, pending, events)
         }
-        (PlaybackRuntimeCommand::Play { id, .. }, PlaybackRuntimeCommand::Stop { .. }) => {
-            send_cancelled(*id, PlaybackRuntimeCancellation::Stopped, events);
+        current @ PlaybackRuntimeCommand::PollProgress { .. } => {
+            coalesce_repeated_progress_command(current, pending)
         }
-        (PlaybackRuntimeCommand::Play { id, .. }, PlaybackRuntimeCommand::Shutdown) => {
-            send_cancelled(*id, PlaybackRuntimeCancellation::Shutdown, events);
+        current @ PlaybackRuntimeCommand::SetVolume { .. } => {
+            coalesce_repeated_volume_command(current, pending)
         }
-        _ => {}
+        PlaybackRuntimeCommand::Shutdown => {
+            cancel_pending_commands(pending, PlaybackRuntimeCancellation::Shutdown, events);
+            PlaybackRuntimeCommand::Shutdown
+        }
+        // Stop is an ordering barrier: dropping it lets an old loop keep running
+        // while the host app is still loading the replacement sample.
+        current @ PlaybackRuntimeCommand::Stop { .. } => current,
     }
-    next
+}
+
+fn coalesce_play_command(
+    mut current: PlaybackRuntimeCommand,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+    events: &mpsc::Sender<PlaybackRuntimeEvent>,
+) -> PlaybackRuntimeCommand {
+    loop {
+        match pending.front() {
+            Some(PlaybackRuntimeCommand::Play { .. }) => {
+                let next = pending.pop_front().expect("pending play command");
+                cancel_command(current, PlaybackRuntimeCancellation::Superseded, events);
+                current = next;
+            }
+            Some(PlaybackRuntimeCommand::Stop { .. }) => {
+                let stop = pending.pop_front().expect("pending stop command");
+                cancel_command(current, PlaybackRuntimeCancellation::Stopped, events);
+                return stop;
+            }
+            Some(PlaybackRuntimeCommand::Shutdown) => {
+                let shutdown = pending.pop_front().expect("pending shutdown command");
+                cancel_command(current, PlaybackRuntimeCancellation::Shutdown, events);
+                cancel_pending_commands(pending, PlaybackRuntimeCancellation::Shutdown, events);
+                return shutdown;
+            }
+            Some(PlaybackRuntimeCommand::PollProgress { .. }) => {
+                let _ = pending.pop_front();
+            }
+            Some(PlaybackRuntimeCommand::SetVolume { .. }) | None => return current,
+        }
+    }
+}
+
+fn coalesce_repeated_progress_command(
+    mut current: PlaybackRuntimeCommand,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+) -> PlaybackRuntimeCommand {
+    while matches!(
+        pending.front(),
+        Some(PlaybackRuntimeCommand::PollProgress { .. })
+    ) {
+        current = pending.pop_front().expect("pending progress command");
+    }
+    current
+}
+
+fn coalesce_repeated_volume_command(
+    mut current: PlaybackRuntimeCommand,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+) -> PlaybackRuntimeCommand {
+    while matches!(
+        pending.front(),
+        Some(PlaybackRuntimeCommand::SetVolume { .. })
+    ) {
+        current = pending.pop_front().expect("pending volume command");
+    }
+    current
 }
 
 fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
@@ -486,6 +560,16 @@ fn cancel_command(
 ) {
     if let PlaybackRuntimeCommand::Play { id, .. } = command {
         send_cancelled(id, reason, events);
+    }
+}
+
+fn cancel_pending_commands(
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+    reason: PlaybackRuntimeCancellation,
+    events: &mpsc::Sender<PlaybackRuntimeEvent>,
+) {
+    while let Some(command) = pending.pop_front() {
+        cancel_command(command, reason, events);
     }
 }
 
@@ -566,6 +650,74 @@ mod tests {
                 error: None,
             }
         }
+    }
+
+    #[test]
+    fn coalescing_keeps_stop_before_progress_poll() {
+        let stop_id = PlaybackRequestId(1);
+        let poll_id = PlaybackRequestId(2);
+        let (coalesced, pending, events) = coalesce_for_test(
+            PlaybackRuntimeCommand::Stop { id: stop_id },
+            vec![PlaybackRuntimeCommand::PollProgress { id: poll_id }],
+        );
+
+        assert!(matches!(
+            coalesced,
+            CoalescedCommand::Stop { id } if id == stop_id
+        ));
+        assert!(matches!(
+            pending.as_slice(),
+            [PlaybackRuntimeCommand::PollProgress { id }] if *id == poll_id
+        ));
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn coalescing_keeps_stop_before_following_play() {
+        let stop_id = PlaybackRequestId(1);
+        let play_id = PlaybackRequestId(2);
+        let (coalesced, pending, events) = coalesce_for_test(
+            PlaybackRuntimeCommand::Stop { id: stop_id },
+            vec![play_command(play_id, 0.25)],
+        );
+
+        assert!(matches!(
+            coalesced,
+            CoalescedCommand::Stop { id } if id == stop_id
+        ));
+        assert!(matches!(
+            pending.as_slice(),
+            [PlaybackRuntimeCommand::Play { id, .. }] if *id == play_id
+        ));
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn coalescing_play_then_stop_keeps_later_play_pending() {
+        let first_play = PlaybackRequestId(1);
+        let stop_id = PlaybackRequestId(2);
+        let second_play = PlaybackRequestId(3);
+        let (coalesced, pending, events) = coalesce_for_test(
+            play_command(first_play, 0.0),
+            vec![
+                PlaybackRuntimeCommand::Stop { id: stop_id },
+                play_command(second_play, 0.5),
+            ],
+        );
+
+        assert!(matches!(
+            coalesced,
+            CoalescedCommand::Stop { id } if id == stop_id
+        ));
+        assert!(matches!(
+            pending.as_slice(),
+            [PlaybackRuntimeCommand::Play { id, .. }] if *id == second_play
+        ));
+        assert!(matches!(
+            events.as_slice(),
+            [PlaybackRuntimeEvent::Cancelled { id, reason }]
+                if *id == first_play && *reason == PlaybackRuntimeCancellation::Stopped
+        ));
     }
 
     #[test]
@@ -663,5 +815,31 @@ mod tests {
             volume: 1.0,
             edit_fade: None,
         }
+    }
+
+    fn play_command(id: PlaybackRequestId, start: f64) -> PlaybackRuntimeCommand {
+        PlaybackRuntimeCommand::Play {
+            id,
+            request: test_request(start),
+        }
+    }
+
+    fn coalesce_for_test(
+        current: PlaybackRuntimeCommand,
+        queued: Vec<PlaybackRuntimeCommand>,
+    ) -> (
+        CoalescedCommand,
+        Vec<PlaybackRuntimeCommand>,
+        Vec<PlaybackRuntimeEvent>,
+    ) {
+        let (command_sender, command_receiver) = mpsc::sync_channel(queued.len().max(1));
+        for command in queued {
+            command_sender.try_send(command).expect("queue command");
+        }
+        let (event_sender, event_receiver) = mpsc::channel();
+        let mut pending = VecDeque::new();
+        let coalesced = coalesce_command(current, &command_receiver, &event_sender, &mut pending);
+        let events = event_receiver.try_iter().collect();
+        (coalesced, pending.into_iter().collect(), events)
     }
 }

@@ -43,6 +43,7 @@ pub(in crate::native_app) enum SourceScanFinish {
         label: String,
         file_count: usize,
         folder_count: usize,
+        source_db_error: Option<String>,
     },
     Stale {
         label: String,
@@ -189,6 +190,7 @@ impl SourceScanWorkflow {
         let label = result.label.clone();
         let file_count = result.file_count;
         let folder_count = result.folder_count;
+        let source_db_error = result.source_db_error.clone();
         if browser.apply_scan_finished(result) {
             self.progress = None;
             SourceScanFinish::Applied {
@@ -196,6 +198,7 @@ impl SourceScanWorkflow {
                 label,
                 file_count,
                 folder_count,
+                source_db_error,
             }
         } else {
             SourceScanFinish::Stale { label }

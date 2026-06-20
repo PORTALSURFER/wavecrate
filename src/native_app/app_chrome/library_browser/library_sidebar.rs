@@ -6,6 +6,7 @@ use crate::native_app::app_chrome::view_models::library_sidebar::LibrarySidebarV
 mod collections_section;
 mod filter_section;
 mod folder_tree;
+mod panel_chrome;
 mod sidebar_row;
 mod source_section;
 mod tag_completion;

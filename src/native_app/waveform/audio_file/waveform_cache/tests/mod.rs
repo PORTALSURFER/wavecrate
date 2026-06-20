@@ -1,7 +1,7 @@
 use super::{
-    format::{CACHE_FORMAT_VERSION_V2, CachedGpuSignalSummary, CachedWaveformFileV2},
     identity::{
-        cache_path_for_identity, cache_path_for_identity_with_version, playback_sidecar_path,
+        cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
+        source_warm_marker_path,
     },
     prune::prune_waveform_cache_dir,
     read::{CacheReadStatus, read_cached_waveform_file_outcome},
@@ -25,6 +25,7 @@ mod failures;
 mod format_payload;
 mod identity_staleness;
 mod prune_behavior;
+mod remap_behavior;
 mod store_queue_behavior;
 
 static WAVEFORM_CACHE_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(Mutex::default);

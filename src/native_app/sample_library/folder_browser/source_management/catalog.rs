@@ -102,6 +102,27 @@ impl FolderBrowserState {
             .max_by_key(|(root, _)| root.components().count())
     }
 
+    pub(in crate::native_app) fn sample_source_for_file_path(
+        &self,
+        file_path: &std::path::Path,
+    ) -> Option<(SampleSource, PathBuf)> {
+        self.source
+            .sources
+            .iter()
+            .filter_map(|source| {
+                file_path.strip_prefix(&source.root).ok().map(|relative| {
+                    (
+                        SampleSource::new_with_id(
+                            SourceId::from_string(source.id.clone()),
+                            source.root.clone(),
+                        ),
+                        relative.to_path_buf(),
+                    )
+                })
+            })
+            .max_by_key(|(source, _)| source.root.components().count())
+    }
+
     pub(in crate::native_app) fn source_is_removable(&self, source_id: &str) -> bool {
         self.source
             .sources

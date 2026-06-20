@@ -262,6 +262,64 @@ fn fade_outer_extensions_crossfade_to_selection_edges() {
 }
 
 #[test]
+fn fade_outer_gain_scales_extension_without_changing_inner_fade() {
+    let range = SelectionRange::new(0.2, 0.8)
+        .with_fade_in(0.4, 0.0)
+        .with_fade_out(0.4, 0.0)
+        .with_fade_in_mute(0.2)
+        .with_fade_out_mute(0.1)
+        .with_fade_in_outer_gain(0.25)
+        .with_fade_out_outer_gain(0.5);
+
+    let left_outer_start = fade_gain_at_position(
+        0.08,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let right_outer_end = fade_gain_at_position(
+        0.86,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let inner_after_fade = fade_gain_at_position(
+        0.5,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+
+    assert!((left_outer_start - 0.25).abs() < 1e-6);
+    assert!((right_outer_end - 0.5).abs() < 1e-5);
+    assert!((inner_after_fade - 1.0).abs() < 1e-6);
+}
+
+#[test]
+fn fade_outer_gain_is_preserved_by_shift() {
+    let range = SelectionRange::new(0.2, 0.4)
+        .with_fade_in(0.2, 0.5)
+        .with_fade_in_mute(0.2)
+        .with_fade_in_outer_gain(0.35)
+        .with_fade_out(0.3, 0.5)
+        .with_fade_out_mute(0.2)
+        .with_fade_out_outer_gain(0.65);
+    let shifted = range.shift(0.1);
+
+    assert!((shifted.fade_in_outer_gain() - 0.35).abs() < 1e-6);
+    assert!((shifted.fade_out_outer_gain() - 0.65).abs() < 1e-6);
+}
+
+#[test]
 fn fade_outer_extension_can_extend_past_selection_width() {
     let range = SelectionRange::new(0.4, 0.5)
         .with_fade_in(0.2, 0.0)

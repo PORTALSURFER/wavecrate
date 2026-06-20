@@ -1,9 +1,11 @@
 use std::{path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
+use wavecrate::sample_sources::{SourceDatabase, scanner};
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceRefreshRequest, emit_gui_action,
+    GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceFilesystemSyncResult,
+    SourceRefreshRequest, emit_gui_action,
 };
 use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
@@ -35,6 +37,7 @@ impl NativeAppState {
                 changed_count,
                 changed,
             } => {
+                self.queue_source_filesystem_sync(source_id.clone(), paths, changed_count, context);
                 if changed {
                     self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
                     self.queue_source_prep(
@@ -68,6 +71,23 @@ impl NativeAppState {
             }
             SourceFilesystemChangePlan::QueueRefresh { source_id } => {
                 self.queue_filesystem_source_refresh(source_id, started_at, context);
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn finish_source_filesystem_sync(
+        &mut self,
+        result: SourceFilesystemSyncResult,
+    ) {
+        if let Err(error) = result.result {
+            tracing::warn!(
+                source_id = %result.source_id,
+                changed_count = result.changed_count,
+                error = %error,
+                "Failed to sync source database after filesystem change"
+            );
+            if result.source_id == self.library.folder_browser.selected_source_id() {
+                self.ui.status.sample = format!("Source sync failed: {error}");
             }
         }
     }
@@ -115,5 +135,43 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    fn queue_source_filesystem_sync(
+        &mut self,
+        source_id: String,
+        paths: Vec<PathBuf>,
+        changed_count: usize,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if paths.is_empty() {
+            return;
+        }
+        let Some(root) = self.library.folder_browser.source_root_path(&source_id) else {
+            return;
+        };
+        context.business().background("gui-source-db-sync").run(
+            move |_| sync_source_database_paths(source_id, root, paths, changed_count),
+            GuiMessage::SourceFilesystemSyncFinished,
+        );
+    }
+}
+
+fn sync_source_database_paths(
+    source_id: String,
+    root: PathBuf,
+    paths: Vec<PathBuf>,
+    changed_count: usize,
+) -> SourceFilesystemSyncResult {
+    let result = SourceDatabase::open_fast(&root)
+        .map_err(|err| format!("open source index: {err}"))
+        .and_then(|db| {
+            scanner::sync_paths(&db, &paths).map_err(|err| format!("sync source index: {err}"))
+        })
+        .map(|_| ());
+    SourceFilesystemSyncResult {
+        source_id,
+        changed_count,
+        result,
     }
 }

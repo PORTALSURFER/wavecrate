@@ -11,7 +11,7 @@ use super::{
     format::{CachedPlaybackCacheFile, CachedWaveformFile},
     identity::{
         CacheIdentity, cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
-        playback_sidecar_valid,
+        playback_sidecar_valid, source_warm_marker_path,
     },
     prune::prune_waveform_cache_dir,
     store_queue::CachedWaveformStoreJob,
@@ -56,12 +56,27 @@ pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> Sto
         &job.cache_path,
         playback_ready,
     ));
+    mark_source_warm_ready_for_cache_path(&job.cache_path);
     report.prune = Some(prune_waveform_cache_dir(
         &job.cache_path,
         MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
     ));
     log_slow_cache_store(&job.file.path, started_at);
     StoreWriteOutcome::Completed(report)
+}
+
+pub(in crate::native_app) fn mark_cached_waveform_file_source_warm_attempted(path: &Path) {
+    let Ok(identity) = CacheIdentity::for_path(path) else {
+        return;
+    };
+    let Ok(cache_path) = cache_path_for_identity(path, &identity) else {
+        return;
+    };
+    mark_source_warm_ready_for_cache_path(&cache_path);
+}
+
+pub(super) fn mark_source_warm_ready_for_cache_path(cache_path: &Path) {
+    let _ = fs::write(source_warm_marker_path(cache_path), []);
 }
 
 struct PlaybackSidecarStore {

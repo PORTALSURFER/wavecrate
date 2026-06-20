@@ -164,6 +164,15 @@ pub(super) const RENAME_SAMPLE: HotkeyAction = HotkeyAction {
         crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
     ),
 };
+pub(super) const RENAME_SAMPLE_COMMAND: HotkeyAction = HotkeyAction {
+    id: "rename-sample-command",
+    label: "Rename sample",
+    gesture: HotkeyGesture::with_command(Key::R),
+    scope: SAMPLE_BROWSER,
+    action: NativeUiAction::PromptsAndEdits(
+        crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
+    ),
+};
 pub(super) const SELECT_ALL: HotkeyAction = HotkeyAction {
     id: "select-all-browser",
     label: "Select all samples",

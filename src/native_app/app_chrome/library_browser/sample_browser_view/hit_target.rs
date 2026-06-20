@@ -8,12 +8,19 @@ use radiant::widgets::{InteractiveRowWidget, PointerModifiers};
 use crate::native_app::app::GuiMessage;
 
 const SAMPLE_ROW_STYLE: ui::WidgetStyle = ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
+const COPY_FLASH_FILL: Rgba8 = Rgba8 {
+    r: 71,
+    g: 220,
+    b: 255,
+    a: 118,
+};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct SampleFileHitTarget {
     row: InteractiveRowWidget,
     actions: ui::InteractiveRowActions<GuiMessage>,
     selected: bool,
+    copy_flash: bool,
     cached: bool,
 }
 
@@ -21,6 +28,7 @@ impl SampleFileHitTarget {
     pub(in crate::native_app) fn new(
         path: String,
         selected: bool,
+        copy_flash: bool,
         drag_active: bool,
         drag_source: bool,
         cached: bool,
@@ -46,6 +54,7 @@ impl SampleFileHitTarget {
             row,
             actions,
             selected,
+            copy_flash,
             cached,
         }
     }
@@ -83,13 +92,13 @@ impl SampleFileHitTarget {
         self.row
             .dense_chrome_parts(
                 ui::InteractiveRowVisualStateParts {
-                    selected: self.selected,
+                    selected: self.selected || self.copy_flash,
                     ..ui::InteractiveRowVisualStateParts::default()
                 },
                 self.chrome_palette(theme),
             )
             .trailing_marker_if(
-                self.cached && !self.selected,
+                self.cached && !self.selected && !self.copy_flash,
                 ui::DenseRowMarkerStyle::new(
                     ui::DenseRowMarkerParts::trailing(2.0),
                     Rgba8 {
@@ -115,6 +124,12 @@ impl SampleFileHitTarget {
     }
 
     fn chrome_palette(&self, theme: &ThemeTokens) -> ui::DenseRowPalette {
+        if self.copy_flash {
+            return ui::DenseRowPalette::new()
+                .selected(COPY_FLASH_FILL)
+                .selected_hovered(COPY_FLASH_FILL)
+                .interaction_fills(COPY_FLASH_FILL, COPY_FLASH_FILL);
+        }
         let palette = ui::dense_row_palette_from_style(theme, SAMPLE_ROW_STYLE);
         if self.row.paints_interaction_fill() {
             palette

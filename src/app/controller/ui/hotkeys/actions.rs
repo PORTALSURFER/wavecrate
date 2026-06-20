@@ -48,6 +48,7 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     browser::FOCUS_HISTORY_PREVIOUS,
     browser::FOCUS_HISTORY_NEXT,
     browser::RENAME_SAMPLE,
+    browser::RENAME_SAMPLE_COMMAND,
     browser::SELECT_ALL,
     browser::NORMALIZE_SAMPLE,
     browser::DELETE_SAMPLE,
@@ -59,6 +60,7 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     folders::DELETE_FOLDER,
     folders::RENAME_FOLDER,
     folders::RENAME_FOLDER_LEGACY,
+    folders::RENAME_FOLDER_COMMAND,
     folders::CREATE_FOLDER,
     folders::FOCUS_SEARCH,
     sources::MOVE_SOURCE_FOCUS_UP,
@@ -220,5 +222,34 @@ mod tests {
                     crate::app_core::actions::NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::RemoveFocusedSourceRow)
                 )
         }));
+    }
+
+    #[test]
+    fn command_r_resolves_rename_in_sample_and_folder_contexts() {
+        let sample_rename = hotkeys::resolve_hotkey_press(
+            None,
+            KeyPress::with_command(KeyCode::R),
+            FocusContext::SampleBrowser,
+        );
+        assert_eq!(
+            sample_rename.action,
+            Some(NativeUiAction::PromptsAndEdits(
+                crate::app_core::actions::NativePromptEditAction::StartBrowserRename
+            ))
+        );
+        assert!(sample_rename.handled);
+
+        let folder_rename = hotkeys::resolve_hotkey_press(
+            None,
+            KeyPress::with_command(KeyCode::R),
+            FocusContext::SourceFolders,
+        );
+        assert_eq!(
+            folder_rename.action,
+            Some(NativeUiAction::SourcesAndFolders(
+                crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename
+            ))
+        );
+        assert!(folder_rename.handled);
     }
 }

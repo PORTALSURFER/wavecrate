@@ -8,7 +8,6 @@ use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
 };
-use crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepState;
 
 pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) visible_samples: VisibleSampleList<'a>,
@@ -19,7 +18,7 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) extracted_file_drag_active: bool,
     pub(in crate::native_app) hovered_folder_drop_target: bool,
     pub(in crate::native_app) drag_feedback: Option<FileColumnDragFeedback>,
-    pub(in crate::native_app) similarity_prep: &'a NativeSimilarityPrepState,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
 pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
@@ -31,7 +30,7 @@ pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     extracted_file_drag_active: bool,
     hovered_folder_drop_target: bool,
     drag_feedback: Option<FileColumnDragFeedback>,
-    similarity_prep: &'a NativeSimilarityPrepState,
+    help_tooltips_enabled: bool,
 }
 
 impl<'a> SampleBrowserViewProjection<'a> {
@@ -61,7 +60,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             extracted_file_drag_active,
             hovered_folder_drop_target,
             drag_feedback,
-            similarity_prep: &state.library.similarity_prep,
+            help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
         }
     }
 }
@@ -79,7 +78,7 @@ impl<'a> SampleBrowserViewModel<'a> {
             extracted_file_drag_active: projection.extracted_file_drag_active,
             hovered_folder_drop_target: projection.hovered_folder_drop_target,
             drag_feedback: projection.drag_feedback,
-            similarity_prep: projection.similarity_prep,
+            help_tooltips_enabled: projection.help_tooltips_enabled,
         }
     }
 }

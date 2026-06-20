@@ -1,4 +1,24 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
+
+fn seed_file_collections(
+    db: &SourceDatabase,
+    relative_path: &str,
+    collections: &[SampleCollection],
+) {
+    let path = Path::new(relative_path);
+    db.upsert_file(path, 8, 1).expect("upsert source row");
+    let mut batch = db.write_batch().expect("open write batch");
+    for collection in collections {
+        batch
+            .add_collection(path, *collection)
+            .expect("add collection membership");
+    }
+    batch.commit().expect("commit source metadata");
+}
+
 #[test]
 fn file_drag_drop_moves_selected_files_into_target_folder() {
     let root = temp_source_root("wavecrate-gui-file-drag-drop");
@@ -45,6 +65,322 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
             .collect::<Vec<_>>(),
         vec!["hat.wav"]
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn collection_file_drag_drop_moves_file_to_folder_and_removes_collection_membership() {
+    let root = temp_source_root("wavecrate-gui-collection-file-drag-drop");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+    let first = SampleCollection::new(0).expect("first collection");
+    let second = SampleCollection::new(1).expect("second collection");
+    let db = SourceDatabase::open(&root).expect("open source database");
+    seed_file_collections(&db, "drums/kick.wav", &[first, second]);
+    seed_file_collections(&db, "drums/snare.wav", &[first]);
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_collection(first);
+    browser.select_file(path_id(&kick));
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    let moved_kick = loops.join("kick.wav");
+    assert_eq!(result.moved_paths, vec![(kick.clone(), moved_kick.clone())]);
+    assert!(!kick.exists());
+    assert!(moved_kick.is_file());
+    assert!(snare.is_file());
+    assert_eq!(
+        db.collections_for_path(Path::new("drums/kick.wav"))
+            .expect("old collections"),
+        Vec::<SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("loops/kick.wav"))
+            .expect("moved collections"),
+        vec![second]
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["snare.wav"]
+    );
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn collection_file_move_conflict_rename_removes_collection_from_moved_destination() {
+    let root = temp_source_root("wavecrate-gui-collection-file-conflict-rename");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    let existing = loops.join("kick.wav");
+    fs::write(&kick, b"source").expect("write kick");
+    fs::write(&existing, b"existing").expect("write existing");
+    let collection = SampleCollection::new(0).expect("collection");
+    let db = SourceDatabase::open(&root).expect("open source database");
+    seed_file_collections(&db, "drums/kick.wav", &[collection]);
+    db.upsert_file(Path::new("loops/kick.wav"), 8, 1)
+        .expect("upsert existing destination");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_collection(collection);
+    browser.select_file(path_id(&kick));
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("drop should queue conflict");
+    assert_eq!(browser.pending_file_move_conflict_count(), 1);
+
+    let result = submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Rename)
+        .expect("rename conflict should move");
+
+    let renamed = loops.join("kick_copy001.wav");
+    assert_eq!(result.moved_paths, vec![(kick.clone(), renamed.clone())]);
+    assert!(!kick.exists());
+    assert_eq!(fs::read(&existing).expect("read existing"), b"existing");
+    assert_eq!(fs::read(&renamed).expect("read renamed"), b"source");
+    assert_eq!(
+        db.collections_for_path(Path::new("loops/kick_copy001.wav"))
+            .expect("renamed collections"),
+        Vec::<SampleCollection>::new()
+    );
+    assert!(
+        browser.selected_audio_files().is_empty(),
+        "moved file should leave the active collection view"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_drop_moves_selected_files_outside_current_view_window() {
+    let root = temp_source_root("wavecrate-gui-file-drag-offscreen-selection");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let files = (0..80)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&files[4]));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 80,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+    browser.select_file_with_modifiers(
+        path_id(&files[44]),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    browser.select_file_with_modifiers(
+        path_id(&files[55]),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+
+    browser.begin_file_drag(path_id(&files[55]), Point::new(4.0, 8.0));
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    assert_eq!(result.moved_paths.len(), 3);
+    for index in [4, 44, 55] {
+        assert!(!files[index].exists(), "source should move: {index}");
+        assert!(
+            loops.join(format!("sample_{index:02}.wav")).is_file(),
+            "destination should exist: {index}"
+        );
+    }
+    assert!(files[5].is_file());
+    assert!(files[54].is_file());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_drop_clamps_bottom_view_after_moving_files_out() {
+    let root = temp_source_root("wavecrate-gui-file-drag-bottom-clamp");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let files = (0..100)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 80.0 * 22.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 100,
+            viewport_start: 80,
+            viewport_end: 98,
+            window_start: 76,
+            window_end: 100,
+        },
+    });
+    browser.select_file(path_id(&files[80]));
+    for file in files.iter().skip(81) {
+        browser.select_file_with_modifiers(
+            path_id(file),
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+    }
+
+    browser.begin_file_drag(path_id(&files[80]), Point::new(4.0, 8.0));
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    assert_eq!(result.moved_paths.len(), 20);
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.total_count, 80);
+    assert_eq!(visible.window.viewport_start, 62);
+    assert_eq!(visible.window.viewport_end, 80);
+    assert_eq!(visible.window.window_start, 58);
+    assert_eq!(visible.window.window_end, 80);
+    assert_eq!(visible.rows.len(), visible.window.window_len());
+    assert_eq!(
+        visible.rows.last().map(|row| row.file.id.as_str()),
+        Some(path_id(&files[79]).as_str())
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_drop_moves_shift_selected_offscreen_range() {
+    let root = temp_source_root("wavecrate-gui-file-drag-offscreen-shift-range");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let files = (0..80)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&files[4]));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 80,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+    browser.select_file_with_modifiers(
+        path_id(&files[55]),
+        PointerModifiers {
+            shift: true,
+            ..Default::default()
+        },
+    );
+
+    browser.begin_file_drag(path_id(&files[55]), Point::new(4.0, 8.0));
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    assert_eq!(result.moved_paths.len(), 52);
+    for index in 4..=55 {
+        assert!(!files[index].exists(), "source should move: {index}");
+        assert!(
+            loops.join(format!("sample_{index:02}.wav")).is_file(),
+            "destination should exist: {index}"
+        );
+    }
+    assert!(files[3].is_file());
+    assert!(files[56].is_file());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_drop_moves_explicit_selection_when_focus_has_advanced() {
+    let root = temp_source_root("wavecrate-gui-file-drag-explicit-focus-advanced");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let tom = drums.join("tom.wav");
+    for file in [&hat, &kick, &snare, &tom] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+    browser
+        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .expect("mark first file");
+    browser.navigate_vertical(1, false);
+    browser
+        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .expect("mark third file");
+    assert_eq!(browser.selected_file_id(), Some(path_id(&tom).as_str()));
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![hat.clone(), snare.clone()]
+    );
+
+    browser.begin_file_drag(path_id(&tom), Point::new(4.0, 8.0));
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    assert_eq!(
+        result.moved_paths,
+        vec![
+            (hat.clone(), loops.join("hat.wav")),
+            (snare.clone(), loops.join("snare.wav"))
+        ]
+    );
+    assert!(!hat.exists());
+    assert!(kick.is_file());
+    assert!(!snare.exists());
+    assert!(tom.is_file());
     let _ = fs::remove_dir_all(root);
 }
 

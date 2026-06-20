@@ -16,6 +16,27 @@ impl NativeAppState {
             GuiMessage::CloseJobDetails => {
                 self.ui.chrome.job_details_open = false;
             }
+            GuiMessage::ToggleShortcutHelp => {
+                self.ui.chrome.shortcut_help_open = !self.ui.chrome.shortcut_help_open;
+            }
+            GuiMessage::CloseShortcutHelp => {
+                self.ui.chrome.shortcut_help_open = false;
+            }
+            GuiMessage::ToggleStickyRandomSampleRangePlayback => {
+                self.ui.chrome.sticky_random_sample_range_playback =
+                    !self.ui.chrome.sticky_random_sample_range_playback;
+                self.ui.status.sample = if self.ui.chrome.sticky_random_sample_range_playback {
+                    String::from("Sticky random playback on: Space plays random sample sections")
+                } else {
+                    String::from("Sticky random playback off: Space plays selected samples")
+                };
+            }
+            GuiMessage::ToggleBeatGuides => {
+                self.ui.chrome.beat_guides_enabled = !self.ui.chrome.beat_guides_enabled;
+            }
+            GuiMessage::AdjustBeatGuideCount(delta) => {
+                self.ui.chrome.adjust_beat_guide_count(delta);
+            }
             GuiMessage::UndoTransaction => self.undo_transaction(),
             GuiMessage::RedoTransaction => self.redo_transaction(),
             GuiMessage::ToggleTransactionList => self.toggle_transaction_list(),
@@ -29,6 +50,21 @@ impl NativeAppState {
                 self.finish_folder_browser_rename(completion);
             }
             GuiMessage::DeleteSelectedItem => self.delete_selected_item(context),
+            GuiMessage::RequestCropWaveformSelection => {
+                self.request_crop_waveform_selection(context);
+            }
+            GuiMessage::RequestTrimWaveformSelection => {
+                self.request_trim_waveform_selection(context);
+            }
+            GuiMessage::RequestExtractAndTrimWaveformSelection => {
+                self.request_extract_and_trim_waveform_selection(context);
+            }
+            GuiMessage::ConfirmPendingWaveformDestructiveEdit => {
+                self.confirm_pending_waveform_destructive_edit(context);
+            }
+            GuiMessage::CancelPendingWaveformDestructiveEdit => {
+                self.cancel_pending_waveform_destructive_edit();
+            }
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(context),
             GuiMessage::PlaySelectionExtractionFinished {
                 completion,

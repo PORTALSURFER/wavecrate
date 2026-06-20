@@ -29,6 +29,53 @@ fn open_blocks_writes_for_user_library_roots_without_override() {
 }
 
 #[test]
+fn default_public_open_allows_configured_user_library_roots() {
+    let home = match tempdir() {
+        Ok(home) => home,
+        Err(err) => panic!("tempdir failed: {err}"),
+    };
+    let user_home = home.path().join("home");
+    let user_documents = user_home.join("Documents");
+    if let Err(err) = std::fs::create_dir_all(&user_documents) {
+        panic!("create fake user library dir failed: {err}");
+    }
+    with_home_env_override(&user_home, || {
+        let db = SourceDatabase::open(&user_documents);
+        assert!(db.is_ok());
+        let opened = match db {
+            Ok(opened) => opened,
+            Err(err) => panic!("default source DB open should be allowed: {err}"),
+        };
+        assert_eq!(opened.root(), user_documents.as_path());
+    });
+}
+
+#[test]
+fn job_worker_role_allows_configured_user_library_roots_by_default() {
+    let home = match tempdir() {
+        Ok(home) => home,
+        Err(err) => panic!("tempdir failed: {err}"),
+    };
+    let user_home = home.path().join("home");
+    let user_documents = user_home.join("Documents");
+    if let Err(err) = std::fs::create_dir_all(&user_documents) {
+        panic!("create fake user library dir failed: {err}");
+    }
+    with_home_env_override(&user_home, || {
+        let db = SourceDatabase::open_with_role(
+            &user_documents,
+            SourceDatabaseConnectionRole::JobWorker,
+        );
+        assert!(db.is_ok());
+        let opened = match db {
+            Ok(opened) => opened,
+            Err(err) => panic!("job-worker source DB open should be allowed: {err}"),
+        };
+        assert_eq!(opened.root(), user_documents.as_path());
+    });
+}
+
+#[test]
 fn user_metadata_write_role_allows_configured_user_library_roots() {
     let home = match tempdir() {
         Ok(home) => home,

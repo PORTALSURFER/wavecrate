@@ -1311,6 +1311,10 @@ Wavecrate should distinguish between path-copy commands and file-copy commands. 
 
 When the user selects an audio range in the waveform editor and presses copy, Wavecrate should create a transient staged audio file for that selection and place that file on the clipboard as an ordinary audio file unless the user explicitly chooses durable extraction.
 
+Waveform-selection clipboard copy should use two distinct transient visual confirmations. The first pulse acknowledges that Wavecrate accepted the copy command and started preparing the handoff. The second pulse must happen only after the staged file has been written and the platform clipboard contains that staged file path, so the user can treat the second pulse as the reliable "ready to paste into a DAW" signal.
+
+For unprocessed WAV range handoff or extraction, Wavecrate should seek directly to the selected audio range and write only the selected frames rather than reading or decoding the skipped prefix.
+
 Pasting into a DAW should make the DAW receive normal audio files, not Wavecrate-specific data.
 
 Pasting into Explorer should create one or more audio files in the target directory.

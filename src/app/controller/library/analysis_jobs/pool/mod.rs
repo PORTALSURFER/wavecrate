@@ -1,6 +1,6 @@
 mod job_claim;
 mod job_cleanup;
-mod job_execution;
+pub(super) mod job_execution;
 mod job_progress;
 mod progress_cache;
 

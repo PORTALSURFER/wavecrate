@@ -14,7 +14,7 @@ impl TaggedPlaybackMode {
         }
     }
 
-    fn loop_playback(self) -> bool {
+    pub(in crate::native_app) fn loop_playback(self) -> bool {
         matches!(self, Self::Loop)
     }
 }
@@ -24,12 +24,17 @@ impl NativeAppState {
         self.prepare_playback_mode_for_loaded_sample_with_fallback(None);
     }
 
-    pub(in crate::native_app) fn prepare_random_audition_mode_for_loaded_sample(&mut self) {
-        self.prepare_playback_mode_for_loaded_sample_with_fallback(Some(false));
-    }
-
     pub(in crate::native_app) fn prepare_playback_mode_for_path(&mut self, path: &str) {
         self.prepare_playback_mode_for_path_with_fallback(path, None);
+    }
+
+    pub(in crate::native_app) fn loop_playback_for_path_after_policy(&self, path: &str) -> bool {
+        if self.audio.loop_playback_manual_override_path.as_deref() == Some(path) {
+            return self.audio.loop_playback;
+        }
+        self.tagged_playback_mode_for_file(path)
+            .map(TaggedPlaybackMode::loop_playback)
+            .unwrap_or(self.audio.loop_playback)
     }
 
     pub(in crate::native_app) fn mark_loop_playback_manual_override_for_loaded_sample(&mut self) {

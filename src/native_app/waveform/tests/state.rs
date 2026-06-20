@@ -55,6 +55,26 @@ fn dragging_primary_creates_playmark_selection_without_starting_playback() {
 }
 
 #[test]
+fn primary_click_without_drag_clears_play_selection_and_marks_playback_start() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Play,
+        visible_ratio: 0.45,
+    });
+    state.apply_interaction(WaveformInteraction::FinishSelection {
+        visible_ratio: 0.45,
+    });
+
+    assert!(state.is_playing());
+    assert_eq!(state.playhead_ratio(), Some(0.45));
+    assert_eq!(state.play_mark_ratio(), Some(0.45));
+    assert_eq!(state.play_selection(), None);
+}
+
+#[test]
 fn completed_playmark_selections_are_recorded_for_random_audition() {
     let mut state = WaveformState::synthetic_for_tests();
 
@@ -218,4 +238,22 @@ fn dragging_secondary_creates_edit_selection() {
     assert!((selection.start() - 0.25).abs() < 0.001);
     assert!((selection.end() - 0.7).abs() < 0.001);
     assert_eq!(state.edit_mark_ratio(), Some(0.7));
+}
+
+#[test]
+fn secondary_click_without_drag_clears_editmark_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Edit,
+        visible_ratio: 0.45,
+    });
+    state.apply_interaction(WaveformInteraction::FinishSelection {
+        visible_ratio: 0.45,
+    });
+
+    assert_eq!(state.edit_mark_ratio(), None);
+    assert_eq!(state.edit_selection(), None);
 }

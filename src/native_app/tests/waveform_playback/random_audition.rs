@@ -1,51 +1,76 @@
 use super::*;
 
 #[test]
-fn random_audition_span_uses_fixed_window_inside_long_sample() {
-    let (start, end) = crate::native_app::audio::playback::random_audition_span_for_unit(20.0, 0.5);
+fn random_audition_span_can_start_near_end_of_long_sample() {
+    let (start, end) = crate::native_app::audio::playback::random_audition_span_for_units(
+        20.0,
+        crate::native_app::audio::playback::RandomAuditionUnits::new(1.0, 0.0),
+    );
 
-    assert!((start - 0.4).abs() < 0.001, "start was {start}");
-    assert!((end - 0.6).abs() < 0.001, "end was {end}");
+    assert!((start - 0.9875).abs() < 0.001, "start was {start}");
+    assert!((end - 1.0).abs() < 0.001, "end was {end}");
 }
 
 #[test]
-fn random_audition_span_plays_whole_short_sample() {
+fn random_audition_span_uses_random_length_inside_sample() {
+    let (start, end) = crate::native_app::audio::playback::random_audition_span_for_units(
+        10.0,
+        crate::native_app::audio::playback::RandomAuditionUnits::new(0.25, 0.5),
+    );
+
+    assert!((start - 0.24375).abs() < 0.001, "start was {start}");
+    assert!((end - 0.634375).abs() < 0.001, "end was {end}");
+}
+
+#[test]
+fn random_audition_span_plays_whole_tiny_or_invalid_sample() {
     assert_eq!(
-        crate::native_app::audio::playback::random_audition_span_for_unit(2.0, 0.75),
+        crate::native_app::audio::playback::random_audition_span_for_units(
+            0.1,
+            crate::native_app::audio::playback::RandomAuditionUnits::new(0.75, 0.5),
+        ),
+        (0.0, 1.0)
+    );
+    assert_eq!(
+        crate::native_app::audio::playback::random_audition_span_for_units(
+            f32::NAN,
+            crate::native_app::audio::playback::RandomAuditionUnits::new(0.75, 0.5),
+        ),
         (0.0, 1.0)
     );
 }
 
 #[test]
-fn random_audition_prefers_marked_play_ranges_and_selects_the_chosen_range() {
+fn random_audition_ignores_marked_play_ranges_and_samples_entire_waveform() {
     let mut scenario = WaveformPlaybackScenario::synthetic();
 
     for (start, end) in [(0.10, 0.20), (0.55, 0.70)] {
         scenario.select_play_range(start, end);
     }
 
-    let span = scenario
-        .state
-        .random_audition_span_for_loaded_waveform(0.75);
+    let original_selection = scenario.state.waveform.current.play_selection();
+    let span = scenario.state.random_audition_span_for_loaded_waveform(
+        crate::native_app::audio::playback::RandomAuditionUnits::new(1.0, 0.0),
+    );
 
     assert_eq!(
         span.source,
-        crate::native_app::audio::playback::RandomAuditionSource::MarkedRange
+        crate::native_app::audio::playback::RandomAuditionSource::WholeSample
     );
     assert!(
-        (span.start - 0.55).abs() < 0.001,
+        (span.start - 0.75).abs() < 0.001,
         "start was {}",
         span.start
     );
-    assert!((span.end - 0.70).abs() < 0.001, "end was {}", span.end);
+    assert!((span.end - 1.0).abs() < 0.001, "end was {}", span.end);
     assert_eq!(
         scenario.state.waveform.current.play_selection(),
-        Some(wavecrate::selection::SelectionRange::new(0.55, 0.70))
+        original_selection
     );
 }
 
 #[test]
-fn random_audition_is_one_shot_even_when_loop_is_enabled() {
+fn random_audition_loops_random_region_when_loop_is_enabled() {
     let mut state = gui_state_for_span_tests();
     if !install_playback_runtime_for_tests(&mut state) {
         return;
@@ -53,16 +78,43 @@ fn random_audition_is_one_shot_even_when_loop_is_enabled() {
     state.audio.loop_playback = true;
 
     let mut context = ui::UiUpdateContext::default();
-    state.play_random_sample_range_with_unit(0.5, &mut context);
+    state.play_random_sample_range_with_units(
+        crate::native_app::audio::playback::RandomAuditionUnits::new(0.25, 0.5),
+        &mut context,
+    );
 
-    assert!(!state.audio.loop_playback);
+    assert!(state.audio.loop_playback);
     assert!(state.waveform.current.is_playing());
-    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert_eq!(state.audio.current_playback_span, Some((0.1875, 0.71875)));
+    assert_eq!(
+        state.waveform.current.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.1875, 0.71875))
+    );
+    assert_eq!(state.waveform.current.play_mark_ratio(), Some(0.1875));
 }
 
 #[test]
-fn random_audition_uses_loop_mode_for_loop_tagged_sample() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+fn play_from_current_play_start_uses_existing_play_marker() {
+    let mut state = gui_state_for_span_tests();
+    if !install_playback_runtime_for_tests(&mut state) {
+        return;
+    }
+    state.waveform.current.start_playback(0.37);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.play_from_current_play_start(&mut context);
+
+    assert!(state.waveform.current.is_playing());
+    assert_eq!(state.audio.current_playback_span, Some((0.37, 1.0)));
+    assert_eq!(state.waveform.current.play_mark_ratio(), Some(0.37));
+}
+
+#[test]
+fn random_audition_loops_random_region_for_loop_tagged_sample() {
+    let samples = vec![0_i16; 48_000];
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-tagged-random.wav", &samples)
+    else {
         return;
     };
     let file_id = scenario.state.waveform.current.path().display().to_string();
@@ -71,13 +123,20 @@ fn random_audition_uses_loop_mode_for_loop_tagged_sample() {
         .metadata
         .tags_by_file
         .insert(file_id, vec![String::from("loop")]);
-    scenario.state.audio.loop_playback = false;
+    scenario.state.audio.loop_playback = true;
 
-    scenario.play_random_range(0.5);
+    scenario.play_random_range_with_units(0.25, 0.5);
 
     assert!(scenario.state.audio.loop_playback);
     assert!(scenario.state.waveform.current.is_playing());
-    assert!(scenario.state.audio.current_playback_span.is_some());
+    assert_eq!(
+        scenario.state.audio.current_playback_span,
+        Some((0.1875, 0.71875))
+    );
+    assert_eq!(
+        scenario.state.waveform.current.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.1875, 0.71875))
+    );
 }
 
 #[test]
@@ -90,25 +149,36 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
     .with_looping();
     assert!(!scenario.state.waveform.current.has_loaded_sample());
 
-    scenario.play_random_range(0.5);
+    scenario.play_random_range_with_units(0.5, 0.25);
 
     assert!(matches!(
         scenario.state.audio.pending_sample_playback,
-        Some(crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { unit })
-            if (unit - 0.5).abs() < f32::EPSILON
+        Some(
+            crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition {
+                start_unit,
+                length_unit,
+            }
+        )
+            if (start_unit - 0.5).abs() < f32::EPSILON
+                && (length_unit - 0.25).abs() < f32::EPSILON
     ));
 
     scenario.start_deferred_load(false);
     scenario.finish_deferred_load(false);
 
     assert_eq!(scenario.state.audio.pending_sample_playback, None);
+    assert_eq!(
+        scenario.state.waveform.current.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.0, 1.0))
+    );
+    assert_eq!(scenario.state.waveform.current.play_mark_ratio(), Some(0.0));
     assert!(
         scenario.state.audio.pending_playback_start.is_some(),
         "random audition should request playback even when the audio device is still opening"
     );
     assert!(
-        !scenario.state.audio.loop_playback,
-        "random audition should remain one-shot after the selected sample loads"
+        scenario.state.audio.loop_playback,
+        "random audition should preserve loop mode after the selected sample loads"
     );
     assert!(
         scenario

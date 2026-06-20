@@ -31,9 +31,7 @@ fn frame_clock() -> ui::FrameClock<NativeAppState, GuiMessage> {
 fn waveform_transient_overlay() -> ui::TransientOverlay<NativeAppState> {
     ui::TransientOverlay::new(WAVEFORM_TRANSIENT_OVERLAY_KEY)
         .paint_only()
-        .when(|state: &mut NativeAppState| {
-            state.waveform.current.is_playing() || state.waveform.load.label.is_some()
-        })
+        .when(|state: &mut NativeAppState| state.should_paint_waveform_transient_overlay())
         .fps(WAVEFORM_TRANSIENT_OVERLAY_FPS)
         .paint(NativeAppState::paint_waveform_transient_overlay)
 }

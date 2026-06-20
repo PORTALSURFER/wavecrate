@@ -57,6 +57,7 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_a
         playback_ready,
         true,
         true,
+        FileBackedWavPolicy::AllowSummary,
     )
 }
 
@@ -73,7 +74,31 @@ pub(in crate::native_app::waveform) fn load_waveform_file_for_foreground_auditio
         playback_ready,
         true,
         true,
+        FileBackedWavPolicy::AllowSummary,
     )
+}
+
+pub(in crate::native_app::waveform) fn load_waveform_file_for_looped_foreground_audition(
+    path: PathBuf,
+    progress: impl Fn(f32),
+    cancelled: impl Fn() -> bool,
+    playback_ready: impl Fn(WaveformPlaybackReady),
+) -> Result<WaveformFile, String> {
+    load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
+        path,
+        progress,
+        cancelled,
+        playback_ready,
+        true,
+        true,
+        FileBackedWavPolicy::RequireDecodedPlayback,
+    )
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FileBackedWavPolicy {
+    AllowSummary,
+    RequireDecodedPlayback,
 }
 
 fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
@@ -83,6 +108,7 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     playback_ready: impl Fn(WaveformPlaybackReady),
     read_cache: bool,
     persist_cache: bool,
+    file_backed_wav_policy: FileBackedWavPolicy,
 ) -> Result<WaveformFile, String> {
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -103,7 +129,10 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
+    let allow_file_backed_wav_summary =
+        matches!(file_backed_wav_policy, FileBackedWavPolicy::AllowSummary);
     if read_cache
+        && allow_file_backed_wav_summary
         && should_use_file_backed_wav_decode(&path)
         && let Some(file) = waveform_cache::load_cached_waveform_file_summary(path.clone())
     {
@@ -113,7 +142,7 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    if should_use_file_backed_wav_decode(&path) {
+    if allow_file_backed_wav_summary && should_use_file_backed_wav_decode(&path) {
         let stream_started_at = Instant::now();
         let file =
             load_wav_waveform_summary_from_path_with_progress(path.clone(), &progress, &cancelled)?;
@@ -280,7 +309,8 @@ fn load_with_fallback_decoder(
         return Err(String::from("audio file contains no complete frames"));
     }
     let waveform_started_at = Instant::now();
-    let file = waveform_file_from_mono_samples_with_progress_and_cancel(
+    let playback_samples = (!decoded.samples.is_empty()).then(|| Arc::clone(&decoded.samples));
+    let mut file = waveform_file_from_mono_samples_with_progress_and_cancel(
         path,
         bytes,
         decoded.sample_rate,
@@ -289,6 +319,7 @@ fn load_with_fallback_decoder(
         &progress,
         &cancelled,
     )?;
+    file.playback_samples = playback_samples;
     log_audio_load_timing(
         "browser.audio_file.load.waveform_summary",
         &file.path,

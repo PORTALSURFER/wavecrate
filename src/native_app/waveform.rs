@@ -11,7 +11,8 @@ pub(in crate::native_app) const WAVEFORM_SIGNAL_WIDGET_ID: u64 =
 pub(in crate::native_app) const WAVEFORM_WIDGET_ID: u64 = widget_ids::WAVEFORM_WIDGET_ID;
 const MIN_VISIBLE_FRAMES: usize = 256;
 const BAND_COUNT: usize = 4;
-const SELECTION_DRAG_EPSILON: f32 = 0.001;
+// Click-vs-drag intent is pixel-based in widget_input; do not add viewport-scaled delay here.
+const SELECTION_DRAG_EPSILON: f32 = 0.0;
 const SELECTION_FLASH_FRAMES: u8 = 12;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
@@ -20,8 +21,8 @@ const SYNTHETIC_SECONDS: usize = 1;
 
 mod types;
 pub(super) use types::{
-    WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
-    WaveformSelectionKind,
+    WaveformActiveDragKind, WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle,
+    WaveformInteraction, WaveformSelectionEdge, WaveformSelectionKind,
 };
 
 mod interaction;
@@ -30,7 +31,7 @@ use interaction::{WaveformDrag, edit_preview_for_selection};
 mod state;
 mod state_extraction;
 pub(in crate::native_app) use state_extraction::{
-    WaveformExtractionCompletion, execute_waveform_extraction,
+    WaveformExtractionCompletion, WaveformExtractionRequest, execute_waveform_extraction,
 };
 mod state_file;
 mod state_interaction;
@@ -48,14 +49,17 @@ pub(in crate::native_app) use state_marked_ranges::random_marked_play_range_for_
 mod audio_file;
 pub(super) use audio_file::WaveformFile;
 #[cfg(test)]
+pub(in crate::native_app) use audio_file::cached_waveform_file_playback_ready_exists;
+#[cfg(test)]
 pub(super) use audio_file::store_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::test_waveform_file_from_mono_samples;
 pub(in crate::native_app) use audio_file::{
-    WaveformPlaybackReady, cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    WaveformPlaybackReady, cached_waveform_file_exists, cached_waveform_file_source_ready_exists,
     flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
+    mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 #[cfg(test)]
 use audio_file::{downmix_to_mono, split_frequency_bands, waveform_file_from_mono_samples};
@@ -65,7 +69,7 @@ mod widget;
 pub(super) use widget::WaveformWidgetProps;
 #[cfg(test)]
 pub(in crate::native_app::waveform) use widget::waveform_signal_surface_view;
-pub(super) use widget::{WaveformWidget, waveform_viewport_view};
+pub(super) use widget::{WaveformWidget, waveform_viewport_view_with_tooltip};
 
 mod widget_geometry;
 mod widget_input;

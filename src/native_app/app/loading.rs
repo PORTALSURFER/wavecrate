@@ -21,7 +21,7 @@ pub(in crate::native_app) struct SamplePlaybackReady {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) enum PendingSamplePlayback {
-    RandomAudition { unit: f32 },
+    RandomAudition { start_unit: f32, length_unit: f32 },
     ResumeNormalized { start: f32, end: f32 },
 }
 

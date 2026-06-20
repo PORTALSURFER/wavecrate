@@ -110,25 +110,37 @@ impl SampleLoadWorker {
         let ready_events = events.clone();
         let ready_path = self.request.path().to_owned();
         let autoplay = self.request.autoplay();
-        let result = WaveformState::load_path_for_foreground_audition(
-            PathBuf::from(self.request.path()),
-            |progress| {
-                let _ = context.yield_if_elapsed(Duration::from_millis(8));
-                progress_reporter.borrow_mut().report(progress);
-            },
-            || context.is_cancelled(),
-            |audio| {
-                if autoplay && !context.is_cancelled() {
-                    let _ = ready_events.emit(SampleLoadWorkerEvent::PlaybackReady(
-                        SamplePlaybackReady {
-                            path: ready_path.clone(),
-                            audio,
-                            autoplay,
-                        },
-                    ));
-                }
-            },
-        );
+        let progress = |progress| {
+            let _ = context.yield_if_elapsed(Duration::from_millis(8));
+            progress_reporter.borrow_mut().report(progress);
+        };
+        let cancelled = || context.is_cancelled();
+        let playback_ready = |audio| {
+            if autoplay && !context.is_cancelled() {
+                let _ =
+                    ready_events.emit(SampleLoadWorkerEvent::PlaybackReady(SamplePlaybackReady {
+                        path: ready_path.clone(),
+                        audio,
+                        autoplay,
+                    }));
+            }
+        };
+        let path = PathBuf::from(self.request.path());
+        let result = if self.request.require_decoded_playback() {
+            WaveformState::load_path_for_looped_foreground_audition(
+                path,
+                progress,
+                cancelled,
+                playback_ready,
+            )
+        } else {
+            WaveformState::load_path_for_foreground_audition(
+                path,
+                progress,
+                cancelled,
+                playback_ready,
+            )
+        };
         log_sample_load_timing(
             "browser.sample_load.worker.decode_waveform",
             self.request.path(),

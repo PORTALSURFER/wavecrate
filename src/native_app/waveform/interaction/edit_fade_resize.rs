@@ -87,6 +87,7 @@ pub(super) fn resize_fade_in_outer_start(
     selection
         .with_fade_in(fade.length, fade.curve)
         .with_fade_in_mute(mute)
+        .with_fade_in_outer_gain(fade.outer_gain)
 }
 
 pub(super) fn resize_fade_out_outer_end(
@@ -106,6 +107,7 @@ pub(super) fn resize_fade_out_outer_end(
     selection
         .with_fade_out(fade.length, fade.curve)
         .with_fade_out_mute(mute)
+        .with_fade_out_outer_gain(fade.outer_gain)
 }
 
 pub(super) fn resize_fade_in_start(
@@ -130,7 +132,9 @@ pub(super) fn resize_fade_in_start(
         } else {
             fade_out_mute_for_outer_end(resized, old_outer_end)
         };
-        resized = resized.with_fade_out_and_mute(length, fade_out.curve, mute);
+        resized = resized
+            .with_fade_out_and_mute(length, fade_out.curve, mute)
+            .with_fade_out_outer_gain(fade_out.outer_gain);
     }
     let length = fade_in_length_for_end(resized, fade_end);
     let mut resized = resized.with_fade_in(length, curve);
@@ -141,7 +145,9 @@ pub(super) fn resize_fade_in_start(
         } else {
             fade_in_mute_for_outer_start(resized, old_outer_start)
         };
-        resized = resized.with_fade_in_and_mute(length, curve, mute);
+        resized = resized
+            .with_fade_in_and_mute(length, curve, mute)
+            .with_fade_in_outer_gain(fade_in.outer_gain);
     }
     resized
 }
@@ -168,7 +174,9 @@ pub(super) fn resize_fade_out_end(
         } else {
             fade_in_mute_for_outer_start(resized, old_outer_start)
         };
-        resized = resized.with_fade_in_and_mute(length, fade_in.curve, mute);
+        resized = resized
+            .with_fade_in_and_mute(length, fade_in.curve, mute)
+            .with_fade_in_outer_gain(fade_in.outer_gain);
     }
     let length = fade_out_length_for_start(resized, fade_start);
     let mut resized = resized.with_fade_out(length, curve);
@@ -179,7 +187,9 @@ pub(super) fn resize_fade_out_end(
         } else {
             fade_out_mute_for_outer_end(resized, old_outer_end)
         };
-        resized = resized.with_fade_out_and_mute(length, curve, mute);
+        resized = resized
+            .with_fade_out_and_mute(length, curve, mute)
+            .with_fade_out_outer_gain(fade_out.outer_gain);
     }
     resized
 }
@@ -208,12 +218,20 @@ fn rebuild_edit_fades_for_same_range(
     let mut rebuilt =
         SelectionRange::new(selection.start(), selection.end()).with_gain(selection.gain());
     if let Some((length, curve)) = fade_in {
-        let mute = selection.fade_in().map(|fade| fade.mute).unwrap_or(0.0);
-        rebuilt = rebuilt.with_fade_in_and_mute(length.clamp(0.0, 1.0), curve, mute);
+        let fade = selection.fade_in();
+        let mute = fade.map(|fade| fade.mute).unwrap_or(0.0);
+        let outer_gain = fade.map(|fade| fade.outer_gain).unwrap_or(1.0);
+        rebuilt = rebuilt
+            .with_fade_in_and_mute(length.clamp(0.0, 1.0), curve, mute)
+            .with_fade_in_outer_gain(outer_gain);
     }
     if let Some((length, curve)) = fade_out {
-        let mute = selection.fade_out().map(|fade| fade.mute).unwrap_or(0.0);
-        rebuilt = rebuilt.with_fade_out_and_mute(length.clamp(0.0, 1.0), curve, mute);
+        let fade = selection.fade_out();
+        let mute = fade.map(|fade| fade.mute).unwrap_or(0.0);
+        let outer_gain = fade.map(|fade| fade.outer_gain).unwrap_or(1.0);
+        rebuilt = rebuilt
+            .with_fade_out_and_mute(length.clamp(0.0, 1.0), curve, mute)
+            .with_fade_out_outer_gain(outer_gain);
     }
     rebuilt
 }

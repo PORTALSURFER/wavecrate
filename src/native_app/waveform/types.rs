@@ -18,6 +18,25 @@ pub(in crate::native_app) enum WaveformInteraction {
         handle: WaveformEditFadeHandle,
         visible_ratio: f32,
     },
+    BeginEditFadeOuterGain {
+        handle: WaveformEditFadeOuterGainHandle,
+        vertical_ratio: f32,
+    },
+    UpdateEditFadeOuterGain {
+        vertical_ratio: f32,
+    },
+    FinishEditFadeOuterGain {
+        vertical_ratio: f32,
+    },
+    BeginEditGain {
+        pointer_y: f32,
+    },
+    UpdateEditGain {
+        pointer_y: f32,
+    },
+    FinishEditGain {
+        pointer_y: f32,
+    },
     ClearEditFadeSilence {
         handle: WaveformEditFadeHandle,
     },
@@ -66,11 +85,19 @@ pub(in crate::native_app) enum WaveformEditFadeHandle {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum WaveformEditFadeOuterGainHandle {
+    In,
+    Out,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum WaveformActiveDragKind {
     Selection(WaveformSelectionKind),
     SelectionResize(WaveformSelectionKind, WaveformSelectionEdge),
     SelectionMove(WaveformSelectionKind),
     PlaySelectionExport,
     EditFade(WaveformEditFadeHandle),
+    EditFadeOuterGain(WaveformEditFadeOuterGainHandle),
+    EditGain,
     Pan,
 }

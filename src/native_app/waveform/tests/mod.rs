@@ -1,8 +1,8 @@
 use super::{
-    BAND_COUNT, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
-    WaveformSelectionKind, WaveformState, WaveformViewport, WaveformWidget, WaveformWidgetProps,
-    downmix_to_mono, split_frequency_bands, waveform_file_from_mono_samples,
-    waveform_signal_surface_view,
+    BAND_COUNT, WaveformActiveDragKind, WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle,
+    WaveformInteraction, WaveformSelectionEdge, WaveformSelectionKind, WaveformState,
+    WaveformViewport, WaveformWidget, WaveformWidgetProps, downmix_to_mono, split_frequency_bands,
+    waveform_file_from_mono_samples, waveform_signal_surface_view,
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -16,6 +16,7 @@ use std::{fs, sync::Arc};
 mod audio;
 mod edit_fade;
 mod edit_fade_edge_cases;
+mod edit_gain;
 mod extraction;
 mod paint;
 mod signal_widget;
@@ -23,7 +24,15 @@ mod state;
 mod widget_input;
 
 fn waveform_widget_for_state(state: &WaveformState) -> WaveformWidget {
-    WaveformWidget::new(WaveformWidgetProps::from_state(state))
+    waveform_widget_for_state_with_beat_guides(state, false, 4)
+}
+
+fn waveform_widget_for_state_with_beat_guides(
+    state: &WaveformState,
+    enabled: bool,
+    count: u8,
+) -> WaveformWidget {
+    WaveformWidget::new(WaveformWidgetProps::from_state(state, enabled, count))
 }
 
 fn fill_rects(plan: &SurfacePaintPlan) -> Vec<&PaintFillRect> {
@@ -92,4 +101,20 @@ fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
         .samples::<i16>()
         .collect::<Result<Vec<_>, _>>()
         .expect("read samples")
+}
+
+fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
+    let mut reader = hound::WavReader::open(path).expect("open wav");
+    reader
+        .samples::<f32>()
+        .collect::<Result<Vec<_>, _>>()
+        .expect("read samples")
+}
+
+fn write_interleaved_f32_file(path: &std::path::Path, samples: &[f32]) {
+    let mut bytes = Vec::with_capacity(samples.len() * std::mem::size_of::<f32>());
+    for sample in samples {
+        bytes.extend_from_slice(&sample.to_le_bytes());
+    }
+    fs::write(path, bytes).expect("write f32 sidecar");
 }

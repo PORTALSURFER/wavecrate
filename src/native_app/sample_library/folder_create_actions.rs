@@ -11,7 +11,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
-    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, TREE_ROW_HEIGHT,
+    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, FOLDER_TREE_SELECTION_CONTEXT_ROWS, TREE_ROW_HEIGHT,
 };
 
 mod worker;
@@ -100,8 +100,8 @@ impl NativeAppState {
                         FOLDER_TREE_LIST_ID,
                         index,
                         TREE_ROW_HEIGHT,
-                        FOLDER_TREE_EDGE_CONTEXT_ROWS,
-                        FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                        FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+                        FOLDER_TREE_SELECTION_CONTEXT_ROWS,
                         1,
                     );
                 }

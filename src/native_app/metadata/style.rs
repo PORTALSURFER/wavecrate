@@ -1,5 +1,7 @@
 use radiant::prelude as ui;
 
+use super::MetadataTagSelectionState;
+
 /// Product styling for Wavecrate's fixed metadata tag categories.
 pub(in crate::native_app) fn metadata_tag_category_tone(category_id: &str) -> ui::WidgetTone {
     match category_id {
@@ -21,6 +23,18 @@ pub(in crate::native_app) fn metadata_tag_pill_style(
         ui::WidgetStyle::strong(tone)
     } else {
         ui::WidgetStyle::subtle(tone)
+    }
+}
+
+pub(in crate::native_app) fn metadata_tag_pill_selection_style(
+    category_id: &str,
+    state: MetadataTagSelectionState,
+) -> ui::WidgetStyle {
+    let tone = metadata_tag_category_tone(category_id);
+    match state {
+        MetadataTagSelectionState::None => ui::WidgetStyle::subtle(tone),
+        MetadataTagSelectionState::Mixed => ui::WidgetStyle::normal(tone),
+        MetadataTagSelectionState::All => ui::WidgetStyle::strong(tone),
     }
 }
 
@@ -56,6 +70,21 @@ mod tests {
         );
         assert_eq!(
             metadata_tag_pill_style("character", true).prominence,
+            ui::WidgetProminence::Strong
+        );
+        assert_eq!(
+            metadata_tag_pill_selection_style("character", MetadataTagSelectionState::None)
+                .prominence,
+            ui::WidgetProminence::Subtle
+        );
+        assert_eq!(
+            metadata_tag_pill_selection_style("character", MetadataTagSelectionState::Mixed)
+                .prominence,
+            ui::WidgetProminence::Normal
+        );
+        assert_eq!(
+            metadata_tag_pill_selection_style("character", MetadataTagSelectionState::All)
+                .prominence,
             ui::WidgetProminence::Strong
         );
     }

@@ -6,6 +6,9 @@ use crate::native_app::app::{
     sample_path_label,
 };
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
+use crate::native_app::sample_library::sample_list::{
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn move_context_target_to_trash(
@@ -165,6 +168,7 @@ impl NativeAppState {
         action: &'static str,
         started_at: Instant,
         result: Result<Vec<PathBuf>, String>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         match (target, result) {
             (TrashMoveTarget::Folder(path), Ok(moved)) => {
@@ -172,7 +176,7 @@ impl NativeAppState {
                 self.finish_folder_trash_move(path, destination, action, started_at);
             }
             (TrashMoveTarget::Files(paths), Ok(moved)) => {
-                self.finish_file_trash_move(paths, moved.len(), action, started_at);
+                self.finish_file_trash_move(paths, moved.len(), action, started_at, context);
             }
             (TrashMoveTarget::Folder(path), Err(error)) => {
                 self.finish_folder_trash_move_error(path, action, started_at, error);
@@ -211,13 +215,39 @@ impl NativeAppState {
         moved_count: usize,
         action: &'static str,
         started_at: Instant,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
-        self.library
+        let previous_selected = self
+            .library
             .folder_browser
-            .discard_trashed_file_paths(&paths);
+            .selected_file_id()
+            .map(str::to_owned);
+        let loaded_removed = paths
+            .iter()
+            .any(|path| self.waveform.current.path() == path.as_path());
+        let discarded = self
+            .library
+            .folder_browser
+            .discard_trashed_file_paths_matching_tags(&paths, &self.metadata.tags_by_file);
+        let selected_after_trash = if discarded {
+            self.library
+                .folder_browser
+                .selected_file_id()
+                .map(str::to_owned)
+        } else {
+            None
+        };
+        let focus_changed =
+            discarded && previous_selected.as_deref() != selected_after_trash.as_deref();
         for path in &paths {
             self.clear_loaded_sample_if_exact(path);
         }
+        self.load_selected_sample_after_trash_if_needed(
+            selected_after_trash,
+            focus_changed,
+            loaded_removed,
+            context,
+        );
         let noun = if moved_count == 1 { "file" } else { "files" };
         self.ui.status.sample = trash_move_finished_status(moved_count, noun, action);
         emit_gui_action(
@@ -228,6 +258,40 @@ impl NativeAppState {
             started_at,
             None,
         );
+    }
+
+    fn load_selected_sample_after_trash_if_needed(
+        &mut self,
+        selected_after_trash: Option<String>,
+        focus_changed: bool,
+        loaded_removed: bool,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(selected) = selected_after_trash else {
+            return;
+        };
+        if !focus_changed && !loaded_removed {
+            return;
+        }
+        if focus_changed {
+            self.cancel_metadata_tag_entry();
+            self.metadata.selected_tag = None;
+        }
+        if let Some(index) = self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+        {
+            context.scroll_fixed_row_into_view(
+                SAMPLE_BROWSER_LIST_ID,
+                index,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                1,
+            );
+        }
+        self.load_navigation_sample(selected, context);
     }
 
     fn finish_folder_trash_move_error(

@@ -8,6 +8,14 @@ use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
 use super::scan::{RenamedSample, ScanError, ScanStats};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct HashBackfill {
+    relative_path: PathBuf,
+    file_size: u64,
+    modified_ns: i64,
+    content_hash: String,
+}
+
 pub(super) fn deep_hash_scan(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -20,9 +28,9 @@ pub(super) fn deep_hash_scan(
         .collect();
     let pending_entries = db.list_pending_renames()?;
     let mut stats = ScanStats::default();
-    let mut batch = db.write_batch()?;
     let mut present_by_hash = HashMap::new();
     let mut pending_by_hash = HashMap::new();
+    let mut hash_backfills = Vec::new();
 
     for entry in entries_by_path.values() {
         let Some(hash) = entry.content_hash.as_deref() else {
@@ -58,7 +66,12 @@ pub(super) fn deep_hash_scan(
         }
         let facts = read_facts(&root, &absolute)?;
         let hash = compute_content_hash(&absolute, cancel)?;
-        batch.upsert_file_with_hash(&entry.relative_path, facts.size, facts.modified_ns, &hash)?;
+        hash_backfills.push(HashBackfill {
+            relative_path: entry.relative_path.clone(),
+            file_size: facts.size,
+            modified_ns: facts.modified_ns,
+            content_hash: hash.clone(),
+        });
         entry.file_size = facts.size;
         entry.modified_ns = facts.modified_ns;
         entry.content_hash = Some(hash.clone());
@@ -67,6 +80,22 @@ pub(super) fn deep_hash_scan(
             .or_insert_with(Vec::new)
             .push(entry.relative_path.clone());
         stats.hashes_computed += 1;
+    }
+
+    if let Some(cancel) = cancel
+        && cancel.load(Ordering::Relaxed)
+    {
+        return Err(ScanError::Canceled);
+    }
+
+    let mut batch = db.write_batch()?;
+    for backfill in &hash_backfills {
+        batch.upsert_file_with_hash(
+            &backfill.relative_path,
+            backfill.file_size,
+            backfill.modified_ns,
+            &backfill.content_hash,
+        )?;
     }
 
     let renamed_samples = reconcile_missing_renames(
@@ -159,4 +188,29 @@ fn apply_deep_rename(
         &present_entry.relative_path,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::Path, sync::atomic::AtomicBool};
+
+    use crate::sample_sources::SourceDatabase;
+
+    use super::*;
+
+    #[test]
+    fn deep_hash_scan_checks_cancel_before_writer_lock() {
+        let dir = tempfile::tempdir().expect("temp source");
+        std::fs::write(dir.path().join("pending.wav"), b"pending").expect("write wav");
+        let db = SourceDatabase::open(dir.path()).expect("source db");
+        db.upsert_file(Path::new("pending.wav"), 7, 10)
+            .expect("file row");
+        let lock_db = SourceDatabase::open(dir.path()).expect("lock db");
+        let _writer = lock_db.write_batch().expect("writer lock");
+        let cancel = AtomicBool::new(true);
+
+        let result = deep_hash_scan(&db, Some(&cancel));
+
+        assert!(matches!(result, Err(ScanError::Canceled)));
+    }
 }

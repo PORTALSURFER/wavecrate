@@ -11,14 +11,6 @@ fn waveform_rect(runtime: &NativeRuntimeForTests) -> Rect {
         .expect("full app shell should lay out waveform widget")
 }
 
-fn assert_ratio_near(actual: Option<f32>, expected: f32) {
-    let actual = actual.expect("expected waveform ratio");
-    assert!(
-        (actual - expected).abs() <= f32::EPSILON * 8.0,
-        "expected {expected}, got {actual}"
-    );
-}
-
 struct NativePointerShellHarness {
     runtime: NativeRuntimeForTests,
     last_cursor: Option<Point>,

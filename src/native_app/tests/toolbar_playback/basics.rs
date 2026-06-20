@@ -6,6 +6,9 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         crate::native_app::test_support::toolbar::ToolbarIcon::FocusLoaded,
         crate::native_app::test_support::toolbar::ToolbarIcon::Loop,
         crate::native_app::test_support::toolbar::ToolbarIcon::Random,
+        crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
+        crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
+        crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuidePlus,
         crate::native_app::test_support::toolbar::ToolbarIcon::Play,
         crate::native_app::test_support::toolbar::ToolbarIcon::Stop,
     ] {
@@ -53,6 +56,18 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
             crate::native_app::test_support::toolbar::ToolbarIcon::Random,
             crate::native_app::test_support::state::GuiMessage::PlayRandomSampleRange,
         ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
+            crate::native_app::test_support::state::GuiMessage::ToggleBeatGuides,
+        ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
+            crate::native_app::test_support::state::GuiMessage::AdjustBeatGuideCount(-1),
+        ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuidePlus,
+            crate::native_app::test_support::state::GuiMessage::AdjustBeatGuideCount(1),
+        ),
     ] {
         assert_eq!(
             crate::native_app::test_support::toolbar::toolbar_icon_button(101, icon, true, false)
@@ -65,6 +80,29 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
             Some(message)
         );
     }
+
+    assert_eq!(
+        crate::native_app::test_support::toolbar::toolbar_icon_button(
+            101,
+            crate::native_app::test_support::toolbar::ToolbarIcon::Random,
+            true,
+            false,
+        )
+        .view_dispatch_widget_output(
+            101,
+            radiant::widgets::WidgetOutput::typed(
+                radiant::widgets::ButtonMessage::ActivateWithModifiers {
+                    modifiers: PointerModifiers {
+                        command: true,
+                        ..Default::default()
+                    },
+                },
+            ),
+        ),
+        Some(
+            crate::native_app::test_support::state::GuiMessage::ToggleStickyRandomSampleRangePlayback
+        )
+    );
 }
 
 #[test]
@@ -82,21 +120,112 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
 }
 
 #[test]
+fn random_toolbar_help_tooltip_paints_multiline_guidance() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.chrome.help_tooltips_enabled = true;
+    let bridge = radiant::runtime::DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| crate::native_app::test_support::toolbar::main_toolbar(state).into_surface(),
+        |_, _| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(664.0, 80.0));
+    let random = *runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
+        .expect("random toolbar button should lay out");
+
+    runtime.dispatch_event(Event::pointer_move(random.center()));
+
+    let frame = runtime.frame_with_default_theme();
+    assert!(frame.paint_plan.contains_text("Random section playback"));
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Click: play a random section now.")
+    );
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Command-click: make Space use random sections.")
+    );
+}
+
+#[test]
 fn main_toolbar_view_model_projects_playback_state() {
     let mut state = NativeAppState::load_default().expect("default state loads");
 
     let empty = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(empty.random_available, state.random_playback_available());
+    assert!(!empty.sticky_random_sample_range_playback);
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
+    assert!(!empty.beat_guides_enabled);
+    assert_eq!(empty.beat_guide_count, 4);
+    assert!(empty.can_decrement_beat_guide_count);
+    assert!(empty.can_increment_beat_guide_count);
 
     state.audio.loop_playback = true;
+    state.ui.chrome.sticky_random_sample_range_playback = true;
+    state.ui.chrome.beat_guides_enabled = true;
+    state.ui.chrome.beat_guide_count = 8;
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     state.waveform.current.start_playback(0.25);
 
     let loaded = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(loaded.random_available, state.random_playback_available());
+    assert!(loaded.sticky_random_sample_range_playback);
     assert!(loaded.loop_playback);
     assert!(loaded.playing);
+    assert!(loaded.beat_guides_enabled);
+    assert_eq!(loaded.beat_guide_count, 8);
+}
+
+#[test]
+fn sticky_random_toolbar_message_updates_space_playback_mode() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    assert!(!state.ui.chrome.sticky_random_sample_range_playback);
+
+    state.apply_message(
+        GuiMessage::ToggleStickyRandomSampleRangePlayback,
+        &mut context,
+    );
+
+    assert!(state.ui.chrome.sticky_random_sample_range_playback);
+    assert_eq!(
+        state.ui.status.sample,
+        "Sticky random playback on: Space plays random sample sections"
+    );
+
+    state.apply_message(
+        GuiMessage::ToggleStickyRandomSampleRangePlayback,
+        &mut context,
+    );
+
+    assert!(!state.ui.chrome.sticky_random_sample_range_playback);
+    assert_eq!(
+        state.ui.status.sample,
+        "Sticky random playback off: Space plays selected samples"
+    );
+}
+
+#[test]
+fn beat_guide_toolbar_messages_update_chrome_state() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::ToggleBeatGuides, &mut context);
+    assert!(state.ui.chrome.beat_guides_enabled);
+
+    state.apply_message(GuiMessage::AdjustBeatGuideCount(3), &mut context);
+    assert_eq!(state.ui.chrome.beat_guide_count, 7);
+
+    state.apply_message(GuiMessage::AdjustBeatGuideCount(-100), &mut context);
+    assert_eq!(state.ui.chrome.beat_guide_count, 1);
+
+    state.apply_message(GuiMessage::AdjustBeatGuideCount(100), &mut context);
+    assert_eq!(state.ui.chrome.beat_guide_count, 64);
 }

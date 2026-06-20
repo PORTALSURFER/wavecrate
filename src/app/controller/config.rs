@@ -194,6 +194,7 @@ impl AppController {
                 volume: self.ui.volume,
                 controls: self.settings.controls.clone(),
                 similarity: self.settings.similarity.clone(),
+                collection_names: self.settings.collection_names.clone(),
                 default_identifier: self.settings.default_identifier.clone(),
                 tag_dictionary: self.settings.tag_dictionary.clone(),
             },

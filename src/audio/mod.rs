@@ -26,12 +26,12 @@ pub fn edit_fade_range_from_selection(range: Option<SelectionRange>) -> Option<E
             range.start(),
             range.end(),
             range.gain(),
-            range
-                .fade_in()
-                .map(|fade| FadeParams::new(fade.length, fade.curve, fade.mute)),
-            range
-                .fade_out()
-                .map(|fade| FadeParams::new(fade.length, fade.curve, fade.mute)),
+            range.fade_in().map(|fade| {
+                FadeParams::with_outer_gain(fade.length, fade.curve, fade.mute, fade.outer_gain)
+            }),
+            range.fade_out().map(|fade| {
+                FadeParams::with_outer_gain(fade.length, fade.curve, fade.mute, fade.outer_gain)
+            }),
         )
     })
 }

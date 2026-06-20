@@ -30,6 +30,8 @@ mod startup;
 mod status_bar;
 mod toolbar_playback;
 mod transactions;
+#[path = "tests/waveform_destructive_edit_tests.rs"]
+mod waveform_destructive_edit_tests;
 mod waveform_playback;
 mod window_chrome;
 

@@ -241,6 +241,12 @@ impl FolderBrowserState {
                         .select_folder_after_tree_changed(root_folder.id.clone());
                 }
                 self.tree.folders = vec![root_folder];
+                let visible_ids = self
+                    .selected_audio_files()
+                    .into_iter()
+                    .map(|file| file.id.clone())
+                    .collect::<HashSet<_>>();
+                self.selection.retain_visible_files(&visible_ids);
             }
             self.bump_file_content_revision();
         }

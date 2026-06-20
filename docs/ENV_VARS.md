@@ -23,7 +23,8 @@ Overrides the build tool used by `scripts/internal/release/build_release_zip.sh`
 - `WAVECRATE_CHECKSUMS_ED25519_KEY`
 CI secret used by `.github/workflows/release-build.yml` to sign release checksum
 files. This is expected to be an Ed25519 private key in PEM form that OpenSSL
-can use for `pkeyutl -sign`.
+can use for `pkeyutl -sign`. The release workflow also accepts the legacy
+`SEMPAL_CHECKSUMS_ED25519_KEY` secret name as a compatibility fallback.
 
 - `WAVECRATE_DISABLE_SCCACHE`
 When set to `1`, repo Cargo helper scripts force direct `rustc` and clear any
@@ -36,14 +37,22 @@ When set to `1`, repo Cargo helper scripts may use `sccache` if it is installed
 and its wrapper probe passes. Default: unset, so repo scripts use direct
 `rustc` and do not probe `sccache`.
 
-- `WAVECRATE_WINDOWS_SIGN_PFX_BASE64`
-CI secret used by `.github/workflows/release-build.yml` to Authenticode-sign
-Windows executables. This value is expected to be a base64-encoded `.pfx`
-certificate bundle.
+### Release upload secrets
 
-- `WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD`
-Password for `WAVECRATE_WINDOWS_SIGN_PFX_BASE64`, consumed by the Windows signing
-step in `.github/workflows/release-build.yml`.
+The `release-build.yml` workflow uploads built release zips to GitHub Releases
+and, when these repository secrets are configured, uploads the same zips to the
+PortalSurfer Wavecrate release-upload API. GitHub Actions does not need SSH
+access or write access to the PortalSurfer frontend repository.
+
+- `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
+Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store
+the matching `WAVECRATE_RELEASE_UPLOAD_TOKEN_SHA256` on the PortalSurfer server
+when possible, so the server does not keep the raw token.
+
+- `PORTALSURFER_RELEASE_UPLOAD_URL`
+Optional upload endpoint. Defaults to
+`https://portalsurfer.org/wavecrate/api/v1/release-uploads` and must end with
+`/release-uploads`.
 
 ## Agent workflow
 
@@ -134,13 +143,37 @@ source registry afterward.
   - When unset/default, normal write-capable behavior applies.
 
 - `WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE`
-  - When write mode is enabled, this must be set to `1`/`true`/`yes`/`on` to allow
-    DB writes in paths that look like user libraries (for example `~/Music`,
-    `~/Documents`, `~/Downloads`, `~/Desktop`).
+  - Legacy safety override retained for sandbox workflows. Normal live app runs
+    allow configured source folders under user-library paths such as `~/Music`,
+    `~/Documents`, `~/Downloads`, and `~/Desktop` without requiring this env var.
+  - Use `WAVECRATE_SOURCE_DB_READ_ONLY=1` to block source-folder DB writes during
+    constrained validation or sandbox runs.
 
 - `RADIANT_NATIVE_FONT_PATH`
 Optional path to a `.ttf` font used by the UI projection text renderer when
 system font discovery fails.
+
+- `RADIANT_AUTOMATION_TARGET_EXPORT`
+Optional path where Radiant's native runtime writes the latest flattened
+automation target snapshot as JSON after surface refreshes. Wavecrate's macOS
+`./run.sh` dev-app launch sets this by default to
+`target/dev-app/Wavecrate.automation-targets.json`.
+
+- `RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY`
+When set to `1`/`true`/`yes`/`on`, Radiant writes the target snapshot as
+pretty-printed JSON. Wavecrate's macOS dev-app launch defaults this to `1`.
+
+- `WAVECRATE_AUTOMATION_TARGET_EXPORT`
+Set to `0`/`false`/`no`/`off` to prevent `./run.sh` from enabling Radiant target
+snapshot export for the macOS dev-app launch.
+
+- `WAVECRATE_AUTOMATION_TARGETS_PATH`
+Overrides the default automation target snapshot path used by the macOS
+`./run.sh` dev-app launch.
+
+- `WAVECRATE_AUTOMATION_TARGETS_PRETTY`
+Overrides the pretty-print policy that `./run.sh` forwards to
+`RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY`.
 
 - `WAVECRATE_GUI_TEST_MODE`
 Enables deterministic GUI test mode for the main app binary.

@@ -9,7 +9,9 @@ pub mod db;
 /// Global library database helpers.
 pub mod library;
 
-pub use audio_support::{is_supported_audio, supported_audio_where_clause};
+pub use audio_support::{
+    is_apple_double_sidecar, is_supported_audio, supported_audio_where_clause,
+};
 pub use db::normalize_relative_path;
 pub use db::{
     DB_FILE_NAME, Rating, SampleCollection, SourceDatabase, SourceDatabaseConnectionRole,

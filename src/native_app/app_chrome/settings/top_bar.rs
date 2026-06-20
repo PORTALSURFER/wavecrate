@@ -8,6 +8,11 @@ const VOLUME_SLIDER_SIZE: ControlSize = ControlSize {
     width: 92.0,
     height: 14.0,
 };
+pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = widget_ids::HELP_TOOLTIPS_BUTTON_ID;
+const HELP_TOOLTIPS_BUTTON_SIZE: ControlSize = ControlSize {
+    width: 12.0,
+    height: 18.0,
+};
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = widget_ids::AUDIO_ENGINE_PILL_ID;
 const AUDIO_ENGINE_PILL_SIZE: ControlSize = ControlSize {
     width: 54.0,
@@ -28,9 +33,14 @@ struct ControlSize {
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let model = TopControlBarModel::from_app_state(state);
     ui::row([
-        volume_slider(model.volume),
+        help_tooltips_button(model.help_tooltips_enabled),
+        help_tooltip(
+            volume_slider(model.volume),
+            model.help_tooltips_enabled,
+            "Preview volume for sample audition playback.",
+        ),
         ui::spacer().fill_width().height(20.0),
-        settings_controls(model.settings_controls),
+        settings_controls(model.settings_controls, model.help_tooltips_enabled),
     ])
     .spacing(8.0)
     .padding_x(12.0)
@@ -41,6 +51,7 @@ pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View
 
 struct TopControlBarModel {
     volume: f32,
+    help_tooltips_enabled: bool,
     settings_controls: SettingsControlsModel,
 }
 
@@ -63,6 +74,7 @@ impl TopControlBarModel {
             .then_some(settings_window.app_settings_tab);
         Self {
             volume: state.audio.volume,
+            help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
             settings_controls: SettingsControlsModel {
                 audio_engine: AudioEnginePillModel {
                     label: state.audio_engine_pill_label(),
@@ -75,13 +87,42 @@ impl TopControlBarModel {
     }
 }
 
-fn settings_controls(model: SettingsControlsModel) -> ui::View<GuiMessage> {
+fn settings_controls(
+    model: SettingsControlsModel,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
     ui::row([
-        audio_engine_pill(model.audio_engine),
-        general_settings_button(model.general_settings_active),
+        help_tooltip(
+            audio_engine_pill(model.audio_engine),
+            help_tooltips_enabled,
+            "Audio engine status and output settings.",
+        ),
+        help_tooltip(
+            general_settings_button(model.general_settings_active),
+            help_tooltips_enabled,
+            "Open Wavecrate settings.",
+        ),
     ])
     .spacing(4.0)
     .height(24.0)
+}
+
+fn help_tooltips_button(active: bool) -> ui::View<GuiMessage> {
+    let button = ui::icon_button(help_tooltips_icon(active))
+        .bare()
+        .active(active)
+        .message(GuiMessage::Settings(SettingsMessage::ToggleHelpTooltips))
+        .id(HELP_TOOLTIPS_BUTTON_ID)
+        .key("top-help-tooltips-button")
+        .size(
+            HELP_TOOLTIPS_BUTTON_SIZE.width,
+            HELP_TOOLTIPS_BUTTON_SIZE.height,
+        );
+    help_tooltip(
+        button,
+        active,
+        "Help tips: hover controls to see what they do.",
+    )
 }
 
 fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
@@ -109,6 +150,7 @@ fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
 pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
     ui::slider(volume)
         .compact()
+        .paint_focus(false)
         .message(|volume| GuiMessage::Settings(SettingsMessage::SetVolume(volume)))
         .id(VOLUME_SLIDER_ID)
         .key("top-volume-slider")
@@ -122,6 +164,29 @@ fn settings_gear_icon(active: bool) -> ui::SvgIcon {
         ui::Rgba8::new(238, 238, 238, 255)
     })
 }
+
+fn help_tooltips_icon(active: bool) -> ui::SvgIcon {
+    HELP_TOOLTIPS_ICON.icon(if active {
+        ui::Rgba8::new(255, 160, 82, 255)
+    } else {
+        ui::Rgba8::new(238, 238, 238, 255)
+    })
+}
+
+fn help_tooltip(
+    view: ui::View<GuiMessage>,
+    enabled: bool,
+    tooltip: &'static str,
+) -> ui::View<GuiMessage> {
+    if enabled { view.tooltip(tooltip) } else { view }
+}
+
+static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M6.3 5.6c.1-1.2.9-1.9 2.1-1.9 1.3 0 2.1.8 2.1 1.9 0 .8-.4 1.3-1.2 1.8-.6.4-.8.8-.8 1.5v.3H7.3v-.5c0-.9.4-1.5 1.1-1.9.6-.4.8-.7.8-1.1 0-.5-.4-.8-1-.8s-.9.3-1 1z" fill="currentColor"/>
+  <circle cx="7.9" cy="11.7" r=".7" fill="currentColor"/>
+</svg>"#,
+);
 
 static SETTINGS_GEAR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">

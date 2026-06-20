@@ -11,6 +11,7 @@ pub(super) struct FolderTreeState {
     pub(super) expanded_folders: HashSet<String>,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
+    pub(super) runtime_viewport_rows: Option<usize>,
 }
 
 impl FolderTreeState {
@@ -20,6 +21,7 @@ impl FolderTreeState {
             expanded_folders: [root_id].into_iter().collect(),
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
+            runtime_viewport_rows: None,
         }
     }
 }
@@ -92,6 +94,7 @@ impl FolderBrowserState {
         modifiers: PointerModifiers,
     ) {
         if modifiers.shift || modifiers.command {
+            let previous_folder_id = self.selection.selected_folder.clone();
             let visible_ids = self
                 .visible_folders()
                 .into_iter()
@@ -99,6 +102,7 @@ impl FolderBrowserState {
                 .collect::<Vec<_>>();
             self.selection
                 .select_folder_with_modifiers(id, &visible_ids, modifiers);
+            self.clear_similarity_anchor_after_folder_change(&previous_folder_id);
             return;
         }
         if self.selected_folder_is_source_root_id(&id) {
@@ -129,9 +133,11 @@ impl FolderBrowserState {
     }
 
     pub(super) fn select_folder(&mut self, id: String) {
+        let previous_folder_id = self.selection.selected_folder.clone();
         self.cancel_rename();
         self.collection_panel.rename_edit = None;
         self.selection.select_folder(id);
+        self.clear_similarity_anchor_after_folder_change(&previous_folder_id);
         self.reset_file_view();
     }
 

@@ -1,5 +1,5 @@
 use super::{gui_state_for_span_tests, temp_gui_root, write_test_wav_i16};
-use radiant::widgets::DragHandleMessage;
+use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use radiant::{gui::types::Point, prelude as ui, runtime::NativeFileDrop};
 use std::fs;
 
@@ -317,5 +317,74 @@ fn native_file_drop_after_internal_browser_drag_release_cancels_instead_of_copyi
     assert!(!loops.join("kick.wav").exists());
     assert!(!state.library.folder_browser.drag_active());
     assert_eq!(state.ui.status.sample, "Drag cancelled");
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn internal_browser_drag_tracks_all_selected_offscreen_files() {
+    let root = temp_gui_root("wavecrate-native-file-drop-offscreen-selection");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums");
+    let files = (0..80)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        write_test_wav_i16(file, &[0, 100, -100]);
+    }
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ),
+    );
+    state
+        .library
+        .folder_browser
+        .select_file(files[4].display().to_string());
+    state
+        .library
+        .folder_browser
+        .apply_file_view_window_change(ui::VirtualListWindowChange {
+            offset_y: 40.0 * 22.0,
+            row_height: 22.0,
+            window: ui::VirtualListWindow {
+                total_items: 80,
+                viewport_start: 40,
+                viewport_end: 58,
+                window_start: 36,
+                window_end: 62,
+            },
+        });
+    for index in [44, 55] {
+        state.library.folder_browser.select_file_with_modifiers(
+            files[index].display().to_string(),
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+    }
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::DragSampleFile {
+            path: files[55].display().to_string(),
+            drag: DragHandleMessage::started(Point::new(4.0, 8.0)),
+        },
+        &mut context,
+    );
+
+    for index in [4, 44, 55] {
+        assert!(
+            state.is_pending_internal_file_drag_path(&files[index]),
+            "internal drag guard should include selected file {index}"
+        );
+    }
+    assert!(!state.is_pending_internal_file_drag_path(&files[5]));
     let _ = fs::remove_dir_all(root);
 }

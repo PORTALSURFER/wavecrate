@@ -97,6 +97,59 @@ fn default_gui_tag_library_paints_applied_playback_tags_as_active_pills() {
 }
 
 #[test]
+fn default_gui_tag_library_paints_mixed_tags_as_partial_pills() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    fs::write(&first, []).expect("first sample");
+    fs::write(&second, []).expect("second sample");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state.library.folder_browser.select_file(first_id.clone());
+    state.library.folder_browser.select_file_with_modifiers(
+        second_id,
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    state
+        .metadata
+        .tags_by_file
+        .insert(first_id, vec![String::from("bass")]);
+    state.metadata.tag_library_open = true;
+    let theme = radiant::theme::ThemeTokens::default();
+    let expected = radiant::widgets::resolve_widget_visual_tokens(
+        &theme,
+        crate::native_app::metadata::metadata_tag_pill_selection_style(
+            "sound-type",
+            crate::native_app::metadata::MetadataTagSelectionState::Mixed,
+        ),
+        radiant::widgets::WidgetState::default(),
+    );
+
+    let frame = crate::native_app::test_support::state::view(&mut state)
+        .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
+    let bass_rect = frame
+        .paint_plan
+        .first_text_run_after_x("bass", DEFAULT_FOLDER_WIDTH)
+        .expect("library bass tag should paint")
+        .rect;
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == expected.fill && fill.rect.intersects(bass_rect)),
+        "mixed tag should paint the partial-assignment pill fill"
+    );
+}
+
+#[test]
 fn default_gui_tag_library_uses_custom_dictionary_categories() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");

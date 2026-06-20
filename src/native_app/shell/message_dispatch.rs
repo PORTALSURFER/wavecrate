@@ -33,7 +33,6 @@ impl NativeAppState {
             GuiMessage::ResizeFolder(_)
             | GuiMessage::AddSourceDialogFinished(_)
             | GuiMessage::FolderBrowser(_)
-            | GuiMessage::PrepareSimilarityForSelectedSource
             | GuiMessage::SetSimilarityAspectWeightingEnabled(_)
             | GuiMessage::SetSimilarityAspectEnabled { .. }
             | GuiMessage::SetSimilarityAspectWeight { .. }
@@ -47,6 +46,7 @@ impl NativeAppState {
             | GuiMessage::FolderTreeRefreshFinished(_)
             | GuiMessage::SelectedFolderVerifyFinished(_)
             | GuiMessage::SourceFilesystemChanged { .. }
+            | GuiMessage::SourceFilesystemSyncFinished(_)
             | GuiMessage::NormalizationProgress(_)
             | GuiMessage::NormalizationFinished(_)
             | GuiMessage::SelectSampleWithModifiers { .. }
@@ -68,6 +68,7 @@ impl NativeAppState {
             }
             GuiMessage::AudioPlayerOpenFinished(_)
             | GuiMessage::PlaySelectedSample
+            | GuiMessage::PlayFromCurrentPlayStart
             | GuiMessage::PlayRandomSampleRange
             | GuiMessage::LastPlayedPersistReady { .. }
             | GuiMessage::LastPlayedPersisted(_)
@@ -83,6 +84,8 @@ impl NativeAppState {
             | GuiMessage::NormalizeSelectedSamples
             | GuiMessage::CopySelectedFiles
             | GuiMessage::SelectedFilesCopyFinished { .. }
+            | GuiMessage::WaveformSelectionCopyFinished { .. }
+            | GuiMessage::FileMoveProgress(_)
             | GuiMessage::SetFileMoveConflictApplyToRemaining(_)
             | GuiMessage::ResolveFileMoveConflict(_)
             | GuiMessage::FolderMoveFinished { .. }
@@ -93,6 +96,7 @@ impl NativeAppState {
             | GuiMessage::ContextPathCopyFinished { .. }
             | GuiMessage::OpenContextTarget
             | GuiMessage::CreateFolderAtContextTarget
+            | GuiMessage::RenameContextFolder
             | GuiMessage::ContextFolderCreateFinished { .. }
             | GuiMessage::MoveContextTargetToTrash
             | GuiMessage::RequestDeleteContextFolder
@@ -108,6 +112,11 @@ impl NativeAppState {
             | GuiMessage::WaveformFileDrop(_) => self.apply_file_dispatch(message, context),
             GuiMessage::ToggleJobDetails
             | GuiMessage::CloseJobDetails
+            | GuiMessage::ToggleShortcutHelp
+            | GuiMessage::CloseShortcutHelp
+            | GuiMessage::ToggleStickyRandomSampleRangePlayback
+            | GuiMessage::ToggleBeatGuides
+            | GuiMessage::AdjustBeatGuideCount(_)
             | GuiMessage::UndoTransaction
             | GuiMessage::RedoTransaction
             | GuiMessage::ToggleTransactionList
@@ -115,6 +124,11 @@ impl NativeAppState {
             | GuiMessage::FocusRenameInput(_)
             | GuiMessage::FolderBrowserRenameFinished(_)
             | GuiMessage::DeleteSelectedItem
+            | GuiMessage::RequestCropWaveformSelection
+            | GuiMessage::RequestTrimWaveformSelection
+            | GuiMessage::RequestExtractAndTrimWaveformSelection
+            | GuiMessage::ConfirmPendingWaveformDestructiveEdit
+            | GuiMessage::CancelPendingWaveformDestructiveEdit
             | GuiMessage::ExtractPlaymarkedRange
             | GuiMessage::PlaySelectionExtractionFinished { .. } => {
                 self.apply_chrome_dispatch(message, context);

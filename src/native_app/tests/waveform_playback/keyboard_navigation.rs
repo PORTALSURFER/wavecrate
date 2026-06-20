@@ -50,17 +50,33 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .selected_file_id()
             .map(str::to_owned),
         Some(second.clone()),
-        "navigation feedback must update before deferred business work completes"
+        "navigation feedback must update before sample-load business work completes"
     );
     assert!(
-        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_none(),
-        "first key repeat should not synchronously start decode work"
+        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_some(),
+        "first key repeat should queue sample-load business work immediately"
     );
-    let stale_deferred_ticket = lock_navigation_harness_state(&state)
-        .background
-        .deferred_sample_load_task
-        .active()
-        .expect("first navigation queues deferred load");
+    assert!(
+        lock_navigation_harness_state(&state)
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
+        "keyboard navigation should not add a debounce before audition loading"
+    );
+    let diagnostics_after_first_queue = runtime.runtime_diagnostics();
+    assert_eq!(
+        diagnostics_after_first_queue.ui.slow_update_handlers, 0,
+        "sample navigation updates should stay below Radiant's slow-handler threshold"
+    );
+    assert!(
+        diagnostics_after_first_queue
+            .business
+            .recent
+            .iter()
+            .any(|event| event.name == "gui-sample-load"),
+        "keyboard navigation should use Radiant BusinessRuntime for sample load work"
+    );
 
     runtime.dispatch_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
@@ -78,42 +94,22 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         Some(third.clone()),
         "rapid navigation should advance selection without waiting for the older load"
     );
-
-    runtime.dispatch_message(
-        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
-            ticket: stale_deferred_ticket,
-            path: second.clone(),
-            autoplay: true,
-            check_cache: false,
-            scheduled_at: std::time::Instant::now(),
-        },
-    );
     assert!(
-        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_none(),
-        "stale deferred navigation work must not start a sample-load worker"
+        lock_navigation_harness_state(&state)
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
+        "rapid navigation should keep audition loading immediate instead of deferred"
     );
 
-    let current_deferred_ticket = lock_navigation_harness_state(&state)
-        .background
-        .deferred_sample_load_task
-        .active()
-        .expect("current navigation keeps a deferred load");
-    runtime.dispatch_message(
-        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
-            ticket: current_deferred_ticket,
-            path: third.clone(),
-            autoplay: true,
-            check_cache: false,
-            scheduled_at: std::time::Instant::now(),
-        },
-    );
     let stale_sample_load_ticket =
         active_sample_load_ticket(&lock_navigation_harness_state(&state))
-            .expect("settled navigation queues sample-load business work");
+            .expect("latest navigation queues sample-load business work immediately");
     let diagnostics_after_queue = runtime.runtime_diagnostics();
     assert_eq!(
         diagnostics_after_queue.ui.slow_update_handlers, 0,
-        "sample navigation updates should stay below Radiant's slow-handler threshold"
+        "repeat navigation updates should stay below Radiant's slow-handler threshold"
     );
     assert!(
         diagnostics_after_queue
@@ -121,7 +117,7 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .recent
             .iter()
             .any(|event| event.name == "gui-sample-load"),
-        "settled navigation should use Radiant BusinessRuntime for sample load work"
+        "repeat navigation should use Radiant BusinessRuntime for sample load work"
     );
 
     runtime.dispatch_message(
@@ -183,7 +179,7 @@ fn lock_navigation_harness_state(
 }
 
 #[test]
-fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
+fn keyboard_navigation_queues_foreground_load_immediately() {
     let source_root = tempfile::tempdir().expect("source root");
     for name in ["a.wav", "b.wav", "c.wav"] {
         fs::write(source_root.path().join(name), []).expect("sample file");
@@ -220,22 +216,23 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
             .background
             .deferred_sample_load_task
             .active()
-            .is_some(),
-        "keyboard navigation should queue only a deferred latest load"
+            .is_none(),
+        "keyboard navigation should not debounce audition loading"
     );
     assert!(
-        active_sample_load_ticket(&state).is_none(),
-        "keyboard navigation must not synchronously start decode work"
+        active_sample_load_ticket(&state).is_some(),
+        "keyboard navigation should immediately queue background sample-load work"
     );
-    assert_eq!(
-        state.waveform.load.label, None,
-        "keyboard navigation should not enter the loading UI until the deferred load fires"
+    assert!(
+        state
+            .waveform
+            .load
+            .label
+            .as_ref()
+            .is_some_and(|label| second.ends_with(label)),
+        "keyboard navigation should show the foreground load target immediately"
     );
-    let stale_ticket = state
-        .background
-        .deferred_sample_load_task
-        .active()
-        .expect("deferred navigation load ticket");
+    let stale_ticket = active_sample_load_ticket(&state).expect("first navigation load ticket");
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
@@ -255,18 +252,19 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
             .background
             .deferred_sample_load_task
             .active()
-            .is_some()
+            .is_none()
     );
-    assert!(active_sample_load_ticket(&state).is_none());
+    assert!(active_sample_load_ticket(&state).is_some());
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
-            ticket: stale_ticket,
-            path: second,
-            autoplay: true,
-            check_cache: false,
-            scheduled_at: std::time::Instant::now(),
-        },
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                stale_ticket,
+                second,
+                Err(String::from("synthetic stale decode")),
+                true,
+            ),
+        ),
         &mut context,
     );
 
@@ -275,15 +273,15 @@ fn keyboard_navigation_defers_sample_loading_until_navigation_settles() {
         Some(third.as_str())
     );
     assert!(
-        active_sample_load_ticket(&state).is_none(),
-        "stale deferred navigation loads must not start decode work"
+        active_sample_load_ticket(&state).is_some(),
+        "stale keyboard navigation loads must not clear the latest decode work"
     );
     assert!(
         state
             .background
             .deferred_sample_load_task
             .active()
-            .is_some()
+            .is_none()
     );
 }
 
@@ -350,10 +348,7 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
 }
 
 #[test]
-fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
-    let config_base = tempfile::tempdir().expect("config base");
-    let (_config_lock, _base_guard) =
-        set_waveform_test_config_base(config_base.path().to_path_buf());
+fn keyboard_navigation_starts_foreground_load_without_debounce() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("a.wav");
     let second_path = source_root.path().join("b.wav");
@@ -361,13 +356,6 @@ fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
     write_test_wav_i16(&second_path, &[0, 1024, -2048, 4096, -1024, 512]);
     let first = first_path.display().to_string();
     let second = second_path.display().to_string();
-
-    let waveform =
-        crate::native_app::test_support::state::WaveformState::load_path(second_path.clone())
-            .expect("cache sample");
-    let file = waveform.file();
-    crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
-    wait_for_playback_ready_cache(&second);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -395,37 +383,21 @@ fn keyboard_navigation_defers_foreground_load_until_navigation_settles() {
             .background
             .deferred_sample_load_task
             .active()
-            .is_some(),
-        "keyboard navigation should debounce foreground sample loading"
+            .is_none(),
+        "keyboard navigation should not debounce foreground sample loading"
     );
-    assert!(
-        active_sample_load_ticket(&state).is_none(),
-        "keyboard navigation must not start foreground sample loading on the UI thread"
-    );
-    assert_eq!(
-        state.waveform.load.label, None,
-        "keyboard navigation should keep focus movement separate from loading UI"
-    );
-
-    let deferred_ticket = state
-        .background
-        .deferred_sample_load_task
-        .active()
-        .expect("deferred foreground load");
-    state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::DeferredSampleLoad {
-            ticket: deferred_ticket,
-            path: second,
-            autoplay: true,
-            check_cache: false,
-            scheduled_at: std::time::Instant::now(),
-        },
-        &mut context,
-    );
-
     assert!(
         active_sample_load_ticket(&state).is_some(),
-        "deferred keyboard load should start foreground loading only after navigation settles"
+        "keyboard navigation should queue foreground sample loading immediately"
+    );
+    assert!(
+        state
+            .waveform
+            .load
+            .label
+            .as_ref()
+            .is_some_and(|label| second.ends_with(label)),
+        "keyboard navigation should surface the foreground loading target immediately"
     );
 }
 

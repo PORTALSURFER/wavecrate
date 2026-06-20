@@ -6,12 +6,14 @@ use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::time::Instant;
 
 pub(super) use metrics::{metadata_tag_input_width_policy, metadata_tag_pill_width};
-pub(in crate::native_app) use style::{metadata_tag_category_is_pinned, metadata_tag_pill_style};
+pub(in crate::native_app) use style::{
+    metadata_tag_category_is_pinned, metadata_tag_pill_selection_style, metadata_tag_pill_style,
+};
 #[cfg(test)]
 pub(super) use types::MetadataTagCommit;
 pub(super) use types::{
     MetadataTagCategoryGroup, MetadataTagCompletionOption, MetadataTagDisplayCategory,
-    MetadataTagInputMode, MetadataTagPersistResult,
+    MetadataTagInputMode, MetadataTagPersistResult, MetadataTagSelectionState,
 };
 pub(super) use vocabulary::{
     commit_metadata_tag_text, inferred_metadata_tag_category_id_for_name,
@@ -54,19 +56,56 @@ impl NativeAppState {
             .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
     }
 
-    pub(super) fn selected_metadata_tags(&self) -> &[String] {
-        self.library
-            .folder_browser
-            .selected_file_id()
-            .and_then(|file_id| self.metadata.tags_by_file.get(file_id))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+    pub(in crate::native_app) fn metadata_tag_selection_state(
+        &self,
+        tag: &str,
+    ) -> MetadataTagSelectionState {
+        let file_ids = self.selected_metadata_file_ids();
+        if file_ids.is_empty() {
+            return MetadataTagSelectionState::None;
+        }
+        let assigned_count = file_ids
+            .iter()
+            .filter(|file_id| {
+                self.metadata
+                    .tags_by_file
+                    .get(file_id.as_str())
+                    .is_some_and(|tags| tags.iter().any(|existing| existing == tag))
+            })
+            .count();
+        match assigned_count {
+            0 => MetadataTagSelectionState::None,
+            count if count == file_ids.len() => MetadataTagSelectionState::All,
+            _ => MetadataTagSelectionState::Mixed,
+        }
+    }
+
+    pub(super) fn selected_metadata_tags_for_display(&self) -> Vec<String> {
+        let mut tags = Vec::new();
+        for file_id in self.selected_metadata_file_ids() {
+            let Some(file_tags) = self.metadata.tags_by_file.get(&file_id) else {
+                continue;
+            };
+            for tag in file_tags {
+                if !tags.iter().any(|existing| existing == tag) {
+                    tags.push(tag.clone());
+                }
+            }
+        }
+        tags
+    }
+
+    pub(super) fn mixed_selected_metadata_tags_for_display(&self) -> Vec<String> {
+        self.selected_metadata_tags_for_display()
+            .into_iter()
+            .filter(|tag| self.metadata_tag_selection_state(tag).is_mixed())
+            .collect()
     }
 
     pub(super) fn selected_metadata_tag_display_categories(
         &self,
     ) -> Vec<MetadataTagDisplayCategory> {
-        self.selected_metadata_tags()
+        self.selected_metadata_tags_for_display()
             .iter()
             .map(|tag| MetadataTagDisplayCategory {
                 tag: tag.clone(),
@@ -76,13 +115,18 @@ impl NativeAppState {
     }
 
     pub(super) fn select_metadata_tag(&mut self, tag: String) {
-        if self
-            .selected_metadata_tags()
-            .iter()
-            .any(|existing| existing == &tag)
-        {
+        if self.metadata_tag_selection_state(&tag).is_assigned() {
             self.metadata.selected_tag = Some(tag);
         }
+    }
+
+    fn selected_metadata_file_ids(&self) -> Vec<String> {
+        self.library
+            .folder_browser
+            .selected_file_paths()
+            .into_iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect()
     }
 
     pub(super) fn apply_metadata_tag_input(
@@ -110,6 +154,7 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.cancel_metadata_tag_entry();
         context.focus(crate::native_app::ui::ids::METADATA_TAG_INPUT_ID);
     }
 
@@ -288,5 +333,23 @@ mod tests {
         assert_eq!(metadata_tag_category_id("prefix-artist"), "prefix");
         assert_eq!(metadata_tag_category_id("dorian"), "tuning-scale");
         assert_eq!(metadata_tag_category_id("custom-texture"), "character");
+    }
+
+    #[test]
+    fn focus_metadata_tag_input_starts_with_empty_tag_entry() {
+        let mut state = NativeAppState::load_default().expect("default state loads");
+        state.metadata.tag_draft = String::from("§");
+        state.metadata.tag_tokens = vec![String::from("kick")];
+        state.metadata.tag_input_mode = MetadataTagInputMode::Category {
+            pending_tag: String::from("rumble"),
+        };
+        state.metadata.pending_tag_completion_query = Some(String::from("ki"));
+
+        state.focus_metadata_tag_input(&mut ui::UiUpdateContext::default());
+
+        assert!(state.metadata.tag_draft.is_empty());
+        assert!(state.metadata.tag_tokens.is_empty());
+        assert_eq!(state.metadata.tag_input_mode, MetadataTagInputMode::Tag);
+        assert!(state.metadata.pending_tag_completion_query.is_none());
     }
 }

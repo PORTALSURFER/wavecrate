@@ -43,13 +43,18 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_met
 }
 
 fn file_kind(path: &Path) -> String {
+    if wavecrate_library::sample_sources::is_supported_audio(path) {
+        return String::from("Audio");
+    }
     match path
         .extension()
         .and_then(|extension| extension.to_str())
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("wav") => String::from("Audio"),
+        Some("wav") if wavecrate_library::sample_sources::is_apple_double_sidecar(path) => {
+            String::from("File")
+        }
         Some("aif" | "aiff" | "flac" | "mp3") => String::from("Unsupported audio"),
         Some("png" | "jpg" | "jpeg" | "gif" | "webp") => String::from("Image"),
         Some("json" | "txt" | "md" | "toml" | "rs") => String::from("Text"),

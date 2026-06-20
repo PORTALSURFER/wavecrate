@@ -163,9 +163,45 @@ fn file_scrollbar_bottom_update_keeps_bottom_rows_materialized() {
         visible
             .rows
             .iter()
-            .flatten()
             .any(|row| row.file.id == path_id(&files[99]))
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn visible_pointer_selection_preserves_runtime_file_viewport() {
+    let root = temp_source_root("wavecrate-gui-file-scroll-visible-selection");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..100)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&files[4]));
+
+    browser.apply_file_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: ui::VirtualListWindow {
+            total_items: 100,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+
+    browser.select_file(path_id(&files[55]));
+
+    let window = browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+
+    assert_eq!(window.viewport_start, 40);
+    assert_eq!(window.viewport_end, 58);
+    assert_eq!(browser.file_view_start(), 40);
     let _ = fs::remove_dir_all(root);
 }
 
@@ -184,6 +220,38 @@ fn folder_tree_follow_window_tracks_selected_folder() {
     assert_eq!(browser.tree_view_start(), 10);
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn visible_pointer_selection_preserves_runtime_folder_tree_viewport() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-visible-selection");
+    for index in 0..100 {
+        fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&root.join("folder_04")));
+
+    browser.apply_tree_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 40.0 * super::super::TREE_ROW_HEIGHT,
+        row_height: super::super::TREE_ROW_HEIGHT,
+        window: ui::VirtualListWindow {
+            total_items: 101,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+
+    browser.activate_folder(path_id(&root.join("folder_54")));
+
+    let window = browser.sync_tree_view_to_selection(128, 4, 2);
+
+    assert_eq!(window.viewport_start, 40);
+    assert_eq!(window.viewport_end, 58);
+    assert_eq!(browser.tree_view_start(), 40);
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn folder_tree_scroll_tracking_is_not_overridden_by_unchanged_selection_follow() {
     let root = temp_source_root("wavecrate-gui-folder-tree-scroll-stable-after-follow");

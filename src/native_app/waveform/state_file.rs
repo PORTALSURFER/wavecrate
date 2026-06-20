@@ -77,6 +77,10 @@ impl WaveformState {
         self.file.playback_cache_file.clone()
     }
 
+    pub(in crate::native_app) fn has_loop_stable_playback_source(&self) -> bool {
+        self.file.playback_samples.is_some() || self.file.playback_cache_file.is_some()
+    }
+
     fn file_backed_playback_available(&self) -> bool {
         self.file.file_backed_playback_metadata_available()
     }

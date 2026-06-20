@@ -6,7 +6,7 @@ use radiant::{
 };
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
-use crate::native_app::waveform::execute_waveform_extraction;
+use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
 
 impl NativeAppState {
     pub(in crate::native_app) fn drag_waveform_play_selection(
@@ -65,19 +65,21 @@ impl NativeAppState {
             .play_selection_extraction_request(Some(target_folder))
         {
             Ok(request) => {
-                self.ui.status.sample = String::from("Preparing dragged range");
+                let label = format!("{} extraction", sample_path_label(request.source_path()));
                 let position = drag.position();
-                context
-                    .business()
-                    .background("gui-waveform-drag-extract")
-                    .run(
-                        move |_| execute_waveform_extraction(request),
-                        move |completion| GuiMessage::PlaySelectionExtractionFinished {
-                            completion,
-                            drag_position: Some(position),
-                            started_at,
-                        },
-                    );
+                self.library
+                    .folder_browser
+                    .begin_waveform_extraction_drag(request, label, position);
+                self.arm_browser_drag(context);
+                self.ui.status.sample = String::from("Dragging range");
+                emit_gui_action(
+                    "waveform.selection_drag.start",
+                    Some("waveform"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
                 true
             }
             Err(error) => {
@@ -99,6 +101,14 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if let Some(request) = self
+            .library
+            .folder_browser
+            .take_waveform_extraction_drag_for_current_folder()
+        {
+            self.commit_waveform_extraction_drag(request, context);
+            return;
+        }
         let Some(path) = self.library.folder_browser.extracted_file_drag_path() else {
             return;
         };
@@ -107,5 +117,43 @@ impl NativeAppState {
         self.library.folder_browser.clear_drag();
         self.library.folder_browser.refresh_file_path(&path);
         self.ui.status.sample = format!("Extracted {}", sample_path_label(&path));
+    }
+
+    pub(in crate::native_app) fn drop_waveform_extraction_drag_on_folder(
+        &mut self,
+        folder_id: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Result<bool, String> {
+        let Some(request) = self
+            .library
+            .folder_browser
+            .take_waveform_extraction_drag_for_folder(folder_id)?
+        else {
+            return Ok(false);
+        };
+        self.commit_waveform_extraction_drag(request, context);
+        Ok(true)
+    }
+
+    fn commit_waveform_extraction_drag(
+        &mut self,
+        request: WaveformExtractionRequest,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        context.end_drag_session();
+        self.clear_pending_internal_file_drag_paths();
+        self.ui.status.sample = String::from("Extracting dragged range");
+        context
+            .business()
+            .background("gui-waveform-drag-extract")
+            .run(
+                move |_| execute_waveform_extraction(request),
+                move |completion| GuiMessage::PlaySelectionExtractionFinished {
+                    completion,
+                    drag_position: None,
+                    started_at,
+                },
+            );
     }
 }

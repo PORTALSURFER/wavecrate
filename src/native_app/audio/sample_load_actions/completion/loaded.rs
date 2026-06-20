@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState, emit_gui_action},
-    audio::sample_load_actions::log_slow_sample_load_phase,
+    audio::{playback::RandomAuditionUnits, sample_load_actions::log_slow_sample_load_phase},
 };
 
 impl NativeAppState {
@@ -133,10 +133,15 @@ impl NativeAppState {
             return false;
         };
         match playback {
-            PendingSamplePlayback::RandomAudition { unit } => {
-                let span = self.random_audition_span_for_loaded_waveform(unit);
-                self.prepare_random_audition_mode_for_loaded_sample();
-                match self.start_playback_current_span(span.start, span.end) {
+            PendingSamplePlayback::RandomAudition {
+                start_unit,
+                length_unit,
+            } => {
+                let span = self.random_audition_span_for_loaded_waveform(RandomAuditionUnits::new(
+                    start_unit,
+                    length_unit,
+                ));
+                match self.start_random_audition_span(span) {
                     Ok(()) => {
                         self.record_selected_sample_last_played(context);
                         self.ui.status.sample = span.status_message(file_name);

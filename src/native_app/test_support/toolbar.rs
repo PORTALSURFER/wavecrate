@@ -13,6 +13,9 @@ pub(in crate::native_app) enum ToolbarIcon {
     FocusLoaded,
     Loop,
     Random,
+    BeatGuides,
+    BeatGuideMinus,
+    BeatGuidePlus,
     Play,
     Stop,
 }
@@ -23,6 +26,9 @@ impl ToolbarIcon {
             Self::FocusLoaded => chrome_toolbar::ToolbarIcon::FocusLoaded,
             Self::Loop => chrome_toolbar::ToolbarIcon::Loop,
             Self::Random => chrome_toolbar::ToolbarIcon::Random,
+            Self::BeatGuides => chrome_toolbar::ToolbarIcon::BeatGuides,
+            Self::BeatGuideMinus => chrome_toolbar::ToolbarIcon::BeatGuideMinus,
+            Self::BeatGuidePlus => chrome_toolbar::ToolbarIcon::BeatGuidePlus,
             Self::Play => chrome_toolbar::ToolbarIcon::Play,
             Self::Stop => chrome_toolbar::ToolbarIcon::Stop,
         }
@@ -32,8 +38,13 @@ impl ToolbarIcon {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MainToolbarProjection {
     pub(in crate::native_app) random_available: bool,
+    pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) loop_playback: bool,
     pub(in crate::native_app) playing: bool,
+    pub(in crate::native_app) beat_guides_enabled: bool,
+    pub(in crate::native_app) beat_guide_count: u8,
+    pub(in crate::native_app) can_decrement_beat_guide_count: bool,
+    pub(in crate::native_app) can_increment_beat_guide_count: bool,
 }
 
 pub(in crate::native_app) fn main_toolbar(state: &NativeAppState) -> ui::View<GuiMessage> {
@@ -46,8 +57,13 @@ pub(in crate::native_app) fn main_toolbar_projection(
     let model = MainToolbarViewModel::from_app_state(state);
     MainToolbarProjection {
         random_available: model.random_available,
+        sticky_random_sample_range_playback: model.sticky_random_sample_range_playback,
         loop_playback: model.loop_playback,
         playing: model.playing,
+        beat_guides_enabled: model.beat_guides_enabled,
+        beat_guide_count: model.beat_guide_count,
+        can_decrement_beat_guide_count: model.can_decrement_beat_guide_count,
+        can_increment_beat_guide_count: model.can_increment_beat_guide_count,
     }
 }
 

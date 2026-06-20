@@ -146,14 +146,26 @@ fn native_analysis_backfill_plan(
                 OR s.analysis_version != ?1
                 OR s.content_hash IS NULL
                 OR s.content_hash != t.content_hash)
-               AND NOT EXISTS (
-                   SELECT 1
-                   FROM analysis_jobs j
-                   WHERE j.sample_id = t.sample_id
-                     AND j.job_type = ?2
-                     AND j.status IN ('pending','running')
-               )
-             ORDER BY t.sample_id",
+	               AND NOT EXISTS (
+	                   SELECT 1
+	                   FROM analysis_jobs j
+	                   WHERE j.sample_id = t.sample_id
+	                     AND j.job_type = ?2
+	                     AND j.status IN ('pending','running')
+	               )
+	               AND NOT EXISTS (
+	                   SELECT 1
+	                   FROM analysis_jobs j
+	                   WHERE j.sample_id = t.sample_id
+	                     AND j.job_type = ?2
+	                     AND j.status = 'failed'
+	                     AND j.content_hash = t.content_hash
+	                     AND (
+	                         lower(COALESCE(j.last_error, '')) LIKE '%unsupported%'
+	                         OR lower(COALESCE(j.last_error, '')) LIKE '%no suitable format reader%'
+	                     )
+	               )
+	             ORDER BY t.sample_id",
         )
         .map_err(|err| format!("Prepare native analysis backfill query failed: {err}"))?;
     let rows = stmt

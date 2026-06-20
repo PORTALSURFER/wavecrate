@@ -55,6 +55,7 @@ pub(in crate::native_app) fn library_sidebar_view(
             input_placeholder: metadata_tag_input_placeholder.to_string(),
             completion_suffix: metadata_tag_completion_suffix.map(str::to_string),
             tags: metadata_tags.to_vec(),
+            mixed_tags: Vec::new(),
             display_categories: metadata_tag_display_categories.to_vec(),
             selected_tag: selected_metadata_tag.map(str::to_string),
         },

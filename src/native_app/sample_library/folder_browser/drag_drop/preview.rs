@@ -17,7 +17,10 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn extracted_file_drag_active(&self) -> bool {
         matches!(
             self.drag_drop.drag,
-            Some(FolderBrowserDrag::ExtractedFile { .. })
+            Some(
+                FolderBrowserDrag::ExtractedFile { .. }
+                    | FolderBrowserDrag::WaveformExtraction { .. }
+            )
         )
     }
 
@@ -34,7 +37,9 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn file_drag_source(&self, file_id: &str) -> bool {
         match &self.drag_drop.drag {
-            Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| id == file_id),
+            Some(FolderBrowserDrag::Files { file_ids, .. }) => {
+                file_ids.iter().any(|id| id == file_id)
+            }
             _ => false,
         }
     }
@@ -42,11 +47,12 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn external_drag_request(&self) -> Option<ui::ExternalDragRequest> {
         let drag = self.drag_drop.drag.as_ref()?;
         let label = self.drag_preview_label(drag)?;
-        let FolderBrowserDrag::Files { file_ids } = drag else {
+        let FolderBrowserDrag::Files { file_ids, .. } = drag else {
             return match drag {
                 FolderBrowserDrag::ExtractedFile { path } => {
                     Some(ui::ExternalDragRequest::files([path.clone()], label))
                 }
+                FolderBrowserDrag::WaveformExtraction { .. } => None,
                 _ => None,
             };
         };
@@ -59,12 +65,13 @@ impl FolderBrowserState {
             FolderBrowserDrag::Folder { folder_id } => self
                 .find_folder(folder_id)
                 .map(|folder| folder.name.clone()),
-            FolderBrowserDrag::Files { file_ids } => match file_ids.as_slice() {
+            FolderBrowserDrag::Files { file_ids, .. } => match file_ids.as_slice() {
                 [] => None,
                 [file_id] => Some(file_label(Path::new(file_id))),
                 files => Some(format!("{} files", files.len())),
             },
             FolderBrowserDrag::ExtractedFile { path } => Some(file_label(path)),
+            FolderBrowserDrag::WaveformExtraction { label, .. } => Some(label.clone()),
         }
     }
 }

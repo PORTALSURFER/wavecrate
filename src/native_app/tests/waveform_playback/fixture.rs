@@ -18,12 +18,12 @@ impl WaveformPlaybackScenario {
     }
 
     pub(super) fn default_loaded_with_player() -> Option<Self> {
-        let (mut state, source_root, selected_file) =
-            native_app_state_with_temp_sample("loaded-playback.wav");
-        write_test_wav_i16(
-            &PathBuf::from(&selected_file),
-            &[0, 1024, -2048, 4096, -1024, 512],
-        );
+        Self::loaded_with_player("loaded-playback.wav", &[0, 1024, -2048, 4096, -1024, 512])
+    }
+
+    pub(super) fn loaded_with_player(name: &str, samples: &[i16]) -> Option<Self> {
+        let (mut state, source_root, selected_file) = native_app_state_with_temp_sample(name);
+        write_test_wav_i16(&PathBuf::from(&selected_file), samples);
         if !install_playback_runtime_for_tests(&mut state) {
             return None;
         }
@@ -85,9 +85,11 @@ impl WaveformPlaybackScenario {
         self.apply_waveform(WaveformInteraction::FinishSelection { visible_ratio: to });
     }
 
-    pub(super) fn play_random_range(&mut self, unit: f32) {
-        self.state
-            .play_random_sample_range_with_unit(unit, &mut self.context);
+    pub(super) fn play_random_range_with_units(&mut self, start_unit: f32, length_unit: f32) {
+        self.state.play_random_sample_range_with_units(
+            crate::native_app::audio::playback::RandomAuditionUnits::new(start_unit, length_unit),
+            &mut self.context,
+        );
     }
 
     pub(super) fn play_selected_sample(&mut self) {

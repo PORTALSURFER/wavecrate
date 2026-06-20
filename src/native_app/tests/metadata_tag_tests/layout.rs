@@ -89,6 +89,109 @@ fn metadata_section_keeps_configured_height_without_selected_file() {
 }
 
 #[test]
+fn metadata_tag_library_toggle_sits_inline_after_add_tag_input() {
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
+    let view = crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &[],
+        &[],
+        None,
+    );
+    let layout = view.view_layout_at_size(Vector2::new(260.0, 620.0));
+    let input_rect = layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_TAG_INPUT_ID)
+        .expect("metadata tag input should be laid out");
+    let toggle_rect = layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID)
+        .expect("metadata tag library toggle should be laid out");
+
+    assert!(
+        toggle_rect.min.x > input_rect.max.x,
+        "library toggle should sit to the right of add-tag input, input={input_rect:?}, toggle={toggle_rect:?}"
+    );
+    assert!(
+        (toggle_rect.center().y - input_rect.center().y).abs() < 0.01,
+        "library toggle should align vertically with the add-tag input, input={input_rect:?}, toggle={toggle_rect:?}"
+    );
+    assert!(
+        toggle_rect.width() > 12.0,
+        "library toggle should be larger than the old thin header affordance, toggle={toggle_rect:?}"
+    );
+}
+
+#[test]
+fn metadata_resize_header_uses_full_header_hit_target() {
+    let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
+    let view = crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &[],
+        &[],
+        None,
+    );
+    let layout = view.view_layout_at_size(Vector2::new(260.0, 620.0));
+    let panel_rect = layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID)
+        .expect("metadata panel should be laid out");
+    let header_rect = layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_RESIZE_HEADER_ID)
+        .expect("metadata resize header should be laid out");
+    let drag =
+        DragHandleMessage::started(Point::new(header_rect.center().x, header_rect.center().y));
+
+    assert!(
+        header_rect.width() >= panel_rect.width() - 12.0,
+        "metadata resize hit target should cover the header width, panel={panel_rect:?}, header={header_rect:?}"
+    );
+    assert_eq!(
+        crate::native_app::test_support::metadata_sidebar::library_sidebar_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &[],
+            &[],
+            None,
+        )
+        .view_dispatch_widget_output(
+            crate::native_app::test_support::metadata_sidebar::METADATA_RESIZE_HEADER_ID,
+            ui::WidgetOutput::typed(drag.clone()),
+        ),
+        Some(
+            crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+                crate::native_app::test_support::state::FolderBrowserMessage::ResizeMetadataPanel(
+                    drag
+                )
+            )
+        )
+    );
+}
+
+#[test]
 fn metadata_section_collapses_to_header_only_height() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
@@ -184,8 +287,18 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
     let first_tag_y = first_tag_y.expect("tag pill should paint in the tag field");
     let input_rect = metadata_tag_text_input(&frame).map(|input| input.rect);
     let input_rect = input_rect.expect("tag input should paint");
+    let toggle_rect = frame
+        .paint_plan
+        .first_widget_rect(
+            crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
+        )
+        .expect("tag library toggle should paint");
 
     assert!(input_rect.min.y > first_tag_y);
+    assert!(
+        (toggle_rect.center().y - input_rect.center().y).abs() < 0.01,
+        "tag library toggle should stay aligned with wrapped input, input={input_rect:?}, toggle={toggle_rect:?}"
+    );
     assert!(input_rect.max.x <= 260.0);
 }
 

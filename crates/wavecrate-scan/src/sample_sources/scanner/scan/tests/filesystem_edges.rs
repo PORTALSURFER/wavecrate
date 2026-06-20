@@ -1,4 +1,5 @@
 use super::*;
+use std::path::PathBuf;
 
 #[test]
 fn scan_tolerates_vanishing_nested_directories() {
@@ -64,4 +65,31 @@ fn scan_skips_symlink_files() {
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.total_files, 1);
     assert_eq!(stats.added, 1);
+}
+
+#[test]
+fn scan_skips_appledouble_sidecar_files() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("kick.wav"), b"kick").unwrap();
+    std::fs::write(dir.path().join("._kick.wav"), b"sidecar").unwrap();
+    let nested = dir.path().join("drums");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(nested.join("snare.wav"), b"snare").unwrap();
+    std::fs::write(nested.join("._snare.wav"), b"sidecar").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let stats = scan_once(&db).unwrap();
+    let paths = db
+        .list_files()
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.relative_path)
+        .collect::<Vec<_>>();
+
+    assert_eq!(stats.total_files, 2);
+    assert_eq!(stats.added, 2);
+    assert_eq!(
+        paths,
+        vec![PathBuf::from("drums/snare.wav"), PathBuf::from("kick.wav")]
+    );
 }

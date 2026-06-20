@@ -1,15 +1,6 @@
 use super::*;
 
 #[test]
-fn keyboard_and_mouse_uncached_selection_use_same_fast_debounce() {
-    assert_eq!(
-        crate::native_app::test_support::waveform::KEYBOARD_SAMPLE_LOAD_DEBOUNCE,
-        crate::native_app::test_support::waveform::UNCACHED_SAMPLE_LOAD_DEBOUNCE,
-        "keyboard navigation should not wait longer than mouse selection before audition loading"
-    );
-}
-
-#[test]
 fn uncached_selected_sample_load_uses_foreground_priority() {
     assert_eq!(
         crate::native_app::audio::sample_load_actions::foreground_sample_load_priority(),

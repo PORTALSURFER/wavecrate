@@ -1,5 +1,5 @@
 use super::clamped_selection_span;
-use super::fades::apply_fade_ramp;
+use super::fades::{apply_fade_ramp, apply_scaled_fade_ramp};
 use crate::app::controller::library::selection_edits::FadeDirection;
 use crate::selection::FadeParams;
 
@@ -117,13 +117,14 @@ fn apply_fade_in(
     if mute_frames > 0 {
         let mute_start = clamped_start.saturating_sub(mute_frames);
         if mute_start < clamped_start {
-            apply_fade_ramp(
+            apply_scaled_fade_ramp(
                 samples,
                 channels,
                 mute_start,
                 clamped_start,
                 FadeDirection::LeftToRight,
                 fade_in.curve,
+                fade_in.outer_gain,
             );
         }
     }
@@ -170,13 +171,14 @@ fn apply_fade_out(samples: &mut [f32], channels: usize, selection: FadeOutSelect
             .saturating_add(mute_frames)
             .min(selection.total_frames);
         if selection.clamped_end < mute_end {
-            apply_fade_ramp(
+            apply_scaled_fade_ramp(
                 samples,
                 channels,
                 selection.clamped_end,
                 mute_end,
                 FadeDirection::RightToLeft,
                 fade_out.curve,
+                fade_out.outer_gain,
             );
         }
     }

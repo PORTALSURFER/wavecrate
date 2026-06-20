@@ -1,3 +1,4 @@
+use super::super::WaveformActiveDragKind;
 use super::*;
 
 static WIDGET_INPUT_CONFIG_BASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -136,6 +137,100 @@ fn pointer_move_outside_loaded_waveform_clears_hover_cursor() {
 }
 
 #[test]
+fn active_selection_pointer_move_outside_waveform_updates_to_nearest_edge() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.hover_cursor_ratio = Some(0.25);
+
+    let left_output = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 40.0)))
+        .expect("active drag should continue outside the left edge");
+    let left_interaction = left_output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        left_interaction,
+        WaveformInteraction::UpdateSelection { visible_ratio: 0.0 }
+    );
+    assert_eq!(widget.hover_cursor_ratio, None);
+    assert!(!widget.common.is_hovered());
+
+    let right_output = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
+        .expect("active drag should continue outside the right edge");
+    let right_interaction = right_output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        right_interaction,
+        WaveformInteraction::UpdateSelection { visible_ratio: 1.0 }
+    );
+    assert!(!widget.common.is_hovered());
+}
+
+#[test]
+fn captured_selection_drag_outside_waveform_updates_to_nearest_edge() {
+    for (button, kind) in [
+        (PointerButton::Primary, WaveformSelectionKind::Play),
+        (PointerButton::Secondary, WaveformSelectionKind::Edit),
+    ] {
+        let mut state = WaveformState::synthetic_for_tests();
+        let mut widget = waveform_widget_for_state(&state);
+        let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+        let begin_output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::pointer_press(Point::new(160.0, 40.0), button, Default::default()),
+            )
+            .expect("press should begin a selection drag");
+        let begin_interaction = begin_output
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            begin_interaction,
+            WaveformInteraction::BeginSelection {
+                kind,
+                visible_ratio: 0.75,
+            }
+        );
+
+        state.apply_interaction(begin_interaction);
+        widget.active_drag_kind = state.active_drag_kind();
+
+        let left_output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 40.0)))
+            .expect("captured drag should continue outside the left edge");
+        let left_interaction = left_output
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            left_interaction,
+            WaveformInteraction::UpdateSelection { visible_ratio: 0.0 }
+        );
+
+        let right_output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
+            .expect("captured drag should continue outside the right edge");
+        let right_interaction = right_output
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            right_interaction,
+            WaveformInteraction::UpdateSelection { visible_ratio: 1.0 }
+        );
+    }
+}
+
+#[test]
 fn pointer_move_updates_hover_cursor_locally_without_host_message() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
@@ -176,6 +271,159 @@ fn secondary_press_emits_edit_selection_begin_ratio() {
             visible_ratio: 0.75
         }
     );
+}
+
+#[test]
+fn secondary_click_with_tiny_motion_clears_edit_selection_without_micro_range() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let press = Point::new(150.0, 40.0);
+    let tiny_move = Point::new(152.0, 40.0);
+
+    let begin = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(press, PointerButton::Secondary, Default::default()),
+        )
+        .expect("secondary click should begin edit selection handling")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(tiny_move));
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(tiny_move, PointerButton::Secondary, Default::default()),
+        )
+        .expect("secondary release should finish edit click")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+
+    assert!(move_output.is_none());
+    assert_eq!(state.edit_selection(), None);
+    assert_eq!(state.edit_mark_ratio(), None);
+}
+
+#[test]
+fn primary_click_with_tiny_motion_clears_play_selection_without_micro_range() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let press = Point::new(150.0, 40.0);
+    let tiny_move = Point::new(152.0, 40.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(press))
+        .expect("primary click should begin play selection handling")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let move_output = widget.handle_input(bounds, WidgetInput::pointer_move(tiny_move));
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(tiny_move, PointerButton::Primary, Default::default()),
+        )
+        .expect("primary release should finish play click")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+
+    assert!(move_output.is_none());
+    assert!(state.is_playing());
+    assert_eq!(state.play_selection(), None);
+    assert_eq!(state.play_mark_ratio(), Some(0.75));
+}
+
+#[test]
+fn primary_drag_three_pixels_starts_playmark_selection_update() {
+    let mut state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let press = Point::new(40.0, 40.0);
+    let drag = Point::new(43.0, 40.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(press))
+        .expect("primary press should begin playmark selection")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let update = widget
+        .handle_input(bounds, WidgetInput::pointer_move(drag))
+        .expect("three-pixel drag should start the playmark range")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(update);
+
+    let selection = state.play_selection().expect("playmark selection");
+    assert!((selection.start() - 0.2).abs() < f32::EPSILON);
+    assert!((selection.end() - 0.215).abs() < f32::EPSILON);
+}
+
+#[test]
+fn three_pixel_drag_starts_play_and_edit_selections_while_zoomed_in() {
+    for (button, kind) in [
+        (PointerButton::Primary, WaveformSelectionKind::Play),
+        (PointerButton::Secondary, WaveformSelectionKind::Edit),
+    ] {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.viewport = super::WaveformViewport {
+            start: 12_000,
+            end: 12_256,
+        };
+        let mut widget = waveform_widget_for_state(&state);
+        let bounds = Rect::from_size(200.0, 80.0);
+        let press = Point::new(40.0, 40.0);
+        let drag = Point::new(43.0, 40.0);
+
+        let begin = widget
+            .handle_input(
+                bounds,
+                WidgetInput::pointer_press(press, button, Default::default()),
+            )
+            .expect("press should begin selection handling")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            begin,
+            WaveformInteraction::BeginSelection {
+                kind,
+                visible_ratio: 0.2
+            }
+        );
+        state.apply_interaction(begin);
+        widget.active_drag_kind = state.active_drag_kind();
+
+        let update = widget
+            .handle_input(bounds, WidgetInput::pointer_move(drag))
+            .expect("three-pixel drag should start range selection")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        state.apply_interaction(update);
+
+        let selection = match kind {
+            WaveformSelectionKind::Play => state.play_selection(),
+            WaveformSelectionKind::Edit => state.edit_selection(),
+        }
+        .expect("selection should start immediately after click slop");
+        assert!(
+            selection.width() > 0.0,
+            "{kind:?} selection should have non-zero width"
+        );
+    }
 }
 
 #[test]
@@ -289,7 +537,7 @@ fn secondary_press_on_edit_top_handle_starts_move() {
         .handle_input(
             bounds,
             WidgetInput::pointer_press(
-                Point::new(80.0, 3.0),
+                Point::new(60.0, 3.0),
                 PointerButton::Secondary,
                 Default::default(),
             ),
@@ -303,7 +551,176 @@ fn secondary_press_on_edit_top_handle_starts_move() {
         interaction,
         WaveformInteraction::BeginSelectionMove {
             kind: WaveformSelectionKind::Edit,
-            visible_ratio: 0.4
+            visible_ratio: 0.3
+        }
+    );
+}
+
+#[test]
+fn primary_press_on_edit_gain_handle_starts_gain_drag_instead_of_move() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(80.0, 5.0)))
+        .expect("edit gain interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginEditGain { pointer_y: 5.0 }
+    );
+}
+
+#[test]
+fn active_edit_gain_drag_emits_vertical_updates_and_finish() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(80.0, 5.0)))
+        .expect("edit gain begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let update = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 45.0)))
+        .expect("edit gain update")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        update,
+        WaveformInteraction::UpdateEditGain { pointer_y: 45.0 }
+    );
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(80.0, 45.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("edit gain finish")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        finish,
+        WaveformInteraction::FinishEditGain { pointer_y: 45.0 }
+    );
+}
+
+#[test]
+fn secondary_press_on_edit_gain_handle_starts_gain_drag() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(
+                Point::new(80.0, 5.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
+        )
+        .expect("edit gain interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginEditGain { pointer_y: 5.0 }
+    );
+}
+
+#[test]
+fn primary_press_on_edit_fade_outer_gain_handle_starts_outer_gain_drag() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_in_mute(0.25),
+    );
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(20.0, 0.0)))
+        .expect("edit fade outer gain interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginEditFadeOuterGain {
+            handle: WaveformEditFadeOuterGainHandle::In,
+            vertical_ratio: 0.0
+        }
+    );
+}
+
+#[test]
+fn active_edit_fade_outer_gain_drag_emits_vertical_updates_and_finish() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_out(0.25, 0.7)
+            .with_fade_out_mute(0.25),
+    );
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(140.0, 0.0)))
+        .expect("edit fade outer gain begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let update = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(140.0, 40.0)))
+        .expect("edit fade outer gain update")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        update,
+        WaveformInteraction::UpdateEditFadeOuterGain {
+            vertical_ratio: 0.5
+        }
+    );
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(140.0, 40.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("edit fade outer gain finish")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        finish,
+        WaveformInteraction::FinishEditFadeOuterGain {
+            vertical_ratio: 0.5
         }
     );
 }

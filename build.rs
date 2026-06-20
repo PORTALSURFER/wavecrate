@@ -12,14 +12,11 @@ fn main() {
     println!("cargo:rerun-if-changed=build/windows/wavecrate.exe.manifest");
     println!("cargo:rerun-if-changed=assets/logo3.ico");
     println!("cargo:rerun-if-env-changed=WAVECRATE_GIT_SHA");
-    println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_ID");
-    println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_SIGNATURE");
-    println!("cargo:rerun-if-env-changed=WAVECRATE_SIGNING_PUBLIC_KEY_B64");
-    println!("cargo:rerun-if-env-changed=WAVECRATE_INTERNAL_BUILD");
+    println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_NUMBER");
 
     emit_git_rerun_hints();
     emit_git_sha();
-    emit_registration_cfg();
+    emit_build_number();
 
     if compiling_for_windows_target()
         && let Err(error) = compile_windows_resources()
@@ -27,37 +24,6 @@ fn main() {
         eprintln!("Failed to embed Windows resources: {error}");
         std::process::exit(1);
     }
-}
-
-fn emit_registration_cfg() {
-    println!("cargo:rustc-check-cfg=cfg(wavecrate_registered_build)");
-    println!("cargo:rustc-check-cfg=cfg(wavecrate_internal_build)");
-
-    let registered_metadata_present = env::var("WAVECRATE_BUILD_ID").is_ok()
-        || env::var("WAVECRATE_BUILD_SIGNATURE").is_ok()
-        || env::var("WAVECRATE_SIGNING_PUBLIC_KEY_B64").is_ok();
-    let internal_build = env::var("WAVECRATE_INTERNAL_BUILD")
-        .map(|value| is_truthy_env_value(&value))
-        .unwrap_or(false);
-
-    if internal_build && registered_metadata_present {
-        eprintln!("WAVECRATE_INTERNAL_BUILD cannot be combined with registered release metadata.");
-        std::process::exit(1);
-    }
-
-    if registered_metadata_present {
-        println!("cargo:rustc-cfg=wavecrate_registered_build");
-    }
-    if internal_build {
-        println!("cargo:rustc-cfg=wavecrate_internal_build");
-    }
-}
-
-fn is_truthy_env_value(value: &str) -> bool {
-    matches!(
-        value.trim().to_ascii_lowercase().as_str(),
-        "1" | "true" | "yes" | "on"
-    )
 }
 
 fn compiling_for_windows_target() -> bool {
@@ -90,6 +56,15 @@ fn emit_git_sha() {
         .or_else(resolve_git_sha)
         .unwrap_or_else(|| String::from("<unknown>"));
     println!("cargo:rustc-env=WAVECRATE_BUILD_GIT_SHA={git_sha}");
+}
+
+fn emit_build_number() {
+    let build_number = env::var("WAVECRATE_BUILD_NUMBER")
+        .ok()
+        .and_then(valid_build_number)
+        .or_else(resolve_git_commit_count)
+        .unwrap_or_else(|| String::from("0"));
+    println!("cargo:rustc-env=WAVECRATE_BUILD_NUMBER={build_number}");
 }
 
 fn resolve_head_reference_path(head_path: &Path) -> Option<PathBuf> {
@@ -125,6 +100,27 @@ fn resolve_git_sha() -> Option<String> {
     }
     let git_sha = String::from_utf8(output.stdout).ok()?;
     trim_nonempty(git_sha)
+}
+
+fn resolve_git_commit_count() -> Option<String> {
+    let output = Command::new("git")
+        .args(["rev-list", "--count", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let count = String::from_utf8(output.stdout).ok()?;
+    valid_build_number(count)
+}
+
+fn valid_build_number(value: impl AsRef<str>) -> Option<String> {
+    let trimmed = value.as_ref().trim();
+    if !trimmed.is_empty() && trimmed.bytes().all(|byte| byte.is_ascii_digit()) {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
 }
 
 fn trim_nonempty(value: impl AsRef<str>) -> Option<String> {

@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app::sample_library::folder_browser) struct BrowserDragDropState {
@@ -44,7 +45,11 @@ impl FolderBrowserState {
         {
             return;
         }
-        let file_ids = if self.selection.selected_file_ids.contains(&file_id) {
+        let file_ids = if self.selection.selected_file_ids_explicit
+            && !self.selection.selected_file_ids.is_empty()
+        {
+            sorted_selected_file_ids(&self.selection.selected_file_ids)
+        } else if self.selection.selected_file_ids.contains(&file_id) {
             let mut ids = self
                 .selection
                 .selected_file_ids
@@ -56,7 +61,10 @@ impl FolderBrowserState {
         } else {
             vec![file_id]
         };
-        self.drag_drop.drag = Some(FolderBrowserDrag::Files { file_ids });
+        self.drag_drop.drag = Some(FolderBrowserDrag::Files {
+            file_ids,
+            remove_from_collection: self.selection.selected_collection,
+        });
         self.drag_drop.drag_pointer = Some(position);
         self.clear_drop_targets_for_new_drag();
     }
@@ -72,6 +80,68 @@ impl FolderBrowserState {
         self.drag_drop.drag = Some(FolderBrowserDrag::ExtractedFile { path });
         self.drag_drop.drag_pointer = Some(position);
         self.clear_drop_targets_for_new_drag();
+    }
+
+    pub(in crate::native_app) fn begin_waveform_extraction_drag(
+        &mut self,
+        request: crate::native_app::waveform::WaveformExtractionRequest,
+        label: String,
+        position: Point,
+    ) {
+        if self.rename_active() {
+            return;
+        }
+        self.drag_drop.drag = Some(FolderBrowserDrag::WaveformExtraction { request, label });
+        self.drag_drop.drag_pointer = Some(position);
+        self.clear_drop_targets_for_new_drag();
+    }
+
+    pub(in crate::native_app) fn take_waveform_extraction_drag_for_current_folder(
+        &mut self,
+    ) -> Option<crate::native_app::waveform::WaveformExtractionRequest> {
+        let drag = self.drag_drop.drag.take()?;
+        match drag {
+            FolderBrowserDrag::WaveformExtraction { request, .. } => {
+                self.clear_drag_after_take();
+                Some(request)
+            }
+            other => {
+                self.drag_drop.drag = Some(other);
+                None
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn take_waveform_extraction_drag_for_folder(
+        &mut self,
+        target_folder_id: &str,
+    ) -> Result<Option<crate::native_app::waveform::WaveformExtractionRequest>, String> {
+        let drag = match self.drag_drop.drag.take() {
+            Some(drag) => drag,
+            None => return Ok(None),
+        };
+        let FolderBrowserDrag::WaveformExtraction { request, .. } = drag else {
+            self.drag_drop.drag = Some(drag);
+            return Ok(None);
+        };
+        let Some(target_folder) = self.find_folder(target_folder_id).cloned() else {
+            self.clear_drag_after_take();
+            return Err(String::from(
+                "Extraction drop failed: target folder is missing",
+            ));
+        };
+        self.clear_drag_after_take();
+        Ok(Some(
+            request.with_target_folder(PathBuf::from(target_folder.id)),
+        ))
+    }
+
+    fn clear_drag_after_take(&mut self) {
+        if self.drag_drop.drag_pointer.is_some() || self.drag_drop.drop_target.any_open() {
+            self.drag_drop.revision.bump();
+        }
+        self.drag_drop.drag_pointer = None;
+        self.drag_drop.drop_target.close();
     }
 
     pub(in crate::native_app) fn update_drag_pointer(&mut self, position: Point) {
@@ -115,4 +185,10 @@ impl FolderBrowserState {
             self.clear_drag();
         }
     }
+}
+
+fn sorted_selected_file_ids(selected_file_ids: &HashSet<String>) -> Vec<String> {
+    let mut ids = selected_file_ids.iter().cloned().collect::<Vec<_>>();
+    ids.sort();
+    ids
 }

@@ -3,6 +3,8 @@ mod construction;
 mod diagnostics;
 mod downmix;
 mod extraction;
+#[cfg(test)]
+mod extraction_tests;
 mod file_io;
 mod loader;
 mod model;
@@ -16,9 +18,12 @@ mod wav_summary_builder;
 mod wav_summary_hound;
 mod waveform_cache;
 
+#[cfg(test)]
+pub(in crate::native_app) use cache_facade::cached_waveform_file_playback_ready_exists;
 pub(in crate::native_app) use cache_facade::{
-    cached_waveform_file_exists, cached_waveform_file_playback_ready_exists,
+    cached_waveform_file_exists, cached_waveform_file_source_ready_exists,
     flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
+    mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 #[cfg(test)]
 pub(in crate::native_app) use cache_facade::{
@@ -37,14 +42,18 @@ pub(super) use construction::{
 #[cfg(test)]
 pub(super) use downmix::downmix_to_mono;
 pub(super) use downmix::downmix_to_mono_with_progress_and_cancel;
-pub(super) use extraction::{extract_wav_range_to_folder, extract_wav_range_to_sibling};
+pub(super) use extraction::{
+    extract_interleaved_f32_file_range_to_folder, extract_interleaved_f32_range_to_folder,
+    extract_wav_file_range_to_folder, extract_wav_range_to_folder,
+};
 #[cfg(test)]
 pub(super) use loader::load_waveform_file;
 #[cfg(test)]
 pub(super) use loader::load_waveform_file_with_progress_cancel_and_playback_ready;
 pub(super) use loader::{
     is_wav_path, load_waveform_file_for_foreground_audition,
-    load_waveform_file_with_progress_and_cancel, should_use_file_backed_wav_decode,
+    load_waveform_file_for_looped_foreground_audition, load_waveform_file_with_progress_and_cancel,
+    should_use_file_backed_wav_decode,
 };
 pub(in crate::native_app) use model::{
     PersistedPlaybackCacheFile, WaveformFile, WaveformPlaybackReady,

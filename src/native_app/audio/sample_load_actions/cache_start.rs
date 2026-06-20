@@ -60,6 +60,20 @@ impl NativeAppState {
         );
         let replace_started_at = Instant::now();
         let waveform = WaveformState::from_cached_file(file);
+        if autoplay
+            && self.loop_playback_for_path_after_policy(path)
+            && !waveform.has_loop_stable_playback_source()
+        {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(path)),
+                "memory_cache_requires_decoded_loop_playback",
+                started_at,
+                None,
+            );
+            return false;
+        }
         let file_name = waveform.file_name();
         self.touch_cached_waveform_path(PathBuf::from(path));
         self.stop_current_sample_playback_for_load();
@@ -142,6 +156,11 @@ impl NativeAppState {
     ) -> bool {
         if !self.waveform.current.has_loaded_sample()
             || self.waveform.current.path() != Path::new(path)
+        {
+            return false;
+        }
+        if self.loop_playback_for_path_after_policy(path)
+            && !self.waveform.current.has_loop_stable_playback_source()
         {
             return false;
         }
@@ -285,6 +304,7 @@ impl NativeAppState {
             id: request_id,
             path,
             span: (0.0, 1.0),
+            show_start_marker: true,
         });
         Ok(())
     }

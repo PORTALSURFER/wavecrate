@@ -9,6 +9,7 @@ pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 = ids::METADATA_S
 pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = ids::METADATA_TAG_INPUT_ID;
 pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 =
     ids::METADATA_TAG_LIBRARY_TOGGLE_ID;
+pub(in crate::native_app) const METADATA_RESIZE_HEADER_ID: u64 = ids::METADATA_RESIZE_HEADER_ID;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::native_app) fn library_sidebar_view(

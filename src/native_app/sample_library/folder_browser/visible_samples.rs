@@ -11,6 +11,8 @@ use super::{
 };
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
+const COPY_FLASH_FRAMES: u8 = 12;
+
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct VisibleSampleQuery<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
@@ -28,7 +30,7 @@ pub(in crate::native_app) struct VisibleSampleWindowPolicy<'a> {
 pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) total_count: usize,
     pub(in crate::native_app) window: ui::VirtualListWindow,
-    pub(in crate::native_app) rows: Vec<Option<VisibleSampleRow<'a>>>,
+    pub(in crate::native_app) rows: Vec<VisibleSampleRow<'a>>,
     pub(in crate::native_app) columns: Vec<&'a FileColumn>,
     pub(in crate::native_app) sort: &'a ui::DetailsSort,
     pub(in crate::native_app) similarity_mode_active: bool,
@@ -37,12 +39,13 @@ pub(in crate::native_app) struct VisibleSampleList<'a> {
 
 pub(super) struct VisibleSampleWindowFiles<'a> {
     pub(super) total_count: usize,
-    pub(super) rows: Vec<Option<&'a FileEntry>>,
+    pub(super) rows: Vec<&'a FileEntry>,
 }
 
 pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) file: &'a FileEntry,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) drag_revision: u64,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
@@ -69,6 +72,8 @@ pub(super) struct SampleListState {
     pub(super) runtime_viewport_rows: Option<usize>,
     pub(super) content_revision: u64,
     pub(super) projection_cache: VisibleSampleProjectionCache,
+    copy_flash_file_ids: HashSet<String>,
+    copy_flash_frames: u8,
 }
 
 impl SampleListState {
@@ -87,6 +92,8 @@ impl SampleListState {
             runtime_viewport_rows: None,
             content_revision: 0,
             projection_cache: VisibleSampleProjectionCache::default(),
+            copy_flash_file_ids: HashSet::new(),
+            copy_flash_frames: 0,
         }
     }
 
@@ -228,6 +235,10 @@ impl VisibleSampleProjectionCache {
             .retain(|key, _| key.content_revision == content_revision);
     }
 
+    pub(super) fn clear(&self) {
+        self.entries.borrow_mut().clear();
+    }
+
     #[cfg(test)]
     pub(super) fn len(&self) -> usize {
         self.entries.borrow().len()
@@ -313,6 +324,36 @@ impl Hash for VisibleSampleProjectionKey {
 }
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn flash_copied_file_paths<I, P>(&mut self, paths: I)
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<std::path::Path>,
+    {
+        self.sample_list.copy_flash_file_ids.clear();
+        self.sample_list
+            .copy_flash_file_ids
+            .extend(paths.into_iter().filter_map(copy_flash_file_id));
+        self.sample_list.copy_flash_frames = if self.sample_list.copy_flash_file_ids.is_empty() {
+            0
+        } else {
+            COPY_FLASH_FRAMES
+        };
+    }
+
+    pub(in crate::native_app) fn copy_flash_active(&self) -> bool {
+        self.sample_list.copy_flash_frames > 0
+    }
+
+    pub(in crate::native_app) fn advance_copy_flash_frame(&mut self) {
+        if self.sample_list.copy_flash_frames == 0 {
+            return;
+        }
+        self.sample_list.copy_flash_frames = self.sample_list.copy_flash_frames.saturating_sub(1);
+        if self.sample_list.copy_flash_frames == 0 {
+            self.sample_list.copy_flash_file_ids.clear();
+        }
+    }
+
     pub(in crate::native_app) fn prepare_visible_sample_window(
         &mut self,
         policy: VisibleSampleWindowPolicy<'_>,
@@ -332,19 +373,30 @@ impl FolderBrowserState {
         let prepared_window = self.sample_list.prepared_window;
         let mut window_files =
             self.selected_audio_file_window_matching_tags(prepared_window, query.tags_by_file);
-        let window = reconcile_visible_sample_window(prepared_window, window_files.total_count);
+        let mut window = reconcile_visible_sample_window(prepared_window, window_files.total_count);
         if window != prepared_window {
             window_files =
                 self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
         }
         if !window_files_complete(window, &window_files) {
+            self.sample_list.projection_cache.clear();
             window_files =
-                self.complete_selected_audio_file_window_matching_tags(window, query.tags_by_file);
+                self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
+        }
+        if !window_files_complete(window, &window_files) {
+            window_files =
+                self.uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
+            let repaired_window = reconcile_visible_sample_window(window, window_files.total_count);
+            if repaired_window != window {
+                window = repaired_window;
+                window_files = self
+                    .uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
+            }
         }
         let rows = window_files
             .rows
             .into_iter()
-            .map(|file| file.map(|file| self.visible_sample_row_for_file(file, query)))
+            .map(|file| self.visible_sample_row_for_file(file, query))
             .collect();
 
         VisibleSampleList {
@@ -366,6 +418,7 @@ impl FolderBrowserState {
         VisibleSampleRow {
             file,
             selected: self.is_file_selected(&file.id),
+            copy_flash: self.copied_file_flash_active(&file.id),
             drag_revision: self.drag_revision(),
             drag_active: self.file_drag_active(),
             drag_source: self.file_drag_source(&file.id),
@@ -382,13 +435,24 @@ impl FolderBrowserState {
                 .collect(),
         }
     }
+
+    fn copied_file_flash_active(&self, file_id: &str) -> bool {
+        self.copy_flash_active() && self.sample_list.copy_flash_file_ids.contains(file_id)
+    }
+}
+
+fn copy_flash_file_id(path: impl AsRef<std::path::Path>) -> Option<String> {
+    path.as_ref()
+        .to_str()
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
 }
 
 fn window_files_complete(
     window: ui::VirtualListWindow,
     window_files: &VisibleSampleWindowFiles<'_>,
 ) -> bool {
-    window_files.rows.len() == window.window_len() && window_files.rows.iter().all(Option::is_some)
+    window_files.rows.len() == window.window_len()
 }
 
 fn reconcile_visible_sample_window(

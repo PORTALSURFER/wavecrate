@@ -52,6 +52,10 @@ fn settings_round_trip_fixture() -> SettingsRoundTripFixture {
             upper_folder_pane_source: Some(source_id.clone()),
             lower_folder_pane_source: None,
             active_folder_pane: Some(String::from("upper")),
+            collection_names: std::collections::BTreeMap::from([(
+                String::from("0"),
+                String::from("Drums"),
+            )]),
             audio_output: AudioOutputConfig {
                 host: Some("coreaudio".into()),
                 device: Some("Test Interface".into()),

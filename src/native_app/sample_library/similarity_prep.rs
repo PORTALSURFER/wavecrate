@@ -6,7 +6,10 @@ use wavecrate::sample_sources::{SampleSource, SourceId};
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
 mod worker;
-use worker::{enqueue_similarity_prep_inner, resolve_similarity_prep_status};
+use worker::{
+    drain_similarity_prep_jobs, enqueue_similarity_prep_inner, finalize_similarity_prep_if_ready,
+    resolve_similarity_prep_status, source_has_active_similarity_prep_jobs,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) struct NativeSimilarityPrepState {
@@ -55,6 +58,8 @@ pub(in crate::native_app) struct SimilarityPrepEnqueueResult {
 pub(in crate::native_app) struct SimilarityPrepEnqueueSummary {
     pub(in crate::native_app) analysis_inserted: usize,
     pub(in crate::native_app) embedding_inserted: usize,
+    pub(in crate::native_app) jobs_processed: usize,
+    pub(in crate::native_app) jobs_failed: usize,
     pub(in crate::native_app) finalized: bool,
     pub(in crate::native_app) status: NativeSimilarityPrepStatus,
 }
@@ -88,21 +93,6 @@ impl NativeAppState {
                 move |_| resolve_status_result(source),
                 GuiMessage::SimilarityPrepStatusResolved,
             );
-    }
-
-    pub(in crate::native_app) fn prepare_similarity_for_selected_source(
-        &mut self,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
-        let Some(source) = self.selected_similarity_prep_source() else {
-            self.ui.status.sample = String::from("Select a source before preparing similarity");
-            return;
-        };
-        self.queue_similarity_prep_for_source(
-            source,
-            SimilarityPrepTrigger::UserRequested,
-            context,
-        );
     }
 
     pub(in crate::native_app) fn prepare_similarity_for_source_automatically(
@@ -142,11 +132,10 @@ impl NativeAppState {
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
         self.library.similarity_prep.running = true;
         self.library.similarity_prep.running_source_id = Some(source_id);
-        if selected_source || trigger == SimilarityPrepTrigger::UserRequested {
-            self.library.similarity_prep.summary = Some(match trigger {
-                SimilarityPrepTrigger::Automatic => String::from("Source prep checking similarity"),
-                SimilarityPrepTrigger::UserRequested => String::from("Similarity prep queued"),
-            });
+        if trigger == SimilarityPrepTrigger::UserRequested {
+            self.library.similarity_prep.summary = Some(String::from("Similarity prep queued"));
+        } else if selected_source {
+            self.library.similarity_prep.summary = None;
         }
         context.business().background("gui-similarity-prep").run(
             move |_| enqueue_similarity_prep(source, trigger),
@@ -185,10 +174,13 @@ impl NativeAppState {
                 if selected_source {
                     let has_work = summary.has_work();
                     let message = summary.message();
+                    let footer_message = summary.footer_message();
                     self.library.similarity_prep.status = Some(summary.status);
                     self.library.similarity_prep.summary = Some(message.clone());
-                    if result.trigger == SimilarityPrepTrigger::UserRequested || has_work {
-                        self.ui.status.sample = message;
+                    if (result.trigger == SimilarityPrepTrigger::UserRequested || has_work)
+                        && let Some(footer_message) = footer_message
+                    {
+                        self.ui.status.sample = footer_message;
                     }
                     self.refresh_selected_similarity_prep_status(context);
                 }
@@ -286,20 +278,39 @@ impl NativeSimilarityPrepStatus {
             Self::MissingArtifacts { .. } => "Similarity prep needed",
         }
     }
-
-    pub(in crate::native_app) fn can_prepare(&self) -> bool {
-        !matches!(self, Self::UpToDate)
-    }
 }
 
 impl SimilarityPrepEnqueueSummary {
     fn has_work(&self) -> bool {
-        self.finalized || self.analysis_inserted > 0 || self.embedding_inserted > 0
+        self.finalized
+            || self.analysis_inserted > 0
+            || self.embedding_inserted > 0
+            || self.jobs_processed > 0
     }
 
     fn message(&self) -> String {
+        if let NativeSimilarityPrepStatus::Blocked { failed_count, .. } = self.status {
+            return format!(
+                "Similarity prep blocked: {failed_count} job{} failed",
+                if failed_count == 1 { "" } else { "s" }
+            );
+        }
+        if self.jobs_failed > 0 {
+            return format!(
+                "Similarity prep blocked: {} job{} failed",
+                self.jobs_failed,
+                if self.jobs_failed == 1 { "" } else { "s" }
+            );
+        }
         if self.finalized {
             return String::from("Similarity ready");
+        }
+        if self.jobs_processed > 0 {
+            return format!(
+                "Similarity prep processed {} job{}",
+                self.jobs_processed,
+                if self.jobs_processed == 1 { "" } else { "s" }
+            );
         }
         let queued = self.analysis_inserted + self.embedding_inserted;
         if queued == 0 {
@@ -310,6 +321,13 @@ impl SimilarityPrepEnqueueSummary {
                 if queued == 1 { "" } else { "s" }
             )
         }
+    }
+
+    fn footer_message(&self) -> Option<String> {
+        if self.finalized && self.status == NativeSimilarityPrepStatus::UpToDate {
+            return None;
+        }
+        Some(self.message())
     }
 }
 
@@ -326,12 +344,48 @@ fn enqueue_similarity_prep(
     trigger: SimilarityPrepTrigger,
 ) -> SimilarityPrepEnqueueResult {
     let source_id = source.id.as_str().to_string();
+    let sample_source = source.sample_source();
     SimilarityPrepEnqueueResult {
         source_id,
         trigger,
         result: enqueue_similarity_prep_inner(
-            &source.sample_source(),
+            &sample_source,
             trigger == SimilarityPrepTrigger::Automatic,
-        ),
+        )
+        .and_then(|summary| finish_similarity_prep(summary, &sample_source, trigger)),
+    }
+}
+
+fn finish_similarity_prep(
+    mut summary: SimilarityPrepEnqueueSummary,
+    source: &SampleSource,
+    trigger: SimilarityPrepTrigger,
+) -> Result<SimilarityPrepEnqueueSummary, String> {
+    if !should_drain_similarity_prep_jobs(&summary, source, trigger)? {
+        return Ok(summary);
+    }
+    let drain = drain_similarity_prep_jobs(source)?;
+    summary.jobs_processed = drain.processed;
+    summary.jobs_failed = drain.failed;
+    summary.finalized |= finalize_similarity_prep_if_ready(source)?;
+    summary.status = resolve_similarity_prep_status(source)?;
+    Ok(summary)
+}
+
+fn should_drain_similarity_prep_jobs(
+    summary: &SimilarityPrepEnqueueSummary,
+    source: &SampleSource,
+    trigger: SimilarityPrepTrigger,
+) -> Result<bool, String> {
+    match trigger {
+        SimilarityPrepTrigger::UserRequested => Ok(true),
+        SimilarityPrepTrigger::Automatic => match summary.status {
+            NativeSimilarityPrepStatus::UpToDate => Ok(false),
+            NativeSimilarityPrepStatus::Blocked { .. } => {
+                source_has_active_similarity_prep_jobs(source)
+            }
+            NativeSimilarityPrepStatus::Outdated
+            | NativeSimilarityPrepStatus::MissingArtifacts { .. } => Ok(true),
+        },
     }
 }

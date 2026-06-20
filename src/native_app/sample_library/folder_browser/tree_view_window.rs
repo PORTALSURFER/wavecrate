@@ -11,6 +11,7 @@ impl FolderBrowserState {
     pub(super) fn reset_tree_view(&mut self) {
         self.tree.view_controller = ui::VirtualListController::default();
         self.tree.follow_selection.clear();
+        self.tree.runtime_viewport_rows = None;
     }
 
     #[cfg(test)]
@@ -29,9 +30,23 @@ impl FolderBrowserState {
         &mut self,
         change: ui::VirtualListWindowChange,
     ) {
+        let viewport_rows = change.window.viewport_len().max(1);
+        let overscan_rows = change
+            .window
+            .viewport_start
+            .saturating_sub(change.window.window_start)
+            .max(
+                change
+                    .window
+                    .window_end
+                    .saturating_sub(change.window.viewport_end),
+            );
+        self.tree.runtime_viewport_rows = Some(viewport_rows);
         self.tree
             .view_controller
             .set_total_items(change.window.total_items);
+        self.tree.view_controller.set_viewport_len(viewport_rows);
+        self.tree.view_controller.set_overscan(overscan_rows);
         self.tree
             .view_controller
             .set_viewport_start(change.window.viewport_start);
@@ -44,6 +59,7 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
+        let viewport_rows = self.tree.runtime_viewport_rows.unwrap_or(viewport_rows);
         ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
             total_items: visible_folders.len(),
             viewport_len: viewport_rows,
@@ -72,22 +88,85 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
+        let runtime_viewport_rows = self.tree.runtime_viewport_rows;
+        let viewport_rows = runtime_viewport_rows.unwrap_or(viewport_rows);
         let selected_id = self
             .selection
             .selected_collection
             .is_none()
             .then(|| self.selection.selected_folder.clone());
-        let focus = ui::VirtualListSliceFocus::from_slice_by(
+        let selected_index = selected_id.as_ref().and_then(|selected_id| {
+            visible_folders
+                .iter()
+                .position(|folder| folder.id == *selected_id)
+        });
+
+        if self.tree.follow_selection.focus_key() == selected_id.as_ref() {
+            let projection = ui::VirtualListProjection::for_slice(
+                visible_folders,
+                viewport_rows,
+                overscan_rows,
+                guard_rows,
+            )
+            .with_context_row();
+            self.tree.view_controller.configure_projection(projection);
+            self.tree.view_controller.clear_focus();
+            return self.tree.view_controller.resolve();
+        }
+
+        if runtime_viewport_rows.is_some()
+            && selected_index.is_some_and(|index| {
+                tree_runtime_viewport_contains_index(
+                    &self.tree.view_controller,
+                    visible_folders.len(),
+                    viewport_rows,
+                    index,
+                )
+            })
+        {
+            let projection = ui::VirtualListProjection::for_slice(
+                visible_folders,
+                viewport_rows,
+                overscan_rows,
+                guard_rows,
+            )
+            .with_context_row();
+            self.tree.follow_selection.remember_focus_key(selected_id);
+            self.tree.view_controller.configure_projection(projection);
+            self.tree.view_controller.clear_focus();
+            return self.tree.view_controller.resolve();
+        }
+
+        let projection = ui::VirtualListProjection::for_slice(
             visible_folders,
             viewport_rows,
             overscan_rows,
             guard_rows,
-            selected_id,
-            |folder, key| folder.id.as_str() == key.as_str(),
         )
         .with_context_row();
+        let focus = ui::VirtualListFocusTarget::new(selected_id, selected_index);
         self.tree
             .view_controller
-            .configure_slice_focus_changed_optional(&mut self.tree.follow_selection, focus)
+            .configure_projection_and_focus_changed_optional(
+                &mut self.tree.follow_selection,
+                projection,
+                focus,
+            )
     }
+}
+
+fn tree_runtime_viewport_contains_index(
+    controller: &ui::VirtualListController,
+    total_items: usize,
+    viewport_rows: usize,
+    index: usize,
+) -> bool {
+    if total_items == 0 || viewport_rows == 0 || index >= total_items {
+        return false;
+    }
+    let viewport_len = viewport_rows.min(total_items);
+    let max_start = total_items.saturating_sub(viewport_len);
+    let viewport_start = controller.viewport_start().min(max_start);
+    let viewport_end = viewport_start.saturating_add(viewport_len);
+    (viewport_start..viewport_end).contains(&index)
 }

@@ -12,11 +12,9 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
-        if self
-            .selection
-            .selected_collection_active_without_file_focus()
-        {
-            return self.navigate_into_active_file_list(delta);
+        self.navigate_selected_collection(delta);
+        if self.collection_keyboard_focus_active() {
+            return None;
         }
         if self.selection.selected_file_active() {
             return self.navigate_selected_file(delta, extend);
@@ -35,14 +33,9 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
-        if self
-            .selection
-            .selected_collection_active_without_file_focus()
-        {
-            if self.sample_list.random_navigation.enabled {
-                return self.navigate_random_matching_tags(delta, tags_by_file);
-            }
-            return self.navigate_into_active_file_list_matching_tags(delta, tags_by_file);
+        if self.collection_keyboard_focus_active() {
+            self.navigate_selected_collection(delta);
+            return None;
         }
         if self.selection.selected_file_active() {
             if self.sample_list.random_navigation.enabled {
@@ -112,14 +105,20 @@ impl FolderBrowserState {
         extend: bool,
         preserve_selection: bool,
     ) -> bool {
+        let previous_folder_id = self.selection.selected_folder.clone();
         let folders = self.visible_folders();
         let folder_ids = folders
             .into_iter()
             .map(|folder| folder.id)
             .collect::<Vec<_>>();
-        self.selection
+        let moved = self
+            .selection
             .navigate_folder(delta, extend, preserve_selection, &folder_ids)
-            .is_some()
+            .is_some();
+        if moved {
+            self.clear_similarity_anchor_after_folder_change(&previous_folder_id);
+        }
+        moved
     }
 
     #[cfg(test)]
@@ -138,7 +137,7 @@ impl FolderBrowserState {
         self.navigate_selected_file_in_ids(delta, extend, &file_ids)
     }
 
-    fn navigate_selected_file_in_ids(
+    pub(in crate::native_app) fn navigate_selected_file_in_ids(
         &mut self,
         delta: i32,
         extend: bool,
@@ -167,36 +166,6 @@ impl FolderBrowserState {
             .random_navigation
             .next(self.selection.selected_file_id(), &file_ids)?;
         self.selection.select_single_file(target.clone(), &file_ids);
-        Some(target)
-    }
-
-    /// Selects the first reachable file when collection mode owns navigation focus.
-    #[cfg(test)]
-    fn navigate_into_active_file_list(&mut self, delta: i32) -> Option<String> {
-        let file_ids = self.selected_audio_file_ids();
-        let target = if delta < 0 {
-            file_ids.last()
-        } else {
-            file_ids.first()
-        }?
-        .clone();
-        self.select_file(target.clone());
-        Some(target)
-    }
-
-    pub(in crate::native_app::sample_library::folder_browser) fn navigate_into_active_file_list_matching_tags(
-        &mut self,
-        delta: i32,
-        tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Option<String> {
-        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
-        let target = if delta < 0 {
-            file_ids.last()
-        } else {
-            file_ids.first()
-        }?
-        .clone();
-        self.select_file(target.clone());
         Some(target)
     }
 }

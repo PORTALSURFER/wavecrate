@@ -18,9 +18,17 @@ impl WaveformState {
     }
 
     pub(in crate::native_app) fn start_playback(&mut self, ratio: f32) {
+        self.start_playback_with_marker(ratio, true);
+    }
+
+    pub(in crate::native_app) fn start_playback_without_marker(&mut self, ratio: f32) {
+        self.start_playback_with_marker(ratio, false);
+    }
+
+    fn start_playback_with_marker(&mut self, ratio: f32, show_marker: bool) {
         let ratio = ratio.clamp(0.0, 1.0);
         self.playing = true;
-        self.play_mark_ratio = Some(ratio);
+        self.play_mark_ratio = show_marker.then_some(ratio);
         self.playhead_ratio = Some(ratio);
         self.zoom_anchor_ratio = ratio;
     }

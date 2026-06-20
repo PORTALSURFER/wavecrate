@@ -212,7 +212,50 @@ fn folder_context_menu_paints_new_folder_action() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("New Folder"));
+    assert!(frame.paint_plan.contains_text("Rename Folder"));
     assert!(frame.paint_plan.contains_text("Delete Folder"));
+}
+
+#[test]
+fn folder_context_menu_rename_starts_inline_rename_for_context_folder() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-context-menu-rename-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    fs::create_dir_all(&kicks).expect("create nested folder");
+
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(root.clone(), 100)
+        .expect("new source should request scan");
+    let result = crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
+    state.open_folder_context_menu(drums.to_string_lossy().to_string(), Point::new(40.0, 120.0));
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::RenameContextFolder,
+        &mut context,
+    );
+
+    let target = state.library.folder_browser.selected_rename_target();
+    assert_eq!(target.kind, "folder");
+    assert_eq!(target.label, "drums");
+    assert!(state.library.folder_browser.rename_active());
+    assert_eq!(state.ui.status.sample, "Renaming selected folder");
+    assert!(state.ui.browser_interaction.context_menu.is_none());
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

@@ -14,7 +14,7 @@ impl FolderBrowserState {
         collection: SampleCollection,
     ) -> Vec<SelectedFileCollectionCandidate> {
         match &self.drag_drop.drag {
-            Some(FolderBrowserDrag::Files { file_ids }) => file_ids
+            Some(FolderBrowserDrag::Files { file_ids, .. }) => file_ids
                 .iter()
                 .filter_map(|file_id| {
                     self.selected_audio_files()

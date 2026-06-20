@@ -55,11 +55,7 @@ impl NativeAppState {
         &self,
         intent: PlaybackIntent,
     ) -> PlaybackCommand {
-        let resolved = self.resolve_playback_span(
-            intent.start_ratio,
-            intent.end_ratio,
-            intent.loop_offset_ratio,
-        );
+        let resolved = self.resolve_playback_span_for_intent(intent);
         PlaybackCommand::from_intent(intent, resolved, self.audio.loop_playback)
     }
 
@@ -96,13 +92,20 @@ impl NativeAppState {
             PlaybackMode::Looped { offset_ratio } => offset_ratio,
             PlaybackMode::OneShot => command.resolved.start_ratio,
         };
-        self.waveform.current.start_playback(playback_start);
+        if command.intent.show_start_marker {
+            self.waveform.current.start_playback(playback_start);
+        } else {
+            self.waveform
+                .current
+                .start_playback_without_marker(playback_start);
+        }
         self.audio.current_playback_span =
             Some((command.resolved.start_ratio, command.resolved.end_ratio));
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
             id: request_id,
             path: self.waveform.current.path().display().to_string(),
             span: (command.resolved.start_ratio, command.resolved.end_ratio),
+            show_start_marker: command.intent.show_start_marker,
         });
         log_slow_playback_phase(
             "playback.start.state_update",

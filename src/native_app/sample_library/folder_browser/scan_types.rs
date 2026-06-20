@@ -51,6 +51,7 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) folder: FolderEntry,
     pub(in crate::native_app) file_count: usize,
     pub(in crate::native_app) folder_count: usize,
+    pub(in crate::native_app) source_db_error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -25,10 +25,12 @@ struct CachedSourceScan {
 
 impl SourceScanCache {
     fn new(sources: Vec<CachedSourceScan>) -> Self {
-        Self {
+        let mut cache = Self {
             version: SOURCE_SCAN_CACHE_VERSION,
             sources,
-        }
+        };
+        cache.prune_apple_double_sidecars();
+        cache
     }
 
     pub(super) fn folder_for_source(&self, source_id: &str, root: &Path) -> Option<FolderEntry> {
@@ -38,7 +40,17 @@ impl SourceScanCache {
         self.sources
             .iter()
             .find(|source| source.source_id == source_id && source.root == root)
-            .map(|source| source.root_folder.clone())
+            .map(|source| {
+                let mut folder = source.root_folder.clone();
+                prune_folder_apple_double_sidecars(&mut folder);
+                folder
+            })
+    }
+
+    fn prune_apple_double_sidecars(&mut self) {
+        for source in &mut self.sources {
+            prune_folder_apple_double_sidecars(&mut source.root_folder);
+        }
     }
 }
 
@@ -65,6 +77,8 @@ fn load_source_scan_cache_from_path(path: &Path) -> Result<SourceScanCache, Stri
     let cache = serde_json::from_str::<SourceScanCache>(&text)
         .map_err(|err| format!("parse source scan cache {}: {err}", path.display()))?;
     if cache.version == SOURCE_SCAN_CACHE_VERSION {
+        let mut cache = cache;
+        cache.prune_apple_double_sidecars();
         Ok(cache)
     } else {
         Ok(SourceScanCache::default())
@@ -99,6 +113,15 @@ fn save_source_scan_cache_to_path(path: &Path, sources: &[SourceEntry]) -> Resul
     let bytes =
         serde_json::to_vec(&cache).map_err(|err| format!("serialize source scan cache: {err}"))?;
     atomic_write(path, &bytes)
+}
+
+fn prune_folder_apple_double_sidecars(folder: &mut FolderEntry) {
+    folder.files.retain(|file| {
+        !wavecrate_library::sample_sources::is_apple_double_sidecar(Path::new(&file.name))
+    });
+    for child in &mut folder.children {
+        prune_folder_apple_double_sidecars(child);
+    }
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -192,5 +215,87 @@ mod tests {
             folder.files[0].collections,
             SampleCollection::new(0).into_iter().collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn source_scan_cache_prunes_appledouble_sidecars_on_load() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("source");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let cache = SourceScanCache {
+            version: SOURCE_SCAN_CACHE_VERSION,
+            sources: vec![CachedSourceScan {
+                source_id: String::from("source-id"),
+                root: root.clone(),
+                root_folder: FolderEntry {
+                    id: root.display().to_string(),
+                    name: String::from("source"),
+                    children: vec![FolderEntry {
+                        id: root.join("drums").display().to_string(),
+                        name: String::from("drums"),
+                        children: Vec::new(),
+                        files: vec![
+                            file_for_cache_test(&root.join("drums/kick.wav")),
+                            file_for_cache_test(&root.join("drums/._kick.wav")),
+                        ],
+                    }],
+                    files: vec![
+                        file_for_cache_test(&root.join("kick.wav")),
+                        file_for_cache_test(&root.join("._kick.wav")),
+                    ],
+                },
+            }],
+        };
+        fs::write(&path, serde_json::to_vec(&cache).expect("serialize cache"))
+            .expect("write cache");
+
+        let loaded = load_source_scan_cache_from_path(&path).expect("load cache");
+        let folder = loaded
+            .folder_for_source("source-id", &root)
+            .expect("cached folder");
+
+        assert_eq!(
+            folder
+                .files
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["kick.wav"]
+        );
+        assert_eq!(
+            folder.children[0]
+                .files
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["kick.wav"]
+        );
+    }
+
+    fn file_for_cache_test(path: &Path) -> FileEntry {
+        let name = path
+            .file_name()
+            .expect("file name")
+            .to_string_lossy()
+            .to_string();
+        FileEntry {
+            id: path.display().to_string(),
+            stem: path
+                .file_stem()
+                .expect("file stem")
+                .to_string_lossy()
+                .to_string(),
+            extension: String::from("wav"),
+            name,
+            kind: String::from("Audio"),
+            size: String::from("8 B"),
+            size_bytes: 8,
+            modified: String::from("now"),
+            modified_rank: 1,
+            rating: Rating::NEUTRAL,
+            rating_locked: false,
+            collection: None,
+            collections: Vec::new(),
+        }
     }
 }

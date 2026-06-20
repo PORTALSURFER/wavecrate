@@ -8,6 +8,9 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::{Rating, SourceDatabase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::sample_list::{
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+};
 use crate::native_app::transaction_history::TransactionContext;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +37,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment();
         let plan = self.rating_adjustment_plan_for_selected_files(delta);
         if plan.is_empty() {
             self.ui.status.sample = String::from("Select a sample to rate");
@@ -90,8 +94,67 @@ impl NativeAppState {
         }
 
         if applied > 0 && self.ui.settings.persisted.controls.advance_after_rating {
-            self.navigate_browser(1, false, false, context);
+            if let Some(visible_ids) = advance_visible_ids {
+                self.advance_after_rating_in_visible_order(&visible_ids, context);
+            } else {
+                self.navigate_browser(1, false, false, context);
+            }
         }
+    }
+
+    fn rating_advance_visible_ids_before_adjustment(&self) -> Option<Vec<String>> {
+        if !self.ui.settings.persisted.controls.advance_after_rating
+            || self.library.folder_browser.random_navigation_enabled()
+        {
+            return None;
+        }
+        Some(
+            self.library
+                .folder_browser
+                .selected_audio_files_matching_tags(&self.metadata.tags_by_file)
+                .into_iter()
+                .map(|file| file.id.clone())
+                .collect(),
+        )
+    }
+
+    fn advance_after_rating_in_visible_order(
+        &mut self,
+        visible_ids_before_rating: &[String],
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let previous_selection = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
+        let Some(path) = self.library.folder_browser.navigate_selected_file_in_ids(
+            1,
+            false,
+            visible_ids_before_rating,
+        ) else {
+            return;
+        };
+
+        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+            self.metadata.selected_tag = None;
+        }
+        if let Some(index) = self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+        {
+            context.scroll_fixed_row_into_view(
+                SAMPLE_BROWSER_LIST_ID,
+                index,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                1,
+            );
+        }
+        self.load_navigation_sample(path, context);
     }
 
     fn rating_adjustment_plan_for_selected_files(&self, delta: i8) -> RatingAdjustmentPlan {

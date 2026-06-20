@@ -4,12 +4,21 @@ use radiant::runtime::{
 };
 use wavecrate::native_runtime::wavecrate_ui_font_path;
 
-pub(in crate::native_app) const DEFAULT_WINDOW_TITLE: &str = "Wavecrate - alpha";
+const APP_NAME: &str = "Wavecrate";
+const RELEASE_CHANNEL: &str = "Alpha";
+
+pub(in crate::native_app) fn default_window_title() -> String {
+    format!(
+        "{APP_NAME} {} b{} - {RELEASE_CHANNEL}",
+        env!("CARGO_PKG_VERSION"),
+        env!("WAVECRATE_BUILD_NUMBER")
+    )
+}
 
 pub(super) fn native_run_options(debug_layout: bool) -> NativeRunOptions {
     NativeRunOptions {
         window: NativeWindowOptions {
-            title: String::from(DEFAULT_WINDOW_TITLE),
+            title: default_window_title(),
             geometry: NativeWindowGeometry {
                 inner_size: Some([960.0, 540.0]),
                 min_inner_size: Some([640.0, 360.0]),
@@ -44,7 +53,7 @@ mod tests {
 
         assert!(options.window.behavior.maximized);
         assert!(options.window.behavior.decorations);
-        assert_eq!(options.window.title, DEFAULT_WINDOW_TITLE);
+        assert_eq!(options.window.title, default_window_title());
     }
 
     #[test]

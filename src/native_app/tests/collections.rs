@@ -179,3 +179,43 @@ fn collection_rename_input_selects_name_when_focused() {
         Some("Collection 1")
     );
 }
+
+#[test]
+fn collection_rename_persists_across_default_state_reload() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection)),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(
+            radiant::widgets::TextInputMessage::Submitted {
+                value: String::from("Drums"),
+            },
+        )),
+        &mut context,
+    );
+
+    let config = wavecrate::sample_sources::config::load_or_default().expect("saved config");
+    assert_eq!(
+        config.core.collection_names.get("0").map(String::as_str),
+        Some("Drums")
+    );
+
+    let reloaded = NativeAppState::load_default().expect("default state reloads");
+    assert_eq!(
+        reloaded
+            .library
+            .folder_browser
+            .visible_collections()
+            .into_iter()
+            .find(|entry| entry.collection == collection)
+            .map(|entry| entry.name),
+        Some(String::from("Drums"))
+    );
+}

@@ -29,9 +29,17 @@ fn waveform_panel_header(_waveform: &WaveformState) -> ui::View<GuiMessage> {
 fn waveform_viewport_with_loading_state(
     model: &WaveformPanelViewModel<'_>,
 ) -> ui::View<GuiMessage> {
-    let viewport = waveform::waveform_viewport_view(model.waveform)
-        .fill_width()
-        .height(WAVEFORM_VIEW_HEIGHT);
+    let tooltip = model
+        .help_tooltips_enabled
+        .then_some("Waveform: click to set playback start, drag to select, scroll to zoom.");
+    let viewport = waveform::waveform_viewport_view_with_tooltip(
+        model.waveform,
+        tooltip,
+        model.beat_guides_enabled,
+        model.beat_guide_count,
+    )
+    .fill_width()
+    .height(WAVEFORM_VIEW_HEIGHT);
     ui::overlay_stack(viewport)
         .overlay_opt(
             model
@@ -112,4 +120,28 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
         })
         .fill_width()
         .height(6.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::test_support::state::NativeAppStateFixture;
+    use radiant::prelude::IntoView;
+
+    #[test]
+    fn waveform_help_tooltip_attaches_to_interaction_widget() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.ui.chrome.help_tooltips_enabled = true;
+        let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
+        let tooltip = surface
+            .find_widget(crate::native_app::ui::ids::WAVEFORM_WIDGET_ID)
+            .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+        assert_eq!(
+            tooltip,
+            Some("Waveform: click to set playback start, drag to select, scroll to zoom.")
+        );
+    }
 }

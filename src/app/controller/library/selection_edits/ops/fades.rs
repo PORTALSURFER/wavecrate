@@ -114,6 +114,31 @@ pub(super) fn apply_fade_ramp(
     }
 }
 
+pub(super) fn apply_scaled_fade_ramp(
+    samples: &mut [f32],
+    channels: usize,
+    clamped_start: usize,
+    clamped_end: usize,
+    direction: FadeDirection,
+    curve: f32,
+    scale: f32,
+) {
+    let frame_count = clamped_end - clamped_start;
+    let denom = (frame_count.saturating_sub(1)).max(1) as f32;
+    let scale = scale.clamp(0.0, 1.0);
+    for i in 0..frame_count {
+        let progress = i as f32 / denom;
+        let factor = fade_factor(frame_count, progress, direction, curve) * scale;
+        let frame = clamped_start + i;
+        for ch in 0..channels {
+            let idx = frame * channels + ch;
+            if let Some(sample) = samples.get_mut(idx) {
+                *sample *= factor;
+            }
+        }
+    }
+}
+
 pub(crate) fn fade_factor(
     frame_count: usize,
     progress: f32,

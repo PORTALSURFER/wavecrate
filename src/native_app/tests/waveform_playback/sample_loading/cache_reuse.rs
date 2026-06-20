@@ -132,6 +132,11 @@ fn foreground_sample_load_reuses_persisted_playback_cache() {
     let cached =
         crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
             .expect("cache seed loads");
+    assert!(
+        cached.playback_samples().is_some(),
+        "cache seed should retain decoded WAV playback samples"
+    );
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     let file = cached.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
     wait_for_playback_ready_cache(&sample_path.display().to_string());
@@ -205,6 +210,174 @@ fn large_foreground_sample_load_reuses_file_backed_summary_cache() {
     assert_eq!(
         reloaded.playback_source_file().as_deref(),
         Some(sample_path.as_path())
+    );
+}
+
+#[test]
+fn looped_foreground_sample_load_bypasses_file_backed_summary_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-loop.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+
+    let summary =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("large foreground summary load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    assert_eq!(
+        summary.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
+    );
+    assert!(
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "summary-only cache seed should not create a playback-ready sidecar"
+    );
+
+    let playback_ready = std::cell::Cell::new(false);
+    let loaded = crate::native_app::test_support::state::WaveformState::load_path_for_looped_foreground_audition(
+        sample_path.clone(),
+        |_| {},
+        || false,
+        |ready| {
+            assert_eq!(ready.path, sample_path);
+            assert!(!ready.playback_samples.is_empty());
+            playback_ready.set(true);
+        },
+    )
+    .expect("looped foreground load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+
+    assert!(
+        playback_ready.get(),
+        "looped foreground load should surface decoded playback samples before completion"
+    );
+    assert_eq!(loaded.path(), sample_path);
+    assert!(!loaded.audio_bytes().is_empty());
+    assert!(loaded.playback_samples().is_some());
+    assert_eq!(loaded.playback_source_file(), None);
+    assert!(
+        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "decoded loop load should persist a playback-ready sidecar"
+    );
+}
+
+#[test]
+fn loop_tagged_selection_skips_summary_only_memory_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("memory-summary-loop.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let summary =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("summary waveform loads");
+    assert_eq!(
+        summary.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
+    );
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .metadata
+        .tags_by_file
+        .insert(sample_path_string.clone(), vec![String::from("loop")]);
+    state.remember_waveform(&summary);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "loop-tagged selection should queue a decoded foreground load instead of playing a summary-only cache entry"
+    );
+    assert_eq!(
+        state.waveform.load.label.as_deref(),
+        Some("memory-summary-loop.wav")
+    );
+    assert_ne!(
+        state.waveform.current.path(),
+        sample_path,
+        "summary-only cache must not replace the waveform for looped autoplay"
+    );
+}
+
+#[test]
+fn loop_toggle_selection_skips_summary_only_memory_cache_for_untagged_sample() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("memory-summary-manual-loop.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let summary =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("summary waveform loads");
+    assert_eq!(
+        summary.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
+    );
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.audio.loop_playback = true;
+    state.remember_waveform(&summary);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "manual loop playback should queue a decoded foreground load instead of playing a summary-only cache entry"
+    );
+    assert_eq!(
+        state.waveform.load.label.as_deref(),
+        Some("memory-summary-manual-loop.wav")
+    );
+    assert_ne!(
+        state.waveform.current.path(),
+        sample_path,
+        "summary-only cache must not replace the waveform when manual loop playback is enabled"
     );
 }
 

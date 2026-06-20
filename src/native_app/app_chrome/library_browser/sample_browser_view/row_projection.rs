@@ -15,6 +15,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::collection
 pub(super) struct SampleRowDisplay<'a> {
     pub(super) file_id: &'a str,
     pub(super) selected: bool,
+    pub(super) copy_flash: bool,
     pub(super) drag_revision: u64,
     pub(super) drag_active: bool,
     pub(super) drag_source: bool,
@@ -59,6 +60,7 @@ pub(super) fn sample_row_display<'a>(
     SampleRowDisplay {
         file_id: file.id.as_str(),
         selected: row.selected,
+        copy_flash: row.copy_flash,
         drag_revision: row.drag_revision,
         drag_active: row.drag_active,
         drag_source: row.drag_source,
@@ -287,6 +289,7 @@ mod tests {
         let row = VisibleSampleRow {
             file: &file,
             selected: false,
+            copy_flash: true,
             drag_revision: 0,
             drag_active: false,
             drag_source: false,
@@ -308,6 +311,17 @@ mod tests {
             &HashMap::new(),
         );
 
+        assert!(
+            sample_row_display(
+                &row,
+                &[&column],
+                false,
+                [true; wavecrate_analysis::aspects::ASPECT_COUNT],
+                SampleNameViewMode::DiskFilename,
+                &HashMap::new(),
+            )
+            .copy_flash
+        );
         assert!(matches!(
             display.content,
             SampleColumnContent::Collection(colors)
@@ -321,6 +335,7 @@ mod tests {
         let row = VisibleSampleRow {
             file: &file,
             selected: false,
+            copy_flash: false,
             drag_revision: 0,
             drag_active: false,
             drag_source: false,
@@ -356,6 +371,7 @@ mod tests {
         let row = VisibleSampleRow {
             file: &file,
             selected: false,
+            copy_flash: false,
             drag_revision: 0,
             drag_active: false,
             drag_source: false,

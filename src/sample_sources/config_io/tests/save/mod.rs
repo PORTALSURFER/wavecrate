@@ -51,6 +51,10 @@ fn saves_settings_with_nested_section_ownership() {
             trash_folder: Some(std::path::PathBuf::from("trash")),
             drop_targets: vec![DropTargetConfig::new(std::path::PathBuf::from("drop-a"))],
             last_selected_source: Some(source_id.clone()),
+            collection_names: std::collections::BTreeMap::from([(
+                String::from("0"),
+                String::from("Drums"),
+            )]),
             audio_output: AudioOutputConfig {
                 host: Some("wasapi".into()),
                 device: Some("Studio".into()),
@@ -108,6 +112,10 @@ fn saves_settings_with_nested_section_ownership() {
     assert_eq!(loaded.core.audio_output.host.as_deref(), Some("wasapi"));
     assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
     assert_eq!(loaded.core.default_identifier, "artist");
+    assert_eq!(
+        loaded.core.collection_names.get("0").map(String::as_str),
+        Some("Drums")
+    );
     assert_eq!(
         loaded
             .core

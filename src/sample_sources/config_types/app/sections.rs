@@ -64,6 +64,9 @@ pub(super) struct LibrarySettings {
     /// Active folder pane id encoded as `"upper"` or `"lower"`.
     #[serde(default)]
     pub(super) active_folder_pane: Option<String>,
+    /// User-authored collection labels, keyed by fixed collection index.
+    #[serde(default)]
+    pub(super) collection_names: BTreeMap<String, String>,
 }
 
 /// Audio IO, write-format, and playback-volume settings.

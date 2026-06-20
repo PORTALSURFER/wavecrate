@@ -116,3 +116,111 @@ fn shift_arrow_navigation_extends_folder_selection() {
     );
     assert!(resolution.handled);
 }
+
+#[test]
+fn f2_shortcut_renames_active_collection() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::F2));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::BeginRenameSelected
+        ))
+    );
+    assert!(resolution.handled);
+
+    state.apply_message(
+        resolution.action.expect("F2 action"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .collection_rename_view(collection)
+            .is_some()
+    );
+    assert_eq!(state.ui.status.sample, "Renaming selected collection");
+}
+
+#[test]
+fn command_r_shortcut_renames_active_collection() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::R));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::BeginRenameSelected
+        ))
+    );
+    assert!(resolution.handled);
+
+    state.apply_message(
+        resolution.action.expect("Command-R action"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .collection_rename_view(collection)
+            .is_some()
+    );
+    assert_eq!(state.ui.status.sample, "Renaming selected collection");
+}
+
+#[test]
+fn arrow_down_shortcut_moves_active_collection_focus() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let first = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let second = wavecrate::sample_sources::SampleCollection::new(1).expect("collection");
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateCollection(first));
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowDown));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        })
+    );
+    assert!(resolution.handled);
+
+    state.apply_message(
+        resolution.action.expect("ArrowDown action"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let selected = state
+        .library
+        .folder_browser
+        .visible_collections()
+        .into_iter()
+        .find(|collection| collection.selected)
+        .map(|collection| collection.collection);
+    assert_eq!(selected, Some(second));
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
+}

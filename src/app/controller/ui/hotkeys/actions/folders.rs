@@ -77,6 +77,15 @@ pub(super) const RENAME_FOLDER_LEGACY: HotkeyAction = HotkeyAction {
         crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename,
     ),
 };
+pub(super) const RENAME_FOLDER_COMMAND: HotkeyAction = HotkeyAction {
+    id: "rename-folder-command",
+    label: "Rename folder",
+    gesture: HotkeyGesture::with_command(Key::R),
+    scope: SOURCE_FOLDERS,
+    action: NativeUiAction::SourcesAndFolders(
+        crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename,
+    ),
+};
 pub(super) const CREATE_FOLDER: HotkeyAction = HotkeyAction {
     id: "new-folder",
     label: "New folder",

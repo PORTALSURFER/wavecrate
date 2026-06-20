@@ -2,7 +2,7 @@ use radiant::{
     gui::types::{Rect, Rgba8},
     gui::visualization::{
         CanvasSelectionAffordancePaintParts, CanvasSelectionAffordanceStyle,
-        CanvasSelectionGeometry, CanvasSelectionPaintStyle,
+        CanvasSelectionGeometry, CanvasSelectionPaintStyle, DragHandleRole,
     },
     runtime::{PaintPrimitive, WidgetPaint},
 };
@@ -29,9 +29,15 @@ const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
 };
 const PLAY_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 142, 92, 255);
 const EDIT_SELECTION_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
+const BEAT_GUIDE_COLOR: Rgba8 = Rgba8::new(255, 214, 188, 170);
+const PLAY_START_MARKER_COLOR: Rgba8 = Rgba8::new(204, 255, 255, 245);
 const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
 const HOVER_CURSOR_COLOR: Rgba8 = Rgba8::new(255, 255, 255, 210);
+const HANDLE_HOVER_ALPHA: u8 = 255;
+const EDIT_GAIN_HANDLE_ALPHA: u8 = 225;
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
+const BEAT_GUIDE_WIDTH: f32 = 1.0;
+const BEAT_GUIDE_HEIGHT_FRACTION: f32 = 0.72;
 const IMPLICIT_SAMPLE_START_RATIO: f32 = 0.000_1;
 
 impl WaveformWidget {
@@ -96,6 +102,7 @@ impl WaveformWidget {
             1.0,
             style.fill_color(),
         );
+        self.append_beat_guide_paint(paint, bounds, self.play_selection);
         self.append_selection_boundary_cursors(paint, bounds, self.play_selection, style, 1.25);
         self.append_selection_affordance_paint(
             paint,
@@ -108,6 +115,29 @@ impl WaveformWidget {
                 bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
             ),
         );
+    }
+
+    fn append_beat_guide_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        selection: Option<wavecrate::selection::SelectionRange>,
+    ) {
+        if !self.beat_guides_enabled || self.beat_guide_count <= 1 {
+            return;
+        }
+        let Some(selection) = selection.filter(|selection| selection.width() > 0.0) else {
+            return;
+        };
+        for index in 1..self.beat_guide_count {
+            let beat_fraction = f32::from(index) / f32::from(self.beat_guide_count);
+            let absolute_ratio = selection.start() + selection.width() * beat_fraction;
+            let Some(visible_ratio) = self.visible_ratio_for_absolute(Some(absolute_ratio)) else {
+                continue;
+            };
+            let x = bounds.x_for_ratio(visible_ratio).round();
+            paint.push_visible_fill_rect(beat_guide_rect(bounds, x), BEAT_GUIDE_COLOR);
+        }
     }
 
     fn append_edit_selection_paint(
@@ -124,6 +154,7 @@ impl WaveformWidget {
             1.0,
             style.fill_color(),
         );
+        self.append_beat_guide_paint(paint, bounds, self.edit_selection);
         self.append_selection_boundary_cursors(paint, bounds, self.edit_selection, style, 1.25);
         self.append_selection_affordance_paint(
             paint,
@@ -131,20 +162,24 @@ impl WaveformWidget {
             CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
             style.affordance_paint_parts(bounds),
         );
+        self.append_edit_gain_handle_paint(
+            paint,
+            bounds,
+            EDIT_SELECTION_COLOR.with_alpha(EDIT_GAIN_HANDLE_ALPHA),
+        );
     }
 
     fn append_marker_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
-        if self.play_selection.is_none()
-            && self
-                .play_mark_ratio
-                .is_some_and(|ratio| ratio.clamp(0.0, 1.0) > IMPLICIT_SAMPLE_START_RATIO)
+        if self
+            .play_mark_ratio
+            .is_some_and(|ratio| ratio.clamp(0.0, 1.0) > IMPLICIT_SAMPLE_START_RATIO)
             && let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio)
         {
             paint.push_horizontal_value_cursor_fill(
                 bounds,
                 play_mark_ratio,
                 2.0,
-                PLAY_SELECTION_COLOR.with_alpha(230),
+                PLAY_START_MARKER_COLOR,
             );
         }
         if self.edit_selection.is_none()
@@ -184,6 +219,55 @@ impl WaveformWidget {
         );
     }
 
+    pub(super) fn append_hover_selection_handle_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
+        if self.active_drag_kind.is_some() || !self.common.is_hovered() {
+            return;
+        }
+        let mut paint = WidgetPaint::new(primitives, self.common.id);
+        if self.hovered_edit_gain_handle {
+            if let Some(rect) = self.edit_gain_handle_rect(bounds) {
+                paint.push_visible_fill_rect(
+                    rect,
+                    EDIT_SELECTION_COLOR.with_alpha(HANDLE_HOVER_ALPHA),
+                );
+            }
+            return;
+        }
+        let Some(hover) = self.hovered_selection_handle else {
+            return;
+        };
+        match hover.kind {
+            super::WaveformSelectionKind::Play => {
+                let Some(geometry) = self.selection_geometry(bounds, self.play_selection) else {
+                    return;
+                };
+                self.append_hover_selection_handle_fill(
+                    &mut paint,
+                    geometry,
+                    bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
+                    hover.role,
+                    PLAY_SELECTION_COLOR.with_alpha(HANDLE_HOVER_ALPHA),
+                );
+            }
+            super::WaveformSelectionKind::Edit => {
+                let Some(geometry) = self.selection_geometry(bounds, self.edit_selection) else {
+                    return;
+                };
+                self.append_hover_selection_handle_fill(
+                    &mut paint,
+                    geometry,
+                    bounds,
+                    hover.role,
+                    EDIT_SELECTION_COLOR.with_alpha(HANDLE_HOVER_ALPHA),
+                );
+            }
+        }
+    }
+
     fn append_selection_boundary_cursors(
         &self,
         paint: &mut WidgetPaint<'_>,
@@ -216,6 +300,67 @@ impl WaveformWidget {
         let widget_id = paint.widget_id();
         style.push_fills(paint.primitives_mut(), widget_id, geometry, parts);
     }
+
+    fn append_edit_gain_handle_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        color: Rgba8,
+    ) {
+        let Some(rect) = self.edit_gain_handle_rect(bounds) else {
+            return;
+        };
+        paint.push_visible_fill_rect(rect, color);
+    }
+
+    fn append_hover_selection_handle_fill(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        geometry: CanvasSelectionGeometry,
+        edge_bounds: Rect,
+        role: DragHandleRole,
+        color: Rgba8,
+    ) {
+        let widget_id = paint.widget_id();
+        match role {
+            DragHandleRole::Body => {
+                geometry.push_body_handle_fill(
+                    paint.primitives_mut(),
+                    widget_id,
+                    selection_move_handle_style().paint_parts(color),
+                );
+            }
+            DragHandleRole::Start | DragHandleRole::End => {
+                geometry.push_edge_visual_fill(
+                    paint.primitives_mut(),
+                    widget_id,
+                    selection_resize_edge_style().paint_parts(edge_bounds, role, color),
+                );
+            }
+            DragHandleRole::TrailingControl => {
+                geometry.push_trailing_control_fill(
+                    paint.primitives_mut(),
+                    widget_id,
+                    selection_export_handle_style().paint_parts(color),
+                );
+            }
+            DragHandleRole::LeadingControl => {}
+        }
+    }
+}
+
+fn beat_guide_rect(bounds: Rect, center_x: f32) -> Rect {
+    let height = (bounds.height() * BEAT_GUIDE_HEIGHT_FRACTION)
+        .round()
+        .max(1.0)
+        .min(bounds.height().max(1.0));
+    let y = (bounds.min.y + (bounds.height() - height) * 0.5).round();
+    Rect::from_xy_size(
+        center_x - BEAT_GUIDE_WIDTH * 0.5,
+        y,
+        BEAT_GUIDE_WIDTH,
+        height,
+    )
 }
 
 const fn play_selection_paint_style(flash_active: bool) -> CanvasSelectionPaintStyle {

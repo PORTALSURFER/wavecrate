@@ -22,8 +22,20 @@ fn sample_hit_target(
     SampleFileHitTarget::new(
         String::from("sample.wav"),
         selected,
+        false,
         drag_active,
         drag_source,
+        cached,
+    )
+}
+
+fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> SampleFileHitTarget {
+    SampleFileHitTarget::new(
+        String::from("sample.wav"),
+        selected,
+        true,
+        false,
+        false,
         cached,
     )
 }
@@ -34,6 +46,24 @@ fn paints_hover_fill(plan: &SurfacePaintPlan) -> bool {
         .hovered
         .expect("dense-row hover fill");
     plan.fill_rects().any(|fill| fill.color == hover)
+}
+
+fn selected_marker_color() -> Rgba8 {
+    Rgba8 {
+        r: 255,
+        g: 82,
+        b: 62,
+        a: 245,
+    }
+}
+
+fn cached_marker_color() -> Rgba8 {
+    Rgba8 {
+        r: 226,
+        g: 226,
+        b: 226,
+        a: 210,
+    }
 }
 
 fn selected_fill() -> Rgba8 {
@@ -48,6 +78,31 @@ fn is_hovered(target: &SampleFileHitTarget) -> bool {
 
 fn is_pressed(target: &SampleFileHitTarget) -> bool {
     target.common().is_pressed()
+}
+
+#[test]
+/// Verifies copied file rows flash without pretending to be selected.
+fn copied_rows_paint_flash_fill_without_selection_marker() {
+    let bounds = Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let target = sample_hit_target_with_copy_flash(false, true);
+    let plan = target.paint_plan_with_defaults(bounds);
+
+    assert!(
+        plan.fill_rects().any(|fill| fill.color == COPY_FLASH_FILL),
+        "copied rows should paint the transient copy flash fill"
+    );
+    assert!(
+        !plan
+            .fill_rects()
+            .any(|fill| fill.rect.min.x == bounds.min.x && fill.color == selected_marker_color()),
+        "copy flash must not add the selection marker"
+    );
+    assert!(
+        !plan
+            .fill_rects()
+            .any(|fill| fill.color == cached_marker_color()),
+        "copy flash fill should not be interrupted by the cached marker"
+    );
 }
 
 #[test]

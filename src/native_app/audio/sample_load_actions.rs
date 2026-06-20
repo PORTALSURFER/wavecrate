@@ -1,9 +1,4 @@
 use radiant::prelude as ui;
-use std::time::Duration;
-
-pub(in crate::native_app) const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
-pub(in crate::native_app) const KEYBOARD_SAMPLE_LOAD_DEBOUNCE: Duration =
-    UNCACHED_SAMPLE_LOAD_DEBOUNCE;
 
 pub(in crate::native_app) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
 

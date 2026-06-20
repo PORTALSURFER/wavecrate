@@ -27,6 +27,7 @@ pub(super) fn sample_browser_rows(
     visible_samples: &VisibleSampleList<'_>,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     if visible_samples.total_count == 0 {
         return empty_sample_browser_rows();
@@ -36,17 +37,20 @@ pub(super) fn sample_browser_rows(
         let Some(row_index) = index.checked_sub(visible_samples.window.window_start) else {
             return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
         };
-        let Some(Some(row)) = visible_samples.rows.get(row_index) else {
+        let Some(row) = visible_samples.rows.get(row_index) else {
             return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
         };
-        sample_browser_row(sample_row_display(
-            row,
-            &visible_samples.columns,
-            visible_samples.similarity_mode_active,
-            visible_samples.similarity_controls.aspect_enabled_flags(),
-            name_view_mode,
-            metadata_tags_by_file,
-        ))
+        sample_browser_row(
+            sample_row_display(
+                row,
+                &visible_samples.columns,
+                visible_samples.similarity_mode_active,
+                visible_samples.similarity_controls.aspect_enabled_flags(),
+                name_view_mode,
+                metadata_tags_by_file,
+            ),
+            help_tooltips_enabled,
+        )
     })
     .row_height(SAMPLE_BROWSER_ROW_HEIGHT)
     .window(visible_samples.window)
@@ -70,17 +74,22 @@ fn empty_sample_browser_rows() -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
+fn sample_browser_row(
+    row: SampleRowDisplay<'_>,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
     let file_id = row.file_id.to_string();
     let file_id_for_toggle = row.file_id.to_string();
     let hit_target = sample_file_hit_target(
         row.file_id,
         row.selected,
+        row.copy_flash,
         row.drag_revision,
         row.drag_active,
         row.drag_source,
         row.cached,
         file_id,
+        help_tooltips_enabled,
     );
     let row = ui::input_underlay(
         ui::row([
@@ -88,6 +97,7 @@ fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
                 file_id_for_toggle,
                 row.similarity_anchor,
                 row.similarity_strength,
+                help_tooltips_enabled,
             ),
             ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)).fill_width(),
         ])
@@ -105,22 +115,38 @@ fn sample_browser_row(row: SampleRowDisplay<'_>) -> ui::View<GuiMessage> {
 fn sample_file_hit_target(
     file_id: &str,
     selected: bool,
+    copy_flash: bool,
     drag_revision: u64,
     drag_active: bool,
     drag_source: bool,
     cached: bool,
     hit_path: String,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    ui::custom_widget_direct(SampleFileHitTarget::new(
+    let target = ui::custom_widget_direct(SampleFileHitTarget::new(
         hit_path,
         selected,
+        copy_flash,
         drag_active,
         drag_source,
         cached,
     ))
     .key(format!("sample-row-hit-{file_id}-{drag_revision}"))
     .fill_width()
-    .height(22.0)
+    .height(22.0);
+    sample_row_help_tooltip(
+        target,
+        help_tooltips_enabled,
+        "Sample row: select, double-click to load, drag to copy, right-click for actions.",
+    )
+}
+
+fn sample_row_help_tooltip(
+    view: ui::View<GuiMessage>,
+    enabled: bool,
+    tooltip: &'static str,
+) -> ui::View<GuiMessage> {
+    if enabled { view.tooltip(tooltip) } else { view }
 }
 
 fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
@@ -158,15 +184,21 @@ fn similarity_anchor_toggle(
     file_id: String,
     active: bool,
     strength: Option<f32>,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    ui::icon_button(similarity_anchor_icon(active, strength.is_some()))
+    let button = ui::icon_button(similarity_anchor_icon(active, strength.is_some()))
         .subtle()
         .active(active)
         .message(GuiMessage::FolderBrowser(
             FolderBrowserMessage::ToggleSimilarityAnchor(file_id.clone()),
         ))
         .key(format!("sample-similarity-anchor-{file_id}"))
-        .size(SIMILARITY_TOGGLE_WIDTH, SIMILARITY_TOGGLE_SIZE)
+        .size(SIMILARITY_TOGGLE_WIDTH, SIMILARITY_TOGGLE_SIZE);
+    sample_row_help_tooltip(
+        button,
+        help_tooltips_enabled,
+        "Similarity anchor: compare nearby samples against this one.",
+    )
 }
 
 fn sample_playback_type_cell(
@@ -331,10 +363,9 @@ fn sample_file_cell(
     width: f32,
     file_id: &str,
     column_id: &str,
-    cached: bool,
+    _cached: bool,
 ) -> ui::View<GuiMessage> {
     let text = ui::text(value);
-    let text = if cached { text } else { text.muted_text() };
     ui::compact_details_cell(
         text.key(format!("sample-{file_id}-{column_id}")),
         Some(width),

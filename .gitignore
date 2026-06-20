@@ -2,6 +2,20 @@
 /dist
 .sandbox/
 .worktrees/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.env
+!scripts/internal/perf/locks/startup_thresholds.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.mobileprovision
+*signing*.env
+*secret*.env
+*secrets*.env
 staging
 profile.kernel.etl
 bundle-staging
@@ -25,5 +39,3 @@ assets/ml/panns_cnn14_16k/*.pth
 /model.json
 /profile.json.gz
 /flamegraph.svg
-
-

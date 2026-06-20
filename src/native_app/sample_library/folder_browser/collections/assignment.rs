@@ -48,6 +48,30 @@ impl FolderBrowserState {
         updated
     }
 
+    pub(in crate::native_app) fn remove_moved_file_collection_states(
+        &mut self,
+        moved_paths: &[(PathBuf, PathBuf)],
+        collection: SampleCollection,
+    ) -> bool {
+        let mut updated = false;
+        for (_, new_path) in moved_paths {
+            let path_id = new_path.to_string_lossy();
+            for folder in &mut self.tree.folders {
+                updated |= folder.remove_file_collection(path_id.as_ref(), collection);
+            }
+            for source in &mut self.source.sources {
+                if let Some(root_folder) = &mut source.root_folder {
+                    updated |= root_folder.remove_file_collection(path_id.as_ref(), collection);
+                }
+            }
+        }
+        self.reconcile_active_collection_selection(collection);
+        if updated {
+            self.bump_file_content_revision();
+        }
+        updated
+    }
+
     pub(in crate::native_app) fn selected_file_collection_candidates(
         &self,
         collection: SampleCollection,

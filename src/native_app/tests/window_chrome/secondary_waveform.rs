@@ -28,7 +28,7 @@ fn full_app_scene_routes_secondary_waveform_edit_selection_drag() {
 }
 
 #[test]
-fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
+fn full_app_scene_secondary_waveform_click_clears_edit_mark() {
     let state = gui_state_for_span_tests();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
@@ -52,9 +52,9 @@ fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
         "edit mark release should request a repaint"
     );
 
-    assert_ratio_near(
+    assert_eq!(
         runtime.bridge().state().waveform.current.edit_mark_ratio(),
-        0.38,
+        None
     );
     assert_eq!(
         runtime.bridge().state().waveform.current.edit_selection(),
@@ -63,7 +63,7 @@ fn full_app_scene_routes_secondary_waveform_click_to_edit_mark() {
 }
 
 #[test]
-fn native_pointer_shell_routes_secondary_waveform_click_to_edit_mark() {
+fn native_pointer_shell_secondary_waveform_click_clears_edit_mark() {
     let state = gui_state_for_span_tests();
     let mut harness = NativePointerShellHarness::new(state);
     let rect = waveform_rect(harness.runtime());
@@ -82,7 +82,7 @@ fn native_pointer_shell_routes_secondary_waveform_click_to_edit_mark() {
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
-    assert_ratio_near(
+    assert_eq!(
         harness
             .runtime()
             .bridge()
@@ -90,7 +90,7 @@ fn native_pointer_shell_routes_secondary_waveform_click_to_edit_mark() {
             .waveform
             .current
             .edit_mark_ratio(),
-        0.38,
+        None
     );
     assert_eq!(
         harness

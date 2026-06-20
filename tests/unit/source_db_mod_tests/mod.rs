@@ -7,9 +7,13 @@ use tempfile::tempdir;
 mod metadata;
 mod opening;
 
+fn source_db_env_lock() -> &'static Mutex<()> {
+    static SOURCE_DB_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    SOURCE_DB_ENV_LOCK.get_or_init(|| Mutex::new(()))
+}
+
 fn with_home_env_override<T>(home: &Path, test: impl FnOnce() -> T) -> T {
-    static HOME_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    let _lock = match HOME_ENV_LOCK.get_or_init(|| Mutex::new(())).lock() {
+    let _lock = match source_db_env_lock().lock() {
         Ok(lock) => lock,
         Err(_) => panic!("HOME env override lock was poisoned"),
     };

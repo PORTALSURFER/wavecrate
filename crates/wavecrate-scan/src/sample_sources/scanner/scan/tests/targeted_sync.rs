@@ -75,3 +75,22 @@ fn targeted_sync_adds_new_file_inside_requested_folder() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("drums/kick.wav"));
 }
+
+#[test]
+fn targeted_sync_ignores_appledouble_sidecars() {
+    let dir = tempdir().unwrap();
+    let drums = dir.path().join("drums");
+    std::fs::create_dir_all(&drums).unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    std::fs::write(drums.join("kick.wav"), b"kick").unwrap();
+    std::fs::write(drums.join("._kick.wav"), b"sidecar").unwrap();
+    let stats = sync_paths(&db, &[PathBuf::from("drums")]).unwrap();
+
+    assert_eq!(stats.total_files, 1);
+    assert_eq!(stats.added, 1);
+    let rows = db.list_files().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].relative_path, Path::new("drums/kick.wav"));
+}

@@ -61,3 +61,21 @@ pub(crate) fn stale_running_job_seconds() -> i64 {
     }
     2 * 60
 }
+
+pub(crate) fn run_claimed_job(
+    conn: &mut rusqlite::Connection,
+    job: &db::ClaimedJob,
+    use_cache: bool,
+    max_analysis_duration_seconds: f32,
+    analysis_sample_rate: u32,
+    analysis_version: &str,
+) -> Result<(), String> {
+    pool::job_execution::run_job(
+        conn,
+        job,
+        use_cache,
+        max_analysis_duration_seconds,
+        analysis_sample_rate,
+        analysis_version,
+    )
+}

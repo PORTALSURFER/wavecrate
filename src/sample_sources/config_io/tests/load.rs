@@ -23,6 +23,10 @@ last_selected_source = "source::test"
 upper_folder_pane_source = "source::test"
 active_folder_pane = "upper"
 
+[library.collection_names]
+"0" = "Drums"
+"9" = "Ignored"
+
 [audio]
 volume = 0.25
 
@@ -67,6 +71,14 @@ deep-kick = "sound-type"
         Some("source::test")
     );
     assert_eq!(loaded.core.active_folder_pane.as_deref(), Some("upper"));
+    assert_eq!(
+        loaded.core.collection_names.get("0").map(String::as_str),
+        Some("Drums")
+    );
+    assert!(
+        !loaded.core.collection_names.contains_key("9"),
+        "invalid collection slots should be ignored"
+    );
     assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
     assert_eq!(loaded.core.audio_output.host.as_deref(), Some("wasapi"));
     assert_eq!(loaded.core.audio_output.device.as_deref(), Some("Studio"));

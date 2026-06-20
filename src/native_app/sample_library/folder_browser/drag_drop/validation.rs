@@ -22,11 +22,12 @@ impl FolderBrowserState {
                     && source.id != target.id
                     && !target_path.starts_with(source_path)
             }
-            Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| {
+            Some(FolderBrowserDrag::Files { file_ids, .. }) => file_ids.iter().any(|id| {
                 let path = Path::new(id);
                 self.source_contains_audio_file(id) && path.parent() != Some(target_path)
             }),
             Some(FolderBrowserDrag::ExtractedFile { path }) => path.parent() != Some(target_path),
+            Some(FolderBrowserDrag::WaveformExtraction { .. }) => true,
             None => false,
         }
     }

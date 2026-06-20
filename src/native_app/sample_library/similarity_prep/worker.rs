@@ -1,8 +1,14 @@
-use std::path::PathBuf;
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
+use wavecrate::sample_sources::config::{self, AnalysisSettings};
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::{META_LAST_SCAN_COMPLETED_AT, META_LAST_SIMILARITY_PREP_SCAN_AT},
+    scanner::{self, ScanMode},
 };
 use wavecrate_analysis::{
     self as analysis,
@@ -20,18 +26,39 @@ const NATIVE_SIMILARITY_UMAP_VERSION: &str = "v1";
 const NATIVE_SIMILARITY_CLUSTER_MIN_SIZE: usize = 10;
 const ANALYZE_SAMPLE_JOB_TYPE: &str = "wav_metadata_v1";
 const EMBEDDING_BACKFILL_JOB_TYPE: &str = "embedding_backfill_v1";
+const SIMILARITY_DRAIN_CLAIM_LIMIT: usize = 8;
+const SIMILARITY_BUSY_RETRY_ATTEMPTS: usize = 3;
+const SIMILARITY_BUSY_RETRY_DELAY: Duration = Duration::from_millis(250);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct SimilarityPrepJobDrainSummary {
+    pub(super) processed: usize,
+    pub(super) failed: usize,
+}
 
 pub(super) fn enqueue_similarity_prep_inner(
     source: &SampleSource,
     automatic: bool,
 ) -> Result<SimilarityPrepEnqueueSummary, String> {
+    retry_similarity_prep_busy(source, || enqueue_similarity_prep_once(source, automatic))
+}
+
+fn enqueue_similarity_prep_once(
+    source: &SampleSource,
+    automatic: bool,
+) -> Result<SimilarityPrepEnqueueSummary, String> {
+    ensure_source_database_scanned(source)?;
     let initial_status = resolve_similarity_prep_status(source)?;
     if initial_status == NativeSimilarityPrepStatus::UpToDate
-        || (automatic && matches!(initial_status, NativeSimilarityPrepStatus::Blocked { .. }))
+        || (automatic
+            && matches!(initial_status, NativeSimilarityPrepStatus::Blocked { .. })
+            && !source_has_active_similarity_prep_jobs(source)?)
     {
         return Ok(SimilarityPrepEnqueueSummary {
             analysis_inserted: 0,
             embedding_inserted: 0,
+            jobs_processed: 0,
+            jobs_failed: 0,
             finalized: false,
             status: initial_status,
         });
@@ -43,12 +70,62 @@ pub(super) fn enqueue_similarity_prep_inner(
     Ok(SimilarityPrepEnqueueSummary {
         analysis_inserted,
         embedding_inserted,
+        jobs_processed: 0,
+        jobs_failed: 0,
         finalized,
         status,
     })
 }
 
+fn retry_similarity_prep_busy<T>(
+    source: &SampleSource,
+    mut operation: impl FnMut() -> Result<T, String>,
+) -> Result<T, String> {
+    let started_at = Instant::now();
+    for attempt in 0..SIMILARITY_BUSY_RETRY_ATTEMPTS {
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if attempt + 1 < SIMILARITY_BUSY_RETRY_ATTEMPTS
+                    && is_transient_database_busy(&error) =>
+            {
+                tracing::debug!(
+                    source = %source.root.display(),
+                    attempt = attempt + 1,
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    error = %error,
+                    "similarity prep source database busy; retrying"
+                );
+                std::thread::sleep(SIMILARITY_BUSY_RETRY_DELAY);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("similarity prep retry loop must return from every attempt")
+}
+
+fn is_transient_database_busy(error: &str) -> bool {
+    let lowered = error.to_ascii_lowercase();
+    lowered.contains("database is busy")
+        || lowered.contains("database is locked")
+        || lowered.contains("sqlite_busy")
+}
+
+pub(super) fn finalize_similarity_prep_if_ready(source: &SampleSource) -> Result<bool, String> {
+    finalize_if_ready(source)
+}
+
 fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
+    if source_has_active_similarity_prep_jobs(source)? {
+        return Ok(false);
+    }
+    if current_similarity_sample_ids(source)?.is_empty() {
+        if let Some(scan_completed_at) = read_source_scan_timestamp(source)? {
+            set_source_prep_timestamp(source, scan_completed_at)?;
+            return Ok(true);
+        }
+        return Ok(false);
+    }
     if !source_has_embeddings(source)? || !source_has_aspect_descriptors(source)? {
         return Ok(false);
     }
@@ -95,6 +172,122 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
     Ok(true)
 }
 
+pub(super) fn drain_similarity_prep_jobs(
+    source: &SampleSource,
+) -> Result<SimilarityPrepJobDrainSummary, String> {
+    let mut conn = open_source_db(&source.root)?;
+    wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)?;
+    let settings = load_analysis_settings();
+    let runtime = SimilarityPrepJobRuntime::from_settings(&settings);
+    let mut summary = SimilarityPrepJobDrainSummary::default();
+    loop {
+        let jobs = wavecrate::internal_analysis_jobs::claim_next_jobs(
+            &mut conn,
+            &source.root,
+            SIMILARITY_DRAIN_CLAIM_LIMIT,
+        )?;
+        if jobs.is_empty() {
+            break;
+        }
+        for job in jobs {
+            let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
+                &mut conn,
+                &job,
+                true,
+                runtime.max_analysis_duration_seconds,
+                runtime.analysis_sample_rate,
+                runtime.analysis_version.as_str(),
+            );
+            if let Err(error) = outcome.as_ref() {
+                summary.failed += 1;
+                wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, error)?;
+            } else {
+                wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
+            }
+            summary.processed += 1;
+        }
+    }
+    Ok(summary)
+}
+
+pub(super) fn source_has_active_similarity_prep_jobs(
+    source: &SampleSource,
+) -> Result<bool, String> {
+    let conn = open_source_db(&source.root)?;
+    let active: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM analysis_jobs
+             WHERE source_id = ?1
+               AND job_type IN (?2, ?3)
+               AND status IN ('pending','running')",
+            rusqlite::params![
+                source.id.as_str(),
+                ANALYZE_SAMPLE_JOB_TYPE,
+                EMBEDDING_BACKFILL_JOB_TYPE,
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("Count active similarity prep jobs failed: {err}"))?;
+    Ok(active > 0)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct SimilarityPrepJobRuntime {
+    max_analysis_duration_seconds: f32,
+    analysis_sample_rate: u32,
+    analysis_version: String,
+}
+
+impl SimilarityPrepJobRuntime {
+    fn from_settings(settings: &AnalysisSettings) -> Self {
+        let max_analysis_duration_seconds = if settings.limit_similarity_prep_duration {
+            settings.max_analysis_duration_seconds
+        } else {
+            0.0
+        };
+        let analysis_sample_rate = if settings.fast_similarity_prep {
+            settings
+                .fast_similarity_prep_sample_rate
+                .clamp(1, wavecrate_analysis::ANALYSIS_SAMPLE_RATE)
+        } else {
+            wavecrate_analysis::ANALYSIS_SAMPLE_RATE
+        };
+        let analysis_version = if settings.fast_similarity_prep {
+            wavecrate_analysis::analysis_version_for_sample_rate(analysis_sample_rate)
+        } else {
+            wavecrate_analysis::analysis_version().to_string()
+        };
+        Self {
+            max_analysis_duration_seconds,
+            analysis_sample_rate,
+            analysis_version,
+        }
+    }
+}
+
+fn load_analysis_settings() -> AnalysisSettings {
+    config::load_or_default()
+        .map(|config| config.core.analysis)
+        .unwrap_or_default()
+}
+
+fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
+    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let has_scan_timestamp = db
+        .get_metadata(META_LAST_SCAN_COMPLETED_AT)
+        .map_err(|err| err.to_string())?
+        .is_some();
+    if has_scan_timestamp {
+        return Ok(());
+    }
+    let stats = scanner::scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {})
+        .map_err(|err| format!("Sync source index failed: {err}"))?;
+    if stats.hashes_pending > 0 {
+        scanner::schedule_deep_hash_scan(source.root.clone());
+    }
+    Ok(())
+}
+
 pub(super) fn resolve_similarity_prep_status(
     source: &SampleSource,
 ) -> Result<NativeSimilarityPrepStatus, String> {
@@ -104,6 +297,7 @@ pub(super) fn resolve_similarity_prep_status(
         has_embeddings: source_has_embeddings(source)?,
         has_aspects: source_has_aspect_descriptors(source)?,
         has_layout: source_has_layout(source)?,
+        has_active_jobs: source_has_active_similarity_prep_jobs(source)?,
         failures: similarity_failure_counts(source)?,
     };
     Ok(resolve_similarity_prep_facts(facts))
@@ -116,6 +310,7 @@ struct SimilarityPrepFacts {
     has_embeddings: bool,
     has_aspects: bool,
     has_layout: bool,
+    has_active_jobs: bool,
     failures: Option<SimilarityPrepFailureCounts>,
 }
 
@@ -131,6 +326,7 @@ fn resolve_similarity_prep_facts(facts: SimilarityPrepFacts) -> NativeSimilarity
         && facts.has_embeddings
         && facts.has_aspects
         && facts.has_layout
+        && !facts.has_active_jobs
     {
         return NativeSimilarityPrepStatus::UpToDate;
     }
@@ -142,7 +338,9 @@ fn resolve_similarity_prep_facts(facts: SimilarityPrepFacts) -> NativeSimilarity
             unsupported_count: failures.unsupported_count,
         };
     }
-    if facts.scan_completed_at.is_some() && facts.scan_completed_at != facts.prep_completed_at {
+    if facts.has_active_jobs
+        || (facts.scan_completed_at.is_some() && facts.scan_completed_at != facts.prep_completed_at)
+    {
         return NativeSimilarityPrepStatus::Outdated;
     }
     NativeSimilarityPrepStatus::MissingArtifacts {
@@ -194,7 +392,7 @@ fn set_source_prep_timestamp(source: &SampleSource, value: i64) -> Result<(), St
 }
 
 fn source_has_embeddings(source: &SampleSource) -> Result<bool, String> {
-    let sample_ids = current_present_sample_ids(source)?;
+    let sample_ids = current_similarity_sample_ids(source)?;
     if sample_ids.is_empty() {
         return Ok(true);
     }
@@ -209,7 +407,7 @@ fn source_has_embeddings(source: &SampleSource) -> Result<bool, String> {
 }
 
 fn source_has_layout(source: &SampleSource) -> Result<bool, String> {
-    let sample_ids = current_present_sample_ids(source)?;
+    let sample_ids = current_similarity_sample_ids(source)?;
     if sample_ids.is_empty() {
         return Ok(true);
     }
@@ -229,7 +427,7 @@ fn source_has_layout(source: &SampleSource) -> Result<bool, String> {
 }
 
 fn source_has_aspect_descriptors(source: &SampleSource) -> Result<bool, String> {
-    let sample_ids = current_present_sample_ids(source)?;
+    let sample_ids = current_similarity_sample_ids(source)?;
     if sample_ids.is_empty() {
         return Ok(true);
     }
@@ -263,6 +461,13 @@ fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, Stri
         .collect())
 }
 
+fn current_similarity_sample_ids(source: &SampleSource) -> Result<Vec<String>, String> {
+    let unsupported = unsupported_sample_ids_for_source(source)?;
+    let mut sample_ids = current_present_sample_ids(source)?;
+    sample_ids.retain(|sample_id| !unsupported.contains(sample_id));
+    Ok(sample_ids)
+}
+
 fn sample_ids_covered<P>(
     conn: &rusqlite::Connection,
     sql: &str,
@@ -272,14 +477,7 @@ fn sample_ids_covered<P>(
 where
     P: rusqlite::Params,
 {
-    let mut stmt = conn
-        .prepare(sql)
-        .map_err(|err| format!("Prepare similarity coverage query failed: {err}"))?;
-    let covered = stmt
-        .query_map(params, |row| row.get::<_, String>(0))
-        .map_err(|err| format!("Query similarity coverage failed: {err}"))?
-        .collect::<Result<std::collections::HashSet<_>, _>>()
-        .map_err(|err| format!("Decode similarity coverage failed: {err}"))?;
+    let covered = sample_id_set(conn, sql, params)?;
     Ok(sample_ids
         .iter()
         .all(|sample_id| covered.contains(sample_id)))
@@ -374,37 +572,83 @@ fn sample_ids_missing_similarity_artifacts(
     conn: &rusqlite::Connection,
     source: &SampleSource,
 ) -> Result<Vec<String>, String> {
+    let sample_ids = current_similarity_sample_ids(source)?;
+    if sample_ids.is_empty() {
+        return Ok(Vec::new());
+    }
     let sample_id_prefix = format!("{}::%", source.id.as_str());
-    let mut stmt = conn
-        .prepare(
-            "SELECT s.sample_id
-             FROM samples s
-             LEFT JOIN embeddings e
-               ON e.sample_id = s.sample_id AND e.model_id = ?1
-             LEFT JOIN similarity_aspect_descriptors a
-               ON a.sample_id = s.sample_id
-              AND a.model_id = ?3
-              AND a.dim = ?4
-              AND a.dtype = ?5
-              AND a.l2_normed = 1
-             WHERE s.sample_id LIKE ?2
-               AND (e.sample_id IS NULL OR a.sample_id IS NULL)
-             ORDER BY s.sample_id",
-        )
-        .map_err(|err| format!("Prepare embedding backfill query failed: {err}"))?;
-    stmt.query_map(
+    let embeddings = sample_id_set(
+        conn,
+        "SELECT sample_id FROM embeddings WHERE model_id = ?1 AND sample_id LIKE ?2",
+        rusqlite::params![SIMILARITY_MODEL_ID, sample_id_prefix.as_str()],
+    )?;
+    let aspects = sample_id_set(
+        conn,
+        "SELECT sample_id FROM similarity_aspect_descriptors
+         WHERE model_id = ?1
+           AND dim = ?2
+           AND dtype = ?3
+           AND l2_normed = 1
+           AND sample_id LIKE ?4",
         rusqlite::params![
-            SIMILARITY_MODEL_ID,
-            sample_id_prefix,
             ASPECT_DESCRIPTOR_MODEL_ID,
             ASPECT_DESCRIPTOR_DIM as i64,
             ASPECT_DESCRIPTOR_DTYPE_F32,
+            sample_id_prefix.as_str(),
         ],
+    )?;
+    Ok(sample_ids
+        .into_iter()
+        .filter(|sample_id| !embeddings.contains(sample_id) || !aspects.contains(sample_id))
+        .collect())
+}
+
+fn sample_id_set<P>(
+    conn: &rusqlite::Connection,
+    sql: &str,
+    params: P,
+) -> Result<HashSet<String>, String>
+where
+    P: rusqlite::Params,
+{
+    let mut stmt = conn
+        .prepare(sql)
+        .map_err(|err| format!("Prepare similarity sample id query failed: {err}"))?;
+    stmt.query_map(params, |row| row.get::<_, String>(0))
+        .map_err(|err| format!("Query similarity sample ids failed: {err}"))?
+        .collect::<Result<HashSet<_>, _>>()
+        .map_err(|err| format!("Decode similarity sample ids failed: {err}"))
+}
+
+fn unsupported_sample_ids_for_source(source: &SampleSource) -> Result<HashSet<String>, String> {
+    let conn = open_source_db(&source.root)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT aj.sample_id
+             FROM analysis_jobs aj
+             JOIN wav_files wf
+               ON wf.path = aj.relative_path
+              AND wf.missing = 0
+             WHERE aj.source_id = ?1
+               AND aj.job_type = ?2
+               AND aj.status = 'failed'
+               AND aj.content_hash = COALESCE(
+                   wf.content_hash,
+                   'fast-' || wf.file_size || '-' || wf.modified_ns
+               )
+               AND (
+                   lower(COALESCE(aj.last_error, '')) LIKE '%unsupported%'
+                   OR lower(COALESCE(aj.last_error, '')) LIKE '%no suitable format reader%'
+               )",
+        )
+        .map_err(|err| format!("Prepare unsupported similarity skip query failed: {err}"))?;
+    stmt.query_map(
+        rusqlite::params![source.id.as_str(), ANALYZE_SAMPLE_JOB_TYPE],
         |row| row.get::<_, String>(0),
     )
-    .map_err(|err| format!("Query embedding backfill rows failed: {err}"))?
-    .collect::<Result<Vec<_>, _>>()
-    .map_err(|err| format!("Decode embedding backfill rows failed: {err}"))
+    .map_err(|err| format!("Query unsupported similarity skips failed: {err}"))?
+    .collect::<Result<HashSet<_>, _>>()
+    .map_err(|err| format!("Decode unsupported similarity skips failed: {err}"))
 }
 
 fn failed_samples_for_source(
@@ -415,19 +659,29 @@ fn failed_samples_for_source(
         .prepare(
             "SELECT aj.relative_path, aj.last_error
              FROM analysis_jobs aj
+             JOIN wav_files wf
+               ON wf.path = aj.relative_path
+              AND wf.missing = 0
              LEFT JOIN samples s ON s.sample_id = aj.sample_id
              LEFT JOIN features f
-                ON f.sample_id = aj.sample_id AND f.feat_version = ?2
+               ON f.sample_id = aj.sample_id AND f.feat_version = ?2
              LEFT JOIN embeddings e
-                ON e.sample_id = aj.sample_id AND e.model_id = ?3
+               ON e.sample_id = aj.sample_id AND e.model_id = ?3
              LEFT JOIN similarity_aspect_descriptors a
-                ON a.sample_id = aj.sample_id
-               AND a.model_id = ?5
-               AND a.dim = ?6
-               AND a.dtype = ?7
-               AND a.l2_normed = 1
+               ON a.sample_id = aj.sample_id
+              AND a.model_id = ?5
+              AND a.dim = ?6
+              AND a.dtype = ?7
+              AND a.l2_normed = 1
              WHERE aj.status = 'failed'
                AND aj.source_id = ?1
+               AND aj.job_type = ?8
+               AND aj.content_hash = COALESCE(
+                   wf.content_hash,
+                   'fast-' || wf.file_size || '-' || wf.modified_ns
+               )
+               AND lower(COALESCE(aj.last_error, '')) NOT LIKE '%unsupported%'
+               AND lower(COALESCE(aj.last_error, '')) NOT LIKE '%no suitable format reader%'
                AND (
                   f.sample_id IS NULL
                   OR s.analysis_version IS NULL
@@ -435,7 +689,15 @@ fn failed_samples_for_source(
                   OR e.sample_id IS NULL
                   OR a.sample_id IS NULL
                )
-             ORDER BY aj.relative_path ASC",
+             UNION ALL
+             SELECT aj.relative_path, aj.last_error
+             FROM analysis_jobs aj
+             WHERE aj.status = 'failed'
+               AND aj.source_id = ?1
+               AND aj.job_type = ?9
+               AND lower(COALESCE(aj.last_error, '')) NOT LIKE '%unsupported%'
+               AND lower(COALESCE(aj.last_error, '')) NOT LIKE '%no suitable format reader%'
+             ORDER BY 1 ASC",
         )
         .map_err(|err| format!("Failed to query failed analysis jobs: {err}"))?;
     let rows = stmt
@@ -448,6 +710,8 @@ fn failed_samples_for_source(
                 ASPECT_DESCRIPTOR_MODEL_ID,
                 ASPECT_DESCRIPTOR_DIM as i64,
                 ASPECT_DESCRIPTOR_DTYPE_F32,
+                ANALYZE_SAMPLE_JOB_TYPE,
+                EMBEDDING_BACKFILL_JOB_TYPE,
             ],
             |row| {
                 let relative_path: String = row.get(0)?;

@@ -32,7 +32,7 @@ fn full_app_scene_routes_primary_waveform_selection_drag() {
 }
 
 #[test]
-fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
+fn full_app_scene_primary_waveform_click_starts_playback_with_play_mark() {
     let state = gui_state_for_span_tests();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);
@@ -56,9 +56,9 @@ fn full_app_scene_routes_primary_waveform_click_to_play_mark() {
         "click-to-play should request a repaint immediately after release"
     );
 
-    assert_ratio_near(
+    assert_eq!(
         runtime.bridge().state().waveform.current.play_mark_ratio(),
-        0.42,
+        Some(0.42)
     );
     assert_eq!(
         runtime.bridge().state().waveform.current.play_selection(),
@@ -117,7 +117,7 @@ fn full_app_scene_primary_waveform_click_starts_audio_playback() {
     );
 
     let state = runtime.bridge().state();
-    assert_ratio_near(state.waveform.current.play_mark_ratio(), 0.42);
+    assert_eq!(state.waveform.current.play_mark_ratio(), Some(0.42));
     assert!(state.waveform.current.is_playing());
     let (start, end) = state
         .audio
@@ -136,7 +136,7 @@ fn full_app_scene_primary_waveform_click_starts_audio_playback() {
 }
 
 #[test]
-fn native_pointer_shell_routes_primary_waveform_click_to_play_mark() {
+fn native_pointer_shell_primary_waveform_click_starts_playback_with_play_mark() {
     let state = gui_state_for_span_tests();
     let mut harness = NativePointerShellHarness::new(state);
     let rect = waveform_rect(harness.runtime());
@@ -155,7 +155,7 @@ fn native_pointer_shell_routes_primary_waveform_click_to_play_mark() {
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
-    assert_ratio_near(
+    assert_eq!(
         harness
             .runtime()
             .bridge()
@@ -163,7 +163,7 @@ fn native_pointer_shell_routes_primary_waveform_click_to_play_mark() {
             .waveform
             .current
             .play_mark_ratio(),
-        0.42,
+        Some(0.42)
     );
     assert_eq!(
         harness

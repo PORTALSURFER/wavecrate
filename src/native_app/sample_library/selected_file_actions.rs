@@ -1,7 +1,7 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app::{emit_gui_action, sample_path_label};
 use crate::native_app::sample_library::sample_list::{
-    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
 use crate::native_app::waveform::{WaveformExtractionCompletion, execute_waveform_extraction};
 use radiant::gui::types::Point;
@@ -36,8 +36,8 @@ impl NativeAppState {
                     SAMPLE_BROWSER_LIST_ID,
                     index as f32 * SAMPLE_BROWSER_ROW_HEIGHT,
                     SAMPLE_BROWSER_ROW_HEIGHT,
-                    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32 * SAMPLE_BROWSER_ROW_HEIGHT,
-                    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS as f32 * SAMPLE_BROWSER_ROW_HEIGHT,
+                    SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS as f32 * SAMPLE_BROWSER_ROW_HEIGHT,
+                    SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS as f32 * SAMPLE_BROWSER_ROW_HEIGHT,
                     SAMPLE_BROWSER_ROW_HEIGHT,
                 );
             }

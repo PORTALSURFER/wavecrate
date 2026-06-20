@@ -4,13 +4,15 @@ use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{path::PathBuf, time::Instant};
 use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
+use wavecrate::selection::SelectionRange;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
 use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
-    AudioOpenTaskCompletion, NormalizationProgress, NormalizationResult, SampleLoadResult,
-    SamplePlaybackReady, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
+    AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
+    SampleLoadResult, SamplePlaybackReady, WaveformCacheIndicatorRefreshResult,
+    WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -65,6 +67,7 @@ pub(in crate::native_app) enum GuiMessage {
         paths: Vec<PathBuf>,
         overflowed: bool,
     },
+    SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),
     SelectSampleWithModifiers {
@@ -108,7 +111,9 @@ pub(in crate::native_app) enum GuiMessage {
     ),
     AudioPlayerOpenFinished(AudioOpenTaskCompletion),
     PlaySelectedSample,
+    PlayFromCurrentPlayStart,
     PlayRandomSampleRange,
+    ToggleStickyRandomSampleRangePlayback,
     LastPlayedPersistReady {
         ticket: ui::TaskTicket,
         request: LastPlayedPersistRequest,
@@ -117,7 +122,6 @@ pub(in crate::native_app) enum GuiMessage {
     VolumeSettingsPersisted(VolumeSettingsPersistResult),
     StopPlayback,
     ToggleLoopPlayback,
-    PrepareSimilarityForSelectedSource,
     SetSimilarityAspectWeightingEnabled(bool),
     SetSimilarityAspectEnabled {
         aspect: SimilarityAspect,
@@ -144,6 +148,13 @@ pub(in crate::native_app) enum GuiMessage {
         started_at: Instant,
         result: Result<(), String>,
     },
+    WaveformSelectionCopyFinished {
+        source_path: PathBuf,
+        selection: SelectionRange,
+        started_at: Instant,
+        result: Result<PathBuf, String>,
+    },
+    FileMoveProgress(FileMoveProgress),
     SetFileMoveConflictApplyToRemaining(bool),
     ResolveFileMoveConflict(FileMoveConflictResolutionRequest),
     FolderMoveFinished {
@@ -158,6 +169,7 @@ pub(in crate::native_app) enum GuiMessage {
     CopyContextPath,
     OpenContextTarget,
     CreateFolderAtContextTarget,
+    RenameContextFolder,
     ContextFolderCreateFinished {
         parent_id: String,
         started_at: Instant,
@@ -179,6 +191,10 @@ pub(in crate::native_app) enum GuiMessage {
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
+    ToggleShortcutHelp,
+    CloseShortcutHelp,
+    ToggleBeatGuides,
+    AdjustBeatGuideCount(i8),
     UndoTransaction,
     RedoTransaction,
     ToggleTransactionList,
@@ -186,6 +202,11 @@ pub(in crate::native_app) enum GuiMessage {
     FocusRenameInput(u64),
     FolderBrowserRenameFinished(RenameCommitCompletion),
     DeleteSelectedItem,
+    RequestCropWaveformSelection,
+    RequestTrimWaveformSelection,
+    RequestExtractAndTrimWaveformSelection,
+    ConfirmPendingWaveformDestructiveEdit,
+    CancelPendingWaveformDestructiveEdit,
     ExtractPlaymarkedRange,
     PlaySelectionExtractionFinished {
         completion: WaveformExtractionCompletion,
@@ -209,6 +230,13 @@ pub(in crate::native_app) enum GuiMessage {
     Waveform(WaveformInteraction),
     WaveformFileDrop(NativeFileDrop),
     Frame,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SourceFilesystemSyncResult {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) changed_count: usize,
+    pub(in crate::native_app) result: Result<(), String>,
 }
 
 #[derive(Clone, Debug)]
@@ -271,6 +299,7 @@ pub(in crate::native_app) enum MetadataMessage {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum SettingsMessage {
     SetVolume(f32),
+    ToggleHelpTooltips,
     ToggleAudioSettings,
     OpenGeneralSettings,
     SelectSettingsTab(AppSettingsTab),

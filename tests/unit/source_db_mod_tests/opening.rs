@@ -11,3 +11,7 @@ fn schema_version(connection: &Connection) -> i64 {
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap()
 }
+
+fn current_schema_version() -> i64 {
+    super::schema::SOURCE_DB_SCHEMA_VERSION
+}

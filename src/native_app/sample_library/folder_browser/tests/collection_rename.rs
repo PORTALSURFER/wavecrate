@@ -46,3 +46,30 @@ fn cancel_rename_exits_collection_rename() {
     assert!(!browser.rename_active());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn collection_rename_exports_and_applies_custom_name_settings() {
+    let root = temp_source_root("wavecrate-gui-collection-rename-settings");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let collection = SampleCollection::new(0).expect("collection");
+
+    browser.apply_message(FolderBrowserMessage::RenameCollection(collection));
+    let result = submit_rename(&mut browser, "Drums");
+    assert_eq!(result.status, "Collection renamed");
+
+    let saved_names = browser.custom_collection_names();
+    assert_eq!(saved_names.get("0").map(String::as_str), Some("Drums"));
+
+    let mut reloaded = FolderBrowserState::from_root(root.clone());
+    reloaded.apply_collection_names(&saved_names);
+
+    assert_eq!(
+        reloaded
+            .visible_collections()
+            .into_iter()
+            .find(|entry| entry.collection == collection)
+            .map(|entry| entry.name),
+        Some(String::from("Drums"))
+    );
+    let _ = fs::remove_dir_all(root);
+}

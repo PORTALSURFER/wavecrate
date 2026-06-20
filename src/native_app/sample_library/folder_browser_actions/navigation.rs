@@ -5,11 +5,13 @@ use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
-    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
-    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, TREE_ROW_HEIGHT,
+    COLLECTION_ROW_HEIGHT, COLLECTIONS_LIST_SCROLL_NODE_ID, FOLDER_TREE_EDGE_CONTEXT_ROWS,
+    FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+    FOLDER_TREE_SELECTION_CONTEXT_ROWS, TREE_ROW_HEIGHT,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
+    SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
 
 impl NativeAppState {
@@ -174,8 +176,8 @@ impl NativeAppState {
                 SAMPLE_BROWSER_LIST_ID,
                 index,
                 SAMPLE_BROWSER_ROW_HEIGHT,
-                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
                 1,
             );
         }
@@ -209,6 +211,44 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let direction = if delta < 0 { "previous" } else { "next" };
+        if self
+            .library
+            .folder_browser
+            .collection_keyboard_focus_active()
+        {
+            if let Some(index) = self
+                .library
+                .folder_browser
+                .navigate_selected_collection(delta)
+            {
+                context.scroll_fixed_row_into_view(
+                    COLLECTIONS_LIST_SCROLL_NODE_ID,
+                    index,
+                    COLLECTION_ROW_HEIGHT,
+                    1,
+                    1,
+                    delta,
+                );
+                emit_gui_action(
+                    "folder_browser.navigate",
+                    Some("collections"),
+                    Some(direction),
+                    "selected_collection",
+                    started_at,
+                    None,
+                );
+            } else {
+                emit_gui_action(
+                    "folder_browser.navigate",
+                    Some("collections"),
+                    Some(direction),
+                    "edge",
+                    started_at,
+                    None,
+                );
+            }
+            return;
+        }
         let previous_selection = self
             .library
             .folder_browser
@@ -241,8 +281,8 @@ impl NativeAppState {
                         FOLDER_TREE_LIST_ID,
                         index,
                         TREE_ROW_HEIGHT,
-                        FOLDER_TREE_EDGE_CONTEXT_ROWS,
-                        FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                        FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+                        FOLDER_TREE_SELECTION_CONTEXT_ROWS,
                         delta,
                     );
                 }
@@ -276,8 +316,8 @@ impl NativeAppState {
                 SAMPLE_BROWSER_LIST_ID,
                 index,
                 SAMPLE_BROWSER_ROW_HEIGHT,
-                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
                 delta,
             );
         }
@@ -293,7 +333,7 @@ impl NativeAppState {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
-        self.defer_navigation_sample_load(path, context);
+        self.load_navigation_sample(path, context);
     }
 
     fn toggle_focused_folder_selection(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
@@ -319,8 +359,8 @@ impl NativeAppState {
                 FOLDER_TREE_LIST_ID,
                 index,
                 TREE_ROW_HEIGHT,
-                FOLDER_TREE_EDGE_CONTEXT_ROWS,
-                FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+                FOLDER_TREE_SELECTION_CONTEXT_ROWS,
                 1,
             );
         }

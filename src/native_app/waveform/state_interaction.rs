@@ -2,8 +2,9 @@ use super::{
     MIN_VISIBLE_FRAMES, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionKind,
     WaveformState,
     interaction::{
-        WaveformDrag, WaveformEditFadeDrag, WaveformPanDrag, WaveformSelectionDrag,
-        WaveformSelectionMoveDrag, WaveformSelectionResizeDrag,
+        WaveformDrag, WaveformEditFadeDrag, WaveformEditFadeOuterGainDrag, WaveformEditGainDrag,
+        WaveformPanDrag, WaveformSelectionDrag, WaveformSelectionMoveDrag,
+        WaveformSelectionResizeDrag,
     },
 };
 
@@ -34,12 +35,12 @@ impl WaveformState {
                 )));
                 match kind {
                     WaveformSelectionKind::Play => {
-                        self.play_mark_ratio = Some(ratio);
+                        self.play_mark_ratio = None;
                         self.play_selection = None;
                         self.play_selection_flash_frames = 0;
                     }
                     WaveformSelectionKind::Edit => {
-                        self.edit_mark_ratio = Some(ratio);
+                        self.edit_mark_ratio = None;
                         self.edit_selection = None;
                     }
                 }
@@ -56,6 +57,38 @@ impl WaveformState {
                     handle, selection,
                 )));
                 self.update_active_edit_fade(ratio);
+            }
+            WaveformInteraction::BeginEditFadeOuterGain {
+                handle,
+                vertical_ratio,
+            } => {
+                let Some(selection) = self.edit_selection else {
+                    return;
+                };
+                self.active_drag = Some(WaveformDrag::EditFadeOuterGain(
+                    WaveformEditFadeOuterGainDrag::new(handle),
+                ));
+                self.update_active_edit_fade_outer_gain(selection, vertical_ratio);
+            }
+            WaveformInteraction::UpdateEditFadeOuterGain { vertical_ratio } => {
+                self.update_active_edit_fade_outer_gain_from_current(vertical_ratio);
+            }
+            WaveformInteraction::FinishEditFadeOuterGain { vertical_ratio } => {
+                self.finish_active_edit_fade_outer_gain(vertical_ratio);
+            }
+            WaveformInteraction::BeginEditGain { pointer_y } => {
+                let Some(selection) = self.edit_selection else {
+                    return;
+                };
+                self.active_drag = Some(WaveformDrag::EditGain(WaveformEditGainDrag::new(
+                    pointer_y, selection,
+                )));
+            }
+            WaveformInteraction::UpdateEditGain { pointer_y } => {
+                self.update_active_edit_gain(pointer_y);
+            }
+            WaveformInteraction::FinishEditGain { pointer_y } => {
+                self.finish_active_edit_gain(pointer_y);
             }
             WaveformInteraction::ClearEditFadeSilence { handle } => {
                 self.clear_edit_fade_silence(handle);
@@ -127,6 +160,8 @@ impl WaveformState {
             WaveformDrag::EditFade(_) => {
                 self.update_active_edit_fade(ratio);
             }
+            WaveformDrag::EditFadeOuterGain(_) => {}
+            WaveformDrag::EditGain(_) => {}
             WaveformDrag::SelectionResize(_) => {
                 self.update_active_selection_resize(ratio);
             }
@@ -164,13 +199,19 @@ impl WaveformState {
                     }
                     WaveformSelectionKind::Edit => {
                         self.edit_selection = None;
-                        self.edit_mark_ratio = Some(ratio);
+                        self.edit_mark_ratio = None;
                     }
                 }
             }
             WaveformDrag::EditFade(_) => {
                 self.active_drag = Some(drag);
                 self.update_active_edit_fade(ratio);
+                self.active_drag = None;
+            }
+            WaveformDrag::EditFadeOuterGain(_) => {
+                self.active_drag = None;
+            }
+            WaveformDrag::EditGain(_) => {
                 self.active_drag = None;
             }
             WaveformDrag::SelectionResize(drag) => {
@@ -214,6 +255,49 @@ impl WaveformState {
             return;
         };
         self.edit_selection = Some(drag.apply(selection, ratio));
+    }
+
+    fn update_active_edit_fade_outer_gain(
+        &mut self,
+        selection: wavecrate::selection::SelectionRange,
+        vertical_ratio: f32,
+    ) {
+        let Some(WaveformDrag::EditFadeOuterGain(drag)) = self.active_drag else {
+            return;
+        };
+        self.edit_selection = Some(drag.apply(selection, vertical_ratio));
+    }
+
+    fn update_active_edit_fade_outer_gain_from_current(&mut self, vertical_ratio: f32) {
+        let Some(selection) = self.edit_selection else {
+            return;
+        };
+        self.update_active_edit_fade_outer_gain(selection, vertical_ratio);
+    }
+
+    fn finish_active_edit_fade_outer_gain(&mut self, vertical_ratio: f32) {
+        let Some(drag @ WaveformDrag::EditFadeOuterGain(_)) = self.active_drag else {
+            return;
+        };
+        self.active_drag = Some(drag);
+        self.update_active_edit_fade_outer_gain_from_current(vertical_ratio);
+        self.active_drag = None;
+    }
+
+    fn update_active_edit_gain(&mut self, pointer_y: f32) {
+        let Some(WaveformDrag::EditGain(drag)) = self.active_drag else {
+            return;
+        };
+        self.edit_selection = Some(drag.apply(pointer_y));
+    }
+
+    fn finish_active_edit_gain(&mut self, pointer_y: f32) {
+        let Some(drag @ WaveformDrag::EditGain(_)) = self.active_drag else {
+            return;
+        };
+        self.active_drag = Some(drag);
+        self.update_active_edit_gain(pointer_y);
+        self.active_drag = None;
     }
 
     fn clear_edit_fade_silence(&mut self, handle: WaveformEditFadeHandle) {

@@ -52,11 +52,13 @@ impl NativeAppState {
                 label,
                 file_count,
                 folder_count,
+                source_db_error,
             } => self.apply_finished_folder_scan(
                 source_id,
                 label,
                 file_count,
                 folder_count,
+                source_db_error,
                 started_at,
                 context,
             ),
@@ -79,13 +81,33 @@ impl NativeAppState {
         label: String,
         file_count: usize,
         folder_count: usize,
+        source_db_error: Option<String>,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.chrome.job_details_open = false;
         self.background.progress_tick = 0.0;
-        self.ui.status.sample =
-            format!("Loaded source {label}: {file_count} files in {folder_count} folders");
+        if let Some(error) = source_db_error {
+            self.ui.status.sample = format!(
+                "Loaded source {label}: {file_count} files in {folder_count} folders, but indexing failed: {error}"
+            );
+            emit_gui_action(
+                "folder_browser.scan.source_db_sync",
+                Some("folder_browser"),
+                Some(&label),
+                "error",
+                started_at,
+                Some(&error),
+            );
+        } else {
+            self.ui.status.sample =
+                format!("Loaded source {label}: {file_count} files in {folder_count} folders");
+            self.queue_source_prep(
+                source_id.clone(),
+                SourcePrepTrigger::SourceScanFinished,
+                context,
+            );
+        }
         tracing::info!(
             source = label,
             file_count,
@@ -99,11 +121,6 @@ impl NativeAppState {
             "success",
             started_at,
             None,
-        );
-        self.queue_source_prep(
-            source_id.clone(),
-            SourcePrepTrigger::SourceScanFinished,
-            context,
         );
         self.persist_user_configuration("folder_browser.sources.persist", started_at);
         self.sync_source_watcher();

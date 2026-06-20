@@ -74,6 +74,34 @@ impl NativeAppState {
                 remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
             })
             .collect();
+        self.waveform.cache.active_folder_warm_pending = self
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .iter()
+            .map(|path| {
+                remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
+            })
+            .collect();
+        self.waveform.cache.active_folder_warm_current = self
+            .waveform
+            .cache
+            .active_folder_warm_current
+            .as_ref()
+            .map(|path| {
+                remapped_cache_path(path, old_path, new_path).unwrap_or_else(|| path.clone())
+            });
+        self.waveform.cache.active_folder_warm_folder_id = self
+            .waveform
+            .cache
+            .active_folder_warm_folder_id
+            .as_ref()
+            .map(|id| {
+                let path = PathBuf::from(id);
+                remapped_cache_path(&path, old_path, new_path)
+                    .map(|mapped| mapped.display().to_string())
+                    .unwrap_or_else(|| id.clone())
+            });
         self.waveform.cache.cached_sample_paths = self
             .waveform
             .cache

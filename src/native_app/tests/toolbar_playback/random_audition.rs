@@ -109,17 +109,66 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
         "random toolbar click should preserve random-audition intent while the browser sample loads"
     );
     assert!(
-        runtime
-            .bridge()
-            .state()
-            .background
-            .deferred_sample_load_task
-            .active()
-            .is_some(),
-        "unselected browser sample should queue the normal debounced load"
+        runtime.bridge().state().waveform_sample_load_active(),
+        "unselected browser sample should queue a sample load"
     );
 
     let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn command_clicking_random_toolbar_button_toggles_sticky_random_playback() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
+        .expect("random toolbar icon should paint");
+    let point = icon_rect.center();
+    let command = PointerModifiers {
+        command: true,
+        ..Default::default()
+    };
+
+    runtime.dispatch_event(Event::pointer_press(point, PointerButton::Primary, command));
+    runtime.dispatch_event(Event::pointer_release(
+        point,
+        PointerButton::Primary,
+        command,
+    ));
+
+    assert!(
+        runtime
+            .bridge()
+            .state()
+            .ui
+            .chrome
+            .sticky_random_sample_range_playback
+    );
+    assert_eq!(
+        runtime.bridge().state().ui.status.sample,
+        "Sticky random playback on: Space plays random sample sections"
+    );
+
+    runtime.dispatch_event(Event::pointer_press(point, PointerButton::Primary, command));
+    runtime.dispatch_event(Event::pointer_release(
+        point,
+        PointerButton::Primary,
+        command,
+    ));
+
+    assert!(
+        !runtime
+            .bridge()
+            .state()
+            .ui
+            .chrome
+            .sticky_random_sample_range_playback
+    );
 }
 
 #[test]
@@ -201,14 +250,8 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
         "random toolbar click should preserve random-audition intent while the selected sample loads"
     );
     assert!(
-        runtime
-            .bridge()
-            .state()
-            .background
-            .deferred_sample_load_task
-            .active()
-            .is_some(),
-        "selected unloaded sample should queue the normal debounced load"
+        runtime.bridge().state().waveform_sample_load_active(),
+        "selected unloaded sample should queue a sample load"
     );
 
     let _ = fs::remove_dir_all(root);

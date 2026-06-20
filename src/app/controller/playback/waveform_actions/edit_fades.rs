@@ -32,7 +32,12 @@ pub(super) fn update_edit_fade_in_end_from_micros(
         baseline_fade_out_abs
     };
     let fade_in = range.fade_in().map(|fade| {
-        crate::selection::FadeParams::with_curve_and_mute(fade_in_abs / width, curve, fade.mute)
+        crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+            fade_in_abs / width,
+            curve,
+            fade.mute,
+            fade.outer_gain,
+        )
     });
     rebuild_edit_range(
         range,
@@ -42,10 +47,11 @@ pub(super) fn update_edit_fade_in_end_from_micros(
             crate::selection::FadeParams::with_curve(fade_in_abs / width, curve)
         })),
         range.fade_out().map(|fade| {
-            crate::selection::FadeParams::with_curve_and_mute(
+            crate::selection::FadeParams::with_curve_mute_and_outer_gain(
                 fade_out_abs / width,
                 fade.curve,
                 fade.mute,
+                fade.outer_gain,
             )
         }),
     )
@@ -85,8 +91,12 @@ pub(super) fn update_edit_fade_in_mute_start_from_micros(
     } else {
         fade_in_mute_for_outer_start(new_start, new_width, old_outer_start)
     };
-    let next_fade_in =
-        crate::selection::FadeParams::with_curve_and_mute(new_length, fade_in.curve, new_mute);
+    let next_fade_in = crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+        new_length,
+        fade_in.curve,
+        new_mute,
+        fade_in.outer_gain,
+    );
     rebuild_edit_range(
         range,
         new_start,
@@ -130,20 +140,22 @@ pub(super) fn update_edit_fade_out_start_from_micros(
         start,
         end,
         range.fade_in().map(|fade| {
-            crate::selection::FadeParams::with_curve_and_mute(
+            crate::selection::FadeParams::with_curve_mute_and_outer_gain(
                 fade_in_abs / width,
                 fade.curve,
                 fade.mute,
+                fade.outer_gain,
             )
         }),
         Some(
             range
                 .fade_out()
                 .map(|fade| {
-                    crate::selection::FadeParams::with_curve_and_mute(
+                    crate::selection::FadeParams::with_curve_mute_and_outer_gain(
                         fade_out_abs / width,
                         curve,
                         fade.mute,
+                        fade.outer_gain,
                     )
                 })
                 .unwrap_or_else(|| {
@@ -187,8 +199,12 @@ pub(super) fn update_edit_fade_out_mute_end_from_micros(
     } else {
         fade_out_mute_for_outer_end(new_end, new_width, old_outer_end)
     };
-    let next_fade_out =
-        crate::selection::FadeParams::with_curve_and_mute(new_length, fade_out.curve, new_mute);
+    let next_fade_out = crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+        new_length,
+        fade_out.curve,
+        new_mute,
+        fade_out.outer_gain,
+    );
     rebuild_edit_range(
         range,
         range.start(),
@@ -230,10 +246,14 @@ fn rebuild_edit_range(
 ) -> SelectionRange {
     let mut next = SelectionRange::new(start, end).with_gain(range.gain());
     if let Some(fade) = fade_in {
-        next = next.with_fade_in_and_mute(fade.length, fade.curve, fade.mute);
+        next = next
+            .with_fade_in_and_mute(fade.length, fade.curve, fade.mute)
+            .with_fade_in_outer_gain(fade.outer_gain);
     }
     if let Some(fade) = fade_out {
-        next = next.with_fade_out_and_mute(fade.length, fade.curve, fade.mute);
+        next = next
+            .with_fade_out_and_mute(fade.length, fade.curve, fade.mute)
+            .with_fade_out_outer_gain(fade.outer_gain);
     }
     next
 }
@@ -244,15 +264,25 @@ fn fade_in_preserved_at_width(
 ) -> Option<crate::selection::FadeParams> {
     let fade = range.fade_in()?;
     if next_width <= f32::EPSILON {
-        return Some(crate::selection::FadeParams::with_curve(0.0, fade.curve));
+        return Some(
+            crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+                0.0,
+                fade.curve,
+                0.0,
+                fade.outer_gain,
+            ),
+        );
     }
     let length = ((range.width() * fade.length) / next_width).clamp(0.0, 1.0);
     let outer_start = range.start() - range.width() * fade.mute;
-    Some(crate::selection::FadeParams::with_curve_and_mute(
-        length,
-        fade.curve,
-        fade_in_mute_for_outer_start(range.start(), next_width, outer_start),
-    ))
+    Some(
+        crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+            length,
+            fade.curve,
+            fade_in_mute_for_outer_start(range.start(), next_width, outer_start),
+            fade.outer_gain,
+        ),
+    )
 }
 
 fn fade_out_preserved_at_width(
@@ -261,15 +291,25 @@ fn fade_out_preserved_at_width(
 ) -> Option<crate::selection::FadeParams> {
     let fade = range.fade_out()?;
     if next_width <= f32::EPSILON {
-        return Some(crate::selection::FadeParams::with_curve(0.0, fade.curve));
+        return Some(
+            crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+                0.0,
+                fade.curve,
+                0.0,
+                fade.outer_gain,
+            ),
+        );
     }
     let length = ((range.width() * fade.length) / next_width).clamp(0.0, 1.0);
     let outer_end = range.end() + range.width() * fade.mute;
-    Some(crate::selection::FadeParams::with_curve_and_mute(
-        length,
-        fade.curve,
-        fade_out_mute_for_outer_end(range.end(), next_width, outer_end),
-    ))
+    Some(
+        crate::selection::FadeParams::with_curve_mute_and_outer_gain(
+            length,
+            fade.curve,
+            fade_out_mute_for_outer_end(range.end(), next_width, outer_end),
+            fade.outer_gain,
+        ),
+    )
 }
 
 fn fade_in_mute_for_outer_start(start: f32, width: f32, outer_start: f32) -> f32 {

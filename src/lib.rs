@@ -28,6 +28,8 @@ pub mod gui_test;
 /// Shared helpers for low-overhead hot-path telemetry instrumentation.
 mod hotpath_telemetry;
 mod http_client;
+#[doc(hidden)]
+pub mod internal_analysis_jobs;
 /// GitHub issue reporting via the Wavecrate gateway.
 pub mod issue_gateway;
 /// Logging setup helpers.

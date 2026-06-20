@@ -100,12 +100,14 @@ fn preserve_edit_selection_effects(
         if fade.mute > 0.0 {
             rebuilt = rebuilt.with_fade_in_mute((existing_width * fade.mute) / next_width);
         }
+        rebuilt = rebuilt.with_fade_in_outer_gain(fade.outer_gain);
     }
     if let Some(fade) = fade_out {
         rebuilt = rebuilt.with_fade_out(next_fade_out_abs / next_width, fade.curve);
         if fade.mute > 0.0 {
             rebuilt = rebuilt.with_fade_out_mute((existing_width * fade.mute) / next_width);
         }
+        rebuilt = rebuilt.with_fade_out_outer_gain(fade.outer_gain);
     }
     rebuilt
 }

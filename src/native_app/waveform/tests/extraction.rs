@@ -1,3 +1,4 @@
+use super::super::{audio_file::PersistedPlaybackCacheFile, execute_waveform_extraction};
 use super::*;
 
 #[test]
@@ -91,6 +92,64 @@ fn playmark_drag_extraction_writes_to_target_folder() {
         state.extracted_ranges(),
         &[wavecrate::selection::SelectionRange::new(0.25, 0.75)]
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn playmark_extraction_writes_from_decoded_playback_samples_without_audio_bytes() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-playmark-playback-samples-extract-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let source = root.join("source.aiff");
+    let mut file =
+        waveform_file_from_mono_samples(source, Arc::from([]), 48_000, 2, vec![0.0, 0.0, 0.0, 0.0]);
+    file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]));
+    let mut state = WaveformState::from_cached_file(Arc::new(file));
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.75));
+
+    let request = state
+        .play_selection_extraction_request(None)
+        .expect("build extraction request");
+    let completion = execute_waveform_extraction(request);
+    let output = completion.result.expect("extract range");
+
+    assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
+    assert_eq!(read_test_wav_f32(&output), vec![0.2, 0.3, 0.4, 0.5]);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn playmark_extraction_writes_from_persisted_playback_cache_without_audio_bytes() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-playmark-playback-cache-extract-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let source = root.join("source.wav");
+    let cache_path = root.join("source.pcm");
+    write_interleaved_f32_file(&cache_path, &[0.0_f32, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]);
+    let mut file =
+        waveform_file_from_mono_samples(source, Arc::from([]), 48_000, 2, vec![0.0, 0.0, 0.0, 0.0]);
+    file.playback_cache_file = PersistedPlaybackCacheFile::new(cache_path, 8);
+    let mut state = WaveformState::from_cached_file(Arc::new(file));
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.75));
+
+    let request = state
+        .play_selection_extraction_request(None)
+        .expect("build extraction request");
+    let completion = execute_waveform_extraction(request);
+    let output = completion.result.expect("extract range");
+
+    assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
+    assert_eq!(read_test_wav_f32(&output), vec![0.2, 0.3, 0.4, 0.5]);
     let _ = fs::remove_dir_all(root);
 }
 

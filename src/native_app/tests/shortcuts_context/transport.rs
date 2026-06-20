@@ -22,6 +22,48 @@ fn loop_shortcut_routes_to_loop_toggle() {
 }
 
 #[test]
+fn space_shortcut_routes_to_play_selected_sample() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Space));
+
+    assert_eq!(resolution.action, Some(GuiMessage::PlaySelectedSample));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn sticky_random_space_shortcut_routes_to_random_sample_range() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.chrome.sticky_random_sample_range_playback = true;
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Space));
+
+    assert_eq!(resolution.action, Some(GuiMessage::PlayRandomSampleRange));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn shift_space_shortcut_routes_to_current_play_start() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::Space));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::PlayFromCurrentPlayStart)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn option_space_shortcut_routes_to_random_sample_range() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_alt(ui::KeyCode::Space));
+
+    assert_eq!(resolution.action, Some(GuiMessage::PlayRandomSampleRange));
+    assert!(resolution.handled);
+}
+
+#[test]
 fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));

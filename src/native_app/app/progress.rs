@@ -18,6 +18,15 @@ pub(in crate::native_app) struct NormalizationQueueItem {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FileMoveProgress {
+    pub(in crate::native_app) task_id: u64,
+    pub(in crate::native_app) label: String,
+    pub(in crate::native_app) completed: usize,
+    pub(in crate::native_app) total: usize,
+    pub(in crate::native_app) detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct NormalizationFailure {
     pub(in crate::native_app) path: PathBuf,
     pub(in crate::native_app) error: String,

@@ -33,8 +33,10 @@ const LOADING_PROGRESS_COLOR: Rgba8 = Rgba8 {
 pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     playing: bool,
     play_selection_flash_active: bool,
+    copy_flash_active: bool,
     folder_progress_active: bool,
     normalization_progress_active: bool,
+    file_move_progress_active: bool,
     source_cache_progress_active: bool,
     waveform_loading_active: bool,
     sample_loading: bool,
@@ -104,7 +106,13 @@ impl NativeAppState {
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = Some(pending.span);
         if self.waveform.current.path() == Path::new(&pending.path) {
-            self.waveform.current.start_playback(started.playback_start);
+            if pending.show_start_marker {
+                self.waveform.current.start_playback(started.playback_start);
+            } else {
+                self.waveform
+                    .current
+                    .start_playback_without_marker(started.playback_start);
+            }
         }
         self.ui.status.sample = format!("Playing {}", sample_path_label(&pending.path));
     }
@@ -230,6 +238,9 @@ impl NativeAppState {
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
+        if self.blocking_modal_suppresses_waveform_transient_overlay() {
+            return;
+        }
         let Some(progress) = self.current_audio_progress_ratio() else {
             return;
         };
@@ -250,8 +261,32 @@ impl NativeAppState {
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
+        if self.blocking_modal_suppresses_waveform_transient_overlay() {
+            return;
+        }
         self.paint_loading_overlay(context, primitives);
         self.paint_playback_overlay(context, primitives);
+    }
+
+    pub(in crate::native_app) fn should_paint_waveform_transient_overlay(&self) -> bool {
+        !self.blocking_modal_suppresses_waveform_transient_overlay()
+            && (self.waveform.current.is_playing() || self.waveform.load.label.is_some())
+    }
+
+    fn blocking_modal_suppresses_waveform_transient_overlay(&self) -> bool {
+        self.ui.chrome.shortcut_help_open
+            || self.ui.chrome.transaction_list_open
+            || self
+                .library
+                .folder_browser
+                .pending_file_move_conflict_view()
+                .is_some()
+            || self.ui.browser_interaction.pending_folder_delete.is_some()
+            || self
+                .ui
+                .browser_interaction
+                .pending_waveform_destructive_edit
+                .is_some()
     }
 
     fn paint_loading_overlay(
@@ -356,8 +391,10 @@ impl FrameRepaintScopeSnapshot {
         Self {
             playing: state.waveform.current.is_playing(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
+            copy_flash_active: state.library.folder_browser.copy_flash_active(),
             folder_progress_active: state.library.folder_scan_active(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
+            file_move_progress_active: state.background.file_move_progress.is_some(),
             source_cache_progress_active: state
                 .waveform
                 .cache
@@ -374,8 +411,10 @@ impl FrameRepaintScopeSnapshot {
 
     fn requires_surface_frame(self) -> bool {
         self.play_selection_flash_active
+            || self.copy_flash_active
             || self.folder_progress_active
             || self.normalization_progress_active
+            || self.file_move_progress_active
             || self.source_cache_progress_active
             || self.sample_loading
             || self.audio_opening
@@ -387,8 +426,10 @@ impl FrameRepaintScopeSnapshot {
     fn same_transient_frame_state(self, after: Self) -> bool {
         self.playing == after.playing
             && self.play_selection_flash_active == after.play_selection_flash_active
+            && self.copy_flash_active == after.copy_flash_active
             && self.folder_progress_active == after.folder_progress_active
             && self.normalization_progress_active == after.normalization_progress_active
+            && self.file_move_progress_active == after.file_move_progress_active
             && self.source_cache_progress_active == after.source_cache_progress_active
             && self.waveform_loading_active == after.waveform_loading_active
             && self.sample_loading == after.sample_loading

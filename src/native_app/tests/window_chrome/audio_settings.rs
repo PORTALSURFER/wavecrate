@@ -1,10 +1,16 @@
 use super::*;
 
 #[test]
-fn default_window_title_marks_alpha_build() {
+fn default_window_title_marks_versioned_alpha_build() {
+    let expected = format!(
+        "Wavecrate {} b{} - Alpha",
+        env!("CARGO_PKG_VERSION"),
+        env!("WAVECRATE_BUILD_NUMBER")
+    );
+
     assert_eq!(
-        crate::native_app::test_support::shell::DEFAULT_WINDOW_TITLE,
-        "Wavecrate - alpha"
+        crate::native_app::test_support::shell::default_window_title(),
+        expected
     );
 }
 

@@ -5,7 +5,8 @@
 //! shared waveform-editing domain model.
 
 use super::fade::{
-    FadeParams, clamp_fade_length, clamp_gain, clamp_mute_length, fade_gain_at_position,
+    FadeParams, clamp_fade_length, clamp_gain, clamp_mute_length, clamp_outer_gain,
+    fade_gain_at_position,
 };
 
 /// Normalized selection bounds and edit parameters over a waveform (`0.0..=1.0`).
@@ -124,6 +125,11 @@ impl SelectionRange {
         self.fade_in.map(|f| f.mute).unwrap_or(0.0)
     }
 
+    /// Get fade-in outer extension gain (1.0 if no fade).
+    pub fn fade_in_outer_gain(&self) -> f32 {
+        self.fade_in.map(|f| f.outer_gain).unwrap_or(1.0)
+    }
+
     /// Get fade-out length (0.0 if no fade).
     pub fn fade_out_length(&self) -> f32 {
         self.fade_out.map(|f| f.length).unwrap_or(0.0)
@@ -132,6 +138,11 @@ impl SelectionRange {
     /// Get fade-out outer extension length (0.0 if no fade).
     pub fn fade_out_mute_length(&self) -> f32 {
         self.fade_out.map(|f| f.mute).unwrap_or(0.0)
+    }
+
+    /// Get fade-out outer extension gain (1.0 if no fade).
+    pub fn fade_out_outer_gain(&self) -> f32 {
+        self.fade_out.map(|f| f.outer_gain).unwrap_or(1.0)
     }
 
     /// True when the selection has a non-zero fade-in or fade-out length configured.
@@ -144,6 +155,10 @@ impl SelectionRange {
         self.has_fades()
             || self.fade_in_mute_length() > 0.0
             || self.fade_out_mute_length() > 0.0
+            || (self.fade_in_mute_length() > 0.0
+                && (self.fade_in_outer_gain() - 1.0).abs() > f32::EPSILON)
+            || (self.fade_out_mute_length() > 0.0
+                && (self.fade_out_outer_gain() - 1.0).abs() > f32::EPSILON)
             || (self.gain - 1.0).abs() > f32::EPSILON
     }
 
@@ -166,12 +181,14 @@ impl SelectionRange {
     pub fn with_fade_in(mut self, length: f32, curve: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_out_length());
         let current_mute = self.fade_in.map(|f| f.mute).unwrap_or(0.0);
+        let current_outer_gain = self.fade_in.map(|f| f.outer_gain).unwrap_or(1.0);
         let clamped_mute = clamp_mute_length(current_mute, self.max_fade_in_mute_length());
         if clamped_length > 0.0 || clamped_mute > 0.0 {
-            self.fade_in = Some(FadeParams::with_curve_and_mute(
+            self.fade_in = Some(FadeParams::with_curve_mute_and_outer_gain(
                 clamped_length,
                 curve,
                 clamped_mute,
+                current_outer_gain,
             ));
         } else {
             self.fade_in = None;
@@ -182,12 +199,14 @@ impl SelectionRange {
     /// Set fade-in parameters and outer extension length together.
     pub fn with_fade_in_and_mute(mut self, length: f32, curve: f32, mute: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_out_length());
+        let current_outer_gain = self.fade_in.map(|f| f.outer_gain).unwrap_or(1.0);
         let clamped_mute = clamp_mute_length(mute, self.max_fade_in_mute_length());
         if clamped_length > 0.0 || clamped_mute > 0.0 {
-            self.fade_in = Some(FadeParams::with_curve_and_mute(
+            self.fade_in = Some(FadeParams::with_curve_mute_and_outer_gain(
                 clamped_length,
                 curve,
                 clamped_mute,
+                current_outer_gain,
             ));
         } else {
             self.fade_in = None;
@@ -201,12 +220,14 @@ impl SelectionRange {
     pub fn with_fade_out(mut self, length: f32, curve: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_in_length());
         let current_mute = self.fade_out.map(|f| f.mute).unwrap_or(0.0);
+        let current_outer_gain = self.fade_out.map(|f| f.outer_gain).unwrap_or(1.0);
         let clamped_mute = clamp_mute_length(current_mute, self.max_fade_out_mute_length());
         if clamped_length > 0.0 || clamped_mute > 0.0 {
-            self.fade_out = Some(FadeParams::with_curve_and_mute(
+            self.fade_out = Some(FadeParams::with_curve_mute_and_outer_gain(
                 clamped_length,
                 curve,
                 clamped_mute,
+                current_outer_gain,
             ));
         } else {
             self.fade_out = None;
@@ -217,12 +238,14 @@ impl SelectionRange {
     /// Set fade-out parameters and outer extension length together.
     pub fn with_fade_out_and_mute(mut self, length: f32, curve: f32, mute: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_in_length());
+        let current_outer_gain = self.fade_out.map(|f| f.outer_gain).unwrap_or(1.0);
         let clamped_mute = clamp_mute_length(mute, self.max_fade_out_mute_length());
         if clamped_length > 0.0 || clamped_mute > 0.0 {
-            self.fade_out = Some(FadeParams::with_curve_and_mute(
+            self.fade_out = Some(FadeParams::with_curve_mute_and_outer_gain(
                 clamped_length,
                 curve,
                 clamped_mute,
+                current_outer_gain,
             ));
         } else {
             self.fade_out = None;
@@ -234,10 +257,11 @@ impl SelectionRange {
     pub fn with_fade_in_mute(mut self, mute: f32) -> Self {
         if let Some(fade) = self.fade_in {
             let clamped_mute = clamp_mute_length(mute, self.max_fade_in_mute_length());
-            self.fade_in = Some(FadeParams::with_curve_and_mute(
+            self.fade_in = Some(FadeParams::with_curve_mute_and_outer_gain(
                 fade.length,
                 fade.curve,
                 clamped_mute,
+                fade.outer_gain,
             ));
         }
         self
@@ -247,10 +271,37 @@ impl SelectionRange {
     pub fn with_fade_out_mute(mut self, mute: f32) -> Self {
         if let Some(fade) = self.fade_out {
             let clamped_mute = clamp_mute_length(mute, self.max_fade_out_mute_length());
-            self.fade_out = Some(FadeParams::with_curve_and_mute(
+            self.fade_out = Some(FadeParams::with_curve_mute_and_outer_gain(
                 fade.length,
                 fade.curve,
                 clamped_mute,
+                fade.outer_gain,
+            ));
+        }
+        self
+    }
+
+    /// Set fade-in outer extension gain while preserving the curve and extension length.
+    pub fn with_fade_in_outer_gain(mut self, outer_gain: f32) -> Self {
+        if let Some(fade) = self.fade_in {
+            self.fade_in = Some(FadeParams::with_curve_mute_and_outer_gain(
+                fade.length,
+                fade.curve,
+                fade.mute,
+                clamp_outer_gain(outer_gain),
+            ));
+        }
+        self
+    }
+
+    /// Set fade-out outer extension gain while preserving the curve and extension length.
+    pub fn with_fade_out_outer_gain(mut self, outer_gain: f32) -> Self {
+        if let Some(fade) = self.fade_out {
+            self.fade_out = Some(FadeParams::with_curve_mute_and_outer_gain(
+                fade.length,
+                fade.curve,
+                fade.mute,
+                clamp_outer_gain(outer_gain),
             ));
         }
         self
@@ -298,12 +349,14 @@ impl SelectionRange {
             if let Some(fade_in) = self.fade_in {
                 range = range
                     .with_fade_in(fade_in.length, fade_in.curve)
-                    .with_fade_in_mute(fade_in.mute);
+                    .with_fade_in_mute(fade_in.mute)
+                    .with_fade_in_outer_gain(fade_in.outer_gain);
             }
             if let Some(fade_out) = self.fade_out {
                 range = range
                     .with_fade_out(fade_out.length, fade_out.curve)
-                    .with_fade_out_mute(fade_out.mute);
+                    .with_fade_out_mute(fade_out.mute)
+                    .with_fade_out_outer_gain(fade_out.outer_gain);
             }
             range.gain = self.gain;
             return range;

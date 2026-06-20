@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use wavecrate::sample_sources::SampleCollection;
+
 use super::FolderDropResult;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,7 +50,9 @@ pub(in crate::native_app) struct FileMoveConflict {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FileMoveConflictBatch {
+    pub(in crate::native_app) source_root: PathBuf,
     pub(in crate::native_app) target_folder: PathBuf,
+    pub(in crate::native_app) remove_from_collection: Option<SampleCollection>,
     pub(in crate::native_app) conflicts: Vec<FileMoveConflict>,
     pub(in crate::native_app) current_index: usize,
     pub(in crate::native_app) resolved_count: usize,
@@ -75,15 +79,19 @@ pub(in crate::native_app) enum FolderMoveDropInput {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FolderMoveRequest {
     Folder {
+        source_root: PathBuf,
         old_path: PathBuf,
         new_path: PathBuf,
         target_folder: PathBuf,
     },
     Files {
+        source_root: PathBuf,
         file_ids: Vec<String>,
         target_folder: PathBuf,
+        remove_from_collection: Option<SampleCollection>,
     },
     ExtractedFile {
+        source_root: PathBuf,
         path: PathBuf,
         target_folder: PathBuf,
     },
@@ -91,6 +99,7 @@ pub(in crate::native_app) enum FolderMoveRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderMoveCompletion {
+    pub(in crate::native_app) task_id: u64,
     pub(in crate::native_app) request: FolderMoveRequest,
     pub(in crate::native_app) result: Result<FolderMoveSuccess, String>,
 }
@@ -99,10 +108,12 @@ pub(in crate::native_app) struct FolderMoveCompletion {
 pub(in crate::native_app) struct FolderMoveSuccess {
     pub(in crate::native_app) moved_paths: Vec<(PathBuf, PathBuf)>,
     pub(in crate::native_app) conflicts: Vec<FileMoveConflict>,
+    pub(in crate::native_app) metadata_error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FileMoveConflictCompletion {
+    pub(in crate::native_app) task_id: u64,
     pub(in crate::native_app) result:
         Result<FileMoveConflictExecutionSuccess, FileMoveConflictExecutionFailure>,
 }
@@ -112,6 +123,7 @@ pub(in crate::native_app) struct FileMoveConflictExecutionSuccess {
     pub(in crate::native_app) batch: FileMoveConflictBatch,
     pub(in crate::native_app) moved_paths: Vec<(PathBuf, PathBuf)>,
     pub(in crate::native_app) last_resolution: FileMoveConflictResolution,
+    pub(in crate::native_app) metadata_error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -119,4 +131,5 @@ pub(in crate::native_app) struct FileMoveConflictExecutionFailure {
     pub(in crate::native_app) batch: FileMoveConflictBatch,
     pub(in crate::native_app) moved_paths: Vec<(PathBuf, PathBuf)>,
     pub(in crate::native_app) error: String,
+    pub(in crate::native_app) metadata_error: Option<String>,
 }

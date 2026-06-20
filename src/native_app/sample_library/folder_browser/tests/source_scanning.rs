@@ -19,6 +19,19 @@ fn source_scan_installs_finished_tree_after_placeholder_selection() {
         |progress| progress_events.push(progress),
         |event| discovery_events.push(event),
     );
+    assert_eq!(result.source_db_error, None);
+    let db = SourceDatabase::open(&root).expect("source db");
+    let entries = db.list_files().expect("source db files");
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.relative_path == std::path::Path::new("drums/kick.wav"))
+    );
+    assert!(
+        db.get_metadata(wavecrate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT)
+            .expect("scan metadata")
+            .is_some()
+    );
     assert!(browser.apply_scan_finished(result));
 
     browser.begin_select_source(root.to_string_lossy().to_string(), 43);
@@ -69,6 +82,36 @@ fn non_wav_audio_looking_files_are_visible_but_not_supported_audio() {
     assert_eq!(
         unsupported,
         vec!["loop.aif", "loop.aiff", "loop.flac", "loop.mp3"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn apple_double_sidecars_are_hidden_from_source_browser() {
+    let root = temp_source_root("wavecrate-gui-appledouble-sidecars");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
+    fs::write(drums.join("._kick.wav"), [0_u8; 8]).expect("write sidecar");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    assert_eq!(
+        browser
+            .selected_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav"]
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav"]
     );
     let _ = fs::remove_dir_all(root);
 }

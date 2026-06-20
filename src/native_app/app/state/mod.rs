@@ -24,7 +24,9 @@ pub(in crate::native_app) use source_scan_workflow::{
 };
 pub(in crate::native_app) use transactions::TransactionState;
 pub(in crate::native_app) use ui_state::{
-    ChromeUiState, PendingFolderDelete, SettingsAppState, StartupState, StatusState, UiAppState,
+    ChromeUiState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT, PendingFolderDelete,
+    PendingWaveformDestructiveEdit, SettingsAppState, StartupState, StatusState, UiAppState,
+    WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
 };
 pub(in crate::native_app) use waveform::WaveformAppState;
 

@@ -61,8 +61,8 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
 }
 
 #[test]
-/// Verifies unloaded sample names use muted text color.
-fn unloaded_sample_text_uses_muted_theme_color() {
+/// Verifies uncached-but-available sample names still use primary text color.
+fn uncached_sample_text_uses_primary_theme_color() {
     let theme = ThemeTokens::default();
     let file = file_entry();
     let frame = sample_file_cell(
@@ -78,8 +78,8 @@ fn unloaded_sample_text_uses_muted_theme_color() {
         frame
             .paint_plan
             .text_runs()
-            .any(|run| run.text == "kick_deep" && run.color == theme.text_muted),
-        "unloaded sample rows should paint text with the muted theme color"
+            .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
+        "uncached sample rows should not look disabled"
     );
 }
 

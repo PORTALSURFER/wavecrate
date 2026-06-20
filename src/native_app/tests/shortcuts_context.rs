@@ -1,6 +1,7 @@
 mod context_menu;
 mod folder_browser;
 mod handoff;
+mod help;
 mod metadata;
 mod settings;
 mod shell;

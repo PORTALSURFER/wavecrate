@@ -266,6 +266,35 @@ fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
 }
 
 #[test]
+fn status_bar_view_model_reports_file_move_progress() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.file_move_progress =
+        Some(crate::native_app::test_support::state::FileMoveProgress {
+            task_id: 11,
+            label: String::from("Moving 3 files"),
+            completed: 2,
+            total: 4,
+            detail: String::from("Updating metadata"),
+        });
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert_eq!(
+        model.status_text,
+        "Moving 3 files | 2/4 | Updating metadata"
+    );
+    assert_eq!(
+        model.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 2,
+            total: 4,
+            current_fraction: None,
+            active_animation: false,
+        }
+    );
+}
+
+#[test]
 fn status_bar_view_model_reports_source_cache_warm_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));

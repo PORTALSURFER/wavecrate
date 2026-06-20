@@ -9,7 +9,9 @@ pub(super) fn event_triggers_source_refresh(event: &Event) -> bool {
 }
 
 pub(super) fn path_is_source_refresh_candidate(path: &Path, kind: EventKind) -> bool {
-    if is_wavecrate_metadata_file(path) {
+    if is_wavecrate_metadata_file(path)
+        || wavecrate_library::sample_sources::is_apple_double_sidecar(path)
+    {
         return false;
     }
     matches!(kind, EventKind::Remove(_) | EventKind::Any)

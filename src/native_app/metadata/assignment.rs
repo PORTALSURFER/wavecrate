@@ -1,8 +1,15 @@
-use super::persistence::persist_metadata_tag_assignment;
+use super::persistence::{persist_metadata_tag_assignment, persist_metadata_tag_assignments};
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
 use super::{GuiMessage, MetadataMessage, NativeAppState};
 use radiant::prelude as ui;
 use std::path::PathBuf;
+
+struct MetadataTagTarget {
+    file_id: String,
+    absolute_path: PathBuf,
+    source_root: PathBuf,
+    relative_path: PathBuf,
+}
 
 impl NativeAppState {
     pub(in crate::native_app) fn add_metadata_tags(
@@ -10,64 +17,70 @@ impl NativeAppState {
         tags: Vec<String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let Some(file_id) = self
-            .library
-            .folder_browser
-            .selected_file_id()
-            .map(str::to_owned)
-        else {
-            self.ui.status.sample = String::from("Select a sample before adding tags");
-            return;
+        let targets = match self.selected_metadata_tag_targets("adding") {
+            Ok(targets) => targets,
+            Err(status) => {
+                self.ui.status.sample = status;
+                return;
+            }
         };
-        let absolute_path = PathBuf::from(&file_id);
-        let Some((source_root, relative_path)) = self
-            .library
-            .folder_browser
-            .source_relative_file_path(&absolute_path)
-        else {
-            self.ui.status.sample =
-                String::from("Selected sample is not inside a configured source");
-            return;
-        };
-        let mut file_tags = self
-            .metadata
-            .tags_by_file
-            .get(&file_id)
-            .cloned()
-            .unwrap_or_default();
-        let mut added = Vec::new();
-        for tag in tags {
-            if file_tags.iter().any(|existing| existing == &tag) {
+        let mut requests = Vec::new();
+        let mut changed_files = Vec::new();
+        let mut added_tags = Vec::new();
+        for target in targets {
+            let mut file_tags = self
+                .metadata
+                .tags_by_file
+                .get(&target.file_id)
+                .cloned()
+                .unwrap_or_default();
+            let mut added = Vec::new();
+            for tag in &tags {
+                if file_tags.iter().any(|existing| existing == tag) {
+                    continue;
+                }
+                file_tags.push(tag.clone());
+                added.push(tag.clone());
+                if !added_tags.iter().any(|existing| existing == tag) {
+                    added_tags.push(tag.clone());
+                }
+            }
+            if added.is_empty() {
                 continue;
             }
-            file_tags.push(tag.clone());
-            added.push(tag);
-        }
-        self.metadata
-            .tags_by_file
-            .insert(file_id.clone(), file_tags);
-        self.retain_visible_file_selection_after_metadata_tag_change();
-        if !added.is_empty() {
-            self.reconcile_playback_mode_after_metadata_tag_change(file_id.as_str());
-        }
-        match added.as_slice() {
-            [] => {}
-            [tag] => self.ui.status.sample = format!("Added tag {tag}"),
-            tags => self.ui.status.sample = format!("Added {} tags", tags.len()),
-        }
-        if !added.is_empty() {
-            let request = MetadataTagPersistRequest {
-                absolute_path,
-                source_root,
-                relative_path,
+            self.metadata
+                .tags_by_file
+                .insert(target.file_id.clone(), file_tags);
+            self.reconcile_playback_mode_after_metadata_tag_change(target.file_id.as_str());
+            changed_files.push(target.file_id.clone());
+            requests.push(MetadataTagPersistRequest {
+                absolute_path: target.absolute_path,
+                source_root: target.source_root,
+                relative_path: target.relative_path,
                 tags: added,
                 assigned: true,
-            };
+            });
+        }
+        if requests.is_empty() {
+            return;
+        }
+        self.retain_visible_file_selection_after_metadata_tag_change();
+        self.ui.status.sample = metadata_tag_added_status(&added_tags, changed_files.len());
+        if requests.len() == 1 {
+            let request = requests.remove(0);
             context
                 .business()
                 .background("gui-metadata-tag-persist")
                 .run(
                     move |_| persist_metadata_tag_assignment(request),
+                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+                );
+        } else {
+            context
+                .business()
+                .background("gui-metadata-tag-persist")
+                .run(
+                    move |_| persist_metadata_tag_assignments(requests),
                     |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
                 );
         }
@@ -78,11 +91,7 @@ impl NativeAppState {
         tag: String,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if self
-            .selected_metadata_tags()
-            .iter()
-            .any(|existing| existing == &tag)
-        {
+        if self.metadata_tag_selection_state(&tag).is_all() {
             self.remove_metadata_tag(tag, context);
         } else {
             self.add_metadata_tags(vec![tag], context);
@@ -100,56 +109,63 @@ impl NativeAppState {
     }
 
     fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UiUpdateContext<GuiMessage>) {
-        let Some(file_id) = self
-            .library
-            .folder_browser
-            .selected_file_id()
-            .map(str::to_owned)
-        else {
-            self.ui.status.sample = String::from("Select a sample before removing tags");
-            return;
+        let targets = match self.selected_metadata_tag_targets("removing") {
+            Ok(targets) => targets,
+            Err(status) => {
+                self.ui.status.sample = status;
+                return;
+            }
         };
-        let absolute_path = PathBuf::from(&file_id);
-        let Some((source_root, relative_path)) = self
-            .library
-            .folder_browser
-            .source_relative_file_path(&absolute_path)
-        else {
-            self.ui.status.sample =
-                String::from("Selected sample is not inside a configured source");
-            return;
-        };
-        let Some(file_tags) = self.metadata.tags_by_file.get_mut(&file_id) else {
-            return;
-        };
-        let before_len = file_tags.len();
-        file_tags.retain(|existing| existing != &tag);
-        if file_tags.len() == before_len {
-            return;
+        let mut requests = Vec::new();
+        let mut changed_files = Vec::new();
+        for target in targets {
+            let Some(file_tags) = self.metadata.tags_by_file.get_mut(&target.file_id) else {
+                continue;
+            };
+            let before_len = file_tags.len();
+            file_tags.retain(|existing| existing != &tag);
+            if file_tags.len() == before_len {
+                continue;
+            }
+            if file_tags.is_empty() {
+                self.metadata.tags_by_file.remove(&target.file_id);
+            }
+            self.reconcile_playback_mode_after_metadata_tag_change(target.file_id.as_str());
+            changed_files.push(target.file_id.clone());
+            requests.push(MetadataTagPersistRequest {
+                absolute_path: target.absolute_path,
+                source_root: target.source_root,
+                relative_path: target.relative_path,
+                tags: vec![tag.clone()],
+                assigned: false,
+            });
         }
-        if file_tags.is_empty() {
-            self.metadata.tags_by_file.remove(&file_id);
+        if requests.is_empty() {
+            return;
         }
         if self.metadata.selected_tag.as_deref() == Some(tag.as_str()) {
             self.metadata.selected_tag = None;
         }
         self.retain_visible_file_selection_after_metadata_tag_change();
-        self.reconcile_playback_mode_after_metadata_tag_change(file_id.as_str());
-        self.ui.status.sample = format!("Removed tag {tag}");
-        let request = MetadataTagPersistRequest {
-            absolute_path,
-            source_root,
-            relative_path,
-            tags: vec![tag],
-            assigned: false,
-        };
-        context
-            .business()
-            .background("gui-metadata-tag-persist")
-            .run(
-                move |_| persist_metadata_tag_assignment(request),
-                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
-            );
+        self.ui.status.sample = metadata_tag_removed_status(&tag, changed_files.len());
+        if requests.len() == 1 {
+            let request = requests.remove(0);
+            context
+                .business()
+                .background("gui-metadata-tag-persist")
+                .run(
+                    move |_| persist_metadata_tag_assignment(request),
+                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+                );
+        } else {
+            context
+                .business()
+                .background("gui-metadata-tag-persist")
+                .run(
+                    move |_| super::persistence::persist_metadata_tag_deletions(requests),
+                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+                );
+        }
     }
 
     pub(in crate::native_app) fn finish_metadata_tag_persist(
@@ -164,5 +180,52 @@ impl NativeAppState {
                 tags => format!("{} tags not removed: {error}", tags.len()),
             };
         }
+    }
+
+    fn selected_metadata_tag_targets(
+        &self,
+        action: &'static str,
+    ) -> Result<Vec<MetadataTagTarget>, String> {
+        let paths = self.library.folder_browser.selected_file_paths();
+        if paths.is_empty() {
+            return Err(format!("Select a sample before {action} tags"));
+        }
+        paths
+            .into_iter()
+            .map(|absolute_path| {
+                let Some((source_root, relative_path)) = self
+                    .library
+                    .folder_browser
+                    .source_relative_file_path(&absolute_path)
+                else {
+                    return Err(String::from(
+                        "Selected sample is not inside a configured source",
+                    ));
+                };
+                Ok(MetadataTagTarget {
+                    file_id: absolute_path.to_string_lossy().to_string(),
+                    absolute_path,
+                    source_root,
+                    relative_path,
+                })
+            })
+            .collect()
+    }
+}
+
+fn metadata_tag_added_status(tags: &[String], changed_file_count: usize) -> String {
+    match (tags, changed_file_count) {
+        ([tag], 1) => format!("Added tag {tag}"),
+        ([tag], count) => format!("Added tag {tag} to {count} samples"),
+        (tags, 1) => format!("Added {} tags", tags.len()),
+        (tags, count) => format!("Added {} tags to {count} samples", tags.len()),
+    }
+}
+
+fn metadata_tag_removed_status(tag: &str, changed_file_count: usize) -> String {
+    if changed_file_count == 1 {
+        format!("Removed tag {tag}")
+    } else {
+        format!("Removed tag {tag} from {changed_file_count} samples")
     }
 }

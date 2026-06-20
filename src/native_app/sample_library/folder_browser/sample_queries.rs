@@ -143,7 +143,7 @@ impl FolderBrowserState {
             return VisibleSampleWindowFiles {
                 total_count,
                 rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
-                    .map(|index| files.get(index).copied())
+                    .filter_map(|index| files.get(index).copied())
                     .collect(),
             };
         }
@@ -162,7 +162,7 @@ impl FolderBrowserState {
             return VisibleSampleWindowFiles {
                 total_count,
                 rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
-                    .map(|index| {
+                    .filter_map(|index| {
                         indices
                             .get(index)
                             .and_then(|file_index| folder.files.get(*file_index))
@@ -180,7 +180,7 @@ impl FolderBrowserState {
             })
             .filter_map(|file| {
                 let row = (total_count >= window.window_start && total_count < window.window_end)
-                    .then_some(Some(file));
+                    .then_some(file);
                 total_count += 1;
                 row
             })
@@ -189,19 +189,45 @@ impl FolderBrowserState {
         VisibleSampleWindowFiles { total_count, rows }
     }
 
-    pub(super) fn complete_selected_audio_file_window_matching_tags(
+    pub(super) fn uncached_selected_audio_file_window_matching_tags(
         &self,
         window: radiant::prelude::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
-        let files = self.selected_audio_files_matching_tags(tags_by_file);
+        let files = self.uncached_selected_audio_files_matching_tags(tags_by_file);
         let total_count = files.len();
         VisibleSampleWindowFiles {
             total_count,
             rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
-                .map(|index| files.get(index).copied())
+                .filter_map(|index| files.get(index).copied())
                 .collect(),
         }
+    }
+
+    fn uncached_selected_audio_files_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Vec<&FileEntry> {
+        if self.selection.selected_collection.is_some() {
+            return self.selected_audio_files_matching_tags(tags_by_file);
+        }
+
+        let Some(folder) = self.selected_folder() else {
+            return Vec::new();
+        };
+        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
+        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let mut files = folder
+            .files
+            .iter()
+            .filter(|file| {
+                file.is_audio()
+                    && filters::audio_file_matches_name_query(file, &name_query)
+                    && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+            })
+            .collect::<Vec<_>>();
+        self.sort_files(&mut files);
+        files
     }
 
     pub(in crate::native_app) fn selected_audio_file_index_matching_tags(

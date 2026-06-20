@@ -1,4 +1,6 @@
-use crate::native_app::app::{FolderScanProgress, NativeAppState, NormalizationProgress};
+use crate::native_app::app::{
+    FileMoveProgress, FolderScanProgress, NativeAppState, NormalizationProgress,
+};
 use radiant::prelude as ui;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +68,19 @@ fn bottom_status_text(state: &NativeAppState) -> String {
             )
         };
     }
+    if let Some(progress) = state.background.file_move_progress.as_ref() {
+        let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+        return if counters.is_indeterminate() {
+            format!("{} | {}", progress.label, progress.detail)
+        } else {
+            format!(
+                "{} | {} | {}",
+                progress.label,
+                counters.count_label("items"),
+                progress.detail
+            )
+        };
+    }
     if let Some(progress) = WorkerProgressViewModel::from_source_cache_warm(state) {
         if state
             .waveform
@@ -101,6 +116,13 @@ fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewMo
                 .as_ref()
                 .map(WorkerProgressViewModel::from_normalization_progress)
         })
+        .or_else(|| {
+            state
+                .background
+                .file_move_progress
+                .as_ref()
+                .map(WorkerProgressViewModel::from_file_move_progress)
+        })
         .or_else(|| WorkerProgressViewModel::from_source_cache_warm(state))
 }
 
@@ -118,6 +140,15 @@ impl WorkerProgressViewModel {
         Self {
             completed: progress.work_completed,
             total: progress.work_total,
+            current_fraction: None,
+            active_animation: false,
+        }
+    }
+
+    fn from_file_move_progress(progress: &FileMoveProgress) -> Self {
+        Self {
+            completed: progress.completed,
+            total: progress.total,
             current_fraction: None,
             active_animation: false,
         }

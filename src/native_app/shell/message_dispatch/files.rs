@@ -24,6 +24,13 @@ impl NativeAppState {
                 started_at,
                 result,
             } => self.finish_copy_selected_files(count, started_at, result),
+            GuiMessage::WaveformSelectionCopyFinished {
+                source_path,
+                selection,
+                started_at,
+                result,
+            } => self.finish_waveform_selection_copy(source_path, selection, started_at, result),
+            GuiMessage::FileMoveProgress(progress) => self.apply_file_move_progress(progress),
             GuiMessage::SetFileMoveConflictApplyToRemaining(apply_to_remaining) => {
                 self.ui
                     .browser_interaction
@@ -36,13 +43,13 @@ impl NativeAppState {
                 started_at,
                 completion,
             } => {
-                self.finish_folder_move(started_at, completion);
+                self.finish_folder_move(started_at, completion, context);
             }
             GuiMessage::FileMoveConflictFinished {
                 started_at,
                 completion,
             } => {
-                self.finish_file_move_conflict(started_at, completion);
+                self.finish_file_move_conflict(started_at, completion, context);
             }
             GuiMessage::CancelFileMoveConflicts => self.cancel_file_move_conflicts(),
             GuiMessage::CopyContextPath => self.copy_context_path(context),
@@ -56,6 +63,7 @@ impl NativeAppState {
             GuiMessage::CreateFolderAtContextTarget => {
                 self.create_folder_at_context_target(context)
             }
+            GuiMessage::RenameContextFolder => self.rename_context_folder(context),
             GuiMessage::ContextFolderCreateFinished {
                 parent_id,
                 started_at,
@@ -70,7 +78,7 @@ impl NativeAppState {
                 action,
                 started_at,
                 result,
-            } => self.finish_trash_move(target, action, started_at, result),
+            } => self.finish_trash_move(target, action, started_at, result, context),
             GuiMessage::ContextTargetOpenFinished { kind, path, result } => {
                 self.finish_context_target_open(kind, path, result);
             }

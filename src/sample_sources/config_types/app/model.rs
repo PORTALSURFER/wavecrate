@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     audio::{AudioInputConfig, AudioOutputConfig},
     sample_sources::library::LibraryState,
-    sample_sources::{SampleSource, SourceId},
+    sample_sources::{SampleCollection, SampleSource, SourceId},
 };
 
 use super::{
@@ -27,6 +27,7 @@ use super::{
 /// Config keys (TOML): `feature_flags`, `analysis`, `updates`, `app_data_dir`,
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
 /// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
+/// `collection_names`,
 /// `volume`, `audio_output`, `audio_input`, `audio_write_format`, `controls`,
 /// `job_message_queue_capacity`, `default_identifier`, `tag_dictionary`,
 /// `similarity`.
@@ -102,6 +103,8 @@ pub struct AppSettingsCore {
     pub lower_folder_pane_source: Option<SourceId>,
     /// Active folder pane id encoded as `"upper"` or `"lower"`.
     pub active_folder_pane: Option<String>,
+    /// User-authored collection labels, keyed by fixed collection index.
+    pub collection_names: BTreeMap<String, String>,
     /// Output audio configuration.
     pub audio_output: AudioOutputConfig,
     /// Input audio configuration.
@@ -128,6 +131,7 @@ impl AppSettingsCore {
         self.job_message_queue_capacity =
             clamp_job_message_queue_capacity(self.job_message_queue_capacity);
         self.similarity = self.similarity.normalized();
+        self.collection_names = normalized_collection_names(self.collection_names);
         self
     }
 }
@@ -146,6 +150,7 @@ impl Default for AppSettingsCore {
             upper_folder_pane_source: None,
             lower_folder_pane_source: None,
             active_folder_pane: None,
+            collection_names: BTreeMap::new(),
             audio_output: default_audio_output(),
             audio_input: default_audio_input(),
             audio_write_format: AudioWriteFormatConfig::default(),
@@ -156,6 +161,18 @@ impl Default for AppSettingsCore {
             tag_dictionary: BTreeMap::new(),
         }
     }
+}
+
+fn normalized_collection_names(names: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    names
+        .into_iter()
+        .filter_map(|(key, value)| {
+            let index = key.parse::<u8>().ok()?;
+            SampleCollection::new(index)?;
+            let label = value.trim();
+            (!label.is_empty()).then(|| (index.to_string(), label.to_string()))
+        })
+        .collect()
 }
 
 /// Toggleable features that can be persisted and evolve without breaking old configs.

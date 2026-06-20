@@ -3,11 +3,14 @@ use std::{path::PathBuf, time::Instant};
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    FileMoveConflictResolutionRequest, GuiMessage, NativeAppState, emit_gui_action,
+    FileMoveConflictResolutionRequest, FileMoveProgress, GuiMessage, NativeAppState,
+    emit_gui_action,
 };
 use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FolderDropResult, FolderMoveCompletion, FolderMoveDropInput,
-    execute_file_move_conflict_request, execute_folder_move_request,
+    execute_file_move_conflict_request_with_progress, execute_folder_move_request_with_progress,
+    file_move_conflict_progress_label, file_move_conflict_progress_total,
+    folder_move_progress_label, folder_move_progress_total,
 };
 
 impl NativeAppState {
@@ -19,16 +22,48 @@ impl NativeAppState {
         let started_at = Instant::now();
         context.end_drag_session();
         self.clear_pending_internal_file_drag_paths();
+        match self.drop_waveform_extraction_drag_on_folder(&folder_id, context) {
+            Ok(true) => return,
+            Ok(false) => {}
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                self.library.folder_browser.clear_drag();
+                emit_gui_action(
+                    "waveform.selection_drag.drop",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        }
         match self.library.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(FolderMoveDropInput::Status(result)) => {
-                self.finish_folder_move_result(started_at, Ok(result));
+                self.finish_folder_move_result(started_at, None, Ok(result), context);
             }
             Ok(FolderMoveDropInput::Request(request)) => {
+                let task_id = self.background.next_task_id();
+                self.begin_file_move_progress(FileMoveProgress {
+                    task_id,
+                    label: folder_move_progress_label(&request),
+                    completed: 0,
+                    total: folder_move_progress_total(&request),
+                    detail: String::from("Queued"),
+                });
+                let sender = self.background.worker_sender.clone();
                 context
                     .business()
                     .background("gui-folder-browser-move")
                     .run(
-                        move |_| execute_folder_move_request(request),
+                        move |_| {
+                            execute_folder_move_request_with_progress(
+                                request,
+                                task_id,
+                                Some(sender),
+                            )
+                        },
                         move |completion: FolderMoveCompletion| GuiMessage::FolderMoveFinished {
                             started_at,
                             completion,
@@ -60,21 +95,46 @@ impl NativeAppState {
             .browser_interaction
             .file_move_conflict_apply_to_remaining = false;
         let Some(batch) = self.library.folder_browser.take_file_move_conflict_batch() else {
-            self.finish_file_move_conflict_result(started_at, Ok(Default::default()));
+            self.finish_file_move_conflict_result(
+                started_at,
+                None,
+                false,
+                Ok(Default::default()),
+                context,
+            );
             return;
         };
         if batch.current_index >= batch.conflicts.len() {
             self.finish_file_move_conflict_result(
                 started_at,
+                None,
+                false,
                 Ok(FolderDropResult {
                     moved_paths: Vec::new(),
                     status: Some(String::from("No file move conflicts pending")),
                 }),
+                context,
             );
             return;
         }
+        let task_id = self.background.next_task_id();
+        self.begin_file_move_progress(FileMoveProgress {
+            task_id,
+            label: file_move_conflict_progress_label(&batch, request),
+            completed: 0,
+            total: file_move_conflict_progress_total(&batch, request),
+            detail: String::from("Queued"),
+        });
+        let sender = self.background.worker_sender.clone();
         context.business().background("gui-file-move-conflict").run(
-            move |_| execute_file_move_conflict_request(batch, request),
+            move |_| {
+                execute_file_move_conflict_request_with_progress(
+                    batch,
+                    request,
+                    task_id,
+                    Some(sender),
+                )
+            },
             move |completion: FileMoveConflictCompletion| GuiMessage::FileMoveConflictFinished {
                 started_at,
                 completion,
@@ -88,6 +148,34 @@ impl NativeAppState {
             .file_move_conflict_apply_to_remaining = false;
         if let Some(status) = self.library.folder_browser.cancel_file_move_conflicts() {
             self.ui.status.sample = status;
+        }
+    }
+
+    fn begin_file_move_progress(&mut self, progress: FileMoveProgress) {
+        self.ui.status.sample = format!("{} | {}", progress.label, progress.detail);
+        self.background.file_move_progress = Some(progress);
+    }
+
+    pub(in crate::native_app) fn apply_file_move_progress(&mut self, progress: FileMoveProgress) {
+        if self
+            .background
+            .file_move_progress
+            .as_ref()
+            .is_some_and(|active| active.task_id == progress.task_id)
+        {
+            self.background.file_move_progress = Some(progress);
+        }
+    }
+
+    fn finish_file_move_progress(&mut self, task_id: u64) {
+        if self
+            .background
+            .file_move_progress
+            .as_ref()
+            .is_some_and(|active| active.task_id == task_id)
+        {
+            self.background.file_move_progress = None;
+            self.background.progress_tick = 0.0;
         }
     }
 
@@ -107,26 +195,43 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         completion: FolderMoveCompletion,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.finish_file_move_progress(completion.task_id);
+        let previous_selected = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
         let result = completion.result.and_then(|success| {
             self.library
                 .folder_browser
                 .apply_folder_move_completion(&completion.request, success)
         });
-        self.finish_folder_move_result(started_at, result);
+        self.finish_folder_move_result(started_at, previous_selected, result, context);
     }
 
     fn finish_folder_move_result(
         &mut self,
         started_at: Instant,
+        previous_selected: Option<String>,
         result: Result<FolderDropResult, String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(result) => {
+                let moved = !result.moved_paths.is_empty();
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.ui.status.sample = status;
                 }
+                if moved {
+                    self.persist_source_scan_cache_after_move(
+                        "browser.drag_drop.move.cache_persist",
+                        started_at,
+                    );
+                }
+                self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
                 emit_gui_action(
                     "browser.drag_drop.move",
                     Some("browser"),
@@ -158,25 +263,53 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         completion: FileMoveConflictCompletion,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.finish_file_move_progress(completion.task_id);
+        let moved = match &completion.result {
+            Ok(success) => !success.moved_paths.is_empty(),
+            Err(failure) => !failure.moved_paths.is_empty(),
+        };
+        let previous_selected = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
         let result = self
             .library
             .folder_browser
             .apply_file_move_conflict_completion(completion);
-        self.finish_file_move_conflict_result(started_at, result);
+        self.finish_file_move_conflict_result(
+            started_at,
+            previous_selected,
+            moved,
+            result,
+            context,
+        );
     }
 
     fn finish_file_move_conflict_result(
         &mut self,
         started_at: Instant,
+        previous_selected: Option<String>,
+        moved: bool,
         result: Result<FolderDropResult, String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(result) => {
+                let moved = moved || !result.moved_paths.is_empty();
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.ui.status.sample = status;
                 }
+                if moved {
+                    self.persist_source_scan_cache_after_move(
+                        "browser.drag_drop.file_conflict.cache_persist",
+                        started_at,
+                    );
+                }
+                self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
                 emit_gui_action(
                     "browser.drag_drop.file_conflict.resolve",
                     Some("browser"),
@@ -202,5 +335,48 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    fn persist_source_scan_cache_after_move(&mut self, action: &'static str, started_at: Instant) {
+        if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
+            self.ui.status.sample = if self.ui.status.sample.is_empty() {
+                format!("Source cache not saved: {error}")
+            } else {
+                format!("{}; source cache not saved: {error}", self.ui.status.sample)
+            };
+            emit_gui_action(
+                action,
+                Some("browser"),
+                None,
+                "error",
+                started_at,
+                Some(&error),
+            );
+        }
+    }
+
+    fn load_selected_sample_after_move_if_needed(
+        &mut self,
+        previous_selected: Option<String>,
+        moved: bool,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !moved {
+            return;
+        }
+        let Some(selected) = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        if previous_selected.as_deref() == Some(selected.as_str()) {
+            return;
+        }
+        self.cancel_metadata_tag_entry();
+        self.metadata.selected_tag = None;
+        self.load_navigation_sample(selected, context);
     }
 }

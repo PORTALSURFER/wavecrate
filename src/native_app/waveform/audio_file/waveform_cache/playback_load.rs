@@ -2,9 +2,9 @@ use std::{fs, path::PathBuf, sync::Arc, time::Instant};
 
 use super::{
     diagnostics::{log_slow_cache_phase, log_stale_cache_entry},
-    format::{CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION_V2},
+    format::CACHE_FORMAT_VERSION,
     identity::CacheIdentity,
-    read::{read_cached_waveform_file, read_cached_waveform_file_v2},
+    read::read_cached_waveform_file,
     store_queue::store_cached_waveform_file_in_background,
     write::mark_cached_waveform_file_playback_ready,
 };
@@ -28,21 +28,6 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
             &path,
             started_at,
         );
-        return Some(file);
-    }
-    if let Some(cached_v2) = read_cached_waveform_file_v2(&path, &identity)
-        && cached_v2.playback_samples.is_some()
-    {
-        let Some(file) = cached_v2.into_playback_ready_waveform_file(path.clone(), identity) else {
-            log_stale_cache_entry(&path, CACHE_FORMAT_VERSION_V2);
-            return None;
-        };
-        log_slow_cache_phase(
-            "browser.sample_cache.load_v2_playback_ready",
-            &path,
-            started_at,
-        );
-        store_cached_waveform_file_in_background(&file);
         return Some(file);
     }
     if super::super::should_use_file_backed_wav_decode(&path) {

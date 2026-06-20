@@ -5,14 +5,16 @@ use super::super::FolderBrowserState;
 pub(in crate::native_app) const COLLECTION_ROW_HEIGHT: f32 = 22.0;
 pub(in crate::native_app) const COLLECTION_ROW_SPACING: f32 = 1.0;
 pub(in crate::native_app) const COLLECTIONS_PANEL_PADDING: f32 = 6.0;
-pub(in crate::native_app) const COLLECTIONS_PANEL_HEADER_HEIGHT: f32 = 20.0;
-pub(in crate::native_app) const COLLECTIONS_PANEL_HEADER_CONTENT_SPACING: f32 = 4.0;
+pub(in crate::native_app) const COLLECTIONS_PANEL_HEADER_HEIGHT: f32 =
+    super::super::SIDEBAR_PANEL_HEADER_HEIGHT;
+pub(in crate::native_app) const COLLECTIONS_PANEL_HEADER_CONTENT_SPACING: f32 =
+    super::super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_CHROME: f32 = 8.0;
 pub(in crate::native_app) const COLLAPSED_COLLECTIONS_PANEL_HEIGHT: f32 =
     COLLECTIONS_PANEL_PADDING * 2.0 + COLLECTIONS_PANEL_HEADER_HEIGHT;
 pub(in crate::native_app) const MIN_COLLECTIONS_PANEL_HEIGHT: f32 =
     COLLAPSED_COLLECTIONS_PANEL_HEIGHT;
-pub(in crate::native_app) const DEFAULT_COLLECTIONS_PANEL_HEIGHT: f32 = 148.0;
+pub(in crate::native_app) const DEFAULT_COLLECTIONS_PANEL_HEIGHT: f32 = 130.0;
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn collections_panel_height(&self) -> f32 {
