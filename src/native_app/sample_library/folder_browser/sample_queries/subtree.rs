@@ -1,4 +1,8 @@
-use std::{cell::Ref, collections::HashMap, path::PathBuf};
+use std::{
+    cell::Ref,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use radiant::prelude as ui;
 
@@ -13,10 +17,8 @@ impl FolderBrowserState {
         &self,
         folder: &'a FolderEntry,
     ) -> Vec<&'a FileEntry> {
-        self.selected_folder_recursive_audio_file_ids_ref(folder)
-            .iter()
-            .filter_map(|id| folder.find_file(id))
-            .collect()
+        let ids = self.selected_folder_recursive_audio_file_ids_ref(folder);
+        recursive_audio_files_for_ordered_ids(folder, ids.as_slice())
     }
 
     pub(super) fn selected_folder_recursive_audio_file_window_matching_tags<'a>(
@@ -29,19 +31,22 @@ impl FolderBrowserState {
         let ids = self.selected_folder_recursive_audio_file_ids_ref(folder);
         if required_tags.is_empty() {
             let total_count = ids.len();
+            let window_start = window.window_start.min(total_count);
+            let window_end = window.window_end.min(total_count);
             return VisibleSampleWindowFiles {
                 total_count,
-                rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
-                    .filter_map(|index| ids.get(index))
-                    .filter_map(|id| folder.find_file(id))
-                    .collect(),
+                rows: recursive_audio_files_for_window_ids(
+                    folder,
+                    &ids.as_slice()[window_start..window_end],
+                ),
             };
         }
 
+        let files_by_id = recursive_audio_file_lookup_for_ids(folder, ids.as_slice());
         let mut total_count = 0;
         let rows = ids
             .iter()
-            .filter_map(|id| folder.find_file(id))
+            .filter_map(|id| files_by_id.get(id.as_str()).copied())
             .filter(|file| {
                 filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
             })
@@ -54,6 +59,27 @@ impl FolderBrowserState {
             .collect();
 
         VisibleSampleWindowFiles { total_count, rows }
+    }
+
+    pub(super) fn selected_folder_recursive_audio_file_index_matching_tags(
+        &self,
+        folder: &FolderEntry,
+        selected: &str,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<usize> {
+        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let ids = self.selected_folder_recursive_audio_file_ids_ref(folder);
+        if required_tags.is_empty() {
+            return ids.iter().position(|id| id == selected);
+        }
+
+        let files_by_id = recursive_audio_file_lookup_for_ids(folder, ids.as_slice());
+        ids.iter()
+            .filter_map(|id| files_by_id.get(id.as_str()).copied())
+            .filter(|file| {
+                filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+            })
+            .position(|file| file.id == selected)
     }
 
     pub(super) fn selected_folder_recursive_audio_file_ids_ref(
@@ -80,6 +106,71 @@ impl FolderBrowserState {
             self.sort_files(&mut files);
             files.into_iter().map(|file| file.id.clone()).collect()
         })
+    }
+}
+
+fn recursive_audio_files_for_ordered_ids<'a>(
+    folder: &'a FolderEntry,
+    ids: &[String],
+) -> Vec<&'a FileEntry> {
+    let files_by_id = recursive_audio_file_lookup_for_ids(folder, ids);
+    materialize_ordered_ids(ids, &files_by_id)
+}
+
+fn recursive_audio_files_for_window_ids<'a>(
+    folder: &'a FolderEntry,
+    ids: &[String],
+) -> Vec<&'a FileEntry> {
+    if ids.is_empty() {
+        return Vec::new();
+    }
+
+    let files_by_id = recursive_audio_file_lookup_for_ids(folder, ids);
+    materialize_ordered_ids(ids, &files_by_id)
+}
+
+fn materialize_ordered_ids<'a>(
+    ids: &[String],
+    files_by_id: &HashMap<&str, &'a FileEntry>,
+) -> Vec<&'a FileEntry> {
+    ids.iter()
+        .filter_map(|id| files_by_id.get(id.as_str()).copied())
+        .collect()
+}
+
+fn recursive_audio_file_lookup_for_ids<'a>(
+    folder: &'a FolderEntry,
+    ids: &[String],
+) -> HashMap<&'a str, &'a FileEntry> {
+    if ids.is_empty() {
+        return HashMap::new();
+    }
+
+    let wanted = ids.iter().map(String::as_str).collect::<HashSet<_>>();
+    let mut files_by_id = HashMap::with_capacity(wanted.len());
+    collect_recursive_audio_files_matching_ids(folder, &wanted, &mut files_by_id);
+    files_by_id
+}
+
+fn collect_recursive_audio_files_matching_ids<'a>(
+    folder: &'a FolderEntry,
+    wanted: &HashSet<&str>,
+    files_by_id: &mut HashMap<&'a str, &'a FileEntry>,
+) {
+    for file in folder.files.iter().filter(|file| file.is_audio()) {
+        if wanted.contains(file.id.as_str()) {
+            files_by_id.insert(file.id.as_str(), file);
+            if files_by_id.len() == wanted.len() {
+                return;
+            }
+        }
+    }
+
+    for child in &folder.children {
+        collect_recursive_audio_files_matching_ids(child, wanted, files_by_id);
+        if files_by_id.len() == wanted.len() {
+            return;
+        }
     }
 }
 

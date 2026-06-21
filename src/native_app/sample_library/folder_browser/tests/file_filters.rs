@@ -423,6 +423,57 @@ fn folder_subtree_listing_includes_descendant_samples_when_enabled() {
 }
 
 #[test]
+fn folder_subtree_listing_materializes_deep_scroll_window() {
+    let root = temp_source_root("wavecrate-gui-subtree-listing-window");
+    let mut files = Vec::new();
+    for index in 0..64 {
+        let folder = root.join(format!("group_{:02}", index / 8));
+        fs::create_dir_all(&folder).expect("create grouped folder");
+        let file = folder.join(format!("sample_{index:03}.wav"));
+        fs::write(&file, []).expect("write sample file");
+        files.push(file);
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&root),
+        Default::default(),
+    ));
+    browser.apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 48.0 * 22.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: files.len(),
+            viewport_start: 48,
+            viewport_end: 54,
+            window_start: 46,
+            window_end: 56,
+        },
+    });
+
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.total_count, files.len());
+    assert_eq!(visible.window.window_start, 46);
+    assert_eq!(
+        visible
+            .rows
+            .iter()
+            .map(|row| row.file.name.as_str())
+            .collect::<Vec<_>>(),
+        (46..56)
+            .map(|index| format!("sample_{index:03}.wav"))
+            .collect::<Vec<_>>()
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn disabling_folder_subtree_listing_drops_hidden_nested_file_selection() {
     let root = temp_source_root("wavecrate-gui-subtree-listing-selection");
     let drums = root.join("drums");

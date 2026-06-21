@@ -278,11 +278,20 @@ impl FolderBrowserState {
     ) -> Option<usize> {
         let selected = self.selection.selected_file.as_deref()?;
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        if self.selection.selected_collection.is_some() || self.folder_subtree_listing_enabled() {
+        if self.selection.selected_collection.is_some() {
             return self
                 .selected_audio_files_matching_tags(tags_by_file)
                 .iter()
                 .position(|file| file.id == selected);
+        }
+        if self.folder_subtree_listing_enabled() {
+            return self.selected_folder().and_then(|folder| {
+                self.selected_folder_recursive_audio_file_index_matching_tags(
+                    folder,
+                    selected,
+                    tags_by_file,
+                )
+            });
         }
         let folder = self.selected_folder()?;
         self.selected_folder_audio_file_indices_ref(folder)
