@@ -139,7 +139,7 @@ fn playmark_resize_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 123.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 255)
     }));
     assert!(!fills.iter().any(|fill| {
         (fill.rect.min.x - 112.5).abs() < 0.001
@@ -170,7 +170,7 @@ fn playmark_export_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 120.0).abs() < 0.001
             && (fill.rect.min.y - 64.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 255)
     }));
     assert!(!fills.iter().any(|fill| {
         (fill.rect.min.x - 100.0).abs() < 0.001

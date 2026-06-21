@@ -33,6 +33,7 @@ const BEAT_GUIDE_COLOR: Rgba8 = Rgba8::new(255, 214, 188, 170);
 const PLAY_START_MARKER_COLOR: Rgba8 = Rgba8::new(204, 255, 255, 245);
 const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
 const HOVER_CURSOR_COLOR: Rgba8 = Rgba8::new(255, 255, 255, 210);
+const PLAY_HANDLE_ACTION_HOVER_COLOR: Rgba8 = Rgba8::new(255, 202, 112, 255);
 const HANDLE_HOVER_ALPHA: u8 = 255;
 const EDIT_GAIN_HANDLE_ALPHA: u8 = 225;
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
@@ -250,7 +251,7 @@ impl WaveformWidget {
                     geometry,
                     bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
                     hover.role,
-                    PLAY_SELECTION_COLOR.with_alpha(HANDLE_HOVER_ALPHA),
+                    play_selection_handle_hover_color(hover.role),
                 );
             }
             super::WaveformSelectionKind::Edit => {
@@ -377,4 +378,13 @@ const fn edit_selection_paint_style() -> CanvasSelectionPaintStyle {
         .fill_alpha(46)
         .cursor_alpha(230)
         .body_alpha(180)
+}
+
+const fn play_selection_handle_hover_color(role: DragHandleRole) -> Rgba8 {
+    match role {
+        DragHandleRole::Start | DragHandleRole::End | DragHandleRole::TrailingControl => {
+            PLAY_HANDLE_ACTION_HOVER_COLOR
+        }
+        DragHandleRole::Body | DragHandleRole::LeadingControl => PLAY_SELECTION_COLOR,
+    }
 }
