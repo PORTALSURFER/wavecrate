@@ -4,26 +4,25 @@ use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::waveform_panel::WaveformPanelViewModel;
 use crate::native_app::waveform::{self, WaveformInteraction, WaveformState};
 
+const WAVEFORM_STATUS_HEIGHT: f32 = 16.0;
 pub(in crate::native_app) const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
-pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
+pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 202.0;
 
 pub(in crate::native_app) fn waveform_panel(
     model: WaveformPanelViewModel<'_>,
 ) -> ui::View<GuiMessage> {
     ui::column([
-        waveform_panel_header(model.waveform),
-        ui::text_line(waveform_title(model.waveform, model.loading_label), 18.0),
+        ui::text_line(
+            waveform_title(model.waveform, model.loading_label),
+            WAVEFORM_STATUS_HEIGHT,
+        ),
         waveform_viewport_with_loading_state(&model),
         waveform_scrollbar(model.waveform),
     ])
-    .spacing(2.0)
+    .spacing(1.0)
     .style(ui::WidgetStyle::default())
     .fill_width()
     .height(WAVEFORM_PANEL_HEIGHT)
-}
-
-fn waveform_panel_header(_waveform: &WaveformState) -> ui::View<GuiMessage> {
-    ui::text_line("Waveform", 18.0)
 }
 
 fn waveform_viewport_with_loading_state(
@@ -127,6 +126,16 @@ mod tests {
     use super::*;
     use crate::native_app::test_support::state::NativeAppStateFixture;
     use radiant::prelude::IntoView;
+
+    #[test]
+    fn waveform_panel_omits_section_header_label() {
+        let state = NativeAppStateFixture::default().build();
+        let frame = waveform_panel(WaveformPanelViewModel::from_app_state(&state))
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(800.0, WAVEFORM_PANEL_HEIGHT));
+
+        assert!(frame.paint_plan.contains_text("No sample loaded"));
+        assert!(!frame.paint_plan.contains_text("Waveform"));
+    }
 
     #[test]
     fn waveform_help_tooltip_attaches_to_interaction_widget() {
