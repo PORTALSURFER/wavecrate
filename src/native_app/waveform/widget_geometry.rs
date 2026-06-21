@@ -86,12 +86,19 @@ impl WaveformWidget {
         position: Point,
         kind: WaveformSelectionKind,
     ) -> Option<WaveformSelectionEdge> {
-        let range = match kind {
-            WaveformSelectionKind::Play => self.play_selection,
-            WaveformSelectionKind::Edit => self.edit_selection,
-        };
+        match kind {
+            WaveformSelectionKind::Play => self.play_selection_resize_handle_at(bounds, position),
+            WaveformSelectionKind::Edit => self.edit_selection_resize_handle_at(bounds, position),
+        }
+    }
+
+    fn play_selection_resize_handle_at(
+        &self,
+        bounds: Rect,
+        position: Point,
+    ) -> Option<WaveformSelectionEdge> {
         let role = self
-            .selection_geometry(bounds, range)
+            .selection_geometry(bounds, self.play_selection)
             .and_then(|geometry| {
                 selection_resize_affordance_style().affordance_at_point(
                     geometry,
@@ -100,6 +107,25 @@ impl WaveformWidget {
                 )
             })?;
         waveform_selection_edge(role)
+    }
+
+    fn edit_selection_resize_handle_at(
+        &self,
+        bounds: Rect,
+        position: Point,
+    ) -> Option<WaveformSelectionEdge> {
+        let selection = self.edit_selection?;
+        let role = self
+            .selection_geometry(bounds, Some(selection))
+            .and_then(|geometry| {
+                selection_resize_affordance_style().affordance_at_point(
+                    geometry,
+                    edit_selection_resize_edge_bounds(bounds),
+                    position,
+                )
+            })?;
+        let edge = waveform_selection_edge(role)?;
+        edit_selection_resize_edge_visible(selection, edge).then_some(edge)
     }
 
     fn play_selection_handle_hover_at(
@@ -126,6 +152,12 @@ impl WaveformWidget {
         bounds: Rect,
         position: Point,
     ) -> Option<WaveformSelectionHandleHover> {
+        if let Some(edge) = self.edit_selection_resize_handle_at(bounds, position) {
+            return Some(WaveformSelectionHandleHover {
+                kind: WaveformSelectionKind::Edit,
+                role: waveform_selection_edge_role(edge),
+            });
+        }
         self.selection_geometry(bounds, self.edit_selection)
             .and_then(|geometry| {
                 selection_move_affordance_style().affordance_at_point(geometry, bounds, position)
@@ -214,6 +246,27 @@ pub(super) const fn selection_resize_edge_style() -> CanvasSelectionEdgeVisualSt
 
 pub(super) const fn selection_export_handle_style() -> CanvasSelectionTrailingControlStyle {
     CanvasSelectionTrailingControlStyle::new(SELECTION_EXPORT_HANDLE_SIZE, 0.0)
+}
+
+pub(super) fn edit_selection_resize_edge_bounds(bounds: Rect) -> Rect {
+    bounds.bottom_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT)
+}
+
+pub(super) fn edit_selection_resize_edge_visible(
+    selection: wavecrate::selection::SelectionRange,
+    edge: WaveformSelectionEdge,
+) -> bool {
+    match edge {
+        WaveformSelectionEdge::Start => selection.fade_in().is_none(),
+        WaveformSelectionEdge::End => selection.fade_out().is_none(),
+    }
+}
+
+pub(super) const fn waveform_selection_edge_role(edge: WaveformSelectionEdge) -> DragHandleRole {
+    match edge {
+        WaveformSelectionEdge::Start => DragHandleRole::Start,
+        WaveformSelectionEdge::End => DragHandleRole::End,
+    }
 }
 
 fn waveform_selection_edge(role: DragHandleRole) -> Option<WaveformSelectionEdge> {

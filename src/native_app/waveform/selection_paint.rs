@@ -10,8 +10,9 @@ use radiant::{
 use super::{
     WaveformWidget,
     widget_geometry::{
-        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, selection_export_handle_style,
-        selection_move_handle_style, selection_resize_edge_style,
+        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, edit_selection_resize_edge_bounds,
+        edit_selection_resize_edge_visible, selection_export_handle_style,
+        selection_move_handle_style, selection_resize_edge_style, waveform_selection_edge_role,
     },
 };
 
@@ -35,6 +36,7 @@ const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
 const HOVER_CURSOR_COLOR: Rgba8 = Rgba8::new(255, 255, 255, 210);
 const PLAY_HANDLE_ACTION_HOVER_COLOR: Rgba8 = Rgba8::new(255, 202, 112, 255);
 const HANDLE_HOVER_ALPHA: u8 = 255;
+const EDIT_RESIZE_HANDLE_ALPHA: u8 = 190;
 const EDIT_GAIN_HANDLE_ALPHA: u8 = 225;
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
 const BEAT_GUIDE_WIDTH: f32 = 1.0;
@@ -163,6 +165,7 @@ impl WaveformWidget {
             CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
             style.affordance_paint_parts(bounds),
         );
+        self.append_edit_selection_resize_handle_paint(paint, bounds, geometry);
         self.append_edit_gain_handle_paint(
             paint,
             bounds,
@@ -258,10 +261,18 @@ impl WaveformWidget {
                 let Some(geometry) = self.selection_geometry(bounds, self.edit_selection) else {
                     return;
                 };
+                let edge_bounds = match hover.role {
+                    DragHandleRole::Start | DragHandleRole::End => {
+                        edit_selection_resize_edge_bounds(bounds)
+                    }
+                    DragHandleRole::Body
+                    | DragHandleRole::TrailingControl
+                    | DragHandleRole::LeadingControl => bounds,
+                };
                 self.append_hover_selection_handle_fill(
                     &mut paint,
                     geometry,
-                    bounds,
+                    edge_bounds,
                     hover.role,
                     EDIT_SELECTION_COLOR.with_alpha(HANDLE_HOVER_ALPHA),
                 );
@@ -312,6 +323,36 @@ impl WaveformWidget {
             return;
         };
         paint.push_visible_fill_rect(rect, color);
+    }
+
+    fn append_edit_selection_resize_handle_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        geometry: CanvasSelectionGeometry,
+    ) {
+        let Some(selection) = self.edit_selection else {
+            return;
+        };
+        let edge_bounds = edit_selection_resize_edge_bounds(bounds);
+        let widget_id = paint.widget_id();
+        for edge in [
+            super::WaveformSelectionEdge::Start,
+            super::WaveformSelectionEdge::End,
+        ] {
+            if !edit_selection_resize_edge_visible(selection, edge) {
+                continue;
+            }
+            geometry.push_edge_visual_fill(
+                paint.primitives_mut(),
+                widget_id,
+                selection_resize_edge_style().paint_parts(
+                    edge_bounds,
+                    waveform_selection_edge_role(edge),
+                    EDIT_SELECTION_COLOR.with_alpha(EDIT_RESIZE_HANDLE_ALPHA),
+                ),
+            );
+        }
     }
 
     fn append_hover_selection_handle_fill(

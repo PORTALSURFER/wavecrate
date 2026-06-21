@@ -557,6 +557,95 @@ fn secondary_press_on_edit_top_handle_starts_move() {
 }
 
 #[test]
+fn primary_press_on_edit_bottom_handle_starts_resize() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 76.0)))
+        .expect("edit resize interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6
+        }
+    );
+}
+
+#[test]
+fn secondary_press_on_edit_bottom_handle_starts_resize() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(
+                Point::new(40.0, 76.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
+        )
+        .expect("edit resize interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            edge: WaveformSelectionEdge::Start,
+            visible_ratio: 0.2
+        }
+    );
+}
+
+#[test]
+fn secondary_press_on_faded_edit_bottom_side_does_not_resize() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection =
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.4));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(
+                Point::new(120.0, 76.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
+        )
+        .expect("edit fade interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::OutEnd,
+            visible_ratio: 0.6
+        }
+    );
+}
+
+#[test]
 fn primary_press_on_edit_gain_handle_starts_gain_drag_instead_of_move() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

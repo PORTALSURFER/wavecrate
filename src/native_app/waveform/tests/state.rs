@@ -170,6 +170,35 @@ fn playmark_range_edges_are_resizable() {
 }
 
 #[test]
+fn edit_bottom_handle_resize_preserves_gain_and_existing_fade_shape() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_gain(0.5)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_in_outer_gain(0.4),
+    );
+    state.edit_mark_ratio = Some(0.2);
+
+    state.apply_interaction(WaveformInteraction::BeginSelectionResize {
+        kind: WaveformSelectionKind::Edit,
+        edge: WaveformSelectionEdge::End,
+        visible_ratio: 0.6,
+    });
+    state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.8 });
+
+    let selection = state.edit_selection().expect("resized edit selection");
+    let fade_in = selection.fade_in().expect("fade-in should be preserved");
+    let fade_in_end = selection.start() + selection.width() * fade_in.length;
+    assert!((selection.start() - 0.2).abs() < 0.001);
+    assert!((selection.end() - 0.8).abs() < 0.001);
+    assert!((selection.gain() - 0.5).abs() < 0.001);
+    assert!((fade_in_end - 0.3).abs() < 0.001);
+    assert!((fade_in.outer_gain - 0.4).abs() < 0.001);
+    assert_eq!(state.edit_mark_ratio(), Some(selection.start()));
+}
+
+#[test]
 fn playmark_top_handle_moves_range_without_resizing() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

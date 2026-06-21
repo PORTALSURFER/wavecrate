@@ -260,6 +260,17 @@ impl WaveformWidget {
             }));
         }
         if let Some(edge) =
+            self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Edit)
+        {
+            return Some(WidgetOutput::typed(
+                WaveformInteraction::BeginSelectionResize {
+                    kind: WaveformSelectionKind::Edit,
+                    edge,
+                    visible_ratio,
+                },
+            ));
+        }
+        if let Some(edge) =
             self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Play)
         {
             return Some(WidgetOutput::typed(
@@ -340,6 +351,17 @@ impl WaveformWidget {
                 pointer_y: position.y,
             }));
         }
+        if let Some(edge) =
+            self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Edit)
+        {
+            return Some(WidgetOutput::typed(
+                WaveformInteraction::BeginSelectionResize {
+                    kind: WaveformSelectionKind::Edit,
+                    edge,
+                    visible_ratio,
+                },
+            ));
+        }
         if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Edit) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
@@ -363,7 +385,7 @@ impl WaveformWidget {
                 self.active_drag_kind,
                 Some(
                     WaveformActiveDragKind::EditFade(_)
-                        | WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)
+                        | WaveformActiveDragKind::SelectionResize(_, _)
                         | WaveformActiveDragKind::SelectionMove(_)
                 )
             )
@@ -378,6 +400,7 @@ impl WaveformWidget {
                 self.active_drag_kind,
                 Some(
                     WaveformActiveDragKind::EditFade(_)
+                        | WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Edit, _)
                         | WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Edit)
                 )
             )

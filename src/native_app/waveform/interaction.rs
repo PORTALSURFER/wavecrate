@@ -181,6 +181,7 @@ pub(super) struct WaveformSelectionResizeDrag {
     pub(super) kind: WaveformSelectionKind,
     pub(super) edge: WaveformSelectionEdge,
     pub(super) fixed_ratio: f32,
+    baseline: wavecrate::selection::SelectionRange,
 }
 
 impl WaveformSelectionResizeDrag {
@@ -197,16 +198,83 @@ impl WaveformSelectionResizeDrag {
             kind,
             edge,
             fixed_ratio,
+            baseline: selection,
         }
     }
 
     pub(super) fn apply(self, ratio: f32) -> wavecrate::selection::SelectionRange {
-        selection_from_normalized_range(NormalizedRange::from_edge_fraction(
+        let resized = selection_from_normalized_range(NormalizedRange::from_edge_fraction(
             normalized_range_edge(self.edge),
             self.fixed_ratio,
             ratio,
-        ))
+        ));
+        match self.kind {
+            WaveformSelectionKind::Play => resized,
+            WaveformSelectionKind::Edit => preserve_edit_selection_effects(self.baseline, resized),
+        }
     }
+}
+
+fn preserve_edit_selection_effects(
+    source: wavecrate::selection::SelectionRange,
+    resized: wavecrate::selection::SelectionRange,
+) -> wavecrate::selection::SelectionRange {
+    let source_width = source.width();
+    let mut selection = resized.with_gain(source.gain());
+    if let Some(fade_in) = source.fade_in() {
+        selection = selection
+            .with_fade_in_and_mute(
+                preserved_relative_length(source_width * fade_in.length, selection.width()),
+                fade_in.curve,
+                preserved_fade_in_mute(source, selection),
+            )
+            .with_fade_in_outer_gain(fade_in.outer_gain);
+    }
+    if let Some(fade_out) = source.fade_out() {
+        selection = selection
+            .with_fade_out_and_mute(
+                preserved_relative_length(source_width * fade_out.length, selection.width()),
+                fade_out.curve,
+                preserved_fade_out_mute(source, selection),
+            )
+            .with_fade_out_outer_gain(fade_out.outer_gain);
+    }
+    selection
+}
+
+fn preserved_relative_length(absolute_length: f32, selection_width: f32) -> f32 {
+    if selection_width <= 0.0 || !selection_width.is_finite() {
+        return 0.0;
+    }
+    (absolute_length / selection_width).clamp(0.0, 1.0)
+}
+
+fn preserved_fade_in_mute(
+    source: wavecrate::selection::SelectionRange,
+    resized: wavecrate::selection::SelectionRange,
+) -> f32 {
+    let Some(fade_in) = source.fade_in().filter(|fade| fade.mute > 0.0) else {
+        return 0.0;
+    };
+    if resized.width() <= 0.0 {
+        return 0.0;
+    }
+    let source_outer_start = source.start() - source.width() * fade_in.mute;
+    ((resized.start() - source_outer_start) / resized.width()).max(0.0)
+}
+
+fn preserved_fade_out_mute(
+    source: wavecrate::selection::SelectionRange,
+    resized: wavecrate::selection::SelectionRange,
+) -> f32 {
+    let Some(fade_out) = source.fade_out().filter(|fade| fade.mute > 0.0) else {
+        return 0.0;
+    };
+    if resized.width() <= 0.0 {
+        return 0.0;
+    }
+    let source_outer_end = source.end() + source.width() * fade_out.mute;
+    ((source_outer_end - resized.end()) / resized.width()).max(0.0)
 }
 
 fn normalized_range_edge(edge: WaveformSelectionEdge) -> NormalizedRangeEdge {

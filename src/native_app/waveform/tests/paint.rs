@@ -209,6 +209,82 @@ fn editmark_slide_handle_hover_paints_bright_overlay() {
 }
 
 #[test]
+fn editmark_bottom_resize_handles_paint_on_base_edit_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 36.5).abs() < 0.001
+            && (fill.rect.max.x - 43.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 116.5).abs() < 0.001
+            && (fill.rect.max.x - 123.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+    }));
+}
+
+#[test]
+fn editmark_bottom_resize_handle_hides_on_faded_side() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_fade_in(0.25, 0.2)
+            .with_fade_out(0.25, 0.7),
+    );
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(!fills.iter().any(|fill| {
+        (fill.rect.min.x - 36.5).abs() < 0.001
+            && (fill.rect.max.x - 43.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+    }));
+    assert!(!fills.iter().any(|fill| {
+        (fill.rect.min.x - 116.5).abs() < 0.001
+            && (fill.rect.max.x - 123.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+    }));
+}
+
+#[test]
+fn editmark_bottom_resize_handle_hover_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(120.0, 76.0)));
+    assert!(output.is_none());
+    assert_eq!(widget.hover_cursor_ratio, None);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 116.5).abs() < 0.001
+            && (fill.rect.max.x - 123.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+    assert_no_white_hover_border(&plan);
+}
+
+#[test]
 fn editmark_gain_handle_hover_paints_bright_center_tab() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
