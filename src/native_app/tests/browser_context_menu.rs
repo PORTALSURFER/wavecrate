@@ -217,6 +217,52 @@ fn folder_context_menu_paints_new_folder_action() {
 }
 
 #[test]
+fn folder_context_menu_commands_share_neutral_style() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("C:\\Samples\\Drums"),
+        source_id: None,
+        source_removable: false,
+        metadata_tag: None,
+        collection: None,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Drums"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let command_labels = [
+        "Open in Explorer",
+        "Copy Path",
+        "New Folder",
+        "Rename Folder",
+        "Delete Folder",
+    ];
+    let expected_color = frame
+        .paint_plan
+        .first_text_run("New Folder")
+        .expect("new-folder command text paints")
+        .color;
+    for label in command_labels {
+        let color = frame
+            .paint_plan
+            .first_text_run(label)
+            .unwrap_or_else(|| panic!("{label} command text paints"))
+            .color;
+        assert_eq!(color, expected_color, "{label} should use neutral text");
+    }
+
+    let danger = radiant::theme::ThemeTokens::default().accent_danger;
+    assert!(
+        !frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == danger),
+        "folder menu should not paint a separate danger-colored command row"
+    );
+}
+
+#[test]
 fn folder_context_menu_rename_starts_inline_rename_for_context_folder() {
     let root = std::env::temp_dir().join(format!(
         "wavecrate-context-menu-rename-{}",

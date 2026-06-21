@@ -32,8 +32,8 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         BrowserContextTargetKind::MetadataTag => unreachable!("handled above"),
     };
     let mut actions = vec![
-        ui::MenuCommand::new(action_label, GuiMessage::OpenContextTarget).subtle(),
-        ui::MenuCommand::new("Copy Path", GuiMessage::CopyContextPath).subtle(),
+        context_menu_command(&menu.kind, action_label, GuiMessage::OpenContextTarget),
+        context_menu_command(&menu.kind, "Copy Path", GuiMessage::CopyContextPath),
     ];
     if matches!(
         menu.kind,
@@ -49,9 +49,10 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             "Rename Folder",
             GuiMessage::RenameContextFolder,
         ));
-        actions.push(
-            ui::MenuCommand::new("Delete Folder", GuiMessage::RequestDeleteContextFolder).danger(),
-        );
+        actions.push(ui::MenuCommand::new(
+            "Delete Folder",
+            GuiMessage::RequestDeleteContextFolder,
+        ));
     }
     if menu.kind == BrowserContextTargetKind::Sample {
         actions.push(
@@ -83,4 +84,17 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         );
     }
     actions
+}
+
+fn context_menu_command(
+    kind: &BrowserContextTargetKind,
+    label: &'static str,
+    message: GuiMessage,
+) -> ui::MenuCommand<GuiMessage> {
+    let command = ui::MenuCommand::new(label, message);
+    if *kind == BrowserContextTargetKind::Folder {
+        command
+    } else {
+        command.subtle()
+    }
 }
