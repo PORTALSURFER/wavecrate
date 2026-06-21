@@ -26,10 +26,9 @@ pub mod db {
         DB_FILE_NAME, LEGACY_DB_FILE_NAME, META_DEFERRED_MAINTENANCE_REVISION,
         META_DEFERRED_MAINTENANCE_SCHEMA, META_LAST_SCAN_COMPLETED_AT,
         META_LAST_SIMILARITY_PREP_SCAN_AT, META_WAV_PATHS_REVISION, PendingRenameEntry, Rating,
-        SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV, SOURCE_DB_READ_ONLY_ENV, SampleCollection,
-        SampleSoundType, SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, SourceTag,
-        SourceTagUsage, SourceWriteBatch, WavEntry, file_ops_journal, normalize_relative_path,
-        read, schema, tags, util, write,
+        SOURCE_DB_READ_ONLY_ENV, SampleCollection, SampleSoundType, SourceDatabase,
+        SourceDatabaseConnectionRole, SourceDbError, SourceTag, SourceTagUsage, SourceWriteBatch,
+        WavEntry, file_ops_journal, normalize_relative_path, read, schema, tags, util, write,
     };
     #[cfg(debug_assertions)]
     pub use wavecrate_library::sample_sources::db::{

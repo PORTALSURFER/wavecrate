@@ -6,8 +6,8 @@ mod paths;
 mod read_only;
 
 use super::{
-    SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV, SOURCE_DB_READ_ONLY_ENV, SourceDatabase,
-    SourceDatabaseConnectionRole, SourceDbError, telemetry, util,
+    SOURCE_DB_READ_ONLY_ENV, SourceDatabase, SourceDatabaseConnectionRole, SourceDbError,
+    telemetry, util,
 };
 use read_only::open_read_only_source_database;
 
@@ -19,25 +19,17 @@ pub(crate) enum SourceDatabaseOpenMode {
 
 pub(super) fn open_source_database_for_role(
     root: &Path,
-    allow_user_library_write: bool,
     role: SourceDatabaseConnectionRole,
 ) -> Result<SourceDatabase, SourceDbError> {
     if role.uses_read_only_connection() || should_open_source_db_read_only() {
         return open_read_only_source_database(root, role);
     }
-    open_source_database_with_flags(
-        root,
-        allow_user_library_write,
-        role.open_flags(),
-        role.open_mode(),
-        role.label(),
-    )
+    open_source_database_with_flags(root, role.open_flags(), role.open_mode(), role.label())
 }
 
 pub(crate) fn open_source_database(
     root: &Path,
     read_only: bool,
-    allow_user_library_write: bool,
     mode: SourceDatabaseOpenMode,
 ) -> Result<SourceDatabase, SourceDbError> {
     if read_only {
@@ -45,7 +37,6 @@ pub(crate) fn open_source_database(
     }
     open_source_database_with_flags(
         root,
-        allow_user_library_write,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
         mode,
         mode.label(),
@@ -54,7 +45,6 @@ pub(crate) fn open_source_database(
 
 fn open_source_database_with_flags(
     root: &Path,
-    allow_user_library_write: bool,
     open_flags: OpenFlags,
     mode: SourceDatabaseOpenMode,
     telemetry_label: &'static str,
@@ -62,12 +52,6 @@ fn open_source_database_with_flags(
     let open_started = std::time::Instant::now();
     if !root.is_dir() {
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
-    }
-
-    if paths::is_user_library_root(root) && !allow_user_library_write {
-        return Err(SourceDbError::UserLibraryWriteBlocked {
-            path: root.to_path_buf(),
-        });
     }
 
     let db_path = paths::prepare_writable_db_path(root)?;
@@ -216,9 +200,4 @@ pub fn test_source_db_open_total_count(root: &Path) -> usize {
 
 pub(super) fn should_open_source_db_read_only() -> bool {
     crate::env_flags::env_var_truthy(SOURCE_DB_READ_ONLY_ENV)
-}
-
-pub(super) fn allow_user_library_db_write() -> bool {
-    crate::env_flags::env_var_truthy(SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV)
-        || !should_open_source_db_read_only()
 }

@@ -142,38 +142,17 @@ source registry afterward.
     default and requires `<source>/.wavecrate.db` to already exist. Legacy `<source>/.wavecrate_samples.db` files are still readable for compatibility.
   - When unset/default, normal write-capable behavior applies.
 
-- `WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE`
-  - Legacy safety override retained for sandbox workflows. Normal live app runs
-    allow configured source folders under user-library paths such as `~/Music`,
-    `~/Documents`, `~/Downloads`, and `~/Desktop` without requiring this env var.
-  - Use `WAVECRATE_SOURCE_DB_READ_ONLY=1` to block source-folder DB writes during
-    constrained validation or sandbox runs.
-
 - `RADIANT_NATIVE_FONT_PATH`
 Optional path to a `.ttf` font used by the UI projection text renderer when
 system font discovery fails.
 
 - `RADIANT_AUTOMATION_TARGET_EXPORT`
 Optional path where Radiant's native runtime writes the latest flattened
-automation target snapshot as JSON after surface refreshes. Wavecrate's macOS
-`./run.sh` dev-app launch sets this by default to
-`target/dev-app/Wavecrate.automation-targets.json`.
+automation target snapshot as JSON after surface refreshes.
 
 - `RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY`
 When set to `1`/`true`/`yes`/`on`, Radiant writes the target snapshot as
-pretty-printed JSON. Wavecrate's macOS dev-app launch defaults this to `1`.
-
-- `WAVECRATE_AUTOMATION_TARGET_EXPORT`
-Set to `0`/`false`/`no`/`off` to prevent `./run.sh` from enabling Radiant target
-snapshot export for the macOS dev-app launch.
-
-- `WAVECRATE_AUTOMATION_TARGETS_PATH`
-Overrides the default automation target snapshot path used by the macOS
-`./run.sh` dev-app launch.
-
-- `WAVECRATE_AUTOMATION_TARGETS_PRETTY`
-Overrides the pretty-print policy that `./run.sh` forwards to
-`RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY`.
+pretty-printed JSON.
 
 - `WAVECRATE_GUI_TEST_MODE`
 Enables deterministic GUI test mode for the main app binary.

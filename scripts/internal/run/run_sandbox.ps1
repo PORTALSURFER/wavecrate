@@ -19,7 +19,6 @@ param(
   [switch]$Temp,
   [switch]$Clean,
   [switch]$WriteDb,
-  [switch]$AllowUserLibraryDbWrite,
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$AppArgs
 )
@@ -64,11 +63,6 @@ if ($WriteDb) {
 } else {
   $env:WAVECRATE_SOURCE_DB_READ_ONLY = "1"
 }
-if ($AllowUserLibraryDbWrite) {
-  $env:WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE = "1"
-} else {
-  Remove-Item Env:WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE -ErrorAction SilentlyContinue
-}
 
 $sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
 $env:WAVECRATE_CONFIG_HOME = $sandboxBase
@@ -90,19 +84,11 @@ if ($WriteDb) {
 } else {
   Write-Host "[run_sandbox] Source DB mode: read-only (default for agent safety)."
 }
-if ($AllowUserLibraryDbWrite) {
-  Write-Host "[run_sandbox] User-library DB writes: explicitly allowed."
-} else {
-  Write-Host "[run_sandbox] User-library DB writes: blocked."
-}
 
 if (-not $WriteDb) {
   Write-Host "[run_sandbox] DB writes to source trees are blocked by default."
 } else {
   Write-Host "[run_sandbox] DB writes to source trees are enabled for this run."
-  if (-not $AllowUserLibraryDbWrite) {
-    Write-Host "[run_sandbox] User-library-like source roots are still blocked unless -AllowUserLibraryDbWrite is set."
-  }
 }
 
 Write-Host "[run_sandbox] Can still write:"

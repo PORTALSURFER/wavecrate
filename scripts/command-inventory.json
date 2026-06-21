@@ -56,11 +56,6 @@
       "windows_supported": true
     },
     {
-      "path": "scripts/internal-run.ps1",
-      "role": "Run a release-profile Wavecrate build with logging enabled.",
-      "windows_supported": true
-    },
-    {
       "path": "scripts/perf.ps1",
       "role": "PowerShell runtime performance helpers.",
       "windows_supported": true

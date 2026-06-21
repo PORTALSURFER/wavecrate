@@ -17,12 +17,11 @@ CLEAN=0
 TEMP=0
 NAME=""
 WRITE_DB=0
-ALLOW_USER_LIBRARY_DB_WRITE=0
 
 usage() {
   local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
   cat <<EOF
-Usage: ${entrypoint} sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--write-db] [--allow-user-library-db-write] [--] [app args...]
+Usage: ${entrypoint} sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--write-db] [--] [app args...]
 
 Runs cargo run --release with:
 - WAVECRATE_CONFIG_HOME set to an isolated sandbox base directory
@@ -39,9 +38,6 @@ Options:
   --temp        Use a temporary sandbox base dir (mktemp) and delete it on exit.
   --clean       Delete the sandbox base dir on exit.
   --write-db    Allow source DB writes (opt out of read-only DB mode).
-  --allow-user-library-db-write
-                Allow DB writes under user-library-like source paths.
-                Ignored unless --write-db is also provided.
 EOF
 }
 
@@ -57,8 +53,6 @@ while (( $# > 0 )); do
       CLEAN=1; shift ;;
     --write-db)
       WRITE_DB=1; shift ;;
-    --allow-user-library-db-write)
-      ALLOW_USER_LIBRARY_DB_WRITE=1; shift ;;
     --)
       shift; break ;;
     -h|--help)
@@ -102,12 +96,6 @@ else
   export WAVECRATE_SOURCE_DB_READ_ONLY=1
 fi
 
-if (( ALLOW_USER_LIBRARY_DB_WRITE == 1 )); then
-  export WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE=1
-else
-  unset WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE
-fi
-
 APP_ROOT="${WAVECRATE_CONFIG_HOME}/.wavecrate/profiles/sandbox"
 CONFIG_PATH="${APP_ROOT}/config.toml"
 LOGS_DIR="${APP_ROOT}/logs"
@@ -124,19 +112,11 @@ if (( WRITE_DB == 1 )); then
 else
   echo "[run_sandbox] Source DB mode: read-only (default for agent safety)."
 fi
-if (( ALLOW_USER_LIBRARY_DB_WRITE == 1 )); then
-  echo "[run_sandbox] User-library DB writes: explicitly allowed."
-else
-  echo "[run_sandbox] User-library DB writes: blocked."
-fi
 
 if (( WRITE_DB == 0 )); then
   echo "[run_sandbox] DB writes to source trees are blocked by default."
 else
   echo "[run_sandbox] DB writes to source trees are enabled for this run."
-  if (( ALLOW_USER_LIBRARY_DB_WRITE == 0 )); then
-    echo "[run_sandbox] User-library-like source roots are still blocked unless --allow-user-library-db-write is set."
-  fi
 fi
 
 echo "[run_sandbox] Can still write:"

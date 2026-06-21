@@ -8,10 +8,7 @@ usage() {
   cat <<'EOF'
 Usage: ./run.sh [--] [app args...]
 
-Builds and runs a release-profile Wavecrate dev build with logging.
-On macOS, an available dev-app helper stages and opens a
-LaunchServices-visible target/dev-app/Wavecrate.app; otherwise this falls back
-to cargo run. App args are forwarded after the built-in --log flag.
+Compatibility wrapper for `cargo run -- [app args...]`.
 EOF
 }
 
@@ -34,9 +31,4 @@ if [[ ! -f "$ROOT_DIR/vendor/radiant/Cargo.toml" ]]; then
   git submodule update --init --recursive vendor/radiant
 fi
 
-DEV_APP_BUNDLE_SCRIPT="$ROOT_DIR/scripts/internal/run/dev_app_bundle.sh"
-if [[ "$(uname -s)" == "Darwin" && "${WAVECRATE_DIRECT_RUN:-}" != "1" && -x "$DEV_APP_BUNDLE_SCRIPT" ]]; then
-  exec "$DEV_APP_BUNDLE_SCRIPT" "$@"
-fi
-
-exec cargo run -r -- --log "$@"
+exec cargo run -- "$@"

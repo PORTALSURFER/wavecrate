@@ -5,14 +5,10 @@ is the checked inventory for public entrypoints, compatibility wrappers, and
 dispatcher maps. These are the public entrypoints people should run directly:
 
 - `bootstrap.{sh,ps1}`: set up the repo and install hooks.
-- `internal-run.ps1`: run a release-profile Wavecrate build with logging
-  enabled. It runs from the repo root and does not need any private website or
-  release checkout. Example:
-  `powershell -ExecutionPolicy Bypass -File scripts/internal-run.ps1`.
+- repo-root `run.{sh,ps1}`: compatibility wrappers for `cargo run`.
 - `run.ps1 logs debug-overlays` or `run.ps1 logs debug-layout`: convenience
-  aliases for the internal non-sandbox run path with logging enabled and debug
-  layout overlays shown. The repo-root `.\run.ps1` delegates these public run
-  commands to `scripts/run.ps1`.
+  aliases for `cargo run -- --log` with debug layout overlays shown. The
+  repo-root `.\run.ps1` delegates these public run commands to `scripts/run.ps1`.
 - `doctor.{sh,ps1}`: diagnose environment issues.
 - `agent.{sh,ps1}`: agent request, preflight, checks, and hook install helpers.
 - `ci.{sh,ps1}`: validation lanes (`smoke`, `agent`, `quick`, `local`).

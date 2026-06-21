@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
     fs,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 use super::super::{DB_FILE_NAME, LEGACY_DB_FILE_NAME, SourceDbError};
@@ -57,54 +57,4 @@ fn sqlite_sidecar_path(path: &Path, suffix: &str) -> PathBuf {
     let mut name = OsString::from(path.as_os_str());
     name.push(suffix);
     PathBuf::from(name)
-}
-
-pub(super) fn is_user_library_root(root: &Path) -> bool {
-    let Ok(home_root) = user_root_dir() else {
-        return false;
-    };
-    let Ok(home_root) = home_root.canonicalize() else {
-        return false;
-    };
-    let Ok(root_canonical) = root.canonicalize() else {
-        return false;
-    };
-    let Ok(relative) = root_canonical.strip_prefix(&home_root) else {
-        return false;
-    };
-    let mut components = relative.components();
-    let Some(Component::Normal(first)) = components.next() else {
-        return false;
-    };
-    is_user_library_root_name(first)
-}
-
-fn is_user_library_root_name(folder_name: &std::ffi::OsStr) -> bool {
-    let name = folder_name.to_string_lossy().to_ascii_lowercase();
-    matches!(
-        name.as_str(),
-        "music"
-            | "documents"
-            | "download"
-            | "downloads"
-            | "desktop"
-            | "pictures"
-            | "videos"
-            | "video"
-            | "movies"
-            | "onedrive"
-    )
-}
-
-fn user_root_dir() -> Result<PathBuf, &'static str> {
-    if let Ok(home) = std::env::var("HOME") {
-        return Ok(PathBuf::from(home));
-    }
-    if let (Ok(drive), Ok(path)) = (std::env::var("HOMEDRIVE"), std::env::var("HOMEPATH")) {
-        return Ok(PathBuf::from(format!("{drive}{path}")));
-    }
-    if let Ok(user_profile) = std::env::var("USERPROFILE") {
-        return Ok(PathBuf::from(user_profile));
-    }
-    Err("Missing HOME/USERPROFILE environment variable")
 }

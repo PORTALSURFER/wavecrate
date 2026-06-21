@@ -612,19 +612,28 @@ try {
     $repoDir = Join-Path $runHelperFixtureDir "repo"
     New-Item -ItemType Directory -Path $repoDir | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts/internal/run") -Force | Out-Null
+    $fakeBinDir = Join-Path $repoDir "fake-bin"
+    New-Item -ItemType Directory -Path $fakeBinDir -Force | Out-Null
 
     Copy-Item (Join-Path $scriptsDir "run.ps1") (Join-Path $repoDir "scripts/run.ps1")
     Copy-Item (Join-Path $rootDir "run.ps1") (Join-Path $repoDir "run.ps1")
     Copy-Item (Join-Path $scriptsDir "internal/run/latest_log.ps1") (Join-Path $repoDir "scripts/internal/run/latest_log.ps1")
-    Set-Content -Path (Join-Path $repoDir "scripts/internal-run.ps1") -Value @(
-      'param(',
-      '  [Parameter(ValueFromRemainingArguments = $true)]',
-      '  [string[]]$AppArgs',
-      ')',
-      'Set-StrictMode -Version Latest',
-      '$ErrorActionPreference = "Stop"',
-      'Write-Host ("[internal-run-fixture] args={0}" -f ($AppArgs -join " "))'
+    Set-Content -Path (Join-Path $fakeBinDir "cargo") -Value @(
+      '#!/usr/bin/env sh',
+      'printf "[cargo-fixture] cwd=%s args=%s\n" "$PWD" "$*"'
     )
+    $isWindowsHost = ($PSVersionTable.PSEdition -eq "Desktop") -or ($env:OS -eq "Windows_NT")
+    if ($isWindowsHost) {
+      Set-Content -Path (Join-Path $fakeBinDir "cargo.cmd") -Value @(
+        '@echo off',
+        'echo [cargo-fixture] cwd=%CD% args=%*'
+      )
+    } else {
+      chmod +x (Join-Path $fakeBinDir "cargo")
+    }
+    $fakeCargoEnv = @{
+      PATH = $fakeBinDir + [System.IO.Path]::PathSeparator + [Environment]::GetEnvironmentVariable("PATH")
+    }
 
     $configBase = Join-Path $repoDir "fixture-config"
     $liveLogsDir = Join-Path $configBase ".wavecrate/logs"
@@ -659,24 +668,24 @@ try {
       )
     }
 
-    Invoke-ExpectOutput -Label "run helper launches internal debug overlays alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "debug-overlays") -ExpectedSubstrings @(
-      "[run] launching internal live run with logs and debug layout overlays: internal-run.ps1 --debug-overlays",
-      "[internal-run-fixture] args=--debug-overlays"
+    Invoke-ExpectOutput -Label "run helper launches cargo debug overlays alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "debug-overlays") -EnvVars $fakeCargoEnv -ExpectedSubstrings @(
+      "[run] launching cargo run with logs and debug layout overlays: cargo run -- --log --debug-overlays",
+      "[cargo-fixture] cwd=$repoDir args=run -- --log --debug-overlays"
     )
 
-    Invoke-ExpectOutput -Label "run helper launches internal debug layout alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "debug-layout") -ExpectedSubstrings @(
-      "[run] launching internal live run with logs and debug layout overlays: internal-run.ps1 --debug-layout",
-      "[internal-run-fixture] args=--debug-layout"
+    Invoke-ExpectOutput -Label "run helper launches cargo debug layout alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "debug-layout") -EnvVars $fakeCargoEnv -ExpectedSubstrings @(
+      "[run] launching cargo run with logs and debug layout overlays: cargo run -- --log --debug-layout",
+      "[cargo-fixture] cwd=$repoDir args=run -- --log --debug-layout"
     )
 
-    Invoke-ExpectOutput -Label "root run helper delegates debug overlays alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "run.ps1") -Arguments @("logs", "debug-overlays") -ExpectedSubstrings @(
-      "[run] launching internal live run with logs and debug layout overlays: internal-run.ps1 --debug-overlays",
-      "[internal-run-fixture] args=--debug-overlays"
+    Invoke-ExpectOutput -Label "root run helper delegates debug overlays alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "run.ps1") -Arguments @("logs", "debug-overlays") -EnvVars $fakeCargoEnv -ExpectedSubstrings @(
+      "[run] launching cargo run with logs and debug layout overlays: cargo run -- --log --debug-overlays",
+      "[cargo-fixture] cwd=$repoDir args=run -- --log --debug-overlays"
     )
 
-    Invoke-ExpectOutput -Label "root run helper delegates debug layout alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "run.ps1") -Arguments @("logs", "debug-layout") -ExpectedSubstrings @(
-      "[run] launching internal live run with logs and debug layout overlays: internal-run.ps1 --debug-layout",
-      "[internal-run-fixture] args=--debug-layout"
+    Invoke-ExpectOutput -Label "root run helper delegates debug layout alias" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "run.ps1") -Arguments @("logs", "debug-layout") -EnvVars $fakeCargoEnv -ExpectedSubstrings @(
+      "[run] launching cargo run with logs and debug layout overlays: cargo run -- --log --debug-layout",
+      "[cargo-fixture] cwd=$repoDir args=run -- --log --debug-layout"
     )
 
     $sandboxBase = Join-Path $repoDir ".sandbox/wavecrate"

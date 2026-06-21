@@ -3,7 +3,7 @@
 Dispatches sandbox and diagnostic run helpers.
 
 .DESCRIPTION
-Collapses the old sandbox/log/bundle helper scripts into one public entrypoint.
+Dispatches sandbox, log, and diagnostic helpers from one public entrypoint.
 #>
 
 param(
@@ -17,6 +17,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $psExe = (Get-Process -Id $PID).Path
+$rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 if ($null -eq $Arguments) {
   $Arguments = @()
@@ -47,10 +48,15 @@ if (
   ($Arguments[0] -eq "debug-overlays" -or $Arguments[0] -eq "debug-layout")
 ) {
   $debugArg = if ($Arguments[0] -eq "debug-layout") { "--debug-layout" } else { "--debug-overlays" }
-  $appArgs = @($debugArg) + @($Arguments | Select-Object -Skip 1)
-  Write-Host ("[run] launching internal live run with logs and debug layout overlays: internal-run.ps1 {0}" -f ($appArgs -join " "))
-  & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "internal-run.ps1") @appArgs
-  exit $LASTEXITCODE
+  $appArgs = @("--log", $debugArg) + @($Arguments | Select-Object -Skip 1)
+  Write-Host ("[run] launching cargo run with logs and debug layout overlays: cargo run -- {0}" -f ($appArgs -join " "))
+  Push-Location $rootDir
+  try {
+    cargo run -- @appArgs
+    exit $LASTEXITCODE
+  } finally {
+    Pop-Location
+  }
 }
 
 $scriptName = $commands[$Command]

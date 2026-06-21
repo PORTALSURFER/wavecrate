@@ -18,7 +18,6 @@ param(
   [switch]$Temp,
   [switch]$Clean,
   [switch]$WriteDb,
-  [switch]$AllowUserLibraryDbWrite,
   [switch]$Help
 )
 
@@ -26,7 +25,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if ($Help) {
-  Write-Host "Usage: scripts/internal/release/pull_and_run_release.ps1 [-Dir <path> | -Name <name> | -Temp] [-Clean] [-WriteDb] [-AllowUserLibraryDbWrite] [-- <app args...>]"
+  Write-Host "Usage: scripts/internal/release/pull_and_run_release.ps1 [-Dir <path> | -Name <name> | -Temp] [-Clean] [-WriteDb] [-- <app args...>]"
   Write-Host "Fast-forward the main repo and vendor/radiant from origin/main, then run scripts/run.ps1 sandbox."
   Write-Host "Both repos must be clean and on their expected tracking branches."
   exit 0
@@ -138,9 +137,6 @@ if ($Clean) {
 }
 if ($WriteDb) {
   $runSandboxArgs += "-WriteDb"
-}
-if ($AllowUserLibraryDbWrite) {
-  $runSandboxArgs += "-AllowUserLibraryDbWrite"
 }
 
 Sync-Repo -RepoPath $rootDir -Label "main" -ExpectedBranch "main" -ExpectedUpstream "origin/main"

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn open_blocks_writes_for_user_library_roots_without_override() {
+fn lower_level_open_allows_user_library_roots_without_override() {
     let home = match tempdir() {
         Ok(home) => home,
         Err(err) => panic!("tempdir failed: {err}"),
@@ -12,17 +12,11 @@ fn open_blocks_writes_for_user_library_roots_without_override() {
         panic!("create fake user library dir failed: {err}");
     }
     with_home_env_override(&user_home, || {
-        let blocked = open_source_database(&user_music, false, false, SourceDatabaseOpenMode::Full);
-        assert!(matches!(
-            blocked,
-            Err(SourceDbError::UserLibraryWriteBlocked { .. })
-        ));
-
-        let db = open_source_database(&user_music, false, true, SourceDatabaseOpenMode::Full);
+        let db = open_source_database(&user_music, false, SourceDatabaseOpenMode::Full);
         assert!(db.is_ok());
         let opened = match db {
             Ok(opened) => opened,
-            Err(err) => panic!("db open with override should be allowed: {err}"),
+            Err(err) => panic!("db open should be allowed: {err}"),
         };
         assert_eq!(opened.root(), user_music.as_path());
     });

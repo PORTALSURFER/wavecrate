@@ -26,10 +26,9 @@ Audio sample triage tool built with Rust.
 
 - Requires Rust (stable toolchain) and `cargo`.
 - Initialize submodules after clone: `git submodule update --init --recursive`.
-- For the fastest local app loop from the project root: `./run.sh`. On macOS,
-  local checkouts with the dev-app helper available will stage and open
-  `target/dev-app/Wavecrate.app`; otherwise the script falls back to
-  `cargo run -r`.
+- For the normal local app loop from the project root: `cargo run`.
+- The repo-root `./run.sh` and `.\run.ps1` launch the same Cargo path for
+  compatibility with older local muscle memory.
 - For exact shipping-profile behavior: `cargo run -p wavecrate --bin wavecrate --release`.
 - Or build once and run the shipping binary: `cargo build -p wavecrate --release` then `target/release/wavecrate`.
 - Playback uses your default audio output device.
@@ -50,7 +49,7 @@ Local CI parity command (canonical):
 Fast local app loop:
 - macOS/Linux/WSL: `bash scripts/ci.sh smoke`
 - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
-- local release-like runs: `cargo run-fast`
+- local app runs: `cargo run`
 
 Agent-safe local validation loop for constrained environments:
 - macOS/Linux/WSL: `bash scripts/ci.sh agent`

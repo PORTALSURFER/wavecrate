@@ -53,8 +53,6 @@ pub const META_DEFERRED_MAINTENANCE_SCHEMA: &str = "deferred_maintenance_schema_
 pub const META_WAV_PATHS_REVISION: &str = "wav_paths_revision_v1";
 /// Env var that enables read-only source DB opening by default.
 pub const SOURCE_DB_READ_ONLY_ENV: &str = "WAVECRATE_SOURCE_DB_READ_ONLY";
-/// Env var that allows writing source DB files in user-library-like roots.
-pub const SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV: &str = "WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE";
 
 /// SQLite wrapper that stores wav metadata for a single source folder.
 pub struct SourceDatabase {
@@ -79,7 +77,6 @@ impl SourceDatabase {
         open::open_source_database(
             root,
             open::should_open_source_db_read_only(),
-            open::allow_user_library_db_write(),
             open::SourceDatabaseOpenMode::Full,
         )
     }
@@ -107,22 +104,16 @@ impl SourceDatabase {
         root: impl AsRef<Path>,
         role: SourceDatabaseConnectionRole,
     ) -> Result<Self, SourceDbError> {
-        open::open_source_database_for_role(
-            root.as_ref(),
-            open::allow_user_library_db_write(),
-            role,
-        )
+        open::open_source_database_for_role(root.as_ref(), role)
     }
 
     /// Open a writable source database for an explicit user metadata edit.
     ///
-    /// Unlike generic writable opens, this permits configured sources inside
-    /// common user library folders such as Documents or Music because the user
-    /// is directly editing Wavecrate metadata for that source.
+    /// This makes direct user edits visible at the call site without requiring
+    /// callers to know the generic writable connection profile.
     pub fn open_for_user_metadata_write(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         open::open_source_database_for_role(
             root.as_ref(),
-            true,
             SourceDatabaseConnectionRole::UserMetadataWrite,
         )
     }

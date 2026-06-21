@@ -33,7 +33,7 @@ fn open_defaults_to_read_only_when_enabled() {
     };
 
     assert!(matches!(
-        open_source_database(dir.path(), true, false, SourceDatabaseOpenMode::Full),
+        open_source_database(dir.path(), true, SourceDatabaseOpenMode::Full),
         Err(SourceDbError::ReadOnlyDatabaseMissing(_))
     ));
 }

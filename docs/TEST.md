@@ -234,8 +234,7 @@ per-launch diagnostics trail.
 
 1. Start a repro run with the Wavecrate-owned debug flag:
    `cargo run --release -- --log`
-   For a live internal run that also shows debug layout overlays, use either
-   spelling:
+   For a live run that also shows debug layout overlays, use either spelling:
    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs debug-overlays`
    or `.\run.ps1 logs debug-layout`.
 2. For isolated manual QA, use the sandbox profile instead:

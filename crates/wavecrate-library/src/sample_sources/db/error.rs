@@ -47,12 +47,4 @@ pub enum SourceDbError {
         /// Underlying IO error.
         source: std::io::Error,
     },
-    /// Refusing to write a source DB in a path that looks like a user library.
-    #[error(
-        "Refusing to write `.wavecrate.db` in user-library-like path: {path}; set WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE=1 to allow this"
-    )]
-    UserLibraryWriteBlocked {
-        /// Suspicious source root path.
-        path: PathBuf,
-    },
 }
