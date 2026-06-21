@@ -3,6 +3,7 @@ use std::{
     cell::{Ref, RefCell},
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
+    path::{Path, PathBuf},
 };
 
 use super::{
@@ -56,6 +57,7 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) similarity_strength: Option<f32>,
     pub(in crate::native_app) similarity_aspect_strengths: SimilarityAspectStrengths,
     pub(in crate::native_app) collection_colors: Vec<ui::Rgba8>,
+    pub(in crate::native_app) source_folder_path: String,
 }
 
 #[derive(Clone, Debug)]
@@ -466,11 +468,38 @@ impl FolderBrowserState {
                 .into_iter()
                 .filter_map(|collection| self.collection_color(collection))
                 .collect(),
+            source_folder_path: self.visible_source_folder_path_for_file(file),
         }
+    }
+
+    fn visible_source_folder_path_for_file(&self, file: &FileEntry) -> String {
+        if self.collection_focus_active() {
+            self.source_folder_path_for_file(file)
+        } else {
+            String::new()
+        }
+    }
+
+    fn source_folder_path_for_file(&self, file: &FileEntry) -> String {
+        let file_path = Path::new(&file.id);
+        let folder_path = self
+            .source_relative_file_path(file_path)
+            .and_then(|(_, relative)| relative.parent().map(Path::to_path_buf))
+            .or_else(|| file_path.parent().map(Path::to_path_buf))
+            .unwrap_or_default();
+        folder_path_display(folder_path)
     }
 
     fn copied_file_flash_active(&self, file_id: &str) -> bool {
         self.copy_flash_active() && self.sample_list.copy_flash_file_ids.contains(file_id)
+    }
+}
+
+fn folder_path_display(path: PathBuf) -> String {
+    if path.as_os_str().is_empty() {
+        String::from(".")
+    } else {
+        path.to_string_lossy().into_owned()
     }
 }
 

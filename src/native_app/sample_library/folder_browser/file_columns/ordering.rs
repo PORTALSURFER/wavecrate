@@ -1,5 +1,6 @@
 use radiant::prelude as ui;
 use std::collections::HashMap;
+use std::path::Path;
 
 use super::super::{
     FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, SimilarityBrowserState,
@@ -84,6 +85,10 @@ pub(in crate::native_app) fn sort_file_indices_by_column_kind(
                 file.name_sort_key(),
             )
         }),
+        FileColumnKind::SourceFolder => indices.sort_by_cached_key(|index| {
+            let file = &folder.files[*index];
+            (source_folder_sort_key(&file.id), file.name_sort_key())
+        }),
         FileColumnKind::Path => {
             indices.sort_by(|a, b| folder.files[*a].id.cmp(&folder.files[*b].id))
         }
@@ -123,11 +128,23 @@ fn sort_file_refs_by_column_kind(kind: FileColumnKind, files: &mut [&FileEntry])
                 file.name_sort_key(),
             )
         }),
+        FileColumnKind::SourceFolder => {
+            files.sort_by_cached_key(|file| {
+                (source_folder_sort_key(&file.id), file.name_sort_key())
+            });
+        }
         FileColumnKind::Path => files.sort_by(|a, b| a.id.cmp(&b.id)),
         FileColumnKind::Name | FileColumnKind::Similarity => {
             files.sort_by_cached_key(|file| file.name_sort_key());
         }
     }
+}
+
+fn source_folder_sort_key(file_id: &str) -> String {
+    Path::new(file_id)
+        .parent()
+        .map(|path| path.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default()
 }
 
 fn similarity_file_ref_order(

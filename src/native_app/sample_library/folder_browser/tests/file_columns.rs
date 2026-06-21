@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::path::Path;
 #[test]
 fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
@@ -48,6 +49,87 @@ fn history_column_label_reflects_last_played_behavior() {
         .expect("history column");
 
     assert_eq!(history.label, "Last Played");
+}
+
+#[test]
+fn collection_view_shows_source_folder_column() {
+    let root = temp_source_root("wavecrate-gui-collection-folder-column");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let keep = drums.join("keep.wav");
+    fs::write(&keep, []).expect("write sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let collection = SampleCollection::new(0).expect("collection");
+    browser.set_file_collection_state(&keep, collection);
+
+    assert_eq!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "rating",
+            "playback_type",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ]
+    );
+
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "source_folder",
+            "rating",
+            "playback_type",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn collection_rows_show_source_relative_folder_path() {
+    let root = temp_source_root("wavecrate-gui-collection-folder-cell");
+    let kicks = root.join("drums").join("kicks");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    let keep = kicks.join("keep.wav");
+    fs::write(&keep, []).expect("write sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let collection = SampleCollection::new(0).expect("collection");
+    browser.set_file_collection_state(&keep, collection);
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    let tags_by_file = Default::default();
+    let cached_sample_paths = Default::default();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+    let row = visible
+        .rows
+        .iter()
+        .find(|row| row.file.id == path_id(&keep))
+        .expect("collection row");
+
+    assert_eq!(
+        row.source_folder_path,
+        Path::new("drums").join("kicks").to_string_lossy()
+    );
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

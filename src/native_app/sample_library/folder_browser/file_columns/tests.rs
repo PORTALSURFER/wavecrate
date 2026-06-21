@@ -109,6 +109,10 @@ fn typed_file_column_kinds_map_to_sort_behavior() {
             FileColumnKind::Collection,
             vec!["alpha", "charlie", "bravo"],
         ),
+        (
+            FileColumnKind::SourceFolder,
+            vec!["bravo", "charlie", "alpha"],
+        ),
         (FileColumnKind::Path, vec!["bravo", "charlie", "alpha"]),
         (
             FileColumnKind::Similarity,

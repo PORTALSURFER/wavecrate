@@ -91,6 +91,7 @@ pub(in crate::native_app) enum FileColumnKind {
     Rating,
     PlaybackType,
     Collection,
+    SourceFolder,
     Extension,
     Size,
     Modified,
@@ -100,8 +101,9 @@ pub(in crate::native_app) enum FileColumnKind {
 }
 
 impl FileColumnKind {
-    pub(super) const DEFAULT_VISIBLE: [Self; 7] = [
+    pub(super) const DEFAULT_VISIBLE: [Self; 8] = [
         Self::Name,
+        Self::SourceFolder,
         Self::Rating,
         Self::PlaybackType,
         Self::Collection,
@@ -116,6 +118,7 @@ impl FileColumnKind {
             "rating" => Some(Self::Rating),
             "playback_type" => Some(Self::PlaybackType),
             "collection" => Some(Self::Collection),
+            "source_folder" => Some(Self::SourceFolder),
             "extension" => Some(Self::Extension),
             "size" => Some(Self::Size),
             "modified" => Some(Self::Modified),
@@ -132,6 +135,7 @@ impl FileColumnKind {
             Self::Rating => "rating",
             Self::PlaybackType => "playback_type",
             Self::Collection => "collection",
+            Self::SourceFolder => "source_folder",
             Self::Extension => "extension",
             Self::Size => "size",
             Self::Modified => "modified",
@@ -147,6 +151,7 @@ impl FileColumnKind {
             Self::Rating => "Rating",
             Self::PlaybackType => "Type",
             Self::Collection => "Col",
+            Self::SourceFolder => "Folder",
             Self::Extension => "Ext",
             Self::Size => "Size",
             Self::Modified => "Last Played",
@@ -162,6 +167,7 @@ impl FileColumnKind {
             Self::Rating => 68.0,
             Self::PlaybackType => 76.0,
             Self::Collection => 58.0,
+            Self::SourceFolder => 220.0,
             Self::Extension => 54.0,
             Self::Size => 78.0,
             Self::Modified => 112.0,

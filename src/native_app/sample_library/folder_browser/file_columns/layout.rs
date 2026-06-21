@@ -1,20 +1,38 @@
 use radiant::prelude as ui;
 
-use super::super::{FileColumn, FolderBrowserState};
+use super::super::{FileColumn, FileColumnKind, FolderBrowserState};
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn visible_file_columns(&self) -> Vec<&FileColumn> {
-        self.sample_list.file_columns.iter().collect()
+        let collection_active = self.collection_focus_active();
+        self.sample_list
+            .file_columns
+            .iter()
+            .filter(|column| file_column_visible_in_context(column.kind, collection_active))
+            .collect()
     }
 
     pub(in crate::native_app) fn file_sort(&self) -> &ui::DetailsSort {
         &self.sample_list.file_sort
     }
+
+    pub(super) fn visible_file_column_placements(&self) -> Vec<ui::DetailsColumnPlacement> {
+        details_column_placements(self.visible_file_columns())
+    }
 }
 
-pub(super) fn details_column_placements(columns: &[FileColumn]) -> Vec<ui::DetailsColumnPlacement> {
+pub(super) fn file_column_visible_in_context(
+    kind: FileColumnKind,
+    collection_active: bool,
+) -> bool {
+    kind != FileColumnKind::SourceFolder || collection_active
+}
+
+pub(super) fn details_column_placements<'a>(
+    columns: impl IntoIterator<Item = &'a FileColumn>,
+) -> Vec<ui::DetailsColumnPlacement> {
     columns
-        .iter()
+        .into_iter()
         .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
         .collect()
 }

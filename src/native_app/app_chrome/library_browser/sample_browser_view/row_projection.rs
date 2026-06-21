@@ -150,6 +150,10 @@ fn sample_column_display<'a>(
         FileColumnKind::Collection => {
             SampleColumnContent::Collection(row.collection_colors.clone())
         }
+        FileColumnKind::SourceFolder => SampleColumnContent::Text {
+            value: row.source_folder_path.clone(),
+            cached: row.cached,
+        },
         kind => SampleColumnContent::Text {
             value: sample_file_column_value(file, kind),
             cached: row.cached,
@@ -208,6 +212,7 @@ fn sample_file_column_value(file: &FileEntry, kind: FileColumnKind) -> String {
         FileColumnKind::Name
         | FileColumnKind::Rating
         | FileColumnKind::PlaybackType
+        | FileColumnKind::SourceFolder
         | FileColumnKind::Similarity => file.stem.clone(),
     }
 }
@@ -300,6 +305,7 @@ mod tests {
             similarity_aspect_strengths:
                 crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
             collection_colors: vec![ui::Rgba8::new(1, 2, 3, 255), ui::Rgba8::new(4, 5, 6, 255)],
+            source_folder_path: String::from("drums/kicks"),
         };
         let column = FileColumn::for_tests("collection", "Collection", 80.0);
 
@@ -330,6 +336,41 @@ mod tests {
     }
 
     #[test]
+    fn sample_source_folder_projection_uses_row_folder_path() {
+        let file = file_entry();
+        let row = VisibleSampleRow {
+            file: &file,
+            selected: false,
+            copy_flash: false,
+            drag_revision: 0,
+            drag_active: false,
+            drag_source: false,
+            cached: true,
+            rename: None,
+            similarity_anchor: false,
+            similarity_strength: None,
+            similarity_aspect_strengths:
+                crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
+            collection_colors: Vec::new(),
+            source_folder_path: String::from("drums/kicks"),
+        };
+        let column = FileColumn::for_tests("source_folder", "Folder", 160.0);
+
+        let display = sample_column_display(
+            &file,
+            &row,
+            &column,
+            SampleNameViewMode::DiskFilename,
+            &HashMap::new(),
+        );
+
+        assert!(matches!(
+            display.content,
+            SampleColumnContent::Text { value, cached: true } if value == "drums/kicks"
+        ));
+    }
+
+    #[test]
     fn sample_playback_type_projection_uses_metadata_tags() {
         let file = file_entry();
         let row = VisibleSampleRow {
@@ -346,6 +387,7 @@ mod tests {
             similarity_aspect_strengths:
                 crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
             collection_colors: Vec::new(),
+            source_folder_path: String::from("drums/kicks"),
         };
         let column = FileColumn::for_tests("playback_type", "Type", 76.0);
         let metadata_tags_by_file =
@@ -382,6 +424,7 @@ mod tests {
             similarity_aspect_strengths:
                 crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
             collection_colors: Vec::new(),
+            source_folder_path: String::from("drums/kicks"),
         };
         let column = FileColumn::for_tests("playback_type", "Type", 76.0);
 
