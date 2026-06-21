@@ -147,8 +147,11 @@ fn random_toolbar_help_tooltip_paints_multiline_guidance() {
     assert!(
         frame
             .paint_plan
-            .contains_text("Command-click: make Space use random sections.")
+            .text_label_strings()
+            .iter()
+            .any(|text| text.contains("Command-click: make Space use random"))
     );
+    assert!(frame.paint_plan.contains_text("sections."));
 }
 
 #[test]

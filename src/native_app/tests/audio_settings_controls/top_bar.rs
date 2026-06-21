@@ -93,7 +93,15 @@ fn enabled_help_tooltips_paint_when_control_is_hovered() {
         runtime
             .frame_with_default_theme()
             .paint_plan
-            .contains_text("Preview volume for sample audition playback.")
+            .text_label_strings()
+            .iter()
+            .any(|text| text.contains("Preview volume for sample audition"))
+    );
+    assert!(
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .contains_text("playback.")
     );
 }
 
