@@ -1,5 +1,6 @@
 use super::state::FolderBrowserDropTarget;
 use super::*;
+use std::time::Instant;
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn clear_drop_target_folder(&mut self, position: Point) {
@@ -11,6 +12,7 @@ impl FolderBrowserState {
             .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(_)))
             && self.drag_drop.drop_target.close_changed()
         {
+            self.drag_drop.clear_folder_hover_auto_expand();
             self.drag_drop.revision.bump();
         }
     }
@@ -45,6 +47,14 @@ impl FolderBrowserState {
         &mut self,
         folder_id: &str,
     ) {
+        self.hover_drop_target_folder_at(folder_id, Instant::now());
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn hover_drop_target_folder_at(
+        &mut self,
+        folder_id: &str,
+        now: Instant,
+    ) {
         let changed = if self.can_drop_drag_on_folder(folder_id) {
             self.drag_drop
                 .drop_target
@@ -52,12 +62,18 @@ impl FolderBrowserState {
         } else {
             self.drag_drop.drop_target.close_changed()
         };
+        if self.drag_hover_folder_can_auto_expand(folder_id) {
+            self.drag_drop.arm_folder_hover_auto_expand(folder_id, now);
+        } else {
+            self.drag_drop.clear_folder_hover_auto_expand();
+        }
         if changed {
             self.drag_drop.revision.bump();
         }
     }
 
     pub(super) fn clear_drop_targets_for_new_drag(&mut self) {
+        self.drag_drop.clear_folder_hover_auto_expand();
         if self.drag_drop.drop_target.close_changed() {
             self.drag_drop.revision.bump();
         }

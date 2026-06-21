@@ -36,6 +36,7 @@ pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     playing: bool,
     play_selection_flash_active: bool,
     copy_flash_active: bool,
+    drag_hover_auto_expand_pending: bool,
     folder_progress_active: bool,
     normalization_progress_active: bool,
     file_move_progress_active: bool,
@@ -432,6 +433,10 @@ impl FrameRepaintScopeSnapshot {
             playing: state.waveform.current.is_playing(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
             copy_flash_active: state.library.folder_browser.copy_flash_active(),
+            drag_hover_auto_expand_pending: state
+                .library
+                .folder_browser
+                .drag_hover_auto_expand_pending(),
             folder_progress_active: state.library.folder_scan_active(),
             normalization_progress_active: state.background.normalization_progress.is_some(),
             file_move_progress_active: state.background.file_move_progress.is_some(),
@@ -473,6 +478,7 @@ impl FrameRepaintScopeSnapshot {
         self.playing == after.playing
             && self.play_selection_flash_active == after.play_selection_flash_active
             && self.copy_flash_active == after.copy_flash_active
+            && self.drag_hover_auto_expand_pending == after.drag_hover_auto_expand_pending
             && self.folder_progress_active == after.folder_progress_active
             && self.normalization_progress_active == after.normalization_progress_active
             && self.file_move_progress_active == after.file_move_progress_active

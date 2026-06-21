@@ -1,4 +1,63 @@
 use super::*;
+use std::time::{Duration, Instant};
+
+#[test]
+fn file_drag_hover_expands_collapsed_folder_after_dwell() {
+    let root = temp_source_root("wavecrate-gui-file-drag-hover-expand");
+    let source = root.join("source");
+    let target = root.join("target");
+    let nested = target.join("nested");
+    fs::create_dir_all(&source).expect("create source folder");
+    fs::create_dir_all(&nested).expect("create nested target folder");
+    let kick = source.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&source));
+    let target_id = path_id(&target);
+    let started_at = Instant::now();
+
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    browser.hover_drop_target_folder_at(&target_id, started_at);
+
+    assert!(!browser.is_expanded(&target_id));
+    assert!(
+        !browser.advance_drag_hover_folder_auto_expand_at(started_at + Duration::from_millis(100))
+    );
+    assert!(!browser.is_expanded(&target_id));
+
+    assert!(browser.advance_drag_hover_folder_auto_expand_at(started_at + Duration::from_secs(1)));
+    assert!(browser.is_expanded(&target_id));
+    assert!(!browser.drag_hover_auto_expand_pending());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_hover_auto_expand_tracks_latest_folder_target() {
+    let root = temp_source_root("wavecrate-gui-file-drag-hover-expand-latest");
+    let source = root.join("source");
+    let first = root.join("first");
+    let second = root.join("second");
+    fs::create_dir_all(&source).expect("create source folder");
+    fs::create_dir_all(first.join("nested")).expect("create first target child");
+    fs::create_dir_all(second.join("nested")).expect("create second target child");
+    let kick = source.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&source));
+    let first_id = path_id(&first);
+    let second_id = path_id(&second);
+    let started_at = Instant::now();
+
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    browser.hover_drop_target_folder_at(&first_id, started_at);
+    browser.hover_drop_target_folder_at(&second_id, started_at + Duration::from_millis(100));
+
+    assert!(browser.advance_drag_hover_folder_auto_expand_at(started_at + Duration::from_secs(1)));
+    assert!(!browser.is_expanded(&first_id));
+    assert!(browser.is_expanded(&second_id));
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn file_drag_hover_uses_cached_file_entry_without_filesystem_probe() {
     let root = temp_source_root("wavecrate-gui-file-drag-hover-cached");

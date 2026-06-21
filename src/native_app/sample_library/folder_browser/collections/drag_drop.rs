@@ -36,6 +36,7 @@ impl FolderBrowserState {
         position: Point,
     ) {
         self.update_drag_pointer(position);
+        self.drag_drop.clear_folder_hover_auto_expand();
         let changed = if self.file_drag_active() {
             self.drag_drop
                 .drop_target
