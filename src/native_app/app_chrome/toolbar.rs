@@ -14,6 +14,7 @@ const TOOLBAR_BEAT_GUIDE_DECREMENT_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDE_DECR
 const TOOLBAR_BEAT_GUIDE_INCREMENT_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDE_INCREMENT_ID;
 pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 =
     widget_ids::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID;
+const TOOLBAR_SIMILAR_SECTIONS_ID: u64 = widget_ids::TOOLBAR_SIMILAR_SECTIONS_ID;
 const TOOLBAR_LOOP_ID: u64 = widget_ids::TOOLBAR_LOOP_ID;
 const TOOLBAR_PLAY_ID: u64 = widget_ids::TOOLBAR_PLAY_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = widget_ids::TOOLBAR_STOP_ID;
@@ -51,6 +52,16 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             ),
             model.help_tooltips_enabled,
             "Random section playback\nClick: play a random section now.\nCommand-click: make Space use random sections.",
+        ),
+        toolbar_help_tooltip(
+            toolbar_icon_button(
+                TOOLBAR_SIMILAR_SECTIONS_ID,
+                ToolbarIcon::SimilarSections,
+                model.similar_sections_available || model.similar_sections_enabled,
+                model.similar_sections_enabled,
+            ),
+            model.help_tooltips_enabled,
+            "Mark sections similar to the playmark selection.\nSet a playmark first, then toggle this to scan the loaded sample.",
         ),
         toolbar_help_tooltip(
             toolbar_icon_button(
@@ -155,6 +166,7 @@ pub(in crate::native_app) enum ToolbarIcon {
     FocusLoaded,
     Loop,
     Random,
+    SimilarSections,
     BeatGuides,
     BeatGuideMinus,
     BeatGuidePlus,
@@ -168,6 +180,7 @@ impl ToolbarIcon {
             Self::FocusLoaded => &FOCUS_LOADED_ICON,
             Self::Loop => &LOOP_ICON,
             Self::Random => &RANDOM_ICON,
+            Self::SimilarSections => &SIMILAR_SECTIONS_ICON,
             Self::BeatGuides => &BEAT_GUIDES_ICON,
             Self::BeatGuideMinus => &BEAT_GUIDE_MINUS_ICON,
             Self::BeatGuidePlus => &BEAT_GUIDE_PLUS_ICON,
@@ -207,6 +220,7 @@ fn toolbar_button_message(icon: ToolbarIcon, message: ButtonMessage) -> GuiMessa
             GuiMessage::ToggleStickyRandomSampleRangePlayback
         }
         ToolbarIcon::Random => GuiMessage::PlayRandomSampleRange,
+        ToolbarIcon::SimilarSections => GuiMessage::ToggleSimilarSections,
         ToolbarIcon::BeatGuides => GuiMessage::ToggleBeatGuides,
         ToolbarIcon::BeatGuideMinus => GuiMessage::AdjustBeatGuideCount(-1),
         ToolbarIcon::BeatGuidePlus => GuiMessage::AdjustBeatGuideCount(1),
@@ -238,6 +252,19 @@ static RANDOM_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
   <path d="M2 4h2.1c1.8 0 2.9.8 4.1 2.5l.8 1.1c.8 1.1 1.4 1.4 2.6 1.4H12V7l3 3-3 3v-2h-.4c-1.9 0-3.1-.7-4.2-2.4l-.8-1.1C5.8 6.3 5.2 6 4.1 6H2z"/>
   <path d="M11.6 4H12V2l3 3-3 3V6h-.4c-1.2 0-1.8.3-2.6 1.4l-.2.3-.9-1.4.5-.7C8.5 4.7 9.7 4 11.6 4z"/>
   <path d="M2 10h2.1c1.1 0 1.7-.3 2.5-1.5l.9 1.4c-1 1.4-2 2.1-3.4 2.1H2z"/>
+</svg>"#,
+);
+
+static SIMILAR_SECTIONS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="3" width="3.5" height="3"/>
+  <rect x="10.5" y="3" width="3.5" height="3"/>
+  <rect x="2" y="10" width="3.5" height="3"/>
+  <rect x="10.5" y="10" width="3.5" height="3"/>
+  <rect x="6.5" y="4.1" width="3" height="1.2"/>
+  <rect x="6.5" y="11.1" width="3" height="1.2"/>
+  <rect x="3.15" y="7" width="1.2" height="2"/>
+  <rect x="11.65" y="7" width="1.2" height="2"/>
 </svg>"#,
 );
 

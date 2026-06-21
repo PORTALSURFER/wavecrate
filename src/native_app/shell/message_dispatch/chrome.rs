@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::waveform::{SimilarSectionsResult, execute_similar_sections_scan};
 
 impl NativeAppState {
     pub(super) fn apply_chrome_dispatch(
@@ -36,6 +37,12 @@ impl NativeAppState {
             }
             GuiMessage::AdjustBeatGuideCount(delta) => {
                 self.ui.chrome.adjust_beat_guide_count(delta);
+            }
+            GuiMessage::ToggleSimilarSections => {
+                self.toggle_similar_sections(context);
+            }
+            GuiMessage::SimilarSectionsResolved(result) => {
+                self.finish_similar_sections(result);
             }
             GuiMessage::UndoTransaction => self.undo_transaction(),
             GuiMessage::RedoTransaction => self.redo_transaction(),
@@ -80,6 +87,62 @@ impl NativeAppState {
                 context,
             ),
             _ => unreachable!("chrome dispatcher received a non-chrome message"),
+        }
+    }
+
+    fn toggle_similar_sections(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        if self.waveform.current.similar_sections_enabled() {
+            self.waveform.current.clear_similar_sections();
+            self.ui.status.sample = String::from("Similar section marks off");
+            return;
+        }
+
+        let request = match self.waveform.current.similar_sections_request() {
+            Ok(request) => request,
+            Err(error) => {
+                self.ui.status.sample = error;
+                return;
+            }
+        };
+        let anchor = request.anchor();
+        self.waveform.current.start_similar_sections(anchor);
+        self.ui.status.sample = String::from("Finding similar sections");
+        context
+            .business()
+            .background("gui-waveform-similar-sections")
+            .run(
+                move |_| execute_similar_sections_scan(request),
+                GuiMessage::SimilarSectionsResolved,
+            );
+    }
+
+    fn finish_similar_sections(&mut self, result: SimilarSectionsResult) {
+        if !self
+            .waveform
+            .current
+            .similar_sections_result_applies(&result)
+        {
+            return;
+        }
+        match result.result {
+            Ok(payload) => {
+                let count = payload.ranges.len();
+                self.waveform
+                    .current
+                    .finish_similar_sections_scan(payload.ranges);
+                self.ui.status.sample = if count == 0 {
+                    String::from("No similar sections found")
+                } else {
+                    format!(
+                        "Found {count} similar section{}",
+                        if count == 1 { "" } else { "s" }
+                    )
+                };
+            }
+            Err(error) => {
+                self.waveform.current.clear_similar_sections();
+                self.ui.status.sample = error;
+            }
         }
     }
 }

@@ -594,6 +594,36 @@ fn extracted_ranges_paint_as_gray_waveform_overlays() {
 }
 
 #[test]
+fn similar_sections_paint_as_green_waveform_overlays() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+    state.finish_similar_sections_scan(vec![wavecrate::selection::SelectionRange::new(0.2, 0.6)]);
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (114, 235, 184, 54)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 2.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (155, 255, 218, 210)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.rect.min.y - 78.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (155, 255, 218, 210)
+    }));
+}
+
+#[test]
 fn edit_selection_paints_start_and_end_boundary_lines() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

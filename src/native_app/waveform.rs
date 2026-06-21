@@ -61,8 +61,13 @@ pub(in crate::native_app) use audio_file::{
     flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
+
+mod similar_sections;
 #[cfg(test)]
 use audio_file::{downmix_to_mono, split_frequency_bands, waveform_file_from_mono_samples};
+pub(in crate::native_app) use similar_sections::{
+    SimilarSectionsResult, execute_similar_sections_scan,
+};
 
 mod widget;
 #[cfg(test)]

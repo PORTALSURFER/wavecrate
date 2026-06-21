@@ -55,6 +55,19 @@ fn dragging_primary_creates_playmark_selection_without_starting_playback() {
 }
 
 #[test]
+fn changing_playmark_selection_clears_similar_section_marks() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.1, 0.2);
+    state.start_similar_sections(state.play_selection().expect("playmark selection"));
+    state.finish_similar_sections_scan(vec![wavecrate::selection::SelectionRange::new(0.5, 0.6)]);
+
+    state.set_play_selection_range(0.2, 0.4);
+
+    assert!(!state.similar_sections_enabled());
+    assert!(state.similar_section_ranges().is_empty());
+}
+
+#[test]
 fn primary_click_without_drag_clears_play_selection_and_marks_playback_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

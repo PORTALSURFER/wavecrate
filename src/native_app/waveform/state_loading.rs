@@ -128,6 +128,7 @@ impl WaveformState {
             edit_selection: None,
             marked_play_ranges: Vec::new(),
             extracted_ranges: Vec::new(),
+            similar_sections: Default::default(),
             play_selection_flash_frames: 0,
             edit_selection_flash_frames: 0,
             active_drag: None::<WaveformDrag>,

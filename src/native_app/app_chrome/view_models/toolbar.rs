@@ -3,6 +3,8 @@ use crate::native_app::app::NativeAppState;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MainToolbarViewModel {
     pub(in crate::native_app) random_available: bool,
+    pub(in crate::native_app) similar_sections_available: bool,
+    pub(in crate::native_app) similar_sections_enabled: bool,
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) loop_playback: bool,
     pub(in crate::native_app) playing: bool,
@@ -18,6 +20,12 @@ impl MainToolbarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         Self {
             random_available: state.random_playback_available(),
+            similar_sections_available: state
+                .waveform
+                .current
+                .play_selection()
+                .is_some_and(|selection| selection.width() > 0.0),
+            similar_sections_enabled: state.waveform.current.similar_sections_enabled(),
             sticky_random_sample_range_playback: state
                 .ui
                 .chrome

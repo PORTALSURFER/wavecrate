@@ -28,6 +28,8 @@ const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
     b: 219,
     a: 225,
 };
+const SIMILAR_SECTION_FILL: Rgba8 = Rgba8::new(114, 235, 184, 54);
+const SIMILAR_SECTION_RAIL: Rgba8 = Rgba8::new(155, 255, 218, 210);
 const PLAY_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 142, 92, 255);
 const EDIT_SELECTION_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
 const BEAT_GUIDE_COLOR: Rgba8 = Rgba8::new(255, 214, 188, 170);
@@ -51,6 +53,7 @@ impl WaveformWidget {
     ) {
         let mut paint = WidgetPaint::new(primitives, self.common.id);
         self.append_extracted_range_paint(&mut paint, bounds);
+        self.append_similar_section_paint(&mut paint, bounds);
         if let Some(geometry) = self.selection_geometry(bounds, self.play_selection) {
             self.append_play_selection_paint(&mut paint, bounds, geometry);
         }
@@ -88,6 +91,27 @@ impl WaveformWidget {
             EXTRACTED_RANGE_RAIL_HEIGHT,
             EXTRACTED_RANGE_RAIL,
         );
+    }
+
+    fn append_similar_section_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
+        for range in &self.similar_section_ranges {
+            if let Some(range) = self.visible_normalized_range_for_selection(Some(*range)) {
+                paint.push_horizontal_value_range_fill(
+                    bounds,
+                    range.start_fraction(),
+                    range.end_fraction(),
+                    1.0,
+                    SIMILAR_SECTION_FILL,
+                );
+                paint.push_horizontal_value_range_edge_fills(
+                    bounds,
+                    range.start_fraction(),
+                    range.end_fraction(),
+                    EXTRACTED_RANGE_RAIL_HEIGHT,
+                    SIMILAR_SECTION_RAIL,
+                );
+            }
+        }
     }
 
     fn append_play_selection_paint(

@@ -32,8 +32,8 @@ use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
 };
 use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult;
-use crate::native_app::waveform::WaveformExtractionCompletion;
 use crate::native_app::waveform::WaveformInteraction;
+use crate::native_app::waveform::{SimilarSectionsResult, WaveformExtractionCompletion};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum TrashMoveTarget {
@@ -200,6 +200,8 @@ pub(in crate::native_app) enum GuiMessage {
     CloseShortcutHelp,
     ToggleBeatGuides,
     AdjustBeatGuideCount(i8),
+    ToggleSimilarSections,
+    SimilarSectionsResolved(SimilarSectionsResult),
     UndoTransaction,
     RedoTransaction,
     ToggleTransactionList,

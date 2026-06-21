@@ -79,6 +79,9 @@ impl WaveformState {
     ) {
         match kind {
             WaveformSelectionKind::Play => {
+                if self.play_selection != Some(selection) {
+                    self.clear_similar_sections();
+                }
                 self.play_mark_ratio = Some(mark_ratio);
                 self.play_selection = Some(selection);
             }

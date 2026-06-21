@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use wavecrate::selection::SelectionRange;
 
-use super::{WaveformDrag, WaveformFile, WaveformViewport};
+use super::{WaveformDrag, WaveformFile, WaveformViewport, similar_sections::SimilarSectionsState};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformState {
@@ -17,6 +17,7 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) edit_selection: Option<SelectionRange>,
     pub(in crate::native_app::waveform) marked_play_ranges: Vec<SelectionRange>,
     pub(in crate::native_app::waveform) extracted_ranges: Vec<SelectionRange>,
+    pub(in crate::native_app::waveform) similar_sections: SimilarSectionsState,
     pub(in crate::native_app::waveform) play_selection_flash_frames: u8,
     pub(in crate::native_app::waveform) edit_selection_flash_frames: u8,
     pub(in crate::native_app::waveform) active_drag: Option<WaveformDrag>,

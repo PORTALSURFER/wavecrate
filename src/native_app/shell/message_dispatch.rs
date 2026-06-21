@@ -122,6 +122,8 @@ impl NativeAppState {
             | GuiMessage::ToggleStickyRandomSampleRangePlayback
             | GuiMessage::ToggleBeatGuides
             | GuiMessage::AdjustBeatGuideCount(_)
+            | GuiMessage::ToggleSimilarSections
+            | GuiMessage::SimilarSectionsResolved(_)
             | GuiMessage::UndoTransaction
             | GuiMessage::RedoTransaction
             | GuiMessage::ToggleTransactionList
