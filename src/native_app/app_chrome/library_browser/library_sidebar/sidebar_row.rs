@@ -10,6 +10,7 @@ use crate::native_app::app::GuiMessage;
 
 pub(super) const SIDEBAR_ROW_STYLE: ui::WidgetStyle =
     ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
+const SIDEBAR_ROW_SELECTED_HOVER_ALPHA: u8 = 174;
 
 pub(super) fn sidebar_row_underlay(content: ui::View<GuiMessage>) -> SidebarRowUnderlayBuilder {
     SidebarRowUnderlayBuilder {
@@ -121,7 +122,7 @@ pub(super) fn sidebar_row_palette(
     theme: &ThemeTokens,
     paints_interaction: bool,
 ) -> ui::DenseRowPalette {
-    let palette = ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE);
+    let palette = sidebar_row_full_palette(theme);
     if paints_interaction {
         palette
     } else {
@@ -131,9 +132,17 @@ pub(super) fn sidebar_row_palette(
     }
 }
 
+pub(super) fn sidebar_row_full_palette(theme: &ThemeTokens) -> ui::DenseRowPalette {
+    ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE).selected_hovered(
+        theme
+            .accent_mint
+            .with_alpha(SIDEBAR_ROW_SELECTED_HOVER_ALPHA),
+    )
+}
+
 #[cfg(test)]
 pub(super) fn sidebar_row_palette_for_tests() -> ui::DenseRowPalette {
-    ui::dense_row_palette_from_style(&ThemeTokens::default(), SIDEBAR_ROW_STYLE)
+    sidebar_row_full_palette(&ThemeTokens::default())
 }
 
 #[cfg(test)]
@@ -148,6 +157,13 @@ pub(super) fn sidebar_row_selected_fill_for_tests() -> ui::Rgba8 {
     sidebar_row_palette_for_tests()
         .selected
         .expect("dense-row selected fill")
+}
+
+#[cfg(test)]
+pub(super) fn sidebar_row_selected_hover_fill_for_tests() -> ui::Rgba8 {
+    sidebar_row_palette_for_tests()
+        .selected_hovered
+        .expect("dense-row selected-hover fill")
 }
 
 #[cfg(test)]
@@ -187,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn hovered_selected_sidebar_row_keeps_neutral_hover_priority() {
+    fn hovered_selected_sidebar_row_uses_brighter_selected_hover_fill() {
         let bounds = ui::Rect::from_size(120.0, 22.0);
         let mut target = hit_target(true, false);
         target.handle_input(bounds, WidgetInput::pointer_move(ui::Point::new(8.0, 8.0)));
@@ -196,14 +212,14 @@ mod tests {
 
         assert!(
             plan.fill_rects()
-                .any(|fill| fill.color == sidebar_row_hover_fill_for_tests()),
-            "hover should stay neutral even when a sidebar row is selected"
+                .any(|fill| fill.color == sidebar_row_selected_hover_fill_for_tests()),
+            "selected sidebar rows should use the brighter selected-hover fill on pointer hover"
         );
         assert!(
             !plan
                 .fill_rects()
                 .any(|fill| fill.color == sidebar_row_selected_fill_for_tests()),
-            "hover fill has priority over the selected fill"
+            "selected-hover fill has priority over the base selected fill"
         );
     }
 

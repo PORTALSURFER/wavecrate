@@ -1,7 +1,9 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
+    SIDEBAR_ROW_STYLE, sidebar_row_full_palette,
+};
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
@@ -22,7 +24,6 @@ const FOLDER_TREE_EMPTY_LABEL: ui::Rgba8 = ui::Rgba8 {
     b: 156,
     a: 255,
 };
-const FOLDER_TREE_SELECTED_HOVER_ALPHA: u8 = 174;
 const FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA: u8 = 245;
 const FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH: f32 = 3.0;
 
@@ -188,11 +189,7 @@ fn folder_hover_drop_message(
 }
 
 fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba8> {
-    if folder.focused && !folder.selected {
-        Some(folder_tree_highlighted_label_color(folder))
-    } else {
-        folder.empty.then_some(FOLDER_TREE_EMPTY_LABEL)
-    }
+    folder.empty.then_some(FOLDER_TREE_EMPTY_LABEL)
 }
 
 fn folder_tree_highlighted_label_color(folder: &VisibleFolder) -> ui::Rgba8 {
@@ -214,12 +211,7 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
 }
 
 fn folder_tree_palette() -> ui::DenseRowPalette {
-    let theme = ui::ThemeTokens::default();
-    ui::dense_row_palette_from_style(&theme, SIDEBAR_ROW_STYLE).selected_hovered(
-        theme
-            .accent_mint
-            .with_alpha(FOLDER_TREE_SELECTED_HOVER_ALPHA),
-    )
+    sidebar_row_full_palette(&ui::ThemeTokens::default())
 }
 
 fn folder_tree_drop_target_outline() -> ui::DenseRowOutlineStyle {
@@ -265,20 +257,12 @@ mod tests {
     #[test]
     fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
         let palette = folder_tree_palette();
-        let expected =
-            ui::dense_row_palette_from_style(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE);
+        let expected = sidebar_row_full_palette(&ui::ThemeTokens::default());
 
         assert_eq!(palette.hovered, expected.hovered);
         assert_eq!(palette.candidate_hovered, expected.candidate_hovered);
         assert_eq!(palette.selected, expected.selected);
-        assert_eq!(
-            palette.selected_hovered,
-            Some(
-                ui::ThemeTokens::default()
-                    .accent_mint
-                    .with_alpha(FOLDER_TREE_SELECTED_HOVER_ALPHA)
-            )
-        );
+        assert_eq!(palette.selected_hovered, expected.selected_hovered);
     }
 
     #[test]
@@ -326,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_non_empty_folder_rows_keep_highlighted_label_color() {
+    fn selected_non_empty_folder_rows_use_default_label_color() {
         let mut folder = visible_folder_for_tests(false);
         folder.selected = true;
 
@@ -335,12 +319,12 @@ mod tests {
 
         assert_eq!(
             frame.paint_plan.first_text_color("Folder"),
-            Some(FOLDER_TREE_HIGHLIGHTED_LABEL)
+            Some(ui::ThemeTokens::default().text_primary)
         );
     }
 
     #[test]
-    fn focused_unselected_folder_rows_use_highlighted_label_color() {
+    fn focused_unselected_folder_rows_use_default_label_color() {
         let mut folder = visible_folder_for_tests(false);
         folder.focused = true;
 
@@ -349,37 +333,40 @@ mod tests {
 
         assert_eq!(
             frame.paint_plan.first_text_color("Folder"),
-            Some(FOLDER_TREE_HIGHLIGHTED_LABEL)
+            Some(ui::ThemeTokens::default().text_primary)
         );
     }
 
     #[test]
-    fn focused_unselected_folder_rows_paint_hover_fill() {
+    fn focused_unselected_folder_rows_paint_selected_fill() {
         let mut folder = visible_folder_for_tests(false);
         folder.focused = true;
 
         let frame = folder_row(&folder, 0)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
-        let hover_fill = folder_tree_palette()
-            .hovered
-            .expect("folder tree hover fill");
+        let selected_fill = folder_tree_palette()
+            .selected
+            .expect("folder tree selected fill");
 
         assert!(
             frame.paint_plan.fill_rects().any(|fill| {
-                fill.color == hover_fill && (fill.rect.height() - TREE_ROW_HEIGHT).abs() < 0.5
+                fill.color == selected_fill && (fill.rect.height() - TREE_ROW_HEIGHT).abs() < 0.5
             }),
-            "focused folder rows should paint the same fill as pointer hover"
+            "focused folder rows should paint the same base fill as selected source rows"
         );
     }
 
     #[test]
-    fn focused_selected_folder_rows_paint_selected_hover_fill_and_marker() {
+    fn focused_selected_folder_rows_paint_selected_fill_without_hover_marker() {
         let mut folder = visible_folder_for_tests(false);
         folder.focused = true;
         folder.selected = true;
 
         let frame = folder_row(&folder, 0)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+        let selected_fill = folder_tree_palette()
+            .selected
+            .expect("folder tree selected fill");
         let selected_hover_fill = folder_tree_palette()
             .selected_hovered
             .expect("folder tree selected-hover fill");
@@ -389,15 +376,22 @@ mod tests {
             frame
                 .paint_plan
                 .fill_rects()
-                .any(|fill| fill.color == selected_hover_fill),
-            "focused selected folder rows should paint selected-hover fill"
+                .any(|fill| fill.color == selected_fill),
+            "focused selected folder rows should paint the base selected fill"
         );
         assert!(
-            frame
+            !frame
+                .paint_plan
+                .fill_rects()
+                .any(|fill| fill.color == selected_hover_fill),
+            "focused selected folder rows should reserve selected-hover fill for pointer hover"
+        );
+        assert!(
+            !frame
                 .paint_plan
                 .fill_rects()
                 .any(|fill| fill.color == marker.color && fill.rect.width() == marker.parts.width),
-            "focused selected folder rows should paint the selected-hover marker"
+            "focused selected folder rows should reserve the selected-hover marker for pointer hover"
         );
     }
 

@@ -43,6 +43,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     let source_root = tempfile::tempdir().expect("source root");
     let expandable_child = source_root.path().join("Child Folder");
     fs::create_dir_all(expandable_child.join("Nested")).expect("expandable child folder");
+    fs::write(expandable_child.join("Nested").join("nested.wav"), []).expect("nested child sample");
     let selected_file = source_root.path().join("tag-target.wav");
     fs::write(&selected_file, []).expect("sample file");
     state.library.folder_browser =
