@@ -69,7 +69,7 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
 }
 
 #[test]
-fn collection_file_drag_drop_moves_file_to_folder_and_removes_collection_membership() {
+fn collection_file_drag_drop_moves_file_to_folder_and_preserves_collection_membership() {
     let root = temp_source_root("wavecrate-gui-collection-file-drag-drop");
     let drums = root.join("drums");
     let loops = root.join("loops");
@@ -105,7 +105,7 @@ fn collection_file_drag_drop_moves_file_to_folder_and_removes_collection_members
     assert_eq!(
         db.collections_for_path(Path::new("loops/kick.wav"))
             .expect("moved collections"),
-        vec![second]
+        vec![first, second]
     );
     assert_eq!(
         browser
@@ -113,14 +113,14 @@ fn collection_file_drag_drop_moves_file_to_folder_and_removes_collection_members
             .iter()
             .map(|file| file.name.as_str())
             .collect::<Vec<_>>(),
-        vec!["snare.wav"]
+        vec!["kick.wav", "snare.wav"]
     );
-    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert_eq!(browser.selected_file_id(), Some(path_id(&moved_kick).as_str()));
     let _ = fs::remove_dir_all(root);
 }
 
 #[test]
-fn collection_file_move_conflict_rename_removes_collection_from_moved_destination() {
+fn collection_file_move_conflict_rename_preserves_collection_on_moved_destination() {
     let root = temp_source_root("wavecrate-gui-collection-file-conflict-rename");
     let drums = root.join("drums");
     let loops = root.join("loops");
@@ -154,11 +154,16 @@ fn collection_file_move_conflict_rename_removes_collection_from_moved_destinatio
     assert_eq!(
         db.collections_for_path(Path::new("loops/kick_copy001.wav"))
             .expect("renamed collections"),
-        Vec::<SampleCollection>::new()
+        vec![collection]
     );
-    assert!(
-        browser.selected_audio_files().is_empty(),
-        "moved file should leave the active collection view"
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick_copy001.wav"],
+        "moved file should remain in the active collection view"
     );
     let _ = fs::remove_dir_all(root);
 }

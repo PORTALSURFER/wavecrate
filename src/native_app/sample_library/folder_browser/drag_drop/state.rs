@@ -116,7 +116,7 @@ impl FolderBrowserState {
         };
         self.drag_drop.drag = Some(FolderBrowserDrag::Files {
             file_ids,
-            remove_from_collection: self.selection.selected_collection,
+            remove_from_collection: None,
         });
         self.drag_drop.drag_pointer = Some(position);
         self.clear_drop_targets_for_new_drag();
