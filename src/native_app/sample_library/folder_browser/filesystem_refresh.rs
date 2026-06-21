@@ -39,6 +39,43 @@ impl FolderBrowserState {
         true
     }
 
+    pub(in crate::native_app) fn refresh_file_path_across_sources(&mut self, path: &Path) -> bool {
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let Some(source_index) = self
+            .source
+            .sources
+            .iter()
+            .enumerate()
+            .filter(|(_, source)| path.starts_with(&source.root))
+            .max_by_key(|(_, source)| source.root.components().count())
+            .map(|(index, _)| index)
+        else {
+            return false;
+        };
+        let source_id = self.source.sources[source_index].id.clone();
+        let source_root = self.source.sources[source_index].root.clone();
+        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+            return false;
+        };
+        let Some(parent_folder) = root_folder.find_mut(&path_id(parent)) else {
+            return false;
+        };
+        let changed = upsert_file(
+            &mut parent_folder.files,
+            file_entry_for_source_path(&path.to_path_buf(), &source_root),
+        );
+        if !changed {
+            return false;
+        }
+        if self.source.selected_source == source_id {
+            self.tree.folders = vec![root_folder.clone()];
+        }
+        self.bump_file_content_revision();
+        true
+    }
+
     pub(in crate::native_app) fn refresh_file_paths(&mut self, paths: &[PathBuf]) -> bool {
         let Some(source_index) = self
             .source

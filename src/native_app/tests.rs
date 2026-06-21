@@ -24,6 +24,7 @@ mod file_operations;
 mod folder_layout;
 mod metadata_tag_tests;
 mod native_file_drop;
+mod native_file_open;
 mod sample_browser;
 mod shortcuts_context;
 mod startup;

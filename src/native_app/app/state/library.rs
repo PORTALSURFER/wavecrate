@@ -15,6 +15,7 @@ pub(in crate::native_app) struct LibraryAppState {
     pub(in crate::native_app) similarity_prep: NativeSimilarityPrepState,
     source_scan: SourceScanWorkflow,
     pub(in crate::native_app) source_watcher: Option<GuiSourceWatcherHandle>,
+    pending_audio_document_opens: Vec<std::path::PathBuf>,
 }
 
 impl LibraryAppState {
@@ -27,6 +28,7 @@ impl LibraryAppState {
             similarity_prep: NativeSimilarityPrepState::default(),
             source_scan: SourceScanWorkflow::new(),
             source_watcher,
+            pending_audio_document_opens: Vec::new(),
         }
     }
 
@@ -126,6 +128,33 @@ impl LibraryAppState {
     ) -> SourceScanFinish {
         self.source_scan
             .finish_scan(&mut self.folder_browser, result)
+    }
+
+    pub(in crate::native_app) fn queue_pending_audio_document_open(
+        &mut self,
+        path: std::path::PathBuf,
+    ) {
+        if !self.pending_audio_document_opens.contains(&path) {
+            self.pending_audio_document_opens.push(path);
+        }
+    }
+
+    pub(in crate::native_app) fn take_pending_audio_document_opens(
+        &mut self,
+    ) -> Vec<std::path::PathBuf> {
+        std::mem::take(&mut self.pending_audio_document_opens)
+    }
+
+    pub(in crate::native_app) fn restore_pending_audio_document_opens(
+        &mut self,
+        paths: Vec<std::path::PathBuf>,
+    ) {
+        self.pending_audio_document_opens = paths;
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn pending_audio_document_open_count_for_tests(&self) -> usize {
+        self.pending_audio_document_opens.len()
     }
 
     #[cfg(test)]

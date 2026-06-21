@@ -15,6 +15,9 @@ pub(super) fn run_catching_unwind(
             .view(view)
             .subscriptions(NativeAppState::worker_subscription)
             .auxiliary_windows(settings::auxiliary_windows)
+            .on_native_file_open(|state, open, context| {
+                state.open_audio_documents(open.paths, context);
+            })
             .on_shutdown(NativeAppState::shutdown)
             .handle_message(NativeAppState::handle_message)
             .run()

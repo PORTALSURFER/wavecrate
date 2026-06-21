@@ -124,5 +124,6 @@ impl NativeAppState {
         );
         self.persist_user_configuration("folder_browser.sources.persist", started_at);
         self.sync_source_watcher();
+        self.open_ready_audio_documents(context, started_at);
     }
 }
