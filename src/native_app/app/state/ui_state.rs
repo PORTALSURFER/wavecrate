@@ -123,9 +123,26 @@ pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) pending_folder_delete: Option<PendingFolderDelete>,
     pub(in crate::native_app) pending_waveform_destructive_edit:
         Option<PendingWaveformDestructiveEdit>,
+    pub(in crate::native_app) cut_file_clipboard: Option<CutFileClipboard>,
+    pub(in crate::native_app) cut_file_paste_task_id: Option<u64>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
     pub(in crate::native_app) file_move_conflict_apply_to_remaining: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct CutFileClipboard {
+    pub(in crate::native_app) file_ids: Vec<String>,
+}
+
+impl CutFileClipboard {
+    pub(in crate::native_app) fn new(file_ids: Vec<String>) -> Self {
+        Self { file_ids }
+    }
+
+    pub(in crate::native_app) fn len(&self) -> usize {
+        self.file_ids.len()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -104,6 +104,14 @@ impl FolderBrowserState {
         }))
     }
 
+    pub(in crate::native_app) fn prepare_paste_cut_files_to_folder(
+        &mut self,
+        file_ids: &[String],
+        target_folder_id: &str,
+    ) -> Result<FolderMoveDropInput, String> {
+        self.prepare_move_files_to_folder(file_ids, target_folder_id, None)
+    }
+
     fn source_file_ids_for_move<'a>(
         &'a self,
         file_ids: &'a [String],

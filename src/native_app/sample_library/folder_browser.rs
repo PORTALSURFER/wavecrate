@@ -131,7 +131,7 @@ pub(in crate::native_app) mod commands {
     pub(in crate::native_app) use super::messages::FolderBrowserMessage;
     pub(in crate::native_app) use super::move_types::{
         FileMoveConflictCompletion, FileMoveConflictResolution, FileMoveConflictResolutionRequest,
-        FolderMoveCompletion, FolderMoveDropInput,
+        FolderMoveCompletion, FolderMoveDropInput, FolderMoveRequest,
     };
     pub(in crate::native_app) use super::rename_execution::execute_rename_commit_request;
     pub(in crate::native_app) use super::rename_types::{

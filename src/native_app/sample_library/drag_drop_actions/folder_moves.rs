@@ -8,9 +8,9 @@ use crate::native_app::app::{
 };
 use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FolderDropResult, FolderMoveCompletion, FolderMoveDropInput,
-    execute_file_move_conflict_request_with_progress, execute_folder_move_request_with_progress,
-    file_move_conflict_progress_label, file_move_conflict_progress_total,
-    folder_move_progress_label, folder_move_progress_total,
+    FolderMoveRequest, execute_file_move_conflict_request_with_progress,
+    execute_folder_move_request_with_progress, file_move_conflict_progress_label,
+    file_move_conflict_progress_total, folder_move_progress_label, folder_move_progress_total,
 };
 
 impl NativeAppState {
@@ -44,31 +44,7 @@ impl NativeAppState {
                 self.finish_folder_move_result(started_at, None, Ok(result), context);
             }
             Ok(FolderMoveDropInput::Request(request)) => {
-                let task_id = self.background.next_task_id();
-                self.begin_file_move_progress(FileMoveProgress {
-                    task_id,
-                    label: folder_move_progress_label(&request),
-                    completed: 0,
-                    total: folder_move_progress_total(&request),
-                    detail: String::from("Queued"),
-                });
-                let sender = self.background.worker_sender.clone();
-                context
-                    .business()
-                    .background("gui-folder-browser-move")
-                    .run(
-                        move |_| {
-                            execute_folder_move_request_with_progress(
-                                request,
-                                task_id,
-                                Some(sender),
-                            )
-                        },
-                        move |completion: FolderMoveCompletion| GuiMessage::FolderMoveFinished {
-                            started_at,
-                            completion,
-                        },
-                    );
+                self.queue_folder_move_request(request, started_at, context);
             }
             Err(error) => {
                 self.ui.status.sample = error.clone();
@@ -83,6 +59,51 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    pub(in crate::native_app) fn submit_folder_move_input(
+        &mut self,
+        input: FolderMoveDropInput,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Option<u64> {
+        match input {
+            FolderMoveDropInput::Status(result) => {
+                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                None
+            }
+            FolderMoveDropInput::Request(request) => {
+                Some(self.queue_folder_move_request(request, started_at, context))
+            }
+        }
+    }
+
+    fn queue_folder_move_request(
+        &mut self,
+        request: FolderMoveRequest,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> u64 {
+        let task_id = self.background.next_task_id();
+        self.begin_file_move_progress(FileMoveProgress {
+            task_id,
+            label: folder_move_progress_label(&request),
+            completed: 0,
+            total: folder_move_progress_total(&request),
+            detail: String::from("Queued"),
+        });
+        let sender = self.background.worker_sender.clone();
+        context
+            .business()
+            .background("gui-folder-browser-move")
+            .run(
+                move |_| execute_folder_move_request_with_progress(request, task_id, Some(sender)),
+                move |completion: FolderMoveCompletion| GuiMessage::FolderMoveFinished {
+                    started_at,
+                    completion,
+                },
+            );
+        task_id
     }
 
     pub(in crate::native_app) fn resolve_file_move_conflict(
@@ -225,7 +246,9 @@ impl NativeAppState {
         completion: FolderMoveCompletion,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.finish_file_move_progress(completion.task_id);
+        let task_id = completion.task_id;
+        let request = completion.request;
+        self.finish_file_move_progress(task_id);
         let previous_selected = self
             .library
             .folder_browser
@@ -234,9 +257,21 @@ impl NativeAppState {
         let result = completion.result.and_then(|success| {
             self.library
                 .folder_browser
-                .apply_folder_move_completion(&completion.request, success)
+                .apply_folder_move_completion(&request, success)
         });
+        let cut_paste_succeeded = self
+            .ui
+            .browser_interaction
+            .cut_file_paste_task_id
+            .is_some_and(|paste_task_id| paste_task_id == task_id)
+            && result.is_ok();
         self.finish_folder_move_result(started_at, previous_selected, result, context);
+        if self.ui.browser_interaction.cut_file_paste_task_id == Some(task_id) {
+            self.ui.browser_interaction.cut_file_paste_task_id = None;
+            if cut_paste_succeeded {
+                self.ui.browser_interaction.cut_file_clipboard = None;
+            }
+        }
     }
 
     fn finish_folder_move_result(

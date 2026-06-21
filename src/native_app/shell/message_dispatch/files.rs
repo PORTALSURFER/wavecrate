@@ -19,6 +19,8 @@ impl NativeAppState {
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(context),
+            GuiMessage::CutSelectedFiles => self.cut_selected_files(),
+            GuiMessage::PasteCutFiles => self.paste_cut_files(context),
             GuiMessage::SelectedFilesCopyFinished {
                 count,
                 started_at,

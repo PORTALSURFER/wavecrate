@@ -186,6 +186,8 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                 shortcut_help_item("X", "Mark sample and advance"),
                 shortcut_help_item("Command-A", "Select all listed samples"),
                 shortcut_help_item("Command-C", "Copy play selection or selected file"),
+                shortcut_help_item("Command-X", "Cut selected files"),
+                shortcut_help_item("Command-V", "Paste cut files into selected folder"),
                 shortcut_help_item("N", new_item_help_label(state)),
                 shortcut_help_item("F2 / Command-R", "Rename selected item"),
                 shortcut_help_item("Delete / Backspace", "Delete selected item"),
@@ -417,6 +419,14 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         .bind(
             ui::KeyPress::with_command(ui::KeyCode::C),
             GuiMessage::CopySelectedFiles,
+        )
+        .bind(
+            ui::KeyPress::with_command(ui::KeyCode::X),
+            GuiMessage::CutSelectedFiles,
+        )
+        .bind(
+            ui::KeyPress::with_command(ui::KeyCode::V),
+            GuiMessage::PasteCutFiles,
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowLeft),

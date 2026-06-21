@@ -76,6 +76,26 @@ fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
 }
 
 #[test]
+fn command_x_shortcut_routes_to_cut_selected_files() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::X));
+
+    assert_eq!(resolution.action, Some(GuiMessage::CutSelectedFiles));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn command_v_shortcut_routes_to_paste_cut_files() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::V));
+
+    assert_eq!(resolution.action, Some(GuiMessage::PasteCutFiles));
+    assert!(resolution.handled);
+}
+
+#[test]
 fn x_shortcut_is_consumed_while_renaming() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let sample_path = state

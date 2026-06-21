@@ -1,4 +1,5 @@
 mod browser_drag;
+mod cut_paste;
 mod drag_session;
 mod external;
 mod folder_moves;

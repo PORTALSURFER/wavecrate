@@ -8,7 +8,7 @@ use crate::native_app::test_support::state::{
 use radiant::{
     gui::types::{Point, Vector2},
     prelude::{self as ui, IntoView},
-    widgets::DragHandleMessage,
+    widgets::{DragHandleMessage, PointerModifiers},
 };
 use std::fs;
 use wavecrate::sample_sources::Rating;
@@ -251,6 +251,107 @@ fn moving_selected_file_loads_next_visible_sample() {
     assert!(
         state.active_sample_load_task().is_some(),
         "moving the selected file should queue autoplay loading for the replacement selection"
+    );
+}
+
+#[test]
+fn cut_paste_selected_files_moves_audio_into_selected_folder() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let hat = drums.join("hat.wav");
+    for file in [&kick, &snare, &hat] {
+        write_test_wav_i16(file, &[0, 256, -256, 512]);
+    }
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        snare.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+
+    state.cut_selected_files();
+
+    assert_eq!(state.ui.status.sample, "Cut 2 selected files");
+    assert_eq!(
+        state
+            .ui
+            .browser_interaction
+            .cut_file_clipboard
+            .as_ref()
+            .map(|clipboard| clipboard.len()),
+        Some(2)
+    );
+
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+            Default::default(),
+        ));
+    let mut context = ui::UiUpdateContext::default();
+
+    state.paste_cut_files(&mut context);
+    assert!(
+        state.ui.browser_interaction.cut_file_clipboard.is_some(),
+        "cut buffer should stay available until the queued paste succeeds"
+    );
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .cut_file_paste_task_id
+            .is_some(),
+        "pasting should track the queued move task"
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    let moved_kick = loops.join("kick.wav");
+    let moved_snare = loops.join("snare.wav");
+    assert!(!kick.exists());
+    assert!(!snare.exists());
+    assert!(hat.is_file());
+    assert!(moved_kick.is_file());
+    assert!(moved_snare.is_file());
+    assert!(state.ui.browser_interaction.cut_file_clipboard.is_none());
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        vec![moved_kick.clone()]
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            moved_kick.display().to_string(),
+            moved_snare.display().to_string()
+        ]
     );
 }
 

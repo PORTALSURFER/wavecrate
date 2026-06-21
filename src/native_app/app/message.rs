@@ -143,6 +143,8 @@ pub(in crate::native_app) enum GuiMessage {
     RemoveContextSampleFromCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
+    CutSelectedFiles,
+    PasteCutFiles,
     SelectedFilesCopyFinished {
         count: usize,
         started_at: Instant,

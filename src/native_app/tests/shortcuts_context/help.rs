@@ -66,6 +66,20 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .flat_map(|section| &section.items)
             .any(|item| item.keys == "Option-Space" && item.action == "Play random sample section")
     );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "Command-X" && item.action == "Cut selected files")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| {
+                item.keys == "Command-V" && item.action == "Paste cut files into selected folder"
+            })
+    );
 }
 
 #[test]

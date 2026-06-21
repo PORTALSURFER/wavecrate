@@ -83,6 +83,8 @@ impl NativeAppState {
             | GuiMessage::RemoveContextSampleFromCollection
             | GuiMessage::NormalizeSelectedSamples
             | GuiMessage::CopySelectedFiles
+            | GuiMessage::CutSelectedFiles
+            | GuiMessage::PasteCutFiles
             | GuiMessage::SelectedFilesCopyFinished { .. }
             | GuiMessage::WaveformSelectionCopyFinished { .. }
             | GuiMessage::FileMoveProgress(_)
