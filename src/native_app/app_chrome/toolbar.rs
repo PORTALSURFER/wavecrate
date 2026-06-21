@@ -55,9 +55,10 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             "Random section playback\nClick: play a random section now.\nCommand-click: make Space use random sections.",
         ),
         toolbar_help_tooltip(
-            toolbar_icon_button(
+            toolbar_icon_button_with_icon_state(
                 TOOLBAR_SIMILAR_SECTIONS_ID,
                 ToolbarIcon::SimilarSections,
+                true,
                 model.similar_sections_available || model.similar_sections_enabled,
                 model.similar_sections_enabled,
             ),
@@ -154,7 +155,17 @@ pub(in crate::native_app) fn toolbar_icon_button(
     enabled: bool,
     active: bool,
 ) -> ui::View<GuiMessage> {
-    ui::icon_button(toolbar_icon_glyph(icon, enabled, active))
+    toolbar_icon_button_with_icon_state(id, icon, enabled, enabled, active)
+}
+
+fn toolbar_icon_button_with_icon_state(
+    id: u64,
+    icon: ToolbarIcon,
+    enabled: bool,
+    icon_enabled: bool,
+    active: bool,
+) -> ui::View<GuiMessage> {
+    ui::icon_button(toolbar_icon_glyph(icon, icon_enabled, active))
         .enabled(enabled)
         .active(active)
         .mapped(move |message| toolbar_button_message(icon, message))
