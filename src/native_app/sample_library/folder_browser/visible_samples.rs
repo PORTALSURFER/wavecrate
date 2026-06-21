@@ -272,6 +272,7 @@ impl VisibleSampleProjectionCache {
 pub(super) struct VisibleSampleProjectionRequest<'a> {
     folder_id: &'a str,
     name_filter: &'a str,
+    rating_filter: &'a str,
     sort: &'a ui::DetailsSort,
     similarity_anchor_id: Option<&'a str>,
     content_revision: u64,
@@ -281,6 +282,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
     pub(super) fn new(
         folder_id: &'a str,
         name_filter: &'a str,
+        rating_filter: &'a str,
         sort: &'a ui::DetailsSort,
         similarity_anchor_id: Option<&'a str>,
         content_revision: u64,
@@ -288,6 +290,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
         Self {
             folder_id,
             name_filter,
+            rating_filter,
             sort,
             similarity_anchor_id,
             content_revision,
@@ -298,6 +301,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
         VisibleSampleProjectionKey::new(
             self.folder_id.to_owned(),
             self.name_filter.to_owned(),
+            self.rating_filter.to_owned(),
             self.sort.column_id.clone(),
             self.sort.direction == ui::SortDirection::Descending,
             self.similarity_anchor_id.map(str::to_owned),
@@ -310,6 +314,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
 struct VisibleSampleProjectionKey {
     folder_id: String,
     name_filter: String,
+    rating_filter: String,
     sort_column_id: String,
     sort_descending: bool,
     similarity_anchor_id: Option<String>,
@@ -320,6 +325,7 @@ impl VisibleSampleProjectionKey {
     fn new(
         folder_id: String,
         name_filter: String,
+        rating_filter: String,
         sort_column_id: String,
         sort_descending: bool,
         similarity_anchor_id: Option<String>,
@@ -328,6 +334,7 @@ impl VisibleSampleProjectionKey {
         Self {
             folder_id,
             name_filter,
+            rating_filter,
             sort_column_id,
             sort_descending,
             similarity_anchor_id,
@@ -340,6 +347,7 @@ impl Hash for VisibleSampleProjectionKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.folder_id.hash(state);
         self.name_filter.hash(state);
+        self.rating_filter.hash(state);
         self.sort_column_id.hash(state);
         self.sort_descending.hash(state);
         self.similarity_anchor_id.hash(state);
@@ -524,22 +532,27 @@ mod tests {
         let descending = ui::DetailsSort::new("size", ui::SortDirection::Descending);
 
         assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
-            VisibleSampleProjectionRequest::new("folder", "kick", &descending, None, 4).key()
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &descending, None, 4).key()
         );
         assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
-            VisibleSampleProjectionRequest::new("folder", "snare", &ascending, None, 4).key()
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "snare", "", &ascending, None, 4).key()
         );
         assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("a.wav"), 4)
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, Some("a.wav"), 4)
                 .key(),
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, Some("b.wav"), 4)
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, Some("b.wav"), 4)
                 .key()
         );
         assert_ne!(
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 4).key(),
-            VisibleSampleProjectionRequest::new("folder", "kick", &ascending, None, 5).key()
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, None, 5).key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", "-1,2", &ascending, None, 4)
+                .key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", "2", &ascending, None, 4).key()
         );
     }
 

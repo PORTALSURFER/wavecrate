@@ -2,7 +2,7 @@ use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
 use radiant::prelude as ui;
 
-use super::{filters, traversal};
+use super::{filters, rating_filter, traversal};
 use crate::native_app::sample_library::folder_browser::{
     FileEntry, FolderBrowserState, FolderEntry,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
@@ -61,9 +61,11 @@ impl FolderBrowserState {
         folder: &FolderEntry,
     ) -> Ref<'_, Vec<String>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
+        let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let request = VisibleSampleProjectionRequest::new(
             folder.id.as_str(),
             name_filter.as_str(),
+            rating_filter_key.as_str(),
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
@@ -72,6 +74,9 @@ impl FolderBrowserState {
             let mut files = Vec::new();
             traversal::collect_audio_files(folder, &mut files);
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
+            files.retain(|file| {
+                rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
+            });
             self.sort_files(&mut files);
             files.into_iter().map(|file| file.id.clone()).collect()
         })

@@ -269,6 +269,86 @@ fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
 }
 
 #[test]
+fn rating_filter_limits_visible_samples_and_can_combine_levels() {
+    let root = temp_source_root("wavecrate-gui-rating-filter");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let favorite = drums.join("favorite.wav");
+    let maybe = drums.join("maybe.wav");
+    let rejected = drums.join("rejected.wav");
+    let unrated = drums.join("unrated.wav");
+    for file in [&favorite, &maybe, &rejected, &unrated] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    assert!(browser.set_file_rating_state(&favorite, Rating::KEEP_3, true));
+    assert!(browser.set_file_rating_state(&maybe, Rating::KEEP_1, false));
+    assert!(browser.set_file_rating_state(&rejected, Rating::TRASH_3, false));
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(-3, true));
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(4, true));
+
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.total_count, 2);
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["favorite.wav", "rejected.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(-3, false));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["favorite.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn rating_filter_clears_selection_hidden_by_filter() {
+    let root = temp_source_root("wavecrate-gui-rating-filter-selection");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let keep = drums.join("keep.wav");
+    let neutral = drums.join("neutral.wav");
+    for file in [&keep, &neutral] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    assert!(browser.set_file_rating_state(&keep, Rating::KEEP_1, false));
+    browser.select_file(path_id(&neutral));
+
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(1, true));
+
+    assert_eq!(browser.selected_file_id(), None);
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn folder_subtree_listing_includes_descendant_samples_when_enabled() {
     let root = temp_source_root("wavecrate-gui-subtree-listing");
     let drums = root.join("drums");

@@ -289,6 +289,9 @@ impl FolderBrowserState {
             FolderBrowserMessage::TagFilterInput(message) => {
                 self.apply_tag_filter_input(message);
             }
+            FolderBrowserMessage::ToggleRatingFilter(level, enabled) => {
+                self.set_rating_filter(level, enabled);
+            }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);
             }

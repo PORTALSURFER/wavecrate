@@ -60,6 +60,7 @@ mod scanning;
 use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
 
 mod panel_state;
+mod rating_filter;
 mod source_scan_cache;
 use panel_state::{BrowserFilterState, BrowserPanelLayoutState};
 mod source_management;
@@ -141,6 +142,7 @@ pub(in crate::native_app) mod commands {
 pub(in crate::native_app) mod model {
     pub(in crate::native_app) use super::{
         file_model::FileEntry,
+        rating_filter::{RATING_FILTER_LEVELS, rating_filter_label},
         state_types::{
             EMPTY_SIMILARITY_ASPECT_STRENGTHS, FileColumn, FileColumnKind,
             SimilarityAspectStrengths, SourceEntry, VisibleFolder,

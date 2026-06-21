@@ -1,7 +1,9 @@
 use radiant::{prelude as ui, widgets::TextInputMessageKind};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
-use super::{DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState};
+use super::{
+    DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState, rating_filter::RATING_FILTER_LEVELS,
+};
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
 const FILTER_PANEL_HEADER_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -9,7 +11,7 @@ const MAX_FILTER_PANEL_HEIGHT: f32 = 180.0;
 pub(in crate::native_app) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
     FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 58.0;
+pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 92.0;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -23,6 +25,7 @@ const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
 pub(super) struct BrowserFilterState {
     pub(super) name_filter: String,
     pub(super) tag_filter: String,
+    pub(super) rating_filter: BTreeSet<i8>,
 }
 
 #[derive(Clone, Debug)]
@@ -66,6 +69,10 @@ impl FolderBrowserState {
         self.filters.tag_filter.as_str()
     }
 
+    pub(in crate::native_app) fn rating_filter(&self) -> &BTreeSet<i8> {
+        &self.filters.rating_filter
+    }
+
     pub(in crate::native_app) fn apply_name_filter_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
@@ -94,6 +101,22 @@ impl FolderBrowserState {
             return;
         }
         self.filters.tag_filter = value;
+        self.reset_file_view();
+    }
+
+    pub(in crate::native_app) fn set_rating_filter(&mut self, level: i8, enabled: bool) {
+        if !RATING_FILTER_LEVELS.contains(&level) {
+            return;
+        }
+        let changed = if enabled {
+            self.filters.rating_filter.insert(level)
+        } else {
+            self.filters.rating_filter.remove(&level)
+        };
+        if !changed {
+            return;
+        }
+        self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }
 

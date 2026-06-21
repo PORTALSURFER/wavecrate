@@ -78,6 +78,7 @@ pub(in crate::native_app) const FILTER_SECTION_SCROLL_NODE_ID: u64 = FOLDER_FILT
 pub(in crate::native_app) const NAME_FILTER_CLEAR_BUTTON_ID: u64 = FOLDER_FILTERS.id(5);
 pub(in crate::native_app) const TAG_FILTER_CLEAR_BUTTON_ID: u64 = FOLDER_FILTERS.id(6);
 pub(in crate::native_app) const FILTER_RESIZE_HEADER_ID: u64 = FOLDER_FILTERS.id(7);
+pub(in crate::native_app) const RATING_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(20);
 
 pub(in crate::native_app) const COLLECTIONS_SECTION_NODE_ID: u64 = COLLECTIONS.id(2);
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = COLLECTIONS.id(3);

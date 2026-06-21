@@ -2,7 +2,9 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
-use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
+use crate::native_app::app_chrome::view_models::library_sidebar::{
+    FilterSectionViewModel, RatingFilterToggleViewModel,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 #[cfg(test)]
@@ -21,6 +23,7 @@ const FILTER_INPUT_CLEAR_SPACING: f32 = 4.0;
 const FILTER_ROW_SPACING: f32 = 1.0;
 const NAME_FILTER_INPUT_ID: u64 = widget_ids::NAME_FILTER_INPUT_ID;
 const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
+const RATING_FILTER_TOGGLE_SCOPE: u64 = widget_ids::RATING_FILTER_TOGGLE_SCOPE;
 const FILTER_SECTION_SCROLL_NODE_ID: u64 = widget_ids::FILTER_SECTION_SCROLL_NODE_ID;
 const NAME_FILTER_CLEAR_BUTTON_ID: u64 = widget_ids::NAME_FILTER_CLEAR_BUTTON_ID;
 const TAG_FILTER_CLEAR_BUTTON_ID: u64 = widget_ids::TAG_FILTER_CLEAR_BUTTON_ID;
@@ -54,7 +57,11 @@ fn filter_resize_header() -> ui::View<GuiMessage> {
 }
 
 fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let rows = [name_filter_row(model), tag_filter_row(model)];
+    let rows = [
+        name_filter_row(model),
+        tag_filter_row(model),
+        rating_filter_row(model),
+    ];
     let content_height = filter_controls_content_height(rows.len());
 
     ui::scroll(
@@ -119,6 +126,47 @@ fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     )
 }
 
+fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
+    let label = ui::text_line("Rating", FILTER_CLEAR_BUTTON_SIZE)
+        .key("filter-rating-label")
+        .width(FILTER_LABEL_WIDTH);
+    filter_labeled_control_row(
+        label,
+        ui::row(
+            model
+                .rating_filters
+                .iter()
+                .map(rating_filter_toggle)
+                .collect::<Vec<_>>(),
+        )
+        .spacing(1.0)
+        .fill_width()
+        .height(FILTER_CLEAR_BUTTON_SIZE),
+        "filter-rating-row",
+    )
+}
+
+fn rating_filter_toggle(toggle: &RatingFilterToggleViewModel) -> ui::View<GuiMessage> {
+    let level = toggle.level;
+    let tone = if toggle.level < 0 {
+        ui::WidgetTone::Danger
+    } else {
+        ui::WidgetTone::Accent
+    };
+    ui::selectable(toggle.label, toggle.active)
+        .style(ui::WidgetStyle::subtle(tone))
+        .message(move |enabled| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
+        })
+        .id(rating_filter_toggle_id(toggle.label))
+        .key(format!("filter-rating-toggle-{}", toggle.label))
+        .size(22.0, FILTER_CLEAR_BUTTON_SIZE)
+}
+
+fn rating_filter_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(RATING_FILTER_TOGGLE_SCOPE, label)
+}
+
 fn filter_input_row(
     label: &'static str,
     label_key: &'static str,
@@ -133,7 +181,14 @@ fn filter_input_row(
         .spacing(FILTER_INPUT_CLEAR_SPACING)
         .fill_width()
         .height(FILTER_CLEAR_BUTTON_SIZE);
+    filter_labeled_control_row(label, control, key)
+}
 
+fn filter_labeled_control_row(
+    label: ui::View<GuiMessage>,
+    control: ui::View<GuiMessage>,
+    key: &'static str,
+) -> ui::View<GuiMessage> {
     ui::row([label, control])
         .key(key)
         .spacing(FILTER_LABEL_CONTROL_SPACING)
@@ -172,7 +227,9 @@ mod tests {
     use super::*;
     use crate::native_app::sample_library::folder_browser::FolderBrowserState;
     use radiant::prelude::IntoView;
-    use radiant::widgets::ButtonMessage;
+    use radiant::widgets::{ButtonMessage, SelectableMessage};
+
+    const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 112.0;
 
     #[test]
     fn filter_section_layout_uses_configured_height() {
@@ -254,8 +311,10 @@ mod tests {
         let state = FolderBrowserState::load_default();
         let model = FilterSectionViewModel::from_folder_browser(&state);
 
-        let frame = filter_section(&model)
-            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
         let input = frame
             .paint_plan
             .first_text_input()
@@ -280,12 +339,18 @@ mod tests {
         let state = FolderBrowserState::load_default();
         let model = FilterSectionViewModel::from_folder_browser(&state);
 
-        let frame = filter_section(&model)
-            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
         let inputs = frame.paint_plan.text_inputs().collect::<Vec<_>>();
 
         assert!(frame.paint_plan.contains_text("Name"));
         assert!(frame.paint_plan.contains_text("Tags"));
+        assert!(frame.paint_plan.contains_text("Rating"));
+        for label in ["T3", "T2", "T1", "K1", "K2", "K3", "K4"] {
+            assert!(frame.paint_plan.contains_text(label), "missing {label}");
+        }
         assert!(
             !frame.paint_plan.contains_text("Type"),
             "old type filter label should be removed"
@@ -304,8 +369,10 @@ mod tests {
         let state = FolderBrowserState::load_default();
         let model = FilterSectionViewModel::from_folder_browser(&state);
 
-        let frame = filter_section(&model)
-            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
 
         assert_eq!(
             frame
@@ -336,8 +403,10 @@ mod tests {
             ..FilterSectionViewModel::from_folder_browser(&state)
         };
 
-        let frame = filter_section(&model)
-            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
 
         assert!(
             frame
@@ -370,8 +439,10 @@ mod tests {
             ..FilterSectionViewModel::from_folder_browser(&state)
         };
 
-        let frame = filter_section(&model)
-            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 76.0));
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
 
         assert_eq!(
             frame
@@ -392,6 +463,48 @@ mod tests {
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::TagFilterInput(empty_filter_message())
+            ))
+        );
+    }
+
+    #[test]
+    fn filter_section_projects_rating_toggles_and_dispatches_changes() {
+        let mut state = FolderBrowserState::load_default();
+        state.set_rating_filter(-3, true);
+        let model = FilterSectionViewModel::from_folder_browser(&state);
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
+
+        assert!(
+            frame
+                .paint_plan
+                .first_widget_rect(rating_filter_toggle_id("T3"))
+                .is_some()
+        );
+        assert!(
+            frame
+                .paint_plan
+                .first_widget_rect(rating_filter_toggle_id("K4"))
+                .is_some()
+        );
+        assert_eq!(
+            filter_section(&model).view_dispatch_widget_output(
+                rating_filter_toggle_id("K4"),
+                ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ToggleRatingFilter(4, true)
+            ))
+        );
+        assert_eq!(
+            filter_section(&model).view_dispatch_widget_output(
+                rating_filter_toggle_id("T3"),
+                ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ToggleRatingFilter(-3, false)
             ))
         );
     }

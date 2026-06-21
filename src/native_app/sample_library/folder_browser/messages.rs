@@ -31,6 +31,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     RenameInput(TextInputMessage),
     NameFilterInput(TextInputMessage),
     TagFilterInput(TextInputMessage),
+    ToggleRatingFilter(i8, bool),
     SortFileColumn(String),
     ResizeFileColumn(String, DragHandleMessage),
     DragFileColumn(String, DragHandleMessage),

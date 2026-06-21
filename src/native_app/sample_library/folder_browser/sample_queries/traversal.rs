@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use wavecrate::sample_sources::SampleCollection;
 
 use super::filters::{audio_file_matches_name_query, audio_file_matches_parsed_tags};
+use super::rating_filter::rating_filter_matches;
 use super::{FileEntry, FolderEntry};
 
 pub(super) fn collect_audio_files<'a>(folder: &'a FolderEntry, files: &mut Vec<&'a FileEntry>) {
@@ -32,6 +33,7 @@ pub(super) fn count_matching_audio_files_in_folder(
     name_query: &str,
     required_tags: &[String],
     tags_by_file: &HashMap<String, Vec<String>>,
+    rating_filter: &BTreeSet<i8>,
     collection: Option<SampleCollection>,
 ) -> usize {
     let local_count = folder
@@ -42,6 +44,7 @@ pub(super) fn count_matching_audio_files_in_folder(
                 && collection.is_none_or(|collection| file.belongs_to_collection(collection))
                 && audio_file_matches_name_query(file, name_query)
                 && audio_file_matches_parsed_tags(file, tags_by_file, required_tags)
+                && rating_filter_matches(file, rating_filter)
         })
         .count();
     local_count
@@ -54,6 +57,7 @@ pub(super) fn count_matching_audio_files_in_folder(
                     name_query,
                     required_tags,
                     tags_by_file,
+                    rating_filter,
                     collection,
                 )
             })

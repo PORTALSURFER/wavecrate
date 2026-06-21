@@ -1,7 +1,7 @@
 use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
 use super::{
-    FileEntry, FolderBrowserState, FolderEntry,
+    FileEntry, FolderBrowserState, FolderEntry, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
 
@@ -25,6 +25,7 @@ impl FolderBrowserState {
                 traversal::collect_collection_audio_files(folder, collection, &mut files);
             }
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
+            filter_audio_files_by_rating(&mut files, &self.filters.rating_filter);
             self.sort_files(&mut files);
             return files;
         }
@@ -117,6 +118,7 @@ impl FolderBrowserState {
                         &name_query,
                         &required_tags,
                         tags_by_file,
+                        &self.filters.rating_filter,
                         Some(collection),
                     )
                 })
@@ -131,6 +133,7 @@ impl FolderBrowserState {
                         &name_query,
                         &required_tags,
                         tags_by_file,
+                        &self.filters.rating_filter,
                         None,
                     )
                 })
@@ -143,6 +146,7 @@ impl FolderBrowserState {
                 file.is_audio()
                     && filters::audio_file_matches_name_query(file, &name_query)
                     && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
             })
             .count()
     }
@@ -261,6 +265,7 @@ impl FolderBrowserState {
                 file.is_audio()
                     && filters::audio_file_matches_name_query(file, &name_query)
                     && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
             })
             .collect::<Vec<_>>();
         self.sort_files(&mut files);
@@ -325,9 +330,11 @@ impl FolderBrowserState {
 
     fn selected_folder_audio_file_indices_ref(&self, folder: &FolderEntry) -> Ref<'_, Vec<usize>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
+        let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let request = VisibleSampleProjectionRequest::new(
             folder.id.as_str(),
             name_filter.as_str(),
+            rating_filter_key.as_str(),
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
@@ -342,6 +349,10 @@ impl FolderBrowserState {
                     .filter(|(_, file)| {
                         file.is_audio()
                             && filters::audio_file_matches_name_query(file, &name_filter)
+                            && rating_filter::rating_filter_matches(
+                                file,
+                                &self.filters.rating_filter,
+                            )
                     })
                     .map(|(index, _)| index)
                     .collect::<Vec<_>>();
@@ -373,6 +384,13 @@ fn collect_local_cache_candidate_paths(
         .take(max_files)
         .map(|file| PathBuf::from(&file.id))
         .collect()
+}
+
+fn filter_audio_files_by_rating(
+    files: &mut Vec<&FileEntry>,
+    rating_filter: &std::collections::BTreeSet<i8>,
+) {
+    files.retain(|file| rating_filter::rating_filter_matches(file, rating_filter));
 }
 
 fn collect_collection_cache_candidate_paths(
