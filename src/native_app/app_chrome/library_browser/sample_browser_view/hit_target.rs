@@ -14,6 +14,30 @@ const COPY_FLASH_FILL: Rgba8 = Rgba8 {
     b: 255,
     a: 118,
 };
+const MISSING_FILL: Rgba8 = Rgba8 {
+    r: 130,
+    g: 30,
+    b: 28,
+    a: 145,
+};
+const MISSING_HOVER_FILL: Rgba8 = Rgba8 {
+    r: 170,
+    g: 42,
+    b: 38,
+    a: 175,
+};
+const MISSING_MARKER: Rgba8 = Rgba8 {
+    r: 255,
+    g: 69,
+    b: 54,
+    a: 250,
+};
+const SELECTED_MARKER: Rgba8 = Rgba8 {
+    r: 255,
+    g: 82,
+    b: 62,
+    a: 245,
+};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct SampleFileHitTarget {
@@ -22,6 +46,7 @@ pub(in crate::native_app) struct SampleFileHitTarget {
     selected: bool,
     copy_flash: bool,
     cached: bool,
+    missing: bool,
 }
 
 impl SampleFileHitTarget {
@@ -32,6 +57,7 @@ impl SampleFileHitTarget {
         drag_active: bool,
         drag_source: bool,
         cached: bool,
+        missing: bool,
     ) -> Self {
         let row = ui::interactive_row()
             .tracked_drag_source(drag_active, drag_source)
@@ -56,6 +82,7 @@ impl SampleFileHitTarget {
             selected,
             copy_flash,
             cached,
+            missing,
         }
     }
 }
@@ -92,7 +119,7 @@ impl SampleFileHitTarget {
         self.row
             .dense_chrome_parts(
                 ui::InteractiveRowVisualStateParts {
-                    selected: self.selected || self.copy_flash,
+                    selected: self.selected || self.copy_flash || self.missing,
                     ..ui::InteractiveRowVisualStateParts::default()
                 },
                 self.chrome_palette(theme),
@@ -110,14 +137,13 @@ impl SampleFileHitTarget {
                 ),
             )
             .leading_marker_if(
-                self.selected,
+                self.selected || self.missing,
                 ui::DenseRowMarkerStyle::new(
                     ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
-                    Rgba8 {
-                        r: 255,
-                        g: 82,
-                        b: 62,
-                        a: 245,
+                    if self.missing {
+                        MISSING_MARKER
+                    } else {
+                        SELECTED_MARKER
                     },
                 ),
             )
@@ -129,6 +155,12 @@ impl SampleFileHitTarget {
                 .selected(COPY_FLASH_FILL)
                 .selected_hovered(COPY_FLASH_FILL)
                 .interaction_fills(COPY_FLASH_FILL, COPY_FLASH_FILL);
+        }
+        if self.missing {
+            return ui::DenseRowPalette::new()
+                .selected(MISSING_FILL)
+                .selected_hovered(MISSING_HOVER_FILL)
+                .interaction_fills(MISSING_HOVER_FILL, MISSING_HOVER_FILL);
         }
         let palette = ui::dense_row_palette_from_style(theme, SAMPLE_ROW_STYLE);
         if self.row.paints_interaction_fill() {

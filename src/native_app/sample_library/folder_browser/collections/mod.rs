@@ -2,6 +2,7 @@ mod assignment;
 mod drag_drop;
 mod focus;
 mod layout;
+mod missing;
 mod model;
 mod rename;
 mod settings;
@@ -13,7 +14,8 @@ pub(in crate::native_app) use layout::{
 };
 pub(super) use model::{CollectionRenameEdit, SampleCollectionConfig, default_collections};
 pub(in crate::native_app) use model::{
-    CollectionRenameView, SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
+    CollectionRenameView, MissingCollectionFile, SampleCollectionView,
+    SelectedFileCollectionCandidate, collection_hotkey,
 };
 
 #[derive(Clone, Debug)]

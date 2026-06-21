@@ -36,6 +36,7 @@ impl FolderBrowserState {
         );
         self.tree.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
+        self.refresh_missing_collection_state();
         true
     }
 
@@ -73,6 +74,7 @@ impl FolderBrowserState {
             self.tree.folders = vec![root_folder.clone()];
         }
         self.bump_file_content_revision();
+        self.refresh_missing_collection_state();
         true
     }
 
@@ -109,6 +111,7 @@ impl FolderBrowserState {
 
         self.tree.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
+        self.refresh_missing_collection_state();
         true
     }
 
@@ -182,6 +185,7 @@ impl FolderBrowserState {
             }
         }
         self.bump_file_content_revision();
+        self.refresh_missing_collection_state();
         true
     }
 
@@ -286,6 +290,7 @@ impl FolderBrowserState {
                 self.selection.retain_visible_files(&visible_ids);
             }
             self.bump_file_content_revision();
+            self.refresh_missing_collection_state();
         }
     }
 

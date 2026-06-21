@@ -31,6 +31,9 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         BrowserContextTargetKind::Sample => "Reveal in Explorer",
         BrowserContextTargetKind::MetadataTag => unreachable!("handled above"),
     };
+    if menu.kind == BrowserContextTargetKind::Sample && menu.sample_missing {
+        return missing_sample_context_menu_commands(menu);
+    }
     let mut actions = vec![
         context_menu_command(&menu.kind, action_label, GuiMessage::OpenContextTarget),
         context_menu_command(&menu.kind, "Copy Path", GuiMessage::CopyContextPath),
@@ -83,6 +86,33 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             ui::MenuCommand::new(
                 "Remove from collection",
                 GuiMessage::RemoveContextSampleFromCollection,
+            )
+            .danger(),
+        );
+    }
+    actions
+}
+
+fn missing_sample_context_menu_commands(
+    menu: &BrowserContextMenu,
+) -> Vec<ui::MenuCommand<GuiMessage>> {
+    let mut actions = vec![context_menu_command(
+        &menu.kind,
+        "Copy Path",
+        GuiMessage::CopyContextPath,
+    )];
+    if menu.collection.is_some() {
+        actions.push(
+            ui::MenuCommand::new(
+                "Clean missing entry",
+                GuiMessage::CleanMissingContextSampleFromCollection,
+            )
+            .danger(),
+        );
+        actions.push(
+            ui::MenuCommand::new(
+                "Clean all missing in collection",
+                GuiMessage::CleanMissingFilesFromActiveCollection,
             )
             .danger(),
         );

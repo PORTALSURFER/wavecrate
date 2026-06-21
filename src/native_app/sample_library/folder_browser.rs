@@ -200,8 +200,8 @@ pub(in crate::native_app) mod view_contract {
         super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
     pub(in crate::native_app) use super::collections::{
         COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
-        COLLECTIONS_PANEL_PADDING, CollectionRenameView, SampleCollectionView,
-        SelectedFileCollectionCandidate, collection_hotkey,
+        COLLECTIONS_PANEL_PADDING, CollectionRenameView, MissingCollectionFile,
+        SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
     };
 }
 

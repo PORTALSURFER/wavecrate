@@ -11,6 +11,7 @@ impl FolderBrowserState {
         self.selected_audio_files()
             .into_iter()
             .filter(|file| selected.contains(&file.id))
+            .filter(|file| !file.is_missing())
             .map(|file| PathBuf::from(&file.id))
             .collect()
     }
@@ -55,6 +56,7 @@ impl FolderBrowserState {
         self.selected_audio_files()
             .into_iter()
             .filter(|file| selected.contains(&file.id))
+            .filter(|file| !file.is_missing())
             .map(|file| SelectedFileRatingCandidate {
                 path: PathBuf::from(&file.id),
                 rating: file.rating,

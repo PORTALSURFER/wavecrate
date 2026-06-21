@@ -17,6 +17,12 @@ impl NativeAppState {
             GuiMessage::RemoveContextSampleFromCollection => {
                 self.remove_context_sample_from_collection(context)
             }
+            GuiMessage::CleanMissingContextSampleFromCollection => {
+                self.clean_missing_context_sample_from_collection()
+            }
+            GuiMessage::CleanMissingFilesFromActiveCollection => {
+                self.clean_missing_files_from_active_collection()
+            }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(context),
             GuiMessage::CutSelectedFiles => self.cut_selected_files(),

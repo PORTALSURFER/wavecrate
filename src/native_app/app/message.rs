@@ -141,6 +141,8 @@ pub(in crate::native_app) enum GuiMessage {
     AdjustSelectedRating(i8),
     AssignSelectedCollection(SampleCollection),
     RemoveContextSampleFromCollection,
+    CleanMissingContextSampleFromCollection,
+    CleanMissingFilesFromActiveCollection,
     NormalizeSelectedSamples,
     CopySelectedFiles,
     CutSelectedFiles,

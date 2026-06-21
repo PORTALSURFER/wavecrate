@@ -11,6 +11,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -41,6 +42,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -95,6 +97,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Samples"),
     };
@@ -119,6 +122,7 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Assets"),
     };
@@ -215,6 +219,7 @@ fn folder_context_menu_paints_new_folder_action() {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Drums"),
     };
@@ -238,6 +243,7 @@ fn folder_context_menu_commands_share_neutral_style() {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Drums"),
     };
@@ -329,6 +335,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: wavecrate::sample_sources::SampleCollection::new(0),
+        sample_missing: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("kick.wav"),
     };
@@ -339,6 +346,35 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     assert!(!frame.paint_plan.contains_text("New Folder"));
     assert!(!frame.paint_plan.contains_text("Delete Folder"));
     assert!(frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
+fn missing_sample_context_menu_paints_cleanup_actions_without_file_actions() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("C:\\Samples\\missing.wav"),
+        source_id: None,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: wavecrate::sample_sources::SampleCollection::new(0),
+        sample_missing: true,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("missing.wav"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text("Copy Path"));
+    assert!(frame.paint_plan.contains_text("Clean missing entry"));
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Clean all missing in collection")
+    );
+    assert!(!frame.paint_plan.contains_text("Reveal in Explorer"));
+    assert!(!frame.paint_plan.contains_text("Move to Trash"));
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use std::{
     cell::{Ref, RefCell},
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
 };
@@ -52,6 +52,7 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
     pub(in crate::native_app) cached: bool,
+    pub(in crate::native_app) missing: bool,
     pub(in crate::native_app) rename: Option<FileRenameView>,
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) similarity_strength: Option<f32>,
@@ -75,6 +76,8 @@ pub(super) struct SampleListState {
     pub(super) prepared_window: ui::VirtualListWindow,
     pub(super) runtime_viewport_rows: Option<usize>,
     pub(super) content_revision: u64,
+    pub(super) missing_collection_files: Vec<FileEntry>,
+    pub(super) missing_collection_counts: BTreeMap<u8, usize>,
     pub(super) projection_cache: VisibleSampleProjectionCache,
     copy_flash_file_ids: HashSet<String>,
     copy_flash_frames: u8,
@@ -96,6 +99,8 @@ impl SampleListState {
             prepared_window: ui::VirtualListWindow::default(),
             runtime_viewport_rows: None,
             content_revision: 0,
+            missing_collection_files: Vec::new(),
+            missing_collection_counts: BTreeMap::new(),
             projection_cache: VisibleSampleProjectionCache::default(),
             copy_flash_file_ids: HashSet::new(),
             copy_flash_frames: 0,
@@ -458,6 +463,7 @@ impl FolderBrowserState {
             drag_active: self.file_drag_active(),
             drag_source: self.file_drag_source(&file.id),
             cached: query.cached_sample_paths.contains(&file.id),
+            missing: file.is_missing(),
             rename: self.file_rename_view(&file.id),
             similarity_anchor: self.file_is_similarity_anchor(&file.id),
             similarity_strength: self.similarity_display_strength_for_file(&file.id),

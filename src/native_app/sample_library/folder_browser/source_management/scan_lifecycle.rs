@@ -134,9 +134,11 @@ impl FolderBrowserState {
                 self.refresh_selected_source_tree(source_id, result.folder);
             } else {
                 self.select_loaded_source(source_id, result.folder);
+                self.refresh_missing_collection_state();
             }
         } else {
             self.bump_file_content_revision();
+            self.refresh_missing_collection_state();
         }
         true
     }
@@ -168,6 +170,7 @@ impl FolderBrowserState {
         self.tree.folders = vec![root_folder.clone()];
         self.retain_tree_state_after_selected_source_refresh();
         self.bump_file_content_revision();
+        self.refresh_missing_collection_state();
         self.prewarm_selected_source_audio_projection_cache();
         true
     }
@@ -222,6 +225,7 @@ impl FolderBrowserState {
         self.retain_tree_state_after_selected_source_refresh();
         self.reset_tree_view();
         self.bump_file_content_revision();
+        self.refresh_missing_collection_state();
         self.prewarm_selected_source_audio_projection_cache();
     }
 

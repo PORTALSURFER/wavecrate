@@ -81,6 +81,8 @@ impl NativeAppState {
             | GuiMessage::AdjustSelectedRating(_)
             | GuiMessage::AssignSelectedCollection(_)
             | GuiMessage::RemoveContextSampleFromCollection
+            | GuiMessage::CleanMissingContextSampleFromCollection
+            | GuiMessage::CleanMissingFilesFromActiveCollection
             | GuiMessage::NormalizeSelectedSamples
             | GuiMessage::CopySelectedFiles
             | GuiMessage::CutSelectedFiles

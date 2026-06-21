@@ -39,6 +39,7 @@ impl NativeAppState {
             folder_lock_inherited: false,
             metadata_tag: None,
             collection: None,
+            sample_missing: false,
             anchor: position,
             title,
         });
@@ -90,6 +91,7 @@ impl NativeAppState {
             source_removable: false,
             metadata_tag: None,
             collection: None,
+            sample_missing: false,
             anchor: position,
         });
     }
@@ -131,6 +133,7 @@ impl NativeAppState {
             .library
             .folder_browser
             .active_collection_for_context_file(&path);
+        let sample_missing = self.library.folder_browser.context_file_is_missing(&path);
         self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             title: sample_path_label(&path),
@@ -141,6 +144,7 @@ impl NativeAppState {
             folder_lock_inherited: false,
             metadata_tag: None,
             collection,
+            sample_missing,
             anchor: position,
         });
     }
@@ -159,6 +163,7 @@ impl NativeAppState {
             folder_lock_inherited: false,
             metadata_tag: Some(tag.clone()),
             collection: None,
+            sample_missing: false,
             anchor: position,
             title: tag,
         });

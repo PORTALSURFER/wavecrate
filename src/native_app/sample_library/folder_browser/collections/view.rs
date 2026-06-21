@@ -51,6 +51,9 @@ impl FolderBrowserState {
                 *counts.entry(collection.index()).or_insert(0) += 1;
             }
         }
+        for (collection, missing_count) in &self.sample_list.missing_collection_counts {
+            *counts.entry(*collection).or_insert(0) += missing_count;
+        }
         counts
     }
 }

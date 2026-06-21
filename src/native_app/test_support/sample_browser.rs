@@ -39,7 +39,15 @@ pub(in crate::native_app) fn sample_file_hit_target(
     drag_source: bool,
     cached: bool,
 ) -> SampleFileHitTarget {
-    SampleFileHitTarget::new(path, selected, false, drag_active, drag_source, cached)
+    SampleFileHitTarget::new(
+        path,
+        selected,
+        false,
+        drag_active,
+        drag_source,
+        cached,
+        false,
+    )
 }
 
 pub(in crate::native_app) fn sample_browser_window_projection(

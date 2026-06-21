@@ -29,6 +29,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
             folder_lock_inherited: false,
             metadata_tag: None,
             collection: None,
+            sample_missing: false,
             anchor: Point::new(12.0, 24.0),
             title: String::from("source root"),
         },

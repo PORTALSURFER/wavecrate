@@ -26,6 +26,7 @@ fn sample_hit_target(
         drag_active,
         drag_source,
         cached,
+        false,
     )
 }
 
@@ -37,6 +38,7 @@ fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> SampleFile
         false,
         false,
         cached,
+        false,
     )
 }
 

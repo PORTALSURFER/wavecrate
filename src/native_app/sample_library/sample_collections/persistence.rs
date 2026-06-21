@@ -5,6 +5,8 @@ use std::{
 
 use wavecrate::sample_sources::SourceDatabase;
 
+use crate::native_app::sample_library::folder_browser::view_contract::MissingCollectionFile;
+
 use super::command::{CollectionOperation, CollectionUpdate};
 
 pub(super) fn group_updates_by_source(
@@ -39,6 +41,33 @@ pub(super) fn persist_collection_updates(
                 .remove_collection(&update.relative_path, update.collection)
                 .map_err(|err| err.to_string())?,
         }
+    }
+    batch.commit().map_err(|err| err.to_string())
+}
+
+pub(super) fn group_missing_collection_files_by_source(
+    files: &[MissingCollectionFile],
+) -> BTreeMap<PathBuf, Vec<MissingCollectionFile>> {
+    let mut by_source: BTreeMap<PathBuf, Vec<MissingCollectionFile>> = BTreeMap::new();
+    for file in files {
+        by_source
+            .entry(file.root.clone())
+            .or_default()
+            .push(file.clone());
+    }
+    by_source
+}
+
+pub(super) fn persist_missing_collection_cleanup(
+    root: &Path,
+    files: &[MissingCollectionFile],
+) -> Result<(), String> {
+    let db = SourceDatabase::open_for_user_metadata_write(root).map_err(|err| err.to_string())?;
+    let mut batch = db.write_batch().map_err(|err| err.to_string())?;
+    for file in files {
+        batch
+            .remove_collection(&file.relative_path, file.collection)
+            .map_err(|err| err.to_string())?;
     }
     batch.commit().map_err(|err| err.to_string())
 }

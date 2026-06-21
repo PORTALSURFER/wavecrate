@@ -46,6 +46,14 @@ pub(in crate::native_app) struct SelectedFileCollectionCandidate {
     pub(in crate::native_app) assigned: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct MissingCollectionFile {
+    pub(in crate::native_app) root: PathBuf,
+    pub(in crate::native_app) relative_path: PathBuf,
+    pub(in crate::native_app) absolute_path: PathBuf,
+    pub(in crate::native_app) collection: SampleCollection,
+}
+
 pub(in crate::native_app::sample_library::folder_browser) fn default_collections()
 -> Vec<SampleCollectionConfig> {
     (0..SampleCollection::COUNT)

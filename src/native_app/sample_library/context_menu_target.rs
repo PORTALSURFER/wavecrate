@@ -22,6 +22,7 @@ pub(in crate::native_app) struct BrowserContextMenu {
     pub(in crate::native_app) folder_lock_inherited: bool,
     pub(in crate::native_app) metadata_tag: Option<String>,
     pub(in crate::native_app) collection: Option<SampleCollection>,
+    pub(in crate::native_app) sample_missing: bool,
     pub(in crate::native_app) anchor: Point,
     pub(in crate::native_app) title: String,
 }

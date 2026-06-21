@@ -88,6 +88,7 @@ fn sample_browser_row(
         row.drag_active,
         row.drag_source,
         row.cached,
+        row.missing,
         file_id,
         help_tooltips_enabled,
     );
@@ -120,6 +121,7 @@ fn sample_file_hit_target(
     drag_active: bool,
     drag_source: bool,
     cached: bool,
+    missing: bool,
     hit_path: String,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
@@ -130,6 +132,7 @@ fn sample_file_hit_target(
         drag_active,
         drag_source,
         cached,
+        missing,
     ))
     .key(format!("sample-row-hit-{file_id}-{drag_revision}"))
     .fill_width()

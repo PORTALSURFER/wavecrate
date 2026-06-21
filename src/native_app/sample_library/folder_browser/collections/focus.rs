@@ -11,6 +11,7 @@ impl FolderBrowserState {
             self.collection_panel.rename_edit = None;
             self.selection.enter_collection(collection);
             self.reset_folder_focus_to_selected_source_root();
+            self.refresh_missing_collection_state();
             self.reset_file_view();
         }
     }
@@ -60,6 +61,7 @@ impl FolderBrowserState {
         let restored = self.selection.exit_collection(restored_folder);
         if restored {
             self.collection_panel.rename_edit = None;
+            self.refresh_missing_collection_state();
             self.reset_file_view();
         }
         restored

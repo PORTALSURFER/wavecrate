@@ -24,6 +24,12 @@ impl FolderBrowserState {
             for folder in self.loaded_source_root_folders() {
                 traversal::collect_collection_audio_files(folder, collection, &mut files);
             }
+            files.extend(
+                self.sample_list
+                    .missing_collection_files
+                    .iter()
+                    .filter(|file| file.belongs_to_collection(collection)),
+            );
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             filter_audio_files_by_rating(&mut files, &self.filters.rating_filter);
             self.sort_files(&mut files);
@@ -112,21 +118,8 @@ impl FolderBrowserState {
         if required_tags.is_empty() && self.selection.selected_collection.is_none() {
             return self.selected_folder_audio_file_count();
         }
-        if let Some(collection) = self.selection.selected_collection {
-            return self
-                .loaded_source_root_folders()
-                .into_iter()
-                .map(|folder| {
-                    traversal::count_matching_audio_files_in_folder(
-                        folder,
-                        &name_query,
-                        &required_tags,
-                        tags_by_file,
-                        &self.filters.rating_filter,
-                        Some(collection),
-                    )
-                })
-                .sum();
+        if self.selection.selected_collection.is_some() {
+            return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
         if self.folder_subtree_listing_enabled() {
             return self

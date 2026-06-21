@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[test]
 fn activating_collection_filters_audio_files_across_selected_source() {
@@ -140,6 +141,46 @@ fn activating_collection_includes_files_with_multiple_collection_memberships() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn activating_collection_includes_missing_members_from_source_db() {
+    let root = temp_source_root("wavecrate-gui-missing-collection-member");
+    let present = root.join("present.wav");
+    fs::write(&present, []).expect("write present sample");
+    let collection = SampleCollection::new(0).expect("collection");
+    let db = SourceDatabase::open(&root).expect("open source db");
+    seed_file_collections(&db, "missing/lost.wav", &[collection]);
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.set_file_collection_state(&present, collection);
+
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    let files = browser.selected_audio_files();
+    assert_eq!(
+        files
+            .iter()
+            .map(|file| (file.name.as_str(), file.kind.as_str(), file.is_missing()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("lost.wav", "Missing", true),
+            ("present.wav", "Audio", false),
+        ]
+    );
+    assert_eq!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .find(|view| view.collection == collection)
+            .map(|view| view.assigned_count),
+        Some(2)
+    );
+    assert!(
+        browser
+            .missing_collection_file_for_path(&root.join("missing/lost.wav"), collection)
+            .is_some()
+    );
+    let _ = fs::remove_dir_all(root);
+}
 #[test]
 /// Activating a collection transfers active selection out of the folder tree.
 fn activating_collection_clears_folder_selection_and_keeps_collection_as_active_source() {
@@ -234,4 +275,20 @@ fn activating_collection_clears_stale_folder_focus_before_returning_to_tree() {
     assert_eq!(browser.selected_folder_path(), Some(alpha.clone()));
     assert_eq!(browser.selection.selected_collection, None);
     let _ = fs::remove_dir_all(root);
+}
+
+fn seed_file_collections(
+    db: &SourceDatabase,
+    relative_path: &str,
+    collections: &[SampleCollection],
+) {
+    let path = Path::new(relative_path);
+    db.upsert_file(path, 8, 1).expect("upsert source row");
+    let mut batch = db.write_batch().expect("open write batch");
+    for collection in collections {
+        batch
+            .add_collection(path, *collection)
+            .expect("add collection membership");
+    }
+    batch.commit().expect("commit source metadata");
 }

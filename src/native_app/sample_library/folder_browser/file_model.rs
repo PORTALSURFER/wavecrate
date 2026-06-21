@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use wavecrate::sample_sources::{Rating, SampleCollection};
+
+const AUDIO_KIND: &str = "Audio";
+const MISSING_KIND: &str = "Missing";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(in crate::native_app) struct FileEntry {
@@ -26,7 +32,45 @@ impl FileEntry {
     }
 
     pub(super) fn is_audio(&self) -> bool {
-        self.kind == "Audio"
+        self.kind == AUDIO_KIND || self.is_missing()
+    }
+
+    pub(in crate::native_app) fn is_missing(&self) -> bool {
+        self.kind == MISSING_KIND
+    }
+
+    pub(in crate::native_app) fn missing_collection_member(
+        path: &Path,
+        rating: Rating,
+        rating_locked: bool,
+        collections: Vec<SampleCollection>,
+        last_played_at: Option<i64>,
+    ) -> Self {
+        Self {
+            id: path.to_string_lossy().to_string(),
+            name: path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.display().to_string()),
+            stem: path
+                .file_stem()
+                .map(|stem| stem.to_string_lossy().to_string())
+                .filter(|stem| !stem.is_empty())
+                .unwrap_or_else(|| path.display().to_string()),
+            extension: path
+                .extension()
+                .map(|extension| extension.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            kind: String::from(MISSING_KIND),
+            size: String::from("Missing"),
+            size_bytes: 0,
+            modified: last_played_label(last_played_at),
+            modified_rank: last_played_rank(last_played_at),
+            rating,
+            rating_locked,
+            collection: collections.first().copied(),
+            collections,
+        }
     }
 
     pub(in crate::native_app) fn belongs_to_collection(

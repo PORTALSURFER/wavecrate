@@ -57,7 +57,7 @@ impl FolderBrowserState {
     fn new(sources: Vec<SourceEntry>, source_index: usize, root_folder: FolderEntry) -> Self {
         let root_id = root_folder.id.clone();
         let selected_source = sources[source_index].id.clone();
-        let state = Self {
+        let mut state = Self {
             source: BrowserSourceState::new(sources, selected_source),
             selection: BrowserSelectionState::new(root_id.clone()),
             filters: BrowserFilterState::default(),
@@ -68,6 +68,7 @@ impl FolderBrowserState {
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
         };
+        state.refresh_missing_collection_state();
         state.prewarm_selected_source_audio_projection_cache();
         state
     }

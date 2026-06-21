@@ -18,6 +18,7 @@ fn sample_context_menu(path: impl Into<PathBuf>) -> BrowserContextMenu {
         folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
+        sample_missing: false,
         anchor: Point::new(12.0, 24.0),
         title: String::from("kick.wav"),
     }

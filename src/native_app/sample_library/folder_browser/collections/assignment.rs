@@ -79,6 +79,7 @@ impl FolderBrowserState {
         self.selected_audio_files()
             .into_iter()
             .filter(|file| self.is_file_selected(&file.id))
+            .filter(|file| !file.is_missing())
             .map(|file| SelectedFileCollectionCandidate {
                 path: PathBuf::from(&file.id),
                 assigned: file.belongs_to_collection(collection),

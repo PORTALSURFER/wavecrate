@@ -1,6 +1,7 @@
 use super::{native_app_state_with_temp_sample, native_runtime_for_tests};
 use crate::native_app::test_support::state::{FolderBrowserMessage, GuiMessage, NativeAppState};
 use radiant::{gui::types::Point, prelude as ui};
+use std::path::Path;
 
 #[test]
 fn collection_shortcut_toggles_selected_sample_membership() {
@@ -154,6 +155,142 @@ fn sample_context_menu_removes_item_from_active_collection_view() {
 }
 
 #[test]
+fn sample_context_menu_cleans_missing_collection_member() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let present = source_root.path().join("present.wav");
+    std::fs::write(&present, []).expect("write present sample");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    seed_file_collections(&db, "missing/lost.wav", &[collection]);
+    seed_file_collections(&db, "present.wav", &[collection]);
+    let mut state = super::gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.apply_message(
+        GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(collection)),
+        &mut ui::UiUpdateContext::default(),
+    );
+    let missing_path = source_root.path().join("missing/lost.wav");
+    state.open_sample_context_menu(
+        missing_path.to_string_lossy().to_string(),
+        Point::new(12.0, 24.0),
+    );
+
+    assert_eq!(
+        state
+            .ui
+            .browser_interaction
+            .context_menu
+            .as_ref()
+            .map(|menu| (menu.sample_missing, menu.collection)),
+        Some((true, Some(collection)))
+    );
+
+    state.apply_message(
+        GuiMessage::CleanMissingContextSampleFromCollection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        db.collections_for_path(Path::new("missing/lost.wav"))
+            .expect("missing collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("present.wav"))
+            .expect("present collections"),
+        vec![collection]
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["present.wav"]
+    );
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Cleaned 1 missing sample from Collection 1")
+    );
+}
+
+#[test]
+fn sample_context_menu_cleans_all_missing_members_in_collection() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let present = source_root.path().join("present.wav");
+    std::fs::write(&present, []).expect("write present sample");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    seed_file_collections(&db, "missing/one.wav", &[collection]);
+    seed_file_collections(&db, "missing/two.wav", &[collection]);
+    seed_file_collections(&db, "present.wav", &[collection]);
+    let mut state = super::gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.apply_message(
+        GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(collection)),
+        &mut ui::UiUpdateContext::default(),
+    );
+    state.open_sample_context_menu(
+        source_root
+            .path()
+            .join("missing/one.wav")
+            .to_string_lossy()
+            .to_string(),
+        Point::new(12.0, 24.0),
+    );
+
+    state.apply_message(
+        GuiMessage::CleanMissingFilesFromActiveCollection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        db.collections_for_path(Path::new("missing/one.wav"))
+            .expect("first missing collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("missing/two.wav"))
+            .expect("second missing collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("present.wav"))
+            .expect("present collections"),
+        vec![collection]
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["present.wav"]
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Cleaned 2 missing samples from Collection 1")
+    );
+}
+
+#[test]
 fn collection_rename_input_selects_name_when_focused() {
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
     let mut state = NativeAppState::load_default().expect("default state loads");
@@ -178,6 +315,22 @@ fn collection_rename_input_selects_name_when_focused() {
         runtime.focused_text_selection().as_deref(),
         Some("Collection 1")
     );
+}
+
+fn seed_file_collections(
+    db: &wavecrate::sample_sources::SourceDatabase,
+    relative_path: &str,
+    collections: &[wavecrate::sample_sources::SampleCollection],
+) {
+    let path = Path::new(relative_path);
+    db.upsert_file(path, 8, 1).expect("upsert source row");
+    let mut batch = db.write_batch().expect("open write batch");
+    for collection in collections {
+        batch
+            .add_collection(path, *collection)
+            .expect("add collection membership");
+    }
+    batch.commit().expect("commit collection membership");
 }
 
 #[test]
