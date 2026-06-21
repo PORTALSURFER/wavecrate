@@ -379,6 +379,15 @@ impl SelectionRange {
         result.gain = self.gain;
         result
     }
+
+    /// Move the range to new normalized bounds while preserving edit parameters.
+    pub fn with_bounds_precise(self, start: f64, end: f64) -> Self {
+        let mut result = SelectionRange::new_precise(start, end);
+        result.fade_in = self.fade_in;
+        result.fade_out = self.fade_out;
+        result.gain = self.gain;
+        result
+    }
 }
 
 fn clamp01_f64(value: f64) -> f64 {

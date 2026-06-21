@@ -364,6 +364,63 @@ fn trim_request_rewrites_file_and_undo_restores_original_audio() {
 }
 
 #[test]
+fn trim_request_preserves_remaining_marks_after_reloading_waveform() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("trim-marks.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    let anchor = wavecrate::selection::SelectionRange::new(0.0, 0.25);
+    let deleted_repeat = wavecrate::selection::SelectionRange::new(0.25, 0.5);
+    let remaining_repeat = wavecrate::selection::SelectionRange::new(0.75, 1.0);
+    state.waveform.current.set_play_selection_range(0.0, 0.25);
+    state.waveform.current.start_similar_sections(anchor);
+    state
+        .waveform
+        .current
+        .finish_similar_sections_scan(vec![deleted_repeat, remaining_repeat]);
+    state
+        .waveform
+        .current
+        .set_edit_selection_range(deleted_repeat);
+
+    state.apply_message(
+        GuiMessage::RequestTrimWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[0.0, 1_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0],
+    );
+    assert!(
+        state.waveform.current.similar_sections_enabled(),
+        "similar-section mode should stay active after trim reload"
+    );
+    assert_range_close(
+        state
+            .waveform
+            .current
+            .play_selection()
+            .expect("anchor play selection should stay visible"),
+        0.0,
+        2.0 / 6.0,
+    );
+    assert_eq!(
+        state.waveform.current.edit_selection(),
+        None,
+        "the deleted edit selection should be removed from the overlays"
+    );
+    let ranges = state.waveform.current.similar_section_ranges();
+    assert_eq!(ranges.len(), 1);
+    assert_range_close(ranges[0], 4.0 / 6.0, 1.0);
+}
+
+#[test]
 fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundtrips() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("extract-trim.wav");
@@ -449,4 +506,17 @@ fn assert_samples_close(actual: &[f32], expected_i16: &[f32]) {
             "expected {expected}, got {actual}"
         );
     }
+}
+
+fn assert_range_close(range: wavecrate::selection::SelectionRange, start: f32, end: f32) {
+    assert!(
+        (range.start() - start).abs() < 0.001,
+        "expected range start {start}, got {}",
+        range.start()
+    );
+    assert!(
+        (range.end() - end).abs() < 0.001,
+        "expected range end {end}, got {}",
+        range.end()
+    );
 }

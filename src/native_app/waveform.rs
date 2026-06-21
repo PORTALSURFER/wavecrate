@@ -39,6 +39,8 @@ pub(in crate::native_app) use state::WaveformState;
 mod state_loading;
 mod state_marked_ranges;
 mod state_playback;
+mod state_preserved_marks;
+pub(in crate::native_app) use state_preserved_marks::WaveformPreservedMarks;
 mod state_selection;
 mod state_transient;
 mod state_viewport;

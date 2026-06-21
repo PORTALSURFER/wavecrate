@@ -11,8 +11,8 @@ use crate::native_app::app::{
     sample_path_label,
 };
 use crate::native_app::transaction_history::TransactionContext;
-use crate::native_app::waveform::WaveformState;
 use crate::native_app::waveform::execute_waveform_extraction;
+use crate::native_app::waveform::{WaveformPreservedMarks, WaveformState};
 use crate::native_app::waveform_edit_effects::apply_edit_selection_effects;
 
 #[derive(Clone, Debug)]
@@ -225,6 +225,7 @@ impl NativeAppState {
         self.audio.pending_runtime_start = None;
 
         let extracted_path = self.extract_for_destructive_edit_request(request)?;
+        let preserved_marks = self.preserved_marks_after_destructive_edit(request);
         let applied = match execute_destructive_edit_write(request, extracted_path.clone()) {
             Ok(applied) => applied,
             Err(error) => {
@@ -238,6 +239,7 @@ impl NativeAppState {
             &applied,
             before_selected_path.as_deref(),
             request,
+            preserved_marks,
         )?;
         self.register_destructive_edit_transaction(request.prompt.edit, applied);
 
@@ -278,6 +280,7 @@ impl NativeAppState {
         applied: &AppliedWaveformEdit,
         before_selected_path: Option<&str>,
         request: &PendingWaveformDestructiveEdit,
+        preserved_marks: Option<WaveformPreservedMarks>,
     ) -> Result<(), String> {
         self.evict_waveform_cache_path(&applied.absolute_path);
         self.library
@@ -294,6 +297,11 @@ impl NativeAppState {
                 .select_file(applied.absolute_path.display().to_string());
         }
         self.reload_waveform_path_now_if_loaded(&applied.absolute_path)?;
+        if let Some(marks) = preserved_marks
+            && self.waveform.current.path() == applied.absolute_path
+        {
+            self.waveform.current.restore_preserved_marks(marks);
+        }
         if request.prompt.edit == WaveformDestructiveEditKind::ApplyEditSelectionEffects
             && self.waveform.current.path() == applied.absolute_path
         {
@@ -303,6 +311,29 @@ impl NativeAppState {
             self.waveform.current.flash_edit_selection();
         }
         Ok(())
+    }
+
+    fn preserved_marks_after_destructive_edit(
+        &self,
+        request: &PendingWaveformDestructiveEdit,
+    ) -> Option<WaveformPreservedMarks> {
+        if self.waveform.current.path() != request.absolute_path {
+            return None;
+        }
+        match request.prompt.edit {
+            WaveformDestructiveEditKind::TrimSelection
+            | WaveformDestructiveEditKind::ExtractAndTrimSelection => Some(
+                self.waveform
+                    .current
+                    .preserved_marks_after_trim(request.selection),
+            ),
+            WaveformDestructiveEditKind::CropSelection => Some(
+                self.waveform
+                    .current
+                    .preserved_marks_after_crop(request.selection),
+            ),
+            WaveformDestructiveEditKind::ApplyEditSelectionEffects => None,
+        }
     }
 
     fn destructive_edit_selection_for_kind(

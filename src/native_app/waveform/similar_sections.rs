@@ -15,9 +15,9 @@ const MIN_PROFILE_RMS: f32 = 1.0e-4;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::native_app::waveform) struct SimilarSectionsState {
-    enabled: bool,
-    anchor: Option<SelectionRange>,
-    ranges: Vec<SelectionRange>,
+    pub(in crate::native_app::waveform) enabled: bool,
+    pub(in crate::native_app::waveform) anchor: Option<SelectionRange>,
+    pub(in crate::native_app::waveform) ranges: Vec<SelectionRange>,
 }
 
 #[derive(Clone, Debug)]
