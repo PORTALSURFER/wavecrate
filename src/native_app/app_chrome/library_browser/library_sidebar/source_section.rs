@@ -8,6 +8,7 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
+const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
 
 pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMessage> {
     ui::column([
@@ -58,7 +59,13 @@ fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
 }
 
 fn source_row_content(label: String) -> ui::View<GuiMessage> {
-    ui::text_line(label, 24.0).padding_x(8.0)
+    ui::row([
+        ui::spacer().width(SOURCE_ROW_LABEL_PADDING_X).height(24.0),
+        ui::text_line(label, 24.0),
+    ])
+    .spacing(0.0)
+    .fill_width()
+    .height(24.0)
 }
 
 #[cfg(test)]
@@ -69,7 +76,7 @@ mod tests {
         sidebar_row_selected_fill_for_tests,
     };
     use crate::native_app::sample_library::folder_browser::{
-        FolderBrowserState, model::SourceEntry,
+        model::SourceEntry, FolderBrowserState,
     };
     use radiant::prelude::IntoView;
 
@@ -167,6 +174,26 @@ mod tests {
                 .fill_rects()
                 .any(|fill| fill.color == sidebar_row_selected_fill_for_tests()),
             "inactive sources should stay visually quiet"
+        );
+    }
+
+    #[test]
+    fn source_row_label_keeps_left_breathing_room() {
+        let source = test_source("source-padded");
+        let state =
+            FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+        let model = SourceSelectorViewModel::from_folder_browser(&state);
+        let row = model.rows.first().expect("source row");
+        let frame =
+            source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, 24.0));
+        let label_rect = frame
+            .paint_plan
+            .first_text_rect("Source")
+            .expect("source label");
+
+        assert!(
+            label_rect.min.x >= SOURCE_ROW_LABEL_PADDING_X,
+            "source label should be inset from the sidebar edge: {label_rect:?}"
         );
     }
 
