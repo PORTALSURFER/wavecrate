@@ -2,23 +2,23 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
+use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     SourceRowViewModel, SourceSelectorViewModel,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
+const SOURCE_ADD_BUTTON_ID: u64 = 0x5743_0000_0000_5300;
 const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
 const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
+const SOURCE_ADD_BUTTON_WIDTH: f32 = 28.0;
+const SOURCE_ADD_BUTTON_HEIGHT: f32 = 24.0;
 
 pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMessage> {
     ui::column([
         ui::row([
             ui::text("Sources").height(20.0).fill_width(),
-            ui::button("+")
-                .primary()
-                .message(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
-                .key("source-add-button")
-                .size(28.0, 22.0),
+            source_add_button(),
         ])
         .spacing(3.0)
         .fill_width()
@@ -29,6 +29,18 @@ pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMe
     ])
     .spacing(3.0)
     .fill_width()
+}
+
+fn source_add_button() -> ui::View<GuiMessage> {
+    ui::icon_button(source_add_icon())
+        .message(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
+        .id(SOURCE_ADD_BUTTON_ID)
+        .key("source-add-button")
+        .size(SOURCE_ADD_BUTTON_WIDTH, SOURCE_ADD_BUTTON_HEIGHT)
+}
+
+fn source_add_icon() -> ui::SvgIcon {
+    SOURCE_ADD_ICON.icon(toolbar_icon_color(true, false))
 }
 
 fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
@@ -68,6 +80,13 @@ fn source_row_content(label: String) -> ui::View<GuiMessage> {
     .height(24.0)
 }
 
+static SOURCE_ADD_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="7.25" width="8" height="1.5"/>
+  <rect x="7.25" y="4" width="1.5" height="8"/>
+</svg>"#,
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,12 +95,43 @@ mod tests {
         sidebar_row_selected_fill_for_tests,
     };
     use crate::native_app::sample_library::folder_browser::{
-        model::SourceEntry, FolderBrowserState,
+        FolderBrowserState, model::SourceEntry,
     };
     use radiant::prelude::IntoView;
+    use radiant::widgets::ButtonMessage;
 
     fn test_source(id: &str) -> SourceEntry {
         SourceEntry::new(id, "Source", std::path::PathBuf::from("C:/samples"))
+    }
+
+    #[test]
+    fn source_add_button_routes_add_source_message() {
+        assert_eq!(
+            source_add_button().view_dispatch_widget_output(
+                SOURCE_ADD_BUTTON_ID,
+                ui::WidgetOutput::typed(ButtonMessage::Activate),
+            ),
+            Some(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
+        );
+    }
+
+    #[test]
+    fn source_add_button_uses_regular_icon_button_chrome() {
+        let frame = source_add_button().view_frame_at_size_with_default_theme(ui::Vector2::new(
+            SOURCE_ADD_BUTTON_WIDTH,
+            SOURCE_ADD_BUTTON_HEIGHT,
+        ));
+        let icon_rect = frame
+            .paint_plan
+            .first_svg_rect_for_widget(SOURCE_ADD_BUTTON_ID)
+            .expect("source add button should paint a plus icon");
+
+        assert!(
+            !frame.paint_plan.contains_text("+"),
+            "source add should not render as a text button"
+        );
+        assert!(icon_rect.width() <= SOURCE_ADD_BUTTON_WIDTH);
+        assert!(icon_rect.height() <= SOURCE_ADD_BUTTON_HEIGHT);
     }
 
     #[test]
