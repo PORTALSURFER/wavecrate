@@ -21,6 +21,26 @@ const FILTER_LABEL_WIDTH: f32 = 38.0;
 const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
 const FILTER_INPUT_CLEAR_SPACING: f32 = 4.0;
 const FILTER_ROW_SPACING: f32 = 1.0;
+const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
+const RATING_FILTER_SWATCH_SIZE: u8 = 12;
+const RATING_FILTER_TRASH_COLOR: ui::Rgba8 = ui::Rgba8 {
+    r: 238,
+    g: 77,
+    b: 67,
+    a: 235,
+};
+const RATING_FILTER_UNRATED_COLOR: ui::Rgba8 = ui::Rgba8 {
+    r: 154,
+    g: 158,
+    b: 164,
+    a: 220,
+};
+const RATING_FILTER_KEEP_COLOR: ui::Rgba8 = ui::Rgba8 {
+    r: 122,
+    g: 226,
+    b: 96,
+    a: 235,
+};
 const NAME_FILTER_INPUT_ID: u64 = widget_ids::NAME_FILTER_INPUT_ID;
 const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 const RATING_FILTER_TOGGLE_SCOPE: u64 = widget_ids::RATING_FILTER_TOGGLE_SCOPE;
@@ -148,19 +168,49 @@ fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
 
 fn rating_filter_toggle(toggle: &RatingFilterToggleViewModel) -> ui::View<GuiMessage> {
     let level = toggle.level;
-    let tone = if toggle.level < 0 {
-        ui::WidgetTone::Danger
-    } else {
-        ui::WidgetTone::Accent
-    };
-    ui::selectable(toggle.label, toggle.active)
-        .style(ui::WidgetStyle::subtle(tone))
+    let input = ui::selectable("", toggle.active)
+        .style(ui::WidgetStyle::subtle(rating_filter_tone(level)))
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
         .id(rating_filter_toggle_id(toggle.label))
         .key(format!("filter-rating-toggle-{}", toggle.label))
-        .size(22.0, FILTER_CLEAR_BUTTON_SIZE)
+        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE);
+    let swatch = ui::color_marker(Some(rating_filter_swatch_color(level, toggle.active)))
+        .side(RATING_FILTER_SWATCH_SIZE)
+        .inset(0)
+        .align(ui::ColorMarkerAlign::Center)
+        .view()
+        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE);
+
+    ui::input_underlay(swatch, input)
+        .key(format!("filter-rating-swatch-toggle-{}", toggle.label))
+        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+}
+
+fn rating_filter_tone(level: i8) -> ui::WidgetTone {
+    if level < 0 {
+        ui::WidgetTone::Danger
+    } else if level > 0 {
+        ui::WidgetTone::Accent
+    } else {
+        ui::WidgetTone::Neutral
+    }
+}
+
+fn rating_filter_swatch_color(level: i8, active: bool) -> ui::Rgba8 {
+    let color = if level < 0 {
+        RATING_FILTER_TRASH_COLOR
+    } else if level > 0 {
+        RATING_FILTER_KEEP_COLOR
+    } else {
+        RATING_FILTER_UNRATED_COLOR
+    };
+    if active {
+        color
+    } else {
+        color.with_alpha(color.a.saturating_sub(68))
+    }
 }
 
 fn rating_filter_toggle_id(label: &str) -> u64 {
@@ -471,6 +521,7 @@ mod tests {
     fn filter_section_projects_rating_toggles_and_dispatches_changes() {
         let mut state = FolderBrowserState::load_default();
         state.set_rating_filter(-3, true);
+        state.set_rating_filter(0, true);
         let model = FilterSectionViewModel::from_folder_browser(&state);
         let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
             240.0,
@@ -486,8 +537,30 @@ mod tests {
         assert!(
             frame
                 .paint_plan
+                .first_widget_rect(rating_filter_toggle_id("U"))
+                .is_some()
+        );
+        assert!(
+            frame
+                .paint_plan
                 .first_widget_rect(rating_filter_toggle_id("K4"))
                 .is_some()
+        );
+        assert!(frame.paint_plan.fill_rects().any(|fill| {
+            fill.color == rating_filter_swatch_color(-3, true)
+                && fill.rect.width() == RATING_FILTER_SWATCH_SIZE as f32
+        }));
+        assert!(
+            frame
+                .paint_plan
+                .fill_rects()
+                .any(|fill| fill.color == rating_filter_swatch_color(1, false))
+        );
+        assert!(
+            !frame
+                .paint_plan
+                .text_labels()
+                .any(|label| matches!(label, "T3" | "T2" | "T1" | "U" | "K1" | "K2" | "K3" | "K4"))
         );
         assert_eq!(
             filter_section(&model).view_dispatch_widget_output(
@@ -496,6 +569,15 @@ mod tests {
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::ToggleRatingFilter(4, true)
+            ))
+        );
+        assert_eq!(
+            filter_section(&model).view_dispatch_widget_output(
+                rating_filter_toggle_id("U"),
+                ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ToggleRatingFilter(0, false)
             ))
         );
         assert_eq!(

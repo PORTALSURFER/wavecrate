@@ -320,6 +320,33 @@ fn rating_filter_limits_visible_samples_and_can_combine_levels() {
 }
 
 #[test]
+fn rating_filter_can_show_unrated_samples() {
+    let root = temp_source_root("wavecrate-gui-unrated-filter");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let keep = drums.join("keep.wav");
+    let unrated = drums.join("unrated.wav");
+    for file in [&keep, &unrated] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    assert!(browser.set_file_rating_state(&keep, Rating::KEEP_1, false));
+
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(0, true));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["unrated.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn rating_filter_clears_selection_hidden_by_filter() {
     let root = temp_source_root("wavecrate-gui-rating-filter-selection");
     let drums = root.join("drums");

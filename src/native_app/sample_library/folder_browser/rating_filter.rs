@@ -4,13 +4,14 @@ use wavecrate::sample_sources::Rating;
 
 use super::FileEntry;
 
-pub(in crate::native_app) const RATING_FILTER_LEVELS: [i8; 7] = [-3, -2, -1, 1, 2, 3, 4];
+pub(in crate::native_app) const RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 
 pub(in crate::native_app) fn rating_filter_label(level: i8) -> &'static str {
     match level {
         -3 => "T3",
         -2 => "T2",
         -1 => "T1",
+        0 => "U",
         1 => "K1",
         2 => "K2",
         3 => "K3",
@@ -58,7 +59,12 @@ mod tests {
                 .into_iter()
                 .map(rating_filter_label)
                 .collect::<Vec<_>>(),
-            vec!["T3", "T2", "T1", "K1", "K2", "K3", "K4"]
+            vec!["T3", "T2", "T1", "U", "K1", "K2", "K3", "K4"]
         );
+    }
+
+    #[test]
+    fn unrated_filter_level_matches_neutral_ratings() {
+        assert_eq!(rating_filter_level(Rating::NEUTRAL, false), 0);
     }
 }
