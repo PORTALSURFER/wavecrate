@@ -29,7 +29,7 @@ fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 }
 
 #[test]
-fn top_control_bar_places_help_button_before_volume_slider() {
+fn top_control_bar_places_help_button_after_settings_gear() {
     let state = NativeAppState::load_default().expect("default state loads");
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
@@ -38,15 +38,15 @@ fn top_control_bar_places_help_button_before_volume_slider() {
         .rects
         .get(&crate::native_app::test_support::settings::HELP_TOOLTIPS_BUTTON_ID)
         .expect("help button should lay out");
-    let volume = frame
+    let settings = frame
         .layout
         .rects
-        .get(&crate::native_app::test_support::settings::VOLUME_SLIDER_ID)
-        .expect("volume slider should lay out");
+        .get(&crate::native_app::test_support::settings::GENERAL_SETTINGS_BUTTON_ID)
+        .expect("settings button should lay out");
 
     assert!(
-        help.max.x <= volume.min.x,
-        "help button should precede volume slider"
+        settings.max.x <= help.min.x,
+        "help button should sit to the right of the settings gear"
     );
     assert!(help.width() <= 12.0);
 }

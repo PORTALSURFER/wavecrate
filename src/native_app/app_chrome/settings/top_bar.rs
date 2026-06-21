@@ -33,7 +33,6 @@ struct ControlSize {
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let model = TopControlBarModel::from_app_state(state);
     ui::row([
-        help_tooltips_button(model.help_tooltips_enabled),
         help_tooltip(
             volume_slider(model.volume),
             model.help_tooltips_enabled,
@@ -102,6 +101,7 @@ fn settings_controls(
             help_tooltips_enabled,
             "Open Wavecrate settings.",
         ),
+        help_tooltips_button(help_tooltips_enabled),
     ])
     .spacing(4.0)
     .height(24.0)
