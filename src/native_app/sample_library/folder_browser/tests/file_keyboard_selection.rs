@@ -114,6 +114,48 @@ fn file_keyboard_navigation_preserves_toggle_marked_samples() {
 
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn collection_keyboard_navigation_reuses_cached_id_projection() {
+    let root = temp_source_root("wavecrate-gui-collection-keyboard-cache");
+    let first = root.join("a_first.wav");
+    let second = root.join("b_second.wav");
+    let third = root.join("c_third.wav");
+    for file in [&first, &second, &third] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let collection = SampleCollection::new(0).expect("collection");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    for file in [&first, &second, &third] {
+        browser.set_file_collection_state(file, collection);
+    }
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+    browser.selection.set_focus_file_set(path_id(&first));
+
+    let before_navigation = browser.selected_audio_projection_cache_len_for_tests();
+    assert_eq!(
+        browser.navigate_vertical_matching_tags(1, false, false, &Default::default()),
+        Some(path_id(&second))
+    );
+    let after_first_navigation = browser.selected_audio_projection_cache_len_for_tests();
+    assert!(
+        after_first_navigation > before_navigation,
+        "first collection navigation should populate the ordered id projection"
+    );
+
+    assert_eq!(
+        browser.navigate_vertical_matching_tags(1, false, false, &Default::default()),
+        Some(path_id(&third))
+    );
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        after_first_navigation,
+        "subsequent collection navigation should reuse the cached id projection"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn toggle_focused_sample_selection_unmarks_and_advances() {
     let root = temp_source_root("wavecrate-gui-toggle-unmark-advance");

@@ -126,6 +126,16 @@ impl BrowserSelectionState {
         Some(target)
     }
 
+    pub(in crate::native_app::sample_library::folder_browser) fn navigate_file_to_adjacent_visible_id(
+        &mut self,
+        target: String,
+    ) -> Option<String> {
+        let mut selection = self.file_selection_model();
+        let target = selection.navigate_to_adjacent_visible_id(target)?;
+        self.apply_file_selection_model(selection);
+        Some(target)
+    }
+
     pub(in crate::native_app::sample_library::folder_browser) fn toggle_focused_file_and_advance(
         &mut self,
         visible_ids: &[String],

@@ -148,30 +148,8 @@ fn recursive_audio_file_lookup_for_ids<'a>(
 
     let wanted = ids.iter().map(String::as_str).collect::<HashSet<_>>();
     let mut files_by_id = HashMap::with_capacity(wanted.len());
-    collect_recursive_audio_files_matching_ids(folder, &wanted, &mut files_by_id);
+    traversal::collect_audio_files_matching_ids(folder, &wanted, &mut files_by_id);
     files_by_id
-}
-
-fn collect_recursive_audio_files_matching_ids<'a>(
-    folder: &'a FolderEntry,
-    wanted: &HashSet<&str>,
-    files_by_id: &mut HashMap<&'a str, &'a FileEntry>,
-) {
-    for file in folder.files.iter().filter(|file| file.is_audio()) {
-        if wanted.contains(file.id.as_str()) {
-            files_by_id.insert(file.id.as_str(), file);
-            if files_by_id.len() == wanted.len() {
-                return;
-            }
-        }
-    }
-
-    for child in &folder.children {
-        collect_recursive_audio_files_matching_ids(child, wanted, files_by_id);
-        if files_by_id.len() == wanted.len() {
-            return;
-        }
-    }
 }
 
 pub(super) fn collect_recursive_cache_candidate_paths(

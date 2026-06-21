@@ -126,6 +126,22 @@ impl FileSelectionModel {
         Some(target)
     }
 
+    pub(super) fn navigate_to_adjacent_visible_id(&mut self, target: String) -> Option<String> {
+        if self.focused_id.as_deref() == Some(target.as_str()) {
+            return None;
+        }
+        if self.explicit {
+            self.focused_id = Some(target.clone());
+            return Some(target);
+        }
+
+        self.focused_id = Some(target.clone());
+        self.selected_ids.clear();
+        self.selected_ids.insert(target.clone());
+        self.explicit = false;
+        Some(target)
+    }
+
     pub(super) fn toggle_focused_and_advance(
         &mut self,
         visible_ids: &[String],
@@ -249,6 +265,32 @@ mod tests {
         assert_eq!(selection.focused_id(), Some("hat"));
         assert!(!selection.explicit());
         assert_eq!(selection.active_ids(), set(&["hat"]));
+    }
+
+    #[test]
+    fn adjacent_fast_navigation_replaces_implicit_selection() {
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick"]), false);
+
+        let target = selection.navigate_to_adjacent_visible_id(String::from("snare"));
+
+        assert_eq!(target.as_deref(), Some("snare"));
+        assert_eq!(selection.focused_id(), Some("snare"));
+        assert!(!selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["snare"]));
+    }
+
+    #[test]
+    fn adjacent_fast_navigation_preserves_explicit_selection() {
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick", "hat"]), true);
+
+        let target = selection.navigate_to_adjacent_visible_id(String::from("snare"));
+
+        assert_eq!(target.as_deref(), Some("snare"));
+        assert_eq!(selection.focused_id(), Some("snare"));
+        assert!(selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["kick", "hat"]));
     }
 
     #[test]

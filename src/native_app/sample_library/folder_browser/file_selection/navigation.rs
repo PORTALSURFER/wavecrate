@@ -133,6 +133,9 @@ impl FolderBrowserState {
         extend: bool,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<String> {
+        if let Some(result) = self.navigate_selected_file_fast(delta, extend) {
+            return result;
+        }
         let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         self.navigate_selected_file_in_ids(delta, extend, &file_ids)
     }
@@ -168,4 +171,18 @@ impl FolderBrowserState {
         self.selection.select_single_file(target.clone(), &file_ids);
         Some(target)
     }
+
+    fn navigate_selected_file_fast(&mut self, delta: i32, extend: bool) -> Option<Option<String>> {
+        if extend || tag_filter_has_requirements(&self.filters.tag_filter) {
+            return None;
+        }
+
+        let selected = self.selection.selected_file_id()?.to_owned();
+        let target = self.neighboring_selected_audio_file_id_without_tag_filter(&selected, delta);
+        Some(target.and_then(|target| self.selection.navigate_file_to_adjacent_visible_id(target)))
+    }
+}
+
+fn tag_filter_has_requirements(tag_filter: &str) -> bool {
+    tag_filter.split(',').any(|tag| !tag.trim().is_empty())
 }

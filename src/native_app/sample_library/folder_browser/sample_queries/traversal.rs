@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use wavecrate::sample_sources::SampleCollection;
 
 use super::filters::{audio_file_matches_name_query, audio_file_matches_parsed_tags};
@@ -25,6 +25,28 @@ pub(super) fn collect_collection_audio_files<'a>(
     );
     for child in &folder.children {
         collect_collection_audio_files(child, collection, files);
+    }
+}
+
+pub(super) fn collect_audio_files_matching_ids<'a>(
+    folder: &'a FolderEntry,
+    wanted: &HashSet<&str>,
+    files_by_id: &mut HashMap<&'a str, &'a FileEntry>,
+) {
+    for file in folder.files.iter().filter(|file| file.is_audio()) {
+        if wanted.contains(file.id.as_str()) {
+            files_by_id.insert(file.id.as_str(), file);
+            if files_by_id.len() == wanted.len() {
+                return;
+            }
+        }
+    }
+
+    for child in &folder.children {
+        collect_audio_files_matching_ids(child, wanted, files_by_id);
+        if files_by_id.len() == wanted.len() {
+            return;
+        }
     }
 }
 

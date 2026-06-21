@@ -5,7 +5,9 @@ use super::{
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
 
+mod adjacent;
 mod cache_warming;
+mod collection;
 mod filters;
 mod ordering;
 mod subtree;
@@ -20,20 +22,7 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn selected_audio_files(&self) -> Vec<&FileEntry> {
         if let Some(collection) = self.selection.selected_collection {
-            let mut files = Vec::new();
-            for folder in self.loaded_source_root_folders() {
-                traversal::collect_collection_audio_files(folder, collection, &mut files);
-            }
-            files.extend(
-                self.sample_list
-                    .missing_collection_files
-                    .iter()
-                    .filter(|file| file.belongs_to_collection(collection)),
-            );
-            filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
-            filter_audio_files_by_rating(&mut files, &self.filters.rating_filter);
-            self.sort_files(&mut files);
-            return files;
+            return self.selected_collection_audio_files(collection);
         }
 
         let Some(folder) = self.selected_folder() else {
@@ -118,7 +107,12 @@ impl FolderBrowserState {
         if required_tags.is_empty() && self.selection.selected_collection.is_none() {
             return self.selected_folder_audio_file_count();
         }
-        if self.selection.selected_collection.is_some() {
+        if let Some(collection) = self.selection.selected_collection {
+            if required_tags.is_empty() {
+                return self
+                    .selected_collection_audio_file_ids_ref(collection)
+                    .len();
+            }
             return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
         if self.folder_subtree_listing_enabled() {
@@ -168,15 +162,12 @@ impl FolderBrowserState {
         window: radiant::prelude::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
-        if self.selection.selected_collection.is_some() {
-            let files = self.selected_audio_files_matching_tags(tags_by_file);
-            let total_count = files.len();
-            return VisibleSampleWindowFiles {
-                total_count,
-                rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
-                    .filter_map(|index| files.get(index).copied())
-                    .collect(),
-            };
+        if let Some(collection) = self.selection.selected_collection {
+            return self.selected_collection_audio_file_window_matching_tags(
+                collection,
+                window,
+                tags_by_file,
+            );
         }
 
         let Some(folder) = self.selected_folder() else {
@@ -275,7 +266,13 @@ impl FolderBrowserState {
     ) -> Option<usize> {
         let selected = self.selection.selected_file.as_deref()?;
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        if self.selection.selected_collection.is_some() {
+        if let Some(collection) = self.selection.selected_collection {
+            if required_tags.is_empty() {
+                return self
+                    .selected_collection_audio_file_ids_ref(collection)
+                    .iter()
+                    .position(|id| id == selected);
+            }
             return self
                 .selected_audio_files_matching_tags(tags_by_file)
                 .iter()
