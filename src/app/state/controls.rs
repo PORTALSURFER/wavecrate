@@ -69,7 +69,7 @@ pub enum DestructiveSelectionEdit {
     NormalizeSelection,
     /// Attempt to remove clicks in the selection.
     ClickRemoval,
-    /// Apply pending edit-selection fades to the current audio file.
+    /// Apply pending edit-selection gain and fades to the current audio file.
     CommitEditSelectionFades,
     /// Remove later duplicate windows from the loaded file.
     CleanExactDuplicateBeats,

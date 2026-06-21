@@ -1,7 +1,7 @@
 use super::*;
 
 impl AppController {
-    /// Apply edit-selection fades to disk and clear preview fades.
+    /// Apply edit-selection gain and fades to disk and clear preview effects.
     pub(crate) fn commit_edit_selection_fades(&mut self) -> Result<bool, String> {
         let Some(selection) = self.ui.waveform.edit_selection else {
             return Ok(false);
@@ -11,9 +11,9 @@ impl AppController {
         }
         if !cfg!(test) {
             self.queue_selection_edit_commit(
-                "Applied edit fades",
+                "Applied edit mark edits",
                 format!(
-                    "Applied edit fades {}",
+                    "Applied edit mark edits {}",
                     self.selection_target()?.relative_path.display()
                 ),
                 true,
@@ -23,7 +23,7 @@ impl AppController {
             )?;
             return Ok(true);
         }
-        let result = self.apply_selection_edit("Applied edit fades", true, |buffer| {
+        let result = self.apply_selection_edit("Applied edit mark edits", true, |buffer| {
             apply_selection_fades(SelectionFadeRequest {
                 samples: &mut buffer.samples,
                 channels: buffer.channels,

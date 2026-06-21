@@ -18,6 +18,7 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) marked_play_ranges: Vec<SelectionRange>,
     pub(in crate::native_app::waveform) extracted_ranges: Vec<SelectionRange>,
     pub(in crate::native_app::waveform) play_selection_flash_frames: u8,
+    pub(in crate::native_app::waveform) edit_selection_flash_frames: u8,
     pub(in crate::native_app::waveform) active_drag: Option<WaveformDrag>,
     pub(in crate::native_app::waveform) pending_playback_start: Option<f32>,
 }

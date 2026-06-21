@@ -41,6 +41,43 @@ fn command_extract_shortcut_routes_to_extract_and_trim_request() {
 }
 
 #[test]
+fn enter_shortcut_routes_to_apply_edit_selection_effects_request() {
+    let state = crate::native_app::test_support::state::NativeAppStateFixture::default().build();
+    let resolution = crate::native_app::test_support::state::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Enter));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::RequestApplyEditSelectionEffects)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn enter_confirms_pending_destructive_edit_modal() {
+    let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("confirm.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current = crate::native_app::test_support::state::WaveformState::load_path(path)
+        .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    state.apply_message(
+        GuiMessage::RequestCropWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let resolution = crate::native_app::test_support::state::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Enter));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::ConfirmPendingWaveformDestructiveEdit)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn crop_request_uses_play_selection_when_no_edit_selection_exists() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("crop.wav");
     let path = PathBuf::from(&selected_file);
@@ -138,6 +175,55 @@ fn extract_and_trim_request_uses_play_selection_when_no_edit_selection_exists() 
     );
     assert!((pending.selection.start() - 0.25).abs() < 0.001);
     assert!((pending.selection.end() - 0.5).abs() < 0.001);
+}
+
+#[test]
+fn apply_edit_selection_effects_rewrites_gain_clears_preview_and_flashes() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("apply-effects.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    state.waveform.current.set_edit_selection_range(
+        wavecrate::selection::SelectionRange::new(0.25, 0.75).with_gain(0.5),
+    );
+
+    state.apply_message(
+        GuiMessage::RequestApplyEditSelectionEffects,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 1_000.0, 1_500.0, 2_000.0, 2_500.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert!(state.ui.status.sample.contains("Applied edit mark edits"));
+    assert!(state.waveform.current.edit_selection_flash_frames() > 0);
+    assert!(
+        !state
+            .waveform
+            .current
+            .edit_selection()
+            .expect("cleared edit selection remains visible")
+            .has_edit_effects()
+    );
+
+    state.apply_message(
+        GuiMessage::UndoTransaction,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
+        ],
+    );
 }
 
 #[test]

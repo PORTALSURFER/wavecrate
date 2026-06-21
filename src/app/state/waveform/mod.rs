@@ -142,10 +142,10 @@ pub struct WaveformState {
     /// repaint the selection with a stronger failure color after an optimistic
     /// submit flash has already been shown.
     pub selection_export_failure_flash_nonce: u64,
-    /// Monotonic token incremented when preview edit fades are committed.
+    /// Monotonic token incremented when preview edit effects are committed.
     ///
     /// UI projections use this as a one-shot success event marker so they can
-    /// briefly brighten the edit-selection overlay when fade application
+    /// briefly brighten the edit-selection overlay when effect application
     /// succeeds without relying on synchronized wall-clock timestamps.
     pub edit_selection_apply_flash_nonce: u64,
 }

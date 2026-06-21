@@ -205,6 +205,7 @@ pub(in crate::native_app) enum GuiMessage {
     RequestCropWaveformSelection,
     RequestTrimWaveformSelection,
     RequestExtractAndTrimWaveformSelection,
+    RequestApplyEditSelectionEffects,
     ConfirmPendingWaveformDestructiveEdit,
     CancelPendingWaveformDestructiveEdit,
     ExtractPlaymarkedRange,

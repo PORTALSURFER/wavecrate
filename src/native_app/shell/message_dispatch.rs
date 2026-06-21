@@ -127,6 +127,7 @@ impl NativeAppState {
             | GuiMessage::RequestCropWaveformSelection
             | GuiMessage::RequestTrimWaveformSelection
             | GuiMessage::RequestExtractAndTrimWaveformSelection
+            | GuiMessage::RequestApplyEditSelectionEffects
             | GuiMessage::ConfirmPendingWaveformDestructiveEdit
             | GuiMessage::CancelPendingWaveformDestructiveEdit
             | GuiMessage::ExtractPlaymarkedRange

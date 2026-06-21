@@ -612,6 +612,30 @@ fn edit_selection_paints_start_and_end_boundary_lines() {
 }
 
 #[test]
+fn edit_selection_flash_paints_bright_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.flash_edit_selection();
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let fills = fill_rects(&plan);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 118)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.center().x - 40.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.center().x - 120.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+    }));
+}
+
+#[test]
 fn edit_fade_curve_paints_s_curve_shape_as_polyline() {
     let mut state = WaveformState::synthetic_for_tests();
     let selection = wavecrate::selection::SelectionRange::new(0.2, 0.6)

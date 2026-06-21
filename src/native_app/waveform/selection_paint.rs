@@ -149,7 +149,8 @@ impl WaveformWidget {
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
-        let style = edit_selection_paint_style();
+        let flash_active = self.edit_selection_flash_frames > 0;
+        let style = edit_selection_paint_style(flash_active);
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
@@ -169,7 +170,11 @@ impl WaveformWidget {
         self.append_edit_gain_handle_paint(
             paint,
             bounds,
-            EDIT_SELECTION_COLOR.with_alpha(EDIT_GAIN_HANDLE_ALPHA),
+            EDIT_SELECTION_COLOR.with_alpha(if flash_active {
+                HANDLE_HOVER_ALPHA
+            } else {
+                EDIT_GAIN_HANDLE_ALPHA
+            }),
         );
     }
 
@@ -414,11 +419,11 @@ const fn play_selection_paint_style(flash_active: bool) -> CanvasSelectionPaintS
         .trailing_control_alpha(if flash_active { 255 } else { 235 })
 }
 
-const fn edit_selection_paint_style() -> CanvasSelectionPaintStyle {
+const fn edit_selection_paint_style(flash_active: bool) -> CanvasSelectionPaintStyle {
     CanvasSelectionPaintStyle::new(EDIT_SELECTION_COLOR)
-        .fill_alpha(46)
-        .cursor_alpha(230)
-        .body_alpha(180)
+        .fill_alpha(if flash_active { 118 } else { 46 })
+        .cursor_alpha(if flash_active { 255 } else { 230 })
+        .body_alpha(if flash_active { 245 } else { 180 })
 }
 
 const fn play_selection_handle_hover_color(role: DragHandleRole) -> Rgba8 {

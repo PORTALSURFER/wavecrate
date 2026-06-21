@@ -70,7 +70,7 @@ pub(super) const SAVE_SELECTION_TO_BROWSER_KEEP2: HotkeyAction = HotkeyAction {
 };
 pub(super) const COMMIT_WAVEFORM_EDIT_FADES: HotkeyAction = HotkeyAction {
     id: "commit-waveform-edit-fades",
-    label: "Apply edit fades",
+    label: "Apply edit mark edits",
     gesture: HotkeyGesture::new(Key::Enter),
     scope: WAVEFORM,
     action: NativeUiAction::Browser(

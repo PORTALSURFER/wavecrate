@@ -59,6 +59,9 @@ impl NativeAppState {
             GuiMessage::RequestExtractAndTrimWaveformSelection => {
                 self.request_extract_and_trim_waveform_selection(context);
             }
+            GuiMessage::RequestApplyEditSelectionEffects => {
+                self.request_apply_edit_selection_effects(context);
+            }
             GuiMessage::ConfirmPendingWaveformDestructiveEdit => {
                 self.confirm_pending_waveform_destructive_edit(context);
             }

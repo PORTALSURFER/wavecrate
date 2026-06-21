@@ -104,10 +104,10 @@ impl AppController {
     fn validate_commit_edit_selection_fades(&self) -> Result<(), String> {
         self.validate_selection_edit_target()?;
         let Some(selection) = self.ui.waveform.edit_selection else {
-            return Err("Set an edit selection with a fade before applying it".to_string());
+            return Err("Set an edit selection before applying it".to_string());
         };
         if !selection.has_edit_effects() {
-            return Err("Set an edit fade before applying it".to_string());
+            return Err("Adjust an edit fade or gain before applying it".to_string());
         }
         Ok(())
     }

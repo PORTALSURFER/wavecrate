@@ -146,6 +146,46 @@ fn enter_hotkey_commits_edit_fades_without_exporting() {
 }
 
 #[test]
+fn enter_hotkey_commits_edit_gain_without_exporting() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "apply_edit_gain_hotkey.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "apply_edit_gain_hotkey.wav",
+        &[0.0, 0.1, 0.2, 0.3],
+        SelectionRange::new(0.25, 0.75),
+    );
+    let edit_selection = SelectionRange::new(0.25, 0.75).with_gain(0.5);
+    controller.set_edit_selection_range(edit_selection);
+
+    let action = hotkeys::iter_actions()
+        .find(|action| action.id == "commit-waveform-edit-fades")
+        .unwrap();
+    let export_before = controller.ui.waveform.selection_export_flash_nonce;
+    let apply_before = controller.ui.waveform.edit_selection_apply_flash_nonce;
+
+    controller.handle_hotkey(action, FocusContext::Waveform);
+
+    assert_eq!(
+        controller.ui.waveform.selection_export_flash_nonce,
+        export_before
+    );
+    assert_eq!(
+        controller.ui.waveform.edit_selection_apply_flash_nonce,
+        apply_before + 1
+    );
+    let updated = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("edit selection after apply");
+    assert!(!updated.has_edit_effects());
+}
+
+#[test]
 fn enter_hotkey_prompts_before_committing_edit_fades_without_yolo_mode() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "apply_edit_fades_prompt_hotkey.wav",

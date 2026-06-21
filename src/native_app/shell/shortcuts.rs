@@ -35,7 +35,7 @@ pub(in crate::native_app) fn default_gui_shortcuts(
                 .browser_interaction
                 .pending_waveform_destructive_edit
                 .is_some(),
-            ui::ShortcutLayer::modal_escape(GuiMessage::CancelPendingWaveformDestructiveEdit),
+            pending_destructive_edit_shortcuts(),
         )
         .layer_when(
             state.audio_settings_dropdown_open(),
@@ -124,7 +124,10 @@ fn contextual_shortcut_help_sections(state: &NativeAppState) -> Vec<ShortcutHelp
     {
         sections.push(shortcut_help_section(
             "Destructive Edit",
-            [shortcut_help_item("Esc", "Cancel pending edit")],
+            [
+                shortcut_help_item("Enter", "Apply pending edit"),
+                shortcut_help_item("Esc", "Cancel pending edit"),
+            ],
         ));
     }
     if state.audio_settings_dropdown_open() {
@@ -191,6 +194,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
         shortcut_help_section(
             "Waveform",
             [
+                shortcut_help_item("Enter", "Apply edit mark edits"),
                 shortcut_help_item("E", "Extract play selection"),
                 shortcut_help_item("Command-E", "Extract and trim selection"),
                 shortcut_help_item("C", "Crop selection"),
@@ -317,6 +321,18 @@ fn collection_focus_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
     )
 }
 
+fn pending_destructive_edit_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::modal()
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Enter),
+            GuiMessage::ConfirmPendingWaveformDestructiveEdit,
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Escape),
+            GuiMessage::CancelPendingWaveformDestructiveEdit,
+        )
+}
+
 fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
     let layer = ui::ShortcutLayer::new()
         .bind(
@@ -336,6 +352,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
                 ui::KeyPress::new(ui::KeyCode::Backspace),
             ],
             GuiMessage::DeleteSelectedItem,
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Enter),
+            GuiMessage::RequestApplyEditSelectionEffects,
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::E),

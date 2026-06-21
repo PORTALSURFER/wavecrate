@@ -42,6 +42,7 @@ impl WaveformState {
                     WaveformSelectionKind::Edit => {
                         self.edit_mark_ratio = None;
                         self.edit_selection = None;
+                        self.edit_selection_flash_frames = 0;
                     }
                 }
             }
@@ -140,6 +141,8 @@ impl WaveformState {
             WaveformInteraction::Frame => {
                 self.play_selection_flash_frames =
                     self.play_selection_flash_frames.saturating_sub(1);
+                self.edit_selection_flash_frames =
+                    self.edit_selection_flash_frames.saturating_sub(1);
             }
         }
     }

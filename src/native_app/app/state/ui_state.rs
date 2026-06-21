@@ -148,6 +148,7 @@ pub(in crate::native_app) enum WaveformDestructiveEditKind {
     CropSelection,
     TrimSelection,
     ExtractAndTrimSelection,
+    ApplyEditSelectionEffects,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

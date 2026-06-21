@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SourceDatabase, config::AudioWriteFormatConfig};
+use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingWaveformDestructiveEdit, WaveformDestructiveEditKind,
@@ -12,6 +13,7 @@ use crate::native_app::app::{
 use crate::native_app::transaction_history::TransactionContext;
 use crate::native_app::waveform::WaveformState;
 use crate::native_app::waveform::execute_waveform_extraction;
+use crate::native_app::waveform_edit_effects::apply_edit_selection_effects;
 
 #[derive(Clone, Debug)]
 struct OverwriteBackup {
@@ -103,6 +105,16 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn request_apply_edit_selection_effects(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::ApplyEditSelectionEffects,
+            context,
+        );
+    }
+
     fn request_waveform_destructive_edit(
         &mut self,
         kind: WaveformDestructiveEditKind,
@@ -164,11 +176,7 @@ impl NativeAppState {
         if !self.waveform.current.has_loaded_sample() || absolute_path.as_os_str().is_empty() {
             return Err(format!("Load a sample before {}", kind.gerund_label()));
         }
-        let selection = self
-            .waveform
-            .current
-            .destructive_edit_selection()
-            .ok_or_else(|| format!("Mark an edit or play range before {}", kind.gerund_label()))?;
+        let selection = self.destructive_edit_selection_for_kind(kind)?;
         let (source, relative_path) = self
             .library
             .folder_browser
@@ -212,7 +220,11 @@ impl NativeAppState {
                 return Err(error);
             }
         };
-        self.apply_destructive_edit_visual_state(&applied, before_selected_path.as_deref())?;
+        self.apply_destructive_edit_visual_state(
+            &applied,
+            before_selected_path.as_deref(),
+            request,
+        )?;
         self.register_destructive_edit_transaction(request.prompt.edit, applied);
 
         let label = sample_path_label(&request.absolute_path.display().to_string());
@@ -251,6 +263,7 @@ impl NativeAppState {
         &mut self,
         applied: &AppliedWaveformEdit,
         before_selected_path: Option<&str>,
+        request: &PendingWaveformDestructiveEdit,
     ) -> Result<(), String> {
         self.evict_waveform_cache_path(&applied.absolute_path);
         self.library
@@ -266,7 +279,40 @@ impl NativeAppState {
                 .folder_browser
                 .select_file(applied.absolute_path.display().to_string());
         }
-        self.reload_waveform_path_now_if_loaded(&applied.absolute_path)
+        self.reload_waveform_path_now_if_loaded(&applied.absolute_path)?;
+        if request.prompt.edit == WaveformDestructiveEditKind::ApplyEditSelectionEffects
+            && self.waveform.current.path() == applied.absolute_path
+        {
+            self.waveform
+                .current
+                .set_edit_selection_range(request.selection.clear_fades().with_gain(1.0));
+            self.waveform.current.flash_edit_selection();
+        }
+        Ok(())
+    }
+
+    fn destructive_edit_selection_for_kind(
+        &self,
+        kind: WaveformDestructiveEditKind,
+    ) -> Result<SelectionRange, String> {
+        if kind == WaveformDestructiveEditKind::ApplyEditSelectionEffects {
+            let selection = self
+                .waveform
+                .current
+                .edit_selection()
+                .filter(|selection| selection.width() > 0.0)
+                .ok_or_else(|| String::from("Set an edit selection before applying it"))?;
+            if !selection.has_edit_effects() {
+                return Err(String::from(
+                    "Adjust an edit fade or gain before applying it",
+                ));
+            }
+            return Ok(selection);
+        }
+        self.waveform
+            .current
+            .destructive_edit_selection()
+            .ok_or_else(|| format!("Mark an edit or play range before {}", kind.gerund_label()))
     }
 
     fn register_destructive_edit_transaction(
@@ -343,6 +389,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Crop",
             Self::TrimSelection => "Trim",
             Self::ExtractAndTrimSelection => "Extract and trim",
+            Self::ApplyEditSelectionEffects => "Apply edit mark edits",
         }
     }
 
@@ -351,6 +398,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "cropping",
             Self::TrimSelection => "trimming",
             Self::ExtractAndTrimSelection => "extracting and trimming",
+            Self::ApplyEditSelectionEffects => "applying edit mark edits",
         }
     }
 
@@ -359,6 +407,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Cropped",
             Self::TrimSelection => "Trimmed",
             Self::ExtractAndTrimSelection => "Extracted and trimmed",
+            Self::ApplyEditSelectionEffects => "Applied edit mark edits to",
         }
     }
 
@@ -367,6 +416,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Crop waveform selection",
             Self::TrimSelection => "Trim waveform selection",
             Self::ExtractAndTrimSelection => "Extract and trim waveform selection",
+            Self::ApplyEditSelectionEffects => "Apply edit mark edits",
         }
     }
 
@@ -375,6 +425,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Restore cropped audio",
             Self::TrimSelection => "Restore trimmed audio",
             Self::ExtractAndTrimSelection => "Restore extracted and trimmed audio",
+            Self::ApplyEditSelectionEffects => "Restore edit mark edits",
         }
     }
 }
@@ -393,14 +444,26 @@ fn destructive_edit_prompt(
         WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             "This will extract the selected region into a new sibling file, then remove that region and close the gap in the source file."
         }
+        WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
+            "This will overwrite the edit selection with the currently previewed fade and gain edits."
+        }
     };
     crate::native_app::app::WaveformDestructiveEditPrompt {
         edit,
-        title: format!("{} selection", edit.action_label()),
+        title: destructive_edit_title(edit),
         message: format!(
             "{message} Wavecrate will rewrite the file using the current write format: {}.",
             write_format.summary_label()
         ),
+    }
+}
+
+fn destructive_edit_title(edit: WaveformDestructiveEditKind) -> String {
+    match edit {
+        WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
+            String::from("Apply edit mark edits")
+        }
+        _ => format!("{} selection", edit.action_label()),
     }
 }
 
@@ -480,6 +543,16 @@ fn apply_destructive_edit_to_wav(
         WaveformDestructiveEditKind::TrimSelection
         | WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             wav.samples.drain(start..end);
+        }
+        WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
+            apply_edit_selection_effects(
+                &mut wav.samples,
+                wav.channels,
+                wav.sample_rate,
+                selection,
+                start_frame,
+                end_frame,
+            );
         }
     }
     if wav.samples.is_empty() {

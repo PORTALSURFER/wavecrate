@@ -25,7 +25,7 @@ pub struct NativeMotionModel {
     pub waveform_selection_export_flash_nonce: u64,
     /// One-shot token incremented when a queued waveform-selection export fails.
     pub waveform_selection_export_failure_flash_nonce: u64,
-    /// One-shot token incremented when preview edit fades are committed.
+    /// One-shot token incremented when preview edit effects are committed.
     pub waveform_edit_selection_apply_flash_nonce: u64,
     /// Waveform edit-selection window with milli and micro precision.
     pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
