@@ -9,6 +9,7 @@ use std::collections::HashSet;
 pub(super) struct FolderTreeState {
     pub(super) folders: Vec<FolderEntry>,
     pub(super) expanded_folders: HashSet<String>,
+    pub(super) show_empty_folders: bool,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
     pub(super) runtime_viewport_rows: Option<usize>,
@@ -19,6 +20,7 @@ impl FolderTreeState {
         Self {
             folders: vec![root_folder],
             expanded_folders: [root_id].into_iter().collect(),
+            show_empty_folders: false,
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
             runtime_viewport_rows: None,
@@ -79,6 +81,11 @@ impl FolderBrowserState {
         self.find_folder(id).is_some_and(FolderEntry::has_children)
     }
 
+    pub(super) fn folder_has_visible_children(&self, id: &str) -> bool {
+        self.find_folder(id)
+            .is_some_and(|folder| self.folder_visible_child_count(folder) > 0)
+    }
+
     pub(super) fn is_expanded(&self, id: &str) -> bool {
         self.tree.expanded_folders.contains(id)
     }
@@ -109,7 +116,7 @@ impl FolderBrowserState {
             self.select_folder(id);
             return;
         }
-        if !self.folder_has_children(&id) {
+        if !self.folder_has_visible_children(&id) {
             self.select_folder(id);
             return;
         }
@@ -124,7 +131,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn toggle_folder_expansion(&mut self, id: String) {
-        if self.selected_folder_is_source_root_id(&id) || !self.folder_has_children(&id) {
+        if self.selected_folder_is_source_root_id(&id) || !self.folder_has_visible_children(&id) {
             return;
         }
         if !self.tree.expanded_folders.remove(&id) {
@@ -175,6 +182,23 @@ impl FolderBrowserState {
         self.selection.retain_visible_files(&visible_ids);
         self.reset_file_view();
         self.sample_list.include_subfolders
+    }
+
+    pub(in crate::native_app) fn empty_folder_visibility_enabled(&self) -> bool {
+        self.tree.show_empty_folders
+    }
+
+    pub(in crate::native_app) fn toggle_empty_folder_visibility(&mut self) -> bool {
+        let previous_folder_id = self.selection.selected_folder.clone();
+        self.tree.show_empty_folders = !self.tree.show_empty_folders;
+        if !self.tree.show_empty_folders {
+            self.retain_visible_folder_selection_after_filter_change();
+        }
+        if self.selection.selected_folder != previous_folder_id {
+            self.clear_similarity_anchor_after_folder_change(&previous_folder_id);
+            self.reset_file_view();
+        }
+        self.tree.show_empty_folders
     }
 
     pub(in crate::native_app) fn selected_folder_status_label(&self) -> String {
@@ -235,7 +259,11 @@ impl FolderBrowserState {
         depth: usize,
         folders: &mut Vec<VisibleFolder>,
     ) {
+        if !self.should_show_folder(folder) {
+            return;
+        }
         let is_source_root = self.selected_folder_is_source_root_id(&folder.id);
+        let has_visible_children = self.folder_visible_child_count(folder) > 0;
         let drag_active = self.drag_drop.drag.is_some();
         let drop_target_active = matches!(
             self.drag_drop.drop_target.current(),
@@ -255,7 +283,7 @@ impl FolderBrowserState {
             },
             depth,
             is_source_root,
-            has_children: folder.has_children(),
+            has_children: has_visible_children,
             empty: !folder.contains_audio(),
             expanded: is_source_root || self.is_expanded(&folder.id),
             selected: self.selection.selected_collection.is_none()
@@ -289,5 +317,41 @@ impl FolderBrowserState {
                 self.push_visible_folder(child, depth + 1, folders);
             }
         }
+    }
+
+    fn retain_visible_folder_selection_after_filter_change(&mut self) {
+        let visible_ids = self
+            .visible_folders()
+            .into_iter()
+            .map(|folder| folder.id)
+            .collect::<Vec<_>>();
+        let Some(fallback_id) = visible_ids.first().cloned() else {
+            return;
+        };
+        let visible_id_set = visible_ids.into_iter().collect::<HashSet<_>>();
+        self.selection
+            .retain_existing_folders(&visible_id_set, fallback_id);
+    }
+
+    fn folder_visible_child_count(&self, folder: &FolderEntry) -> usize {
+        folder
+            .children
+            .iter()
+            .filter(|child| self.should_show_folder(child))
+            .count()
+    }
+
+    fn should_show_folder(&self, folder: &FolderEntry) -> bool {
+        self.tree.show_empty_folders
+            || self.selected_folder_is_source_root_id(&folder.id)
+            || folder.contains_audio()
+            || self.folder_has_active_rename(&folder.id)
+    }
+
+    fn folder_has_active_rename(&self, folder_id: &str) -> bool {
+        self.rename
+            .folder
+            .as_ref()
+            .is_some_and(|edit| edit.folder_id == folder_id)
     }
 }

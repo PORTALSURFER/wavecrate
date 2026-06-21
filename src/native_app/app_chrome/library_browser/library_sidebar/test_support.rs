@@ -46,6 +46,7 @@ pub(in crate::native_app) fn library_sidebar_view(
             selected_folder_status_label: state.selected_folder_status_label(),
             include_subfolders_available: state.folder_subtree_listing_available(),
             include_subfolders: state.folder_subtree_listing_enabled(),
+            show_empty_folders: state.empty_folder_visibility_enabled(),
             help_tooltips_enabled: false,
         },
         collections: CollectionsSectionViewModel::from_folder_browser(state),

@@ -49,6 +49,7 @@ fn collection_hover_clears_folder_drop_target_during_file_drag() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(loops.join("loop.wav"), [0_u8; 8]).expect("write loop");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&kick));
@@ -102,6 +103,7 @@ fn folder_hover_clears_collection_drop_target_during_file_drag() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(loops.join("loop.wav"), [0_u8; 8]).expect("write loop");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&kick));

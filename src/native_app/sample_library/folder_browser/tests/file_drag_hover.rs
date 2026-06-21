@@ -11,6 +11,7 @@ fn file_drag_hover_expands_collapsed_folder_after_dwell() {
     fs::create_dir_all(&nested).expect("create nested target folder");
     let kick = source.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(nested.join("nested.wav"), [0_u8; 8]).expect("write nested wav");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&source));
     let target_id = path_id(&target);
@@ -42,6 +43,8 @@ fn file_drag_hover_auto_expand_tracks_latest_folder_target() {
     fs::create_dir_all(second.join("nested")).expect("create second target child");
     let kick = source.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(first.join("nested").join("first.wav"), [0_u8; 8]).expect("write first wav");
+    fs::write(second.join("nested").join("second.wav"), [0_u8; 8]).expect("write second wav");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&source));
     let first_id = path_id(&first);
@@ -67,6 +70,7 @@ fn file_drag_hover_uses_cached_file_entry_without_filesystem_probe() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(loops.join("loop.wav"), [0_u8; 8]).expect("write loop");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
 
@@ -97,6 +101,7 @@ fn file_drag_hover_remains_valid_when_selected_projection_hides_file() {
     fs::create_dir_all(&target).expect("create target folder");
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(target.join("target.wav"), [0_u8; 8]).expect("write target");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
 
@@ -163,6 +168,8 @@ fn file_drag_hover_moves_between_folder_targets() {
     fs::create_dir_all(&one_shots).expect("create one-shots folder");
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
+    fs::write(loops.join("loop.wav"), [0_u8; 8]).expect("write loop");
+    fs::write(one_shots.join("one-shot.wav"), [0_u8; 8]).expect("write one-shot");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
 

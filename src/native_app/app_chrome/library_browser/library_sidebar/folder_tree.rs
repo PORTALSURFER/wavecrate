@@ -36,6 +36,7 @@ pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMes
             model.selected_folder_status_label,
             model.include_subfolders_available,
             model.include_subfolders,
+            model.show_empty_folders,
             model.help_tooltips_enabled,
         ),
     ])

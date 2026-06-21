@@ -54,7 +54,7 @@ impl FolderBrowserState {
         if self.selected_folder_is_source_root() {
             return false;
         }
-        if self.folder_has_children(&self.selection.selected_folder) {
+        if self.folder_has_visible_children(&self.selection.selected_folder) {
             self.tree
                 .expanded_folders
                 .remove(&self.selection.selected_folder)
@@ -70,7 +70,7 @@ impl FolderBrowserState {
         if self.selected_folder_is_source_root() {
             return false;
         }
-        if self.folder_has_children(&self.selection.selected_folder) {
+        if self.folder_has_visible_children(&self.selection.selected_folder) {
             self.tree
                 .expanded_folders
                 .insert(self.selection.selected_folder.clone())

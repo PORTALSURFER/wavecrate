@@ -55,6 +55,7 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ToggleEmptyFolderVisibility);
     browser.activate_folder(path_id(&drums));
 
     let input_id = browser
@@ -127,6 +128,7 @@ fn create_subfolder_default_name_skips_existing_folder() {
     let drums = root.join("drums");
     fs::create_dir_all(drums.join("New folder")).expect("create existing folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ToggleEmptyFolderVisibility);
     browser.activate_folder(path_id(&drums));
 
     browser

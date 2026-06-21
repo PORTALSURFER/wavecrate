@@ -39,6 +39,7 @@ pub(in crate::native_app) struct FolderTreeViewModel {
     pub(in crate::native_app) selected_folder_status_label: String,
     pub(in crate::native_app) include_subfolders_available: bool,
     pub(in crate::native_app) include_subfolders: bool,
+    pub(in crate::native_app) show_empty_folders: bool,
     pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
@@ -141,6 +142,7 @@ impl FolderTreeViewModel {
             selected_folder_status_label: folder_browser.selected_folder_status_label(),
             include_subfolders_available: folder_browser.folder_subtree_listing_available(),
             include_subfolders: folder_browser.folder_subtree_listing_enabled(),
+            show_empty_folders: folder_browser.empty_folder_visibility_enabled(),
             help_tooltips_enabled,
         }
     }

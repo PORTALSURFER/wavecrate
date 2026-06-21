@@ -12,6 +12,7 @@ pub(super) fn selected_folder_status(
     label: String,
     include_subfolders_available: bool,
     include_subfolders: bool,
+    show_empty_folders: bool,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::row([
@@ -20,6 +21,11 @@ pub(super) fn selected_folder_status(
             include_subfolders_button(include_subfolders_available, include_subfolders),
             help_tooltips_enabled,
             "Include samples from subfolders in the sample list.",
+        ),
+        help_tooltip(
+            show_empty_folders_button(show_empty_folders),
+            help_tooltips_enabled,
+            "Show folders that contain no audio files.",
         ),
     ])
     .spacing(4.0)
@@ -48,6 +54,17 @@ fn include_subfolders_button(available: bool, active: bool) -> ui::View<GuiMessa
         .size(24.0, 20.0)
 }
 
+fn show_empty_folders_button(active: bool) -> ui::View<GuiMessage> {
+    ui::icon_button(show_empty_folders_icon(active))
+        .active(active)
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::ToggleEmptyFolderVisibility,
+        ))
+        .id(widget_ids::FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID)
+        .key("folder-tree-show-empty-folders-toggle")
+        .size(24.0, 20.0)
+}
+
 fn include_subfolders_icon(available: bool, active: bool) -> ui::SvgIcon {
     let color = if !available {
         ICON_DISABLED_COLOR
@@ -59,12 +76,29 @@ fn include_subfolders_icon(available: bool, active: bool) -> ui::SvgIcon {
     INCLUDE_SUBFOLDERS_ICON.icon(color)
 }
 
+fn show_empty_folders_icon(active: bool) -> ui::SvgIcon {
+    let color = if active {
+        ICON_ACTIVE_COLOR
+    } else {
+        ICON_ENABLED_COLOR
+    };
+    SHOW_EMPTY_FOLDERS_ICON.icon(color)
+}
+
 static INCLUDE_SUBFOLDERS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path d="M4 3.25v8.5" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
   <path d="M4 5.25h3.2M4 10.75h3.2" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
   <rect x="8.2" y="3.65" width="4.55" height="3.2" rx=".6" fill="none" stroke="currentColor" stroke-width="1.2"/>
   <rect x="8.2" y="9.15" width="4.55" height="3.2" rx=".6" fill="none" stroke="currentColor" stroke-width="1.2"/>
+</svg>"#,
+);
+
+static SHOW_EMPTY_FOLDERS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2.25 5.05h3.4l1.1 1.25h7v5.1c0 .7-.45 1.15-1.15 1.15H3.4c-.7 0-1.15-.45-1.15-1.15V5.05Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M2.25 5.05V4.6c0-.7.45-1.15 1.15-1.15h2.45l1.05 1.1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="8" cy="9.15" r="1.55" fill="none" stroke="currentColor" stroke-width="1.15"/>
 </svg>"#,
 );
 
@@ -81,6 +115,7 @@ mod tests {
             true,
             true,
             false,
+            false,
         )
         .view_frame_at_size_with_default_theme(ui::Vector2::new(260.0, 24.0));
 
@@ -91,13 +126,54 @@ mod tests {
                 .is_some()
         );
         assert_eq!(
-            selected_folder_status(String::from("drums | 1 audio | 1 item"), true, false, false)
-                .view_dispatch_widget_output(
-                    widget_ids::FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID,
-                    ui::WidgetOutput::typed(ButtonMessage::Activate),
-                ),
+            selected_folder_status(
+                String::from("drums | 1 audio | 1 item"),
+                true,
+                false,
+                false,
+                false
+            )
+            .view_dispatch_widget_output(
+                widget_ids::FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID,
+                ui::WidgetOutput::typed(ButtonMessage::Activate),
+            ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::ToggleFolderSubtreeListing
+            ))
+        );
+    }
+
+    #[test]
+    fn selected_folder_status_projects_empty_folder_toggle_button() {
+        let frame = selected_folder_status(
+            String::from("drums | 1 audio | 1 item"),
+            true,
+            false,
+            true,
+            false,
+        )
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(260.0, 24.0));
+
+        assert!(
+            frame
+                .paint_plan
+                .first_widget_rect(widget_ids::FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID)
+                .is_some()
+        );
+        assert_eq!(
+            selected_folder_status(
+                String::from("drums | 1 audio | 1 item"),
+                true,
+                false,
+                false,
+                false
+            )
+            .view_dispatch_widget_output(
+                widget_ids::FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID,
+                ui::WidgetOutput::typed(ButtonMessage::Activate),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::ToggleEmptyFolderVisibility
             ))
         );
     }

@@ -212,6 +212,7 @@ fn folder_tree_follow_window_tracks_selected_folder() {
         fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
     }
     let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.tree.show_empty_folders = true;
     browser.activate_folder(path_id(&root.join("folder_12")));
 
     let window = browser.sync_tree_view_to_selection(6, 1, 1);
@@ -228,6 +229,7 @@ fn visible_pointer_selection_preserves_runtime_folder_tree_viewport() {
         fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
     }
     let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.tree.show_empty_folders = true;
     browser.activate_folder(path_id(&root.join("folder_04")));
 
     browser.apply_tree_view_window_change(ui::VirtualListWindowChange {
@@ -259,6 +261,7 @@ fn folder_tree_scroll_tracking_is_not_overridden_by_unchanged_selection_follow()
         fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
     }
     let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.tree.show_empty_folders = true;
     browser.activate_folder(path_id(&root.join("folder_12")));
 
     assert_eq!(
@@ -284,6 +287,7 @@ fn folder_tree_scroll_tracking_allows_runtime_offsets() {
         fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
     }
     let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.tree.show_empty_folders = true;
 
     browser.set_tree_view_start_from_scroll_offset(
         23.0 * super::super::TREE_ROW_HEIGHT,

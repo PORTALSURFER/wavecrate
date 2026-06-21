@@ -3,7 +3,9 @@ use super::*;
 fn visible_folder_depths_are_stable_for_siblings() {
     let root = temp_source_root("wavecrate-gui-folder-depths");
     for child in ["alpha", "beta", "gamma"] {
-        fs::create_dir_all(root.join("parent").join(child)).expect("create nested folder");
+        let child_path = root.join("parent").join(child);
+        fs::create_dir_all(&child_path).expect("create nested folder");
+        write_audio(child_path.join(format!("{child}.wav")));
     }
     let browser = FolderBrowserState::from_root(root.clone());
     let mut browser = browser;
@@ -27,6 +29,8 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
     let snares = drums.join("snares");
     fs::create_dir_all(&kicks).expect("create kicks folder");
     fs::create_dir_all(&snares).expect("create snares folder");
+    write_audio(kicks.join("kick.wav"));
+    write_audio(snares.join("snare.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
 
     assert_eq!(browser.selection.selected_folder, path_id(&root));
@@ -56,6 +60,8 @@ fn folder_command_click_toggles_folder_selection_without_clearing_existing_selec
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    write_audio(drums.join("kick.wav"));
+    write_audio(loops.join("loop.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
     let loops_id = path_id(&loops);
@@ -84,6 +90,8 @@ fn folder_shift_click_extends_selection_from_anchor() {
     let snares = drums.join("snares");
     fs::create_dir_all(&kicks).expect("create kicks folder");
     fs::create_dir_all(&snares).expect("create snares folder");
+    write_audio(kicks.join("kick.wav"));
+    write_audio(snares.join("snare.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let drums_id = path_id(&drums);
     let kicks_id = path_id(&kicks);
@@ -116,6 +124,8 @@ fn folder_shift_arrow_extends_visible_folder_selection() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    write_audio(drums.join("kick.wav"));
+    write_audio(loops.join("loop.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
     let drums_id = path_id(&drums);
@@ -137,6 +147,8 @@ fn folder_preserve_navigation_moves_focus_without_changing_selection() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    write_audio(drums.join("kick.wav"));
+    write_audio(loops.join("loop.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
     let drums_id = path_id(&drums);
@@ -159,6 +171,8 @@ fn folder_x_toggle_updates_focused_folder_membership() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    write_audio(drums.join("kick.wav"));
+    write_audio(loops.join("loop.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
     let drums_id = path_id(&drums);
@@ -185,6 +199,8 @@ fn folder_x_toggle_marks_focused_folder_and_advances() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    write_audio(drums.join("kick.wav"));
+    write_audio(loops.join("loop.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
     let drums_id = path_id(&drums);
@@ -211,6 +227,8 @@ fn folder_tree_refresh_prunes_deleted_multi_selected_folders() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    write_audio(drums.join("kick.wav"));
+    write_audio(loops.join("loop.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
     let drums_id = path_id(&drums);
@@ -281,8 +299,14 @@ fn visible_folders_mark_branches_without_audio_as_empty() {
     browser.activate_folder(path_id(&parent));
     let visible = browser.visible_folders();
 
-    let empty_row = visible_folder_by_id(&visible, &empty);
-    assert!(empty_row.empty);
+    assert!(
+        visible.iter().all(|folder| folder.id != path_id(&empty)),
+        "folders without audio anywhere below them should be hidden by default"
+    );
+    assert!(
+        !browser.empty_folder_visibility_enabled(),
+        "empty folders should be hidden unless the status toggle is enabled"
+    );
     let parent_row = visible_folder_by_id(&visible, &parent);
     assert!(
         !parent_row.empty,
@@ -292,6 +316,12 @@ fn visible_folders_mark_branches_without_audio_as_empty() {
     assert!(!child_row.empty);
     let direct_row = visible_folder_by_id(&visible, &direct);
     assert!(!direct_row.empty);
+
+    browser.apply_message(FolderBrowserMessage::ToggleEmptyFolderVisibility);
+    let visible = browser.visible_folders();
+    let empty_row = visible_folder_by_id(&visible, &empty);
+    assert!(empty_row.empty);
+    assert!(browser.empty_folder_visibility_enabled());
 
     let _ = fs::remove_dir_all(root);
 }
@@ -311,11 +341,16 @@ fn folder_set(values: &[&str]) -> std::collections::HashSet<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
 }
 
+fn write_audio(path: impl AsRef<std::path::Path>) {
+    fs::write(path, [0_u8; 8]).expect("write audio fixture");
+}
+
 #[test]
 fn source_root_folder_is_static_dot_selector() {
     let root = temp_source_root("wavecrate-gui-root-dot-selector");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
+    write_audio(drums.join("kick.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
 
@@ -354,6 +389,8 @@ fn folder_expander_toggles_without_selecting_folder() {
     let beta = root.join("beta");
     fs::create_dir_all(&nested).expect("create nested folder");
     fs::create_dir_all(&beta).expect("create beta folder");
+    write_audio(nested.join("nested.wav"));
+    write_audio(beta.join("beta.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let alpha_id = path_id(&alpha);
     let beta_id = path_id(&beta);
@@ -383,6 +420,7 @@ fn source_root_expander_toggle_is_ignored() {
     let root = temp_source_root("wavecrate-gui-root-expander-toggle-ignored");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
+    write_audio(drums.join("kick.wav"));
     let mut browser = FolderBrowserState::from_root(root.clone());
     let root_id = path_id(&root);
 

@@ -283,6 +283,14 @@ impl FolderBrowserState {
             FolderBrowserMessage::ToggleFolderSubtreeListing => {
                 self.toggle_folder_subtree_listing();
             }
+            FolderBrowserMessage::ToggleEmptyFolderVisibility => {
+                self.toggle_empty_folder_visibility();
+                self.sync_tree_view_to_selection(
+                    super::FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+                    super::FOLDER_TREE_OVERSCAN_ROWS,
+                    super::FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                );
+            }
             FolderBrowserMessage::NameFilterInput(message) => {
                 self.apply_name_filter_input(message);
             }

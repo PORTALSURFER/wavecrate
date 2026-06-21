@@ -188,10 +188,17 @@ fn selected_source_refresh_preserves_clicked_nested_folder() {
         "refresh finish should keep selected-folder ancestors expanded"
     );
     assert!(
-        visible
+        visible.iter().all(|folder| folder.id != empty_id),
+        "empty sibling folders should be hidden by default"
+    );
+
+    browser.apply_message(FolderBrowserMessage::ToggleEmptyFolderVisibility);
+    assert!(
+        browser
+            .visible_folders()
             .iter()
             .any(|folder| folder.id == empty_id && !folder.has_children),
-        "empty sibling folders should remain visible without bogus disclosure state"
+        "show-empty toggle should reveal empty siblings without bogus disclosure state"
     );
     let _ = fs::remove_dir_all(root);
 }

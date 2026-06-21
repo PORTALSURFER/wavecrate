@@ -218,6 +218,7 @@ fn similarity_anchor_clears_when_selected_folder_changes() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let anchor = drums.join("anchor.wav");
     fs::write(&anchor, []).expect("write anchor");
+    fs::write(loops.join("loop.wav"), []).expect("write loop");
     let mut browser = FolderBrowserState::from_root(root.clone());
     let drums_id = path_id(&drums);
     let loops_id = path_id(&loops);
@@ -260,6 +261,7 @@ fn similarity_anchor_clears_when_folder_keyboard_navigation_moves_focus() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let anchor = drums.join("anchor.wav");
     fs::write(&anchor, []).expect("write anchor");
+    fs::write(loops.join("loop.wav"), []).expect("write loop");
     let mut browser = FolderBrowserState::from_root(root.clone());
     let drums_id = path_id(&drums);
     let loops_id = path_id(&loops);

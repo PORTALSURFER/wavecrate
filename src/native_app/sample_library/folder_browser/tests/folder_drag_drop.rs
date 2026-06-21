@@ -96,6 +96,8 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
     let loops = root.join("loops");
     fs::create_dir_all(&kicks).expect("create kicks folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    fs::write(kicks.join("kick.wav"), [0_u8; 8]).expect("write kick");
+    fs::write(loops.join("loop.wav"), [0_u8; 8]).expect("write loop");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&root.join("drums")));
     browser.expand_selected_folder();
