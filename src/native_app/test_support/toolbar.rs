@@ -8,6 +8,8 @@ pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 =
 pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 =
     chrome_toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID;
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = chrome_toolbar::TOOLBAR_RANDOM_ID;
+pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =
+    chrome_toolbar::TOOLBAR_SIMILAR_SECTIONS_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = chrome_toolbar::TOOLBAR_STOP_ID;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,6 +17,7 @@ pub(in crate::native_app) enum ToolbarIcon {
     FocusLoaded,
     Loop,
     Random,
+    SimilarSections,
     BeatGuides,
     BeatGuideMinus,
     BeatGuidePlus,
@@ -28,6 +31,7 @@ impl ToolbarIcon {
             Self::FocusLoaded => chrome_toolbar::ToolbarIcon::FocusLoaded,
             Self::Loop => chrome_toolbar::ToolbarIcon::Loop,
             Self::Random => chrome_toolbar::ToolbarIcon::Random,
+            Self::SimilarSections => chrome_toolbar::ToolbarIcon::SimilarSections,
             Self::BeatGuides => chrome_toolbar::ToolbarIcon::BeatGuides,
             Self::BeatGuideMinus => chrome_toolbar::ToolbarIcon::BeatGuideMinus,
             Self::BeatGuidePlus => chrome_toolbar::ToolbarIcon::BeatGuidePlus,
@@ -40,6 +44,8 @@ impl ToolbarIcon {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MainToolbarProjection {
     pub(in crate::native_app) random_available: bool,
+    pub(in crate::native_app) similar_sections_available: bool,
+    pub(in crate::native_app) similar_sections_enabled: bool,
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) loop_playback: bool,
     pub(in crate::native_app) playing: bool,
@@ -60,6 +66,8 @@ pub(in crate::native_app) fn main_toolbar_projection(
     let model = MainToolbarViewModel::from_app_state(state);
     MainToolbarProjection {
         random_available: model.random_available,
+        similar_sections_available: model.similar_sections_available,
+        similar_sections_enabled: model.similar_sections_enabled,
         sticky_random_sample_range_playback: model.sticky_random_sample_range_playback,
         loop_playback: model.loop_playback,
         playing: model.playing,

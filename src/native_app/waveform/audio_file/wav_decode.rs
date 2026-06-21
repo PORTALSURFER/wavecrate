@@ -86,7 +86,9 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
     Ok(file)
 }
 
-pub(super) fn read_wav_playback_samples(bytes: &Arc<[u8]>) -> Result<Vec<f32>, String> {
+pub(in crate::native_app::waveform) fn read_wav_playback_samples(
+    bytes: &Arc<[u8]>,
+) -> Result<Vec<f32>, String> {
     let cursor = Cursor::new(bytes.as_ref());
     let mut reader =
         hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;

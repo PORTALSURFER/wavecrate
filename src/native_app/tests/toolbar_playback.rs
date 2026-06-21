@@ -6,4 +6,5 @@ mod basics;
 mod focus_loaded;
 mod frame_overlay;
 mod random_audition;
+mod similar_sections;
 mod stop_button;

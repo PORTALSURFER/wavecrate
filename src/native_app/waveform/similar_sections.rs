@@ -1,8 +1,11 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf, sync::Arc};
 
 use wavecrate::selection::SelectionRange;
 
-use super::WaveformState;
+use super::{
+    WaveformState,
+    audio_file::{PersistedPlaybackCacheFile, is_wav_path, read_wav_playback_samples},
+};
 
 const PROFILE_BINS: usize = 192;
 const MAX_SCAN_WINDOWS: usize = 8_000;
@@ -21,11 +24,19 @@ pub(in crate::native_app::waveform) struct SimilarSectionsState {
 pub(in crate::native_app) struct SimilarSectionsRequest {
     path: PathBuf,
     content_revision: u64,
-    samples: Arc<[f32]>,
+    source: SimilarSectionsSource,
     sample_rate: u32,
     channels: usize,
     frames: usize,
     anchor: SelectionRange,
+}
+
+#[derive(Clone, Debug)]
+enum SimilarSectionsSource {
+    InterleavedF32Samples(Arc<[f32]>),
+    InterleavedF32File(PersistedPlaybackCacheFile),
+    WavBytes(Arc<[u8]>),
+    WavFile,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,13 +79,11 @@ impl WaveformState {
             .play_selection
             .filter(|selection| selection.width() > 0.0)
             .ok_or_else(|| String::from("Set a playmark selection first"))?;
-        let samples = self.playback_samples().ok_or_else(|| {
-            String::from("Similar section scan needs decoded playback data for this file")
-        })?;
+        let source = self.similar_sections_source()?;
         Ok(SimilarSectionsRequest {
             path: self.file.path.clone(),
             content_revision: self.file.content_revision(),
-            samples,
+            source,
             sample_rate: self.file.sample_rate,
             channels: self.file.channels,
             frames: self.file.frames,
@@ -118,6 +127,30 @@ impl WaveformState {
     ) {
         self.similar_sections.ranges = ranges;
     }
+
+    fn similar_sections_source(&self) -> Result<SimilarSectionsSource, String> {
+        if let Some(samples) = self.file.playback_samples.as_ref() {
+            return Ok(SimilarSectionsSource::InterleavedF32Samples(Arc::clone(
+                samples,
+            )));
+        }
+        if let Some(cache_file) = self.file.playback_cache_file.as_ref() {
+            return Ok(SimilarSectionsSource::InterleavedF32File(
+                cache_file.clone(),
+            ));
+        }
+        if !self.file.audio_bytes.is_empty() && is_wav_path(&self.file.path) {
+            return Ok(SimilarSectionsSource::WavBytes(Arc::clone(
+                &self.file.audio_bytes,
+            )));
+        }
+        if self.file.has_loaded_sample_metadata() && is_wav_path(&self.file.path) {
+            return Ok(SimilarSectionsSource::WavFile);
+        }
+        Err(String::from(
+            "Similar section scan needs a WAV file or decoded playback cache",
+        ))
+    }
 }
 
 pub(in crate::native_app) fn execute_similar_sections_scan(
@@ -134,7 +167,8 @@ pub(in crate::native_app) fn execute_similar_sections_scan(
 fn scan_similar_sections(
     request: &SimilarSectionsRequest,
 ) -> Result<SimilarSectionsPayload, String> {
-    validate_request(request)?;
+    let samples = request.source.load_samples(&request.path)?;
+    validate_request(request, samples.len())?;
     let anchor_bounds = request.anchor.frame_bounds(request.frames);
     let window_frames = anchor_bounds
         .end_frame
@@ -144,7 +178,7 @@ fn scan_similar_sections(
     }
 
     let anchor_profile = build_profile(
-        &request.samples,
+        &samples,
         request.channels,
         request.frames,
         anchor_bounds.start_frame,
@@ -154,6 +188,7 @@ fn scan_similar_sections(
     let hop = scan_hop_frames(request.frames, window_frames, request.sample_rate);
     let candidates = collect_candidate_matches(
         request,
+        &samples,
         &anchor_profile,
         anchor_bounds.start_frame,
         anchor_bounds.end_frame,
@@ -164,15 +199,56 @@ fn scan_similar_sections(
     Ok(SimilarSectionsPayload { ranges })
 }
 
-fn validate_request(request: &SimilarSectionsRequest) -> Result<(), String> {
+fn validate_request(request: &SimilarSectionsRequest, sample_count: usize) -> Result<(), String> {
     if request.frames == 0 || request.channels == 0 {
         return Err(String::from("Loaded sample has no decoded audio frames"));
     }
     let expected_samples = request.frames.saturating_mul(request.channels);
-    if request.samples.len() < expected_samples {
+    if sample_count < expected_samples {
         return Err(String::from("Decoded playback data is incomplete"));
     }
     Ok(())
+}
+
+impl SimilarSectionsSource {
+    fn load_samples(&self, path: &std::path::Path) -> Result<Arc<[f32]>, String> {
+        match self {
+            Self::InterleavedF32Samples(samples) => Ok(Arc::clone(samples)),
+            Self::InterleavedF32File(cache_file) => read_interleaved_f32_file(cache_file),
+            Self::WavBytes(bytes) => read_wav_playback_samples(bytes).map(Arc::from),
+            Self::WavFile => {
+                let bytes: Arc<[u8]> = fs::read(path).map(Arc::from).map_err(|err| {
+                    format!("failed to read source WAV {}: {err}", path.display())
+                })?;
+                read_wav_playback_samples(&bytes).map(Arc::from)
+            }
+        }
+    }
+}
+
+fn read_interleaved_f32_file(
+    cache_file: &PersistedPlaybackCacheFile,
+) -> Result<Arc<[f32]>, String> {
+    let bytes = fs::read(&cache_file.path).map_err(|err| {
+        format!(
+            "failed to read playback cache {}: {err}",
+            cache_file.path.display()
+        )
+    })?;
+    let expected_bytes = cache_file
+        .sample_count
+        .checked_mul(std::mem::size_of::<f32>() as u64)
+        .ok_or_else(|| String::from("Playback cache is too large"))?;
+    if bytes.len() as u64 != expected_bytes {
+        return Err(String::from(
+            "Playback cache size does not match its metadata",
+        ));
+    }
+    let mut samples = Vec::with_capacity(cache_file.sample_count as usize);
+    for chunk in bytes.chunks_exact(std::mem::size_of::<f32>()) {
+        samples.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    }
+    Ok(Arc::from(samples))
 }
 
 fn scan_hop_frames(frames: usize, window_frames: usize, sample_rate: u32) -> usize {
@@ -189,6 +265,7 @@ fn scan_hop_frames(frames: usize, window_frames: usize, sample_rate: u32) -> usi
 
 fn collect_candidate_matches(
     request: &SimilarSectionsRequest,
+    samples: &[f32],
     anchor_profile: &SimilarityProfile,
     anchor_start: usize,
     anchor_end: usize,
@@ -202,7 +279,7 @@ fn collect_candidate_matches(
         let end_frame = start_frame + window_frames;
         if !ranges_overlap(start_frame, end_frame, anchor_start, anchor_end)
             && let Some(profile) = build_profile(
-                &request.samples,
+                samples,
                 request.channels,
                 request.frames,
                 start_frame,
@@ -456,7 +533,7 @@ mod tests {
         SimilarSectionsRequest {
             path: PathBuf::from("scan-test.wav"),
             content_revision: 1,
-            samples: Arc::from(samples),
+            source: SimilarSectionsSource::InterleavedF32Samples(Arc::from(samples)),
             sample_rate: 48_000,
             channels: 1,
             frames,

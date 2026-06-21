@@ -61,3 +61,4 @@ pub(in crate::native_app) use model::{
 pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
 #[cfg(test)]
 pub(super) use visual_bands::split_frequency_bands;
+pub(in crate::native_app::waveform) use wav_decode::read_wav_playback_samples;

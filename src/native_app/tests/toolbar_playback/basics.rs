@@ -6,6 +6,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         crate::native_app::test_support::toolbar::ToolbarIcon::FocusLoaded,
         crate::native_app::test_support::toolbar::ToolbarIcon::Loop,
         crate::native_app::test_support::toolbar::ToolbarIcon::Random,
+        crate::native_app::test_support::toolbar::ToolbarIcon::SimilarSections,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuidePlus,
@@ -55,6 +56,10 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::Random,
             crate::native_app::test_support::state::GuiMessage::PlayRandomSampleRange,
+        ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::SimilarSections,
+            crate::native_app::test_support::state::GuiMessage::ToggleSimilarSections,
         ),
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
@@ -204,6 +209,8 @@ fn main_toolbar_view_model_projects_playback_state() {
     let empty = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(empty.random_available, state.random_playback_available());
     assert!(!empty.sticky_random_sample_range_playback);
+    assert!(!empty.similar_sections_available);
+    assert!(!empty.similar_sections_enabled);
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
     assert!(!empty.beat_guides_enabled);
@@ -222,10 +229,13 @@ fn main_toolbar_view_model_projects_playback_state() {
     state.waveform.current.set_edit_selection_range(
         wavecrate::selection::SelectionRange::new(0.2, 0.6).with_gain(0.5),
     );
+    state.waveform.current.set_play_selection_range(0.1, 0.2);
 
     let loaded = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(loaded.random_available, state.random_playback_available());
     assert!(loaded.sticky_random_sample_range_playback);
+    assert!(loaded.similar_sections_available);
+    assert!(!loaded.similar_sections_enabled);
     assert!(loaded.loop_playback);
     assert!(loaded.playing);
     assert!(loaded.beat_guides_enabled);
