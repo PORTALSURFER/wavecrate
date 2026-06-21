@@ -97,6 +97,7 @@ where
     T: SizedSample + FromSample<f32>,
 {
     let mut scratch = Vec::new();
+    let stream_error_sender = callback_state.error_sender();
     device.build_output_stream(
         stream_config,
         move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
@@ -106,7 +107,11 @@ where
                 *sample_out = T::from_sample(sample_in.clamp(-1.0, 1.0));
             }
         },
-        |err| tracing::error!("Stream error: {}", err),
+        move |err| {
+            let message = format!("Audio output stream error: {err}");
+            tracing::error!("{message}");
+            let _ = stream_error_sender.send(message);
+        },
         None,
     )
 }

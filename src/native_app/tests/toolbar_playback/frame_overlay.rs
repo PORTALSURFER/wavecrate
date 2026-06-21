@@ -92,6 +92,21 @@ fn playback_frame_repaints_surface_when_playback_state_changes() {
 }
 
 #[test]
+fn audio_output_error_repaints_surface_for_top_bar_badge() {
+    let mut state = gui_state_for_span_tests();
+
+    let before = state.frame_repaint_scope_before_update();
+    state.audio.settings_error = Some(String::from(
+        "Audio output stream error: output device disconnected",
+    ));
+
+    assert!(
+        !state.frame_can_use_paint_only(before),
+        "audio output errors change the top bar badge and need a full repaint"
+    );
+}
+
+#[test]
 fn scene_frame_clock_runs_at_60hz_even_when_idle() {
     let state = gui_state_for_span_tests();
     let bridge = radiant::app(state)

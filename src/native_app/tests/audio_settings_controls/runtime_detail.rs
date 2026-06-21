@@ -99,6 +99,47 @@ fn audio_engine_pill_uses_neutral_style_with_runtime_output() {
 }
 
 #[test]
+fn audio_engine_pill_shows_off_for_audio_output_error() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.settings_error = Some(String::from(
+        "Audio output stream error: output device disconnected",
+    ));
+
+    assert_eq!(state.audio_engine_pill_label(), "OFF");
+    assert_eq!(
+        state.audio_engine_pill_style(),
+        WidgetStyle::strong(WidgetTone::Danger)
+    );
+}
+
+#[test]
+fn runtime_output_error_marks_audio_engine_unavailable() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.output_resolved = Some(crate::native_app::test_support::audio::ResolvedOutput {
+        host_id: String::from("wasapi"),
+        device_name: String::from("Studio"),
+        sample_rate: 48_000,
+        buffer_size_frames: None,
+        channel_count: 2,
+        used_fallback: false,
+    });
+    state.audio.current_playback_span = Some((0.0, 1.0));
+
+    state.mark_audio_output_unavailable(String::from(
+        "Audio output stream error: output device disconnected",
+    ));
+
+    assert!(state.audio.output_resolved.is_none());
+    assert!(state.audio.current_playback_span.is_none());
+    assert_eq!(
+        state.audio.settings_error.as_deref(),
+        Some("Audio output stream error: output device disconnected")
+    );
+    assert_eq!(state.audio_engine_pill_label(), "OFF");
+    assert!(state.ui.status.sample.starts_with("Audio output OFF:"));
+}
+
+#[test]
 fn audio_sample_rate_label_matches_status_chip_format() {
     assert_eq!(
         crate::native_app::test_support::state::format_sample_rate_label(48_000),

@@ -28,6 +28,8 @@ const LOADING_PROGRESS_COLOR: Rgba8 = Rgba8 {
     b: 181,
     a: 118,
 };
+const AUDIO_OUTPUT_STREAM_ERROR_PREFIX: &str = "Audio output stream error:";
+const AUDIO_OUTPUT_UNAVAILABLE_ERROR: &str = "Audio output stream is unavailable";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
@@ -41,6 +43,8 @@ pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     waveform_loading_active: bool,
     sample_loading: bool,
     audio_opening: bool,
+    audio_settings_error_active: bool,
+    audio_output_sample_rate: Option<u32>,
     startup_source_scan_pending: bool,
     startup_auto_load_pending: bool,
     pending_playback_start: bool,
@@ -76,7 +80,9 @@ impl NativeAppState {
         for event in events.try_iter() {
             self.apply_playback_runtime_event(event);
         }
-        self.audio.playback_events = Some(events);
+        if self.audio.playback_runtime.is_some() {
+            self.audio.playback_events = Some(events);
+        }
     }
 
     fn apply_playback_runtime_event(&mut self, event: PlaybackRuntimeEvent) {
@@ -127,6 +133,10 @@ impl NativeAppState {
         };
         if pending.id != id {
             self.audio.pending_runtime_start = Some(pending);
+            return;
+        }
+        if playback_error_indicates_output_unavailable(&error) {
+            self.mark_audio_output_unavailable(error);
             return;
         }
         self.audio.early_sample_playback_path = None;
@@ -326,6 +336,10 @@ impl NativeAppState {
     }
 
     fn stop_playback_after_progress_error(&mut self, error: String) {
+        if playback_error_indicates_output_unavailable(&error) {
+            self.mark_audio_output_unavailable(error);
+            return;
+        }
         let started_at = Instant::now();
         self.waveform.current.stop_playback();
         self.ui.status.sample = format!("Playback stopped: {error}");
@@ -334,6 +348,32 @@ impl NativeAppState {
             Some("transport"),
             None,
             "error",
+            started_at,
+            Some(&error),
+        );
+    }
+
+    pub(in crate::native_app) fn mark_audio_output_unavailable(&mut self, error: String) {
+        let started_at = Instant::now();
+        self.waveform.current.stop_playback();
+        self.audio.current_playback_span = None;
+        self.audio.pending_playback_start = None;
+        self.audio.pending_runtime_start = None;
+        self.audio.early_sample_playback_path = None;
+        if let Some(runtime) = self.audio.playback_runtime.take() {
+            let _ = runtime.try_shutdown();
+        }
+        self.audio.player = None;
+        self.audio.playback_events = None;
+        self.audio.playback_progress = Default::default();
+        self.audio.output_resolved = None;
+        self.audio.settings_error = Some(error.clone());
+        self.ui.status.sample = format!("Audio output OFF: {error}");
+        emit_gui_action(
+            "audio.output.runtime",
+            Some("audio"),
+            None,
+            "offline",
             started_at,
             Some(&error),
         );
@@ -403,6 +443,12 @@ impl FrameRepaintScopeSnapshot {
             waveform_loading_active: state.waveform.load.label.is_some(),
             sample_loading: state.active_sample_load_task().is_some(),
             audio_opening: state.background.audio_open.active().is_some(),
+            audio_settings_error_active: state.audio.settings_error.is_some(),
+            audio_output_sample_rate: state
+                .audio
+                .output_resolved
+                .as_ref()
+                .map(|output| output.sample_rate),
             startup_source_scan_pending: state.ui.startup.source_scan_pending,
             startup_auto_load_pending: state.ui.startup.auto_load_pending,
             pending_playback_start: state.audio.pending_playback_start.is_some(),
@@ -434,6 +480,8 @@ impl FrameRepaintScopeSnapshot {
             && self.waveform_loading_active == after.waveform_loading_active
             && self.sample_loading == after.sample_loading
             && self.audio_opening == after.audio_opening
+            && self.audio_settings_error_active == after.audio_settings_error_active
+            && self.audio_output_sample_rate == after.audio_output_sample_rate
             && self.startup_source_scan_pending == after.startup_source_scan_pending
             && self.startup_auto_load_pending == after.startup_auto_load_pending
             && self.pending_playback_start == after.pending_playback_start
@@ -463,4 +511,9 @@ fn push_fill(
         rect,
         color,
     }));
+}
+
+fn playback_error_indicates_output_unavailable(error: &str) -> bool {
+    error.starts_with(AUDIO_OUTPUT_STREAM_ERROR_PREFIX)
+        || error.contains(AUDIO_OUTPUT_UNAVAILABLE_ERROR)
 }

@@ -59,6 +59,9 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn audio_engine_pill_label(&self) -> String {
+        if self.audio.settings_error.is_some() {
+            return String::from("OFF");
+        }
         self.audio
             .output_resolved
             .as_ref()
@@ -67,7 +70,9 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn audio_engine_pill_style(&self) -> ui::WidgetStyle {
-        if self.audio.output_resolved.is_some() {
+        if self.audio.settings_error.is_some() {
+            ui::WidgetStyle::strong(ui::WidgetTone::Danger)
+        } else if self.audio.output_resolved.is_some() {
             ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
         } else {
             ui::WidgetStyle::subtle(ui::WidgetTone::Warning)

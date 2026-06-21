@@ -142,6 +142,29 @@ fn top_control_bar_shows_no_audio_when_output_is_unavailable() {
 }
 
 #[test]
+fn top_control_bar_paints_off_badge_when_audio_output_errors() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.settings_error = Some(String::from(
+        "Audio output stream error: output device disconnected",
+    ));
+
+    let frame = crate::native_app::test_support::settings::top_control_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+    let pill_id = crate::native_app::test_support::settings::AUDIO_ENGINE_PILL_ID;
+    let danger = radiant::theme::ThemeTokens::default().accent_danger;
+
+    assert!(frame.paint_plan.contains_text("OFF"));
+    assert!(!frame.paint_plan.contains_text("no audio"));
+    assert!(
+        frame
+            .paint_plan
+            .visible_fill_rects_for_widget(pill_id)
+            .any(|fill| fill.color == danger),
+        "OFF badge should paint a red fill"
+    );
+}
+
+#[test]
 fn top_control_bar_does_not_paint_flexible_spacer_rectangle() {
     let state = NativeAppState::load_default().expect("default state loads");
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)

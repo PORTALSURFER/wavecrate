@@ -48,6 +48,10 @@ impl CallbackState {
         }
     }
 
+    pub(super) fn error_sender(&self) -> Sender<String> {
+        self.error_sender.clone()
+    }
+
     fn apply_commands(&mut self) {
         const MAX_COMMANDS_PER_CALLBACK: usize = 64;
         if self.clear_pending.swap(false, Ordering::AcqRel) {
