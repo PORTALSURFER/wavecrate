@@ -176,7 +176,7 @@ fn effective_inner_fade_len(width: f32, fade: FadeParams, min_fade_len: f32) -> 
 }
 
 /// Apply an S-curve easing for fade ramps.
-pub(crate) fn fade_curve_value(t: f32, curve: f32) -> f32 {
+pub fn fade_curve_value(t: f32, curve: f32) -> f32 {
     if curve <= 0.0 {
         return t;
     }

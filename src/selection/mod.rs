@@ -10,6 +10,7 @@ mod range;
 mod state;
 
 pub use fade::FadeParams;
+pub use fade::fade_curve_value;
 pub(crate) use fade::fade_gain_at_position;
 pub use frames::SampleFrameRange;
 pub use range::SelectionRange;

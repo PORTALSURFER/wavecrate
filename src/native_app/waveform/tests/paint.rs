@@ -612,12 +612,12 @@ fn edit_selection_paints_start_and_end_boundary_lines() {
 }
 
 #[test]
-fn edit_fade_curve_paints_volume_trace_as_polyline() {
+fn edit_fade_curve_paints_s_curve_shape_as_polyline() {
     let mut state = WaveformState::synthetic_for_tests();
-    let selection =
-        wavecrate::selection::SelectionRange::new(0.2, 0.6)
-            .with_fade_in(0.5, 0.8)
-            .with_fade_out(0.25, 0.0);
+    let selection = wavecrate::selection::SelectionRange::new(0.2, 0.6)
+        .with_gain(0.5)
+        .with_fade_in(0.5, 0.8)
+        .with_fade_out(0.25, 0.0);
     state.edit_selection = Some(selection);
     let widget = waveform_widget_for_state(&state);
     let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
@@ -651,7 +651,7 @@ fn edit_fade_curve_paints_volume_trace_as_polyline() {
         .expect("leading fade curve stroke");
     let leading_points = leading.points.as_ref();
     let leading_bend = leading_points[2];
-    let leading_expected_y = 80.0 - 80.0 * selection.gain_at_position(0.24, 0.0);
+    let leading_expected_y = 80.0 - 80.0 * wavecrate::selection::fade_curve_value(0.2, 0.8);
     assert!((leading_points[0].y - 80.0).abs() < 0.001);
     assert!((leading_points.last().expect("last leading fade point").y - 0.0).abs() < 0.001);
     assert!((leading_bend.x - 48.0).abs() < 0.001);
@@ -671,7 +671,8 @@ fn edit_fade_curve_paints_volume_trace_as_polyline() {
         .expect("trailing fade curve stroke");
     let trailing_points = trailing.points.as_ref();
     let trailing_mid = trailing_points[5];
-    let trailing_expected_y = 80.0 - 80.0 * selection.gain_at_position(0.55, 0.0);
+    let trailing_expected_y =
+        80.0 - 80.0 * (1.0 - wavecrate::selection::fade_curve_value(0.5, 0.0));
     assert!((trailing_points[0].y - 0.0).abs() < 0.001);
     assert!((trailing_points.last().expect("last trailing fade point").y - 80.0).abs() < 0.001);
     assert!((trailing_mid.x - 110.0).abs() < 0.001);
