@@ -46,7 +46,7 @@ impl FolderBrowserState {
 
     pub(super) fn collection_counts(&self) -> BTreeMap<u8, usize> {
         let mut counts = BTreeMap::new();
-        for file in self.selected_source_audio_files() {
+        for file in self.loaded_source_audio_files() {
             for collection in file.collection_memberships() {
                 *counts.entry(collection.index()).or_insert(0) += 1;
             }

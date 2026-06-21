@@ -46,6 +46,54 @@ fn activating_collection_filters_audio_files_across_selected_source() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn activating_collection_filters_audio_files_across_loaded_sources() {
+    let first_root = temp_source_root("wavecrate-gui-collection-first-source");
+    let second_root = temp_source_root("wavecrate-gui-collection-second-source");
+    let first_keep = first_root.join("a_first_keep.wav");
+    let second_keep = second_root.join("b_second_keep.wav");
+    let second_other = second_root.join("c_second_other.wav");
+    fs::write(&first_keep, []).expect("write first source sample");
+    fs::write(&second_keep, []).expect("write second source sample");
+    fs::write(&second_other, []).expect("write second source other sample");
+    let sources = vec![
+        wavecrate::sample_sources::SampleSource::new(first_root.clone()),
+        wavecrate::sample_sources::SampleSource::new(second_root.clone()),
+    ];
+    let mut browser = FolderBrowserState::from_sample_sources(&sources);
+
+    assert!(
+        browser.focus_file_across_sources(&second_keep),
+        "fixture should load the second configured source"
+    );
+
+    let collection = SampleCollection::new(1).expect("collection");
+    browser.set_file_collection_state(&first_keep, collection);
+    browser.set_file_collection_state(&second_keep, collection);
+
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a_first_keep.wav", "b_second_keep.wav"]
+    );
+    assert_eq!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .find(|entry| entry.collection == collection)
+            .map(|entry| entry.assigned_count),
+        Some(2)
+    );
+    let _ = fs::remove_dir_all(first_root);
+    let _ = fs::remove_dir_all(second_root);
+}
+
 #[test]
 fn activating_collection_includes_files_with_multiple_collection_memberships() {
     let root = temp_source_root("wavecrate-gui-multi-collection-filter");

@@ -21,7 +21,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn selected_audio_files(&self) -> Vec<&FileEntry> {
         if let Some(collection) = self.selection.selected_collection {
             let mut files = Vec::new();
-            if let Some(folder) = self.selected_source_root_folder() {
+            for folder in self.loaded_source_root_folders() {
                 traversal::collect_collection_audio_files(folder, collection, &mut files);
             }
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
@@ -50,7 +50,7 @@ impl FolderBrowserState {
         let name_query = filters::normalized_name_filter(&self.filters.name_filter);
         if let Some(collection) = self.selection.selected_collection {
             let mut paths = Vec::new();
-            if let Some(folder) = self.selected_source_root_folder() {
+            for folder in self.loaded_source_root_folders() {
                 collect_collection_cache_candidate_paths(
                     folder,
                     collection,
@@ -58,6 +58,9 @@ impl FolderBrowserState {
                     max_files,
                     &mut paths,
                 );
+                if paths.len() >= max_files {
+                    break;
+                }
             }
             return paths;
         }
@@ -111,7 +114,8 @@ impl FolderBrowserState {
         }
         if let Some(collection) = self.selection.selected_collection {
             return self
-                .selected_source_root_folder()
+                .loaded_source_root_folders()
+                .into_iter()
                 .map(|folder| {
                     traversal::count_matching_audio_files_in_folder(
                         folder,
@@ -122,7 +126,7 @@ impl FolderBrowserState {
                         Some(collection),
                     )
                 })
-                .unwrap_or_default();
+                .sum();
         }
         if self.folder_subtree_listing_enabled() {
             return self
@@ -310,6 +314,33 @@ impl FolderBrowserState {
         }
         self.sort_files(&mut files);
         files
+    }
+
+    pub(in crate::native_app) fn loaded_source_audio_files(&self) -> Vec<&FileEntry> {
+        let mut files = Vec::new();
+        for folder in self.loaded_source_root_folders() {
+            traversal::collect_audio_files(folder, &mut files);
+        }
+        self.sort_files(&mut files);
+        files
+    }
+
+    fn loaded_source_root_folders(&self) -> Vec<&FolderEntry> {
+        let mut folders = self
+            .source
+            .sources
+            .iter()
+            .filter_map(|source| source.root_folder.as_ref())
+            .collect::<Vec<_>>();
+        for folder in &self.tree.folders {
+            if !folders
+                .iter()
+                .any(|source_root| source_root.id == folder.id)
+            {
+                folders.push(folder);
+            }
+        }
+        folders
     }
 
     pub(super) fn selected_source_root_folder(&self) -> Option<&FolderEntry> {
