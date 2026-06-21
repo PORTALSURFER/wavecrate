@@ -120,6 +120,49 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
 }
 
 #[test]
+fn apply_edit_mark_edits_button_appears_only_for_pending_effects() {
+    let mut state = gui_state_for_span_tests();
+    state
+        .waveform
+        .current
+        .set_edit_selection_range(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+
+    let plain = crate::native_app::test_support::toolbar::main_toolbar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 34.0));
+    assert!(
+        plain
+            .paint_plan
+            .first_widget_rect(
+                crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID
+            )
+            .is_none(),
+        "plain edit marks should not show an apply button"
+    );
+
+    state.waveform.current.set_edit_selection_range(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6).with_gain(0.5),
+    );
+    let edited = crate::native_app::test_support::toolbar::main_toolbar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 34.0));
+    assert!(
+        edited
+            .paint_plan
+            .first_widget_rect(
+                crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID
+            )
+            .is_some(),
+        "pending edit mark effects should show an apply button"
+    );
+    assert_eq!(
+        crate::native_app::test_support::toolbar::main_toolbar(&state).view_dispatch_widget_output(
+            crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+        ),
+        Some(crate::native_app::test_support::state::GuiMessage::RequestApplyEditSelectionEffects)
+    );
+}
+
+#[test]
 fn random_toolbar_help_tooltip_paints_multiline_guidance() {
     let mut state = gui_state_for_span_tests();
     state.ui.chrome.help_tooltips_enabled = true;
@@ -167,6 +210,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert_eq!(empty.beat_guide_count, 4);
     assert!(empty.can_decrement_beat_guide_count);
     assert!(empty.can_increment_beat_guide_count);
+    assert!(!empty.pending_edit_mark_edits);
 
     state.audio.loop_playback = true;
     state.ui.chrome.sticky_random_sample_range_playback = true;
@@ -175,6 +219,9 @@ fn main_toolbar_view_model_projects_playback_state() {
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     state.waveform.current.start_playback(0.25);
+    state.waveform.current.set_edit_selection_range(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6).with_gain(0.5),
+    );
 
     let loaded = crate::native_app::test_support::toolbar::main_toolbar_projection(&state);
     assert_eq!(loaded.random_available, state.random_playback_available());
@@ -183,6 +230,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(loaded.playing);
     assert!(loaded.beat_guides_enabled);
     assert_eq!(loaded.beat_guide_count, 8);
+    assert!(loaded.pending_edit_mark_edits);
 }
 
 #[test]

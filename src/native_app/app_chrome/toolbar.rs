@@ -12,13 +12,15 @@ pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = widget_ids::TOOLB
 const TOOLBAR_BEAT_GUIDES_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDES_ID;
 const TOOLBAR_BEAT_GUIDE_DECREMENT_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDE_DECREMENT_ID;
 const TOOLBAR_BEAT_GUIDE_INCREMENT_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDE_INCREMENT_ID;
+pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 =
+    widget_ids::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID;
 const TOOLBAR_LOOP_ID: u64 = widget_ids::TOOLBAR_LOOP_ID;
 const TOOLBAR_PLAY_ID: u64 = widget_ids::TOOLBAR_PLAY_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = widget_ids::TOOLBAR_STOP_ID;
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RANDOM_ID;
 
 pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
-    ui::row([
+    let mut controls = vec![
         ui::spacer().fill_width().height(24.0),
         toolbar_help_tooltip(
             toolbar_icon_button(
@@ -81,6 +83,15 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             model.help_tooltips_enabled,
             "Use more beat divisions.",
         ),
+    ];
+    if model.pending_edit_mark_edits {
+        controls.push(toolbar_help_tooltip(
+            apply_edit_mark_edits_button(),
+            model.help_tooltips_enabled,
+            "Apply edit mark gain and fade edits.",
+        ));
+    }
+    controls.extend([
         toolbar_help_tooltip(
             toolbar_icon_button(TOOLBAR_PLAY_ID, ToolbarIcon::Play, true, model.playing),
             model.help_tooltips_enabled,
@@ -91,11 +102,13 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             model.help_tooltips_enabled,
             "Stop preview playback.",
         ),
-    ])
-    .padding_y(3.0)
-    .spacing(4.0)
-    .fill_width()
-    .height(34.0)
+    ]);
+
+    ui::row(controls)
+        .padding_y(3.0)
+        .spacing(4.0)
+        .fill_width()
+        .height(34.0)
 }
 
 fn beat_guide_count_label(count: u8) -> ui::View<GuiMessage> {
@@ -104,6 +117,15 @@ fn beat_guide_count_label(count: u8) -> ui::View<GuiMessage> {
         .key("toolbar-beat-guide-count")
         .width(20.0)
         .height(24.0)
+}
+
+fn apply_edit_mark_edits_button() -> ui::View<GuiMessage> {
+    ui::button("Apply")
+        .style(ui::WidgetStyle::strong(ui::WidgetTone::Accent))
+        .message(GuiMessage::RequestApplyEditSelectionEffects)
+        .id(TOOLBAR_APPLY_EDIT_MARK_EDITS_ID)
+        .key("toolbar-apply-edit-mark-edits")
+        .size(58.0, 24.0)
 }
 
 fn toolbar_help_tooltip(
