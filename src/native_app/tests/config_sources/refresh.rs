@@ -25,6 +25,8 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
             path: source_root.path().to_path_buf(),
             source_id: Some(source_id.clone()),
             source_removable: true,
+            folder_locked: false,
+            folder_lock_inherited: false,
             metadata_tag: None,
             collection: None,
             anchor: Point::new(12.0, 24.0),

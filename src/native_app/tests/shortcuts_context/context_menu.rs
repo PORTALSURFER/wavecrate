@@ -14,6 +14,8 @@ fn sample_context_menu(path: impl Into<PathBuf>) -> BrowserContextMenu {
         path: path.into(),
         source_id: None,
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(12.0, 24.0),

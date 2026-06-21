@@ -59,6 +59,22 @@ impl NativeAppState {
                 return false;
             }
         };
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_target_lock_error(&target_folder, "Extraction")
+        {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "waveform.selection_drag.start",
+                Some("waveform"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return false;
+        }
         match self
             .waveform
             .current

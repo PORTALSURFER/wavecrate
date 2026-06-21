@@ -43,6 +43,18 @@ impl NativeAppState {
             );
             return;
         }
+        if let Some(error) = self.normalization_lock_error(&paths) {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "browser.normalize_selected_samples",
+                Some("browser"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
 
         self.pause_active_folder_cache_warm(context);
         if self.background.normalization_progress.is_some() {
@@ -93,6 +105,18 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
+        if let Some(error) = self.normalization_lock_error(&paths) {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "browser.normalize_selected_samples",
+                Some("browser"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
         self.pause_active_folder_cache_warm(context);
         let request = self.prepare_normalization_request(paths);
         let label = normalize_progress_label(request.paths.len());
@@ -155,6 +179,14 @@ impl NativeAppState {
             restart_span,
             sender: self.background.worker_sender.clone(),
         }
+    }
+
+    fn normalization_lock_error(&self, paths: &[PathBuf]) -> Option<String> {
+        paths.iter().find_map(|path| {
+            self.library
+                .folder_browser
+                .file_change_lock_error(path, "Normalize")
+        })
     }
 
     fn pending_normalization_paths(&self, paths: Vec<PathBuf>) -> Vec<PathBuf> {

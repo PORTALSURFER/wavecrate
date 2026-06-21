@@ -50,6 +50,10 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             GuiMessage::RenameContextFolder,
         ));
         actions.push(ui::MenuCommand::new(
+            folder_lock_command_label(menu),
+            GuiMessage::ToggleContextFolderLock,
+        ));
+        actions.push(ui::MenuCommand::new(
             "Delete Folder",
             GuiMessage::RequestDeleteContextFolder,
         ));
@@ -84,6 +88,16 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         );
     }
     actions
+}
+
+fn folder_lock_command_label(menu: &BrowserContextMenu) -> &'static str {
+    if menu.folder_locked {
+        "Unlock Folder"
+    } else if menu.folder_lock_inherited {
+        "Lock Folder Here"
+    } else {
+        "Lock Folder"
+    }
 }
 
 fn context_menu_command(

@@ -176,6 +176,7 @@ pub(in crate::native_app) enum GuiMessage {
         result: Result<PathBuf, String>,
     },
     MoveContextTargetToTrash,
+    ToggleContextFolderLock,
     RequestDeleteContextFolder,
     ConfirmContextFolderDelete,
     CancelContextFolderDelete,

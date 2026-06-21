@@ -56,6 +56,7 @@ fn settings_round_trip_fixture() -> SettingsRoundTripFixture {
                 String::from("0"),
                 String::from("Drums"),
             )]),
+            folder_locks: vec![std::path::PathBuf::from("samples/locked")],
             audio_output: AudioOutputConfig {
                 host: Some("coreaudio".into()),
                 device: Some("Test Interface".into()),

@@ -102,6 +102,8 @@ fn default_gui_removes_context_source_from_app_config() {
             path: source_root.path().to_path_buf(),
             source_id: Some(source_root.path().to_string_lossy().to_string()),
             source_removable: true,
+            folder_locked: false,
+            folder_lock_inherited: false,
             metadata_tag: None,
             collection: None,
             anchor: Point::new(12.0, 24.0),

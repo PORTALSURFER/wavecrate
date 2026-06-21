@@ -32,6 +32,12 @@ impl FolderBrowserState {
             .ok_or_else(|| String::from("Folder move failed: target folder is missing"))?;
         let old_path = PathBuf::from(&source_folder.id);
         let target_path = PathBuf::from(&target_folder.id);
+        if let Some(error) = self.folder_change_lock_error(&old_path, "Folder move") {
+            return Err(error);
+        }
+        if let Some(error) = self.folder_target_lock_error(&target_path, "Folder move") {
+            return Err(error);
+        }
         if target_path.starts_with(&old_path) {
             return Err(String::from(
                 "Folder move failed: cannot move a folder into itself",
@@ -72,9 +78,18 @@ impl FolderBrowserState {
             .ok_or_else(|| String::from("File move failed: target folder is missing"))?;
         let source_root = self.selected_source_root_for_move("File move failed")?;
         let target_path = PathBuf::from(&target_folder.id);
+        if let Some(error) = self.folder_target_lock_error(&target_path, "File move") {
+            return Err(error);
+        }
         let moving_file_ids = self
             .source_file_ids_for_move(file_ids, &target_path)
             .collect::<Vec<_>>();
+        if let Some(error) = moving_file_ids
+            .iter()
+            .find_map(|id| self.file_change_lock_error(Path::new(id), "File move"))
+        {
+            return Err(error);
+        }
         if moving_file_ids.is_empty() {
             return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),
@@ -141,6 +156,9 @@ impl FolderBrowserState {
             .ok_or_else(|| String::from("Extraction move failed: target folder is missing"))?;
         let source_root = self.selected_source_root_for_move("Extraction move failed")?;
         let target_path = PathBuf::from(&target_folder.id);
+        if let Some(error) = self.folder_target_lock_error(&target_path, "Extraction move") {
+            return Err(error);
+        }
         if path.parent() == Some(target_path.as_path()) {
             return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),

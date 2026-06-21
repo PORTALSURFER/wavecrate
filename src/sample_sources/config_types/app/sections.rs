@@ -67,6 +67,9 @@ pub(super) struct LibrarySettings {
     /// User-authored collection labels, keyed by fixed collection index.
     #[serde(default)]
     pub(super) collection_names: BTreeMap<String, String>,
+    /// Folder roots protected from Wavecrate file mutations.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) folder_locks: Vec<PathBuf>,
 }
 
 /// Audio IO, write-format, and playback-volume settings.

@@ -26,6 +26,18 @@ const FOLDER_TREE_EMPTY_LABEL: ui::Rgba8 = ui::Rgba8 {
 };
 const FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA: u8 = 245;
 const FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH: f32 = 3.0;
+const FOLDER_LOCK_ICON_COLOR: ui::Rgba8 = ui::Rgba8 {
+    r: 232,
+    g: 221,
+    b: 190,
+    a: 235,
+};
+const FOLDER_LOCK_INHERITED_ICON_COLOR: ui::Rgba8 = ui::Rgba8 {
+    r: 158,
+    g: 164,
+    b: 172,
+    a: 220,
+};
 
 mod status;
 use status::selected_folder_status;
@@ -125,6 +137,11 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
 
     let row = if let Some(label_color) = folder_tree_label_color(folder) {
         row.label_color(label_color)
+    } else {
+        row
+    };
+    let row = if folder.locked {
+        row.trailing_icon(folder_lock_icon(folder.lock_inherited))
     } else {
         row
     };
@@ -236,6 +253,23 @@ fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {
             .with_alpha(FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA),
     )
 }
+
+fn folder_lock_icon(inherited: bool) -> ui::SvgIcon {
+    let color = if inherited {
+        FOLDER_LOCK_INHERITED_ICON_COLOR
+    } else {
+        FOLDER_LOCK_ICON_COLOR
+    };
+    FOLDER_LOCK_ICON.icon(color)
+}
+
+static FOLDER_LOCK_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4.1 7.1V5.6C4.1 3.45 5.65 2 8 2s3.9 1.45 3.9 3.6v1.5" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+  <rect x="3" y="6.75" width="10" height="7" rx="1.2" fill="currentColor"/>
+  <rect x="7.3" y="9" width="1.4" height="2.7" rx=".55" fill="rgb(24,24,24)"/>
+</svg>"#,
+);
 
 fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
     folders
@@ -403,6 +437,8 @@ mod tests {
             is_source_root: false,
             has_children: false,
             empty,
+            locked: false,
+            lock_inherited: false,
             expanded: false,
             selected: false,
             focused: false,

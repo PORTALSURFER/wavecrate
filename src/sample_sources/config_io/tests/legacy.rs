@@ -108,6 +108,7 @@ fn write_legacy_config(path: &std::path::Path, source_path: &str) {
             controls: InteractionOptions::default(),
             similarity: Default::default(),
             collection_names: Default::default(),
+            folder_locks: Vec::new(),
             default_identifier: String::from("legacy"),
             tag_dictionary: Default::default(),
         },

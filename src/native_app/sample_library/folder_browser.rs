@@ -84,6 +84,7 @@ pub(in crate::native_app) use state::FolderBrowserState;
 
 mod tree_state;
 use tree_state::FolderTreeState;
+mod folder_locks;
 
 mod delete_types;
 mod tree_view_window;

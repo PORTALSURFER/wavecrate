@@ -21,13 +21,24 @@ impl FolderBrowserState {
                 !self.selected_folder_is_source_root_id(folder_id)
                     && source.id != target.id
                     && !target_path.starts_with(source_path)
+                    && !self.folder_tree_change_is_locked(source_path)
+                    && !self.folder_path_is_locked(target_path)
             }
-            Some(FolderBrowserDrag::Files { file_ids, .. }) => file_ids.iter().any(|id| {
-                let path = Path::new(id);
-                self.source_contains_audio_file(id) && path.parent() != Some(target_path)
-            }),
-            Some(FolderBrowserDrag::ExtractedFile { path }) => path.parent() != Some(target_path),
-            Some(FolderBrowserDrag::WaveformExtraction { .. }) => true,
+            Some(FolderBrowserDrag::Files { file_ids, .. }) => {
+                !self.folder_path_is_locked(target_path)
+                    && file_ids.iter().any(|id| {
+                        let path = Path::new(id);
+                        self.source_contains_audio_file(id)
+                            && path.parent() != Some(target_path)
+                            && !self.file_path_is_locked(path)
+                    })
+            }
+            Some(FolderBrowserDrag::ExtractedFile { path }) => {
+                path.parent() != Some(target_path) && !self.folder_path_is_locked(target_path)
+            }
+            Some(FolderBrowserDrag::WaveformExtraction { .. }) => {
+                !self.folder_path_is_locked(target_path)
+            }
             None => false,
         }
     }

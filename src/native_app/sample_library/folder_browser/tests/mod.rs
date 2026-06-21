@@ -39,6 +39,7 @@ mod file_selection_queries;
 mod filesystem_refresh;
 mod folder_drag_drop;
 mod folder_editing;
+mod folder_locks;
 mod folder_tree;
 mod panel_layout;
 mod random_navigation;

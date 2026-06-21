@@ -43,6 +43,22 @@ impl NativeAppState {
         }
 
         let parent = menu.path;
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_target_lock_error(&parent, "New folder")
+        {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "folder_browser.context_menu.new_folder",
+                Some("folder_browser"),
+                Some(target_label(&parent).as_str()),
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
         if let Some(source_id) = menu.source_id {
             self.select_source(source_id, context);
         }

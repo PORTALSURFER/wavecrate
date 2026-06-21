@@ -100,6 +100,9 @@ impl FolderBrowserState {
         };
         let parent_id = parent.id.clone();
         let parent_path = PathBuf::from(&parent.id);
+        if let Some(error) = self.folder_target_lock_error(&parent_path, "New folder") {
+            return Err(error);
+        }
         let draft = next_available_child_folder_name(&parent);
         let folder_path = parent_path.join(&draft);
         let folder_id = path_id(&folder_path);
@@ -317,6 +320,9 @@ impl FolderBrowserState {
             ));
         }
         let old_path = PathBuf::from(&edit.folder_id);
+        if let Some(error) = self.folder_change_lock_error(&old_path, "Folder rename") {
+            return Err(RenameCommitResult::status(error));
+        }
         let Some(parent) = old_path.parent() else {
             return Err(RenameCommitResult::status(
                 "Folder rename failed: selected folder has no parent",
@@ -347,6 +353,10 @@ impl FolderBrowserState {
             ));
         }
         let parent_path = PathBuf::from(&parent_id);
+        if let Some(error) = self.folder_target_lock_error(&parent_path, "New folder") {
+            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
+            return Err(RenameCommitResult::status(error));
+        }
         let new_path = parent_path.join(new_name);
         Ok(RenameCommitRequest::FolderCreate {
             parent_id,

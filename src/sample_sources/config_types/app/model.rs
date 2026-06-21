@@ -27,7 +27,7 @@ use super::{
 /// Config keys (TOML): `feature_flags`, `analysis`, `updates`, `app_data_dir`,
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
 /// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
-/// `collection_names`,
+/// `collection_names`, `folder_locks`,
 /// `volume`, `audio_output`, `audio_input`, `audio_write_format`, `controls`,
 /// `job_message_queue_capacity`, `default_identifier`, `tag_dictionary`,
 /// `similarity`.
@@ -105,6 +105,8 @@ pub struct AppSettingsCore {
     pub active_folder_pane: Option<String>,
     /// User-authored collection labels, keyed by fixed collection index.
     pub collection_names: BTreeMap<String, String>,
+    /// Folder roots protected from Wavecrate file mutations.
+    pub folder_locks: Vec<PathBuf>,
     /// Output audio configuration.
     pub audio_output: AudioOutputConfig,
     /// Input audio configuration.
@@ -151,6 +153,7 @@ impl Default for AppSettingsCore {
             lower_folder_pane_source: None,
             active_folder_pane: None,
             collection_names: BTreeMap::new(),
+            folder_locks: Vec::new(),
             audio_output: default_audio_output(),
             audio_input: default_audio_input(),
             audio_write_format: AudioWriteFormatConfig::default(),

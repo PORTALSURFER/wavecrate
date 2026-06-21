@@ -183,10 +183,13 @@ impl FolderBrowserState {
                 "Extraction drop failed: target folder is missing",
             ));
         };
+        let target_path = PathBuf::from(&target_folder.id);
+        if let Some(error) = self.folder_target_lock_error(&target_path, "Extraction drop") {
+            self.clear_drag_after_take();
+            return Err(error);
+        }
         self.clear_drag_after_take();
-        Ok(Some(
-            request.with_target_folder(PathBuf::from(target_folder.id)),
-        ))
+        Ok(Some(request.with_target_folder(target_path)))
     }
 
     fn clear_drag_after_take(&mut self) {

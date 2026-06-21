@@ -128,6 +128,22 @@ impl NativeAppState {
             );
             return;
         };
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_target_lock_error(&target_folder, "External drop")
+        {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "waveform.external_file_drop",
+                Some("waveform"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
         self.ui.status.sample = format!("Copying {}", file_name_or_path(&path));
         let source = path.clone();
         context

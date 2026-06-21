@@ -3,8 +3,8 @@ use std::{path::PathBuf, time::Instant};
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    FileMoveConflictResolutionRequest, FileMoveProgress, GuiMessage, NativeAppState,
-    emit_gui_action,
+    FileMoveConflictResolution, FileMoveConflictResolutionRequest, FileMoveProgress, GuiMessage,
+    NativeAppState, emit_gui_action,
 };
 use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FolderDropResult, FolderMoveCompletion, FolderMoveDropInput,
@@ -94,6 +94,34 @@ impl NativeAppState {
         self.ui
             .browser_interaction
             .file_move_conflict_apply_to_remaining = false;
+        if request.resolution != FileMoveConflictResolution::Skip
+            && let Some(view) = self
+                .library
+                .folder_browser
+                .pending_file_move_conflict_view()
+        {
+            let target_error = view.destination_path.parent().and_then(|target| {
+                self.library
+                    .folder_browser
+                    .folder_target_lock_error(target, "File conflict")
+            });
+            let source_error = self
+                .library
+                .folder_browser
+                .file_change_lock_error(&view.source_path, "File conflict");
+            if let Some(error) = source_error.or(target_error) {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.drag_drop.conflict",
+                    Some("browser"),
+                    None,
+                    "blocked",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        }
         let Some(batch) = self.library.folder_browser.take_file_move_conflict_batch() else {
             self.finish_file_move_conflict_result(
                 started_at,

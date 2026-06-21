@@ -182,6 +182,13 @@ impl NativeAppState {
             .folder_browser
             .sample_source_for_file_path(&absolute_path)
             .ok_or_else(|| String::from("Loaded sample is not inside a configured source"))?;
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .file_change_lock_error(&absolute_path, kind.action_label())
+        {
+            return Err(error);
+        }
         validate_destructive_edit_target(&absolute_path)?;
         Ok(PendingWaveformDestructiveEdit {
             prompt: destructive_edit_prompt(kind, &self.ui.settings.persisted.audio_write_format),
@@ -197,6 +204,13 @@ impl NativeAppState {
         request: &PendingWaveformDestructiveEdit,
         _context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> Result<(), String> {
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .file_change_lock_error(&request.absolute_path, request.prompt.edit.action_label())
+        {
+            return Err(error);
+        }
         let before_selected_path = self
             .library
             .folder_browser
@@ -354,6 +368,14 @@ impl TransactionContext<'_> {
         backup_path: &Path,
         applied: &AppliedWaveformEdit,
     ) -> Result<(), String> {
+        if let Some(error) = self
+            .state
+            .library
+            .folder_browser
+            .file_change_lock_error(&applied.absolute_path, "Undo")
+        {
+            return Err(error);
+        }
         fs::copy(backup_path, &applied.absolute_path)
             .map_err(|err| format!("Failed to restore waveform file: {err}"))?;
         sync_source_entry(

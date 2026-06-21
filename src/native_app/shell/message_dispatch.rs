@@ -99,6 +99,7 @@ impl NativeAppState {
             | GuiMessage::RenameContextFolder
             | GuiMessage::ContextFolderCreateFinished { .. }
             | GuiMessage::MoveContextTargetToTrash
+            | GuiMessage::ToggleContextFolderLock
             | GuiMessage::RequestDeleteContextFolder
             | GuiMessage::ConfirmContextFolderDelete
             | GuiMessage::CancelContextFolderDelete

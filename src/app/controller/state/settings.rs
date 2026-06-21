@@ -21,6 +21,7 @@ pub(crate) struct AppSettingsState {
     pub(crate) trash_folder: Option<PathBuf>,
     pub(crate) drop_targets: Vec<DropTargetConfig>,
     pub(crate) collection_names: BTreeMap<String, String>,
+    pub(crate) folder_locks: Vec<PathBuf>,
     /// Global creator or artist identifier used by sample auto-rename.
     pub(crate) default_identifier: String,
     pub(crate) tag_dictionary: BTreeMap<String, String>,
@@ -43,6 +44,7 @@ impl AppSettingsState {
             trash_folder: None,
             drop_targets: Vec::new(),
             collection_names: BTreeMap::new(),
+            folder_locks: Vec::new(),
             default_identifier: String::from("portal"),
             tag_dictionary: BTreeMap::new(),
         }

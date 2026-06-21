@@ -84,6 +84,8 @@ struct AppSettingsCoreWire {
     #[serde(default)]
     collection_names: Option<BTreeMap<String, String>>,
     #[serde(default)]
+    folder_locks: Option<Vec<PathBuf>>,
+    #[serde(default)]
     audio_output: Option<AudioOutputConfig>,
     #[serde(default)]
     audio_input: Option<AudioInputConfig>,
@@ -126,6 +128,7 @@ impl AppSettingsCoreWire {
             collection_names: self
                 .collection_names
                 .unwrap_or(self.library.collection_names),
+            folder_locks: self.folder_locks.unwrap_or(self.library.folder_locks),
             audio_output: self.audio_output.unwrap_or(self.audio.output),
             audio_input: self.audio_input.unwrap_or(self.audio.input),
             audio_write_format: self.audio_write_format.unwrap_or(self.audio.write_format),
@@ -163,6 +166,7 @@ impl Serialize for AppSettingsCore {
                 lower_folder_pane_source: self.lower_folder_pane_source.clone(),
                 active_folder_pane: self.active_folder_pane.clone(),
                 collection_names: self.collection_names.clone(),
+                folder_locks: self.folder_locks.clone(),
             },
             audio: AudioSettings {
                 output: self.audio_output.clone(),

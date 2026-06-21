@@ -6,6 +6,66 @@ use crate::native_app::sample_library::context_menu_target as context_menu;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 
 impl NativeAppState {
+    pub(in crate::native_app) fn toggle_context_folder_lock(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Folder {
+            self.ui.status.sample = String::from("Choose a folder to lock");
+            emit_gui_action(
+                "browser.context_menu.folder.lock",
+                Some("folder_browser"),
+                None,
+                "blocked",
+                started_at,
+                Some("unsupported target"),
+            );
+            return;
+        }
+
+        let folder_id = menu.path.to_string_lossy().to_string();
+        match self.library.folder_browser.toggle_folder_lock(&folder_id) {
+            Ok(true) => {
+                let label = context_menu::target_label(&menu.path);
+                self.ui.status.sample = format!("Locked folder {label}");
+                self.persist_user_configuration("folder_browser.folder.lock.persist", started_at);
+                emit_gui_action(
+                    "browser.context_menu.folder.lock",
+                    Some("folder_browser"),
+                    Some(label.as_str()),
+                    "locked",
+                    started_at,
+                    None,
+                );
+            }
+            Ok(false) => {
+                let label = context_menu::target_label(&menu.path);
+                self.ui.status.sample = format!("Unlocked folder {label}");
+                self.persist_user_configuration("folder_browser.folder.lock.persist", started_at);
+                emit_gui_action(
+                    "browser.context_menu.folder.lock",
+                    Some("folder_browser"),
+                    Some(label.as_str()),
+                    "unlocked",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.context_menu.folder.lock",
+                    Some("folder_browser"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
     pub(in crate::native_app) fn remove_context_source(&mut self) {
         let started_at = Instant::now();
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {

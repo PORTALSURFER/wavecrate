@@ -50,6 +50,9 @@ impl FolderBrowserState {
             ));
         };
         let old_path = PathBuf::from(&edit.file_id);
+        if let Some(error) = self.file_change_lock_error(&old_path, "File rename") {
+            return RenameInputResult::Status(RenameCommitResult::status(error));
+        }
         let Some(parent) = old_path.parent() else {
             return RenameInputResult::Status(RenameCommitResult::status(
                 "File rename failed: selected file has no parent",

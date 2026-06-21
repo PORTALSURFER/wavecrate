@@ -135,6 +135,22 @@ impl NativeAppState {
             .play_selection_extraction_request(None)
         {
             Ok(request) => {
+                if let Some(error) = self
+                    .library
+                    .folder_browser
+                    .file_change_lock_error(request.source_path(), "Extraction")
+                {
+                    self.ui.status.sample = error.clone();
+                    emit_gui_action(
+                        "waveform.extract_playmarked_range",
+                        Some("waveform"),
+                        None,
+                        "blocked",
+                        started_at,
+                        Some(&error),
+                    );
+                    return;
+                }
                 self.ui.status.sample = String::from("Extracting play range");
                 context.business().background("gui-waveform-extract").run(
                     move |_| execute_waveform_extraction(request),

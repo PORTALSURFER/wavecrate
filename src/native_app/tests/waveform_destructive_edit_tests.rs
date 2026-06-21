@@ -109,6 +109,38 @@ fn crop_request_uses_play_selection_when_no_edit_selection_exists() {
 }
 
 #[test]
+fn destructive_edit_request_blocks_locked_folder() {
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("locked-crop.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current = crate::native_app::test_support::state::WaveformState::load_path(path)
+        .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+    let source_root_id = source_root.path().to_string_lossy();
+    state
+        .library
+        .folder_browser
+        .toggle_folder_lock(source_root_id.as_ref())
+        .expect("lock source root");
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+
+    state.apply_message(
+        GuiMessage::RequestCropWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_waveform_destructive_edit
+            .is_none()
+    );
+    assert!(state.ui.status.sample.contains("blocked by locked folder"));
+}
+
+#[test]
 fn trim_request_uses_play_selection_when_no_edit_selection_exists() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("trim.wav");
     let path = PathBuf::from(&selected_file);

@@ -115,7 +115,10 @@ fn collection_file_drag_drop_moves_file_to_folder_and_preserves_collection_membe
             .collect::<Vec<_>>(),
         vec!["kick.wav", "snare.wav"]
     );
-    assert_eq!(browser.selected_file_id(), Some(path_id(&moved_kick).as_str()));
+    assert_eq!(
+        browser.selected_file_id(),
+        Some(path_id(&moved_kick).as_str())
+    );
     let _ = fs::remove_dir_all(root);
 }
 

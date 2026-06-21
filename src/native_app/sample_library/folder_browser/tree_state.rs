@@ -9,6 +9,7 @@ use std::collections::HashSet;
 pub(super) struct FolderTreeState {
     pub(super) folders: Vec<FolderEntry>,
     pub(super) expanded_folders: HashSet<String>,
+    pub(super) locked_folders: HashSet<String>,
     pub(super) show_empty_folders: bool,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
@@ -20,6 +21,7 @@ impl FolderTreeState {
         Self {
             folders: vec![root_folder],
             expanded_folders: [root_id].into_iter().collect(),
+            locked_folders: HashSet::new(),
             show_empty_folders: false,
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
@@ -285,6 +287,8 @@ impl FolderBrowserState {
             is_source_root,
             has_children: has_visible_children,
             empty: !folder.contains_audio(),
+            locked: self.folder_effectively_locked(&folder.id),
+            lock_inherited: self.folder_lock_inherited(&folder.id),
             expanded: is_source_root || self.is_expanded(&folder.id),
             selected: self.selection.selected_collection.is_none()
                 && self.selection.selected_folder_ids_contains(&folder.id),

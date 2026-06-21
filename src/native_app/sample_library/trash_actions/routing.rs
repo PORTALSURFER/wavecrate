@@ -67,6 +67,22 @@ impl NativeAppState {
             );
             return;
         }
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_change_lock_error(&menu.path, "Folder delete")
+        {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "browser.context_menu.folder.delete",
+                Some("folder_browser"),
+                Some(sample_path_label(&menu.path).as_str()),
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
         let name = sample_path_label(&menu.path);
         self.ui.browser_interaction.pending_folder_delete = Some(PendingFolderDelete {
             path: menu.path,
@@ -143,6 +159,22 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_change_lock_error(&path, "Folder trash")
+        {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                action,
+                Some("folder_browser"),
+                Some(sample_path_label(&path).as_str()),
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
         self.ui.status.sample = format!("Moving {} to trash", sample_path_label(&path));
         context.business().blocking_io("gui-trash-move").run(
@@ -347,6 +379,22 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
+        if let Some(error) = paths.iter().find_map(|path| {
+            self.library
+                .folder_browser
+                .file_change_lock_error(path, "File trash")
+        }) {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                action,
+                Some("browser"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
         let trash_folder = self.ui.settings.persisted.trash_folder.clone();
         self.ui.status.sample = trash_move_started_status(paths.len(), action);
         context.business().blocking_io("gui-trash-move").run(

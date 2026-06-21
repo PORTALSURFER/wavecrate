@@ -7,6 +7,8 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         path: PathBuf::from("Documents"),
         source_id: None,
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -35,6 +37,8 @@ fn folder_context_menu_outside_click_closes_menu() {
         path: PathBuf::from("Documents"),
         source_id: None,
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -87,6 +91,8 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         path: PathBuf::from("C:\\Samples"),
         source_id: Some(String::from("source_id::samples")),
         source_removable: true,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -109,6 +115,8 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
         path: PathBuf::from("C:\\Wavecrate\\assets"),
         source_id: Some(String::from("assets")),
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -203,6 +211,8 @@ fn folder_context_menu_paints_new_folder_action() {
         path: PathBuf::from("C:\\Samples\\Drums"),
         source_id: None,
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -213,6 +223,7 @@ fn folder_context_menu_paints_new_folder_action() {
 
     assert!(frame.paint_plan.contains_text("New Folder"));
     assert!(frame.paint_plan.contains_text("Rename Folder"));
+    assert!(frame.paint_plan.contains_text("Lock Folder"));
     assert!(frame.paint_plan.contains_text("Delete Folder"));
 }
 
@@ -223,6 +234,8 @@ fn folder_context_menu_commands_share_neutral_style() {
         path: PathBuf::from("C:\\Samples\\Drums"),
         source_id: None,
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: None,
         anchor: Point::new(72.0, 142.0),
@@ -236,6 +249,7 @@ fn folder_context_menu_commands_share_neutral_style() {
         "Copy Path",
         "New Folder",
         "Rename Folder",
+        "Lock Folder",
         "Delete Folder",
     ];
     let expected_color = frame
@@ -311,6 +325,8 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
         path: PathBuf::from("C:\\Samples\\kick.wav"),
         source_id: None,
         source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
         metadata_tag: None,
         collection: wavecrate::sample_sources::SampleCollection::new(0),
         anchor: Point::new(72.0, 142.0),
@@ -336,6 +352,7 @@ fn folder_context_menu_open_does_not_toggle_folder_expansion() {
     ));
     let parent = root.join("drums");
     fs::create_dir_all(parent.join("kicks")).expect("create nested folder");
+    fs::write(parent.join("kicks").join("kick.wav"), [0_u8; 8]).expect("write test audio");
 
     let mut state = gui_state_for_span_tests();
     let request = state

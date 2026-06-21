@@ -35,6 +35,8 @@ impl NativeAppState {
             path,
             source_id: Some(source_id),
             source_removable,
+            folder_locked: false,
+            folder_lock_inherited: false,
             metadata_tag: None,
             collection: None,
             anchor: position,
@@ -75,6 +77,14 @@ impl NativeAppState {
         self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Folder,
             title: context_menu_title(&path),
+            folder_locked: self
+                .library
+                .folder_browser
+                .folder_exactly_locked(&folder_id),
+            folder_lock_inherited: self
+                .library
+                .folder_browser
+                .folder_lock_inherited(&folder_id),
             path,
             source_id: None,
             source_removable: false,
@@ -127,6 +137,8 @@ impl NativeAppState {
             path,
             source_id: None,
             source_removable: false,
+            folder_locked: false,
+            folder_lock_inherited: false,
             metadata_tag: None,
             collection,
             anchor: position,
@@ -143,6 +155,8 @@ impl NativeAppState {
             path: Path::new("").to_path_buf(),
             source_id: None,
             source_removable: false,
+            folder_locked: false,
+            folder_lock_inherited: false,
             metadata_tag: Some(tag.clone()),
             collection: None,
             anchor: position,

@@ -24,6 +24,7 @@ impl NativeAppState {
             .map_err(|err| format!("load app configuration: {err}"))?;
         let has_configured_sources = !config.sources.is_empty();
         let mut folder_browser = FolderBrowserState::from_sample_sources_deferred(&config.sources);
+        folder_browser.set_locked_folder_paths(&config.core.folder_locks);
         folder_browser.apply_collection_names(&config.core.collection_names);
         folder_browser.set_similarity_controls(config.core.similarity.clone());
         let startup_source_scan_pending =
@@ -281,6 +282,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             similarity: self.library.folder_browser.similarity_controls().clone(),
             collection_names: self.library.folder_browser.custom_collection_names(),
+            folder_locks: self.library.folder_browser.locked_folder_paths(),
             tag_dictionary: self.metadata.tag_dictionary.clone(),
             ..self.ui.settings.persisted.clone()
         }
