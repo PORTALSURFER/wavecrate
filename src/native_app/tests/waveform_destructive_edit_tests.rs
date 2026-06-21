@@ -172,6 +172,42 @@ fn trim_request_uses_play_selection_when_no_edit_selection_exists() {
 }
 
 #[test]
+fn trim_request_uses_edit_selection_before_play_selection() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("trim-edit.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    state
+        .waveform
+        .current
+        .set_edit_selection_range(wavecrate::selection::SelectionRange::new(0.5, 0.75));
+
+    state.apply_message(
+        GuiMessage::RequestTrimWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .as_ref()
+        .expect("trim request should prompt");
+    assert_eq!(
+        pending.prompt.edit,
+        crate::native_app::app::WaveformDestructiveEditKind::TrimSelection
+    );
+    assert!((pending.selection.start() - 0.5).abs() < 0.001);
+    assert!((pending.selection.end() - 0.75).abs() < 0.001);
+}
+
+#[test]
 fn extract_and_trim_request_uses_play_selection_when_no_edit_selection_exists() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("extract-trim.wav");

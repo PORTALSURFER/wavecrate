@@ -27,11 +27,7 @@ impl WaveformWidget {
         let has_loaded_sample = self.has_loaded_sample();
         if let Some(pointer) = self.active_drag_motion_pointer(&event) {
             self.common.state.hovered = pointer_inside;
-            self.hover_cursor_ratio = None;
-            self.hovered_selection_handle = None;
-            self.hovered_edit_fade_handle = None;
-            self.hovered_edit_fade_outer_gain_handle = None;
-            self.hovered_edit_gain_handle = false;
+            self.clear_waveform_hover();
             if !has_loaded_sample {
                 return None;
             }
@@ -40,19 +36,11 @@ impl WaveformWidget {
         if let Some(pointer) = event.hover_pointer() {
             self.common.state.hovered = pointer_inside;
             if !has_loaded_sample {
-                self.hover_cursor_ratio = None;
-                self.hovered_selection_handle = None;
-                self.hovered_edit_fade_handle = None;
-                self.hovered_edit_fade_outer_gain_handle = None;
-                self.hovered_edit_gain_handle = false;
+                self.clear_waveform_hover();
                 return None;
             }
             if !pointer_inside {
-                self.hover_cursor_ratio = None;
-                self.hovered_selection_handle = None;
-                self.hovered_edit_fade_handle = None;
-                self.hovered_edit_fade_outer_gain_handle = None;
-                self.hovered_edit_gain_handle = false;
+                self.clear_waveform_hover();
                 return None;
             }
             self.hovered_edit_fade_outer_gain_handle =
@@ -61,6 +49,7 @@ impl WaveformWidget {
                 self.hovered_edit_fade_handle = None;
                 self.hovered_selection_handle = None;
                 self.hovered_edit_gain_handle = false;
+                self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
                 return None;
             }
@@ -69,6 +58,7 @@ impl WaveformWidget {
                 self.hovered_edit_fade_outer_gain_handle = None;
                 self.hovered_selection_handle = None;
                 self.hovered_edit_gain_handle = false;
+                self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
                 return None;
             }
@@ -76,12 +66,22 @@ impl WaveformWidget {
             if self.hovered_edit_gain_handle {
                 self.hovered_edit_fade_outer_gain_handle = None;
                 self.hovered_selection_handle = None;
+                self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
                 return None;
             }
             self.hovered_selection_handle =
                 self.selection_handle_hover_at(bounds, pointer.position);
             if self.hovered_selection_handle.is_some() {
+                self.hovered_similar_section = None;
+                self.hover_cursor_ratio = None;
+                return None;
+            }
+            self.hovered_similar_section = self.similar_section_at(bounds, pointer.position);
+            if self.hovered_similar_section.is_some() {
+                self.hovered_edit_fade_outer_gain_handle = None;
+                self.hovered_edit_fade_handle = None;
+                self.hovered_edit_gain_handle = false;
                 self.hover_cursor_ratio = None;
                 return None;
             }
@@ -188,6 +188,15 @@ impl WaveformWidget {
         }
     }
 
+    fn clear_waveform_hover(&mut self) {
+        self.hover_cursor_ratio = None;
+        self.hovered_selection_handle = None;
+        self.hovered_edit_fade_handle = None;
+        self.hovered_edit_fade_outer_gain_handle = None;
+        self.hovered_edit_gain_handle = false;
+        self.hovered_similar_section = None;
+    }
+
     fn active_drag_motion_output(
         &self,
         event: &CanvasGestureEvent,
@@ -230,11 +239,7 @@ impl WaveformWidget {
     ) -> Option<WidgetOutput> {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
-        self.hover_cursor_ratio = None;
-        self.hovered_selection_handle = None;
-        self.hovered_edit_fade_handle = None;
-        self.hovered_edit_fade_outer_gain_handle = None;
-        self.hovered_edit_gain_handle = false;
+        self.clear_waveform_hover();
         if self.play_selection_export_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::started(position)),
@@ -297,6 +302,11 @@ impl WaveformWidget {
                 },
             ));
         }
+        if let Some(selection) = self.similar_section_at(bounds, position) {
+            return Some(WidgetOutput::typed(
+                WaveformInteraction::SelectSimilarSection { selection },
+            ));
+        }
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
             visible_ratio,
@@ -327,11 +337,7 @@ impl WaveformWidget {
     ) -> Option<WidgetOutput> {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
-        self.hover_cursor_ratio = None;
-        self.hovered_selection_handle = None;
-        self.hovered_edit_fade_handle = None;
-        self.hovered_edit_fade_outer_gain_handle = None;
-        self.hovered_edit_gain_handle = false;
+        self.clear_waveform_hover();
         if let Some(handle) = self.edit_fade_outer_gain_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginEditFadeOuterGain {
@@ -368,6 +374,11 @@ impl WaveformWidget {
                     kind: WaveformSelectionKind::Edit,
                     visible_ratio,
                 },
+            ));
+        }
+        if let Some(selection) = self.similar_section_at(bounds, position) {
+            return Some(WidgetOutput::typed(
+                WaveformInteraction::SelectSimilarSection { selection },
             ));
         }
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {

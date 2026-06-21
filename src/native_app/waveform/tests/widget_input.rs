@@ -245,6 +245,53 @@ fn pointer_move_updates_hover_cursor_locally_without_host_message() {
 }
 
 #[test]
+fn pointer_move_over_similar_section_uses_region_hover_instead_of_cursor() {
+    let mut state = WaveformState::synthetic_for_tests();
+    let similar = wavecrate::selection::SelectionRange::new(0.2, 0.6);
+    state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+    state.finish_similar_sections_scan(vec![similar]);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 40.0)));
+
+    assert!(output.is_none());
+    assert!(widget.common.is_hovered());
+    assert_eq!(widget.hovered_similar_section, Some(similar));
+    assert_eq!(widget.hover_cursor_ratio, None);
+}
+
+#[test]
+fn pressing_similar_section_selects_it_as_flashing_edit_selection() {
+    for button in [PointerButton::Primary, PointerButton::Secondary] {
+        let mut state = WaveformState::synthetic_for_tests();
+        let similar = wavecrate::selection::SelectionRange::new(0.2, 0.6);
+        state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+        state.finish_similar_sections_scan(vec![similar]);
+        let mut widget = waveform_widget_for_state(&state);
+        let bounds = Rect::from_size(200.0, 80.0);
+
+        let interaction = widget
+            .handle_input(
+                bounds,
+                WidgetInput::pointer_press(Point::new(80.0, 40.0), button, Default::default()),
+            )
+            .expect("similar section press should select the region")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::SelectSimilarSection { selection: similar }
+        );
+        state.apply_interaction(interaction);
+        assert_eq!(state.edit_selection(), Some(similar));
+        assert!(state.edit_selection_flash_frames() > 0);
+        assert_eq!(state.similar_section_ranges(), &[similar]);
+    }
+}
+
+#[test]
 fn secondary_press_emits_edit_selection_begin_ratio() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);

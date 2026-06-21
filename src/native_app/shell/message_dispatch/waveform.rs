@@ -72,6 +72,7 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::ClearEditFadeSilence { .. } => {
             Some("waveform.edit_fade.clear_silence")
         }
+        WaveformInteraction::SelectSimilarSection { .. } => Some("waveform.similar_section.select"),
         WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
         WaveformInteraction::BeginSelectionMove { .. } => Some("waveform.selection.move_begin"),
         WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),

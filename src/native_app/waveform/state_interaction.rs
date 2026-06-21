@@ -95,6 +95,11 @@ impl WaveformState {
                 self.clear_edit_fade_silence(handle);
                 self.active_drag = None;
             }
+            WaveformInteraction::SelectSimilarSection { selection } => {
+                self.active_drag = None;
+                self.set_edit_selection_range(selection);
+                self.flash_edit_selection();
+            }
             WaveformInteraction::BeginSelectionResize {
                 kind,
                 edge,

@@ -95,6 +95,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     hovered_edit_fade_handle: Option<WaveformEditFadeHandle>,
     hovered_edit_fade_outer_gain_handle: Option<WaveformEditFadeOuterGainHandle>,
     hovered_edit_gain_handle: bool,
+    hovered_similar_section: Option<wavecrate::selection::SelectionRange>,
     extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     similar_section_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
@@ -124,6 +125,7 @@ impl WaveformWidgetProps {
             hovered_edit_fade_handle: None,
             hovered_edit_fade_outer_gain_handle: None,
             hovered_edit_gain_handle: false,
+            hovered_similar_section: None,
             extracted_ranges: state.extracted_ranges().to_vec(),
             similar_section_ranges: state.similar_section_ranges().to_vec(),
             play_selection_flash_frames: state.play_selection_flash_frames(),
@@ -152,6 +154,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) hovered_edit_fade_handle: Option<WaveformEditFadeHandle>,
     pub(super) hovered_edit_fade_outer_gain_handle: Option<WaveformEditFadeOuterGainHandle>,
     pub(super) hovered_edit_gain_handle: bool,
+    pub(super) hovered_similar_section: Option<wavecrate::selection::SelectionRange>,
     pub(super) extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) similar_section_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) play_selection_flash_frames: u8,
@@ -178,6 +181,7 @@ impl WaveformWidget {
             hovered_edit_fade_handle,
             hovered_edit_fade_outer_gain_handle,
             hovered_edit_gain_handle,
+            hovered_similar_section,
             extracted_ranges,
             similar_section_ranges,
             play_selection_flash_frames,
@@ -208,6 +212,7 @@ impl WaveformWidget {
             hovered_edit_fade_handle,
             hovered_edit_fade_outer_gain_handle,
             hovered_edit_gain_handle,
+            hovered_similar_section,
             extracted_ranges,
             similar_section_ranges,
             play_selection_flash_frames,
@@ -271,6 +276,7 @@ impl Widget for WaveformWidget {
         self.append_hover_edit_fade_handle_paint(primitives, bounds);
         self.append_hover_edit_fade_outer_gain_handle_paint(primitives, bounds);
         self.append_hover_selection_handle_paint(primitives, bounds);
+        self.append_hover_similar_section_paint(primitives, bounds);
         self.append_hover_cursor_paint(primitives, bounds);
     }
 }

@@ -40,6 +40,9 @@ pub(in crate::native_app) enum WaveformInteraction {
     ClearEditFadeSilence {
         handle: WaveformEditFadeHandle,
     },
+    SelectSimilarSection {
+        selection: wavecrate::selection::SelectionRange,
+    },
     BeginSelectionResize {
         kind: WaveformSelectionKind,
         edge: WaveformSelectionEdge,

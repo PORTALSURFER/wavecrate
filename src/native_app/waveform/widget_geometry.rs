@@ -6,6 +6,7 @@ use radiant::gui::visualization::{
 };
 
 use super::{WaveformSelectionEdge, WaveformSelectionKind, widget::WaveformWidget};
+use wavecrate::selection::SelectionRange;
 
 pub(super) const SELECTION_MOVE_HANDLE_HEIGHT: f32 = 7.0;
 pub(super) const SELECTION_MOVE_HANDLE_END_INSET: f32 = 9.0;
@@ -30,6 +31,21 @@ impl WaveformWidget {
     ) -> Option<WaveformSelectionHandleHover> {
         self.play_selection_handle_hover_at(bounds, position)
             .or_else(|| self.edit_selection_handle_hover_at(bounds, position))
+    }
+
+    pub(super) fn similar_section_at(
+        &self,
+        bounds: Rect,
+        position: Point,
+    ) -> Option<SelectionRange> {
+        self.similar_section_ranges
+            .iter()
+            .rev()
+            .copied()
+            .find(|range| {
+                self.selection_geometry(bounds, Some(*range))
+                    .is_some_and(|geometry| geometry.rect.contains(position))
+            })
     }
 
     pub(super) fn play_selection_export_handle_at(&self, bounds: Rect, position: Point) -> bool {
