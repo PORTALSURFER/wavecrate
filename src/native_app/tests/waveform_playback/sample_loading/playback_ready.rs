@@ -69,6 +69,8 @@ fn playback_ready_message_waits_for_waveform_before_starting_audio() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
     start_deferred_sample_load_for_tests(
         &mut state,
         sample_path_string.clone(),
@@ -153,6 +155,7 @@ fn uncached_sample_load_clears_previous_waveform_until_current_waveform_finishes
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
@@ -204,6 +207,7 @@ fn uncached_sample_load_keeps_playing_waveform_visible_until_replacement_is_read
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),

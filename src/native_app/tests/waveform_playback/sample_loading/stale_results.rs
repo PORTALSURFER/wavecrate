@@ -27,6 +27,8 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
     start_deferred_sample_load_for_tests(&mut state, first_path_string.clone(), true, &mut context);
     let ticket = active_sample_load_ticket(&state).expect("sample load queued");
     state.library.folder_browser.select_file(second_path_string);

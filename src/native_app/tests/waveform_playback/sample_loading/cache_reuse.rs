@@ -24,6 +24,8 @@ fn sample_selection_loads_selected_file_into_waveform() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
     assert_eq!(
         state.waveform.load.label.as_deref(),
         Some(sample_name.as_str())
@@ -78,6 +80,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(
         state
@@ -310,6 +313,7 @@ fn loop_tagged_selection_skips_summary_only_memory_cache() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(
         active_sample_load_ticket(&state).is_some(),
@@ -365,6 +369,7 @@ fn loop_toggle_selection_skips_summary_only_memory_cache_for_untagged_sample() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(
         active_sample_load_ticket(&state).is_some(),
@@ -411,6 +416,7 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(state.waveform.current.path(), sample_path);
     assert_eq!(state.waveform.load.label, None);
@@ -470,6 +476,7 @@ fn memory_cached_load_without_autoplay_stops_current_playback_state() {
 
     let mut context = ui::UiUpdateContext::default();
     state.load_sample_without_autoplay(cached_path_string, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(state.waveform.current.path(), cached_path);
     assert!(!state.waveform.current.is_playing());

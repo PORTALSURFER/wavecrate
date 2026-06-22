@@ -516,6 +516,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "deferred file-drop worker boundary",
         ),
         (
+            "src/native_app/audio/sample_load_actions/validation_worker.rs",
+            "sample load path validation worker",
+        ),
+        (
             "src/native_app/audio/playback_history/worker.rs",
             "last-played persistence worker",
         ),

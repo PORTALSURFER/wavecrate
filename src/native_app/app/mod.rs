@@ -42,7 +42,7 @@ pub(in crate::native_app) use state::{
 
 pub(super) use crate::native_app::app_chrome::scene::view;
 pub(super) use crate::native_app::audio::sample_load_actions::{
-    NormalizedWaveformReload, WaveformPlaybackResume,
+    NormalizedWaveformReload, SampleLoadPathValidation, WaveformPlaybackResume,
 };
 pub(super) use crate::native_app::sample_library::file_actions::sample_path_label;
 pub(super) use crate::native_app::sample_library::folder_browser::FolderBrowserState;

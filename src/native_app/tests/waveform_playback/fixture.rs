@@ -104,6 +104,8 @@ impl WaveformPlaybackScenario {
     }
 
     pub(super) fn start_deferred_load(&mut self, autoplay: bool) {
+        let context = std::mem::take(&mut self.context);
+        run_command_for_tests(&mut self.state, context.into_command());
         let selected_file = self
             .selected_file
             .clone()

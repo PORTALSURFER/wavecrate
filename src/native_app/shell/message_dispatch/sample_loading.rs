@@ -25,6 +25,10 @@ impl NativeAppState {
                     context,
                 );
             }
+            GuiMessage::SampleLoadPathValidated {
+                completion,
+                started_at,
+            } => self.finish_sample_load_path_validation(completion, started_at, context),
             GuiMessage::SampleLoadProgress(key, ticket, progress) => {
                 if self
                     .background

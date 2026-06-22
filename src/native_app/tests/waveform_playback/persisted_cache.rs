@@ -51,6 +51,7 @@ fn sample_selection_starts_foreground_load_for_persisted_cache_row_after_restart
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(
         state
@@ -125,8 +126,8 @@ fn sample_selection_cancels_running_persisted_cache_warm() {
         "foreground selection must cancel the persisted warm token"
     );
     assert!(
-        active_sample_load_ticket(&state).is_some(),
-        "foreground sample load should be queued after cancelling persisted warm work"
+        active_sample_load_validation_ticket(&state).is_some(),
+        "foreground sample validation should be queued after cancelling persisted warm work"
     );
 }
 
@@ -185,6 +186,8 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
 
     assert!(
         state

@@ -638,8 +638,8 @@ fn sample_selection_pauses_running_active_folder_cache_warm_without_hiding_progr
         "foreground selection must request cooperative cancellation for background cache work"
     );
     assert!(
-        active_sample_load_ticket(&state).is_some(),
-        "foreground sample load should be queued after cancelling background warm work"
+        active_sample_load_validation_ticket(&state).is_some(),
+        "foreground sample validation should be queued after cancelling background warm work"
     );
     let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
     assert!(
@@ -1537,6 +1537,8 @@ fn summary_only_persisted_cache_selection_uses_loading_pipeline_after_restart() 
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
 
     assert!(
         state

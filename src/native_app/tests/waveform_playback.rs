@@ -261,6 +261,10 @@ fn active_sample_load_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     state.active_sample_load_task()
 }
 
+fn active_sample_load_validation_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
+    state.background.sample_load_validation_task.active()
+}
+
 fn persisted_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     let key = state.waveform.cache.warm_key.as_ref()?;
     state.waveform.cache.warm_tasks.active(key)

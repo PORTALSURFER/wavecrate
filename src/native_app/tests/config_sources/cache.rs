@@ -207,10 +207,9 @@ fn clicked_missing_cached_file_stays_removed_after_restart() {
     fs::remove_file(&kick).expect("remove sample after cache is written");
     let mut state = NativeAppState::load_default().expect("default state loads persisted cache");
 
-    state.select_sample(
-        kick.display().to_string(),
-        &mut radiant::prelude::UiUpdateContext::default(),
-    );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.select_sample(kick.display().to_string(), &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let mut reloaded = NativeAppState::load_default().expect("default state reloads pruned cache");
     reloaded.library.folder_browser.apply_message(

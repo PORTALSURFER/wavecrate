@@ -11,8 +11,8 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
-    SampleLoadResult, SamplePlaybackReady, WaveformCacheIndicatorRefreshResult,
-    WaveformCacheWarmResult,
+    SampleLoadPathValidation, SampleLoadResult, SamplePlaybackReady,
+    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -99,6 +99,10 @@ pub(in crate::native_app) enum GuiMessage {
         autoplay: bool,
         check_cache: bool,
         scheduled_at: Instant,
+    },
+    SampleLoadPathValidated {
+        completion: ui::TaskCompletion<SampleLoadPathValidation>,
+        started_at: Instant,
     },
     SampleLoadProgress(ui::ResourceKey, ui::TaskTicket, f32),
     SamplePlaybackReady(ui::KeyedTaskCompletion<ui::ResourceKey, SamplePlaybackReady>),

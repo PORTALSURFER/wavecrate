@@ -12,7 +12,11 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn waveform_sample_load_active(&self) -> bool {
-        self.background.deferred_sample_load_task.active().is_some()
+        self.background
+            .sample_load_validation_task
+            .active()
+            .is_some()
+            || self.background.deferred_sample_load_task.active().is_some()
             || self.active_sample_load_task().is_some()
     }
 

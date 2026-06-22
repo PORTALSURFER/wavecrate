@@ -1,5 +1,6 @@
 use radiant::prelude as ui;
 
+pub(in crate::native_app) use entrypoints::SampleLoadPathValidation;
 pub(in crate::native_app) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
 
 mod cache;
@@ -12,6 +13,7 @@ mod plan;
 mod playback_state;
 mod reload;
 mod types;
+mod validation_worker;
 mod worker;
 
 #[cfg(test)]

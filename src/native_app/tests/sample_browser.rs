@@ -6,7 +6,7 @@ use radiant::{
 };
 use std::fs;
 
-use super::{native_app_state_with_temp_sample, native_runtime_for_tests};
+use super::{native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests};
 
 fn sample_hit_target(
     selected: bool,
@@ -114,6 +114,7 @@ fn selecting_missing_sample_prunes_row_without_queueing_load() {
         },
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(
         state
@@ -125,8 +126,13 @@ fn selecting_missing_sample_prunes_row_without_queueing_load() {
     );
     assert_eq!(state.library.folder_browser.selected_file_id(), None);
     assert!(
-        matches!(context.into_command(), Command::None),
-        "missing sample selection should not queue a foreground load"
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none()
+            && state.active_sample_load_task().is_none(),
+        "missing sample selection should not queue a foreground load after validation"
     );
     assert!(state.ui.status.sample.contains("Removed missing"));
 }

@@ -255,6 +255,8 @@ fn uncached_sample_load_waits_for_active_normalization() {
 
     let mut context = ui::UiUpdateContext::default();
     state.load_sample(selected_file.clone(), &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
 
     assert!(
         active_sample_load_ticket(&state).is_none(),

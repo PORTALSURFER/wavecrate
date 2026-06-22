@@ -1,11 +1,46 @@
 use radiant::{prelude as ui, widgets::PointerModifiers};
-use std::{
-    io::ErrorKind,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{path::PathBuf, time::Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+
+use super::validation_worker;
+
+const SAMPLE_LOAD_VALIDATION_TASK_NAME: &str = "gui-sample-load-validate";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct SampleLoadPathValidationRequest {
+    pub(in crate::native_app::audio::sample_load_actions) path: String,
+    pub(in crate::native_app::audio::sample_load_actions) intent: SampleLoadPathValidationIntent,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct SampleLoadPathValidation {
+    pub(in crate::native_app) path: String,
+    intent: SampleLoadPathValidationIntent,
+    existing_file: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app::audio::sample_load_actions) enum SampleLoadPathValidationIntent {
+    Foreground { autoplay: bool },
+    Navigation,
+}
+
+impl SampleLoadPathValidationRequest {
+    fn new(path: String, intent: SampleLoadPathValidationIntent) -> Self {
+        Self { path, intent }
+    }
+}
+
+impl SampleLoadPathValidation {
+    pub(super) fn existing(request: SampleLoadPathValidationRequest, existing_file: bool) -> Self {
+        Self {
+            path: request.path,
+            intent: request.intent,
+            existing_file,
+        }
+    }
+}
 
 impl NativeAppState {
     pub(in crate::native_app) fn select_sample(
@@ -14,9 +49,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.prune_missing_sample_before_load(path.as_str(), started_at) {
-            return;
-        }
         let previous_selection = self
             .library
             .folder_browser
@@ -30,7 +62,12 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
-        self.load_sample(path, context);
+        self.queue_sample_load_path_validation(
+            path,
+            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            started_at,
+            context,
+        );
     }
 
     pub(in crate::native_app) fn select_sample_with_modifiers(
@@ -40,9 +77,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.prune_missing_sample_before_load(path.as_str(), started_at) {
-            return;
-        }
         let previous_selection = self
             .library
             .folder_browser
@@ -56,7 +90,12 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
-        self.load_sample(path, context);
+        self.queue_sample_load_path_validation(
+            path,
+            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            started_at,
+            context,
+        );
     }
 
     pub(in crate::native_app) fn load_sample(
@@ -65,7 +104,13 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.audio.pending_sample_playback = None;
-        self.load_sample_with_autoplay(path, context, true);
+        let started_at = Instant::now();
+        self.queue_sample_load_path_validation(
+            path,
+            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            started_at,
+            context,
+        );
     }
 
     pub(in crate::native_app) fn load_sample_without_autoplay(
@@ -74,28 +119,12 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.prune_missing_sample_before_load(path.as_str(), started_at) {
-            return;
-        }
-        self.load_sample_with_autoplay(path, context, false);
-    }
-
-    fn load_sample_with_autoplay(
-        &mut self,
-        path: String,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-        autoplay: bool,
-    ) {
-        let started_at = Instant::now();
-        if self.prune_missing_sample_before_load(path.as_str(), started_at) {
-            return;
-        }
-        self.yield_sample_cache_warm_for_foreground_load(context);
-        self.cancel_inflight_sample_load();
-        if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
-            return;
-        }
-        self.start_foreground_sample_load(path.as_str(), autoplay, context, started_at);
+        self.queue_sample_load_path_validation(
+            path,
+            SampleLoadPathValidationIntent::Foreground { autoplay: false },
+            started_at,
+            context,
+        );
     }
 
     pub(in crate::native_app) fn load_navigation_sample(
@@ -104,9 +133,35 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.prune_missing_sample_before_load(path.as_str(), started_at) {
+        self.queue_sample_load_path_validation(
+            path,
+            SampleLoadPathValidationIntent::Navigation,
+            started_at,
+            context,
+        );
+    }
+
+    fn load_sample_with_autoplay_validated(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        autoplay: bool,
+        started_at: Instant,
+    ) {
+        self.yield_sample_cache_warm_for_foreground_load(context);
+        self.cancel_inflight_sample_load();
+        if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
+        self.start_foreground_sample_load(path.as_str(), autoplay, context, started_at);
+    }
+
+    fn load_navigation_sample_validated(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load();
         self.audio.pending_sample_playback = None;
@@ -122,11 +177,63 @@ impl NativeAppState {
         self.start_foreground_sample_load(path.as_str(), true, context, started_at);
     }
 
-    fn prune_missing_sample_before_load(&mut self, path: &str, started_at: Instant) -> bool {
-        if sample_path_is_existing_file(Path::new(path)) {
-            return false;
-        }
+    fn queue_sample_load_path_validation(
+        &mut self,
+        path: String,
+        intent: SampleLoadPathValidationIntent,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.yield_sample_cache_warm_for_foreground_load(context);
+        self.cancel_inflight_sample_load();
+        let request = SampleLoadPathValidationRequest::new(path, intent);
+        context
+            .business()
+            .blocking_io(SAMPLE_LOAD_VALIDATION_TASK_NAME)
+            .latest(&mut self.background.sample_load_validation_task)
+            .run(
+                move |_| validation_worker::validate_sample_load_path(request),
+                move |completion| GuiMessage::SampleLoadPathValidated {
+                    completion,
+                    started_at,
+                },
+            );
+    }
 
+    pub(in crate::native_app) fn finish_sample_load_path_validation(
+        &mut self,
+        completion: ui::TaskCompletion<SampleLoadPathValidation>,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !self
+            .background
+            .sample_load_validation_task
+            .finish(completion.ticket)
+        {
+            return;
+        }
+        let validation = completion.output;
+        if !validation.existing_file
+            && self.prune_missing_sample_after_validation(validation.path.as_str(), started_at)
+        {
+            return;
+        }
+        match validation.intent {
+            SampleLoadPathValidationIntent::Foreground { autoplay } => self
+                .load_sample_with_autoplay_validated(
+                    validation.path,
+                    context,
+                    autoplay,
+                    started_at,
+                ),
+            SampleLoadPathValidationIntent::Navigation => {
+                self.load_navigation_sample_validated(validation.path, context, started_at);
+            }
+        }
+    }
+
+    fn prune_missing_sample_after_validation(&mut self, path: &str, started_at: Instant) -> bool {
         let absolute_path = PathBuf::from(path);
         let Some((source, relative_path)) = self
             .library
@@ -166,20 +273,5 @@ impl NativeAppState {
             None,
         );
         true
-    }
-}
-
-fn sample_path_is_existing_file(path: &Path) -> bool {
-    match std::fs::metadata(path) {
-        Ok(metadata) => metadata.is_file(),
-        Err(err) if err.kind() == ErrorKind::NotFound => false,
-        Err(err) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %err,
-                "Could not verify selected sample path before load"
-            );
-            true
-        }
     }
 }
