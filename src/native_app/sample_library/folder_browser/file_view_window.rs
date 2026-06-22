@@ -13,11 +13,6 @@ impl FolderBrowserState {
         self.sample_list.reset_view();
     }
 
-    pub(super) fn reconcile_file_view_after_content_change(&mut self) {
-        let total_items = self.selected_audio_files().len();
-        self.reconcile_file_view_after_content_change_with_total(total_items);
-    }
-
     pub(super) fn reconcile_file_view_after_tagged_content_change(
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,

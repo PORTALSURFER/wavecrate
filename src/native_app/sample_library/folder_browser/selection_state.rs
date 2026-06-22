@@ -23,9 +23,14 @@ pub(super) struct BrowserSelectionState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct BrowserSelectionSnapshot {
     pub(super) selected_folder: String,
+    pub(super) selected_folder_ids: HashSet<String>,
+    pub(super) selected_folder_ids_explicit: bool,
+    pub(super) folder_selection_anchor: Option<String>,
     pub(super) selected_file: Option<String>,
     pub(super) selected_file_ids: HashSet<String>,
     pub(super) selected_file_ids_explicit: bool,
+    pub(super) selected_collection: Option<SampleCollection>,
+    pub(super) folder_before_collection: Option<String>,
 }
 
 impl BrowserSelectionState {

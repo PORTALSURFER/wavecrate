@@ -81,8 +81,9 @@ fn submit_folder_drop(
         FolderMoveDropInput::Status(result) => Ok(result),
         FolderMoveDropInput::Request(request) => {
             let completion = execute_folder_move_request(request);
+            let tags_by_file = std::collections::HashMap::new();
             completion.result.and_then(|success| {
-                browser.apply_folder_move_completion(&completion.request, success)
+                browser.apply_folder_move_completion(&completion.request, success, &tags_by_file)
             })
         }
     }
@@ -96,7 +97,8 @@ fn submit_file_move_conflict(
         return Ok(FolderDropResult::default());
     };
     let completion = execute_file_move_conflict_request(batch, request.into());
-    browser.apply_file_move_conflict_completion(completion)
+    let tags_by_file = std::collections::HashMap::new();
+    browser.apply_file_move_conflict_completion(completion, &tags_by_file)
 }
 
 #[test]

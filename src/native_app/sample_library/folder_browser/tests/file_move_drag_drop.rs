@@ -56,6 +56,10 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
     assert!(moved_kick.is_file());
     assert!(moved_snare.is_file());
     assert_eq!(browser.selection.selected_folder, path_id(&drums));
+    assert_eq!(
+        browser.selection.selected_folder_ids,
+        HashSet::from([path_id(&drums)])
+    );
     assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
     assert_eq!(
         browser
@@ -64,6 +68,76 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
             .map(|file| file.name.as_str())
             .collect::<Vec<_>>(),
         vec!["hat.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_drop_restores_single_source_folder_and_next_visible_sample() {
+    let root = temp_source_root("wavecrate-gui-file-drag-restore-source");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let files = (0..72)
+        .map(|index| drums.join(format!("sample_{index:03}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 50.0 * 22.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 72,
+            viewport_start: 50,
+            viewport_end: 68,
+            window_start: 46,
+            window_end: 72,
+        },
+    });
+    browser.select_file(path_id(&files[60]));
+    browser
+        .selection
+        .selected_folder_ids
+        .insert(path_id(&loops));
+    browser.selection.selected_folder_ids_explicit = true;
+
+    browser.begin_file_drag(path_id(&files[60]), Point::new(4.0, 8.0));
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    assert_eq!(
+        result.moved_paths,
+        vec![(files[60].clone(), loops.join("sample_060.wav"))]
+    );
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
+    assert_eq!(
+        browser.selection.selected_folder_ids,
+        HashSet::from([path_id(&drums)])
+    );
+    assert!(!browser.selection.selected_folder_ids_explicit);
+    assert_eq!(
+        browser.selected_file_id(),
+        Some(path_id(&files[61]).as_str())
+    );
+    let tags_by_file = HashMap::new();
+    let cached_sample_paths = HashSet::new();
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+
+    assert_eq!(visible.total_count, 71);
+    assert_eq!(visible.rows.len(), visible.window.window_len());
+    assert!(
+        visible
+            .rows
+            .iter()
+            .all(|row| row.file.id != path_id(&files[60])),
+        "moved file should not remain materialized in the source list"
     );
     let _ = fs::remove_dir_all(root);
 }
@@ -508,7 +582,12 @@ fn file_move_conflict_rename_uses_available_copy_name() {
     assert_eq!(fs::read(&existing).expect("read existing"), b"existing");
     assert_eq!(fs::read(&renamed).expect("read renamed"), b"source");
     assert_eq!(browser.pending_file_move_conflict_count(), 0);
-    assert_eq!(browser.selected_file_paths(), vec![renamed]);
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
+    assert_eq!(
+        browser.selection.selected_folder_ids,
+        HashSet::from([path_id(&drums)])
+    );
+    assert!(browser.selected_file_paths().is_empty());
     let _ = fs::remove_dir_all(root);
 }
 #[test]
@@ -538,7 +617,12 @@ fn file_move_conflict_overwrite_replaces_destination() {
     assert!(!source.exists());
     assert_eq!(fs::read(&destination).expect("read destination"), b"source");
     assert_eq!(browser.pending_file_move_conflict_count(), 0);
-    assert_eq!(browser.selected_file_paths(), vec![destination]);
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
+    assert_eq!(
+        browser.selection.selected_folder_ids,
+        HashSet::from([path_id(&drums)])
+    );
+    assert!(browser.selected_file_paths().is_empty());
     let _ = fs::remove_dir_all(root);
 }
 #[test]
@@ -769,10 +853,12 @@ fn file_move_conflict_apply_all_rename_uses_unique_name_per_conflict() {
         b"source snare"
     );
     assert_eq!(browser.pending_file_move_conflict_count(), 0);
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
     assert_eq!(
-        browser.selected_file_paths(),
-        vec![renamed_kick, renamed_snare]
+        browser.selection.selected_folder_ids,
+        HashSet::from([path_id(&drums)])
     );
+    assert!(browser.selected_file_paths().is_empty());
     let _ = fs::remove_dir_all(root);
 }
 

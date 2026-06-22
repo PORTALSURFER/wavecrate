@@ -174,7 +174,7 @@ impl FolderBrowserState {
     }
 }
 
-fn fallback_after_deleted_focus(
+pub(super) fn fallback_after_deleted_focus(
     focused_id: Option<&str>,
     removed_ids: &HashSet<String>,
     before_visible_ids: &[String],

@@ -1,6 +1,6 @@
 use super::{BrowserSelectionSnapshot, BrowserSelectionState};
 use crate::native_app::sample_library::folder_browser::path_helpers::rewrite_path_id;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 impl BrowserSelectionState {
@@ -40,33 +40,67 @@ impl BrowserSelectionState {
     pub(in crate::native_app::sample_library::folder_browser) fn restore_after_moved_files(
         &mut self,
         snapshot: BrowserSelectionSnapshot,
-        moved_old_ids: &HashSet<String>,
+        moved_file_ids: &[(String, String)],
         visible_ids: &[String],
+        fallback_id: Option<String>,
     ) {
         let visible_id_set = visible_ids.iter().cloned().collect::<HashSet<_>>();
-        self.selected_folder = snapshot.selected_folder;
+        let moved_ids = moved_file_ids
+            .iter()
+            .cloned()
+            .collect::<HashMap<String, String>>();
+        self.restore_list_context_after_moved_files(&snapshot);
         self.selected_file_ids = snapshot
             .selected_file_ids
             .into_iter()
-            .filter(|id| !moved_old_ids.contains(id) && visible_id_set.contains(id))
+            .filter_map(|id| visible_moved_or_original_id(id, &moved_ids, &visible_id_set))
             .collect();
-        self.selected_file_ids_explicit = snapshot.selected_file_ids_explicit;
+        self.selected_file_ids_explicit =
+            snapshot.selected_file_ids_explicit && self.selected_file_ids.len() > 1;
         self.selected_file = snapshot
             .selected_file
-            .filter(|id| !moved_old_ids.contains(id) && visible_id_set.contains(id))
+            .and_then(|id| visible_moved_or_original_id(id, &moved_ids, &visible_id_set))
             .or_else(|| {
                 visible_ids
                     .iter()
                     .find(|id| self.selected_file_ids.contains(*id))
                     .cloned()
-            });
+            })
+            .or_else(|| fallback_id.filter(|id| visible_id_set.contains(id)));
 
         if self.selected_file.is_none()
             && self.selected_file_ids.is_empty()
             && let Some(first_visible) = visible_ids.first().cloned()
         {
             self.set_focus_file_set(first_visible);
+        } else if self.selected_file.is_none() && self.selected_file_ids.is_empty() {
+            self.selected_file_ids_explicit = false;
+        } else if let Some(selected_file) = self.selected_file.clone()
+            && self.selected_file_ids.is_empty()
+        {
+            self.set_focus_file_set(selected_file);
         }
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn restore_list_context_after_moved_files(
+        &mut self,
+        snapshot: &BrowserSelectionSnapshot,
+    ) {
+        self.selected_folder = snapshot.selected_folder.clone();
+        if snapshot.selected_collection.is_some() {
+            self.selected_folder_ids = snapshot.selected_folder_ids.clone();
+            self.selected_folder_ids_explicit = snapshot.selected_folder_ids_explicit;
+            self.folder_selection_anchor = snapshot.folder_selection_anchor.clone();
+            self.selected_collection = snapshot.selected_collection;
+            self.folder_before_collection = snapshot.folder_before_collection.clone();
+            return;
+        }
+
+        self.selected_folder_ids = [snapshot.selected_folder.clone()].into_iter().collect();
+        self.selected_folder_ids_explicit = false;
+        self.folder_selection_anchor = Some(snapshot.selected_folder.clone());
+        self.selected_collection = None;
+        self.folder_before_collection = None;
     }
 
     pub(in crate::native_app::sample_library::folder_browser) fn select_moved_files(
@@ -131,4 +165,13 @@ impl BrowserSelectionState {
             self.selected_file_ids_explicit = false;
         }
     }
+}
+
+fn visible_moved_or_original_id(
+    id: String,
+    moved_ids: &HashMap<String, String>,
+    visible_id_set: &HashSet<String>,
+) -> Option<String> {
+    let restored_id = moved_ids.get(&id).cloned().unwrap_or(id);
+    visible_id_set.contains(&restored_id).then_some(restored_id)
 }

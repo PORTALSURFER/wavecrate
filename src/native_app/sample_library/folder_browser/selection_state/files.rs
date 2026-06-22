@@ -48,9 +48,14 @@ impl BrowserSelectionState {
     ) -> BrowserSelectionSnapshot {
         BrowserSelectionSnapshot {
             selected_folder: self.selected_folder.clone(),
+            selected_folder_ids: self.selected_folder_ids.clone(),
+            selected_folder_ids_explicit: self.selected_folder_ids_explicit,
+            folder_selection_anchor: self.folder_selection_anchor.clone(),
             selected_file: self.selected_file.clone(),
             selected_file_ids: self.selected_file_ids.clone(),
             selected_file_ids_explicit: self.selected_file_ids_explicit,
+            selected_collection: self.selected_collection,
+            folder_before_collection: self.folder_before_collection.clone(),
         }
     }
 
@@ -59,9 +64,14 @@ impl BrowserSelectionState {
         snapshot: BrowserSelectionSnapshot,
     ) {
         self.selected_folder = snapshot.selected_folder;
+        self.selected_folder_ids = snapshot.selected_folder_ids;
+        self.selected_folder_ids_explicit = snapshot.selected_folder_ids_explicit;
+        self.folder_selection_anchor = snapshot.folder_selection_anchor;
         self.selected_file = snapshot.selected_file;
         self.selected_file_ids = snapshot.selected_file_ids;
         self.selected_file_ids_explicit = snapshot.selected_file_ids_explicit;
+        self.selected_collection = snapshot.selected_collection;
+        self.folder_before_collection = snapshot.folder_before_collection;
     }
 
     pub(in crate::native_app::sample_library::folder_browser) fn select_single_file(

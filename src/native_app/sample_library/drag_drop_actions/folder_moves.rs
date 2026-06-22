@@ -264,9 +264,11 @@ impl NativeAppState {
             .selected_file_id()
             .map(str::to_owned);
         let result = completion.result.and_then(|success| {
-            self.library
-                .folder_browser
-                .apply_folder_move_completion(&request, success)
+            self.library.folder_browser.apply_folder_move_completion(
+                &request,
+                success,
+                &self.metadata.tags_by_file,
+            )
         });
         let cut_paste_succeeded = self
             .ui
@@ -350,7 +352,7 @@ impl NativeAppState {
         let result = self
             .library
             .folder_browser
-            .apply_file_move_conflict_completion(completion);
+            .apply_file_move_conflict_completion(completion, &self.metadata.tags_by_file);
         self.finish_file_move_conflict_result(
             started_at,
             previous_selected,

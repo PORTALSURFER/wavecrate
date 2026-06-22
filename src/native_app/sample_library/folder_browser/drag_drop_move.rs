@@ -1,12 +1,13 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
 use super::{
     FileMoveConflictBatch, FolderBrowserState, FolderDropResult, FolderMoveDropInput,
-    FolderMoveRequest, FolderMoveSuccess, file_move_conflicts::file_move_status,
-    path_helpers::path_id, selection_state::BrowserSelectionSnapshot,
+    FolderMoveRequest, FolderMoveSuccess, delete_workflow::fallback_after_deleted_focus,
+    file_move_conflicts::file_move_status, path_helpers::path_id,
+    selection_state::BrowserSelectionSnapshot,
 };
 
 impl FolderBrowserState {
@@ -124,30 +125,43 @@ impl FolderBrowserState {
         })
     }
 
-    fn restore_source_selection_after_file_drop(
+    pub(super) fn restore_selection_after_file_drop(
         &mut self,
         selection: BrowserSelectionSnapshot,
         moved_paths: &[(PathBuf, PathBuf)],
+        before_visible_ids: &[String],
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) {
-        if self.find_folder(&selection.selected_folder).is_none() {
+        if selection.selected_collection.is_none()
+            && self.find_folder(&selection.selected_folder).is_none()
+        {
             return;
         }
 
+        self.selection
+            .restore_list_context_after_moved_files(&selection);
+        let after_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         let moved_ids = moved_paths
             .iter()
             .map(|(old_path, _)| path_id(old_path))
             .collect::<HashSet<_>>();
-        self.selection
-            .set_folder_focus(selection.selected_folder.clone());
-
-        let visible_ids = self
-            .selected_audio_files()
-            .into_iter()
-            .map(|file| file.id.clone())
+        let moved_file_ids = moved_paths
+            .iter()
+            .map(|(old_path, new_path)| (path_id(old_path), path_id(new_path)))
             .collect::<Vec<_>>();
-        self.selection
-            .restore_after_moved_files(selection, &moved_ids, &visible_ids);
-        self.reconcile_file_view_after_content_change();
+        let fallback_id = fallback_after_deleted_focus(
+            selection.selected_file.as_deref(),
+            &moved_ids,
+            before_visible_ids,
+            &after_visible_ids,
+        );
+        self.selection.restore_after_moved_files(
+            selection,
+            &moved_file_ids,
+            &after_visible_ids,
+            fallback_id,
+        );
+        self.reconcile_file_view_after_tagged_content_change(tags_by_file);
     }
 
     pub(super) fn prepare_move_extracted_file_to_folder(
@@ -186,6 +200,7 @@ impl FolderBrowserState {
         &mut self,
         request: &FolderMoveRequest,
         success: FolderMoveSuccess,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Result<FolderDropResult, String> {
         let result = match request {
             FolderMoveRequest::Folder {
@@ -199,9 +214,13 @@ impl FolderBrowserState {
                 target_folder,
                 remove_from_collection,
                 ..
-            } => {
-                self.apply_file_move(source_root, target_folder, *remove_from_collection, success)?
-            }
+            } => self.apply_file_move(
+                source_root,
+                target_folder,
+                *remove_from_collection,
+                success,
+                tags_by_file,
+            )?,
             FolderMoveRequest::ExtractedFile { target_folder, .. } => {
                 self.apply_extracted_file_move(target_folder, success)?
             }
@@ -248,14 +267,21 @@ impl FolderBrowserState {
         target_folder: &Path,
         remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
         success: FolderMoveSuccess,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Result<FolderDropResult, String> {
         let previous_selection = self.selection.snapshot();
+        let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         if !success.moved_paths.is_empty() {
             self.relocate_moved_files(&success.moved_paths, target_folder)?;
             if let Some(collection) = remove_from_collection {
                 self.remove_moved_file_collection_states(&success.moved_paths, collection);
             }
-            self.restore_source_selection_after_file_drop(previous_selection, &success.moved_paths);
+            self.restore_selection_after_file_drop(
+                previous_selection,
+                &success.moved_paths,
+                &before_visible_ids,
+                tags_by_file,
+            );
         }
         if !success.conflicts.is_empty() {
             self.drag_drop.pending_file_move_conflicts = Some(FileMoveConflictBatch {

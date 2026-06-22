@@ -247,10 +247,111 @@ fn moving_selected_file_loads_next_visible_sample() {
         state.library.folder_browser.selected_file_id(),
         Some(second_id.as_str())
     );
+    run_command_for_tests(&mut state, context.into_command());
     assert_eq!(state.waveform.load.label.as_deref(), Some("b-snare.wav"));
     assert!(
         state.active_sample_load_task().is_some(),
         "moving the selected file should queue autoplay loading for the replacement selection"
+    );
+}
+
+#[test]
+fn moving_scrolled_sample_materializes_source_rows_and_loads_next_sample() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let samples = (0..72)
+        .map(|index| drums.join(format!("sample_{index:03}.wav")))
+        .collect::<Vec<_>>();
+    for sample in &samples {
+        write_test_wav_i16(sample, &[0, 256, -256, 512]);
+    }
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .apply_file_view_window_change(ui::VirtualListWindowChange {
+            offset_y: 50.0
+                * crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT,
+            row_height: crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT,
+            window: ui::VirtualListWindow {
+                total_items: 72,
+                viewport_start: 50,
+                viewport_end: 68,
+                window_start: 46,
+                window_end: 72,
+            },
+        });
+    let moved_id = samples[60].display().to_string();
+    state.library.folder_browser.select_file(moved_id.clone());
+    state
+        .library
+        .folder_browser
+        .begin_file_drag(moved_id, Point::new(4.0, 8.0));
+    let request = match state
+        .library
+        .folder_browser
+        .drop_drag_on_folder(&loops.display().to_string())
+        .expect("drop should be accepted")
+    {
+        crate::native_app::sample_library::folder_browser::commands::FolderMoveDropInput::Request(
+            request,
+        ) => request,
+        other => panic!("expected file move request, got {other:?}"),
+    };
+    let completion =
+        crate::native_app::sample_library::folder_browser::commands::execute_folder_move_request(
+            request,
+        );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+
+    let drums_id = drums.display().to_string();
+    let replacement = samples[61].display().to_string();
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(drums_id.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(replacement.as_str())
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    assert_eq!(state.waveform.load.label.as_deref(), Some("sample_061.wav"));
+    assert!(
+        state.active_sample_load_task().is_some(),
+        "moving a scrolled selected file should queue autoplay loading for the replacement"
+    );
+
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+    let projection =
+        crate::native_app::test_support::sample_browser::sample_browser_window_projection(
+            &state, 64,
+        );
+
+    assert_eq!(projection.total_count, 71);
+    assert_eq!(projection.visible_rows, projection.window_len);
+    assert!(
+        projection
+            .first_stems
+            .iter()
+            .any(|stem| stem == "sample_061"),
+        "remaining rows should include the next sample after the moved file: {:?}",
+        projection.first_stems
     );
 }
 
@@ -417,6 +518,7 @@ fn trashing_selected_block_materializes_remaining_rows_and_loads_next_sample() {
         state.library.folder_browser.selected_file_id(),
         Some(replacement.as_str())
     );
+    run_command_for_tests(&mut state, context.into_command());
     assert_eq!(state.waveform.load.label.as_deref(), Some("sample_068.wav"));
     assert!(
         state.active_sample_load_task().is_some(),

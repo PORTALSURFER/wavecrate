@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{
     FileMoveConflictBatch, FileMoveConflictCompletion, FileMoveConflictExecutionFailure,
     FileMoveConflictExecutionSuccess, FileMoveConflictResolution, FileMoveConflictView,
@@ -51,23 +53,32 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn apply_file_move_conflict_completion(
         &mut self,
         completion: FileMoveConflictCompletion,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Result<FolderDropResult, String> {
         match completion.result {
-            Ok(success) => self.apply_successful_file_move_conflict(success),
-            Err(failure) => self.apply_failed_file_move_conflict(failure),
+            Ok(success) => self.apply_successful_file_move_conflict(success, tags_by_file),
+            Err(failure) => self.apply_failed_file_move_conflict(failure, tags_by_file),
         }
     }
 
     fn apply_successful_file_move_conflict(
         &mut self,
         success: FileMoveConflictExecutionSuccess,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Result<FolderDropResult, String> {
+        let previous_selection = self.selection.snapshot();
+        let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         if !success.moved_paths.is_empty() {
             self.relocate_moved_files(&success.moved_paths, &success.batch.target_folder)?;
             if let Some(collection) = success.batch.remove_from_collection {
                 self.remove_moved_file_collection_states(&success.moved_paths, collection);
             }
-            self.reconcile_file_view_after_content_change();
+            self.restore_selection_after_file_drop(
+                previous_selection,
+                &success.moved_paths,
+                &before_visible_ids,
+                tags_by_file,
+            );
         }
         let status = conflict_resolution_status(
             &success.batch,
@@ -86,13 +97,21 @@ impl FolderBrowserState {
     fn apply_failed_file_move_conflict(
         &mut self,
         failure: FileMoveConflictExecutionFailure,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Result<FolderDropResult, String> {
+        let previous_selection = self.selection.snapshot();
+        let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         if !failure.moved_paths.is_empty() {
             self.relocate_moved_files(&failure.moved_paths, &failure.batch.target_folder)?;
             if let Some(collection) = failure.batch.remove_from_collection {
                 self.remove_moved_file_collection_states(&failure.moved_paths, collection);
             }
-            self.reconcile_file_view_after_content_change();
+            self.restore_selection_after_file_drop(
+                previous_selection,
+                &failure.moved_paths,
+                &before_visible_ids,
+                tags_by_file,
+            );
         }
         self.drag_drop.pending_file_move_conflicts = Some(failure.batch);
         Err(status_with_metadata_error(
