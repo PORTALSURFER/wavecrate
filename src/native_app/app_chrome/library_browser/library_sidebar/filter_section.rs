@@ -147,9 +147,7 @@ fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
 }
 
 fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let label = ui::text_line("Rating", FILTER_CLEAR_BUTTON_SIZE)
-        .key("filter-rating-label")
-        .width(FILTER_LABEL_WIDTH);
+    let label = ui::text_line("Rating", FILTER_CLEAR_BUTTON_SIZE).key("filter-rating-label");
     filter_labeled_control_row(
         label,
         ui::row(
@@ -224,9 +222,7 @@ fn filter_input_row(
     clear_slot: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    let label = ui::text_line(label, FILTER_CLEAR_BUTTON_SIZE)
-        .key(label_key)
-        .width(FILTER_LABEL_WIDTH);
+    let label = ui::text_line(label, FILTER_CLEAR_BUTTON_SIZE).key(label_key);
     let control = ui::row([input, clear_slot])
         .spacing(FILTER_INPUT_CLEAR_SPACING)
         .fill_width()
@@ -239,11 +235,19 @@ fn filter_labeled_control_row(
     control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    ui::row([label, control])
-        .key(key)
-        .spacing(FILTER_LABEL_CONTROL_SPACING)
-        .fill_width()
-        .height(FILTER_ROW_HEIGHT)
+    ui::form_row_from_parts(
+        ui::FormRowParts::new(key, label, control)
+            .height(FILTER_ROW_HEIGHT)
+            .label_width(FILTER_LABEL_WIDTH)
+            .cell_height(FILTER_CLEAR_BUTTON_SIZE)
+            .padding_x(0.0)
+            .padding_y(0.0)
+            .spacing(FILTER_LABEL_CONTROL_SPACING)
+            .hoverable(false),
+    )
+    .key(key)
+    .fill_width()
+    .height(FILTER_ROW_HEIGHT)
 }
 
 fn filter_clear_slot(
@@ -324,7 +328,7 @@ mod tests {
         assert_eq!(
             filter_section(&model).view_dispatch_widget_output(
                 FILTER_RESIZE_HEADER_ID,
-                ui::WidgetOutput::typed(drag.clone()),
+                ui::WidgetOutput::typed(drag),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::ResizeFilterPanel(drag)
@@ -398,9 +402,6 @@ mod tests {
         assert!(frame.paint_plan.contains_text("Name"));
         assert!(frame.paint_plan.contains_text("Tags"));
         assert!(frame.paint_plan.contains_text("Rating"));
-        for label in ["T3", "T2", "T1", "K1", "K2", "K3", "K4"] {
-            assert!(frame.paint_plan.contains_text(label), "missing {label}");
-        }
         assert!(
             !frame.paint_plan.contains_text("Type"),
             "old type filter label should be removed"

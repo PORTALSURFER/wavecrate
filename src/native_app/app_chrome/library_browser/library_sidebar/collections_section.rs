@@ -326,7 +326,7 @@ mod tests {
         assert_eq!(
             collections_section(&model).view_dispatch_widget_output(
                 COLLECTIONS_RESIZE_HEADER_ID,
-                ui::WidgetOutput::typed(drag.clone()),
+                ui::WidgetOutput::typed(drag),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::ResizeCollectionsPanel(drag)
