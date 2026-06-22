@@ -596,6 +596,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "typed native file-drop platform handoff",
         ),
         (
+            "src/native_app/sample_library/native_file_open_actions/validation_worker.rs",
+            "native file-open validation worker",
+        ),
+        (
             "src/native_app/sample_library/sample_collections/persistence.rs",
             "collection persistence worker",
         ),

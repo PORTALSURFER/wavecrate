@@ -115,6 +115,7 @@ impl NativeAppState {
             | GuiMessage::RemoveContextSource
             | GuiMessage::CloseContextMenu
             | GuiMessage::ExternalWaveformFileDropFinished { .. }
+            | GuiMessage::NativeAudioDocumentOpenValidated { .. }
             | GuiMessage::WaveformFileDrop(_) => self.apply_file_dispatch(message, context),
             GuiMessage::ToggleJobDetails
             | GuiMessage::CloseJobDetails

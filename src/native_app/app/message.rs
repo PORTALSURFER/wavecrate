@@ -28,6 +28,7 @@ use crate::native_app::sample_library::folder_browser::scan::{
     FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderTreeRefreshResult,
     FolderVerifyResult,
 };
+use crate::native_app::sample_library::native_file_open_actions::NativeAudioDocumentOpenValidation;
 use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
 };
@@ -87,6 +88,10 @@ pub(in crate::native_app) enum GuiMessage {
         source: PathBuf,
         started_at: Instant,
         result: Result<PathBuf, String>,
+    },
+    NativeAudioDocumentOpenValidated {
+        started_at: Instant,
+        validation: NativeAudioDocumentOpenValidation,
     },
     DeferredSampleLoad {
         ticket: ui::TaskTicket,

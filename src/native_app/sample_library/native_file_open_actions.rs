@@ -4,9 +4,46 @@ use std::{
 };
 
 use radiant::prelude as ui;
-use wavecrate_library::sample_sources::is_supported_audio;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+
+mod validation_worker;
+
+const NATIVE_AUDIO_DOCUMENT_OPEN_VALIDATION_TASK_NAME: &str = "gui-native-file-open-validate";
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct NativeAudioDocumentOpenValidation {
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) result: Result<(), NativeAudioDocumentOpenRejection>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) enum NativeAudioDocumentOpenRejection {
+    NotFile { message: String },
+    Unsupported { message: String },
+}
+
+impl NativeAudioDocumentOpenRejection {
+    fn action(&self) -> &'static str {
+        match self {
+            Self::NotFile { .. } => "error",
+            Self::Unsupported { .. } => "unsupported",
+        }
+    }
+
+    fn detail(&self) -> &'static str {
+        match self {
+            Self::NotFile { .. } => "not a file",
+            Self::Unsupported { .. } => "unsupported file type",
+        }
+    }
+
+    fn message(&self) -> &str {
+        match self {
+            Self::NotFile { message } | Self::Unsupported { message } => message,
+        }
+    }
+}
 
 impl NativeAppState {
     pub(in crate::native_app) fn open_audio_documents(
@@ -16,45 +53,57 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         for path in paths {
-            self.open_audio_document(path, context, started_at);
+            self.queue_audio_document_open_validation(path, context, started_at);
         }
     }
 
-    fn open_audio_document(
+    fn queue_audio_document_open_validation(
         &mut self,
         path: PathBuf,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        if !path.is_file() {
-            let error = format!(
-                "Open audio failed: {} is not a file",
-                sample_path_label(&path)
+        context
+            .business()
+            .interactive(NATIVE_AUDIO_DOCUMENT_OPEN_VALIDATION_TASK_NAME)
+            .run(
+                move |_| validation_worker::validate_audio_document_open(path),
+                move |validation| GuiMessage::NativeAudioDocumentOpenValidated {
+                    started_at,
+                    validation,
+                },
             );
-            self.ui.status.sample = error.clone();
-            emit_gui_action(
-                "waveform.native_file_open",
-                Some("waveform"),
-                Some(sample_path_label(&path).as_str()),
-                "error",
-                started_at,
-                Some(&error),
-            );
-            return;
+    }
+
+    pub(in crate::native_app) fn finish_audio_document_open_validation(
+        &mut self,
+        started_at: Instant,
+        validation: NativeAudioDocumentOpenValidation,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        match validation.result {
+            Ok(()) => self.open_validated_audio_document(validation.path, context, started_at),
+            Err(rejection) => {
+                let message = rejection.message().to_string();
+                self.ui.status.sample = message.clone();
+                emit_gui_action(
+                    "waveform.native_file_open",
+                    Some("waveform"),
+                    Some(sample_path_label(&validation.path).as_str()),
+                    rejection.action(),
+                    started_at,
+                    Some(rejection.detail()),
+                );
+            }
         }
-        if !is_supported_audio(&path) {
-            self.ui.status.sample =
-                format!("Unsupported audio document: {}", sample_path_label(&path));
-            emit_gui_action(
-                "waveform.native_file_open",
-                Some("waveform"),
-                Some(sample_path_label(&path).as_str()),
-                "unsupported",
-                started_at,
-                Some("unsupported file type"),
-            );
-            return;
-        }
+    }
+
+    fn open_validated_audio_document(
+        &mut self,
+        path: PathBuf,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
         if self
             .library
             .folder_browser

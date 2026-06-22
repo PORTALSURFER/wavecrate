@@ -114,6 +114,10 @@ impl NativeAppState {
                 started_at,
                 result,
             } => self.finish_external_waveform_file_drop(source, started_at, result, context),
+            GuiMessage::NativeAudioDocumentOpenValidated {
+                started_at,
+                validation,
+            } => self.finish_audio_document_open_validation(started_at, validation, context),
             GuiMessage::WaveformFileDrop(drop) => self.apply_native_file_drop(drop, context),
             _ => unreachable!("file dispatcher received a non-file message"),
         }

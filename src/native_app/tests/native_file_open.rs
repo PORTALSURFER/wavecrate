@@ -1,4 +1,7 @@
-use super::{gui_state_for_span_tests, start_deferred_sample_load_for_tests, write_test_wav_i16};
+use super::{
+    gui_state_for_span_tests, run_command_for_tests, start_deferred_sample_load_for_tests,
+    write_test_wav_i16,
+};
 use radiant::prelude as ui;
 use std::fs;
 
@@ -15,6 +18,8 @@ fn native_file_open_loads_audio_file_from_configured_source_without_autoplay() {
     let mut context = ui::UiUpdateContext::default();
 
     state.open_audio_documents(vec![sample.clone()], &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
 
     let sample_id = sample.display().to_string();
     assert_eq!(
@@ -35,6 +40,8 @@ fn native_file_open_adds_parent_source_before_loading_external_audio_file() {
     let mut context = ui::UiUpdateContext::default();
 
     state.open_audio_documents(vec![sample.clone()], &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+    let mut context = ui::UiUpdateContext::default();
 
     assert_eq!(
         state.library.pending_audio_document_open_count_for_tests(),
@@ -81,6 +88,7 @@ fn native_file_open_rejects_unsupported_documents() {
     let mut context = ui::UiUpdateContext::default();
 
     state.open_audio_documents(vec![note], &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.pending_audio_document_open_count_for_tests(),
@@ -93,6 +101,33 @@ fn native_file_open_rejects_unsupported_documents() {
             .sample
             .contains("Unsupported audio document"),
         "unsupported file open should tell the user why it was ignored"
+    );
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none()
+    );
+}
+
+#[test]
+fn native_file_open_rejects_missing_audio_documents_after_validation() {
+    let external_root = tempfile::tempdir().expect("external root");
+    let missing = external_root.path().join("missing.wav");
+    let mut state = gui_state_for_span_tests();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.open_audio_documents(vec![missing], &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        state.library.pending_audio_document_open_count_for_tests(),
+        0
+    );
+    assert!(
+        state.ui.status.sample.contains("is not a file"),
+        "missing file open should be rejected by validation worker"
     );
     assert!(
         state
