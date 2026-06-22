@@ -631,6 +631,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "src/native_app/waveform/audio_file/",
             "waveform cache and decode workers",
         ),
+        (
+            "src/native_app/waveform/similar_sections/source_loading.rs",
+            "similar sections sample loading worker",
+        ),
     ] {
         guardrail = guardrail.allow_path_fragment(fragment, reason);
     }

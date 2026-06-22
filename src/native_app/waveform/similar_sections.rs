@@ -1,10 +1,10 @@
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use wavecrate::selection::SelectionRange;
 
 use super::{
     WaveformState,
-    audio_file::{PersistedPlaybackCacheFile, is_wav_path, read_wav_playback_samples},
+    audio_file::{PersistedPlaybackCacheFile, is_wav_path},
 };
 
 const PROFILE_BINS: usize = 192;
@@ -12,6 +12,8 @@ const MAX_SCAN_WINDOWS: usize = 8_000;
 const MIN_ANCHOR_FRAMES: usize = 64;
 const SIMILAR_SECTION_THRESHOLD: f32 = 0.86;
 const MIN_PROFILE_RMS: f32 = 1.0e-4;
+
+mod source_loading;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::native_app::waveform) struct SimilarSectionsState {
@@ -208,47 +210,6 @@ fn validate_request(request: &SimilarSectionsRequest, sample_count: usize) -> Re
         return Err(String::from("Decoded playback data is incomplete"));
     }
     Ok(())
-}
-
-impl SimilarSectionsSource {
-    fn load_samples(&self, path: &std::path::Path) -> Result<Arc<[f32]>, String> {
-        match self {
-            Self::InterleavedF32Samples(samples) => Ok(Arc::clone(samples)),
-            Self::InterleavedF32File(cache_file) => read_interleaved_f32_file(cache_file),
-            Self::WavBytes(bytes) => read_wav_playback_samples(bytes).map(Arc::from),
-            Self::WavFile => {
-                let bytes: Arc<[u8]> = fs::read(path).map(Arc::from).map_err(|err| {
-                    format!("failed to read source WAV {}: {err}", path.display())
-                })?;
-                read_wav_playback_samples(&bytes).map(Arc::from)
-            }
-        }
-    }
-}
-
-fn read_interleaved_f32_file(
-    cache_file: &PersistedPlaybackCacheFile,
-) -> Result<Arc<[f32]>, String> {
-    let bytes = fs::read(&cache_file.path).map_err(|err| {
-        format!(
-            "failed to read playback cache {}: {err}",
-            cache_file.path.display()
-        )
-    })?;
-    let expected_bytes = cache_file
-        .sample_count
-        .checked_mul(std::mem::size_of::<f32>() as u64)
-        .ok_or_else(|| String::from("Playback cache is too large"))?;
-    if bytes.len() as u64 != expected_bytes {
-        return Err(String::from(
-            "Playback cache size does not match its metadata",
-        ));
-    }
-    let mut samples = Vec::with_capacity(cache_file.sample_count as usize);
-    for chunk in bytes.chunks_exact(std::mem::size_of::<f32>()) {
-        samples.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-    }
-    Ok(Arc::from(samples))
 }
 
 fn scan_hop_frames(frames: usize, window_frames: usize, sample_rate: u32) -> usize {
