@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, theme::ThemeTokens};
+use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 
@@ -14,13 +14,14 @@ pub(super) fn sidebar_row_underlay(
         .dense_chrome()
 }
 
-pub(super) fn sidebar_row_full_palette(theme: &ThemeTokens) -> ui::DenseRowPalette {
+#[cfg(test)]
+pub(super) fn sidebar_row_full_palette(theme: &ui::ThemeTokens) -> ui::DenseRowPalette {
     ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
 }
 
 #[cfg(test)]
 pub(super) fn sidebar_row_palette_for_tests() -> ui::DenseRowPalette {
-    sidebar_row_full_palette(&ThemeTokens::default())
+    sidebar_row_full_palette(&ui::ThemeTokens::default())
 }
 
 #[cfg(test)]

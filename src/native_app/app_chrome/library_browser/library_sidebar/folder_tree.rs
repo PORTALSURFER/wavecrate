@@ -1,15 +1,16 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
-    SIDEBAR_ROW_STYLE, sidebar_row_full_palette,
-};
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
 };
+
+#[cfg(test)]
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_full_palette;
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
 const FOLDER_TREE_HIGHLIGHTED_LABEL: ui::Rgba8 = ui::Rgba8 {
@@ -129,9 +130,8 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
         .drag_drop_state(folder_tree_drag_drop_state(folder))
         .row_height(TREE_ROW_HEIGHT)
         .expander_width(FOLDER_EXPANDER_WIDTH)
+        .style(SIDEBAR_ROW_STYLE)
         .guide_style(folder_tree_guide_style())
-        .palette(folder_tree_palette())
-        .drop_target_outline(folder_tree_drop_target_outline())
         .selected_hover_marker(folder_tree_selected_hover_marker())
         .highlighted_label_color(folder_tree_highlighted_label_color(folder));
 
@@ -227,20 +227,13 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
     }
 }
 
-fn folder_tree_palette() -> ui::DenseRowPalette {
-    sidebar_row_full_palette(&ui::ThemeTokens::default())
+fn folder_tree_guide_style() -> ui::StyledTreeGuideStyle {
+    ui::StyledTreeGuideStyle::new(TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, SIDEBAR_ROW_STYLE)
 }
 
-fn folder_tree_drop_target_outline() -> ui::DenseRowOutlineStyle {
-    ui::dense_row_drop_outline_from_style(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE)
-}
-
-fn folder_tree_guide_style() -> ui::TreeGuideStyle {
-    ui::TreeGuideStyle::new(
-        TREE_DEPTH_INDENT,
-        TREE_ROW_HEIGHT,
-        ui::dense_row_tree_guide_color(&ui::ThemeTokens::default(), SIDEBAR_ROW_STYLE),
-    )
+#[cfg(test)]
+fn folder_tree_palette_for_tests(theme: &ui::ThemeTokens) -> ui::DenseRowPalette {
+    ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
 }
 
 fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {
@@ -290,8 +283,9 @@ mod tests {
 
     #[test]
     fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
-        let palette = folder_tree_palette();
-        let expected = sidebar_row_full_palette(&ui::ThemeTokens::default());
+        let theme = ui::ThemeTokens::default();
+        let palette = folder_tree_palette_for_tests(&theme);
+        let expected = sidebar_row_full_palette(&theme);
 
         assert_eq!(palette.hovered, expected.hovered);
         assert_eq!(palette.candidate_hovered, expected.candidate_hovered);
@@ -378,7 +372,7 @@ mod tests {
 
         let frame = folder_row(&folder, 0)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
-        let selected_fill = folder_tree_palette()
+        let selected_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
             .selected
             .expect("folder tree selected fill");
 
@@ -398,10 +392,10 @@ mod tests {
 
         let frame = folder_row(&folder, 0)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
-        let selected_fill = folder_tree_palette()
+        let selected_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
             .selected
             .expect("folder tree selected fill");
-        let selected_hover_fill = folder_tree_palette()
+        let selected_hover_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
             .selected_hovered
             .expect("folder tree selected-hover fill");
         let marker = folder_tree_selected_hover_marker();
