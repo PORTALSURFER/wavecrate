@@ -350,6 +350,21 @@ fn business_command_priority(
     }
 }
 
+fn platform_copy_file_path_count(
+    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
+) -> Option<usize> {
+    match command {
+        radiant::runtime::Command::PlatformRequest {
+            request: ui::PlatformRequest::CopyFilePaths(paths),
+            ..
+        } => Some(paths.len()),
+        radiant::runtime::Command::Batch(commands) => {
+            commands.into_iter().find_map(platform_copy_file_path_count)
+        }
+        _ => None,
+    }
+}
+
 fn sample_load_completion(
     ticket: ui::TaskTicket,
     path: String,
@@ -582,16 +597,47 @@ fn playmark_selection_copy_ready_flash_ignores_stale_range() {
 }
 
 #[test]
-fn whole_file_copy_uses_interactive_handoff_worker() {
+fn playmark_selection_clip_ready_queues_platform_clipboard_handoff() {
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("playmark-copy-platform.wav", &[0, 1024, -1024]);
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let source_path = scenario.state.waveform.current.path();
+    let selection = scenario
+        .state
+        .waveform
+        .current
+        .play_selection()
+        .expect("play selection");
+    let staged_path = PathBuf::from("/tmp/wavecrate-staged-clip.wav");
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.finish_waveform_selection_clip_staged(
+        source_path,
+        selection,
+        std::time::Instant::now(),
+        Ok(staged_path),
+        &mut context,
+    );
+
+    assert_eq!(
+        platform_copy_file_path_count(context.into_command()),
+        Some(1),
+        "staged waveform clips should use Radiant's typed file-path clipboard service"
+    );
+}
+
+#[test]
+fn whole_file_copy_uses_radiant_platform_clipboard_handoff() {
     let mut scenario = WaveformPlaybackScenario::with_temp_wav("whole-file-copy.wav", &[0, 1024]);
 
     let mut context = ui::UiUpdateContext::default();
     scenario.state.copy_selected_files(&mut context);
 
     assert_eq!(
-        business_command_priority(context.into_command(), "gui-copy-selected-files"),
-        Some(ui::TaskPriority::Interactive),
-        "whole-file clipboard handoff must not queue behind cache warm workers"
+        platform_copy_file_path_count(context.into_command()),
+        Some(1),
+        "whole-file clipboard handoff should use Radiant's typed platform service"
     );
 }
 

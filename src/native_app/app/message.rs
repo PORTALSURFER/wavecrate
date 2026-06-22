@@ -152,6 +152,12 @@ pub(in crate::native_app) enum GuiMessage {
         started_at: Instant,
         result: Result<(), String>,
     },
+    WaveformSelectionClipStaged {
+        source_path: PathBuf,
+        selection: SelectionRange,
+        started_at: Instant,
+        result: Result<PathBuf, String>,
+    },
     WaveformSelectionCopyFinished {
         source_path: PathBuf,
         selection: SelectionRange,

@@ -32,6 +32,18 @@ impl NativeAppState {
                 started_at,
                 result,
             } => self.finish_copy_selected_files(count, started_at, result),
+            GuiMessage::WaveformSelectionClipStaged {
+                source_path,
+                selection,
+                started_at,
+                result,
+            } => self.finish_waveform_selection_clip_staged(
+                source_path,
+                selection,
+                started_at,
+                result,
+                context,
+            ),
             GuiMessage::WaveformSelectionCopyFinished {
                 source_path,
                 selection,

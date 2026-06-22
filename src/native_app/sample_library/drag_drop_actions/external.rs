@@ -1,13 +1,13 @@
 use std::{path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
-use wavecrate::{external_clipboard, selection::SelectionRange};
+use radiant::prelude::PlatformResultExt as _;
+use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
 
 mod clipboard_clip;
 
-const CLIPBOARD_HANDOFF_TASK_NAME: &str = "gui-copy-selected-files";
 const WAVEFORM_CLIPBOARD_HANDOFF_TASK_NAME: &str = "gui-copy-waveform-selection";
 
 impl NativeAppState {
@@ -41,20 +41,11 @@ impl NativeAppState {
             1 => String::from("Copying selected file"),
             count => format!("Copying {count} selected files"),
         };
-        context
-            .business()
-            .interactive(CLIPBOARD_HANDOFF_TASK_NAME)
-            .run(
-                move |worker_context| {
-                    worker_context.checkpoint()?;
-                    external_clipboard::copy_file_paths(&paths).map_err(|error| error.to_string())
-                },
-                move |result| GuiMessage::SelectedFilesCopyFinished {
-                    count,
-                    started_at,
-                    result,
-                },
-            );
+        context.copy_file_paths(paths, move |result| GuiMessage::SelectedFilesCopyFinished {
+            count,
+            started_at,
+            result: result.into_completed(),
+        });
     }
 
     pub(in crate::native_app) fn finish_copy_selected_files(
@@ -129,12 +120,9 @@ impl NativeAppState {
             .interactive(WAVEFORM_CLIPBOARD_HANDOFF_TASK_NAME)
             .run(
                 move |worker_context| {
-                    clipboard_clip::copy_waveform_selection_clip_to_clipboard(
-                        worker_context,
-                        request,
-                    )
+                    clipboard_clip::stage_waveform_selection_clip(worker_context, request)
                 },
-                move |result| GuiMessage::WaveformSelectionCopyFinished {
+                move |result| GuiMessage::WaveformSelectionClipStaged {
                     source_path,
                     selection,
                     started_at,
@@ -142,6 +130,32 @@ impl NativeAppState {
                 },
             );
         true
+    }
+
+    pub(in crate::native_app) fn finish_waveform_selection_clip_staged(
+        &mut self,
+        source_path: PathBuf,
+        selection: SelectionRange,
+        started_at: Instant,
+        result: Result<PathBuf, String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        match result {
+            Ok(path) => {
+                let copied_path = path.clone();
+                context.copy_file_paths(vec![path], move |result| {
+                    GuiMessage::WaveformSelectionCopyFinished {
+                        source_path,
+                        selection,
+                        started_at,
+                        result: result.into_completed().map(|()| copied_path),
+                    }
+                });
+            }
+            Err(error) => {
+                self.finish_waveform_selection_copy(source_path, selection, started_at, Err(error));
+            }
+        }
     }
 
     pub(in crate::native_app) fn finish_waveform_selection_copy(

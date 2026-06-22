@@ -88,6 +88,7 @@ impl NativeAppState {
             | GuiMessage::CutSelectedFiles
             | GuiMessage::PasteCutFiles
             | GuiMessage::SelectedFilesCopyFinished { .. }
+            | GuiMessage::WaveformSelectionClipStaged { .. }
             | GuiMessage::WaveformSelectionCopyFinished { .. }
             | GuiMessage::FileMoveProgress(_)
             | GuiMessage::SetFileMoveConflictApplyToRemaining(_)

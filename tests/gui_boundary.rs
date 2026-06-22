@@ -221,6 +221,26 @@ fn native_app_ui_update_paths_do_not_call_blocking_business_apis() {
 }
 
 #[test]
+fn waveform_clipboard_staging_worker_does_not_touch_platform_clipboard() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir
+        .join("src/native_app/sample_library/drag_drop_actions/external/clipboard_clip.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", source_path.display()));
+
+    for forbidden in [
+        "external_clipboard::",
+        "copy_file_paths(",
+        "read_file_paths(",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "waveform clip staging may prepare the file on a worker, but platform clipboard handoff must stay on Radiant's typed platform service: found `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn native_app_playback_paths_do_not_start_audio_directly() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let native_app_root = manifest_dir.join("src/native_app");
@@ -510,6 +530,14 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
         (
             "src/native_app/sample_library/file_actions/wav_normalize.rs",
             "audio file worker",
+        ),
+        (
+            "src/native_app/sample_library/drag_drop_actions/external/clipboard_clip.rs",
+            "waveform clipboard clip staging worker",
+        ),
+        (
+            "src/native_app/sample_library/folder_scan_actions/filesystem_refresh_worker.rs",
+            "source database filesystem-sync worker",
         ),
         (
             "src/native_app/sample_library/folder_browser/file_move_execution.rs",

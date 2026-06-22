@@ -1,12 +1,12 @@
 use std::{path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
-use wavecrate::sample_sources::{SourceDatabase, scanner};
 
 use crate::native_app::app::{
     GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceFilesystemSyncResult,
     SourceRefreshRequest, emit_gui_action,
 };
+use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths;
 use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
@@ -154,24 +154,5 @@ impl NativeAppState {
             move |_| sync_source_database_paths(source_id, root, paths, changed_count),
             GuiMessage::SourceFilesystemSyncFinished,
         );
-    }
-}
-
-fn sync_source_database_paths(
-    source_id: String,
-    root: PathBuf,
-    paths: Vec<PathBuf>,
-    changed_count: usize,
-) -> SourceFilesystemSyncResult {
-    let result = SourceDatabase::open_fast(&root)
-        .map_err(|err| format!("open source index: {err}"))
-        .and_then(|db| {
-            scanner::sync_paths(&db, &paths).map_err(|err| format!("sync source index: {err}"))
-        })
-        .map(|_| ());
-    SourceFilesystemSyncResult {
-        source_id,
-        changed_count,
-        result,
     }
 }

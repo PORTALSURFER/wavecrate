@@ -6,13 +6,13 @@ use std::{
 };
 
 use radiant::runtime::BusinessWorkContext;
-use wavecrate::{app_dirs, external_clipboard};
+use wavecrate::app_dirs;
 
 use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
 
 const CLIPBOARD_CLIP_CACHE_VERSION: &[u8] = b"wavecrate-clipboard-clip-v1";
 
-pub(super) fn copy_waveform_selection_clip_to_clipboard(
+pub(super) fn stage_waveform_selection_clip(
     worker_context: BusinessWorkContext,
     request: WaveformExtractionRequest,
 ) -> Result<PathBuf, String> {
@@ -28,7 +28,6 @@ pub(super) fn copy_waveform_selection_clip_to_clipboard(
         )?,
         None => render_selection_clip_to_unique_path(&worker_context, request, &target_folder)?,
     };
-    copy_single_file_to_clipboard_and_confirm(&path)?;
     worker_context.checkpoint()?;
     Ok(path)
 }
@@ -140,36 +139,6 @@ fn reusable_staged_clip_available(path: &Path) -> Result<bool, String> {
             Ok(false)
         }
     }
-}
-
-fn copy_single_file_to_clipboard_and_confirm(path: &Path) -> Result<(), String> {
-    let path = path.to_path_buf();
-    external_clipboard::copy_file_paths(std::slice::from_ref(&path))?;
-    let copied_paths = external_clipboard::read_file_paths()
-        .map_err(|error| format!("Clipboard verification failed: {error}"))?;
-    if copied_paths
-        .iter()
-        .any(|copied_path| same_filesystem_path(copied_path, &path))
-    {
-        return Ok(());
-    }
-    Err(format!(
-        "Clipboard verification failed: {} was not on the clipboard",
-        path.display()
-    ))
-}
-
-fn same_filesystem_path(left: &Path, right: &Path) -> bool {
-    if left == right {
-        return true;
-    }
-    let Ok(left) = fs::canonicalize(left) else {
-        return false;
-    };
-    let Ok(right) = fs::canonicalize(right) else {
-        return false;
-    };
-    left == right
 }
 
 #[derive(Clone, Copy)]
