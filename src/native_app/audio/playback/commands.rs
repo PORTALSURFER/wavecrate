@@ -128,6 +128,52 @@ impl NativeAppState {
         self.play_random_sample_range_with_units(units, context);
     }
 
+    pub(in crate::native_app) fn play_random_listed_sample_range(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let mut rng = rand::rng();
+        let units = RandomAuditionUnits::new(rng.random::<f32>(), rng.random::<f32>());
+        self.play_random_listed_sample_range_with_units(units, context);
+    }
+
+    pub(in crate::native_app) fn play_random_listed_sample_range_with_units(
+        &mut self,
+        units: RandomAuditionUnits,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let avoid_file_id = self.random_listed_sample_avoid_file_id();
+        if let Some(path) = self
+            .library
+            .folder_browser
+            .random_listed_playback_candidate(
+                units.start,
+                &self.metadata.tags_by_file,
+                avoid_file_id.as_deref(),
+            )
+        {
+            self.select_random_listed_sample(path);
+            self.play_random_sample_range_with_units(units, context);
+            return;
+        }
+        if self.waveform.current.has_loaded_sample() {
+            self.play_random_sample_range_with_units(units, context);
+            return;
+        }
+
+        let error = String::from("No listed samples available for random playback");
+        self.ui.status.sample = error.clone();
+        emit_gui_action(
+            "playback.play_random_listed_sample_range",
+            Some("transport"),
+            None,
+            "empty",
+            started_at,
+            Some(&error),
+        );
+    }
+
     pub(in crate::native_app) fn play_random_sample_range_with_units(
         &mut self,
         units: RandomAuditionUnits,
@@ -210,6 +256,29 @@ impl NativeAppState {
                     Some(&err),
                 );
             }
+        }
+    }
+
+    fn random_listed_sample_avoid_file_id(&self) -> Option<String> {
+        if self.waveform.current.has_loaded_sample() {
+            return Some(self.waveform.current.path().display().to_string());
+        }
+        self.library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+    }
+
+    fn select_random_listed_sample(&mut self, path: String) {
+        let previous_selection = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
+        self.library.folder_browser.select_file(path);
+        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+            self.metadata.selected_tag = None;
         }
     }
 

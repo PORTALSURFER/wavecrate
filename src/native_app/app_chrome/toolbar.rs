@@ -50,7 +50,7 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             model.sticky_random_sample_range_playback,
         )
         .tooltip_opt(model.help_tooltips_enabled.then_some(
-            "Random section playback\nClick: play a random section now.\nCommand-click: make Space use random sections.",
+            "Random section playback\nClick: play a random section now.\nShift-click: pick a random listed sample first.\nCommand-click: make Space use random sections.",
         )),
         toolbar_icon_button_with_icon_state(
             TOOLBAR_SIMILAR_SECTIONS_ID,
@@ -209,6 +209,13 @@ fn toolbar_button_message(icon: ToolbarIcon, message: ButtonMessage) -> GuiMessa
                 .is_some_and(|modifiers| modifiers.command) =>
         {
             GuiMessage::ToggleStickyRandomSampleRangePlayback
+        }
+        ToolbarIcon::Random
+            if message
+                .activation_modifiers()
+                .is_some_and(|modifiers| modifiers.shift) =>
+        {
+            GuiMessage::PlayRandomListedSampleRange
         }
         ToolbarIcon::Random => GuiMessage::PlayRandomSampleRange,
         ToolbarIcon::SimilarSections => GuiMessage::ToggleSimilarSections,

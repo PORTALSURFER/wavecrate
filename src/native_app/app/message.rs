@@ -123,6 +123,7 @@ pub(in crate::native_app) enum GuiMessage {
     PlaySelectedSample,
     PlayFromCurrentPlayStart,
     PlayRandomSampleRange,
+    PlayRandomListedSampleRange,
     ToggleStickyRandomSampleRangePlayback,
     LastPlayedPersistReady {
         ticket: ui::TaskTicket,

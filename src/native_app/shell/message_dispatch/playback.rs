@@ -15,6 +15,9 @@ impl NativeAppState {
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::PlayFromCurrentPlayStart => self.play_from_current_play_start(context),
             GuiMessage::PlayRandomSampleRange => self.play_random_sample_range(context),
+            GuiMessage::PlayRandomListedSampleRange => {
+                self.play_random_listed_sample_range(context);
+            }
             GuiMessage::LastPlayedPersistReady { ticket, request } => {
                 self.start_last_played_persist(ticket, request, context);
             }

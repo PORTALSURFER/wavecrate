@@ -108,6 +108,27 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
             crate::native_app::test_support::state::GuiMessage::ToggleStickyRandomSampleRangePlayback
         )
     );
+
+    assert_eq!(
+        crate::native_app::test_support::toolbar::toolbar_icon_button(
+            101,
+            crate::native_app::test_support::toolbar::ToolbarIcon::Random,
+            true,
+            false,
+        )
+        .view_dispatch_widget_output(
+            101,
+            radiant::widgets::WidgetOutput::typed(
+                radiant::widgets::ButtonMessage::ActivateWithModifiers {
+                    modifiers: PointerModifiers {
+                        shift: true,
+                        ..Default::default()
+                    },
+                },
+            ),
+        ),
+        Some(crate::native_app::test_support::state::GuiMessage::PlayRandomListedSampleRange)
+    );
 }
 
 #[test]
@@ -191,6 +212,13 @@ fn random_toolbar_help_tooltip_paints_multiline_guidance() {
         frame
             .paint_plan
             .contains_text("Click: play a random section now.")
+    );
+    assert!(
+        frame
+            .paint_plan
+            .text_label_strings()
+            .iter()
+            .any(|text| text.contains("Shift-click: pick a random"))
     );
     assert!(
         frame

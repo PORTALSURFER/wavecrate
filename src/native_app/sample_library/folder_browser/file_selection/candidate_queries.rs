@@ -49,6 +49,17 @@ impl FolderBrowserState {
         random_candidate_from_ids(&source_files, unit)
     }
 
+    pub(in crate::native_app) fn random_listed_playback_candidate(
+        &self,
+        unit: f32,
+        tags_by_file: &std::collections::HashMap<String, Vec<String>>,
+        avoid_file_id: Option<&str>,
+    ) -> Option<String> {
+        let listed_files = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        random_candidate_from_ids_excluding(&listed_files, unit, avoid_file_id)
+            .or_else(|| random_candidate_from_ids(&listed_files, unit))
+    }
+
     pub(in crate::native_app) fn selected_file_rating_candidates(
         &self,
     ) -> Vec<SelectedFileRatingCandidate> {
@@ -98,6 +109,20 @@ fn random_candidate_from_ids(file_ids: &[String], unit: f32) -> Option<String> {
     Some(file_ids[index].clone())
 }
 
+fn random_candidate_from_ids_excluding(
+    file_ids: &[String],
+    unit: f32,
+    avoid_file_id: Option<&str>,
+) -> Option<String> {
+    let avoid_file_id = avoid_file_id?;
+    let candidates = file_ids
+        .iter()
+        .filter(|id| id.as_str() != avoid_file_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    random_candidate_from_ids(&candidates, unit)
+}
+
 fn first_audio_file_in_folder(folder: &super::super::FolderEntry) -> Option<&str> {
     if let Some(file) = folder.files.iter().find(|file| file.is_audio()) {
         return Some(file.id.as_str());
@@ -107,7 +132,7 @@ fn first_audio_file_in_folder(folder: &super::super::FolderEntry) -> Option<&str
 
 #[cfg(test)]
 mod tests {
-    use super::random_candidate_from_ids;
+    use super::{random_candidate_from_ids, random_candidate_from_ids_excluding};
 
     #[test]
     fn random_candidate_clamps_unit_to_available_id_range() {
@@ -130,5 +155,23 @@ mod tests {
     #[test]
     fn random_candidate_returns_none_for_empty_id_list() {
         assert_eq!(random_candidate_from_ids(&[], 0.5), None);
+    }
+
+    #[test]
+    fn random_candidate_can_skip_current_file_when_alternatives_exist() {
+        let ids = vec![String::from("a"), String::from("b"), String::from("c")];
+
+        assert_eq!(
+            random_candidate_from_ids_excluding(&ids, 0.0, Some("a")),
+            Some(String::from("b"))
+        );
+        assert_eq!(
+            random_candidate_from_ids_excluding(&ids, 1.0, Some("c")),
+            Some(String::from("b"))
+        );
+        assert_eq!(
+            random_candidate_from_ids_excluding(&ids, 0.5, Some("missing")),
+            Some(String::from("b"))
+        );
     }
 }

@@ -172,6 +172,87 @@ fn command_clicking_random_toolbar_button_toggles_sticky_random_playback() {
 }
 
 #[test]
+fn shift_clicking_random_toolbar_button_selects_random_listed_sample_before_audition() {
+    let root = temp_gui_root("wavecrate-toolbar-random-shift-listed");
+    let tagged = root.join("tagged.wav");
+    let hidden = root.join("hidden.wav");
+    let tagged_id = tagged.display().to_string();
+    let hidden_id = hidden.display().to_string();
+    write_test_wav_i16(&tagged, &[0, 256, -256, 512]);
+    write_test_wav_i16(&hidden, &[0, 1024, -1024, 512]);
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state
+        .metadata
+        .tags_by_file
+        .insert(tagged_id.clone(), vec![String::from("Drum")]);
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::TagFilterInput(
+            radiant::widgets::TextInputMessage::Changed {
+                value: String::from("drum"),
+            },
+        ),
+    );
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
+    assert!(state.waveform.current.has_loaded_sample());
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .first_svg_rect_for_widget(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
+        .expect("random toolbar icon should paint");
+    let point = icon_rect.center();
+    let shift = PointerModifiers {
+        shift: true,
+        ..Default::default()
+    };
+
+    runtime.dispatch_event(Event::pointer_press(point, PointerButton::Primary, shift));
+    runtime.dispatch_event(Event::pointer_release(point, PointerButton::Primary, shift));
+
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
+        Some(tagged_id.as_str())
+    );
+    assert_ne!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
+        Some(hidden_id.as_str()),
+        "Shift-random must choose from the listed filtered files"
+    );
+    assert!(
+        matches!(
+            runtime.bridge().state().audio.pending_sample_playback,
+            Some(
+                crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { .. }
+            )
+        ),
+        "Shift-random should preserve random-audition intent while the listed sample loads"
+    );
+    assert!(
+        runtime.bridge().state().waveform_sample_load_active(),
+        "Shift-random should queue a sample load for the randomly listed sample"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn random_toolbar_button_is_hit_target_for_selected_unloaded_sample() {
     let root = temp_gui_root("wavecrate-toolbar-random-selected");
     let sample = root.join("selected.wav");
