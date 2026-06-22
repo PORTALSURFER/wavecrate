@@ -203,9 +203,7 @@ mod tests {
         assert!(matches!(
             collection_row(&row).view_dispatch_widget_output(
                 ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64),
-                ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::RenameCollection(collection_id)
-                )),
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::DoubleActivate),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::RenameCollection(collection)

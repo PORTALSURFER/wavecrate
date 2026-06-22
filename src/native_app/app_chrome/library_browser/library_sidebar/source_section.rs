@@ -145,9 +145,7 @@ mod tests {
         assert_eq!(
             source_row(row).view_dispatch_widget_output(
                 ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
-                ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::SelectSource(source.id.clone())
-                )),
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::SelectSource(source.id.clone())
@@ -167,9 +165,7 @@ mod tests {
         assert_eq!(
             source_row(row).view_dispatch_widget_output(
                 ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
-                ui::WidgetOutput::typed(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::OpenSourceContextMenu(source.id.clone(), position)
-                )),
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::OpenSourceContextMenu(source.id.clone(), position)
