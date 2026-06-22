@@ -47,18 +47,18 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if !self
+        let Some(result) = self
             .background
             .folder_tree_refresh_task
-            .finish(completion.ticket)
-        {
+            .finish_completion(completion)
+        else {
             return;
-        }
-        let source_id = completion.output.source_id.clone();
+        };
+        let source_id = result.source_id.clone();
         let changed = self
             .library
             .folder_browser
-            .apply_folder_tree_refresh_result(completion.output);
+            .apply_folder_tree_refresh_result(result);
         if changed {
             self.persist_user_configuration("folder_browser.folder_tree_refresh", started_at);
         }

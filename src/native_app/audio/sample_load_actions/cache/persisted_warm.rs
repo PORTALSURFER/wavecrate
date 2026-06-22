@@ -64,17 +64,12 @@ impl NativeAppState {
         completion: ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>,
     ) {
         let started_at = Instant::now();
-        if !self
-            .waveform
-            .cache
-            .warm_tasks
-            .finish_key(&completion.key, completion.ticket)
-        {
+        let Some(result) = self.waveform.cache.warm_tasks.finish_completion(completion) else {
             return;
-        }
+        };
         self.waveform.cache.warm_key = None;
         self.waveform.cache.warm_cancel = None;
-        self.apply_waveform_cache_warm_result(completion.output);
+        self.apply_waveform_cache_warm_result(result);
         log_slow_cache_phase(
             "browser.sample_cache.warm_finish",
             Path::new("waveform-cache-warm"),

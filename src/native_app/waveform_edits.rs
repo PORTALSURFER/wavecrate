@@ -200,17 +200,17 @@ impl NativeAppState {
         &mut self,
         completion: ui::TaskCompletion<WaveformDestructiveEditResult>,
     ) {
-        if !self
+        let Some(output) = self
             .background
             .waveform_destructive_edit_task
-            .finish(completion.ticket)
-        {
+            .finish_completion(completion)
+        else {
             return;
-        }
+        };
         let Some(active) = self.background.waveform_destructive_edit_context.take() else {
             return;
         };
-        let applied = match completion.output.result {
+        let applied = match output.result {
             Ok(applied) => applied,
             Err(error) => {
                 self.ui.status.sample = format!(
@@ -220,7 +220,7 @@ impl NativeAppState {
                 return;
             }
         };
-        if let Some(mark) = completion.output.extracted_mark {
+        if let Some(mark) = output.extracted_mark {
             self.waveform
                 .current
                 .mark_extracted_play_selection(&mark.source_path, mark.selection);

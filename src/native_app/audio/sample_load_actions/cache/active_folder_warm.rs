@@ -165,7 +165,7 @@ impl NativeAppState {
             .waveform
             .cache
             .active_folder_warm_plan_task
-            .is_active(completion.ticket)
+            .is_active_completion(&completion)
         {
             return;
         }
@@ -185,16 +185,15 @@ impl NativeAppState {
         completion: ui::TaskCompletion<ActiveFolderCacheWarmPlanResult>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if !self
+        let Some(result) = self
             .waveform
             .cache
             .active_folder_warm_plan_task
-            .finish(completion.ticket)
-        {
+            .finish_completion(completion)
+        else {
             return;
-        }
+        };
         self.waveform.cache.active_folder_warm_plan_cancel = None;
-        let result = completion.output;
         if result.cancelled {
             self.waveform.cache.clear_active_folder_warm_job();
             return;
@@ -314,7 +313,7 @@ impl NativeAppState {
             .waveform
             .cache
             .active_folder_warm_tasks
-            .is_active_key(&completion.key, completion.ticket)
+            .is_active_completion(&completion)
         {
             return;
         }
@@ -385,17 +384,16 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if !self
+        let Some(result) = self
             .waveform
             .cache
             .active_folder_warm_tasks
-            .finish_key(&completion.key, completion.ticket)
-        {
+            .finish_completion(completion)
+        else {
             return;
-        }
+        };
         self.waveform.cache.active_folder_warm_key = None;
         self.waveform.cache.active_folder_warm_cancel = None;
-        let result = completion.output;
         if self.waveform.cache.active_folder_warm_folder_id.as_deref()
             != Some(result.folder_id.as_str())
         {

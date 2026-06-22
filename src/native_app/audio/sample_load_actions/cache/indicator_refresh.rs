@@ -64,15 +64,15 @@ impl NativeAppState {
         &mut self,
         completion: ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>,
     ) {
-        if !self
+        let Some(result) = self
             .waveform
             .cache
             .indicator_refresh_task
-            .finish(completion.ticket)
-        {
+            .finish_completion(completion)
+        else {
             return;
-        }
-        self.apply_waveform_cache_indicator_refresh_result(completion.output);
+        };
+        self.apply_waveform_cache_indicator_refresh_result(result);
     }
 
     fn apply_waveform_cache_indicator_refresh_result(

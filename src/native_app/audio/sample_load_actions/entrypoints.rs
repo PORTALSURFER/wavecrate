@@ -206,14 +206,13 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if !self
+        let Some(validation) = self
             .background
             .sample_load_validation_task
-            .finish(completion.ticket)
-        {
+            .finish_completion(completion)
+        else {
             return;
-        }
-        let validation = completion.output;
+        };
         if !validation.existing_file
             && self.prune_missing_sample_after_validation(validation.path.as_str(), started_at)
         {
