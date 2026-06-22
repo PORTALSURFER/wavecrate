@@ -200,7 +200,9 @@ fn active_folder_cache_plan_uses_blocking_io_lane() {
     state.schedule_active_folder_cache_warm(&mut context);
 
     assert_eq!(
-        business_command_priority(context.into_command(), "gui-active-folder-cache-warm-plan"),
+        context
+            .into_command()
+            .business_task_priority("gui-active-folder-cache-warm-plan"),
         Some(ui::TaskPriority::BlockingIo),
         "cache probing should use the limited blocking-IO lane instead of ordinary background work"
     );

@@ -228,7 +228,9 @@ fn normalize_selected_samples_uses_interactive_worker_priority() {
     );
 
     assert_eq!(
-        business_command_priority(context.into_command(), "gui-normalize-selected-samples"),
+        context
+            .into_command()
+            .business_task_priority("gui-normalize-selected-samples"),
         Some(ui::TaskPriority::Interactive),
         "normalization must not wait behind low-priority cache warming"
     );

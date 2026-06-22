@@ -332,28 +332,6 @@ fn active_folder_cache_warm_completion_with_deferred(
     }
 }
 
-fn business_command_priority(
-    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
-    name: &'static str,
-) -> Option<ui::TaskPriority> {
-    match command {
-        radiant::runtime::Command::Perform {
-            name: command_name,
-            priority,
-            ..
-        } if command_name == name => Some(priority),
-        radiant::runtime::Command::PerformStream {
-            name: command_name,
-            priority,
-            ..
-        } if command_name == name => Some(priority),
-        radiant::runtime::Command::Batch(commands) => commands
-            .into_iter()
-            .find_map(|command| business_command_priority(command, name)),
-        _ => None,
-    }
-}
-
 fn platform_copy_file_path_count(
     command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
 ) -> Option<usize> {
@@ -509,7 +487,9 @@ fn playmark_selection_copy_uses_interactive_handoff_worker() {
             .is_none()
     );
     assert_eq!(
-        business_command_priority(context.into_command(), "gui-copy-waveform-selection"),
+        context
+            .into_command()
+            .business_task_priority("gui-copy-waveform-selection"),
         Some(ui::TaskPriority::Interactive),
         "playmark clipboard staging must not queue behind cache warm workers"
     );

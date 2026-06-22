@@ -39,25 +39,10 @@ fn frame_queues_audio_output_warm_up_before_explicit_playback() {
         "frame processing should begin audio output warm-up before the first explicit playback"
     );
     assert_eq!(
-        business_command_priority(context.into_command(), "gui-audio-open"),
+        context
+            .into_command()
+            .business_task_priority("gui-audio-open"),
         Some(ui::TaskPriority::BlockingIo),
         "audio device initialization must not occupy the interactive sample-load lane"
     );
-}
-
-fn business_command_priority(
-    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
-    name: &'static str,
-) -> Option<ui::TaskPriority> {
-    match command {
-        radiant::runtime::Command::Perform {
-            name: command_name,
-            priority,
-            ..
-        } if command_name == name => Some(priority),
-        radiant::runtime::Command::Batch(commands) => commands
-            .into_iter()
-            .find_map(|command| business_command_priority(command, name)),
-        _ => None,
-    }
 }
