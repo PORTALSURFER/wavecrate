@@ -112,7 +112,7 @@ fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
 }
 
 fn write_interleaved_f32_file(path: &std::path::Path, samples: &[f32]) {
-    let mut bytes = Vec::with_capacity(samples.len() * std::mem::size_of::<f32>());
+    let mut bytes = Vec::with_capacity(std::mem::size_of_val(samples));
     for sample in samples {
         bytes.extend_from_slice(&sample.to_le_bytes());
     }

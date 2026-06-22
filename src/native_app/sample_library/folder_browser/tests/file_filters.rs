@@ -16,9 +16,8 @@ fn tagged_file_window_materializes_requested_range_without_holes() {
     let tags_by_file = files
         .iter()
         .enumerate()
-        .filter_map(|(index, file)| {
-            (index % 2 == 0).then(|| (path_id(file), vec![String::from("Drum")]))
-        })
+        .filter(|(index, _file)| index % 2 == 0)
+        .map(|(_index, file)| (path_id(file), vec![String::from("Drum")]))
         .collect::<std::collections::HashMap<_, _>>();
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));

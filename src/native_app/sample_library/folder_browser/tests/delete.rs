@@ -84,7 +84,7 @@ fn trashed_selected_file_focuses_next_sample_without_clearing_file_selection() {
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&kick));
 
-    assert!(browser.discard_trashed_file_paths(&[kick.clone()]));
+    assert!(browser.discard_trashed_file_paths(std::slice::from_ref(&kick)));
 
     assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
     assert_eq!(browser.selected_file_paths(), vec![snare.clone()]);
@@ -112,7 +112,7 @@ fn trashed_last_selected_file_focuses_previous_sample() {
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&snare));
 
-    assert!(browser.discard_trashed_file_paths(&[snare.clone()]));
+    assert!(browser.discard_trashed_file_paths(std::slice::from_ref(&snare)));
 
     assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
     assert_eq!(browser.selected_file_paths(), vec![kick.clone()]);

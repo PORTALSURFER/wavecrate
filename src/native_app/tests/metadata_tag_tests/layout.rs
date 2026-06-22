@@ -179,7 +179,7 @@ fn metadata_resize_header_uses_full_header_hit_target() {
         )
         .view_dispatch_widget_output(
             crate::native_app::test_support::metadata_sidebar::METADATA_RESIZE_HEADER_ID,
-            ui::WidgetOutput::typed(drag.clone()),
+            ui::WidgetOutput::typed(drag),
         ),
         Some(
             crate::native_app::test_support::state::GuiMessage::FolderBrowser(

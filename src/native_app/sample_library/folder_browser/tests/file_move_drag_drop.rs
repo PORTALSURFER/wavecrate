@@ -332,8 +332,8 @@ fn file_drag_drop_moves_shift_selected_offscreen_range() {
         submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
 
     assert_eq!(result.moved_paths.len(), 52);
-    for index in 4..=55 {
-        assert!(!files[index].exists(), "source should move: {index}");
+    for (index, file) in files.iter().enumerate().take(56).skip(4) {
+        assert!(!file.exists(), "source should move: {index}");
         assert!(
             loops.join(format!("sample_{index:02}.wav")).is_file(),
             "destination should exist: {index}"
