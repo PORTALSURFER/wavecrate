@@ -37,6 +37,9 @@ impl NativeAppState {
             FolderBrowserMessage::TagFilterInput(message) => {
                 self.apply_folder_browser_tag_filter_input(message);
             }
+            FolderBrowserMessage::TogglePlaybackTypeFilter(filter, enabled) => {
+                self.toggle_folder_browser_playback_type_filter(filter, enabled);
+            }
             FolderBrowserMessage::DropOnFolder(folder_id) => {
                 self.drop_on_folder_browser_folder(folder_id, context);
             }

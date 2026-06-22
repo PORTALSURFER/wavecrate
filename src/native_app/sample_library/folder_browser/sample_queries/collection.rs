@@ -6,7 +6,9 @@ use std::{
 use radiant::prelude as ui;
 use wavecrate::sample_sources::SampleCollection;
 
-use super::{filter_audio_files_by_rating, filters, rating_filter, traversal};
+use super::{
+    filter_audio_files_by_rating, filters, playback_type_filter, rating_filter, traversal,
+};
 use crate::native_app::sample_library::folder_browser::{
     FileEntry, FolderBrowserState,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
@@ -28,8 +30,9 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let playback_type_filters = &self.filters.playback_type_filter;
         let ids = self.selected_collection_audio_file_ids_ref(collection);
-        if required_tags.is_empty() {
+        if required_tags.is_empty() && playback_type_filters.is_empty() {
             let total_count = ids.len();
             let window_start = window.window_start.min(total_count);
             let window_end = window.window_end.min(total_count);
@@ -48,6 +51,11 @@ impl FolderBrowserState {
             .filter_map(|id| files_by_id.get(id.as_str()).copied())
             .filter(|file| {
                 filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        playback_type_filters,
+                    )
             })
             .filter_map(|file| {
                 let row = (total_count >= window.window_start && total_count < window.window_end)

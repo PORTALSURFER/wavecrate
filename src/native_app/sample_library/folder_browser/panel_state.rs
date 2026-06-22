@@ -2,7 +2,9 @@ use radiant::{prelude as ui, widgets::TextInputMessageKind};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::{
-    DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState, rating_filter::RATING_FILTER_LEVELS,
+    DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
+    playback_type_filter::{PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter},
+    rating_filter::RATING_FILTER_LEVELS,
 };
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
@@ -12,7 +14,7 @@ const MAX_FILTER_PANEL_HEIGHT: f32 = 180.0;
 pub(in crate::native_app) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
     filter_panel_geometry().header_only_height();
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 92.0;
+pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 117.0;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -41,6 +43,7 @@ const fn metadata_panel_geometry() -> ui::PanelSectionGeometry {
 pub(super) struct BrowserFilterState {
     pub(super) name_filter: String,
     pub(super) tag_filter: String,
+    pub(super) playback_type_filter: BTreeSet<PlaybackTypeFilter>,
     pub(super) rating_filter: BTreeSet<i8>,
 }
 
@@ -89,6 +92,10 @@ impl FolderBrowserState {
         &self.filters.rating_filter
     }
 
+    pub(in crate::native_app) fn playback_type_filter(&self) -> &BTreeSet<PlaybackTypeFilter> {
+        &self.filters.playback_type_filter
+    }
+
     pub(in crate::native_app) fn apply_name_filter_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
@@ -134,6 +141,24 @@ impl FolderBrowserState {
         }
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
+    }
+
+    pub(in crate::native_app) fn set_playback_type_filter(
+        &mut self,
+        filter: PlaybackTypeFilter,
+        enabled: bool,
+    ) {
+        if !PLAYBACK_TYPE_FILTERS.contains(&filter) {
+            return;
+        }
+        let changed = if enabled {
+            self.filters.playback_type_filter.insert(filter)
+        } else {
+            self.filters.playback_type_filter.remove(&filter)
+        };
+        if changed {
+            self.reset_file_view();
+        }
     }
 
     pub(in crate::native_app) fn retain_visible_file_selection_after_tag_filter(

@@ -300,6 +300,9 @@ impl FolderBrowserState {
             FolderBrowserMessage::TagFilterInput(message) => {
                 self.apply_tag_filter_input(message);
             }
+            FolderBrowserMessage::TogglePlaybackTypeFilter(filter, enabled) => {
+                self.set_playback_type_filter(filter, enabled);
+            }
             FolderBrowserMessage::ToggleRatingFilter(level, enabled) => {
                 self.set_rating_filter(level, enabled);
             }

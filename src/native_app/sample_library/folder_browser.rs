@@ -60,6 +60,7 @@ mod scanning;
 use scanning::{default_root_path, file_entry, load_source_snapshot, placeholder_folder};
 
 mod panel_state;
+mod playback_type_filter;
 mod rating_filter;
 mod source_scan_cache;
 use panel_state::{BrowserFilterState, BrowserPanelLayoutState};

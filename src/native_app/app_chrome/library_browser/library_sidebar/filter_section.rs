@@ -3,9 +3,10 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
 use crate::native_app::app_chrome::view_models::library_sidebar::{
-    FilterSectionViewModel, RatingFilterToggleViewModel,
+    FilterSectionViewModel, PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 #[cfg(test)]
 use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -21,6 +22,7 @@ const FILTER_LABEL_WIDTH: f32 = 38.0;
 const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
 const FILTER_INPUT_CLEAR_SPACING: f32 = 4.0;
 const FILTER_ROW_SPACING: f32 = 1.0;
+const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
 const RATING_FILTER_SWATCH_SIZE: u8 = 12;
 const RATING_FILTER_TRASH_COLOR: ui::Rgba8 = ui::Rgba8 {
@@ -43,6 +45,7 @@ const RATING_FILTER_KEEP_COLOR: ui::Rgba8 = ui::Rgba8 {
 };
 const NAME_FILTER_INPUT_ID: u64 = widget_ids::NAME_FILTER_INPUT_ID;
 const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
+const PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 = widget_ids::PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE;
 const RATING_FILTER_TOGGLE_SCOPE: u64 = widget_ids::RATING_FILTER_TOGGLE_SCOPE;
 const FILTER_SECTION_SCROLL_NODE_ID: u64 = widget_ids::FILTER_SECTION_SCROLL_NODE_ID;
 const NAME_FILTER_CLEAR_BUTTON_ID: u64 = widget_ids::NAME_FILTER_CLEAR_BUTTON_ID;
@@ -80,6 +83,7 @@ fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let rows = [
         name_filter_row(model),
         tag_filter_row(model),
+        playback_type_filter_row(model),
         rating_filter_row(model),
     ];
     let content_height = filter_controls_content_height(rows.len());
@@ -144,6 +148,49 @@ fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
         ),
         "filter-tags-row",
     )
+}
+
+fn playback_type_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
+    let label = ui::text_line("Type", FILTER_CLEAR_BUTTON_SIZE).key("filter-type-label");
+    filter_labeled_control_row(
+        label,
+        ui::row(
+            model
+                .playback_type_filters
+                .iter()
+                .map(playback_type_filter_toggle)
+                .collect::<Vec<_>>(),
+        )
+        .spacing(4.0)
+        .fill_width()
+        .height(FILTER_CLEAR_BUTTON_SIZE),
+        "filter-type-row",
+    )
+}
+
+fn playback_type_filter_toggle(toggle: &PlaybackTypeFilterToggleViewModel) -> ui::View<GuiMessage> {
+    let filter = toggle.filter;
+    ui::selectable(toggle.label, toggle.active)
+        .style(ui::WidgetStyle::subtle(playback_type_filter_tone(filter)))
+        .message(move |enabled| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::TogglePlaybackTypeFilter(
+                filter, enabled,
+            ))
+        })
+        .id(playback_type_filter_toggle_id(toggle.label))
+        .key(format!("filter-type-toggle-{}", toggle.label))
+        .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+}
+
+fn playback_type_filter_tone(filter: PlaybackTypeFilter) -> ui::WidgetTone {
+    match filter {
+        PlaybackTypeFilter::OneShot => ui::WidgetTone::Neutral,
+        PlaybackTypeFilter::Loop => ui::WidgetTone::Accent,
+    }
+}
+
+fn playback_type_filter_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE, label)
 }
 
 fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
@@ -283,7 +330,7 @@ mod tests {
     use radiant::prelude::IntoView;
     use radiant::widgets::{ButtonMessage, SelectableMessage};
 
-    const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 112.0;
+    const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 140.0;
 
     #[test]
     fn filter_section_layout_uses_configured_height() {
@@ -401,11 +448,8 @@ mod tests {
 
         assert!(frame.paint_plan.contains_text("Name"));
         assert!(frame.paint_plan.contains_text("Tags"));
+        assert!(frame.paint_plan.contains_text("Type"));
         assert!(frame.paint_plan.contains_text("Rating"));
-        assert!(
-            !frame.paint_plan.contains_text("Type"),
-            "old type filter label should be removed"
-        );
         assert_eq!(
             inputs
                 .iter()
@@ -514,6 +558,50 @@ mod tests {
             ),
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::TagFilterInput(empty_filter_message())
+            ))
+        );
+    }
+
+    #[test]
+    fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
+        let mut state = FolderBrowserState::load_default();
+        state.set_playback_type_filter(PlaybackTypeFilter::Loop, true);
+        let model = FilterSectionViewModel::from_folder_browser(&state);
+        let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+            240.0,
+            FILTER_SECTION_TEST_FRAME_HEIGHT,
+        ));
+
+        assert!(
+            frame
+                .paint_plan
+                .first_widget_rect(playback_type_filter_toggle_id("1-Shot"))
+                .is_some()
+        );
+        assert!(
+            frame
+                .paint_plan
+                .first_widget_rect(playback_type_filter_toggle_id("Loop"))
+                .is_some()
+        );
+        assert!(frame.paint_plan.contains_text("1-Shot"));
+        assert!(frame.paint_plan.contains_text("Loop"));
+        assert_eq!(
+            filter_section(&model).view_dispatch_widget_output(
+                playback_type_filter_toggle_id("1-Shot"),
+                ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::TogglePlaybackTypeFilter(PlaybackTypeFilter::OneShot, true)
+            ))
+        );
+        assert_eq!(
+            filter_section(&model).view_dispatch_widget_output(
+                playback_type_filter_toggle_id("Loop"),
+                ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::TogglePlaybackTypeFilter(PlaybackTypeFilter::Loop, false)
             ))
         );
     }

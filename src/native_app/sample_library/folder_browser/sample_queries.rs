@@ -1,7 +1,7 @@
 use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
 use super::{
-    FileEntry, FolderBrowserState, FolderEntry, rating_filter,
+    FileEntry, FolderBrowserState, FolderEntry, playback_type_filter, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
 
@@ -95,6 +95,13 @@ impl FolderBrowserState {
     ) -> Vec<&FileEntry> {
         let mut files = self.selected_audio_files();
         filters::filter_audio_files_by_tags(&mut files, tags_by_file, &self.filters.tag_filter);
+        files.retain(|file| {
+            playback_type_filter::playback_type_filter_matches(
+                file,
+                tags_by_file,
+                &self.filters.playback_type_filter,
+            )
+        });
         files
     }
 
@@ -104,11 +111,15 @@ impl FolderBrowserState {
     ) -> usize {
         let name_query = filters::normalized_name_filter(&self.filters.name_filter);
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        if required_tags.is_empty() && self.selection.selected_collection.is_none() {
+        let playback_type_filter = &self.filters.playback_type_filter;
+        if required_tags.is_empty()
+            && playback_type_filter.is_empty()
+            && self.selection.selected_collection.is_none()
+        {
             return self.selected_folder_audio_file_count();
         }
         if let Some(collection) = self.selection.selected_collection {
-            if required_tags.is_empty() {
+            if required_tags.is_empty() && playback_type_filter.is_empty() {
                 return self
                     .selected_collection_audio_file_ids_ref(collection)
                     .len();
@@ -125,6 +136,7 @@ impl FolderBrowserState {
                         &required_tags,
                         tags_by_file,
                         &self.filters.rating_filter,
+                        playback_type_filter,
                         None,
                     )
                 })
@@ -137,6 +149,11 @@ impl FolderBrowserState {
                 file.is_audio()
                     && filters::audio_file_matches_name_query(file, &name_query)
                     && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        playback_type_filter,
+                    )
                     && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
             })
             .count()
@@ -185,8 +202,9 @@ impl FolderBrowserState {
         }
 
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let playback_type_filter = &self.filters.playback_type_filter;
         let indices = self.selected_folder_audio_file_indices_ref(folder);
-        if required_tags.is_empty() {
+        if required_tags.is_empty() && playback_type_filter.is_empty() {
             let total_count = indices.len();
             return VisibleSampleWindowFiles {
                 total_count,
@@ -206,6 +224,11 @@ impl FolderBrowserState {
             .filter_map(|file_index| folder.files.get(*file_index))
             .filter(|file| {
                 filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        playback_type_filter,
+                    )
             })
             .filter_map(|file| {
                 let row = (total_count >= window.window_start && total_count < window.window_end)
@@ -246,6 +269,7 @@ impl FolderBrowserState {
         };
         let name_query = filters::normalized_name_filter(&self.filters.name_filter);
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let playback_type_filter = &self.filters.playback_type_filter;
         let mut files = folder
             .files
             .iter()
@@ -253,6 +277,11 @@ impl FolderBrowserState {
                 file.is_audio()
                     && filters::audio_file_matches_name_query(file, &name_query)
                     && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        playback_type_filter,
+                    )
                     && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
             })
             .collect::<Vec<_>>();
@@ -266,8 +295,9 @@ impl FolderBrowserState {
     ) -> Option<usize> {
         let selected = self.selection.selected_file.as_deref()?;
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let playback_type_filter = &self.filters.playback_type_filter;
         if let Some(collection) = self.selection.selected_collection {
-            if required_tags.is_empty() {
+            if required_tags.is_empty() && playback_type_filter.is_empty() {
                 return self
                     .selected_collection_audio_file_ids_ref(collection)
                     .iter()
@@ -293,6 +323,11 @@ impl FolderBrowserState {
             .filter_map(|file_index| folder.files.get(*file_index))
             .filter(|file| {
                 filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        playback_type_filter,
+                    )
             })
             .position(|file| file.id == selected)
     }

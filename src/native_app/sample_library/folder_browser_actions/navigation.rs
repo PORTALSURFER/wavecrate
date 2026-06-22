@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTIONS_LIST_SCROLL_NODE_ID, FOLDER_TREE_EDGE_CONTEXT_ROWS,
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
@@ -22,6 +23,21 @@ impl NativeAppState {
         self.library
             .folder_browser
             .apply_message(FolderBrowserMessage::TagFilterInput(message));
+        self.library
+            .folder_browser
+            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+    }
+
+    pub(super) fn toggle_folder_browser_playback_type_filter(
+        &mut self,
+        filter: PlaybackTypeFilter,
+        enabled: bool,
+    ) {
+        self.library
+            .folder_browser
+            .apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
+                filter, enabled,
+            ));
         self.library
             .folder_browser
             .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);

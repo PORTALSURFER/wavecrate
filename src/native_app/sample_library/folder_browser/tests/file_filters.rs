@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::collections::{HashMap, HashSet};
 
@@ -370,6 +371,144 @@ fn rating_filter_clears_selection_hidden_by_filter() {
             .map(|file| file.name.as_str())
             .collect::<Vec<_>>(),
         vec!["keep.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn playback_type_filter_limits_visible_samples_and_combines_modes() {
+    let root = temp_source_root("wavecrate-gui-playback-type-filter");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let loop_file = drums.join("loop.wav");
+    let shot = drums.join("shot.wav");
+    let unknown = drums.join("unknown.wav");
+    for file in [&loop_file, &shot, &unknown] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&unknown));
+    let tags_by_file = HashMap::from([
+        (path_id(&loop_file), vec![String::from("loop")]),
+        (path_id(&shot), vec![String::from("one-shot")]),
+    ]);
+    let cached_sample_paths = HashSet::new();
+
+    browser.apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
+        PlaybackTypeFilter::Loop,
+        true,
+    ));
+    browser.retain_visible_file_selection_after_tag_filter(&tags_by_file);
+
+    let visible = browser.visible_samples(VisibleSampleQuery {
+        tags_by_file: &tags_by_file,
+        cached_sample_paths: &cached_sample_paths,
+    });
+    assert_eq!(visible.total_count, 1);
+    assert_eq!(
+        visible
+            .rows
+            .iter()
+            .map(|row| row.file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["loop.wav"]
+    );
+    assert_eq!(browser.selected_file_id(), None);
+
+    browser.apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
+        PlaybackTypeFilter::OneShot,
+        true,
+    ));
+
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["loop.wav", "shot.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
+        PlaybackTypeFilter::Loop,
+        false,
+    ));
+
+    assert_eq!(
+        browser.selected_audio_file_count_matching_tags(&tags_by_file),
+        1
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["shot.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn playback_type_filter_applies_to_subtree_and_collection_windows() {
+    let root = temp_source_root("wavecrate-gui-playback-type-filter-scopes");
+    let drums = root.join("drums");
+    let loops = drums.join("loops");
+    let shots = drums.join("shots");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    fs::create_dir_all(&shots).expect("create shots folder");
+    let loop_file = loops.join("loop.wav");
+    let shot = shots.join("shot.wav");
+    for file in [&loop_file, &shot] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let collection = SampleCollection::new(1).expect("collection");
+    browser.set_file_collection_state(&loop_file, collection);
+    browser.set_file_collection_state(&shot, collection);
+    let tags_by_file = HashMap::from([
+        (path_id(&loop_file), vec![String::from("loop")]),
+        (path_id(&shot), vec![String::from("one-shot")]),
+    ]);
+    let cached_sample_paths = HashSet::new();
+
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&drums),
+        Default::default(),
+    ));
+    browser.apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    browser.apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
+        PlaybackTypeFilter::Loop,
+        true,
+    ));
+
+    assert_eq!(
+        browser
+            .visible_samples(VisibleSampleQuery {
+                tags_by_file: &tags_by_file,
+                cached_sample_paths: &cached_sample_paths,
+            })
+            .rows
+            .iter()
+            .map(|row| row.file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["loop.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(
+        browser
+            .visible_samples(VisibleSampleQuery {
+                tags_by_file: &tags_by_file,
+                cached_sample_paths: &cached_sample_paths,
+            })
+            .rows
+            .iter()
+            .map(|row| row.file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["loop.wav"]
     );
     let _ = fs::remove_dir_all(root);
 }
