@@ -197,6 +197,11 @@ impl ClaimSelector {
     pub(crate) fn refresh_count(&self) -> usize {
         self.refresh_count
     }
+
+    #[cfg(test)]
+    pub(crate) fn mark_refreshed_now_for_tests(&mut self) {
+        self.last_refresh = Instant::now();
+    }
 }
 
 pub(crate) fn shared(reset_done: Arc<Mutex<HashSet<PathBuf>>>) -> SharedClaimSelector {

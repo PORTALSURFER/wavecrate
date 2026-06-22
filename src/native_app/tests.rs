@@ -44,6 +44,17 @@ fn gui_state_for_span_tests() -> NativeAppState {
         .build()
 }
 
+fn test_audio_output_enabled() -> bool {
+    std::env::var("WAVECRATE_TEST_AUDIO_OUTPUT")
+        .ok()
+        .is_some_and(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+}
+
 type NativeRuntimeForTests = SurfaceRuntime<
     DeclarativeOwnedCommandRuntimeBridge<
         NativeAppState,

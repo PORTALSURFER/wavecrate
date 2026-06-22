@@ -51,6 +51,10 @@ fn save_waveform_slices_to_browser_runs_in_background_and_clears_on_success() {
             .jobs
             .pending_slice_batch_export()
             .is_none()
+            && !controller
+                .ui
+                .progress
+                .has_task(ProgressTaskKind::SelectionExport)
             && source_root.join("clip_silence_split_003.wav").is_file()
     });
 

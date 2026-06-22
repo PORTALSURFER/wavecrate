@@ -34,6 +34,9 @@ fn wav_load_reports_playback_ready_before_waveform_summary_completion() {
 
 #[test]
 fn playback_ready_message_waits_for_waveform_before_starting_audio() {
+    if !test_audio_output_enabled() {
+        return;
+    }
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;
     };

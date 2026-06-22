@@ -29,7 +29,7 @@ pub struct OpenStreamOutcome {
 
 /// Open an audio stream honoring user preferences with safe fallbacks.
 ///
-/// On test builds, set `RESON_TEST_AUDIO_OUTPUT=1` to exercise real output
+/// On test builds, set `WAVECRATE_TEST_AUDIO_OUTPUT=1` to exercise real output
 /// devices; otherwise the function returns `NoOutputDevices` to keep automated
 /// test runs deterministic on hosts without stable audio hardware.
 pub fn open_output_stream(
@@ -142,7 +142,7 @@ pub fn open_output_stream(
 
 #[cfg(test)]
 fn test_audio_output_enabled() -> bool {
-    std::env::var("RESON_TEST_AUDIO_OUTPUT")
+    std::env::var("WAVECRATE_TEST_AUDIO_OUTPUT")
         .ok()
         .is_some_and(|value| {
             matches!(

@@ -66,16 +66,10 @@ impl RandomHistoryState {
             .as_ref()
             .is_some_and(|list| &list.source_id == source_id && list.fingerprint == fingerprint);
         if !list_matches {
-            let played = self
-                .current_list
-                .take()
-                .filter(|list| &list.source_id == source_id)
-                .map(|list| list.played)
-                .unwrap_or_default();
             self.current_list = Some(RandomPlayedList {
                 source_id: source_id.clone(),
                 fingerprint,
-                played,
+                played: HashSet::new(),
             });
         }
     }

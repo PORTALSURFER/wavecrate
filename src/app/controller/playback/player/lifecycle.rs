@@ -7,6 +7,11 @@ use std::time::{Duration, Instant};
 pub(crate) fn ensure_player(
     controller: &mut AppController,
 ) -> Result<Option<Rc<RefCell<AudioPlayer>>>, String> {
+    #[cfg(test)]
+    if controller.audio.player.is_none() && !test_audio_output_enabled() {
+        return Ok(None);
+    }
+
     if controller.audio.player.is_none() {
         let mut created = AudioPlayer::from_config(&controller.settings.audio_output)
             .map_err(|err| format!("Audio init failed: {err}"))?;
@@ -19,6 +24,18 @@ pub(crate) fn ensure_player(
         controller.update_audio_output_status();
     }
     Ok(controller.audio.player.clone())
+}
+
+#[cfg(test)]
+fn test_audio_output_enabled() -> bool {
+    std::env::var("WAVECRATE_TEST_AUDIO_OUTPUT")
+        .ok()
+        .is_some_and(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
 }
 
 /// Queue loop disable after the current cycle boundary to avoid mid-cycle discontinuities.

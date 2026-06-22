@@ -2,6 +2,8 @@ use super::*;
 
 #[test]
 fn shared_selector_refreshes_sources_once_across_idle_probes() {
+    let config_dir = TempDir::new().unwrap();
+    let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
     let dir = TempDir::new().unwrap();
     let source = SampleSource::new(dir.path().to_path_buf());
     let state = crate::sample_sources::library::LibraryState {
@@ -19,6 +21,7 @@ fn shared_selector_refreshes_sources_once_across_idle_probes() {
             selection::ClaimSelection::Idle
         ));
         assert_eq!(selector.refresh_count(), 1);
+        selector.mark_refreshed_now_for_tests();
     }
 
     {

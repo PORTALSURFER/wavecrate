@@ -14,6 +14,9 @@ use fixture::WaveformPlaybackScenario;
 static WAVEFORM_CONFIG_BASE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn install_playback_runtime_for_tests(state: &mut NativeAppState) -> bool {
+    if !test_audio_output_enabled() {
+        return false;
+    }
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return false;
     };

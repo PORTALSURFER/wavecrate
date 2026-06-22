@@ -98,6 +98,9 @@ fn full_app_scene_primary_waveform_click_starts_playback_with_play_mark() {
 
 #[test]
 fn full_app_scene_primary_waveform_click_starts_audio_playback() {
+    if !test_audio_output_enabled() {
+        return;
+    }
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;
     };

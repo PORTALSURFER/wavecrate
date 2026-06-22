@@ -314,6 +314,10 @@ impl AudioPlayer {
     /// Build a looped playing instance for tests that need an active sink.
     #[doc(hidden)]
     pub fn playing_for_tests() -> Option<Self> {
+        if !test_audio_output_enabled() {
+            return None;
+        }
+
         struct SineWave {
             pos: f32,
             step: f32,
@@ -355,4 +359,15 @@ impl AudioPlayer {
     pub(crate) fn aligned_span_seconds_for_tests(span_seconds: f32, sample_rate: u32) -> f32 {
         Self::aligned_span_duration(span_seconds, sample_rate).as_secs_f32()
     }
+}
+
+fn test_audio_output_enabled() -> bool {
+    std::env::var("WAVECRATE_TEST_AUDIO_OUTPUT")
+        .ok()
+        .is_some_and(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
 }
