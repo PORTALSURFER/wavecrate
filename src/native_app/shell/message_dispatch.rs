@@ -140,6 +140,7 @@ impl NativeAppState {
             | GuiMessage::RequestApplyEditSelectionEffects
             | GuiMessage::ConfirmPendingWaveformDestructiveEdit
             | GuiMessage::CancelPendingWaveformDestructiveEdit
+            | GuiMessage::WaveformDestructiveEditFinished(_)
             | GuiMessage::ExtractPlaymarkedRange
             | GuiMessage::PlaySelectionExtractionFinished { .. } => {
                 self.apply_chrome_dispatch(message, context);

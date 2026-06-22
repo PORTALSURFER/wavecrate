@@ -12,7 +12,9 @@ use wavecrate::audio::AudioPlayer;
 
 use crate::native_app::app::{
     FileMoveProgress, GuiMessage, NormalizationProgress, NormalizationQueueItem,
+    PendingWaveformDestructiveEdit,
 };
+use crate::native_app::waveform::WaveformPreservedMarks;
 
 pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) worker_sender: Sender<GuiMessage>,
@@ -26,6 +28,9 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) audio_open: AudioOpenTaskOwner,
     pub(in crate::native_app) folder_tree_refresh_task: ui::LatestTask,
     pub(in crate::native_app) folder_verify_task: ui::LatestTask,
+    pub(in crate::native_app) waveform_destructive_edit_task: ui::LatestTask,
+    pub(in crate::native_app) waveform_destructive_edit_context:
+        Option<WaveformDestructiveEditUiContext>,
     pub(in crate::native_app) normalization_progress: Option<NormalizationProgress>,
     pub(in crate::native_app) normalization_active_paths: HashSet<PathBuf>,
     pub(in crate::native_app) normalization_queue: VecDeque<NormalizationQueueItem>,
@@ -51,6 +56,8 @@ impl BackgroundTaskState {
             audio_open: AudioOpenTaskOwner::new(),
             folder_tree_refresh_task: ui::LatestTask::new(),
             folder_verify_task: ui::LatestTask::new(),
+            waveform_destructive_edit_task: ui::LatestTask::new(),
+            waveform_destructive_edit_context: None,
             normalization_progress: None,
             normalization_active_paths: HashSet::new(),
             normalization_queue: VecDeque::new(),
@@ -70,6 +77,14 @@ impl BackgroundTaskState {
     pub(in crate::native_app) fn for_tests() -> Self {
         Self::new(std::sync::mpsc::channel().0, None)
     }
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::native_app) struct WaveformDestructiveEditUiContext {
+    pub(in crate::native_app) request: PendingWaveformDestructiveEdit,
+    pub(in crate::native_app) before_selected_path: Option<String>,
+    pub(in crate::native_app) playback_was_active: bool,
+    pub(in crate::native_app) preserved_marks: Option<WaveformPreservedMarks>,
 }
 
 /// Owns audio-output open task identity and stale-completion policy.

@@ -1,0 +1,397 @@
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use wavecrate::sample_sources::SourceDatabase;
+use wavecrate::selection::SelectionRange;
+
+use crate::native_app::app::{PendingWaveformDestructiveEdit, WaveformDestructiveEditKind};
+use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
+use crate::native_app::waveform_edit_effects::apply_edit_selection_effects;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct OverwriteBackup {
+    pub(super) before: PathBuf,
+    pub(super) after: PathBuf,
+    dir: PathBuf,
+}
+
+impl OverwriteBackup {
+    fn capture_before(target: &Path) -> Result<Self, String> {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| format!("Clock error: {err}"))?
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("wavecrate-native-edit-{stamp}"));
+        fs::create_dir_all(&dir).map_err(|err| format!("Failed to create undo folder: {err}"))?;
+        let before = dir.join("before.wav");
+        let after = dir.join("after.wav");
+        fs::copy(target, &before).map_err(|err| format!("Failed to snapshot audio file: {err}"))?;
+        Ok(Self { before, after, dir })
+    }
+
+    fn capture_after(&self, target: &Path) -> Result<(), String> {
+        fs::copy(target, &self.after)
+            .map_err(|err| format!("Failed to snapshot edited audio file: {err}"))?;
+        Ok(())
+    }
+
+    fn capture_extracted(&self, target: &Path) -> Result<PathBuf, String> {
+        let extracted = self.dir.join("extracted.wav");
+        fs::copy(target, &extracted)
+            .map_err(|err| format!("Failed to snapshot extracted audio file: {err}"))?;
+        Ok(extracted)
+    }
+}
+
+impl Drop for OverwriteBackup {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.dir);
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct AppliedWaveformEdit {
+    pub(super) source_id: String,
+    pub(super) source_root: PathBuf,
+    pub(super) relative_path: PathBuf,
+    pub(super) absolute_path: PathBuf,
+    pub(super) backup: OverwriteBackup,
+    pub(super) extracted: Option<AppliedExtractedFile>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct AppliedExtractedFile {
+    pub(super) path: PathBuf,
+    pub(super) relative_path: PathBuf,
+    backup_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct WaveformDestructiveEditResult {
+    pub(super) result: Result<AppliedWaveformEdit, String>,
+    pub(super) extracted_mark: Option<WaveformExtractionMark>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct WaveformExtractionMark {
+    pub(super) source_path: PathBuf,
+    pub(super) selection: SelectionRange,
+}
+
+pub(super) struct WaveformDestructiveEditWorkerRequest {
+    edit: PendingWaveformDestructiveEdit,
+    extraction: Option<WaveformExtractionRequest>,
+}
+
+impl WaveformDestructiveEditWorkerRequest {
+    pub(super) fn new(
+        edit: PendingWaveformDestructiveEdit,
+        extraction: Option<WaveformExtractionRequest>,
+    ) -> Self {
+        Self { edit, extraction }
+    }
+}
+
+#[derive(Clone)]
+struct EditableWav {
+    samples: Vec<f32>,
+    channels: usize,
+    sample_rate: u32,
+}
+
+pub(super) fn execute_destructive_edit(
+    worker_request: WaveformDestructiveEditWorkerRequest,
+) -> WaveformDestructiveEditResult {
+    let mut extracted_mark = None;
+    let extracted_path = match worker_request.extraction {
+        Some(extraction) => {
+            let completion = execute_waveform_extraction(extraction);
+            match completion.result {
+                Ok(path) => {
+                    extracted_mark = Some(WaveformExtractionMark {
+                        source_path: completion.source_path,
+                        selection: completion.selection,
+                    });
+                    Some(path)
+                }
+                Err(error) => {
+                    return WaveformDestructiveEditResult {
+                        result: Err(error),
+                        extracted_mark: None,
+                    };
+                }
+            }
+        }
+        None => None,
+    };
+    let result = match execute_destructive_edit_write(&worker_request.edit, extracted_path.clone())
+    {
+        Ok(applied) => Ok(applied),
+        Err(error) => {
+            if let Some(path) = extracted_path {
+                cleanup_failed_destructive_extraction(&worker_request.edit.source.root, &path);
+            }
+            Err(error)
+        }
+    };
+    WaveformDestructiveEditResult {
+        result,
+        extracted_mark,
+    }
+}
+
+pub(super) fn validate_destructive_edit_target(path: &Path) -> Result<(), String> {
+    let is_wav = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"));
+    if !is_wav {
+        return Err(String::from("This edit currently supports WAV files"));
+    }
+    let reader = hound::WavReader::open(path).map_err(|err| format!("Invalid WAV: {err}"))?;
+    let channels = reader.spec().channels;
+    if channels == 0 || channels > 2 {
+        return Err(String::from(
+            "This edit currently supports mono or stereo WAV files",
+        ));
+    }
+    Ok(())
+}
+
+fn execute_destructive_edit_write(
+    request: &PendingWaveformDestructiveEdit,
+    extracted_path: Option<PathBuf>,
+) -> Result<AppliedWaveformEdit, String> {
+    validate_destructive_edit_target(&request.absolute_path)?;
+    let backup = OverwriteBackup::capture_before(&request.absolute_path)?;
+    let extracted = extracted_path
+        .map(|path| {
+            let relative_path = source_relative_path(&request.source.root, &path)?;
+            let backup_path = backup.capture_extracted(&path)?;
+            sync_source_entry(&request.source.root, &relative_path, &path)?;
+            Ok::<_, String>(AppliedExtractedFile {
+                path,
+                relative_path,
+                backup_path,
+            })
+        })
+        .transpose()?;
+    let mut wav = load_editable_wav(&request.absolute_path)?;
+    apply_destructive_edit_to_wav(&mut wav, request.prompt.edit, request.selection)?;
+    if wav.samples.is_empty() {
+        return Err(format!(
+            "No audio data after {}",
+            request.prompt.edit.gerund_label()
+        ));
+    }
+    write_edited_wav(&request.absolute_path, &wav)?;
+    sync_source_entry(
+        &request.source.root,
+        &request.relative_path,
+        &request.absolute_path,
+    )?;
+    backup.capture_after(&request.absolute_path)?;
+    Ok(AppliedWaveformEdit {
+        source_id: request.source.id.as_str().to_string(),
+        source_root: request.source.root.clone(),
+        relative_path: request.relative_path.clone(),
+        absolute_path: request.absolute_path.clone(),
+        backup,
+        extracted,
+    })
+}
+
+pub(super) fn restore_edited_waveform(
+    backup_path: &Path,
+    applied: &AppliedWaveformEdit,
+) -> Result<(), String> {
+    fs::copy(backup_path, &applied.absolute_path)
+        .map_err(|err| format!("Failed to restore waveform file: {err}"))?;
+    sync_source_entry(
+        &applied.source_root,
+        &applied.relative_path,
+        &applied.absolute_path,
+    )?;
+    if let Some(extracted) = applied.extracted.as_ref() {
+        if backup_path == applied.backup.before.as_path() {
+            remove_extracted_file_for_undo(&applied.source_root, extracted)?;
+        } else {
+            restore_extracted_file_for_redo(&applied.source_root, extracted)?;
+        }
+    }
+    Ok(())
+}
+
+fn apply_destructive_edit_to_wav(
+    wav: &mut EditableWav,
+    edit: WaveformDestructiveEditKind,
+    selection: wavecrate::selection::SelectionRange,
+) -> Result<(), String> {
+    let total_frames = wav.samples.len() / wav.channels.max(1);
+    let (start_frame, end_frame) = selection_frame_bounds(total_frames, selection);
+    let start = start_frame * wav.channels;
+    let end = end_frame * wav.channels;
+    match edit {
+        WaveformDestructiveEditKind::CropSelection => {
+            wav.samples = wav.samples[start..end].to_vec();
+        }
+        WaveformDestructiveEditKind::TrimSelection
+        | WaveformDestructiveEditKind::ExtractAndTrimSelection => {
+            wav.samples.drain(start..end);
+        }
+        WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
+            apply_edit_selection_effects(
+                &mut wav.samples,
+                wav.channels,
+                wav.sample_rate,
+                selection,
+                start_frame,
+                end_frame,
+            );
+        }
+    }
+    if wav.samples.is_empty() {
+        return Err(format!("No audio data after {}", edit.gerund_label()));
+    }
+    Ok(())
+}
+
+fn load_editable_wav(path: &Path) -> Result<EditableWav, String> {
+    let mut reader = hound::WavReader::open(path).map_err(|err| format!("Invalid WAV: {err}"))?;
+    let spec = reader.spec();
+    let channels = spec.channels.max(1) as usize;
+    let samples = match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| format!("Failed to read WAV samples: {err}"))?,
+        hound::SampleFormat::Int => {
+            let scale = (1_i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
+            reader
+                .samples::<i32>()
+                .map(|sample| {
+                    sample
+                        .map(|value| value as f32 / scale)
+                        .map_err(|err| format!("Failed to read WAV samples: {err}"))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
+    };
+    if samples.is_empty() {
+        return Err(String::from("No audio data available"));
+    }
+    Ok(EditableWav {
+        samples,
+        channels,
+        sample_rate: spec.sample_rate.max(1),
+    })
+}
+
+fn write_edited_wav(path: &Path, wav: &EditableWav) -> Result<(), String> {
+    let spec = hound::WavSpec {
+        channels: wav.channels as u16,
+        sample_rate: wav.sample_rate,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut writer = hound::WavWriter::create(path, spec)
+        .map_err(|err| format!("Failed to write wav: {err}"))?;
+    for sample in &wav.samples {
+        writer
+            .write_sample(*sample)
+            .map_err(|err| format!("Failed to write sample: {err}"))?;
+    }
+    writer
+        .finalize()
+        .map_err(|err| format!("Failed to finalize wav: {err}"))
+}
+
+fn selection_frame_bounds(
+    total_frames: usize,
+    bounds: wavecrate::selection::SelectionRange,
+) -> (usize, usize) {
+    let start_frame = ((bounds.start() * total_frames as f32).floor() as usize)
+        .min(total_frames.saturating_sub(1));
+    let mut end_frame = ((bounds.end() * total_frames as f32).ceil() as usize).min(total_frames);
+    if end_frame <= start_frame {
+        end_frame = (start_frame + 1).min(total_frames);
+    }
+    (start_frame, end_frame)
+}
+
+fn sync_source_entry(
+    source_root: &Path,
+    relative_path: &Path,
+    absolute_path: &Path,
+) -> Result<(), String> {
+    let db =
+        SourceDatabase::open(source_root).map_err(|err| format!("Database unavailable: {err}"))?;
+    let metadata =
+        fs::metadata(absolute_path).map_err(|err| format!("Failed to stat file: {err}"))?;
+    let file_size = metadata.len();
+    let modified_ns = metadata
+        .modified()
+        .map_err(|err| format!("Failed to read modified time: {err}"))?
+        .duration_since(UNIX_EPOCH)
+        .map_err(|err| format!("Failed to normalize modified time: {err}"))?
+        .as_nanos() as i64;
+    let mut batch = db
+        .write_batch()
+        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
+    batch
+        .upsert_file_without_hash(relative_path, file_size, modified_ns)
+        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
+    batch
+        .commit()
+        .map_err(|err| format!("Failed to sync database entry: {err}"))
+}
+
+fn source_relative_path(source_root: &Path, absolute_path: &Path) -> Result<PathBuf, String> {
+    absolute_path
+        .strip_prefix(source_root)
+        .map(Path::to_path_buf)
+        .map_err(|_| String::from("Edited sample is not inside the configured source"))
+}
+
+fn remove_extracted_file_for_undo(
+    source_root: &Path,
+    extracted: &AppliedExtractedFile,
+) -> Result<(), String> {
+    match fs::remove_file(&extracted.path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("Failed to remove extracted audio file: {error}")),
+    }
+    mark_source_entry_missing(source_root, &extracted.relative_path, true)
+}
+
+fn cleanup_failed_destructive_extraction(source_root: &Path, extracted_path: &Path) {
+    let _ = fs::remove_file(extracted_path);
+    let Ok(relative_path) = source_relative_path(source_root, extracted_path) else {
+        return;
+    };
+    let _ = mark_source_entry_missing(source_root, &relative_path, true);
+}
+
+fn restore_extracted_file_for_redo(
+    source_root: &Path,
+    extracted: &AppliedExtractedFile,
+) -> Result<(), String> {
+    fs::copy(&extracted.backup_path, &extracted.path)
+        .map_err(|err| format!("Failed to restore extracted audio file: {err}"))?;
+    sync_source_entry(source_root, &extracted.relative_path, &extracted.path)
+}
+
+fn mark_source_entry_missing(
+    source_root: &Path,
+    relative_path: &Path,
+    missing: bool,
+) -> Result<(), String> {
+    SourceDatabase::open(source_root)
+        .map_err(|err| format!("Database unavailable: {err}"))?
+        .set_missing(relative_path, missing)
+        .map_err(|err| format!("Failed to sync database entry: {err}"))
+}

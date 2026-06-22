@@ -640,6 +640,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "waveform cache and decode workers",
         ),
         (
+            "src/native_app/waveform_edits/worker.rs",
+            "waveform destructive edit worker",
+        ),
+        (
             "src/native_app/waveform/similar_sections/source_loading.rs",
             "similar sections sample loading worker",
         ),

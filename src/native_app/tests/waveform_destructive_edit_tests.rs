@@ -259,10 +259,7 @@ fn apply_edit_selection_effects_rewrites_gain_clears_preview_and_flashes() {
         wavecrate::selection::SelectionRange::new(0.25, 0.75).with_gain(0.5),
     );
 
-    state.apply_message(
-        GuiMessage::RequestApplyEditSelectionEffects,
-        &mut ui::UiUpdateContext::default(),
-    );
+    apply_message_and_run_command(&mut state, GuiMessage::RequestApplyEditSelectionEffects);
 
     assert_samples_close(
         &read_test_wav_f32(&path),
@@ -306,10 +303,7 @@ fn crop_request_rewrites_file_and_undo_restores_original_audio() {
 
     select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
 
-    state.apply_message(
-        GuiMessage::RequestCropWaveformSelection,
-        &mut ui::UiUpdateContext::default(),
-    );
+    apply_message_and_run_command(&mut state, GuiMessage::RequestCropWaveformSelection);
 
     assert_samples_close(&read_test_wav_f32(&path), &[2_000.0, 3_000.0]);
     assert!(state.ui.status.sample.contains("Cropped"));
@@ -339,10 +333,7 @@ fn trim_request_rewrites_file_and_undo_restores_original_audio() {
 
     select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
 
-    state.apply_message(
-        GuiMessage::RequestTrimWaveformSelection,
-        &mut ui::UiUpdateContext::default(),
-    );
+    apply_message_and_run_command(&mut state, GuiMessage::RequestTrimWaveformSelection);
 
     assert_samples_close(
         &read_test_wav_f32(&path),
@@ -388,10 +379,7 @@ fn trim_request_preserves_remaining_marks_after_reloading_waveform() {
         .current
         .set_edit_selection_range(deleted_repeat);
 
-    state.apply_message(
-        GuiMessage::RequestTrimWaveformSelection,
-        &mut ui::UiUpdateContext::default(),
-    );
+    apply_message_and_run_command(&mut state, GuiMessage::RequestTrimWaveformSelection);
 
     assert_samples_close(
         &read_test_wav_f32(&path),
@@ -434,9 +422,9 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
 
     select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
 
-    state.apply_message(
+    apply_message_and_run_command(
+        &mut state,
         GuiMessage::RequestExtractAndTrimWaveformSelection,
-        &mut ui::UiUpdateContext::default(),
     );
 
     assert_samples_close(&read_test_wav_f32(&extracted), &[2_000.0, 3_000.0]);
@@ -495,6 +483,15 @@ fn select_waveform_range(
         GuiMessage::Waveform(WaveformInteraction::FinishSelection { visible_ratio: end }),
         &mut ui::UiUpdateContext::default(),
     );
+}
+
+fn apply_message_and_run_command(
+    state: &mut crate::native_app::test_support::state::NativeAppState,
+    message: GuiMessage,
+) {
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(message, &mut context);
+    run_command_for_tests(state, context.into_command());
 }
 
 fn assert_samples_close(actual: &[f32], expected_i16: &[f32]) {

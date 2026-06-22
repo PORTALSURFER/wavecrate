@@ -75,6 +75,9 @@ impl NativeAppState {
             GuiMessage::CancelPendingWaveformDestructiveEdit => {
                 self.cancel_pending_waveform_destructive_edit();
             }
+            GuiMessage::WaveformDestructiveEditFinished(completion) => {
+                self.finish_waveform_destructive_edit(completion);
+            }
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(context),
             GuiMessage::PlaySelectionExtractionFinished {
                 completion,
