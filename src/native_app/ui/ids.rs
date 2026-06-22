@@ -38,6 +38,8 @@ const METADATA_TAGS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000
 pub(in crate::native_app) const WAVEFORM_VIEWPORT_STACK_ID: u64 = WAVEFORM.id(10);
 pub(in crate::native_app) const WAVEFORM_SIGNAL_WIDGET_ID: u64 = WAVEFORM.id(11);
 pub(in crate::native_app) const WAVEFORM_WIDGET_ID: u64 = WAVEFORM.id(12);
+pub(in crate::native_app) const WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID: u64 = WAVEFORM.id(13);
+pub(in crate::native_app) const WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID: u64 = WAVEFORM.id(14);
 
 pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = FOLDER_TREE.id(0);
 pub(in crate::native_app) const FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID: u64 = FOLDER_TREE.id(1);
@@ -164,6 +166,16 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         "waveform.signal_surface"
     ),
     registered_widget_id!(Waveform, WAVEFORM_WIDGET_ID, "waveform.interaction_widget"),
+    registered_widget_id!(
+        Waveform,
+        WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID,
+        "waveform.loaded_sample_drag_handle"
+    ),
+    registered_widget_id!(
+        Waveform,
+        WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID,
+        "waveform.loaded_sample_drag_handle_visual"
+    ),
     registered_widget_id!(FolderTree, FOLDER_TREE_LIST_ID, "folder_tree.list"),
     registered_widget_id!(
         FolderTree,

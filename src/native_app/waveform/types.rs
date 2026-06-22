@@ -64,6 +64,7 @@ pub(in crate::native_app) enum WaveformInteraction {
         visible_ratio: f32,
     },
     DragPlaySelectionExport(DragHandleMessage),
+    DragLoadedSample(DragHandleMessage),
     Frame,
 }
 

@@ -105,6 +105,61 @@ fn waveform_selection_drag_cancel_does_not_create_extraction() {
 }
 
 #[test]
+fn loaded_waveform_sample_drag_moves_file_to_hovered_folder() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let drums_id = drums.display().to_string();
+    let loops_id = loops.display().to_string();
+    let source = drums.join("loaded-drag.wav");
+    write_test_wav_i16(&source, &[0, 256, -256, 512]);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums_id.clone(),
+            Default::default(),
+        ));
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(source.clone())
+            .expect("load waveform");
+    let mut context = ui::UiUpdateContext::default();
+
+    assert!(state.drag_loaded_waveform_sample(
+        DragHandleMessage::started(Point::new(20.0, 12.0)),
+        &mut context,
+    ));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::HoverDropTarget(
+            loops_id,
+            Point::new(40.0, 12.0),
+        ));
+    assert!(state.drag_loaded_waveform_sample(
+        DragHandleMessage::ended(Point::new(40.0, 12.0)),
+        &mut context,
+    ));
+    run_command_for_tests(&mut state, context.into_command());
+
+    let moved = loops.join("loaded-drag.wav");
+    assert!(!source.exists());
+    assert!(moved.is_file());
+    assert_eq!(state.waveform.current.path(), moved);
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(drums_id.as_str())
+    );
+}
+
+#[test]
 fn waveform_selection_drag_extracts_only_after_sample_list_drop() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("sample-list-drop.wav");

@@ -10,7 +10,7 @@ pub(in crate::native_app) fn folder_move_progress_label(request: &FolderMoveRequ
         FolderMoveRequest::Files { file_ids, .. } => {
             format!("Moving {} file{}", file_ids.len(), plural(file_ids.len()))
         }
-        FolderMoveRequest::ExtractedFile { .. } => String::from("Moving extracted sample"),
+        FolderMoveRequest::ExtractedFile { .. } => String::from("Moving sample"),
     }
 }
 

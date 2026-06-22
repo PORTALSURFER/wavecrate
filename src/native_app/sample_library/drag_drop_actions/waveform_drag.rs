@@ -9,6 +9,108 @@ use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample
 use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
 
 impl NativeAppState {
+    pub(in crate::native_app) fn drag_loaded_waveform_sample(
+        &mut self,
+        drag: DragHandleMessage,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> bool {
+        match drag.phase() {
+            DragHandlePhase::Started => self.start_loaded_waveform_sample_drag(drag, context),
+            DragHandlePhase::Moved => {
+                self.library
+                    .folder_browser
+                    .update_drag_pointer(drag.position());
+                true
+            }
+            DragHandlePhase::Ended => {
+                if let Some(target_folder_id) =
+                    self.library.folder_browser.hovered_drop_target_folder_id()
+                {
+                    self.drop_browser_drag_on_folder(target_folder_id, context);
+                } else {
+                    self.library.folder_browser.clear_drag();
+                    context.end_drag_session();
+                }
+                true
+            }
+            DragHandlePhase::Cancelled => {
+                self.clear_pending_internal_file_drag_paths();
+                self.library.folder_browser.clear_drag();
+                context.end_drag_session();
+                true
+            }
+            DragHandlePhase::DoubleActivate => false,
+        }
+    }
+
+    fn start_loaded_waveform_sample_drag(
+        &mut self,
+        drag: DragHandleMessage,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> bool {
+        let started_at = Instant::now();
+        if !self.waveform.current.has_loaded_sample() {
+            let error = String::from("Load a sample before dragging it");
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "waveform.loaded_sample_drag.start",
+                Some("waveform"),
+                None,
+                "empty",
+                started_at,
+                Some(&error),
+            );
+            return false;
+        }
+        let path = self.waveform.current.path();
+        if !path.is_file() {
+            let error = format!(
+                "Loaded sample is missing: {}",
+                sample_path_label(path.as_path())
+            );
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "waveform.loaded_sample_drag.start",
+                Some("waveform"),
+                None,
+                "missing",
+                started_at,
+                Some(&error),
+            );
+            return false;
+        }
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .file_change_lock_error(path.as_path(), "Sample move")
+        {
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "waveform.loaded_sample_drag.start",
+                Some("waveform"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return false;
+        }
+        self.library
+            .folder_browser
+            .begin_extracted_file_drag(path.clone(), drag.position());
+        self.arm_browser_drag(context);
+        self.ui.status.sample = format!("Dragging {}", sample_path_label(path.as_path()));
+        emit_gui_action(
+            "waveform.loaded_sample_drag.start",
+            Some("waveform"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+        true
+    }
+
     pub(in crate::native_app) fn drag_waveform_play_selection(
         &mut self,
         drag: DragHandleMessage,

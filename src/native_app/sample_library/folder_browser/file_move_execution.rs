@@ -197,19 +197,17 @@ where
 {
     if !path.is_file() {
         return Err(format!(
-            "Extraction move failed: {} is missing",
+            "Sample move failed: {} is missing",
             path.file_name()
                 .map(|name| name.to_string_lossy().to_string())
                 .unwrap_or_else(|| path.display().to_string())
         ));
     }
     if !target_folder.is_dir() {
-        return Err(String::from(
-            "Extraction move failed: target folder is missing",
-        ));
+        return Err(String::from("Sample move failed: target folder is missing"));
     }
     reporter.emit(0, 2, format!("Moving {}", sample_path_label(path)));
-    let completed = move_file_to_unique_destination(path, target_folder, "Extraction move failed")?;
+    let completed = move_file_to_unique_destination(path, target_folder, "Sample move failed")?;
     reporter.emit(1, 2, String::from("Preserving waveform cache"));
     let moved_paths = vec![completed];
     remap_persisted_waveform_cache_for_moves(&moved_paths);

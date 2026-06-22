@@ -189,16 +189,16 @@ impl FolderBrowserState {
         let target_folder = self
             .find_folder(target_folder_id)
             .cloned()
-            .ok_or_else(|| String::from("Extraction move failed: target folder is missing"))?;
-        let source_root = self.selected_source_root_for_move("Extraction move failed")?;
+            .ok_or_else(|| String::from("Sample move failed: target folder is missing"))?;
+        let source_root = self.selected_source_root_for_move("Sample move failed")?;
         let target_path = PathBuf::from(&target_folder.id);
-        if let Some(error) = self.folder_target_lock_error(&target_path, "Extraction move") {
+        if let Some(error) = self.folder_target_lock_error(&target_path, "Sample move") {
             return Err(error);
         }
         if path.parent() == Some(target_path.as_path()) {
             return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),
-                status: Some(String::from("Extraction kept in current folder")),
+                status: Some(String::from("Sample kept in current folder")),
             }));
         }
         Ok(FolderMoveDropInput::Request(
@@ -330,7 +330,7 @@ impl FolderBrowserState {
             .map(|(_, new_path)| new_path.clone())
             .unwrap_or_else(|| target_folder.to_path_buf());
         let status = format!(
-            "Extracted {}",
+            "Moved sample {}",
             new_path
                 .file_name()
                 .map(|name| name.to_string_lossy().to_string())

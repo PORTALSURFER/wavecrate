@@ -12,6 +12,10 @@ impl NativeAppState {
         message: WaveformInteraction,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if let WaveformInteraction::DragLoadedSample(drag) = message {
+            self.drag_loaded_waveform_sample(drag, context);
+            return;
+        }
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.current.active_drag_kind();
@@ -85,6 +89,7 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
             ui::DragHandlePhase::DoubleActivate => None,
             ui::DragHandlePhase::Cancelled => None,
         },
+        WaveformInteraction::DragLoadedSample(_) => None,
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
         WaveformInteraction::UpdateSelection { .. }
         | WaveformInteraction::UpdateEditFadeOuterGain { .. }

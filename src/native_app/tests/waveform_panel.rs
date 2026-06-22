@@ -4,6 +4,9 @@ use crate::native_app::{
         waveform_panel::{WAVEFORM_PANEL_HEIGHT, waveform_panel},
     },
     test_support::state::NativeAppStateFixture,
+    ui::ids::{
+        WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID, WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID,
+    },
 };
 use radiant::prelude::{self as ui, IntoView};
 
@@ -15,6 +18,41 @@ fn waveform_panel_omits_section_header_label() {
 
     assert!(frame.paint_plan.contains_text("No sample loaded"));
     assert!(!frame.paint_plan.contains_text("Waveform"));
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID)
+            .is_none()
+    );
+}
+
+#[test]
+fn loaded_waveform_title_includes_sample_drag_handle_before_name() {
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
+    let frame = waveform_panel(WaveformPanelViewModel::from_app_state(&state))
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(800.0, WAVEFORM_PANEL_HEIGHT));
+
+    assert!(
+        surface
+            .find_widget(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
+            .is_some(),
+        "loaded waveform title should include interactive sample drag handle"
+    );
+    let visual_rect = frame
+        .paint_plan
+        .first_widget_rect(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID)
+        .expect("loaded waveform title should include sample drag handle visual");
+    let title_rect = frame
+        .paint_plan
+        .text_runs()
+        .find(|run| run.text.starts_with("synthetic-waveform |"))
+        .map(|run| run.rect)
+        .expect("loaded waveform title should include sample name");
+
+    assert!(visual_rect.max.x < title_rect.min.x);
 }
 
 #[test]
