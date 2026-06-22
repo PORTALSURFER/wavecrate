@@ -76,6 +76,28 @@ impl<'a> TagEditorFieldParts<'a> {
     }
 }
 
+struct TagEntryRowContext<'a> {
+    display_categories: &'a [MetadataTagDisplayCategory],
+    draft: &'a str,
+    input_placeholder: &'a str,
+    completion_suffix: Option<&'a str>,
+    selected_tag: Option<&'a str>,
+    mixed_tags: &'a [String],
+}
+
+impl<'a> TagEntryRowContext<'a> {
+    fn from_field(field: &'a TagEditorFieldParts<'a>) -> Self {
+        Self {
+            display_categories: field.display_categories,
+            draft: field.draft,
+            input_placeholder: field.input_placeholder,
+            completion_suffix: field.completion_suffix,
+            selected_tag: field.selected_tag,
+            mixed_tags: field.mixed_tags,
+        }
+    }
+}
+
 pub(super) fn tag_editor_section(
     model: &TagEditorViewModel,
     sidebar_width: f32,
@@ -109,23 +131,13 @@ fn metadata_section(
 
 fn tag_entry_field(field: &TagEditorFieldParts<'_>, height: f32) -> ui::View<GuiMessage> {
     let projection = TagEntryFieldProjection::from_input(field.projection_input());
+    let row_context = TagEntryRowContext::from_field(field);
     let content = ui::column(
         projection
             .rows
             .into_iter()
             .enumerate()
-            .map(|(row_index, row)| {
-                tag_entry_row(
-                    row,
-                    field.display_categories,
-                    field.draft,
-                    field.input_placeholder,
-                    field.completion_suffix,
-                    field.selected_tag,
-                    field.mixed_tags,
-                    row_index,
-                )
-            })
+            .map(|(row_index, row)| tag_entry_row(row, &row_context, row_index))
             .collect::<Vec<_>>(),
     )
     .fill_width()
@@ -172,12 +184,7 @@ fn tag_text_input(
 
 fn tag_entry_row(
     row: Vec<TagEntryRowItem>,
-    tag_display_categories: &[MetadataTagDisplayCategory],
-    tag_draft: &str,
-    tag_input_placeholder: &str,
-    tag_completion_suffix: Option<&str>,
-    selected_metadata_tag: Option<&str>,
-    mixed_metadata_tags: &[String],
+    context: &TagEntryRowContext<'_>,
     row_index: usize,
 ) -> ui::View<GuiMessage> {
     ui::row(
@@ -185,15 +192,15 @@ fn tag_entry_row(
             .map(|item| match item {
                 TagEntryRowItem::Accepted(tag) => accepted_tag_token(
                     tag.as_str(),
-                    metadata_tag_category_id_for_display(tag.as_str(), tag_display_categories),
-                    selected_metadata_tag == Some(tag.as_str()),
-                    mixed_metadata_tags.iter().any(|mixed| mixed == &tag),
+                    metadata_tag_category_id_for_display(tag.as_str(), context.display_categories),
+                    context.selected_tag == Some(tag.as_str()),
+                    context.mixed_tags.iter().any(|mixed| mixed == &tag),
                 ),
                 TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
                 TagEntryRowItem::Input(width) => tag_text_input(
-                    tag_draft,
-                    tag_input_placeholder,
-                    tag_completion_suffix,
+                    context.draft,
+                    context.input_placeholder,
+                    context.completion_suffix,
                     width,
                 ),
                 TagEntryRowItem::LibraryToggle(width) => metadata_tag_library_toggle(width),
