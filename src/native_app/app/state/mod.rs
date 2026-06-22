@@ -19,7 +19,7 @@ pub(in crate::native_app) use background::{
 };
 pub(in crate::native_app) use library::LibraryAppState;
 pub(in crate::native_app) use metadata::MetadataAppState;
-pub(in crate::native_app) use source_scan_worker::run_folder_scan_worker;
+pub(in crate::native_app) use source_scan_worker::{FolderScanWorkerEvent, run_folder_scan_worker};
 pub(in crate::native_app) use source_scan_workflow::{
     SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
 };

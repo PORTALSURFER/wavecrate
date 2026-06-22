@@ -3,7 +3,10 @@ use std::time::Instant;
 use radiant::prelude as ui;
 
 use crate::native_app::{
-    app::{GuiMessage, NativeAppState, SourceScanFinish, emit_gui_action, run_folder_scan_worker},
+    app::{
+        FolderScanWorkerEvent, GuiMessage, NativeAppState, SourceScanFinish, emit_gui_action,
+        run_folder_scan_worker,
+    },
     sample_library::folder_browser::scan::{FolderScanRequest, FolderScanResult},
     sample_library::source_prep::SourcePrepTrigger,
 };
@@ -33,9 +36,9 @@ impl NativeAppState {
             started_at,
             None,
         );
-        let sender = self.background.worker_sender.clone();
-        context.business().background("gui-folder-scan").run(
-            move |_| run_folder_scan_worker(request, sender),
+        context.business().background("gui-folder-scan").stream(
+            move |_context, events| run_folder_scan_worker(request, events),
+            folder_scan_worker_event_message,
             GuiMessage::FolderScanFinished,
         );
     }
@@ -125,5 +128,12 @@ impl NativeAppState {
         self.persist_user_configuration("folder_browser.sources.persist", started_at);
         self.sync_source_watcher();
         self.open_ready_audio_documents(context, started_at);
+    }
+}
+
+fn folder_scan_worker_event_message(event: FolderScanWorkerEvent) -> GuiMessage {
+    match event {
+        FolderScanWorkerEvent::Progress(progress) => GuiMessage::FolderScanProgress(progress),
+        FolderScanWorkerEvent::DiscoveryBatch(batch) => GuiMessage::FolderScanDiscoveryBatch(batch),
     }
 }

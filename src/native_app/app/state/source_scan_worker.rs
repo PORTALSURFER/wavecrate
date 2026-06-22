@@ -1,27 +1,34 @@
-use std::sync::mpsc::Sender;
+use radiant::prelude as ui;
 
-use crate::native_app::{
-    app::GuiMessage,
-    sample_library::folder_browser::scan::{
-        self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult,
-    },
+use crate::native_app::sample_library::folder_browser::scan::{
+    self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
+    FolderScanResult,
 };
 
 const DISCOVERY_BATCH_SIZE: usize = 64;
 
+pub(in crate::native_app) enum FolderScanWorkerEvent {
+    Progress(FolderScanProgress),
+    DiscoveryBatch(FolderScanDiscoveryBatch),
+}
+
 pub(in crate::native_app) fn run_folder_scan_worker(
     request: FolderScanRequest,
-    sender: Sender<GuiMessage>,
+    events: ui::BusinessEventSink<FolderScanWorkerEvent>,
 ) -> FolderScanResult {
-    let mut discovery_transport = FolderScanDiscoveryTransport::new(
-        sender.clone(),
-        request.task_id,
-        request.source_id.clone(),
-    );
+    run_folder_scan_worker_with_emit(request, move |event| events.emit(event))
+}
+
+fn run_folder_scan_worker_with_emit(
+    request: FolderScanRequest,
+    emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
+) -> FolderScanResult {
+    let mut discovery_transport =
+        FolderScanDiscoveryTransport::new(emit.clone(), request.task_id, request.source_id.clone());
     let result = scan::scan_source_with_progress(
         request,
         |progress| {
-            let _ = sender.send(GuiMessage::FolderScanProgress(progress));
+            let _ = emit(FolderScanWorkerEvent::Progress(progress));
         },
         |event| {
             discovery_transport.push(event);
@@ -31,17 +38,20 @@ pub(in crate::native_app) fn run_folder_scan_worker(
     result
 }
 
-struct FolderScanDiscoveryTransport {
-    sender: Sender<GuiMessage>,
+struct FolderScanDiscoveryTransport<Emit> {
+    emit: Emit,
     task_id: u64,
     source_id: String,
     pending: Vec<FolderScanDiscovery>,
 }
 
-impl FolderScanDiscoveryTransport {
-    fn new(sender: Sender<GuiMessage>, task_id: u64, source_id: String) -> Self {
+impl<Emit> FolderScanDiscoveryTransport<Emit>
+where
+    Emit: Fn(FolderScanWorkerEvent) -> bool,
+{
+    fn new(emit: Emit, task_id: u64, source_id: String) -> Self {
         Self {
-            sender,
+            emit,
             task_id,
             source_id,
             pending: Vec::with_capacity(DISCOVERY_BATCH_SIZE),
@@ -59,7 +69,7 @@ impl FolderScanDiscoveryTransport {
         if self.pending.is_empty() {
             return;
         }
-        let _ = self.sender.send(GuiMessage::FolderScanDiscoveryBatch(
+        let _ = (self.emit)(FolderScanWorkerEvent::DiscoveryBatch(
             FolderScanDiscoveryBatch {
                 task_id: self.task_id,
                 source_id: self.source_id.clone(),
@@ -73,11 +83,9 @@ impl FolderScanDiscoveryTransport {
 mod tests {
     use std::{fs, sync::mpsc};
 
-    use crate::native_app::{
-        app::GuiMessage, sample_library::folder_browser::scan::FolderScanRequest,
-    };
+    use crate::native_app::sample_library::folder_browser::scan::FolderScanRequest;
 
-    use super::{DISCOVERY_BATCH_SIZE, run_folder_scan_worker};
+    use super::{DISCOVERY_BATCH_SIZE, FolderScanWorkerEvent, run_folder_scan_worker_with_emit};
 
     fn temp_source_with_wavs(count: usize) -> tempfile::TempDir {
         let root = tempfile::tempdir().expect("source root");
@@ -105,13 +113,15 @@ mod tests {
         let root = temp_source_with_wavs(DISCOVERY_BATCH_SIZE + 2);
         let (sender, receiver) = mpsc::channel();
 
-        let result = run_folder_scan_worker(scan_request(&root), sender);
+        let result = run_folder_scan_worker_with_emit(scan_request(&root), move |event| {
+            sender.send(event).is_ok()
+        });
 
         assert_eq!(result.file_count, DISCOVERY_BATCH_SIZE + 2);
         let batch_lengths = receiver
             .try_iter()
             .filter_map(|message| match message {
-                GuiMessage::FolderScanDiscoveryBatch(batch) => Some(batch.events.len()),
+                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events.len()),
                 _ => None,
             })
             .collect::<Vec<_>>();
