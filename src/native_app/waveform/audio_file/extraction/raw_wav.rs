@@ -233,7 +233,7 @@ fn validate_audio_format(
     block_align: u16,
     bits_per_sample: u16,
 ) -> Option<()> {
-    if channels == 0 || sample_rate == 0 || block_align == 0 || bits_per_sample % 8 != 0 {
+    if channels == 0 || sample_rate == 0 || block_align == 0 || !bits_per_sample.is_multiple_of(8) {
         return None;
     }
     match encoding {
@@ -338,7 +338,7 @@ fn skip_chunk_payload<R: Seek>(reader: &mut R, size: u32) -> Result<(), String> 
 }
 
 fn skip_chunk_padding<R: Seek>(reader: &mut R, size: u32) -> Result<(), String> {
-    if size % 2 == 0 {
+    if size.is_multiple_of(2) {
         return Ok(());
     }
     reader

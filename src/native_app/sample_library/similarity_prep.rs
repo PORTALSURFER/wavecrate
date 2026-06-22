@@ -261,7 +261,7 @@ impl NativeAppState {
     }
 
     fn similarity_prep_source_for_id(&self, source_id: &str) -> Option<SimilarityPrepSource> {
-        let root = self.library.folder_browser.source_root_path(&source_id)?;
+        let root = self.library.folder_browser.source_root_path(source_id)?;
         Some(SimilarityPrepSource {
             id: SourceId::from_string(source_id.to_string()),
             root,

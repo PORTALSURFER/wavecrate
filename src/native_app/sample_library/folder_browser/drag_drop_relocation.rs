@@ -112,13 +112,14 @@ impl FolderBrowserState {
         for (old_path, new_path) in moves {
             let mut moved_file = file_entry_for_source_path(new_path, &source_root);
             let old_id = path_id(old_path);
-            if let Some(previous) = previous_files.get(&old_id) {
-                if moved_file.rating.is_neutral() && !previous.rating.is_neutral() {
-                    moved_file.rating = previous.rating;
-                    moved_file.rating_locked = previous.rating_locked;
-                    moved_file.collection = previous.collection;
-                    moved_file.collections = previous.collections.clone();
-                }
+            if let Some(previous) = previous_files.get(&old_id)
+                && moved_file.rating.is_neutral()
+                && !previous.rating.is_neutral()
+            {
+                moved_file.rating = previous.rating;
+                moved_file.rating_locked = previous.rating_locked;
+                moved_file.collection = previous.collection;
+                moved_file.collections = previous.collections.clone();
             }
             upsert_file(&mut target_folder.files, moved_file);
         }
