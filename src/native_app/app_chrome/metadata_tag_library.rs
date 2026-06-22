@@ -10,14 +10,34 @@ use radiant::prelude as ui;
 const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
 const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
 
+struct TagRowContext<'a> {
+    category_id: &'a str,
+    locked: bool,
+    selection_state: MetadataTagSelectionState,
+    drag_active: bool,
+    drag_source: bool,
+    active_drop_target: bool,
+    target_file_ids: &'a [String],
+}
+
 pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessage> {
     let drag_active = state.metadata_tag_drag_active();
     let drop_hover = state.metadata_tag_drop_hover();
     let dragged_tag = state.dragged_metadata_tag();
+    let target_file_ids = state.selected_metadata_file_ids();
     let groups = state
         .categorized_metadata_tags()
         .into_iter()
-        .map(|group| category_group(state, group, drag_active, drop_hover, dragged_tag))
+        .map(|group| {
+            category_group(
+                state,
+                group,
+                drag_active,
+                drop_hover,
+                dragged_tag,
+                &target_file_ids,
+            )
+        })
         .collect::<Vec<_>>();
     ui::panel_section_from_parts(
         ui::PanelSectionParts::new(
@@ -47,6 +67,7 @@ fn category_group(
     drag_active: bool,
     drop_hover: Option<&str>,
     dragged_tag: Option<&str>,
+    target_file_ids: &[String],
 ) -> ui::View<GuiMessage> {
     let count_label = if group.tags.is_empty() {
         String::new()
@@ -91,12 +112,15 @@ fn category_group(
                 let selection_state = state.metadata_tag_selection_state(&tag);
                 tag_row(
                     tag,
-                    category_id.as_str(),
-                    locked,
-                    selection_state,
-                    drag_active,
-                    drag_source,
-                    category_hovered,
+                    TagRowContext {
+                        category_id: category_id.as_str(),
+                        locked,
+                        selection_state,
+                        drag_active,
+                        drag_source,
+                        active_drop_target: category_hovered,
+                        target_file_ids,
+                    },
                 )
             });
             children.push(
@@ -174,35 +198,28 @@ fn hover_metadata_tag_drop_category(category_id: String, _: ui::Point) -> GuiMes
     GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory { category_id })
 }
 
-fn toggle_metadata_tag(tag: String) -> GuiMessage {
-    GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(tag))
+fn toggle_metadata_tag_for_files((tag, file_ids): (String, Vec<String>)) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagForFiles { tag, file_ids })
 }
 
 fn toggle_metadata_tag_category(category_id: String) -> GuiMessage {
     GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagCategory(category_id))
 }
 
-fn tag_row(
-    tag: String,
-    category_id: &str,
-    locked: bool,
-    selection_state: MetadataTagSelectionState,
-    drag_active: bool,
-    drag_source: bool,
-    active_drop_target: bool,
-) -> ui::View<GuiMessage> {
-    let style = metadata_tag_pill_selection_style(category_id, selection_state);
+fn tag_row(tag: String, context: TagRowContext<'_>) -> ui::View<GuiMessage> {
+    let style = metadata_tag_pill_selection_style(context.category_id, context.selection_state);
     let width = metadata_tag_pill_width(&tag);
     let tag_for_input = tag.clone();
-    let category_for_input = category_id.to_string();
+    let target_key = (tag.clone(), context.target_file_ids.to_vec());
+    let category_for_input = context.category_id.to_string();
     let mut badge = ui::interactive_badge(tag.clone())
         .style(style)
-        .active(selection_state.is_all());
+        .active(context.selection_state.is_all());
 
-    if !locked {
+    if !context.locked {
         badge = badge
-            .tracked_drag_source_with_motion(drag_active, drag_source)
-            .tracked_drop_target(drag_active, active_drop_target);
+            .tracked_drag_source_with_motion(context.drag_active, context.drag_source)
+            .tracked_drop_target(context.drag_active, context.active_drop_target);
     }
     badge
         .actions(
@@ -211,7 +228,7 @@ fn tag_row(
                 .drag_key(tag_for_input.clone(), drag_metadata_tag)
                 .drop_key(category_for_input.clone(), drop_metadata_tag_on_category)
                 .hover_drop_key(category_for_input, hover_metadata_tag_drop_category)
-                .primary_key(tag_for_input, toggle_metadata_tag),
+                .primary_key(target_key, toggle_metadata_tag_for_files),
         )
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)

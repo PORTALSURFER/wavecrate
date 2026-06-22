@@ -35,8 +35,12 @@ impl NativeAppState {
             MetadataMessage::SelectMetadataTag(tag) => {
                 self.select_metadata_tag(tag);
             }
+            #[cfg(test)]
             MetadataMessage::ToggleMetadataTag(tag) => {
                 self.toggle_metadata_tag(tag, context);
+            }
+            MetadataMessage::ToggleMetadataTagForFiles { tag, file_ids } => {
+                self.toggle_metadata_tag_for_file_ids(tag, file_ids, context);
             }
             MetadataMessage::DragMetadataTag { tag, drag } => {
                 self.drag_metadata_tag(tag, drag, context);

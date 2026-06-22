@@ -61,6 +61,14 @@ impl NativeAppState {
         tag: &str,
     ) -> MetadataTagSelectionState {
         let file_ids = self.selected_metadata_file_ids();
+        self.metadata_tag_selection_state_for_file_ids(tag, &file_ids)
+    }
+
+    pub(in crate::native_app) fn metadata_tag_selection_state_for_file_ids(
+        &self,
+        tag: &str,
+        file_ids: &[String],
+    ) -> MetadataTagSelectionState {
         if file_ids.is_empty() {
             return MetadataTagSelectionState::None;
         }
@@ -120,7 +128,7 @@ impl NativeAppState {
         }
     }
 
-    fn selected_metadata_file_ids(&self) -> Vec<String> {
+    pub(in crate::native_app) fn selected_metadata_file_ids(&self) -> Vec<String> {
         self.library
             .folder_browser
             .selected_file_paths()

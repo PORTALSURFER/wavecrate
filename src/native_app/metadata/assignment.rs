@@ -25,6 +25,31 @@ impl NativeAppState {
                 return;
             }
         };
+        self.add_metadata_tags_to_targets(tags, targets, context);
+    }
+
+    fn add_metadata_tags_to_file_ids(
+        &mut self,
+        tags: Vec<String>,
+        file_ids: Vec<String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let targets = match self.metadata_tag_targets_for_file_ids(&file_ids, "adding") {
+            Ok(targets) => targets,
+            Err(status) => {
+                self.ui.status.sample = status;
+                return;
+            }
+        };
+        self.add_metadata_tags_to_targets(tags, targets, context);
+    }
+
+    fn add_metadata_tags_to_targets(
+        &mut self,
+        tags: Vec<String>,
+        targets: Vec<MetadataTagTarget>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let mut requests = Vec::new();
         let mut changed_files = Vec::new();
         for target in targets {
@@ -106,6 +131,7 @@ impl NativeAppState {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn toggle_metadata_tag(
         &mut self,
         tag: String,
@@ -115,6 +141,22 @@ impl NativeAppState {
             self.remove_metadata_tag(tag, context);
         } else {
             self.add_metadata_tags(vec![tag], context);
+        }
+    }
+
+    pub(in crate::native_app) fn toggle_metadata_tag_for_file_ids(
+        &mut self,
+        tag: String,
+        file_ids: Vec<String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self
+            .metadata_tag_selection_state_for_file_ids(&tag, &file_ids)
+            .is_all()
+        {
+            self.remove_metadata_tag_from_file_ids(tag, file_ids, context);
+        } else {
+            self.add_metadata_tags_to_file_ids(vec![tag], file_ids, context);
         }
     }
 
@@ -136,6 +178,31 @@ impl NativeAppState {
                 return;
             }
         };
+        self.remove_metadata_tag_from_targets(tag, targets, context);
+    }
+
+    fn remove_metadata_tag_from_file_ids(
+        &mut self,
+        tag: String,
+        file_ids: Vec<String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let targets = match self.metadata_tag_targets_for_file_ids(&file_ids, "removing") {
+            Ok(targets) => targets,
+            Err(status) => {
+                self.ui.status.sample = status;
+                return;
+            }
+        };
+        self.remove_metadata_tag_from_targets(tag, targets, context);
+    }
+
+    fn remove_metadata_tag_from_targets(
+        &mut self,
+        tag: String,
+        targets: Vec<MetadataTagTarget>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let mut requests = Vec::new();
         let mut changed_files = Vec::new();
         for target in targets {
@@ -206,7 +273,16 @@ impl NativeAppState {
         &self,
         action: &'static str,
     ) -> Result<Vec<MetadataTagTarget>, String> {
-        let paths = self.library.folder_browser.selected_file_paths();
+        let file_ids = self.selected_metadata_file_ids();
+        self.metadata_tag_targets_for_file_ids(&file_ids, action)
+    }
+
+    fn metadata_tag_targets_for_file_ids(
+        &self,
+        file_ids: &[String],
+        action: &'static str,
+    ) -> Result<Vec<MetadataTagTarget>, String> {
+        let paths = file_ids.iter().map(PathBuf::from).collect::<Vec<_>>();
         if paths.is_empty() {
             return Err(format!("Select a sample before {action} tags"));
         }

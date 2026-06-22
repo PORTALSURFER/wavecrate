@@ -162,6 +162,15 @@ fn toggle_metadata_tag(tag: String) -> super::test_support::state::GuiMessage {
     metadata_message(super::test_support::state::MetadataMessage::ToggleMetadataTag(tag))
 }
 
+fn toggle_metadata_tag_for_files(
+    tag: String,
+    file_ids: Vec<String>,
+) -> super::test_support::state::GuiMessage {
+    metadata_message(
+        super::test_support::state::MetadataMessage::ToggleMetadataTagForFiles { tag, file_ids },
+    )
+}
+
 fn delete_selected_metadata_tag() -> super::test_support::state::GuiMessage {
     metadata_message(super::test_support::state::MetadataMessage::DeleteSelectedMetadataTag)
 }

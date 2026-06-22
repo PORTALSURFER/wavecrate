@@ -300,7 +300,12 @@ pub(in crate::native_app) enum MetadataMessage {
     ToggleMetadataTagLibrary,
     ToggleMetadataTagCategory(String),
     SelectMetadataTag(String),
+    #[cfg(test)]
     ToggleMetadataTag(String),
+    ToggleMetadataTagForFiles {
+        tag: String,
+        file_ids: Vec<String>,
+    },
     DragMetadataTag {
         tag: String,
         drag: DragHandleMessage,
