@@ -55,6 +55,50 @@ fn dragging_primary_creates_playmark_selection_without_starting_playback() {
 }
 
 #[test]
+fn zoom_to_play_selection_fits_active_playmark_range() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.25, 0.50);
+
+    state.apply_interaction(WaveformInteraction::ZoomToPlaySelection);
+
+    assert_eq!(
+        state.viewport(),
+        super::WaveformViewport {
+            start: 12_000,
+            end: 24_000,
+        }
+    );
+}
+
+#[test]
+fn zoom_full_restores_complete_waveform_view() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.25, 0.50);
+    state.apply_interaction(WaveformInteraction::ZoomToPlaySelection);
+
+    state.apply_interaction(WaveformInteraction::ZoomFull);
+
+    assert_eq!(
+        state.viewport(),
+        super::WaveformViewport::full(state.frames())
+    );
+}
+
+#[test]
+fn zoom_to_tiny_play_selection_expands_to_minimum_visible_span() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.5, 0.5001);
+
+    state.apply_interaction(WaveformInteraction::ZoomToPlaySelection);
+
+    assert_eq!(
+        state.viewport().end - state.viewport().start,
+        MIN_VISIBLE_FRAMES
+    );
+    assert!(state.visible_ratio_for_absolute(0.5).is_some());
+}
+
+#[test]
 fn changing_playmark_selection_clears_similar_section_marks() {
     let mut state = WaveformState::synthetic_for_tests();
     state.set_play_selection_range(0.1, 0.2);

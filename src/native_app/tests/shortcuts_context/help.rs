@@ -70,6 +70,18 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| item.keys == "Z" && item.action == "Zoom to play selection")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "X" && item.action == "Zoom out")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "Command-X" && item.action == "Cut selected files")
     );
     assert!(

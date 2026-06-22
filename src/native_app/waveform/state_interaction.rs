@@ -22,6 +22,12 @@ impl WaveformState {
                 self.zoom_anchor_ratio = anchor_ratio;
                 self.handle_wheel(delta, anchor_ratio);
             }
+            WaveformInteraction::ZoomToPlaySelection => {
+                self.zoom_to_play_selection();
+            }
+            WaveformInteraction::ZoomFull => {
+                self.zoom_full();
+            }
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }

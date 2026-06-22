@@ -1,5 +1,6 @@
 use crate::native_app::test_support::state::{
-    FolderBrowserMessage, GuiMessage, NativeAppState, default_gui_shortcuts,
+    FolderBrowserMessage, GuiMessage, NativeAppState, NativeAppStateFixture, WaveformInteraction,
+    default_gui_shortcuts,
 };
 use radiant::prelude as ui;
 
@@ -71,6 +72,41 @@ fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
     assert_eq!(
         resolution.action,
         Some(GuiMessage::ToggleSelectedSampleAndAdvance)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn z_shortcut_routes_to_zoom_waveform_to_play_selection() {
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Z));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(
+            WaveformInteraction::ZoomToPlaySelection
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn x_shortcut_routes_to_waveform_zoom_out_when_waveform_is_zoomed_in() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.25, 0.50);
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::ZoomToPlaySelection);
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(WaveformInteraction::ZoomFull))
     );
     assert!(resolution.handled);
 }

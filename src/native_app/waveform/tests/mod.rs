@@ -1,8 +1,9 @@
 use super::{
-    BAND_COUNT, WaveformActiveDragKind, WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle,
-    WaveformInteraction, WaveformSelectionEdge, WaveformSelectionKind, WaveformState,
-    WaveformViewport, WaveformWidget, WaveformWidgetProps, downmix_to_mono, split_frequency_bands,
-    waveform_file_from_mono_samples, waveform_signal_surface_view,
+    BAND_COUNT, MIN_VISIBLE_FRAMES, WaveformActiveDragKind, WaveformEditFadeHandle,
+    WaveformEditFadeOuterGainHandle, WaveformInteraction, WaveformSelectionEdge,
+    WaveformSelectionKind, WaveformState, WaveformViewport, WaveformWidget, WaveformWidgetProps,
+    downmix_to_mono, split_frequency_bands, waveform_file_from_mono_samples,
+    waveform_signal_surface_view,
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},

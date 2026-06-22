@@ -1,6 +1,9 @@
 use radiant::{gui::types::Vector2, prelude as ui};
+use wavecrate::selection::SelectionRange;
 
 use super::{MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformState, interaction::WaveformPanDrag};
+
+const KEYBOARD_SELECTION_ZOOM_FACTOR: f32 = 0.82;
 
 impl WaveformState {
     pub(super) fn absolute_ratio_from_visible(&self, visible_ratio: f32) -> f32 {
@@ -24,6 +27,22 @@ impl WaveformState {
         self.viewport = self.viewport_scope().with_offset_fraction(offset_fraction);
     }
 
+    pub(in crate::native_app) fn zoom_to_play_selection(&mut self) {
+        if let Some(viewport) = self.play_selection_zoom_viewport() {
+            self.viewport = viewport;
+            return;
+        }
+        let anchor_ratio = self
+            .play_mark_ratio
+            .and_then(|ratio| self.visible_ratio_for_absolute(ratio))
+            .unwrap_or(self.zoom_anchor_ratio);
+        self.zoom_around_anchor(KEYBOARD_SELECTION_ZOOM_FACTOR, anchor_ratio);
+    }
+
+    pub(in crate::native_app) fn zoom_full(&mut self) {
+        self.viewport = super::WaveformViewport::full(self.file.frames);
+    }
+
     pub(super) fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
         self.viewport = self
             .viewport_scope_for(drag.viewport)
@@ -40,7 +59,50 @@ impl WaveformState {
         self.viewport = self.viewport_scope().pan_by_visible_fraction(fraction);
     }
 
+    fn play_selection_zoom_viewport(&self) -> Option<super::WaveformViewport> {
+        let selection = self
+            .play_selection
+            .filter(|selection| selection.width_f64() > f64::EPSILON)?;
+        Some(self.viewport_for_selection(selection))
+    }
+
+    fn viewport_for_selection(&self, selection: SelectionRange) -> super::WaveformViewport {
+        let total_frames = self.file.frames.max(1);
+        let min_visible_frames = MIN_VISIBLE_FRAMES.min(total_frames);
+        let selection_start = normalized_floor_frame(selection.start_f64(), total_frames);
+        let selection_end = normalized_ceil_frame(selection.end_f64(), total_frames);
+        let selected_frames = selection_end
+            .saturating_sub(selection_start)
+            .max(1)
+            .clamp(min_visible_frames, total_frames);
+        let center =
+            ((selection.start_f64() + selection.end_f64()) * 0.5 * total_frames as f64).round();
+        let max_start = total_frames.saturating_sub(selected_frames);
+        let start = (center - selected_frames as f64 * 0.5)
+            .round()
+            .clamp(0.0, max_start as f64) as usize;
+        super::WaveformViewport {
+            start,
+            end: start + selected_frames,
+        }
+        .clamp(total_frames, MIN_VISIBLE_FRAMES)
+    }
+
     fn viewport_scope_for(&self, viewport: super::WaveformViewport) -> ui::IndexViewportScope {
         ui::IndexViewportScope::new(viewport, self.file.frames, MIN_VISIBLE_FRAMES)
     }
+}
+
+fn normalized_floor_frame(value: f64, total_frames: usize) -> usize {
+    normalized_frame(value, total_frames, f64::floor)
+}
+
+fn normalized_ceil_frame(value: f64, total_frames: usize) -> usize {
+    normalized_frame(value, total_frames, f64::ceil)
+}
+
+fn normalized_frame(value: f64, total_frames: usize, round: fn(f64) -> f64) -> usize {
+    let value = if value.is_finite() { value } else { 0.0 };
+    round(value.clamp(0.0, 1.0) * total_frames.max(1) as f64).clamp(0.0, total_frames.max(1) as f64)
+        as usize
 }

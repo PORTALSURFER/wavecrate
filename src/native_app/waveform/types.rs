@@ -7,6 +7,8 @@ pub(in crate::native_app) enum WaveformInteraction {
         delta: Vector2,
         anchor_ratio: f32,
     },
+    ZoomToPlaySelection,
+    ZoomFull,
     ScrollTo {
         offset_fraction: f32,
     },

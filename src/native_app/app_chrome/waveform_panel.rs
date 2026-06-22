@@ -28,9 +28,9 @@ pub(in crate::native_app) fn waveform_panel(
 fn waveform_viewport_with_loading_state(
     model: &WaveformPanelViewModel<'_>,
 ) -> ui::View<GuiMessage> {
-    let tooltip = model
-        .help_tooltips_enabled
-        .then_some("Waveform: click to set playback start, drag to select, scroll to zoom.");
+    let tooltip = model.help_tooltips_enabled.then_some(
+        "Waveform: click to set playback start, drag to select, Z zooms to selection, X zooms out.",
+    );
     let viewport = waveform::waveform_viewport_view_with_tooltip(
         model.waveform,
         tooltip,

@@ -58,6 +58,8 @@ fn waveform_interaction_finishes_play_selection_edit(
 fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'static str> {
     match interaction {
         WaveformInteraction::Wheel { .. } => Some("waveform.zoom_wheel"),
+        WaveformInteraction::ZoomToPlaySelection => Some("waveform.zoom_to_play_selection"),
+        WaveformInteraction::ZoomFull => Some("waveform.zoom_full"),
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
         WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),

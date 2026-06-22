@@ -30,6 +30,8 @@ fn waveform_help_tooltip_attaches_to_interaction_widget() {
 
     assert_eq!(
         tooltip,
-        Some("Waveform: click to set playback start, drag to select, scroll to zoom.")
+        Some(
+            "Waveform: click to set playback start, drag to select, Z zooms to selection, X zooms out."
+        )
     );
 }
