@@ -33,10 +33,10 @@ struct ControlSize {
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let model = TopControlBarModel::from_app_state(state);
     ui::row([
-        help_tooltip(
-            volume_slider(model.volume),
-            model.help_tooltips_enabled,
-            "Preview volume for sample audition playback.",
+        volume_slider(model.volume).tooltip_opt(
+            model
+                .help_tooltips_enabled
+                .then_some("Preview volume for sample audition playback."),
         ),
         ui::spacer().fill_width().height(20.0),
         settings_controls(model.settings_controls, model.help_tooltips_enabled),
@@ -91,16 +91,11 @@ fn settings_controls(
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::row([
-        help_tooltip(
-            audio_engine_pill(model.audio_engine),
-            help_tooltips_enabled,
-            "Audio engine status and output settings.",
+        audio_engine_pill(model.audio_engine).tooltip_opt(
+            help_tooltips_enabled.then_some("Audio engine status and output settings."),
         ),
-        help_tooltip(
-            general_settings_button(model.general_settings_active),
-            help_tooltips_enabled,
-            "Open Wavecrate settings.",
-        ),
+        general_settings_button(model.general_settings_active)
+            .tooltip_opt(help_tooltips_enabled.then_some("Open Wavecrate settings.")),
         help_tooltips_button(help_tooltips_enabled),
     ])
     .spacing(4.0)
@@ -118,11 +113,7 @@ fn help_tooltips_button(active: bool) -> ui::View<GuiMessage> {
             HELP_TOOLTIPS_BUTTON_SIZE.width,
             HELP_TOOLTIPS_BUTTON_SIZE.height,
         );
-    help_tooltip(
-        button,
-        active,
-        "Help tips: hover controls to see what they do.",
-    )
+    button.tooltip_opt(active.then_some("Help tips: hover controls to see what they do."))
 }
 
 fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
@@ -171,14 +162,6 @@ fn help_tooltips_icon(active: bool) -> ui::SvgIcon {
     } else {
         ui::Rgba8::new(238, 238, 238, 255)
     })
-}
-
-fn help_tooltip(
-    view: ui::View<GuiMessage>,
-    enabled: bool,
-    tooltip: &'static str,
-) -> ui::View<GuiMessage> {
-    if enabled { view.tooltip(tooltip) } else { view }
 }
 
 static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(

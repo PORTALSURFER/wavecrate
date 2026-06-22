@@ -80,18 +80,18 @@ fn sample_browser_row(
 ) -> ui::View<GuiMessage> {
     let file_id = row.file_id.to_string();
     let file_id_for_toggle = row.file_id.to_string();
-    let hit_target = sample_file_hit_target(
-        row.file_id,
-        row.selected,
-        row.copy_flash,
-        row.drag_revision,
-        row.drag_active,
-        row.drag_source,
-        row.cached,
-        row.missing,
-        file_id,
+    let hit_target = sample_file_hit_target(SampleFileHitTargetModel {
+        file_id: row.file_id,
+        selected: row.selected,
+        copy_flash: row.copy_flash,
+        drag_revision: row.drag_revision,
+        drag_active: row.drag_active,
+        drag_source: row.drag_source,
+        cached: row.cached,
+        missing: row.missing,
+        hit_path: file_id,
         help_tooltips_enabled,
-    );
+    });
     let row = ui::input_underlay(
         ui::row([
             similarity_anchor_toggle(
@@ -113,8 +113,8 @@ fn sample_browser_row(
     row.style(ui::WidgetStyle::default())
 }
 
-fn sample_file_hit_target(
-    file_id: &str,
+struct SampleFileHitTargetModel<'a> {
+    file_id: &'a str,
     selected: bool,
     copy_flash: bool,
     drag_revision: u64,
@@ -124,32 +124,27 @@ fn sample_file_hit_target(
     missing: bool,
     hit_path: String,
     help_tooltips_enabled: bool,
-) -> ui::View<GuiMessage> {
-    let target = ui::custom_widget_direct(SampleFileHitTarget::new(
-        hit_path,
-        selected,
-        copy_flash,
-        drag_active,
-        drag_source,
-        cached,
-        missing,
-    ))
-    .key(format!("sample-row-hit-{file_id}-{drag_revision}"))
-    .fill_width()
-    .height(22.0);
-    sample_row_help_tooltip(
-        target,
-        help_tooltips_enabled,
-        "Sample row: select, double-click to load, drag to copy, right-click for actions.",
-    )
 }
 
-fn sample_row_help_tooltip(
-    view: ui::View<GuiMessage>,
-    enabled: bool,
-    tooltip: &'static str,
-) -> ui::View<GuiMessage> {
-    if enabled { view.tooltip(tooltip) } else { view }
+fn sample_file_hit_target(model: SampleFileHitTargetModel<'_>) -> ui::View<GuiMessage> {
+    let target = ui::custom_widget_direct(SampleFileHitTarget::new(
+        model.hit_path,
+        model.selected,
+        model.copy_flash,
+        model.drag_active,
+        model.drag_source,
+        model.cached,
+        model.missing,
+    ))
+    .key(format!(
+        "sample-row-hit-{}-{}",
+        model.file_id, model.drag_revision
+    ))
+    .fill_width()
+    .height(22.0);
+    target.tooltip_opt(model.help_tooltips_enabled.then_some(
+        "Sample row: select, double-click to load, drag to copy, right-click for actions.",
+    ))
 }
 
 fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
@@ -197,10 +192,9 @@ fn similarity_anchor_toggle(
         ))
         .key(format!("sample-similarity-anchor-{file_id}"))
         .size(SIMILARITY_TOGGLE_WIDTH, SIMILARITY_TOGGLE_SIZE);
-    sample_row_help_tooltip(
-        button,
-        help_tooltips_enabled,
-        "Similarity anchor: compare nearby samples against this one.",
+    button.tooltip_opt(
+        help_tooltips_enabled
+            .then_some("Similarity anchor: compare nearby samples against this one."),
     )
 }
 

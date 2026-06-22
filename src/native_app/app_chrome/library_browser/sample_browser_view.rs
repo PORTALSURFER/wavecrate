@@ -46,16 +46,16 @@ pub(in crate::native_app) fn sample_browser(
     model: SampleBrowserViewModel<'_>,
 ) -> ui::View<GuiMessage> {
     let mut sections = Vec::with_capacity(4);
-    sections.push(sample_browser_header_bar(
-        &model.visible_samples.columns,
-        model.visible_samples.sort,
-        model.drag_feedback.as_ref(),
-        model.name_view_mode,
-        model.random_navigation_enabled,
-        model.visible_samples.similarity_mode_active,
-        model.visible_samples.similarity_controls,
-        model.help_tooltips_enabled,
-    ));
+    sections.push(sample_browser_header_bar(SampleBrowserHeaderBar {
+        columns: model.visible_samples.columns.as_slice(),
+        sort: model.visible_samples.sort,
+        drag_feedback: model.drag_feedback.as_ref(),
+        mode: model.name_view_mode,
+        random_navigation_enabled: model.random_navigation_enabled,
+        similarity_mode_active: model.visible_samples.similarity_mode_active,
+        similarity_controls: model.visible_samples.similarity_controls,
+        help_tooltips_enabled: model.help_tooltips_enabled,
+    }));
     if model.visible_samples.similarity_mode_active {
         sections.push(sample_similarity_controls_bar(
             model.visible_samples.similarity_controls,
@@ -128,47 +128,41 @@ fn sample_list_clear_folder_drop_target(active: bool) -> Option<ui::PointerTarge
     })
 }
 
-fn sample_browser_header_bar(
-    columns: &[&FileColumn],
-    sort: &ui::DetailsSort,
-    drag_feedback: Option<&FileColumnDragFeedback>,
+struct SampleBrowserHeaderBar<'a> {
+    columns: &'a [&'a FileColumn],
+    sort: &'a ui::DetailsSort,
+    drag_feedback: Option<&'a FileColumnDragFeedback>,
     mode: SampleNameViewMode,
     random_navigation_enabled: bool,
     similarity_mode_active: bool,
-    similarity_controls: &SimilarityAspectSettings,
+    similarity_controls: &'a SimilarityAspectSettings,
     help_tooltips_enabled: bool,
-) -> ui::View<GuiMessage> {
+}
+
+fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui::View<GuiMessage> {
     ui::row([
         sample_browser_header(
-            columns,
-            sort,
-            drag_feedback,
-            similarity_mode_active,
-            similarity_controls,
+            model.columns,
+            model.sort,
+            model.drag_feedback,
+            model.similarity_mode_active,
+            model.similarity_controls,
         )
         .fill_width(),
-        sample_browser_help_tooltip(
-            random_navigation_button(random_navigation_enabled),
-            help_tooltips_enabled,
-            "Random audition within the selected folder or active filter.",
+        random_navigation_button(model.random_navigation_enabled).tooltip_opt(
+            model
+                .help_tooltips_enabled
+                .then_some("Random audition within the selected folder or active filter."),
         ),
-        sample_browser_help_tooltip(
-            sample_name_view_mode_button(mode),
-            help_tooltips_enabled,
-            "Switch sample names between disk filenames and metadata labels.",
+        sample_name_view_mode_button(model.mode).tooltip_opt(
+            model
+                .help_tooltips_enabled
+                .then_some("Switch sample names between disk filenames and metadata labels."),
         ),
     ])
     .fill_width()
     .height(24.0)
     .spacing(6.0)
-}
-
-fn sample_browser_help_tooltip(
-    view: ui::View<GuiMessage>,
-    enabled: bool,
-    tooltip: &'static str,
-) -> ui::View<GuiMessage> {
-    if enabled { view.tooltip(tooltip) } else { view }
 }
 
 fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
