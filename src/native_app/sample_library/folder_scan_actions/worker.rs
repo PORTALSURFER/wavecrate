@@ -57,11 +57,13 @@ impl NativeAppState {
                 folder_count,
                 source_db_error,
             } => self.apply_finished_folder_scan(
-                source_id,
-                label,
-                file_count,
-                folder_count,
-                source_db_error,
+                AppliedFolderScan {
+                    source_id,
+                    label,
+                    file_count,
+                    folder_count,
+                    source_db_error,
+                },
                 started_at,
                 context,
             ),
@@ -80,47 +82,46 @@ impl NativeAppState {
 
     fn apply_finished_folder_scan(
         &mut self,
-        source_id: String,
-        label: String,
-        file_count: usize,
-        folder_count: usize,
-        source_db_error: Option<String>,
+        scan: AppliedFolderScan,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.ui.chrome.job_details_open = false;
         self.background.progress_tick = 0.0;
-        if let Some(error) = source_db_error {
+        if let Some(error) = scan.source_db_error {
             self.ui.status.sample = format!(
-                "Loaded source {label}: {file_count} files in {folder_count} folders, but indexing failed: {error}"
+                "Loaded source {}: {} files in {} folders, but indexing failed: {error}",
+                scan.label, scan.file_count, scan.folder_count
             );
             emit_gui_action(
                 "folder_browser.scan.source_db_sync",
                 Some("folder_browser"),
-                Some(&label),
+                Some(&scan.label),
                 "error",
                 started_at,
                 Some(&error),
             );
         } else {
-            self.ui.status.sample =
-                format!("Loaded source {label}: {file_count} files in {folder_count} folders");
+            self.ui.status.sample = format!(
+                "Loaded source {}: {} files in {} folders",
+                scan.label, scan.file_count, scan.folder_count
+            );
             self.queue_source_prep(
-                source_id.clone(),
+                scan.source_id.clone(),
                 SourcePrepTrigger::SourceScanFinished,
                 context,
             );
         }
         tracing::info!(
-            source = label,
-            file_count,
-            folder_count,
+            source = scan.label,
+            file_count = scan.file_count,
+            folder_count = scan.folder_count,
             "default gui: folder scan finished"
         );
         emit_gui_action(
             "folder_browser.scan.finish",
             Some("folder_browser"),
-            Some(&label),
+            Some(&scan.label),
             "success",
             started_at,
             None,
@@ -129,6 +130,14 @@ impl NativeAppState {
         self.sync_source_watcher();
         self.open_ready_audio_documents(context, started_at);
     }
+}
+
+struct AppliedFolderScan {
+    source_id: String,
+    label: String,
+    file_count: usize,
+    folder_count: usize,
+    source_db_error: Option<String>,
 }
 
 fn folder_scan_worker_event_message(event: FolderScanWorkerEvent) -> GuiMessage {

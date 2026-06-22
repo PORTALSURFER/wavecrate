@@ -8,9 +8,9 @@ use wavecrate::selection::SelectionRange;
 use super::{
     WaveformState,
     audio_file::{
-        PersistedPlaybackCacheFile, extract_interleaved_f32_file_range_to_folder,
-        extract_interleaved_f32_range_to_folder, extract_wav_file_range_to_folder,
-        extract_wav_range_to_folder, is_wav_path,
+        InterleavedF32FileExtractionSource, PersistedPlaybackCacheFile,
+        extract_interleaved_f32_file_range_to_folder, extract_interleaved_f32_range_to_folder,
+        extract_wav_file_range_to_folder, extract_wav_range_to_folder, is_wav_path,
     },
 };
 
@@ -168,11 +168,13 @@ impl LoadedPlaybackExtractionSource {
             Self::InterleavedF32File(cache_file) => extract_interleaved_f32_file_range_to_folder(
                 source_path,
                 target_folder,
-                &cache_file.path,
-                cache_file.sample_count,
-                sample_rate,
-                channels,
-                loaded_frames,
+                InterleavedF32FileExtractionSource {
+                    cache_path: &cache_file.path,
+                    sample_count: cache_file.sample_count,
+                    sample_rate,
+                    channels,
+                    loaded_frames,
+                },
                 selection,
             ),
         }

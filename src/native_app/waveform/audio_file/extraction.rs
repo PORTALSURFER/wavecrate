@@ -8,6 +8,14 @@ mod raw_wav;
 
 const F32_SAMPLE_BYTES: u64 = std::mem::size_of::<f32>() as u64;
 
+pub(in crate::native_app::waveform) struct InterleavedF32FileExtractionSource<'a> {
+    pub(in crate::native_app::waveform) cache_path: &'a Path,
+    pub(in crate::native_app::waveform) sample_count: u64,
+    pub(in crate::native_app::waveform) sample_rate: u32,
+    pub(in crate::native_app::waveform) channels: usize,
+    pub(in crate::native_app::waveform) loaded_frames: usize,
+}
+
 pub(in crate::native_app) fn extract_wav_range_to_folder(
     source_path: &Path,
     target_folder: &Path,
@@ -65,27 +73,27 @@ pub(in crate::native_app) fn extract_interleaved_f32_range_to_folder(
 pub(in crate::native_app) fn extract_interleaved_f32_file_range_to_folder(
     source_path: &Path,
     target_folder: &Path,
-    cache_path: &Path,
-    sample_count: u64,
-    sample_rate: u32,
-    channels: usize,
-    loaded_frames: usize,
+    cache: InterleavedF32FileExtractionSource<'_>,
     selection: wavecrate::selection::SelectionRange,
 ) -> Result<PathBuf, String> {
-    let spec = playback_wav_spec(sample_rate, channels)?;
-    let total_frames = usable_interleaved_frame_count_u64(sample_count, channels, loaded_frames)?;
+    let spec = playback_wav_spec(cache.sample_rate, cache.channels)?;
+    let total_frames = usable_interleaved_frame_count_u64(
+        cache.sample_count,
+        cache.channels,
+        cache.loaded_frames,
+    )?;
     let frame_range = selection.frame_bounds(total_frames);
     let start_sample = frame_range
         .start_frame
-        .checked_mul(channels)
+        .checked_mul(cache.channels)
         .ok_or_else(|| String::from("Playback cache selection is too large"))?;
     let samples_to_write = frame_range
         .end_frame
         .saturating_sub(frame_range.start_frame)
-        .checked_mul(channels)
+        .checked_mul(cache.channels)
         .ok_or_else(|| String::from("Playback cache selection is too large"))?;
     let output_path = next_extraction_path(source_path, target_folder)?;
-    let mut reader = open_f32_reader_at(cache_path, start_sample as u64)?;
+    let mut reader = open_f32_reader_at(cache.cache_path, start_sample as u64)?;
     let mut writer = hound::WavWriter::create(&output_path, spec)
         .map_err(|err| format!("failed to create extraction: {err}"))?;
     let mut bytes = [0_u8; F32_SAMPLE_BYTES as usize];

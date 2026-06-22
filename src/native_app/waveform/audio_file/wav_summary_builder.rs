@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use super::super::BAND_COUNT;
 use super::{
-    signal_summary::gpu_signal_summary_from_base_buckets_with_progress_and_cancel,
+    signal_summary::{
+        BaseSignalSummaryLevel, gpu_signal_summary_from_base_buckets_with_progress_and_cancel,
+    },
     visual_bands::{VisualBandFrameProcessor, normalize_visual_band_summary_buckets},
 };
 
@@ -69,10 +71,12 @@ impl StreamingWavSummaryBuilder {
         normalize_visual_band_summary_buckets(&mut self.buckets, BAND_COUNT, cancelled)?;
         let base = Arc::<[GpuSignalSummaryBucket]>::from(self.buckets);
         gpu_signal_summary_from_base_buckets_with_progress_and_cancel(
-            self.frames,
-            BAND_COUNT,
-            self.bucket_frames,
-            base,
+            BaseSignalSummaryLevel {
+                frames: self.frames,
+                band_count: BAND_COUNT,
+                bucket_frames: self.bucket_frames,
+                buckets: base,
+            },
             start,
             end,
             progress,

@@ -53,26 +53,30 @@ pub(in crate::native_app::waveform) fn gpu_signal_summary_with_progress_and_canc
     })
 }
 
-pub(in crate::native_app::waveform) fn gpu_signal_summary_from_base_buckets_with_progress_and_cancel(
-    frames: usize,
-    band_count: usize,
-    base_bucket_frames: usize,
-    base_buckets: Arc<[GpuSignalSummaryBucket]>,
+pub(super) struct BaseSignalSummaryLevel {
+    pub(super) frames: usize,
+    pub(super) band_count: usize,
+    pub(super) bucket_frames: usize,
+    pub(super) buckets: Arc<[GpuSignalSummaryBucket]>,
+}
+
+pub(super) fn gpu_signal_summary_from_base_buckets_with_progress_and_cancel(
+    base: BaseSignalSummaryLevel,
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<GpuSignalSummary, String> {
-    let band_count = band_count.max(1);
-    let frames = frames.max(1);
-    let mut bucket_frames = base_bucket_frames.max(1);
+    let band_count = base.band_count.max(1);
+    let frames = base.frames.max(1);
+    let mut bucket_frames = base.bucket_frames.max(1);
     let mut levels = Vec::with_capacity(signal_summary_level_count(
         frames.div_ceil(bucket_frames).max(1),
     ));
-    let mut previous_buckets = Arc::clone(&base_buckets);
+    let mut previous_buckets = Arc::clone(&base.buckets);
     levels.push(GpuSignalSummaryLevel {
         bucket_frames,
-        buckets: base_buckets,
+        buckets: base.buckets,
     });
     let total_levels = signal_summary_level_count(frames.div_ceil(bucket_frames).max(1)).max(1);
     while bucket_frames < frames {

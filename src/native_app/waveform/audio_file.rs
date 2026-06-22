@@ -43,8 +43,9 @@ pub(super) use construction::{
 pub(super) use downmix::downmix_to_mono;
 pub(super) use downmix::downmix_to_mono_with_progress_and_cancel;
 pub(super) use extraction::{
-    extract_interleaved_f32_file_range_to_folder, extract_interleaved_f32_range_to_folder,
-    extract_wav_file_range_to_folder, extract_wav_range_to_folder,
+    InterleavedF32FileExtractionSource, extract_interleaved_f32_file_range_to_folder,
+    extract_interleaved_f32_range_to_folder, extract_wav_file_range_to_folder,
+    extract_wav_range_to_folder,
 };
 #[cfg(test)]
 pub(super) use loader::load_waveform_file;
