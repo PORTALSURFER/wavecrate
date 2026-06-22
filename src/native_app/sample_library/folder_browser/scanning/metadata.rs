@@ -7,7 +7,7 @@ use super::super::FileEntry;
 use super::file_entry_metadata::file_entry_with_metadata;
 use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 
-pub(super) type SourceMetadataMap =
+pub(in crate::native_app::sample_library::folder_browser) type SourceMetadataMap =
     HashMap<PathBuf, (Rating, bool, Vec<SampleCollection>, Option<i64>)>;
 
 pub(super) fn source_rating_map(root: &Path) -> SourceMetadataMap {

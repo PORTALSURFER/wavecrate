@@ -39,6 +39,19 @@ impl FolderEntry {
             .or_else(|| self.children.iter().find_map(|child| child.find_file(id)))
     }
 
+    pub(super) fn all_files(&self) -> Vec<&FileEntry> {
+        let mut files = Vec::new();
+        self.collect_files(&mut files);
+        files
+    }
+
+    fn collect_files<'a>(&'a self, files: &mut Vec<&'a FileEntry>) {
+        files.extend(self.files.iter());
+        for child in &self.children {
+            child.collect_files(files);
+        }
+    }
+
     pub(super) fn has_children(&self) -> bool {
         !self.children.is_empty()
     }
@@ -177,6 +190,15 @@ impl FolderEntry {
             .find_map(|child| child.take_child_by_id(target_id))
     }
 
+    pub(super) fn take_file_by_id(&mut self, target_id: &str) -> Option<FileEntry> {
+        if let Some(index) = self.files.iter().position(|file| file.id == target_id) {
+            return Some(self.files.remove(index));
+        }
+        self.children
+            .iter_mut()
+            .find_map(|child| child.take_file_by_id(target_id))
+    }
+
     pub(super) fn remove_files_by_ids(&mut self, target_ids: &HashSet<String>) -> bool {
         let before = self.files.len();
         self.files.retain(|file| !target_ids.contains(&file.id));
@@ -185,16 +207,6 @@ impl FolderEntry {
             changed |= child.remove_files_by_ids(target_ids);
         }
         changed
-    }
-
-    pub(super) fn remove_file_by_id(&mut self, target_id: &str) -> bool {
-        if let Some(index) = self.files.iter().position(|file| file.id == target_id) {
-            self.files.remove(index);
-            return true;
-        }
-        self.children
-            .iter_mut()
-            .any(|child| child.remove_file_by_id(target_id))
     }
 
     pub(super) fn set_file_rating(

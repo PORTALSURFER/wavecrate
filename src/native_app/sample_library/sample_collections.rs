@@ -249,7 +249,7 @@ impl NativeAppState {
         let removed = files.len();
         self.library
             .folder_browser
-            .refresh_missing_collection_state();
+            .remove_missing_collection_files(&files);
         self.ui.status.sample = format!(
             "Cleaned {} missing sample{} from Collection {}",
             removed,

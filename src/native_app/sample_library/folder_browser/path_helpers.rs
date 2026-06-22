@@ -9,6 +9,10 @@ pub(super) fn path_id(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
+pub(super) fn path_id_matches(id: &str, path: &Path) -> bool {
+    id == path_id(path) || Path::new(id) == path
+}
+
 pub(super) fn rewrite_path_id(id: &str, old_path: &Path, new_path: &Path) -> String {
     let path = Path::new(id);
     if path == old_path {

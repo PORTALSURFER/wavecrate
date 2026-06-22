@@ -128,6 +128,8 @@ impl FolderBrowserState {
         let refreshing_selected_loaded_source =
             should_select && self.source.sources[source_index].root_folder.is_some();
         self.source.sources[source_index].loading_task = None;
+        self.source.sources[source_index].missing_collection_snapshot =
+            result.missing_collection_snapshot.clone();
         self.source.sources[source_index].root_folder = Some(result.folder.clone());
         if should_select {
             if refreshing_selected_loaded_source {

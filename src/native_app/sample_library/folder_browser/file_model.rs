@@ -73,6 +73,27 @@ impl FileEntry {
         }
     }
 
+    pub(in crate::native_app) fn missing_collection_member_from_file(
+        path: &Path,
+        file: &FileEntry,
+    ) -> Self {
+        Self {
+            id: path.to_string_lossy().to_string(),
+            name: file.name.clone(),
+            stem: file.stem.clone(),
+            extension: file.extension.clone(),
+            kind: String::from(MISSING_KIND),
+            size: String::from("Missing"),
+            size_bytes: 0,
+            modified: file.modified.clone(),
+            modified_rank: file.modified_rank,
+            rating: file.rating,
+            rating_locked: file.rating_locked,
+            collection: file.collection,
+            collections: file.collection_memberships(),
+        }
+    }
+
     pub(in crate::native_app) fn belongs_to_collection(
         &self,
         collection: SampleCollection,

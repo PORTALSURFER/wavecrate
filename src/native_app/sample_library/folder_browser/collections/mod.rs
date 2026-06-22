@@ -12,6 +12,7 @@ pub(in crate::native_app) use layout::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_PADDING, DEFAULT_COLLECTIONS_PANEL_HEIGHT,
 };
+pub(in crate::native_app::sample_library::folder_browser) use missing::MissingCollectionSnapshot;
 pub(super) use model::{CollectionRenameEdit, SampleCollectionConfig, default_collections};
 pub(in crate::native_app) use model::{
     CollectionRenameView, MissingCollectionFile, SampleCollectionView,

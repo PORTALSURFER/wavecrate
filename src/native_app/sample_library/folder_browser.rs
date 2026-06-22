@@ -21,7 +21,7 @@ mod collections;
 use collections::{CollectionPanelState, DEFAULT_COLLECTIONS_PANEL_HEIGHT};
 
 mod path_helpers;
-use path_helpers::{folder_label, path_id, rewrite_path_id};
+use path_helpers::{folder_label, path_id, path_id_matches, rewrite_path_id};
 
 mod folder_entry;
 use folder_entry::FolderEntry;
@@ -57,7 +57,7 @@ use file_model::{FileEntry, plural};
 
 mod filesystem_refresh;
 mod scanning;
-use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
+use scanning::{default_root_path, file_entry, load_source_snapshot, placeholder_folder};
 
 mod panel_state;
 mod rating_filter;

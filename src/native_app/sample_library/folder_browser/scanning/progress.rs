@@ -3,6 +3,7 @@ use std::path::Path;
 use super::{
     super::{
         FileEntry, FolderEntry,
+        collections::MissingCollectionSnapshot,
         path_helpers::{folder_label, path_id},
         scan_types::{
             FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
@@ -34,6 +35,8 @@ pub(in crate::native_app) fn scan_source_with_progress(
     scan.report_initial();
     let folder = load_folder_with_progress(&request.root, &mut scan)
         .unwrap_or_else(|| placeholder_folder(&request.root));
+    let missing_collection_snapshot =
+        MissingCollectionSnapshot::from_source_metadata(&request.root, &folder, &scan.ratings);
     let file_count = scan.counter.files;
     let folder_count = scan.counter.folders;
     drop(scan);
@@ -49,6 +52,7 @@ pub(in crate::native_app) fn scan_source_with_progress(
         source_id: request.source_id,
         label: request.label,
         folder,
+        missing_collection_snapshot,
         file_count,
         folder_count,
         source_db_error,

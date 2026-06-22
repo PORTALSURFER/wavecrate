@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use super::super::{FolderBrowserState, path_helpers::path_id, scanning::load_root_folder};
+use super::super::{FolderBrowserState, path_helpers::path_id, scanning::load_source_snapshot};
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn focus_file_across_sources(&mut self, path: &Path) -> bool {
@@ -70,7 +70,10 @@ impl FolderBrowserState {
         };
         if self.source.sources[index].root_folder.is_none() {
             let root = self.source.sources[index].root.clone();
-            self.source.sources[index].root_folder = Some(load_root_folder(root));
+            let snapshot = load_source_snapshot(root);
+            self.source.sources[index].root_folder = Some(snapshot.folder);
+            self.source.sources[index].missing_collection_snapshot =
+                snapshot.missing_collection_snapshot;
             self.source.sources[index].loading_task = None;
             self.bump_file_content_revision();
         }

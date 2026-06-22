@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use wavecrate::sample_sources::{SampleCollection, config::SimilarityAspectSettings};
 
-use super::FolderEntry;
+use super::{FolderEntry, collections::MissingCollectionSnapshot};
 
 pub(in crate::native_app) type SimilarityAspectStrengths =
     [Option<f32>; wavecrate_analysis::aspects::ASPECT_COUNT];
@@ -16,6 +16,7 @@ pub(in crate::native_app) struct SourceEntry {
     pub(in crate::native_app) label: String,
     pub(super) root: PathBuf,
     pub(super) root_folder: Option<FolderEntry>,
+    pub(super) missing_collection_snapshot: MissingCollectionSnapshot,
     pub(in crate::native_app) loading_task: Option<u64>,
 }
 
@@ -30,6 +31,7 @@ impl SourceEntry {
             label: label.into(),
             root,
             root_folder: None,
+            missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
         }
     }

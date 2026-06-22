@@ -39,7 +39,12 @@ impl FolderBrowserState {
                     folder_label(&source.root),
                     source.root.clone(),
                 );
-                entry.root_folder = scan_cache.folder_for_source(source.id.as_str(), &source.root);
+                if let Some(snapshot) =
+                    scan_cache.source_snapshot_for_source(source.id.as_str(), &source.root)
+                {
+                    entry.root_folder = Some(snapshot.root_folder);
+                    entry.missing_collection_snapshot = snapshot.missing_collection_snapshot;
+                }
                 entry
             })
             .collect::<Vec<_>>();

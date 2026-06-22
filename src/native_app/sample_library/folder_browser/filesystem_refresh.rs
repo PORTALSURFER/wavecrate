@@ -211,23 +211,28 @@ impl FolderBrowserState {
         };
         let parent_id = path_id(parent);
         let source_root = self.source.sources[source_index].root.clone();
-        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
-            return false;
+        let changed = {
+            let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+                return false;
+            };
+            if root_folder.find(&parent_id).is_none() {
+                let source_root = self.source.sources[source_index].root.clone();
+                return self.refresh_existing_folder_path(source_index, &source_root, parent);
+            }
+            let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
+                return false;
+            };
+            upsert_file(
+                &mut parent_folder.files,
+                file_entry_for_source_path(&path.to_path_buf(), &source_root),
+            )
         };
-        if root_folder.find(&parent_id).is_none() {
-            let source_root = self.source.sources[source_index].root.clone();
-            return self.refresh_existing_folder_path(source_index, &source_root, parent);
+        if changed {
+            self.source.sources[source_index]
+                .missing_collection_snapshot
+                .remove_path(path);
         }
-        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
-            return false;
-        };
-        let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
-            return false;
-        };
-        upsert_file(
-            &mut parent_folder.files,
-            file_entry_for_source_path(&path.to_path_buf(), &source_root),
-        )
+        changed
     }
 
     fn refresh_existing_folder_path(
@@ -247,6 +252,9 @@ impl FolderBrowserState {
                 return false;
             }
             *root_folder = folder;
+            self.source.sources[source_index]
+                .missing_collection_snapshot
+                .remove_prefix(path);
             return true;
         }
         let Some(parent) = path.parent() else {
@@ -255,17 +263,37 @@ impl FolderBrowserState {
         let Some(parent_folder) = root_folder.find_mut(&path_id(parent)) else {
             return false;
         };
-        upsert_folder(&mut parent_folder.children, folder)
+        let changed = upsert_folder(&mut parent_folder.children, folder);
+        if changed {
+            self.source.sources[source_index]
+                .missing_collection_snapshot
+                .remove_prefix(path);
+        }
+        changed
     }
 
     fn remove_missing_path_from_source(&mut self, source_index: usize, path: &Path) -> bool {
         let path_id = path_id(path);
-        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
-            return false;
-        };
-        let removed_folder = root_folder.remove_child_by_id(&path_id);
-        let removed_file = root_folder.remove_file_by_id(&path_id);
-        removed_folder || removed_file
+        let removed_folder;
+        let removed_file;
+        {
+            let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+                return false;
+            };
+            removed_folder = root_folder.take_child_by_id(&path_id);
+            removed_file = root_folder.take_file_by_id(&path_id);
+        }
+        let changed = removed_folder.is_some() || removed_file.is_some();
+        if changed {
+            let snapshot = &mut self.source.sources[source_index].missing_collection_snapshot;
+            if let Some(folder) = &removed_folder {
+                snapshot.add_missing_files_from_folder(folder);
+            }
+            if let Some(file) = removed_file {
+                snapshot.add_missing_file(file);
+            }
+        }
+        changed
     }
 
     fn after_source_tree_changed(&mut self, source_id: &str) {

@@ -1,6 +1,6 @@
 use super::super::{
     FolderBrowserState, FolderEntry, RemovedSource, SourceEntry,
-    scanning::{default_root_path, load_root_folder, placeholder_folder},
+    scanning::{default_root_path, load_source_snapshot, placeholder_folder},
 };
 
 impl FolderBrowserState {
@@ -75,7 +75,9 @@ impl FolderBrowserState {
     fn install_default_assets_source(&mut self) {
         let root = default_root_path();
         let mut source = SourceEntry::new("assets", "Assets", root.clone());
-        source.root_folder = Some(load_root_folder(root));
+        let snapshot = load_source_snapshot(root);
+        source.root_folder = Some(snapshot.folder);
+        source.missing_collection_snapshot = snapshot.missing_collection_snapshot;
         self.source.sources.push(source);
     }
 

@@ -6,6 +6,7 @@ use std::{
 use super::{
     super::{
         FolderEntry,
+        collections::MissingCollectionSnapshot,
         path_helpers::{file_label, folder_label, path_id},
         scan_types::{FolderTreeRefreshRequest, FolderTreeRefreshResult},
     },
@@ -16,11 +17,23 @@ pub(in crate::native_app::sample_library::folder_browser) fn default_root_path()
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets")
 }
 
-pub(in crate::native_app::sample_library::folder_browser) fn load_root_folder(
+pub(in crate::native_app::sample_library::folder_browser) struct LoadedSourceSnapshot {
+    pub(in crate::native_app::sample_library::folder_browser) folder: FolderEntry,
+    pub(in crate::native_app::sample_library::folder_browser) missing_collection_snapshot:
+        MissingCollectionSnapshot,
+}
+
+pub(in crate::native_app::sample_library::folder_browser) fn load_source_snapshot(
     root: PathBuf,
-) -> FolderEntry {
+) -> LoadedSourceSnapshot {
     let ratings = source_rating_map(&root);
-    load_folder(&root, &root, &ratings).unwrap_or_else(|| placeholder_folder(&root))
+    let folder = load_folder(&root, &root, &ratings).unwrap_or_else(|| placeholder_folder(&root));
+    let missing_collection_snapshot =
+        MissingCollectionSnapshot::from_source_metadata(&root, &folder, &ratings);
+    LoadedSourceSnapshot {
+        folder,
+        missing_collection_snapshot,
+    }
 }
 
 pub(in crate::native_app::sample_library::folder_browser) fn placeholder_folder(

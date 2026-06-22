@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
@@ -8,7 +8,7 @@ use super::{
     BrowserSelectionState, BrowserSourceState, CollectionPanelState,
     EMPTY_SIMILARITY_ASPECT_STRENGTHS, FolderBrowserMessage, FolderEntry,
     FolderSelectionToggleResult, FolderTreeState, SampleListState, SimilarityAspectStrengths,
-    SimilarityBrowserState, SourceEntry, default_root_path, load_root_folder, placeholder_folder,
+    SimilarityBrowserState, SourceEntry, default_root_path, path_id_matches, placeholder_folder,
 };
 
 #[derive(Clone, Debug)]
@@ -37,9 +37,10 @@ impl FolderBrowserState {
     pub(super) fn from_sources(sources: Vec<SourceEntry>, selected_source: String) -> Self {
         let mut sources = sources;
         let source_index = selected_source_index(&sources, &selected_source);
-        let root_folder = load_root_folder(sources[source_index].root.clone());
-        sources[source_index].root_folder = Some(root_folder.clone());
-        Self::new(sources, source_index, root_folder)
+        let snapshot = super::load_source_snapshot(sources[source_index].root.clone());
+        sources[source_index].root_folder = Some(snapshot.folder.clone());
+        sources[source_index].missing_collection_snapshot = snapshot.missing_collection_snapshot;
+        Self::new(sources, source_index, snapshot.folder)
     }
 
     pub(in crate::native_app) fn from_sources_deferred(
@@ -250,9 +251,10 @@ impl FolderBrowserState {
             return Some(PathBuf::from(focused));
         }
 
+        let requested_path = Path::new(file_id);
         self.selected_audio_files()
             .into_iter()
-            .find(|file| file.id == file_id)
+            .find(|file| path_id_matches(&file.id, requested_path))
             .map(|file| PathBuf::from(&file.id))
     }
 

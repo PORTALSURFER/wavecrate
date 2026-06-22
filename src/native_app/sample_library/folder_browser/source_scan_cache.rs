@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use super::{FolderEntry, SourceEntry};
+use super::{FolderEntry, SourceEntry, collections::MissingCollectionSnapshot};
 
 const SOURCE_SCAN_CACHE_FILE_NAME: &str = "source-scan-cache.json";
 const SOURCE_SCAN_CACHE_VERSION: u32 = 1;
@@ -21,6 +21,8 @@ struct CachedSourceScan {
     source_id: String,
     root: PathBuf,
     root_folder: FolderEntry,
+    #[serde(default)]
+    missing_collection_snapshot: MissingCollectionSnapshot,
 }
 
 impl SourceScanCache {
@@ -33,7 +35,17 @@ impl SourceScanCache {
         cache
     }
 
+    #[cfg(test)]
     pub(super) fn folder_for_source(&self, source_id: &str, root: &Path) -> Option<FolderEntry> {
+        self.source_snapshot_for_source(source_id, root)
+            .map(|snapshot| snapshot.root_folder)
+    }
+
+    pub(super) fn source_snapshot_for_source(
+        &self,
+        source_id: &str,
+        root: &Path,
+    ) -> Option<CachedSourceSnapshot> {
         if self.version != SOURCE_SCAN_CACHE_VERSION {
             return None;
         }
@@ -43,7 +55,10 @@ impl SourceScanCache {
             .map(|source| {
                 let mut folder = source.root_folder.clone();
                 prune_folder_apple_double_sidecars(&mut folder);
-                folder
+                CachedSourceSnapshot {
+                    root_folder: folder,
+                    missing_collection_snapshot: source.missing_collection_snapshot.clone(),
+                }
             })
     }
 
@@ -52,6 +67,11 @@ impl SourceScanCache {
             prune_folder_apple_double_sidecars(&mut source.root_folder);
         }
     }
+}
+
+pub(super) struct CachedSourceSnapshot {
+    pub(super) root_folder: FolderEntry,
+    pub(super) missing_collection_snapshot: MissingCollectionSnapshot,
 }
 
 pub(super) fn load_source_scan_cache() -> Result<SourceScanCache, String> {
@@ -106,6 +126,7 @@ fn save_source_scan_cache_to_path(path: &Path, sources: &[SourceEntry]) -> Resul
                         source_id: source.id.clone(),
                         root: source.root.clone(),
                         root_folder: root_folder.clone(),
+                        missing_collection_snapshot: source.missing_collection_snapshot.clone(),
                     })
             })
             .collect(),
@@ -198,6 +219,7 @@ mod tests {
                     collections: SampleCollection::new(0).into_iter().collect(),
                 }],
             }),
+            missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
         };
         let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
@@ -244,6 +266,7 @@ mod tests {
                         file_for_cache_test(&root.join("._kick.wav")),
                     ],
                 },
+                missing_collection_snapshot: MissingCollectionSnapshot::default(),
             }],
         };
         fs::write(&path, serde_json::to_vec(&cache).expect("serialize cache"))

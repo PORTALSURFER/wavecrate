@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use super::{FileEntry, FolderEntry};
+use super::{FileEntry, FolderEntry, collections::MissingCollectionSnapshot};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderScanRequest {
@@ -49,6 +49,8 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) folder: FolderEntry,
+    pub(in crate::native_app::sample_library::folder_browser) missing_collection_snapshot:
+        MissingCollectionSnapshot,
     pub(in crate::native_app) file_count: usize,
     pub(in crate::native_app) folder_count: usize,
     pub(in crate::native_app) source_db_error: Option<String>,
