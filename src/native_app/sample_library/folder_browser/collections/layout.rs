@@ -11,7 +11,7 @@ pub(in crate::native_app) const COLLECTIONS_PANEL_HEADER_CONTENT_SPACING: f32 =
     super::super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_CHROME: f32 = 8.0;
 pub(in crate::native_app) const COLLAPSED_COLLECTIONS_PANEL_HEIGHT: f32 =
-    COLLECTIONS_PANEL_PADDING * 2.0 + COLLECTIONS_PANEL_HEADER_HEIGHT;
+    collections_panel_geometry().header_only_height();
 pub(in crate::native_app) const MIN_COLLECTIONS_PANEL_HEIGHT: f32 =
     COLLAPSED_COLLECTIONS_PANEL_HEIGHT;
 pub(in crate::native_app) const DEFAULT_COLLECTIONS_PANEL_HEIGHT: f32 = 130.0;
@@ -52,7 +52,7 @@ fn useful_collections_panel_height(row_count: usize) -> f32 {
     )
 }
 
-fn collections_panel_geometry() -> ui::PanelSectionGeometry {
+const fn collections_panel_geometry() -> ui::PanelSectionGeometry {
     ui::PanelSectionGeometry::new()
         .padding(COLLECTIONS_PANEL_PADDING)
         .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)

@@ -7,19 +7,35 @@ use super::{
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
 const FILTER_PANEL_HEADER_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
+const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 const MAX_FILTER_PANEL_HEIGHT: f32 = 180.0;
 pub(in crate::native_app) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
-    FILTER_PANEL_PADDING * 2.0 + FILTER_PANEL_HEADER_HEIGHT;
+    filter_panel_geometry().header_only_height();
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
 pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 92.0;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
+const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 const MAX_METADATA_PANEL_HEIGHT: f32 = 240.0;
 const DEFAULT_METADATA_PANEL_HEIGHT: f32 = 130.0;
 pub(in crate::native_app) const COLLAPSED_METADATA_PANEL_HEIGHT: f32 =
-    METADATA_PANEL_PADDING * 2.0 + METADATA_PANEL_TITLE_HEIGHT;
+    metadata_panel_geometry().header_only_height();
 const MIN_METADATA_PANEL_HEIGHT: f32 = COLLAPSED_METADATA_PANEL_HEIGHT;
+
+const fn filter_panel_geometry() -> ui::PanelSectionGeometry {
+    ui::PanelSectionGeometry::new()
+        .padding(FILTER_PANEL_PADDING)
+        .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING)
+        .title_height(FILTER_PANEL_HEADER_HEIGHT)
+}
+
+const fn metadata_panel_geometry() -> ui::PanelSectionGeometry {
+    ui::PanelSectionGeometry::new()
+        .padding(METADATA_PANEL_PADDING)
+        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
+        .title_height(METADATA_PANEL_TITLE_HEIGHT)
+}
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct BrowserFilterState {

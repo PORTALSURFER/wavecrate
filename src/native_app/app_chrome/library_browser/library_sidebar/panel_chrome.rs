@@ -8,12 +8,5 @@ pub(super) fn sidebar_resize_header(
     widget_id: u64,
     map: impl Fn(DragHandleMessage) -> GuiMessage + Send + Sync + 'static,
 ) -> ui::View<GuiMessage> {
-    ui::drag_handle()
-        .hover_chrome_only()
-        .mapped(map)
-        .key(key)
-        .id(widget_id)
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .fill_width()
-        .height(SIDEBAR_PANEL_HEADER_HEIGHT)
+    ui::panel_section_resize_header(key, SIDEBAR_PANEL_HEADER_HEIGHT, map).id(widget_id)
 }
