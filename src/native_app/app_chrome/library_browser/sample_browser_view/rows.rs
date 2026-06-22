@@ -25,6 +25,11 @@ const SIMILARITY_SCORE_FILL: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
 const SIMILARITY_ASPECT_TRACK: ui::Rgba8 = ui::Rgba8::new(38, 42, 46, 190);
 const SIMILARITY_ASPECT_DISABLED_TRACK: ui::Rgba8 = ui::Rgba8::new(24, 26, 28, 210);
 const SIMILARITY_ASPECT_WIDTH: f32 = 14.0;
+const SIMILARITY_ANCHOR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
+    ui::Rgba8::new(238, 238, 238, 220),
+    ui::Rgba8::new(255, 160, 82, 255),
+    ui::Rgba8::new(142, 146, 150, 210),
+);
 
 pub(super) fn sample_browser_rows(
     visible_samples: &VisibleSampleList<'_>,
@@ -284,14 +289,7 @@ fn sample_similarity_aspect_indicator(
 }
 
 fn similarity_anchor_icon(active: bool, available: bool) -> ui::SvgIcon {
-    let color = if active {
-        ui::Rgba8::new(255, 160, 82, 255)
-    } else if available {
-        ui::Rgba8::new(238, 238, 238, 220)
-    } else {
-        ui::Rgba8::new(142, 146, 150, 210)
-    };
-    SIMILARITY_ANCHOR_ICON.icon(color)
+    SIMILARITY_ANCHOR_ICON.icon_for_state(SIMILARITY_ANCHOR_ICON_TINTS, available, active)
 }
 
 fn sample_rating_cell(

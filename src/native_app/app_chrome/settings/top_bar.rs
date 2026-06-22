@@ -24,6 +24,11 @@ const GENERAL_SETTINGS_BUTTON_SIZE: ControlSize = ControlSize {
     width: 28.0,
     height: 24.0,
 };
+const SETTINGS_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
+    ui::Rgba8::new(238, 238, 238, 255),
+    ui::Rgba8::new(255, 160, 82, 255),
+    ui::Rgba8::new(145, 145, 145, 255),
+);
 
 struct ControlSize {
     width: f32,
@@ -149,19 +154,11 @@ pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> 
 }
 
 fn settings_gear_icon(active: bool) -> ui::SvgIcon {
-    SETTINGS_GEAR_ICON.icon(if active {
-        ui::Rgba8::new(255, 160, 82, 255)
-    } else {
-        ui::Rgba8::new(238, 238, 238, 255)
-    })
+    SETTINGS_GEAR_ICON.icon_for_state(SETTINGS_ICON_TINTS, true, active)
 }
 
 fn help_tooltips_icon(active: bool) -> ui::SvgIcon {
-    HELP_TOOLTIPS_ICON.icon(if active {
-        ui::Rgba8::new(255, 160, 82, 255)
-    } else {
-        ui::Rgba8::new(238, 238, 238, 255)
-    })
+    HELP_TOOLTIPS_ICON.icon_for_state(SETTINGS_ICON_TINTS, true, active)
 }
 
 static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(

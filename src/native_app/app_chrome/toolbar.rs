@@ -7,6 +7,11 @@ use crate::native_app::ui::ids as widget_ids;
 const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const TOOLBAR_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
 const TOOLBAR_ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(145, 145, 145, 255);
+const TOOLBAR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
+    TOOLBAR_ICON_ENABLED_COLOR,
+    TOOLBAR_ICON_ACTIVE_COLOR,
+    TOOLBAR_ICON_DISABLED_COLOR,
+);
 
 pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = widget_ids::TOOLBAR_FOCUS_LOADED_ID;
 const TOOLBAR_BEAT_GUIDES_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDES_ID;
@@ -182,13 +187,7 @@ impl ToolbarIcon {
 }
 
 pub(in crate::native_app) fn toolbar_icon_color(enabled: bool, active: bool) -> ui::Rgba8 {
-    if !enabled {
-        TOOLBAR_ICON_DISABLED_COLOR
-    } else if active {
-        TOOLBAR_ICON_ACTIVE_COLOR
-    } else {
-        TOOLBAR_ICON_ENABLED_COLOR
-    }
+    TOOLBAR_ICON_TINTS.color(enabled, active)
 }
 
 pub(in crate::native_app) fn toolbar_icon_glyph(
@@ -196,7 +195,8 @@ pub(in crate::native_app) fn toolbar_icon_glyph(
     enabled: bool,
     active: bool,
 ) -> ui::SvgIcon {
-    icon.cache().icon(toolbar_icon_color(enabled, active))
+    icon.cache()
+        .icon_for_state(TOOLBAR_ICON_TINTS, enabled, active)
 }
 
 fn toolbar_button_message(icon: ToolbarIcon, message: ButtonMessage) -> GuiMessage {

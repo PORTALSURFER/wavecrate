@@ -7,6 +7,8 @@ use crate::native_app::ui::ids as widget_ids;
 const ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(220, 225, 232, 255);
 const ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(104, 110, 118, 255);
+const STATUS_ICON_TINTS: ui::SvgIconTintPalette =
+    ui::SvgIconTintPalette::new(ICON_ENABLED_COLOR, ICON_ACTIVE_COLOR, ICON_DISABLED_COLOR);
 
 pub(super) fn selected_folder_status(
     label: String,
@@ -54,23 +56,11 @@ fn show_empty_folders_button(active: bool) -> ui::View<GuiMessage> {
 }
 
 fn include_subfolders_icon(available: bool, active: bool) -> ui::SvgIcon {
-    let color = if !available {
-        ICON_DISABLED_COLOR
-    } else if active {
-        ICON_ACTIVE_COLOR
-    } else {
-        ICON_ENABLED_COLOR
-    };
-    INCLUDE_SUBFOLDERS_ICON.icon(color)
+    INCLUDE_SUBFOLDERS_ICON.icon_for_state(STATUS_ICON_TINTS, available, active)
 }
 
 fn show_empty_folders_icon(active: bool) -> ui::SvgIcon {
-    let color = if active {
-        ICON_ACTIVE_COLOR
-    } else {
-        ICON_ENABLED_COLOR
-    };
-    SHOW_EMPTY_FOLDERS_ICON.icon(color)
+    SHOW_EMPTY_FOLDERS_ICON.icon_for_state(STATUS_ICON_TINTS, true, active)
 }
 
 static INCLUDE_SUBFOLDERS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(

@@ -34,6 +34,11 @@ pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 190.0;
 const SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH: f32 = 14.0;
 const SAMPLE_BROWSER_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const SAMPLE_BROWSER_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
+const SAMPLE_BROWSER_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
+    SAMPLE_BROWSER_ICON_ENABLED_COLOR,
+    SAMPLE_BROWSER_ICON_ACTIVE_COLOR,
+    SAMPLE_BROWSER_ICON_ENABLED_COLOR,
+);
 
 #[cfg(test)]
 pub(in crate::native_app) fn sample_browser_from_state(
@@ -177,11 +182,7 @@ fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
 }
 
 fn random_navigation_icon(active: bool) -> ui::SvgIcon {
-    DICE_ICON.icon(if active {
-        SAMPLE_BROWSER_ICON_ACTIVE_COLOR
-    } else {
-        SAMPLE_BROWSER_ICON_ENABLED_COLOR
-    })
+    DICE_ICON.icon_for_state(SAMPLE_BROWSER_ICON_TINTS, true, active)
 }
 
 fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage> {
