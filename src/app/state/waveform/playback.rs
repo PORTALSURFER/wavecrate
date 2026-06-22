@@ -1,24 +1,13 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
+#[derive(Default)]
 pub(super) struct WaveformPlaybackState {
     pub(super) playhead: PlayheadState,
     pub(super) last_start_marker: Option<f32>,
     pub(super) loop_enabled: bool,
     pub(super) loop_lock_enabled: bool,
     pub(super) normalized_audition_enabled: bool,
-}
-
-impl Default for WaveformPlaybackState {
-    fn default() -> Self {
-        Self {
-            playhead: PlayheadState::default(),
-            last_start_marker: None,
-            loop_enabled: false,
-            loop_lock_enabled: false,
-            normalized_audition_enabled: false,
-        }
-    }
 }
 
 /// Current playhead position/visibility.

@@ -50,6 +50,6 @@ fn restore_loaded_wav(
     snapshot: &WavLoadHistorySnapshot,
 ) {
     if let Some(path) = snapshot.loaded_wav.clone() {
-        let _ = controller.queue_audio_load_for(&source, &path, AudioLoadIntent::Selection, None);
+        let _ = controller.queue_audio_load_for(source, &path, AudioLoadIntent::Selection, None);
     }
 }

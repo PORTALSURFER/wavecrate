@@ -161,7 +161,7 @@ fn open_pcm_wav_reader_at(
     let spec = reader.spec();
     validate_pcm_wav_spec(path, spec, expected)?;
     let channels = u64::from(spec.channels.max(1));
-    if sample % channels != 0 {
+    if !sample.is_multiple_of(channels) {
         return Err(format!(
             "Direct WAV playback seek is not frame-aligned: sample {sample}, channels {channels}"
         ));

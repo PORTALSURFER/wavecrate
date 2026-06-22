@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use wavecrate_analysis::aspects::{ASPECT_COUNT, SimilarityAspect};
 
 /// User controls for similarity aspect weighting and row-column presentation.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SimilarityAspectSettings {
     /// Whether the active similarity ordering should use aspect weights.
     #[serde(default)]
@@ -120,19 +120,6 @@ impl SimilarityAspectSettings {
             SimilarityAspect::Timbre => &mut self.timbre,
             SimilarityAspect::Pitch => &mut self.pitch,
             SimilarityAspect::Amplitude => &mut self.amplitude,
-        }
-    }
-}
-
-impl Default for SimilarityAspectSettings {
-    fn default() -> Self {
-        Self {
-            weighting_enabled: false,
-            overall: SimilarityAspectControl::default(),
-            spectrum: SimilarityAspectControl::default(),
-            timbre: SimilarityAspectControl::default(),
-            pitch: SimilarityAspectControl::default(),
-            amplitude: SimilarityAspectControl::default(),
         }
     }
 }

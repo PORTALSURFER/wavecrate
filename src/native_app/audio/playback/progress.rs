@@ -4,8 +4,8 @@ use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{NativeAppState, emit_gui_action, sample_path_label};
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
-    gui::types::{Point, Rect, Rgba8},
-    runtime::{PaintFillRect, PaintPrimitive, TransientOverlayContext, WidgetPaint},
+    gui::types::{Rect, Rgba8},
+    runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
 use wavecrate::audio::{PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeStarted};
 
@@ -314,24 +314,11 @@ impl NativeAppState {
         else {
             return;
         };
-        push_fill(
-            primitives,
-            WAVEFORM_WIDGET_ID,
+        let mut paint = WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID);
+        paint.push_visible_fill_rect(bounds, LOADING_BACKGROUND_COLOR);
+        paint.push_horizontal_progress_fill(
             bounds,
-            LOADING_BACKGROUND_COLOR,
-        );
-        let progress = self.waveform.load.progress.clamp(0.0, 1.0);
-        if progress <= 0.0 {
-            return;
-        }
-        let progress_bounds = Rect::from_min_max(
-            bounds.min,
-            Point::new(bounds.min.x + bounds.width() * progress, bounds.max.y),
-        );
-        push_fill(
-            primitives,
-            WAVEFORM_WIDGET_ID,
-            progress_bounds,
+            self.waveform.load.progress,
             LOADING_PROGRESS_COLOR,
         );
     }
@@ -501,22 +488,6 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
         PLAYBACK_CURSOR_WIDTH,
         PLAYBACK_CURSOR_COLOR,
     );
-}
-
-fn push_fill(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: radiant::widgets::WidgetId,
-    rect: Rect,
-    color: Rgba8,
-) {
-    if !rect.has_finite_positive_area() {
-        return;
-    }
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id,
-        rect,
-        color,
-    }));
 }
 
 fn playback_error_indicates_output_unavailable(error: &str) -> bool {
