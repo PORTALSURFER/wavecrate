@@ -1,7 +1,6 @@
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::mpsc::Sender,
     time::{Duration, Instant},
 };
 
@@ -137,8 +136,9 @@ impl NativeAppState {
         context
             .business()
             .priority("gui-normalize-selected-samples", normalization_priority())
-            .run(
-                move |_| run_normalization_worker(request),
+            .stream(
+                move |_context, events| run_normalization_worker(request, events),
+                GuiMessage::NormalizationProgress,
                 GuiMessage::NormalizationFinished,
             );
         emit_gui_action(
@@ -177,7 +177,6 @@ impl NativeAppState {
             was_playing,
             restart_ratio,
             restart_span,
-            sender: self.background.worker_sender.clone(),
         }
     }
 
@@ -395,14 +394,16 @@ struct NormalizationWorkerRequest {
     was_playing: bool,
     restart_ratio: f32,
     restart_span: Option<(f32, f32)>,
-    sender: Sender<GuiMessage>,
 }
 
 fn normalize_progress_label(count: usize) -> String {
     format!("{count} sample{}", if count == 1 { "" } else { "s" })
 }
 
-fn run_normalization_worker(request: NormalizationWorkerRequest) -> NormalizationResult {
+fn run_normalization_worker(
+    request: NormalizationWorkerRequest,
+    events: ui::BusinessEventSink<NormalizationProgress>,
+) -> NormalizationResult {
     let total = request.paths.len();
     let label = normalize_progress_label(total);
     let mut normalized = Vec::new();
@@ -419,6 +420,7 @@ fn run_normalization_worker(request: NormalizationWorkerRequest) -> Normalizatio
             total,
             work_total,
             file_label.clone(),
+            events.clone(),
         );
         progress_reporter.emit(index, 0.0, "Queued", true);
         match normalize_wav_file_in_place_with_progress(path, |fraction, phase| {
@@ -498,6 +500,7 @@ struct NormalizationProgressReporter<'a> {
     total_files: usize,
     work_total: usize,
     file_label: String,
+    events: ui::BusinessEventSink<NormalizationProgress>,
     last_emit: Instant,
     last_work_completed: usize,
 }
@@ -510,6 +513,7 @@ impl<'a> NormalizationProgressReporter<'a> {
         total_files: usize,
         work_total: usize,
         file_label: String,
+        events: ui::BusinessEventSink<NormalizationProgress>,
     ) -> Self {
         Self {
             request,
@@ -517,6 +521,7 @@ impl<'a> NormalizationProgressReporter<'a> {
             total_files,
             work_total,
             file_label,
+            events,
             last_emit: Instant::now() - NORMALIZATION_PROGRESS_MIN_INTERVAL,
             last_work_completed: normalization_work_completed(file_index, 0.0),
         }
@@ -546,19 +551,16 @@ impl<'a> NormalizationProgressReporter<'a> {
         } else {
             format!("{} | {phase}", self.file_label)
         };
-        let _ =
-            self.request
-                .sender
-                .send(GuiMessage::NormalizationProgress(NormalizationProgress {
-                    task_id: self.request.task_id,
-                    label: self.label.to_string(),
-                    completed: completed_files.min(self.total_files),
-                    total: self.total_files,
-                    work_completed,
-                    work_total: self.work_total,
-                    queued: 0,
-                    detail,
-                }));
+        let _ = self.events.emit(NormalizationProgress {
+            task_id: self.request.task_id,
+            label: self.label.to_string(),
+            completed: completed_files.min(self.total_files),
+            total: self.total_files,
+            work_completed,
+            work_total: self.work_total,
+            queued: 0,
+            detail,
+        });
     }
 }
 
