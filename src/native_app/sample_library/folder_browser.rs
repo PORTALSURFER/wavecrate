@@ -115,95 +115,13 @@ use source_types::RemovedSource;
 
 use scan_types::{FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult};
 
-pub(in crate::native_app) mod commands {
-    pub(in crate::native_app) use super::drag_types::FolderDropResult;
-    #[cfg(test)]
-    pub(in crate::native_app) use super::file_move_execution::{
-        execute_file_move_conflict_request, execute_folder_move_request,
-    };
-    pub(in crate::native_app) use super::file_move_execution::{
-        execute_file_move_conflict_request_with_progress, execute_folder_move_request_with_progress,
-    };
-    pub(in crate::native_app) use super::file_move_progress::{
-        file_move_conflict_progress_label, file_move_conflict_progress_total,
-        folder_move_progress_label, folder_move_progress_total,
-    };
-    pub(in crate::native_app) use super::messages::FolderBrowserMessage;
-    pub(in crate::native_app) use super::move_types::{
-        FileMoveConflictCompletion, FileMoveConflictResolution, FileMoveConflictResolutionRequest,
-        FolderMoveCompletion, FolderMoveDropInput, FolderMoveRequest,
-    };
-    pub(in crate::native_app) use super::rename_execution::execute_rename_commit_request;
-    pub(in crate::native_app) use super::rename_types::{
-        FileRenameView, RenameCommitCompletion, RenameCommitResult, RenameInputResult,
-        RenamePathRemap,
-    };
-}
-
-pub(in crate::native_app) mod model {
-    pub(in crate::native_app) use super::{
-        file_model::FileEntry,
-        rating_filter::{RATING_FILTER_LEVELS, rating_filter_label},
-        state_types::{
-            EMPTY_SIMILARITY_ASPECT_STRENGTHS, FileColumn, FileColumnKind,
-            SimilarityAspectStrengths, SourceEntry, VisibleFolder,
-        },
-    };
-}
-
-pub(in crate::native_app) mod projection {
-    pub(in crate::native_app) use super::drag_types::FileColumnDragFeedback;
-    pub(in crate::native_app) use super::visible_samples::{
-        VisibleSampleList, VisibleSampleQuery, VisibleSampleRow, VisibleSampleWindowPolicy,
-    };
-}
-
-pub(in crate::native_app) mod scan {
-    pub(in crate::native_app) use super::scan_types::{
-        FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-        FolderScanResult, FolderTreeRefreshRequest, FolderTreeRefreshResult, FolderVerifyResult,
-    };
-    pub(in crate::native_app) use super::scanning::{
-        refresh_folder_tree_only, scan_source_with_progress, verify_direct_folder,
-    };
-}
-
+pub(in crate::native_app) mod commands;
+pub(in crate::native_app) mod model;
+pub(in crate::native_app) mod projection;
+pub(in crate::native_app) mod scan;
 #[cfg(test)]
-pub(in crate::native_app) mod test_support {
-    pub(in crate::native_app) use super::drag_types::FolderDragPreview;
-    pub(in crate::native_app) use super::file_columns::MIN_FILE_COLUMN_WIDTH;
-    pub(in crate::native_app) use super::panel_state::{
-        COLLAPSED_FILTER_PANEL_HEIGHT, COLLAPSED_METADATA_PANEL_HEIGHT,
-    };
-}
-
-pub(in crate::native_app) mod view_contract {
-    pub(in crate::native_app) const DEFAULT_FOLDER_WIDTH: f32 = super::DEFAULT_FOLDER_WIDTH;
-    pub(in crate::native_app) const MIN_FOLDER_WIDTH: f32 = super::MIN_FOLDER_WIDTH;
-    pub(in crate::native_app) const MAX_FOLDER_WIDTH: f32 = super::MAX_FOLDER_WIDTH;
-    pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = super::FOLDER_TREE_LIST_ID;
-    pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 =
-        super::COLLECTIONS_LIST_SCROLL_NODE_ID;
-    pub(in crate::native_app) const FOLDER_TREE_EDGE_CONTEXT_ROWS: usize =
-        super::FOLDER_TREE_EDGE_CONTEXT_ROWS;
-    pub(in crate::native_app) const FOLDER_TREE_SELECTION_CONTEXT_ROWS: usize =
-        super::FOLDER_TREE_SELECTION_CONTEXT_ROWS;
-    pub(in crate::native_app) const FOLDER_TREE_OVERSCAN_ROWS: usize =
-        super::FOLDER_TREE_OVERSCAN_ROWS;
-    pub(in crate::native_app) const FOLDER_TREE_PROJECTED_VIEWPORT_ROWS: usize =
-        super::FOLDER_TREE_PROJECTED_VIEWPORT_ROWS;
-    pub(in crate::native_app) const TREE_ROW_HEIGHT: f32 = super::TREE_ROW_HEIGHT;
-    pub(in crate::native_app) const TREE_DEPTH_INDENT: f32 = super::TREE_DEPTH_INDENT;
-    pub(in crate::native_app) const SIDEBAR_PANEL_HEADER_HEIGHT: f32 =
-        super::SIDEBAR_PANEL_HEADER_HEIGHT;
-    pub(in crate::native_app) const SIDEBAR_PANEL_HEADER_CONTENT_SPACING: f32 =
-        super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
-    pub(in crate::native_app) use super::collections::{
-        COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
-        COLLECTIONS_PANEL_PADDING, CollectionRenameView, MissingCollectionFile,
-        SampleCollectionView, SelectedFileCollectionCandidate, collection_hotkey,
-    };
-}
+pub(in crate::native_app) mod test_support;
+pub(in crate::native_app) mod view_contract;
 
 #[cfg(test)]
 mod tests;
