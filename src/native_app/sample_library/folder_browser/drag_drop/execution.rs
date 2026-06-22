@@ -20,8 +20,8 @@ impl FolderBrowserState {
         self.drag_drop.drop_target.close();
         self.drag_drop.clear_folder_hover_auto_expand();
         let result = match drag {
-            FolderBrowserDrag::Folder { folder_id } => {
-                self.prepare_move_folder_to_folder(&folder_id, target_folder_id)?
+            FolderBrowserDrag::Folder { folder_ids } => {
+                self.prepare_move_folders_to_folder(&folder_ids, target_folder_id)?
             }
             FolderBrowserDrag::Files {
                 file_ids,

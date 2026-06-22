@@ -276,7 +276,11 @@ impl FolderBrowserState {
                 return;
             }
             if self.find_folder(&folder_id).is_some() {
-                self.drag_drop.drag = Some(FolderBrowserDrag::Folder { folder_id });
+                let folder_ids = self.folder_ids_for_drag(folder_id);
+                if folder_ids.is_empty() {
+                    return;
+                }
+                self.drag_drop.drag = Some(FolderBrowserDrag::Folder { folder_ids });
                 self.drag_drop.drag_pointer = Some(position);
                 self.clear_drop_targets_for_new_drag();
             }
@@ -286,10 +290,41 @@ impl FolderBrowserState {
             self.clear_drag();
         }
     }
+
+    fn folder_ids_for_drag(&self, folder_id: String) -> Vec<String> {
+        let mut ids = if self.selection.selected_folder_ids.contains(&folder_id) {
+            self.selection
+                .selected_folder_ids
+                .iter()
+                .filter(|id| !self.selected_folder_is_source_root_id(id))
+                .filter(|id| self.find_folder(id).is_some())
+                .cloned()
+                .collect::<Vec<_>>()
+        } else {
+            vec![folder_id]
+        };
+        ids.sort();
+        prune_nested_folder_ids(ids)
+    }
 }
 
 fn sorted_selected_file_ids(selected_file_ids: &HashSet<String>) -> Vec<String> {
     let mut ids = selected_file_ids.iter().cloned().collect::<Vec<_>>();
     ids.sort();
     ids
+}
+
+fn prune_nested_folder_ids(folder_ids: Vec<String>) -> Vec<String> {
+    let mut roots = Vec::new();
+    for folder_id in folder_ids {
+        let folder_path = Path::new(&folder_id);
+        if roots
+            .iter()
+            .any(|root: &String| folder_path.starts_with(Path::new(root)))
+        {
+            continue;
+        }
+        roots.push(folder_id);
+    }
+    roots
 }

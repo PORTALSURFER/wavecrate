@@ -62,9 +62,13 @@ impl FolderBrowserState {
 
     fn drag_preview_label(&self, drag: &FolderBrowserDrag) -> Option<String> {
         match drag {
-            FolderBrowserDrag::Folder { folder_id } => self
-                .find_folder(folder_id)
-                .map(|folder| folder.name.clone()),
+            FolderBrowserDrag::Folder { folder_ids } => match folder_ids.as_slice() {
+                [] => None,
+                [folder_id] => self
+                    .find_folder(folder_id)
+                    .map(|folder| folder.name.clone()),
+                folders => Some(format!("{} folders", folders.len())),
+            },
             FolderBrowserDrag::Files { file_ids, .. } => match file_ids.as_slice() {
                 [] => None,
                 [file_id] => Some(file_label(Path::new(file_id))),

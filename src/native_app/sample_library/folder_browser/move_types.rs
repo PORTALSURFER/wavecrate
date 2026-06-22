@@ -80,8 +80,7 @@ pub(in crate::native_app) enum FolderMoveDropInput {
 pub(in crate::native_app) enum FolderMoveRequest {
     Folder {
         source_root: PathBuf,
-        old_path: PathBuf,
-        new_path: PathBuf,
+        moves: Vec<(PathBuf, PathBuf)>,
         target_folder: PathBuf,
     },
     Files {

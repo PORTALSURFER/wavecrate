@@ -11,46 +11,61 @@ use super::{
 };
 
 impl FolderBrowserState {
-    pub(super) fn prepare_move_folder_to_folder(
+    pub(super) fn prepare_move_folders_to_folder(
         &mut self,
-        folder_id: &str,
+        folder_ids: &[String],
         target_folder_id: &str,
     ) -> Result<FolderMoveDropInput, String> {
         if self.rename_active() {
             return Err(String::from("Finish rename before moving a folder"));
         }
-        if self.selected_folder_is_source_root_id(folder_id) {
-            return Err(String::from("Root folder cannot be moved"));
-        }
-        let source_folder = self
-            .find_folder(folder_id)
-            .cloned()
-            .ok_or_else(|| String::from("Folder move failed: source folder is missing"))?;
         let source_root = self.selected_source_root_for_move("Folder move failed")?;
         let target_folder = self
             .find_folder(target_folder_id)
             .cloned()
             .ok_or_else(|| String::from("Folder move failed: target folder is missing"))?;
-        let old_path = PathBuf::from(&source_folder.id);
         let target_path = PathBuf::from(&target_folder.id);
-        if let Some(error) = self.folder_change_lock_error(&old_path, "Folder move") {
-            return Err(error);
-        }
         if let Some(error) = self.folder_target_lock_error(&target_path, "Folder move") {
             return Err(error);
         }
-        if target_path.starts_with(&old_path) {
-            return Err(String::from(
-                "Folder move failed: cannot move a folder into itself",
-            ));
+
+        let mut moves = Vec::new();
+        let mut destination_paths = HashSet::new();
+        for folder_id in folder_ids {
+            if self.selected_folder_is_source_root_id(folder_id) {
+                continue;
+            }
+            let source_folder = self
+                .find_folder(folder_id)
+                .cloned()
+                .ok_or_else(|| String::from("Folder move failed: source folder is missing"))?;
+            let old_path = PathBuf::from(&source_folder.id);
+            if let Some(error) = self.folder_change_lock_error(&old_path, "Folder move") {
+                return Err(error);
+            }
+            if target_path.starts_with(&old_path) {
+                return Err(String::from(
+                    "Folder move failed: cannot move a folder into itself",
+                ));
+            }
+            if old_path.parent() == Some(target_path.as_path()) {
+                continue;
+            }
+            let Some(folder_name) = old_path.file_name() else {
+                return Err(String::from(
+                    "Folder move failed: source folder has no name",
+                ));
+            };
+            let new_path = target_path.join(folder_name);
+            if !destination_paths.insert(new_path.clone()) {
+                return Err(String::from(
+                    "Folder move failed: multiple folders would use the same name",
+                ));
+            }
+            moves.push((old_path, new_path));
         }
-        let Some(folder_name) = old_path.file_name() else {
-            return Err(String::from(
-                "Folder move failed: source folder has no name",
-            ));
-        };
-        let new_path = target_path.join(folder_name);
-        if old_path == new_path {
+
+        if moves.is_empty() {
             return Ok(FolderMoveDropInput::Status(FolderDropResult {
                 moved_paths: Vec::new(),
                 status: Some(String::from("Folder move unchanged")),
@@ -58,8 +73,7 @@ impl FolderBrowserState {
         }
         Ok(FolderMoveDropInput::Request(FolderMoveRequest::Folder {
             source_root,
-            old_path,
-            new_path,
+            moves,
             target_folder: target_path,
         }))
     }
@@ -203,12 +217,9 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Result<FolderDropResult, String> {
         let result = match request {
-            FolderMoveRequest::Folder {
-                old_path,
-                new_path,
-                target_folder,
-                ..
-            } => self.apply_folder_move(old_path, new_path, target_folder, success)?,
+            FolderMoveRequest::Folder { target_folder, .. } => {
+                self.apply_folder_move(target_folder, success)?
+            }
             FolderMoveRequest::Files {
                 source_root,
                 target_folder,
@@ -239,21 +250,16 @@ impl FolderBrowserState {
 
     fn apply_folder_move(
         &mut self,
-        old_path: &Path,
-        new_path: &Path,
         target_folder: &Path,
         success: FolderMoveSuccess,
     ) -> Result<FolderDropResult, String> {
-        self.relocate_moved_folder(old_path, new_path, target_folder)?;
-        let status = format!(
-            "Moved folder {}",
-            new_path
-                .file_name()
-                .map(|name| name.to_string_lossy().to_string())
-                .unwrap_or_else(|| new_path.display().to_string())
-        );
+        let moved_paths = success.moved_paths;
+        for (old_path, new_path) in &moved_paths {
+            self.relocate_moved_folder(old_path, new_path, target_folder)?;
+        }
+        let status = folder_move_status(&moved_paths);
         Ok(FolderDropResult {
-            moved_paths: success.moved_paths,
+            moved_paths,
             status: Some(move_status_with_metadata_error(
                 status,
                 success.metadata_error,
@@ -344,5 +350,22 @@ fn move_status_with_metadata_error(status: String, metadata_error: Option<String
     match metadata_error {
         Some(error) => format!("{status}; metadata update failed: {error}"),
         None => status,
+    }
+}
+
+fn folder_move_status(moved_paths: &[(PathBuf, PathBuf)]) -> String {
+    match moved_paths {
+        [(_, new_path)] => format!(
+            "Moved folder {}",
+            new_path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| new_path.display().to_string())
+        ),
+        folders => format!(
+            "Moved {} folder{}",
+            folders.len(),
+            if folders.len() == 1 { "" } else { "s" }
+        ),
     }
 }

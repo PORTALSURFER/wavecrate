@@ -10,19 +10,33 @@ impl FolderBrowserState {
         };
         let target_path = Path::new(&target.id);
         match &self.drag_drop.drag {
-            Some(FolderBrowserDrag::Folder { folder_id }) => {
-                if self.selected_folder_is_source_root_id(folder_id) {
+            Some(FolderBrowserDrag::Folder { folder_ids }) => {
+                if folder_ids.is_empty() {
                     return false;
                 }
-                let Some(source) = self.find_folder(folder_id) else {
+                if self.folder_path_is_locked(target_path) {
                     return false;
-                };
-                let source_path = Path::new(&source.id);
-                !self.selected_folder_is_source_root_id(folder_id)
-                    && source.id != target.id
-                    && !target_path.starts_with(source_path)
-                    && !self.folder_tree_change_is_locked(source_path)
-                    && !self.folder_path_is_locked(target_path)
+                }
+                let mut moving = false;
+                for folder_id in folder_ids {
+                    if self.selected_folder_is_source_root_id(folder_id) {
+                        continue;
+                    }
+                    let Some(source) = self.find_folder(folder_id) else {
+                        return false;
+                    };
+                    let source_path = Path::new(&source.id);
+                    if source.id == target.id
+                        || target_path.starts_with(source_path)
+                        || self.folder_tree_change_is_locked(source_path)
+                    {
+                        return false;
+                    }
+                    if source_path.parent() != Some(target_path) {
+                        moving = true;
+                    }
+                }
+                moving
             }
             Some(FolderBrowserDrag::Files { file_ids, .. }) => {
                 !self.folder_path_is_locked(target_path)

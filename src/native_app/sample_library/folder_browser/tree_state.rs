@@ -273,7 +273,7 @@ impl FolderBrowserState {
         );
         let drag_source = matches!(
             self.drag_drop.drag.as_ref(),
-            Some(super::FolderBrowserDrag::Folder { folder_id }) if folder_id == &folder.id
+            Some(super::FolderBrowserDrag::Folder { folder_ids }) if folder_ids.contains(&folder.id)
         );
         let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
         folders.push(VisibleFolder {

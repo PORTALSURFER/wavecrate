@@ -136,7 +136,26 @@ impl FolderBrowserState {
     }
 }
 
-pub(super) fn persist_moved_folder_metadata(
+pub(super) fn persist_moved_folders_metadata(
+    source_root: &Path,
+    moves: &[(PathBuf, PathBuf)],
+) -> Result<(), String> {
+    let errors = moves
+        .iter()
+        .filter_map(|(old_path, new_path)| {
+            persist_moved_folder_metadata(source_root, old_path, new_path)
+                .err()
+                .map(|error| format!("{}: {error}", old_path.display()))
+        })
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
+}
+
+fn persist_moved_folder_metadata(
     source_root: &Path,
     old_path: &Path,
     new_path: &Path,

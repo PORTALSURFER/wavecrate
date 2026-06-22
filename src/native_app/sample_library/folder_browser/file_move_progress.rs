@@ -4,7 +4,9 @@ use super::{FileMoveConflictBatch, FileMoveConflictResolutionRequest, FolderMove
 
 pub(in crate::native_app) fn folder_move_progress_label(request: &FolderMoveRequest) -> String {
     match request {
-        FolderMoveRequest::Folder { .. } => String::from("Moving folder"),
+        FolderMoveRequest::Folder { moves, .. } => {
+            format!("Moving {} folder{}", moves.len(), plural(moves.len()))
+        }
         FolderMoveRequest::Files { file_ids, .. } => {
             format!("Moving {} file{}", file_ids.len(), plural(file_ids.len()))
         }
@@ -14,7 +16,8 @@ pub(in crate::native_app) fn folder_move_progress_label(request: &FolderMoveRequ
 
 pub(in crate::native_app) fn folder_move_progress_total(request: &FolderMoveRequest) -> usize {
     match request {
-        FolderMoveRequest::Folder { .. } | FolderMoveRequest::ExtractedFile { .. } => 2,
+        FolderMoveRequest::Folder { moves, .. } => moves.len().saturating_add(2).max(2),
+        FolderMoveRequest::ExtractedFile { .. } => 2,
         FolderMoveRequest::Files { file_ids, .. } => file_ids.len().saturating_add(1).max(1),
     }
 }

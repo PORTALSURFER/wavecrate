@@ -40,6 +40,67 @@ fn folder_drag_drop_moves_subtree_into_target_folder() {
 }
 
 #[test]
+fn folder_drag_drop_moves_all_selected_sibling_folders() {
+    let root = temp_source_root("wavecrate-gui-folder-drag-drop-selected");
+    let kicks = root.join("drums").join("kicks");
+    let snares = root.join("drums").join("snares");
+    let loops = root.join("loops");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&snares).expect("create snares folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    let snare = snares.join("snare.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [1_u8; 8]).expect("write snare");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&root.join("drums")));
+    browser.expand_selected_folder();
+    browser.activate_folder(path_id(&kicks));
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&snares),
+        PointerModifiers {
+            command: true,
+            ..PointerModifiers::default()
+        },
+    ));
+
+    browser.apply_folder_drag(
+        path_id(&kicks),
+        DragHandleMessage::started(Point::new(0.0, 0.0)),
+    );
+    assert_eq!(
+        browser.drag_preview(),
+        Some(FolderDragPreview {
+            label: String::from("2 folders"),
+            pointer: Point::new(0.0, 0.0),
+        })
+    );
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("folder drag/drop should move");
+
+    let moved_kicks = loops.join("kicks");
+    let moved_snares = loops.join("snares");
+    assert_eq!(
+        result.moved_paths,
+        vec![
+            (kicks.clone(), moved_kicks.clone()),
+            (snares.clone(), moved_snares.clone())
+        ]
+    );
+    assert!(!kicks.exists());
+    assert!(!snares.exists());
+    assert!(moved_kicks.join("kick.wav").is_file());
+    assert!(moved_snares.join("snare.wav").is_file());
+    assert_eq!(browser.selection.selected_folder, path_id(&moved_snares));
+    assert_eq!(
+        browser.selection.selected_folder_ids,
+        std::collections::HashSet::from([path_id(&moved_kicks), path_id(&moved_snares)])
+    );
+    assert!(browser.tree.expanded_folders.contains(&path_id(&loops)));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn folder_drag_drop_preserves_nested_file_rating_after_reload() {
     let root = temp_source_root("wavecrate-gui-folder-drag-rating");
     let kicks = root.join("drums").join("kicks");

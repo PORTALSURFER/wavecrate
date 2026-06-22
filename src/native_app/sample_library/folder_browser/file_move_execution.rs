@@ -6,7 +6,7 @@ use super::{
     FileMoveConflict, FileMoveConflictBatch, FileMoveConflictCompletion,
     FileMoveConflictExecutionFailure, FileMoveConflictExecutionSuccess, FileMoveConflictResolution,
     FileMoveConflictResolutionRequest, FolderMoveCompletion, FolderMoveRequest, FolderMoveSuccess,
-    drag_drop_relocation::{persist_moved_file_metadata, persist_moved_folder_metadata},
+    drag_drop_relocation::{persist_moved_file_metadata, persist_moved_folders_metadata},
     file_move_progress::{
         FileMoveProgressReporter, file_move_conflict_progress_label,
         file_move_conflict_progress_total, folder_move_progress_label,
@@ -54,11 +54,8 @@ where
 {
     match request {
         FolderMoveRequest::Folder {
-            source_root,
-            old_path,
-            new_path,
-            ..
-        } => execute_folder_move(source_root, old_path, new_path, reporter),
+            source_root, moves, ..
+        } => execute_folder_move(source_root, moves, reporter),
         FolderMoveRequest::Files {
             source_root,
             file_ids,
@@ -81,33 +78,75 @@ where
 
 fn execute_folder_move<Emit>(
     source_root: &Path,
-    old_path: &Path,
-    new_path: &Path,
+    moves: &[(PathBuf, PathBuf)],
     reporter: &FileMoveProgressReporter<Emit>,
 ) -> Result<FolderMoveSuccess, String>
 where
     Emit: Fn(FileMoveProgress) -> bool,
 {
-    if new_path.exists() {
-        let folder_name = new_path
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or_else(|| new_path.display().to_string());
-        return Err(format!("Folder move failed: {folder_name} already exists"));
+    for (old_path, new_path) in moves {
+        if !old_path.is_dir() {
+            return Err(format!(
+                "Folder move failed: {} is missing",
+                sample_path_label(old_path)
+            ));
+        }
+        if new_path.exists() {
+            let folder_name = new_path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| new_path.display().to_string());
+            return Err(format!("Folder move failed: {folder_name} already exists"));
+        }
     }
-    reporter.emit(0, 2, format!("Moving {}", sample_path_label(old_path)));
-    std::fs::rename(old_path, new_path).map_err(|error| format!("Folder move failed: {error}"))?;
-    reporter.emit(1, 2, String::from("Preserving waveform cache"));
-    let moved_paths = vec![(old_path.to_path_buf(), new_path.to_path_buf())];
+    let total = moves.len().saturating_add(2).max(2);
+    let mut moved_paths = Vec::with_capacity(moves.len());
+    for (index, (old_path, new_path)) in moves.iter().enumerate() {
+        reporter.emit(
+            index,
+            total,
+            format!("Moving {}", sample_path_label(old_path)),
+        );
+        if let Err(error) = std::fs::rename(old_path, new_path) {
+            let rollback_error = rollback_moved_folders(&moved_paths);
+            return Err(match rollback_error {
+                Some(rollback_error) => {
+                    format!("Folder move failed: {error}; rollback failed: {rollback_error}")
+                }
+                None => format!("Folder move failed: {error}"),
+            });
+        }
+        moved_paths.push((old_path.to_path_buf(), new_path.to_path_buf()));
+    }
+    let completed_moves = moved_paths.len();
+    reporter.emit(
+        completed_moves,
+        total,
+        String::from("Preserving waveform cache"),
+    );
     remap_persisted_waveform_cache_for_moves(&moved_paths);
-    reporter.emit(1, 2, String::from("Updating metadata"));
-    let metadata_error = persist_moved_folder_metadata(source_root, old_path, new_path).err();
-    reporter.emit(2, 2, String::from("Done"));
+    reporter.emit(
+        completed_moves + 1,
+        total,
+        String::from("Updating metadata"),
+    );
+    let metadata_error = persist_moved_folders_metadata(source_root, &moved_paths).err();
+    reporter.emit(total, total, String::from("Done"));
     Ok(FolderMoveSuccess {
         moved_paths,
         conflicts: Vec::new(),
         metadata_error,
     })
+}
+
+fn rollback_moved_folders(moved_paths: &[(PathBuf, PathBuf)]) -> Option<String> {
+    let mut errors = Vec::new();
+    for (old_path, new_path) in moved_paths.iter().rev() {
+        if let Err(error) = std::fs::rename(new_path, old_path) {
+            errors.push(format!("{}: {error}", sample_path_label(new_path)));
+        }
+    }
+    (!errors.is_empty()).then(|| errors.join("; "))
 }
 
 fn execute_file_drop<Emit>(

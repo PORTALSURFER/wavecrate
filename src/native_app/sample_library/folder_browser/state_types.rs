@@ -183,7 +183,7 @@ impl FileColumnKind {
 #[derive(Clone, Debug)]
 pub(super) enum FolderBrowserDrag {
     Folder {
-        folder_id: String,
+        folder_ids: Vec<String>,
     },
     Files {
         file_ids: Vec<String>,
