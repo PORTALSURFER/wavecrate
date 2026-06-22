@@ -133,6 +133,7 @@ impl NativeAppState {
         let Some(playback) = self.audio.pending_sample_playback.take() else {
             return false;
         };
+        self.maybe_open_audio_player(context);
         match playback {
             PendingSamplePlayback::RandomAudition {
                 start_unit,

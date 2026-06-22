@@ -133,13 +133,15 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let mut rng = rand::rng();
-        let units = RandomAuditionUnits::new(rng.random::<f32>(), rng.random::<f32>());
-        self.play_random_listed_sample_range_with_units(units, context);
+        let file_unit = rng.random::<f32>();
+        let region_units = RandomAuditionUnits::new(rng.random::<f32>(), rng.random::<f32>());
+        self.play_random_listed_sample_range_with_units(file_unit, region_units, context);
     }
 
     pub(in crate::native_app) fn play_random_listed_sample_range_with_units(
         &mut self,
-        units: RandomAuditionUnits,
+        file_unit: f32,
+        region_units: RandomAuditionUnits,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
@@ -148,17 +150,17 @@ impl NativeAppState {
             .library
             .folder_browser
             .random_listed_playback_candidate(
-                units.start,
+                file_unit,
                 &self.metadata.tags_by_file,
                 avoid_file_id.as_deref(),
             )
         {
             self.select_random_listed_sample(path);
-            self.play_random_sample_range_with_units(units, context);
+            self.play_random_sample_range_with_units(region_units, context);
             return;
         }
         if self.waveform.current.has_loaded_sample() {
-            self.play_random_sample_range_with_units(units, context);
+            self.play_random_sample_range_with_units(region_units, context);
             return;
         }
 

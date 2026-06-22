@@ -192,3 +192,66 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
         scenario.state.ui.status.sample
     );
 }
+
+#[test]
+fn random_listed_audition_resolves_region_from_loaded_target_duration() {
+    let root = temp_gui_root("wavecrate-random-listed-target-duration");
+    let current = root.join("a-current.wav");
+    let target = root.join("z-target.wav");
+    let current_id = current.display().to_string();
+    let target_id = target.display().to_string();
+    write_test_wav_i16(&current, &vec![0_i16; 48_000]);
+    write_test_wav_i16(&target, &vec![0_i16; 96_000]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(current.clone())
+            .expect("current sample loads");
+    state.library.folder_browser.select_file(current_id.clone());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.play_random_listed_sample_range_with_units(
+        1.0,
+        crate::native_app::audio::playback::RandomAuditionUnits::new(0.0, 0.0),
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(target_id.as_str())
+    );
+    let ticket = active_sample_load_ticket(&state).expect("target sample load queued");
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                target_id.clone(),
+                crate::native_app::test_support::state::WaveformState::load_path(target.clone()),
+                false,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.current.path(), target.as_path());
+    assert_eq!(
+        state.waveform.current.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.0, 0.125))
+    );
+    assert!(
+        state.background.audio_open.active().is_some(),
+        "pending random audition should begin opening audio before submitting playback"
+    );
+    assert!(
+        state.audio.pending_playback_start.is_some(),
+        "pending random audition should queue playback while audio output is opening"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
