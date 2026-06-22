@@ -9,7 +9,7 @@ pub(super) fn sidebar_row_underlay(
     content: ui::View<GuiMessage>,
 ) -> ui::InteractiveRowUnderlayBuilder<GuiMessage> {
     ui::interactive_row_underlay(content)
-        .row(|row| row.custom_paint_hit_target())
+        .custom_paint_hit_target()
         .style(SIDEBAR_ROW_STYLE)
         .dense_chrome()
 }

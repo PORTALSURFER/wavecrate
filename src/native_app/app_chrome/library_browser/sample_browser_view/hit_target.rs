@@ -78,11 +78,9 @@ fn sample_file_hit_target_builder(
         ..ui::InteractiveRowVisualStateParts::default()
     };
     let underlay = ui::interactive_row_underlay(content)
-        .row(|row| {
-            row.tracked_drag_source(model.drag_active, model.drag_source)
-                .activation_modifiers()
-                .custom_paint_hit_target()
-        })
+        .tracked_drag_source(model.drag_active, model.drag_source)
+        .activation_modifiers()
+        .custom_paint_hit_target()
         .style(SAMPLE_ROW_STYLE)
         .visual_state(visual_state)
         .leading_marker_if(
