@@ -35,7 +35,14 @@ pub(in crate::native_app) struct WaveformExtractionRequest {
 #[derive(Clone, Debug)]
 enum WaveformExtractionSource {
     WavBytes(Arc<[u8]>),
-    WavFile,
+    WavFile {
+        fallback: Option<LoadedPlaybackExtractionSource>,
+    },
+    LoadedPlayback(LoadedPlaybackExtractionSource),
+}
+
+#[derive(Clone, Debug)]
+enum LoadedPlaybackExtractionSource {
     InterleavedF32Samples(Arc<[f32]>),
     InterleavedF32File(PersistedPlaybackCacheFile),
 }
@@ -103,12 +110,52 @@ impl WaveformExtractionSource {
                 loaded_frames,
                 selection,
             ),
-            Self::WavFile => extract_wav_file_range_to_folder(
+            Self::WavFile { fallback } => match extract_wav_file_range_to_folder(
                 source_path,
                 target_folder,
                 loaded_frames,
                 selection,
+            ) {
+                Ok(path) => Ok(path),
+                Err(error) => match fallback {
+                    Some(fallback) => fallback
+                        .extract_to_folder(
+                            source_path,
+                            target_folder,
+                            sample_rate,
+                            channels,
+                            loaded_frames,
+                            selection,
+                        )
+                        .map_err(|fallback_error| {
+                            format!("{error}; loaded playback fallback failed: {fallback_error}")
+                        }),
+                    None => Err(error),
+                },
+            },
+            Self::LoadedPlayback(source) => source.extract_to_folder(
+                source_path,
+                target_folder,
+                sample_rate,
+                channels,
+                loaded_frames,
+                selection,
             ),
+        }
+    }
+}
+
+impl LoadedPlaybackExtractionSource {
+    fn extract_to_folder(
+        &self,
+        source_path: &Path,
+        target_folder: &Path,
+        sample_rate: u32,
+        channels: usize,
+        loaded_frames: usize,
+        selection: SelectionRange,
+    ) -> Result<PathBuf, String> {
+        match self {
             Self::InterleavedF32Samples(samples) => extract_interleaved_f32_range_to_folder(
                 source_path,
                 target_folder,
@@ -245,23 +292,30 @@ impl WaveformState {
                 &self.file.audio_bytes,
             )));
         }
-        if is_wav_path(&self.file.path) && self.file.path.is_file() {
-            return Ok(WaveformExtractionSource::WavFile);
+        let loaded_playback_source = self.loaded_playback_extraction_source();
+        if is_wav_path(&self.file.path) {
+            return Ok(WaveformExtractionSource::WavFile {
+                fallback: loaded_playback_source,
+            });
         }
-        if let Some(samples) = self.file.playback_samples.as_ref() {
-            return Ok(WaveformExtractionSource::InterleavedF32Samples(Arc::clone(
-                samples,
-            )));
-        }
-        if let Some(cache_file) = self.file.playback_cache_file.as_ref() {
-            return Ok(WaveformExtractionSource::InterleavedF32File(
-                cache_file.clone(),
-            ));
+        if let Some(source) = loaded_playback_source {
+            return Ok(WaveformExtractionSource::LoadedPlayback(source));
         }
         if !is_wav_path(&self.file.path) {
             return Err(String::from("Extraction currently supports WAV files"));
         }
         Err(String::from("Reload the sample before extracting"))
+    }
+
+    fn loaded_playback_extraction_source(&self) -> Option<LoadedPlaybackExtractionSource> {
+        if let Some(samples) = self.file.playback_samples.as_ref() {
+            return Some(LoadedPlaybackExtractionSource::InterleavedF32Samples(
+                Arc::clone(samples),
+            ));
+        }
+        self.file.playback_cache_file.as_ref().map(|cache_file| {
+            LoadedPlaybackExtractionSource::InterleavedF32File(cache_file.clone())
+        })
     }
 
     pub(in crate::native_app) fn play_selection(&self) -> Option<SelectionRange> {

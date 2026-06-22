@@ -154,6 +154,37 @@ fn playmark_extraction_writes_from_persisted_playback_cache_without_audio_bytes(
 }
 
 #[test]
+fn file_backed_wav_extraction_defers_missing_file_error_to_worker() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-playmark-missing-file-extract-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let source = root.join("missing.wav");
+    let file =
+        waveform_file_from_mono_samples(source, Arc::from([]), 48_000, 1, vec![0.0, 0.1, 0.2, 0.3]);
+    let mut state = WaveformState::from_cached_file(Arc::new(file));
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.75));
+
+    let request = state
+        .play_selection_extraction_request(None)
+        .expect("file-backed metadata should build an extraction request without UI-path file I/O");
+    let completion = execute_waveform_extraction(request);
+    let error = completion
+        .result
+        .expect_err("missing source file should fail when the worker reads it");
+
+    assert!(
+        error.contains("failed to open source WAV"),
+        "worker should report source read failure, got: {error}"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn playmark_extraction_merges_extracted_range_marks() {
     let root = std::env::temp_dir().join(format!(
         "wavecrate-playmark-extract-merge-{}",
