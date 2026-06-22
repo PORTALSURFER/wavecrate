@@ -91,27 +91,25 @@ impl FolderSelectionModel {
         preserve_selection: bool,
         visible_ids: &[String],
     ) -> Option<String> {
-        let was_explicit = self.explicit;
+        if preserve_selection {
+            let was_explicit = self.explicit;
+            let target = self.navigate_focus_preserving_selection(delta, visible_ids)?;
+            self.explicit = was_explicit;
+            return Some(target);
+        }
+
+        if self.explicit && !extend {
+            return self.navigate_focus_preserving_selection(delta, visible_ids);
+        }
+
         let mut selection = self.keyed_selection();
-        let target = if preserve_selection {
-            let target = navigate_focus_only(selection.focused_key()?, delta, visible_ids)?;
-            selection.focus(target.clone(), visible_ids);
-            target
-        } else if self.explicit && !extend {
-            let target = navigate_focus_only(selection.focused_key()?, delta, visible_ids)?;
-            selection.focus(target.clone(), visible_ids);
-            target
-        } else if extend {
+        let target = if extend {
             selection.navigate(delta as isize, visible_ids, true)?
         } else {
             selection.navigate(delta as isize, visible_ids, false)?
         };
         self.apply_keyed_selection(selection);
-        self.explicit = if preserve_selection {
-            was_explicit
-        } else {
-            extend || (was_explicit && !extend)
-        };
+        self.explicit = extend;
         Some(target)
     }
 
@@ -187,6 +185,18 @@ impl FolderSelectionModel {
         self.anchor_id = selection.anchor_key().cloned();
         self.selected_ids = selection.selected_keys().iter().cloned().collect();
         self.explicit = false;
+    }
+
+    fn navigate_focus_preserving_selection(
+        &mut self,
+        delta: i32,
+        visible_ids: &[String],
+    ) -> Option<String> {
+        let current = self.focused_id.clone();
+        let target = navigate_focus_only(&current, delta, visible_ids)?;
+        self.anchor_id.get_or_insert(current);
+        self.focused_id = target.clone();
+        Some(target)
     }
 }
 
@@ -266,6 +276,24 @@ mod tests {
         assert_eq!(target.as_deref(), Some("root"));
         assert_eq!(selection.focused_id(), "root");
         assert_eq!(selection.selected_ids(), &set(&["drums", "loops"]));
+    }
+
+    #[test]
+    fn explicit_navigation_moves_focus_without_replacing_selection() {
+        let visible_ids = ids(&["root", "drums", "loops"]);
+        let mut selection = FolderSelectionModel::new(
+            String::from("drums"),
+            Some(String::from("drums")),
+            set(&["root", "drums"]),
+            true,
+        );
+
+        let target = selection.navigate(1, false, false, &visible_ids);
+
+        assert_eq!(target.as_deref(), Some("loops"));
+        assert_eq!(selection.focused_id(), "loops");
+        assert_eq!(selection.selected_ids(), &set(&["root", "drums"]));
+        assert!(selection.explicit());
     }
 
     #[test]
