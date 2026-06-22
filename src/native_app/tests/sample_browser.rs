@@ -1,8 +1,8 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
-    runtime::{Command, Event, SurfaceFrame},
-    widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
+    runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
+    widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
 use std::fs;
 
@@ -13,7 +13,7 @@ fn sample_hit_target(
     drag_active: bool,
     drag_source: bool,
     cached: bool,
-) -> crate::native_app::test_support::sample_browser::SampleFileHitTarget {
+) -> UiSurface<crate::native_app::test_support::state::GuiMessage> {
     crate::native_app::test_support::sample_browser::sample_file_hit_target(
         String::from("sample.wav"),
         selected,
@@ -21,6 +21,71 @@ fn sample_hit_target(
         drag_source,
         cached,
     )
+}
+
+fn sample_hit_target_input(
+    target: &mut UiSurface<crate::native_app::test_support::state::GuiMessage>,
+    bounds: Rect,
+    input: WidgetInput,
+) -> Option<WidgetOutput> {
+    target.dispatch_widget_input(
+        crate::native_app::test_support::sample_browser::SAMPLE_FILE_HIT_TARGET_TEST_ID,
+        bounds,
+        input,
+    )
+}
+
+fn sample_hit_target_message(
+    target: &UiSurface<crate::native_app::test_support::state::GuiMessage>,
+    output: WidgetOutput,
+) -> Option<crate::native_app::test_support::state::GuiMessage> {
+    target.dispatch_widget_output(
+        crate::native_app::test_support::sample_browser::SAMPLE_FILE_HIT_TARGET_TEST_ID,
+        output,
+    )
+}
+
+fn sample_hit_target_plan(
+    target: &UiSurface<crate::native_app::test_support::state::GuiMessage>,
+    bounds: Rect,
+) -> SurfacePaintPlan {
+    target
+        .find_widget(
+            crate::native_app::test_support::sample_browser::SAMPLE_FILE_HIT_TARGET_TEST_ID,
+        )
+        .expect("sample hit-target widget")
+        .widget()
+        .paint_plan_with_defaults(bounds)
+}
+
+fn sample_hit_target_widget(
+    target: &UiSurface<crate::native_app::test_support::state::GuiMessage>,
+) -> &dyn Widget {
+    target
+        .find_widget(
+            crate::native_app::test_support::sample_browser::SAMPLE_FILE_HIT_TARGET_TEST_ID,
+        )
+        .expect("sample hit-target widget")
+        .widget()
+}
+
+fn sync_sample_hit_target_from_previous(
+    current: &mut UiSurface<crate::native_app::test_support::state::GuiMessage>,
+    previous: &UiSurface<crate::native_app::test_support::state::GuiMessage>,
+) {
+    let previous = previous
+        .find_widget(
+            crate::native_app::test_support::sample_browser::SAMPLE_FILE_HIT_TARGET_TEST_ID,
+        )
+        .expect("previous sample hit-target widget")
+        .widget();
+    let current = current
+        .find_widget_mut(
+            crate::native_app::test_support::sample_browser::SAMPLE_FILE_HIT_TARGET_TEST_ID,
+        )
+        .expect("current sample hit-target widget")
+        .widget_mut();
+    current.synchronize_from_previous(previous);
 }
 
 fn folder_drop_target_fill() -> Rgba8 {

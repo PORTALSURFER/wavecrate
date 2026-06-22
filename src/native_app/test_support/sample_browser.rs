@@ -1,11 +1,14 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
-pub(in crate::native_app) use crate::native_app::app_chrome::library_browser::sample_browser_view::SampleFileHitTarget;
-use crate::native_app::app_chrome::library_browser::sample_browser_view::sample_browser_from_state;
+use crate::native_app::app_chrome::library_browser::sample_browser_view::{
+    SampleFileHitTargetModel, sample_browser_from_state, sample_file_hit_target_for_tests,
+};
 use crate::native_app::app_chrome::view_models::sample_browser::{
     SampleBrowserViewModel, SampleBrowserViewProjection,
     prepare_sample_browser_view as prepare_chrome_sample_browser_view,
 };
 use radiant::prelude as ui;
+use radiant::prelude::IntoView;
+use radiant::runtime::UiSurface;
 
 pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::view_contract::{
     DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
@@ -14,6 +17,8 @@ pub(in crate::native_app) use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
     SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
+
+pub(in crate::native_app) const SAMPLE_FILE_HIT_TARGET_TEST_ID: u64 = 99_701;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct SampleBrowserWindowProjection {
@@ -38,16 +43,25 @@ pub(in crate::native_app) fn sample_file_hit_target(
     drag_active: bool,
     drag_source: bool,
     cached: bool,
-) -> SampleFileHitTarget {
-    SampleFileHitTarget::new(
-        path,
-        selected,
-        false,
-        drag_active,
-        drag_source,
-        cached,
-        false,
+) -> UiSurface<GuiMessage> {
+    sample_file_hit_target_for_tests(
+        ui::empty(),
+        SampleFileHitTargetModel {
+            file_id: "sample.wav",
+            selected,
+            copy_flash: false,
+            drag_revision: 0,
+            drag_active,
+            drag_source,
+            cached,
+            missing: false,
+            hit_path: path,
+            help_tooltips_enabled: false,
+        },
+        SAMPLE_FILE_HIT_TARGET_TEST_ID,
     )
+    .size(160.0, SAMPLE_BROWSER_ROW_HEIGHT)
+    .into_surface()
 }
 
 pub(in crate::native_app) fn sample_browser_window_projection(

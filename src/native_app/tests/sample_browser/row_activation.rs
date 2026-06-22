@@ -6,29 +6,33 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let mut hit_target = sample_hit_target(false, false, false, false);
 
     assert_eq!(
-        hit_target.handle_input(bounds, WidgetInput::primary_press(Point::new(24.0, 10.0)),),
+        sample_hit_target_input(
+            &mut hit_target,
+            bounds,
+            WidgetInput::primary_press(Point::new(24.0, 10.0)),
+        ),
         None
     );
 
     let mut refreshed_hit_target = sample_hit_target(false, false, false, false);
-    refreshed_hit_target.synchronize_from_previous(&hit_target);
-    let output = refreshed_hit_target
-        .handle_input(
-            bounds,
-            WidgetInput::pointer_release(
-                Point::new(24.0, 10.0),
-                PointerButton::Primary,
-                PointerModifiers {
-                    command: true,
-                    shift: true,
-                    ..Default::default()
-                },
-            ),
-        )
-        .expect("sample row should activate after a frame refresh");
+    sync_sample_hit_target_from_previous(&mut refreshed_hit_target, &hit_target);
+    let output = sample_hit_target_input(
+        &mut refreshed_hit_target,
+        bounds,
+        WidgetInput::pointer_release(
+            Point::new(24.0, 10.0),
+            PointerButton::Primary,
+            PointerModifiers {
+                command: true,
+                shift: true,
+                ..Default::default()
+            },
+        ),
+    )
+    .expect("sample row should activate after a frame refresh");
 
     assert_eq!(
-        output.typed_cloned::<crate::native_app::test_support::state::GuiMessage>(),
+        sample_hit_target_message(&refreshed_hit_target, output),
         Some(
             crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
                 path: String::from("sample.wav"),
@@ -40,5 +44,9 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
             }
         )
     );
-    assert!(!refreshed_hit_target.common().is_pressed());
+    assert!(
+        !sample_hit_target_widget(&refreshed_hit_target)
+            .common()
+            .is_pressed()
+    );
 }

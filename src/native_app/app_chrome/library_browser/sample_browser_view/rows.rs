@@ -5,7 +5,10 @@ use super::row_projection::{
     SampleColumnContent, SampleColumnDisplay, SampleRowDisplay, sample_row_display,
 };
 use super::row_widgets::RatingIndicator;
-use super::{SampleFileHitTarget, similarity_aspect_color};
+use super::{
+    hit_target::{SampleFileHitTargetModel, sample_file_hit_target},
+    similarity_aspect_color,
+};
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -80,71 +83,37 @@ fn sample_browser_row(
 ) -> ui::View<GuiMessage> {
     let file_id = row.file_id.to_string();
     let file_id_for_toggle = row.file_id.to_string();
-    let hit_target = sample_file_hit_target(SampleFileHitTargetModel {
-        file_id: row.file_id,
-        selected: row.selected,
-        copy_flash: row.copy_flash,
-        drag_revision: row.drag_revision,
-        drag_active: row.drag_active,
-        drag_source: row.drag_source,
-        cached: row.cached,
-        missing: row.missing,
-        hit_path: file_id,
-        help_tooltips_enabled,
-    });
-    let row = ui::input_underlay(
-        ui::row([
-            similarity_anchor_toggle(
-                file_id_for_toggle,
-                row.similarity_anchor,
-                row.similarity_strength,
-                help_tooltips_enabled,
-            ),
-            ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)).fill_width(),
-        ])
-        .spacing(0.0)
-        .fill_width()
-        .height(SAMPLE_BROWSER_ROW_HEIGHT),
-        hit_target,
+    let row_content = ui::row([
+        similarity_anchor_toggle(
+            file_id_for_toggle,
+            row.similarity_anchor,
+            row.similarity_strength,
+            help_tooltips_enabled,
+        ),
+        ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)).fill_width(),
+    ])
+    .spacing(0.0)
+    .fill_width()
+    .height(SAMPLE_BROWSER_ROW_HEIGHT);
+    let row = sample_file_hit_target(
+        row_content,
+        SampleFileHitTargetModel {
+            file_id: row.file_id,
+            selected: row.selected,
+            copy_flash: row.copy_flash,
+            drag_revision: row.drag_revision,
+            drag_active: row.drag_active,
+            drag_source: row.drag_source,
+            cached: row.cached,
+            missing: row.missing,
+            hit_path: file_id,
+            help_tooltips_enabled,
+        },
     )
     .key(format!("sample-row-{}", row.file_id))
     .fill_width()
     .height(22.0);
     row.style(ui::WidgetStyle::default())
-}
-
-struct SampleFileHitTargetModel<'a> {
-    file_id: &'a str,
-    selected: bool,
-    copy_flash: bool,
-    drag_revision: u64,
-    drag_active: bool,
-    drag_source: bool,
-    cached: bool,
-    missing: bool,
-    hit_path: String,
-    help_tooltips_enabled: bool,
-}
-
-fn sample_file_hit_target(model: SampleFileHitTargetModel<'_>) -> ui::View<GuiMessage> {
-    let target = ui::custom_widget_direct(SampleFileHitTarget::new(
-        model.hit_path,
-        model.selected,
-        model.copy_flash,
-        model.drag_active,
-        model.drag_source,
-        model.cached,
-        model.missing,
-    ))
-    .key(format!(
-        "sample-row-hit-{}-{}",
-        model.file_id, model.drag_revision
-    ))
-    .fill_width()
-    .height(22.0);
-    target.tooltip_opt(model.help_tooltips_enabled.then_some(
-        "Sample row: select, double-click to load, drag to copy, right-click for actions.",
-    ))
 }
 
 fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {

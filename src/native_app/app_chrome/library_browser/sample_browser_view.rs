@@ -14,8 +14,10 @@ use wavecrate::sample_sources::config::SimilarityAspectSettings;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
 mod hit_target;
-pub(in crate::native_app) use hit_target::SampleFileHitTarget;
-
+#[cfg(test)]
+pub(in crate::native_app) use hit_target::{
+    SampleFileHitTargetModel, sample_file_hit_target_for_tests,
+};
 mod row_projection;
 mod row_widgets;
 mod rows;

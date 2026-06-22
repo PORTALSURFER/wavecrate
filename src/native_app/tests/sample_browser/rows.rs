@@ -109,7 +109,7 @@ fn sample_browser_keyboard_scroll_context_matches_selection_follow() {
 fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
     let widget = sample_hit_target(true, false, false, false);
     let bounds = Rect::from_xy_size(12.0, 8.0, 240.0, 22.0);
-    let plan = widget.paint_plan_with_defaults(bounds);
+    let plan = sample_hit_target_plan(&widget, bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
     let selected_fill = shared_dense_row_palette()
         .selected
@@ -138,11 +138,15 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
     let mut hit_target = sample_hit_target(false, false, false, false);
 
     assert_eq!(
-        hit_target.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 10.0)),),
+        sample_hit_target_input(
+            &mut hit_target,
+            bounds,
+            WidgetInput::pointer_move(Point::new(20.0, 10.0)),
+        ),
         None
     );
 
-    let plan = hit_target.paint_plan_with_defaults(bounds);
+    let plan = sample_hit_target_plan(&hit_target, bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
     let hover_fill = shared_dense_row_palette()
         .hovered
