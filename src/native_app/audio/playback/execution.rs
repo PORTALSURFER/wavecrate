@@ -2,7 +2,7 @@ use super::{
     diagnostics::log_slow_playback_phase,
     intent::{PlaybackCommand, PlaybackIntent, PlaybackMode},
 };
-use crate::native_app::app::{NativeAppState, PendingRuntimePlaybackStart};
+use crate::native_app::app::{NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart};
 use std::time::Instant;
 use wavecrate::audio::{
     PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
@@ -16,6 +16,17 @@ impl NativeAppState {
         end_ratio: f32,
     ) -> Result<(), String> {
         self.start_playback_intent(PlaybackIntent::new(start_ratio, end_ratio))
+    }
+
+    pub(in crate::native_app) fn start_playback_fixed_span_without_history(
+        &mut self,
+        start_ratio: f32,
+        end_ratio: f32,
+    ) -> Result<(), String> {
+        self.start_playback_intent_with_history(
+            PlaybackIntent::fixed_region(start_ratio, end_ratio),
+            false,
+        )
     }
 
     pub(in crate::native_app) fn start_playback_span(
@@ -35,20 +46,32 @@ impl NativeAppState {
         &mut self,
         intent: PlaybackIntent,
     ) -> Result<(), String> {
+        self.start_playback_intent_with_history(intent, true)
+    }
+
+    pub(in crate::native_app) fn start_playback_intent_with_history(
+        &mut self,
+        intent: PlaybackIntent,
+        record_history: bool,
+    ) -> Result<(), String> {
         let playback_started_at = Instant::now();
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
         self.prepare_playback_mode_for_loaded_sample();
         if self.audio.playback_runtime.is_none() && self.audio.player.is_none() {
-            self.audio.pending_playback_start = Some(intent);
+            self.audio.pending_playback_start = Some(if record_history {
+                PendingPlaybackStart::record(intent)
+            } else {
+                PendingPlaybackStart::skip_history(intent)
+            });
             if self.background.audio_open.active().is_none() {
                 return Err(String::from("Audio output is starting"));
             }
             return Ok(());
         }
         let command = self.playback_command_for_intent(intent);
-        self.submit_playback_command(command, playback_started_at)
+        self.submit_playback_command(command, playback_started_at, record_history)
     }
 
     pub(in crate::native_app) fn playback_command_for_intent(
@@ -63,6 +86,7 @@ impl NativeAppState {
         &mut self,
         command: PlaybackCommand,
         playback_started_at: Instant,
+        record_history: bool,
     ) -> Result<(), String> {
         let request_started_at = Instant::now();
         let request = self.playback_runtime_request(command)?;
@@ -107,6 +131,12 @@ impl NativeAppState {
             span: (command.resolved.start_ratio, command.resolved.end_ratio),
             show_start_marker: command.intent.show_start_marker,
         });
+        if record_history {
+            self.record_current_playback_history(
+                command.resolved.start_ratio,
+                command.resolved.end_ratio,
+            );
+        }
         log_slow_playback_phase(
             "playback.start.state_update",
             &self.waveform.current.file_name(),

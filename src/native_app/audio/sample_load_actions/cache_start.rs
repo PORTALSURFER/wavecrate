@@ -6,8 +6,8 @@ use std::{
 
 use crate::native_app::{
     app::{
-        GuiMessage, NativeAppState, PendingRuntimePlaybackStart, WaveformState, emit_gui_action,
-        sample_path_label,
+        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
+        WaveformState, emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
@@ -86,6 +86,15 @@ impl NativeAppState {
             replace_started_at.elapsed(),
             false,
         );
+        if self.start_pending_sample_playback(&file_name, started_at, context) {
+            log_sample_load_timing(
+                "browser.sample_load.memory_cache.total",
+                &file_name,
+                started_at.elapsed(),
+                false,
+            );
+            return true;
+        }
         if !autoplay {
             self.ui.status.sample = format!("Loaded {file_name}");
             emit_gui_action(
@@ -234,7 +243,8 @@ impl NativeAppState {
         }
         self.prepare_playback_mode_for_loaded_sample();
         if self.audio.playback_runtime.is_none() {
-            self.audio.pending_playback_start = Some(PlaybackIntent::new(0.0, 1.0));
+            self.audio.pending_playback_start =
+                Some(PendingPlaybackStart::record(PlaybackIntent::new(0.0, 1.0)));
             if self.background.audio_open.active().is_some() {
                 return Ok(());
             }
@@ -306,6 +316,7 @@ impl NativeAppState {
             span: (0.0, 1.0),
             show_start_marker: true,
         });
+        self.record_current_playback_history(0.0, 1.0);
         Ok(())
     }
 }

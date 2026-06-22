@@ -54,6 +54,10 @@ impl PlaybackIntent {
     }
 
     pub(in crate::native_app) fn random_region(start_ratio: f32, end_ratio: f32) -> Self {
+        Self::fixed_region(start_ratio, end_ratio)
+    }
+
+    pub(in crate::native_app) fn fixed_region(start_ratio: f32, end_ratio: f32) -> Self {
         Self {
             loop_region_policy: PlaybackLoopRegionPolicy::UseIntentSpan,
             ..Self::new(start_ratio, end_ratio)

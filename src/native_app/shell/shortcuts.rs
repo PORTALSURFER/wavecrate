@@ -207,6 +207,14 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::PlayRandomSampleRange,
         )
         .bind(
+            ui::KeyPress::with_command(ui::KeyCode::ArrowLeft),
+            GuiMessage::PlayPreviousPlaybackHistory,
+        )
+        .bind(
+            ui::KeyPress::with_command(ui::KeyCode::ArrowRight),
+            GuiMessage::PlayNextPlaybackHistory,
+        )
+        .bind(
             ui::KeyPress::new(ui::KeyCode::Z),
             GuiMessage::Waveform(WaveformInteraction::ZoomToPlaySelection),
         )

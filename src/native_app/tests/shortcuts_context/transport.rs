@@ -65,6 +65,29 @@ fn option_space_shortcut_routes_to_random_sample_range() {
 }
 
 #[test]
+fn command_left_shortcut_routes_to_previous_playback_history() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::ArrowLeft));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::PlayPreviousPlaybackHistory)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn command_right_shortcut_routes_to_next_playback_history() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::ArrowRight));
+
+    assert_eq!(resolution.action, Some(GuiMessage::PlayNextPlaybackHistory));
+    assert!(resolution.handled);
+}
+
+#[test]
 fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));

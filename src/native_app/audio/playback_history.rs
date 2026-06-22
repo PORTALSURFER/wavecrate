@@ -7,6 +7,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
+mod navigation;
 mod worker;
 use worker::persist_last_played;
 
@@ -18,6 +19,7 @@ pub(in crate::native_app) struct LastPlayedPersistResult {
     pub(in crate::native_app) result: Result<(), String>,
 }
 
+pub(in crate::native_app) use navigation::PlaybackNavigationHistory;
 pub(in crate::native_app) use worker::LastPlayedPersistRequest;
 
 impl NativeAppState {

@@ -104,11 +104,7 @@ impl NativeAppState {
         }
         let pending = self.audio.pending_playback_start.take();
         if let Some(pending) = pending {
-            match self.start_playback_span(
-                pending.start_ratio,
-                pending.end_ratio,
-                pending.loop_offset_ratio,
-            ) {
+            match self.start_playback_intent_with_history(pending.intent, pending.record_history) {
                 Ok(()) => {
                     let file_name = self.waveform.current.file_name();
                     self.ui.status.sample = format!("Playing {file_name}");

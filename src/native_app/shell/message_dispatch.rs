@@ -72,6 +72,8 @@ impl NativeAppState {
             | GuiMessage::PlayFromCurrentPlayStart
             | GuiMessage::PlayRandomSampleRange
             | GuiMessage::PlayRandomListedSampleRange
+            | GuiMessage::PlayPreviousPlaybackHistory
+            | GuiMessage::PlayNextPlaybackHistory
             | GuiMessage::LastPlayedPersistReady { .. }
             | GuiMessage::LastPlayedPersisted(_)
             | GuiMessage::VolumeSettingsPersisted(_)

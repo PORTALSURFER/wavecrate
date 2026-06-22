@@ -116,6 +116,10 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                 shortcut_help_item("Space", space_help_label(state)),
                 shortcut_help_item("Shift-Space", "Play from current play start"),
                 shortcut_help_item("Option-Space", "Play random sample section"),
+                shortcut_help_item(
+                    "Command-Left / Command-Right",
+                    "Step through playback history",
+                ),
                 shortcut_help_item("X", x_help_label(state)),
                 shortcut_help_item("Command-A", "Select all listed samples"),
                 shortcut_help_item("Command-C", "Copy play selection or selected file"),

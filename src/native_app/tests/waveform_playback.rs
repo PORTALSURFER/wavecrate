@@ -2,6 +2,7 @@ use super::*;
 
 mod active_folder_cache;
 mod fixture;
+mod history;
 mod keyboard_navigation;
 mod normalization;
 mod persisted_cache;

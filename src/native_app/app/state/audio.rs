@@ -6,7 +6,10 @@ use wavecrate::audio::{
 };
 use wavecrate::sample_sources::config::AppSettingsCore;
 
-use crate::native_app::{app::PendingSamplePlayback, audio::playback::PlaybackIntent};
+use crate::native_app::{
+    app::PendingSamplePlayback,
+    audio::{playback::PlaybackIntent, playback_history::PlaybackNavigationHistory},
+};
 
 pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) player: Option<AudioPlayer>,
@@ -23,8 +26,9 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) sample_rates: Vec<u32>,
     pub(in crate::native_app) settings_error: Option<String>,
     pub(in crate::native_app) current_playback_span: Option<(f32, f32)>,
-    pub(in crate::native_app) pending_playback_start: Option<PlaybackIntent>,
+    pub(in crate::native_app) pending_playback_start: Option<PendingPlaybackStart>,
     pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
+    pub(in crate::native_app) playback_history: PlaybackNavigationHistory,
     pub(in crate::native_app) early_sample_playback_path: Option<String>,
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
@@ -37,6 +41,28 @@ pub(in crate::native_app) struct PendingRuntimePlaybackStart {
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) span: (f32, f32),
     pub(in crate::native_app) show_start_marker: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) struct PendingPlaybackStart {
+    pub(in crate::native_app) intent: PlaybackIntent,
+    pub(in crate::native_app) record_history: bool,
+}
+
+impl PendingPlaybackStart {
+    pub(in crate::native_app) fn record(intent: PlaybackIntent) -> Self {
+        Self {
+            intent,
+            record_history: true,
+        }
+    }
+
+    pub(in crate::native_app) fn skip_history(intent: PlaybackIntent) -> Self {
+        Self {
+            intent,
+            record_history: false,
+        }
+    }
 }
 
 impl AudioAppState {
@@ -58,6 +84,7 @@ impl AudioAppState {
             current_playback_span: None,
             pending_playback_start: None,
             pending_sample_playback: None,
+            playback_history: PlaybackNavigationHistory::default(),
             early_sample_playback_path: None,
             playback_runtime: None,
             playback_events: None,

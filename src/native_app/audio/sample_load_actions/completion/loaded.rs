@@ -109,6 +109,7 @@ impl NativeAppState {
         let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
         self.waveform.current.start_playback(progress);
         self.audio.current_playback_span = Some((0.0, 1.0));
+        self.record_current_playback_history(0.0, 1.0);
         self.audio.early_sample_playback_path = None;
         self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
@@ -123,7 +124,7 @@ impl NativeAppState {
         true
     }
 
-    fn start_pending_sample_playback(
+    pub(in crate::native_app::audio) fn start_pending_sample_playback(
         &mut self,
         file_name: &str,
         started_at: Instant,
@@ -190,6 +191,35 @@ impl NativeAppState {
                             Some("browser"),
                             Some(file_name),
                             "playback_resume_error",
+                            started_at,
+                            Some(&err),
+                        );
+                    }
+                }
+                true
+            }
+            PendingSamplePlayback::ReplayHistory { start, end } => {
+                match self.start_playback_fixed_span_without_history(start, end) {
+                    Ok(()) => {
+                        self.record_selected_sample_last_played(context);
+                        self.ui.status.sample = format!("Playing {file_name} from history");
+                        emit_gui_action(
+                            "playback.history.load",
+                            Some("transport"),
+                            Some(file_name),
+                            "success",
+                            started_at,
+                            None,
+                        );
+                    }
+                    Err(err) => {
+                        self.ui.status.sample =
+                            format!("Loaded {file_name} | playback unavailable: {err}");
+                        emit_gui_action(
+                            "playback.history.load",
+                            Some("transport"),
+                            Some(file_name),
+                            "error",
                             started_at,
                             Some(&err),
                         );
