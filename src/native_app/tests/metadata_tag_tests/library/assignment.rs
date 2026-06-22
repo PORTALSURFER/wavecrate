@@ -22,6 +22,85 @@ fn default_gui_tag_library_can_apply_default_playback_tags() {
 }
 
 #[test]
+fn playback_type_tag_toggle_replaces_existing_opposite_tag() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+    state.metadata.tags_by_file.insert(
+        selected_file.clone(),
+        vec![String::from("one-shot"), String::from("bass")],
+    );
+
+    state.apply_message(
+        toggle_metadata_tag(String::from("loop")),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata.tags_by_file.get(&selected_file),
+        Some(&vec![String::from("bass"), String::from("loop")])
+    );
+    assert_eq!(state.ui.status.sample, "Added tag loop");
+
+    state.apply_message(
+        toggle_metadata_tag(String::from("one-shot")),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata.tags_by_file.get(&selected_file),
+        Some(&vec![String::from("bass"), String::from("one-shot")])
+    );
+    assert_eq!(state.ui.status.sample, "Added tag one-shot");
+}
+
+#[test]
+fn mixed_playback_type_tag_toggle_replaces_opposites_across_selection() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    fs::write(&first, []).expect("first sample");
+    fs::write(&second, []).expect("second sample");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state.library.folder_browser.select_file(first_id.clone());
+    state.library.folder_browser.select_file_with_modifiers(
+        second_id.clone(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    state.metadata.tags_by_file.insert(
+        first_id.clone(),
+        vec![String::from("one-shot"), String::from("hat")],
+    );
+    state
+        .metadata
+        .tags_by_file
+        .insert(second_id.clone(), vec![String::from("loop")]);
+
+    state.apply_message(
+        toggle_metadata_tag(String::from("loop")),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata.tags_by_file.get(&first_id),
+        Some(&vec![String::from("hat"), String::from("loop")])
+    );
+    assert_eq!(
+        state.metadata.tags_by_file.get(&second_id),
+        Some(&vec![String::from("loop")])
+    );
+    assert!(state.metadata_tag_selection_state("loop").is_all());
+    assert!(!state.metadata_tag_selection_state("one-shot").is_assigned());
+}
+
+#[test]
 fn default_gui_tag_library_button_adds_existing_tag() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");

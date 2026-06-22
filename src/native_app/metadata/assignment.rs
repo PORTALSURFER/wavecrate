@@ -1,6 +1,7 @@
 use super::persistence::{persist_metadata_tag_assignment, persist_metadata_tag_assignments};
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
 use super::{GuiMessage, MetadataMessage, NativeAppState};
+use crate::native_app::audio::playback::tagged_playback_mode_for_tag;
 use radiant::prelude as ui;
 use std::path::PathBuf;
 
@@ -26,7 +27,6 @@ impl NativeAppState {
         };
         let mut requests = Vec::new();
         let mut changed_files = Vec::new();
-        let mut added_tags = Vec::new();
         for target in targets {
             let mut file_tags = self
                 .metadata
@@ -35,37 +35,57 @@ impl NativeAppState {
                 .cloned()
                 .unwrap_or_default();
             let mut added = Vec::new();
+            let mut removed_conflicting = Vec::new();
             for tag in &tags {
+                let removed = remove_conflicting_playback_tags(&mut file_tags, tag, &mut added);
+                extend_unique(&mut removed_conflicting, removed);
                 if file_tags.iter().any(|existing| existing == tag) {
                     continue;
                 }
                 file_tags.push(tag.clone());
-                added.push(tag.clone());
-                if !added_tags.iter().any(|existing| existing == tag) {
-                    added_tags.push(tag.clone());
-                }
+                push_unique(&mut added, tag.clone());
             }
-            if added.is_empty() {
+            if added.is_empty() && removed_conflicting.is_empty() {
                 continue;
             }
             self.metadata
                 .tags_by_file
                 .insert(target.file_id.clone(), file_tags);
+            if self
+                .metadata
+                .selected_tag
+                .as_ref()
+                .is_some_and(|selected| removed_conflicting.iter().any(|tag| tag == selected))
+            {
+                self.metadata.selected_tag = None;
+            }
             self.reconcile_playback_mode_after_metadata_tag_change(target.file_id.as_str());
             changed_files.push(target.file_id.clone());
-            requests.push(MetadataTagPersistRequest {
-                absolute_path: target.absolute_path,
-                source_root: target.source_root,
-                relative_path: target.relative_path,
-                tags: added,
-                assigned: true,
-            });
+            if !removed_conflicting.is_empty() {
+                requests.push(MetadataTagPersistRequest {
+                    absolute_path: target.absolute_path.clone(),
+                    source_root: target.source_root.clone(),
+                    relative_path: target.relative_path.clone(),
+                    tags: removed_conflicting,
+                    assigned: false,
+                });
+            }
+            if !added.is_empty() {
+                requests.push(MetadataTagPersistRequest {
+                    absolute_path: target.absolute_path,
+                    source_root: target.source_root,
+                    relative_path: target.relative_path,
+                    tags: added,
+                    assigned: true,
+                });
+            }
         }
         if requests.is_empty() {
             return;
         }
         self.retain_visible_file_selection_after_metadata_tag_change();
-        self.ui.status.sample = metadata_tag_added_status(&added_tags, changed_files.len());
+        let status_tags = added_metadata_tag_status_tags(&requests, &tags);
+        self.ui.status.sample = metadata_tag_added_status(&status_tags, changed_files.len());
         if requests.len() == 1 {
             let request = requests.remove(0);
             context
@@ -211,6 +231,56 @@ impl NativeAppState {
             })
             .collect()
     }
+}
+
+fn remove_conflicting_playback_tags(
+    file_tags: &mut Vec<String>,
+    incoming: &str,
+    added: &mut Vec<String>,
+) -> Vec<String> {
+    let Some(incoming_mode) = tagged_playback_mode_for_tag(incoming) else {
+        return Vec::new();
+    };
+    let mut removed = Vec::new();
+    file_tags.retain(|existing| {
+        let conflicts = tagged_playback_mode_for_tag(existing)
+            .is_some_and(|existing_mode| existing_mode != incoming_mode);
+        if conflicts && !added.iter().any(|added_tag| added_tag == existing) {
+            push_unique(&mut removed, existing.clone());
+        }
+        !conflicts
+    });
+    added.retain(|existing| {
+        !tagged_playback_mode_for_tag(existing)
+            .is_some_and(|existing_mode| existing_mode != incoming_mode)
+    });
+    removed
+}
+
+fn push_unique(tags: &mut Vec<String>, tag: String) {
+    if !tags.iter().any(|existing| existing == &tag) {
+        tags.push(tag);
+    }
+}
+
+fn extend_unique(tags: &mut Vec<String>, incoming: Vec<String>) {
+    for tag in incoming {
+        push_unique(tags, tag);
+    }
+}
+
+fn added_metadata_tag_status_tags(
+    requests: &[MetadataTagPersistRequest],
+    requested_tags: &[String],
+) -> Vec<String> {
+    let mut tags = Vec::new();
+    for request in requests.iter().filter(|request| request.assigned) {
+        extend_unique(&mut tags, request.tags.clone());
+    }
+    if tags.is_empty() {
+        extend_unique(&mut tags, requested_tags.to_vec());
+    }
+    tags
 }
 
 fn metadata_tag_added_status(tags: &[String], changed_file_count: usize) -> String {

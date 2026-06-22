@@ -76,6 +76,52 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
 }
 
 #[test]
+fn metadata_tag_persistence_replaces_conflicting_playback_type_tags() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("playback-type.wav");
+    fs::write(&sample_path, []).expect("sample file");
+    let relative_path = PathBuf::from("playback-type.wav");
+
+    crate::native_app::metadata::persist_metadata_tag_additions_for_tests(
+        sample_path.clone(),
+        source_root.path().to_path_buf(),
+        relative_path.clone(),
+        vec![String::from("one-shot"), String::from("warm")],
+    )
+    .expect("persist initial tags");
+
+    crate::native_app::metadata::persist_metadata_tag_additions_for_tests(
+        sample_path.clone(),
+        source_root.path().to_path_buf(),
+        relative_path.clone(),
+        vec![String::from("loop")],
+    )
+    .expect("persist loop tag");
+
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path())
+        .expect("open source db");
+    assert_eq!(
+        db.tag_labels_for_path(relative_path.as_path())
+            .expect("loop labels"),
+        vec![String::from("loop"), String::from("warm")]
+    );
+
+    crate::native_app::metadata::persist_metadata_tag_additions_for_tests(
+        sample_path,
+        source_root.path().to_path_buf(),
+        relative_path.clone(),
+        vec![String::from("one-shot")],
+    )
+    .expect("persist one-shot tag");
+
+    assert_eq!(
+        db.tag_labels_for_path(relative_path.as_path())
+            .expect("one-shot labels"),
+        vec![String::from("one-shot"), String::from("warm")]
+    );
+}
+
+#[test]
 fn metadata_tag_input_keeps_delimiters_while_editing() {
     let mut state = gui_state_for_span_tests();
 

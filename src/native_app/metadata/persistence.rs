@@ -1,8 +1,9 @@
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
+use crate::native_app::audio::playback::tagged_playback_mode_for_tag;
 #[cfg(test)]
 use std::path::PathBuf;
 use std::{collections::HashMap, path::Path, time::SystemTime};
-use wavecrate::sample_sources::{SourceDatabase, SourceDbError};
+use wavecrate::sample_sources::{SourceDatabase, SourceDbError, db::SourceWriteBatch};
 
 pub(super) fn persist_metadata_tag_assignment(
     request: MetadataTagPersistRequest,
@@ -70,6 +71,8 @@ fn persist_metadata_tag_assignment_inner(
         .map_err(|err| err.to_string())?;
     for tag in &request.tags {
         if request.assigned {
+            remove_conflicting_persisted_playback_tags(&mut batch, &request.relative_path, tag)
+                .map_err(|err| err.to_string())?;
             batch
                 .assign_tag_to_path(&request.relative_path, tag)
                 .map(|_| ())
@@ -81,6 +84,25 @@ fn persist_metadata_tag_assignment_inner(
         .map_err(|err| err.to_string())?;
     }
     batch.commit().map_err(|err| err.to_string())
+}
+
+fn remove_conflicting_persisted_playback_tags(
+    batch: &mut SourceWriteBatch<'_>,
+    relative_path: &Path,
+    incoming: &str,
+) -> Result<(), SourceDbError> {
+    let Some(incoming_mode) = tagged_playback_mode_for_tag(incoming) else {
+        return Ok(());
+    };
+    let existing_tags = batch.tag_labels_for_path(relative_path)?;
+    for existing in existing_tags {
+        if tagged_playback_mode_for_tag(&existing)
+            .is_some_and(|existing_mode| existing_mode != incoming_mode)
+        {
+            batch.remove_tag_from_path(relative_path, &existing)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

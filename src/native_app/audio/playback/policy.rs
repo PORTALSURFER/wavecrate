@@ -109,11 +109,15 @@ pub(in crate::native_app) fn tagged_playback_mode_for_tags(
 ) -> Option<TaggedPlaybackMode> {
     tags?
         .iter()
-        .find_map(|tag| match normalized_playback_tag(tag).as_str() {
-            "loop" => Some(TaggedPlaybackMode::Loop),
-            "oneshot" | "one shot" => Some(TaggedPlaybackMode::OneShot),
-            _ => None,
-        })
+        .find_map(|tag| tagged_playback_mode_for_tag(tag))
+}
+
+pub(in crate::native_app) fn tagged_playback_mode_for_tag(tag: &str) -> Option<TaggedPlaybackMode> {
+    match normalized_playback_tag(tag).as_str() {
+        "loop" => Some(TaggedPlaybackMode::Loop),
+        "oneshot" | "one shot" => Some(TaggedPlaybackMode::OneShot),
+        _ => None,
+    }
 }
 
 fn normalized_playback_tag(tag: &str) -> String {

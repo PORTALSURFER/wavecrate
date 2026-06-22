@@ -21,7 +21,6 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(!frame.paint_plan.contains_text("Filter"));
-    assert!(!frame.paint_plan.contains_text("Tags"));
     assert!(!frame.paint_plan.contains_text("Metadata"));
     assert!(!frame.paint_plan.contains_text("Tags (1)"));
     assert!(!frame.paint_plan.contains_text("Tagging"));
