@@ -92,12 +92,16 @@ impl NativeAppState {
             total: folder_move_progress_total(&request),
             detail: String::from("Queued"),
         });
-        let sender = self.background.worker_sender.clone();
         context
             .business()
             .background("gui-folder-browser-move")
-            .run(
-                move |_| execute_folder_move_request_with_progress(request, task_id, Some(sender)),
+            .stream(
+                move |_context, events| {
+                    execute_folder_move_request_with_progress(request, task_id, move |progress| {
+                        events.emit(progress)
+                    })
+                },
+                GuiMessage::FileMoveProgress,
                 move |completion: FolderMoveCompletion| GuiMessage::FolderMoveFinished {
                     started_at,
                     completion,
@@ -174,21 +178,26 @@ impl NativeAppState {
             total: file_move_conflict_progress_total(&batch, request),
             detail: String::from("Queued"),
         });
-        let sender = self.background.worker_sender.clone();
-        context.business().background("gui-file-move-conflict").run(
-            move |_| {
-                execute_file_move_conflict_request_with_progress(
-                    batch,
-                    request,
-                    task_id,
-                    Some(sender),
-                )
-            },
-            move |completion: FileMoveConflictCompletion| GuiMessage::FileMoveConflictFinished {
-                started_at,
-                completion,
-            },
-        );
+        context
+            .business()
+            .background("gui-file-move-conflict")
+            .stream(
+                move |_context, events| {
+                    execute_file_move_conflict_request_with_progress(
+                        batch,
+                        request,
+                        task_id,
+                        move |progress| events.emit(progress),
+                    )
+                },
+                GuiMessage::FileMoveProgress,
+                move |completion: FileMoveConflictCompletion| {
+                    GuiMessage::FileMoveConflictFinished {
+                        started_at,
+                        completion,
+                    }
+                },
+            );
     }
 
     pub(in crate::native_app) fn cancel_file_move_conflicts(&mut self) {

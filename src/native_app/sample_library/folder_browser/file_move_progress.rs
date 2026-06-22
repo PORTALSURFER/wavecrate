@@ -1,6 +1,4 @@
-use std::sync::mpsc::Sender;
-
-use crate::native_app::app::{FileMoveProgress, GuiMessage};
+use crate::native_app::app::FileMoveProgress;
 
 use super::{FileMoveConflictBatch, FileMoveConflictResolutionRequest, FolderMoveRequest};
 
@@ -45,33 +43,38 @@ pub(in crate::native_app) fn file_move_conflict_progress_total(
     conflicts.saturating_add(1).max(1)
 }
 
-pub(super) struct FileMoveProgressReporter {
+pub(super) struct FileMoveProgressReporter<Emit> {
     task_id: u64,
     label: String,
-    sender: Option<Sender<GuiMessage>>,
+    emit: Emit,
 }
 
-impl FileMoveProgressReporter {
-    pub(super) fn new(task_id: u64, label: String, sender: Option<Sender<GuiMessage>>) -> Self {
+impl<Emit> FileMoveProgressReporter<Emit>
+where
+    Emit: Fn(FileMoveProgress) -> bool,
+{
+    pub(super) fn new(task_id: u64, label: String, emit: Emit) -> Self {
         Self {
             task_id,
             label,
-            sender,
+            emit,
         }
     }
 
     pub(super) fn emit(&self, completed: usize, total: usize, detail: String) {
-        let Some(sender) = self.sender.as_ref() else {
-            return;
-        };
-        let _ = sender.send(GuiMessage::FileMoveProgress(FileMoveProgress {
+        let _ = (self.emit)(FileMoveProgress {
             task_id: self.task_id,
             label: self.label.clone(),
             completed: completed.min(total),
             total,
             detail,
-        }));
+        });
     }
+}
+
+#[cfg(test)]
+pub(super) fn ignore_file_move_progress(_: FileMoveProgress) -> bool {
+    false
 }
 
 fn plural(count: usize) -> &'static str {

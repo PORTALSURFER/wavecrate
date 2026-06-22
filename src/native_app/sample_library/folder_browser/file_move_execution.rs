@@ -1,8 +1,7 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::mpsc::Sender,
-};
+use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+use super::file_move_progress::ignore_file_move_progress;
 use super::{
     FileMoveConflict, FileMoveConflictBatch, FileMoveConflictCompletion,
     FileMoveConflictExecutionFailure, FileMoveConflictExecutionSuccess, FileMoveConflictResolution,
@@ -20,7 +19,7 @@ use super::{
     },
 };
 use crate::native_app::{
-    app::GuiMessage, sample_library::file_actions::sample_path_label,
+    app::FileMoveProgress, sample_library::file_actions::sample_path_label,
     waveform::remap_persisted_waveform_cache_after_move,
 };
 
@@ -28,16 +27,16 @@ use crate::native_app::{
 pub(in crate::native_app) fn execute_folder_move_request(
     request: FolderMoveRequest,
 ) -> FolderMoveCompletion {
-    execute_folder_move_request_with_progress(request, 0, None)
+    execute_folder_move_request_with_progress(request, 0, ignore_file_move_progress)
 }
 
 pub(in crate::native_app) fn execute_folder_move_request_with_progress(
     request: FolderMoveRequest,
     task_id: u64,
-    sender: Option<Sender<GuiMessage>>,
+    emit: impl Fn(FileMoveProgress) -> bool,
 ) -> FolderMoveCompletion {
     let reporter =
-        FileMoveProgressReporter::new(task_id, folder_move_progress_label(&request), sender);
+        FileMoveProgressReporter::new(task_id, folder_move_progress_label(&request), emit);
     let result = execute_folder_move_request_result(&request, &reporter);
     FolderMoveCompletion {
         task_id,
@@ -46,10 +45,13 @@ pub(in crate::native_app) fn execute_folder_move_request_with_progress(
     }
 }
 
-fn execute_folder_move_request_result(
+fn execute_folder_move_request_result<Emit>(
     request: &FolderMoveRequest,
-    reporter: &FileMoveProgressReporter,
-) -> Result<FolderMoveSuccess, String> {
+    reporter: &FileMoveProgressReporter<Emit>,
+) -> Result<FolderMoveSuccess, String>
+where
+    Emit: Fn(FileMoveProgress) -> bool,
+{
     match request {
         FolderMoveRequest::Folder {
             source_root,
@@ -77,12 +79,15 @@ fn execute_folder_move_request_result(
     }
 }
 
-fn execute_folder_move(
+fn execute_folder_move<Emit>(
     source_root: &Path,
     old_path: &Path,
     new_path: &Path,
-    reporter: &FileMoveProgressReporter,
-) -> Result<FolderMoveSuccess, String> {
+    reporter: &FileMoveProgressReporter<Emit>,
+) -> Result<FolderMoveSuccess, String>
+where
+    Emit: Fn(FileMoveProgress) -> bool,
+{
     if new_path.exists() {
         let folder_name = new_path
             .file_name()
@@ -105,13 +110,16 @@ fn execute_folder_move(
     })
 }
 
-fn execute_file_drop(
+fn execute_file_drop<Emit>(
     source_root: &Path,
     file_ids: &[String],
     target_folder: &Path,
     remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
-    reporter: &FileMoveProgressReporter,
-) -> Result<FolderMoveSuccess, String> {
+    reporter: &FileMoveProgressReporter<Emit>,
+) -> Result<FolderMoveSuccess, String>
+where
+    Emit: Fn(FileMoveProgress) -> bool,
+{
     if !target_folder.is_dir() {
         return Err(String::from("File move failed: target folder is missing"));
     }
@@ -139,12 +147,15 @@ fn execute_file_drop(
     })
 }
 
-fn execute_extracted_file_drop(
+fn execute_extracted_file_drop<Emit>(
     source_root: &Path,
     path: &Path,
     target_folder: &Path,
-    reporter: &FileMoveProgressReporter,
-) -> Result<FolderMoveSuccess, String> {
+    reporter: &FileMoveProgressReporter<Emit>,
+) -> Result<FolderMoveSuccess, String>
+where
+    Emit: Fn(FileMoveProgress) -> bool,
+{
     if !path.is_file() {
         return Err(format!(
             "Extraction move failed: {} is missing",
@@ -178,19 +189,19 @@ pub(in crate::native_app) fn execute_file_move_conflict_request(
     batch: FileMoveConflictBatch,
     request: FileMoveConflictResolutionRequest,
 ) -> FileMoveConflictCompletion {
-    execute_file_move_conflict_request_with_progress(batch, request, 0, None)
+    execute_file_move_conflict_request_with_progress(batch, request, 0, ignore_file_move_progress)
 }
 
 pub(in crate::native_app) fn execute_file_move_conflict_request_with_progress(
     mut batch: FileMoveConflictBatch,
     request: FileMoveConflictResolutionRequest,
     task_id: u64,
-    sender: Option<Sender<GuiMessage>>,
+    emit: impl Fn(FileMoveProgress) -> bool,
 ) -> FileMoveConflictCompletion {
     let reporter = FileMoveProgressReporter::new(
         task_id,
         file_move_conflict_progress_label(&batch, request),
-        sender,
+        emit,
     );
     if request.apply_to_remaining {
         batch.batch_policy = Some(request.resolution);
@@ -391,7 +402,9 @@ mod tests {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
 
-        let completion = execute_folder_move_request_with_progress(request, 42, Some(sender));
+        let completion = execute_folder_move_request_with_progress(request, 42, move |progress| {
+            sender.send(progress).is_ok()
+        });
 
         assert!(
             completion
@@ -400,13 +413,7 @@ mod tests {
                 .metadata_error
                 .is_none()
         );
-        let progress = receiver
-            .try_iter()
-            .filter_map(|message| match message {
-                GuiMessage::FileMoveProgress(progress) => Some(progress),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        let progress = receiver.try_iter().collect::<Vec<_>>();
         assert!(
             progress.iter().any(|progress| progress.completed > 0),
             "file move worker should stream progress: {progress:?}"

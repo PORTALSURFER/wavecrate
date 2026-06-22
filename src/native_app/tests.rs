@@ -201,36 +201,9 @@ fn run_command_for_tests(
     state: &mut NativeAppState,
     command: Command<super::test_support::state::GuiMessage>,
 ) {
-    match command {
-        Command::None
-        | Command::RequestRepaint
-        | Command::RequestPaintOnly
-        | Command::SetDpiScale(_)
-        | Command::SetWindowLogicalSize(_)
-        | Command::Focus(_)
-        | Command::ScrollTo { .. }
-        | Command::ScrollIntoView { .. }
-        | Command::ScrollFixedRowIntoView { .. }
-        | Command::BeginExternalDrag { .. }
-        | Command::BeginDrag { .. }
-        | Command::EndDrag
-        | Command::PlatformRequest { .. }
-        | Command::EndExternalDrag
-        | Command::After { .. }
-        | Command::PerformStream { .. }
-        | Command::Exit => {}
-        Command::Message(message) => {
-            state.apply_message(message, &mut ui::UiUpdateContext::default());
-        }
-        Command::Batch(commands) => {
-            for command in commands {
-                run_command_for_tests(state, command);
-            }
-        }
-        Command::Perform { work, .. } => {
-            state.apply_message(work(), &mut ui::UiUpdateContext::default());
-        }
-    }
+    command.run_inline_for_tests(|message| {
+        state.apply_message(message, &mut ui::UiUpdateContext::default());
+    });
 }
 
 fn start_deferred_sample_load_for_tests(
