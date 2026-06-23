@@ -27,10 +27,9 @@ pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::V
 
 pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui::View<GuiMessage> {
     ui::status_bar_from_parts(
-        ui::StatusBarParts::new(ui::StatusSegments::new(
+        ui::StatusBarParts::new(ui::StatusSegments::left_center(
             selected_sample_count_label(model.selected_sample_count),
             model.status_text,
-            "",
         ))
         .left_width(120.0)
         .trailing(worker_progress_bar(
