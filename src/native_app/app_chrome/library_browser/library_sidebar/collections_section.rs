@@ -1,7 +1,6 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     CollectionRowViewModel, CollectionsSectionViewModel,
@@ -9,7 +8,7 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
-    COLLECTIONS_PANEL_PADDING, SampleCollectionView,
+    COLLECTIONS_PANEL_PADDING, SIDEBAR_PANEL_HEADER_HEIGHT, SampleCollectionView,
 };
 use crate::native_app::ui::ids as widget_ids;
 
@@ -23,8 +22,9 @@ const COLLECTIONS_RESIZE_HEADER_ID: u64 = widget_ids::COLLECTIONS_RESIZE_HEADER_
 pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
     let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
     ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::new(
-            collections_resize_header(),
+        ui::PanelSectionHeaderParts::resize_header(
+            "collections-resize-header",
+            SIDEBAR_PANEL_HEADER_HEIGHT,
             ui::scroll(
                 ui::column(rows)
                     .spacing(COLLECTION_ROW_SPACING)
@@ -35,21 +35,17 @@ pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::Vi
             .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
             .fill_width()
             .fill_height(),
+            |message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
+            },
         )
+        .header_id(COLLECTIONS_RESIZE_HEADER_ID)
         .padding(COLLECTIONS_PANEL_PADDING)
         .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
         .height(model.panel_height),
     )
     .id(COLLECTIONS_SECTION_NODE_ID)
     .fill_width()
-}
-
-fn collections_resize_header() -> ui::View<GuiMessage> {
-    sidebar_resize_header(
-        "collections-resize-header",
-        COLLECTIONS_RESIZE_HEADER_ID,
-        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message)),
-    )
 }
 
 fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessage> {

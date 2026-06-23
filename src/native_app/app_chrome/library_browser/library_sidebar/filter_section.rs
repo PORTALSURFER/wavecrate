@@ -1,15 +1,14 @@
 use radiant::{prelude as ui, widgets::TextInputMessage};
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     FilterSectionViewModel, PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
-use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
-#[cfg(test)]
-use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_HEIGHT;
+use crate::native_app::sample_library::folder_browser::view_contract::{
+    SIDEBAR_PANEL_HEADER_CONTENT_SPACING, SIDEBAR_PANEL_HEADER_HEIGHT,
+};
 use crate::native_app::ui::ids as widget_ids;
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
@@ -64,10 +63,16 @@ fn tag_filter_clear_button_id() -> u64 {
 
 pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::new(filter_resize_header(), filter_controls(model))
-            .height(model.panel_height)
-            .padding(FILTER_PANEL_PADDING)
-            .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING),
+        ui::PanelSectionHeaderParts::resize_header(
+            "filter-resize-header",
+            SIDEBAR_PANEL_HEADER_HEIGHT,
+            filter_controls(model),
+            |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message)),
+        )
+        .header_id(FILTER_RESIZE_HEADER_ID)
+        .height(model.panel_height)
+        .padding(FILTER_PANEL_PADDING)
+        .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING),
     )
     .fill_width();
 
@@ -79,12 +84,6 @@ pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMess
     {
         panel
     }
-}
-
-fn filter_resize_header() -> ui::View<GuiMessage> {
-    sidebar_resize_header("filter-resize-header", FILTER_RESIZE_HEADER_ID, |message| {
-        GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message))
-    })
 }
 
 fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {

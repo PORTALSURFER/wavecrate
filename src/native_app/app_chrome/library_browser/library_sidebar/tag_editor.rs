@@ -1,14 +1,15 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, MetadataMessage};
-use crate::native_app::app_chrome::library_browser::library_sidebar::panel_chrome::sidebar_resize_header;
 use crate::native_app::app_chrome::view_models::library_sidebar::TagEditorViewModel;
 use crate::native_app::metadata::{
     MetadataTagDisplayCategory, metadata_tag_category_is_pinned, metadata_tag_pill_selection_style,
     metadata_tag_pill_style,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::view_contract::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
+use crate::native_app::sample_library::folder_browser::view_contract::{
+    SIDEBAR_PANEL_HEADER_CONTENT_SPACING, SIDEBAR_PANEL_HEADER_HEIGHT,
+};
 use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
@@ -259,10 +260,16 @@ fn metadata_sidebar_panel(
     height: f32,
 ) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::new(metadata_resize_header(), content)
-            .height(height)
-            .padding(METADATA_PANEL_PADDING)
-            .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING),
+        ui::PanelSectionHeaderParts::resize_header(
+            "metadata-resize-header",
+            SIDEBAR_PANEL_HEADER_HEIGHT,
+            content,
+            |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message)),
+        )
+        .header_id(METADATA_RESIZE_HEADER_ID)
+        .height(height)
+        .padding(METADATA_PANEL_PADDING)
+        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING),
     )
     .fill_width();
     #[cfg(test)]
@@ -273,14 +280,6 @@ fn metadata_sidebar_panel(
     {
         panel
     }
-}
-
-fn metadata_resize_header() -> ui::View<GuiMessage> {
-    sidebar_resize_header(
-        "metadata-resize-header",
-        METADATA_RESIZE_HEADER_ID,
-        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message)),
-    )
 }
 
 fn metadata_tag_library_toggle(width: f32) -> ui::View<GuiMessage> {
