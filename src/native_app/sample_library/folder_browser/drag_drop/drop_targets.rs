@@ -10,10 +10,9 @@ impl FolderBrowserState {
             .drop_target
             .current()
             .is_some_and(|target| matches!(target, FolderBrowserDropTarget::Folder(_)))
-            && self.drag_drop.drop_target.close_changed()
         {
+            self.drag_drop.drop_target.close();
             self.drag_drop.clear_folder_hover_auto_expand();
-            self.drag_drop.revision.bump();
         }
     }
 
@@ -55,27 +54,22 @@ impl FolderBrowserState {
         folder_id: &str,
         now: Instant,
     ) {
-        let changed = if self.can_drop_drag_on_folder(folder_id) {
+        if self.can_drop_drag_on_folder(folder_id) {
             self.drag_drop
                 .drop_target
-                .open_changed(FolderBrowserDropTarget::Folder(folder_id.to_owned()))
+                .open(FolderBrowserDropTarget::Folder(folder_id.to_owned()));
         } else {
-            self.drag_drop.drop_target.close_changed()
-        };
+            self.drag_drop.drop_target.close();
+        }
         if self.drag_hover_folder_can_auto_expand(folder_id) {
             self.drag_drop.arm_folder_hover_auto_expand(folder_id, now);
         } else {
             self.drag_drop.clear_folder_hover_auto_expand();
         }
-        if changed {
-            self.drag_drop.revision.bump();
-        }
     }
 
     pub(super) fn clear_drop_targets_for_new_drag(&mut self) {
         self.drag_drop.clear_folder_hover_auto_expand();
-        if self.drag_drop.drop_target.close_changed() {
-            self.drag_drop.revision.bump();
-        }
+        self.drag_drop.drop_target.close();
     }
 }

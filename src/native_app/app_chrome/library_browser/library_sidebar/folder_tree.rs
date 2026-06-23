@@ -45,7 +45,7 @@ use status::selected_folder_status;
 
 pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMessage> {
     ui::column([
-        folder_tree_view(model.visible_folders, model.window, model.drag_revision),
+        folder_tree_view(model.visible_folders, model.window),
         selected_folder_status(
             model.selected_folder_status_label,
             model.include_subfolders_available,
@@ -62,9 +62,8 @@ pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMes
 fn folder_tree_view(
     visible_folders: Vec<VisibleFolder>,
     window: ui::VirtualListWindow,
-    drag_revision: u64,
 ) -> ui::View<GuiMessage> {
-    folder_tree_window(visible_folders, window, drag_revision)
+    folder_tree_window(visible_folders, window)
         .id(FOLDER_TREE_LIST_ID)
         .fill_width()
         .fill_height()
@@ -73,14 +72,13 @@ fn folder_tree_view(
 fn folder_tree_window(
     visible_folders: Vec<VisibleFolder>,
     window: ui::VirtualListWindow,
-    drag_revision: u64,
 ) -> ui::View<GuiMessage> {
     ui::virtual_tree_list_window(
         window,
         TREE_ROW_HEIGHT,
         &folder_tree_guide_rows(&visible_folders),
         folder_tree_guide_style(),
-        |index| folder_row(&visible_folders[index], drag_revision),
+        |index| folder_row(&visible_folders[index]),
         TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
     .on_scroll_update({
@@ -97,7 +95,7 @@ fn folder_tree_window(
     .fill_height()
 }
 
-fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage> {
+fn folder_row(folder: &VisibleFolder) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
     if let (Some(draft), Some(input_id)) = (&folder.rename_draft, folder.rename_input_id) {
         let caret = draft.chars().count();
@@ -146,7 +144,7 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
     };
 
     row.row_key(format!("folder-row-{id}"))
-        .hit_key(format!("folder-row-hit-{id}-{drag_revision}"))
+        .hit_key(format!("folder-row-hit-{id}"))
         .on_toggle({
             let id = id.clone();
             move || {
@@ -328,7 +326,7 @@ mod tests {
         let mut folder = visible_folder_for_tests(true);
         folder.selected = true;
 
-        let frame = folder_row(&folder, 0)
+        let frame = folder_row(&folder)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
 
         assert_eq!(
@@ -342,7 +340,7 @@ mod tests {
         let mut folder = visible_folder_for_tests(false);
         folder.selected = true;
 
-        let frame = folder_row(&folder, 0)
+        let frame = folder_row(&folder)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
 
         assert_eq!(
@@ -356,7 +354,7 @@ mod tests {
         let mut folder = visible_folder_for_tests(false);
         folder.focused = true;
 
-        let frame = folder_row(&folder, 0)
+        let frame = folder_row(&folder)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
 
         assert_eq!(
@@ -370,7 +368,7 @@ mod tests {
         let mut folder = visible_folder_for_tests(false);
         folder.focused = true;
 
-        let frame = folder_row(&folder, 0)
+        let frame = folder_row(&folder)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
         let selected_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
             .selected
@@ -390,7 +388,7 @@ mod tests {
         folder.focused = true;
         folder.selected = true;
 
-        let frame = folder_row(&folder, 0)
+        let frame = folder_row(&folder)
             .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
         let selected_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
             .selected

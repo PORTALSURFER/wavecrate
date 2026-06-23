@@ -86,8 +86,8 @@ fn extracted_file_drag_drop_moves_file_into_target_folder() {
     let _ = fs::remove_dir_all(root);
 }
 #[test]
-fn clearing_file_drag_advances_drag_revision_for_retained_row_reset() {
-    let root = temp_source_root("wavecrate-gui-file-drag-revision");
+fn clearing_file_drag_clears_drag_preview_and_is_idempotent() {
+    let root = temp_source_root("wavecrate-gui-file-drag-clear");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let kick = drums.join("kick.wav");
@@ -96,26 +96,16 @@ fn clearing_file_drag_advances_drag_revision_for_retained_row_reset() {
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&kick));
 
-    let initial_revision = browser.drag_drop.revision();
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
-    assert_eq!(
-        browser.drag_drop.revision(),
-        initial_revision,
-        "starting a drag should keep existing row widget state until the drag is cleared"
-    );
+    assert!(browser.drag_preview().is_some());
+    assert!(browser.external_drag_request().is_some());
 
     browser.clear_drag();
-    assert_eq!(
-        browser.drag_drop.revision(),
-        initial_revision + 1,
-        "clearing a drag must refresh retained sample-row hit targets so stale pressed/drag paint cannot survive cancellation"
-    );
+    assert!(browser.drag_preview().is_none());
+    assert!(browser.external_drag_request().is_none());
 
     browser.clear_drag();
-    assert_eq!(
-        browser.drag_drop.revision(),
-        initial_revision + 1,
-        "clearing already-idle drag state should not churn row identity"
-    );
+    assert!(browser.drag_preview().is_none());
+    assert!(browser.external_drag_request().is_none());
     let _ = fs::remove_dir_all(root);
 }

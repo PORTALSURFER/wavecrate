@@ -106,7 +106,6 @@ fn sample_browser_row(
             file_id: row.file_id,
             selected: row.selected,
             copy_flash: row.copy_flash,
-            drag_revision: row.drag_revision,
             drag_active: row.drag_active,
             drag_source: row.drag_source,
             cached: row.cached,

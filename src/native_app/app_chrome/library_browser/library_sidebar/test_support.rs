@@ -42,7 +42,6 @@ pub(in crate::native_app) fn library_sidebar_view(
         folder_tree: FolderTreeViewModel {
             visible_folders,
             window: tree_window,
-            drag_revision: state.drag_revision(),
             selected_folder_status_label: state.selected_folder_status_label(),
             include_subfolders_available: state.folder_subtree_listing_available(),
             include_subfolders: state.folder_subtree_listing_enabled(),

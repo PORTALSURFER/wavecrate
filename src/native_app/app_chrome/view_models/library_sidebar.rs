@@ -38,7 +38,6 @@ pub(in crate::native_app) struct SourceRowViewModel {
 pub(in crate::native_app) struct FolderTreeViewModel {
     pub(in crate::native_app) visible_folders: Vec<VisibleFolder>,
     pub(in crate::native_app) window: ui::VirtualListWindow,
-    pub(in crate::native_app) drag_revision: u64,
     pub(in crate::native_app) selected_folder_status_label: String,
     pub(in crate::native_app) include_subfolders_available: bool,
     pub(in crate::native_app) include_subfolders: bool,
@@ -148,7 +147,6 @@ impl FolderTreeViewModel {
         Self {
             visible_folders,
             window,
-            drag_revision: folder_browser.drag_revision(),
             selected_folder_status_label: folder_browser.selected_folder_status_label(),
             include_subfolders_available: folder_browser.folder_subtree_listing_available(),
             include_subfolders: folder_browser.folder_subtree_listing_enabled(),

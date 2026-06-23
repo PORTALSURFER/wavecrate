@@ -12,7 +12,6 @@ pub(in crate::native_app::sample_library::folder_browser) struct BrowserDragDrop
         ui::ExclusiveOpen<FolderBrowserDropTarget>,
     pub(in crate::native_app::sample_library::folder_browser) pending_file_move_conflicts:
         Option<super::super::FileMoveConflictBatch>,
-    pub(in crate::native_app::sample_library::folder_browser) revision: ui::RevisionCounter,
     folder_hover_auto_expand: Option<FolderHoverAutoExpand>,
 }
 
@@ -23,14 +22,8 @@ impl BrowserDragDropState {
             drag_pointer: None,
             drop_target: ui::ExclusiveOpen::new(),
             pending_file_move_conflicts: None,
-            revision: ui::RevisionCounter::default(),
             folder_hover_auto_expand: None,
         }
-    }
-
-    #[cfg(test)]
-    pub(in crate::native_app::sample_library::folder_browser) fn revision(&self) -> u64 {
-        self.revision.get()
     }
 
     pub(super) fn arm_folder_hover_auto_expand(&mut self, folder_id: &str, started_at: Instant) {
@@ -193,9 +186,6 @@ impl FolderBrowserState {
     }
 
     fn clear_drag_after_take(&mut self) {
-        if self.drag_drop.drag_pointer.is_some() || self.drag_drop.drop_target.any_open() {
-            self.drag_drop.revision.bump();
-        }
         self.drag_drop.drag_pointer = None;
         self.drag_drop.drop_target.close();
         self.drag_drop.folder_hover_auto_expand = None;
@@ -208,12 +198,6 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn clear_drag(&mut self) {
-        if self.drag_drop.drag.is_some()
-            || self.drag_drop.drag_pointer.is_some()
-            || self.drag_drop.drop_target.any_open()
-        {
-            self.drag_drop.revision.bump();
-        }
         self.drag_drop.drag = None;
         self.drag_drop.drag_pointer = None;
         self.drag_drop.drop_target.close();
@@ -250,7 +234,6 @@ impl FolderBrowserState {
 
         self.tree.expanded_folders.insert(folder_id);
         self.drag_drop.clear_folder_hover_auto_expand();
-        self.drag_drop.revision.bump();
         true
     }
 

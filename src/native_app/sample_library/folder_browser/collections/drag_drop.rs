@@ -38,15 +38,12 @@ impl FolderBrowserState {
     ) {
         self.update_drag_pointer(position);
         self.drag_drop.clear_folder_hover_auto_expand();
-        let changed = if self.file_drag_active() {
+        if self.file_drag_active() {
             self.drag_drop
                 .drop_target
-                .open_changed(FolderBrowserDropTarget::Collection(collection))
+                .open(FolderBrowserDropTarget::Collection(collection));
         } else {
-            self.drag_drop.drop_target.close_changed()
-        };
-        if changed {
-            self.drag_drop.revision.bump();
+            self.drag_drop.drop_target.close();
         }
     }
 }

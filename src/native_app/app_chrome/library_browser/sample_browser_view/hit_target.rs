@@ -46,7 +46,6 @@ pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) copy_flash: bool,
-    pub(in crate::native_app) drag_revision: u64,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
     pub(in crate::native_app) cached: bool,
@@ -59,7 +58,7 @@ pub(super) fn sample_file_hit_target(
     content: ui::View<GuiMessage>,
     model: SampleFileHitTargetModel<'_>,
 ) -> ui::View<GuiMessage> {
-    let input_key = sample_file_hit_target_key(model.file_id, model.drag_revision);
+    let input_key = sample_file_hit_target_key(model.file_id);
     let actions = sample_file_row_actions(model.hit_path.clone());
     sample_file_hit_target_builder(content, &model)
         .input_key(input_key)
@@ -141,8 +140,8 @@ fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::D
     None
 }
 
-fn sample_file_hit_target_key(file_id: &str, drag_revision: u64) -> String {
-    format!("sample-row-hit-{file_id}-{drag_revision}")
+fn sample_file_hit_target_key(file_id: &str) -> String {
+    format!("sample-row-hit-{file_id}")
 }
 
 #[cfg(test)]

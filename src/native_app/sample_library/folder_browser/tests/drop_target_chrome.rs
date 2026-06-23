@@ -1,7 +1,7 @@
 use super::*;
 #[test]
-fn clearing_collection_drop_target_advances_drag_revision() {
-    let root = temp_source_root("wavecrate-gui-collection-drag-revision");
+fn clearing_collection_drop_target_clears_drag_preview_and_collection_target() {
+    let root = temp_source_root("wavecrate-gui-collection-drag-clear");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let kick = drums.join("kick.wav");
@@ -23,14 +23,8 @@ fn clearing_collection_drop_target_advances_drag_revision() {
         "hovering a collection during file drag should mark the collection drop target"
     );
 
-    let revision_before_clear = browser.drag_drop.revision();
     browser.clear_drag();
 
-    assert_eq!(
-        browser.drag_drop.revision(),
-        revision_before_clear + 1,
-        "clearing a collection drop target must refresh retained drag widgets"
-    );
     assert!(browser.drag_preview().is_none());
     assert!(
         browser
@@ -67,17 +61,11 @@ fn collection_hover_clears_folder_drop_target_during_file_drag() {
         "hovering a folder during file drag should mark the folder drop target"
     );
 
-    let revision_before_collection_hover = browser.drag_drop.revision();
     browser.apply_message(FolderBrowserMessage::HoverCollectionDropTarget(
         SampleCollection::new(0).unwrap(),
         Point::new(24.0, 32.0),
     ));
 
-    assert_eq!(
-        browser.drag_drop.revision(),
-        revision_before_collection_hover + 1,
-        "moving from a folder target to a collection target must refresh retained folder hit targets"
-    );
     assert!(
         browser
             .visible_folders()
@@ -121,17 +109,11 @@ fn folder_hover_clears_collection_drop_target_during_file_drag() {
         "hovering a collection during file drag should mark the collection drop target"
     );
 
-    let revision_before_folder_hover = browser.drag_drop.revision();
     browser.apply_message(FolderBrowserMessage::HoverDropTarget(
         path_id(&loops),
         Point::new(24.0, 32.0),
     ));
 
-    assert_eq!(
-        browser.drag_drop.revision(),
-        revision_before_folder_hover + 1,
-        "moving from a collection target to a folder target must refresh retained collection hit targets"
-    );
     assert!(
         browser
             .visible_collections()

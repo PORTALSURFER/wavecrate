@@ -262,10 +262,6 @@ impl FolderBrowserState {
         self.selection.selected_file_ids_contains(file_id)
     }
 
-    pub(in crate::native_app) fn drag_revision(&self) -> u64 {
-        self.drag_drop.revision.get()
-    }
-
     pub(in crate::native_app) fn scan_is_active(&self, source_id: &str, task_id: u64) -> bool {
         self.source
             .sources
