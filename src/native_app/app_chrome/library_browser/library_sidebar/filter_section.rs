@@ -304,18 +304,18 @@ fn filter_clear_slot(
     key: &'static str,
     message: GuiMessage,
 ) -> ui::View<GuiMessage> {
-    if active {
-        ui::close_button()
-            .subtle()
-            .message(message)
-            .id(widget_id)
-            .key(key)
-            .size(FILTER_CLEAR_BUTTON_SIZE, FILTER_CLEAR_BUTTON_SIZE)
-    } else {
-        ui::spacer()
-            .width(FILTER_CLEAR_BUTTON_SIZE)
-            .height(FILTER_CLEAR_BUTTON_SIZE)
-    }
+    ui::fixed_slot_if(
+        active,
+        || {
+            ui::close_button()
+                .subtle()
+                .message(message)
+                .id(widget_id)
+                .key(key)
+        },
+        FILTER_CLEAR_BUTTON_SIZE,
+        FILTER_CLEAR_BUTTON_SIZE,
+    )
 }
 
 fn empty_filter_message() -> TextInputMessage {
