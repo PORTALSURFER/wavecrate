@@ -408,7 +408,7 @@ impl FolderBrowserState {
         let prepared_window = self.sample_list.prepared_window;
         let mut window_files =
             self.selected_audio_file_window_matching_tags(prepared_window, query.tags_by_file);
-        let mut window = reconcile_visible_sample_window(prepared_window, window_files.total_count);
+        let mut window = prepared_window.reconcile_total_items(window_files.total_count);
         if window != prepared_window {
             window_files =
                 self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
@@ -421,7 +421,7 @@ impl FolderBrowserState {
         if !window_files_complete(window, &window_files) {
             window_files =
                 self.uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
-            let repaired_window = reconcile_visible_sample_window(window, window_files.total_count);
+            let repaired_window = window.reconcile_total_items(window_files.total_count);
             if repaired_window != window {
                 window = repaired_window;
                 window_files = self
@@ -518,40 +518,6 @@ fn window_files_complete(
     window_files.rows.len() == window.window_len()
 }
 
-fn reconcile_visible_sample_window(
-    window: ui::VirtualListWindow,
-    total_count: usize,
-) -> ui::VirtualListWindow {
-    if window_is_valid_for_total(window, total_count) {
-        return window;
-    }
-
-    let viewport_len = window.viewport_len().max(1);
-    let overscan = window
-        .viewport_start
-        .saturating_sub(window.window_start)
-        .max(window.window_end.saturating_sub(window.viewport_end));
-
-    ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
-        total_items: total_count,
-        viewport_len,
-        requested_start: window.viewport_start,
-        overscan,
-        focused_index: None,
-        previous_start: None,
-        guard_band: 0,
-    })
-}
-
-fn window_is_valid_for_total(window: ui::VirtualListWindow, total_count: usize) -> bool {
-    window.total_items == total_count
-        && window.viewport_start <= window.viewport_end
-        && window.window_start <= window.window_end
-        && window.window_start <= window.viewport_start
-        && window.viewport_end <= window.window_end
-        && window.window_end <= total_count
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -596,7 +562,7 @@ mod tests {
             window_end: 10_000,
         };
 
-        let reconciled = reconcile_visible_sample_window(stale, 24);
+        let reconciled = stale.reconcile_total_items(24);
 
         assert_eq!(reconciled.total_items, 24);
         assert_eq!(reconciled.viewport_start, 14);
