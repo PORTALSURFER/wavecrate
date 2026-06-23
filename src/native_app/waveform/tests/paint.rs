@@ -767,3 +767,42 @@ fn edit_fade_curve_paints_s_curve_shape_as_polyline() {
     assert!((trailing_mid.x - 110.0).abs() < 0.001);
     assert!((trailing_mid.y - trailing_expected_y).abs() < 0.001);
 }
+
+#[test]
+fn edit_fade_curve_stays_inside_selection_when_outer_mute_extends_handles() {
+    let mut state = WaveformState::synthetic_for_tests();
+    let selection = wavecrate::selection::SelectionRange::new(0.2, 0.6)
+        .with_fade_in(0.25, 0.2)
+        .with_fade_in_mute(0.25)
+        .with_fade_out(0.25, 0.7)
+        .with_fade_out_mute(0.25);
+    state.edit_selection = Some(selection);
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let curves = stroke_polylines(&plan)
+        .into_iter()
+        .filter(|stroke| {
+            (
+                stroke.color.r,
+                stroke.color.g,
+                stroke.color.b,
+                stroke.color.a,
+            ) == (82, 168, 255, 225)
+                && stroke.width == 2.0
+                && stroke.points.len() >= 10
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(curves.len(), 2);
+
+    assert!(curves.iter().any(|stroke| {
+        let points = stroke.points.as_ref();
+        (points[0].x - 40.0).abs() < 0.001
+            && (points.last().expect("last leading fade point").x - 60.0).abs() < 0.001
+    }));
+    assert!(curves.iter().any(|stroke| {
+        let points = stroke.points.as_ref();
+        (points[0].x - 100.0).abs() < 0.001
+            && (points.last().expect("last trailing fade point").x - 120.0).abs() < 0.001
+    }));
+}
