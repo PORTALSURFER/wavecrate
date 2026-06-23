@@ -22,23 +22,24 @@ const COLLECTIONS_RESIZE_HEADER_ID: u64 = widget_ids::COLLECTIONS_RESIZE_HEADER_
 
 pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
     let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
-    ui::column([
-        collections_resize_header(),
-        ui::scroll(
-            ui::column(rows)
-                .spacing(COLLECTION_ROW_SPACING)
-                .fill_width()
-                .height(model.list_height),
+    ui::panel_section_from_header_parts(
+        ui::PanelSectionHeaderParts::new(
+            collections_resize_header(),
+            ui::scroll(
+                ui::column(rows)
+                    .spacing(COLLECTION_ROW_SPACING)
+                    .fill_width()
+                    .height(model.list_height),
+            )
+            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+            .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
+            .fill_width()
+            .fill_height(),
         )
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-        .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
-        .fill_width()
-        .fill_height(),
-    ])
-    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-    .padding(COLLECTIONS_PANEL_PADDING)
-    .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
-    .height(model.panel_height)
+        .padding(COLLECTIONS_PANEL_PADDING)
+        .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
+        .height(model.panel_height),
+    )
     .id(COLLECTIONS_SECTION_NODE_ID)
     .fill_width()
 }

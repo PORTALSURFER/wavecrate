@@ -56,12 +56,13 @@ const FILTER_RESIZE_HEADER_ID: u64 = widget_ids::FILTER_RESIZE_HEADER_ID;
 const FILTER_SECTION_NODE_ID: u64 = widget_ids::FILTER_SECTION_NODE_ID;
 
 pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let panel = ui::column([filter_resize_header(), filter_controls(model)])
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-        .padding(FILTER_PANEL_PADDING)
-        .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING)
-        .height(model.panel_height)
-        .fill_width();
+    let panel = ui::panel_section_from_header_parts(
+        ui::PanelSectionHeaderParts::new(filter_resize_header(), filter_controls(model))
+            .height(model.panel_height)
+            .padding(FILTER_PANEL_PADDING)
+            .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING),
+    )
+    .fill_width();
 
     #[cfg(test)]
     {

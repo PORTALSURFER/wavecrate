@@ -259,12 +259,13 @@ fn metadata_sidebar_panel(
     _tag_count: Option<usize>,
     height: f32,
 ) -> ui::View<GuiMessage> {
-    let panel = ui::column([metadata_resize_header(), content])
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-        .padding(METADATA_PANEL_PADDING)
-        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING)
-        .height(height)
-        .fill_width();
+    let panel = ui::panel_section_from_header_parts(
+        ui::PanelSectionHeaderParts::new(metadata_resize_header(), content)
+            .height(height)
+            .padding(METADATA_PANEL_PADDING)
+            .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING),
+    )
+    .fill_width();
     #[cfg(test)]
     {
         panel.id(METADATA_SIDEBAR_PANEL_ID)
