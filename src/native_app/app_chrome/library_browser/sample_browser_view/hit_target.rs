@@ -64,9 +64,10 @@ pub(super) fn sample_file_hit_target(
     sample_file_hit_target_builder(content, &model)
         .input_key(input_key)
         .actions(actions)
-        .tooltip_opt(model.help_tooltips_enabled.then_some(
+        .tooltip_if(
+            model.help_tooltips_enabled,
             "Sample row: select, double-click to load, drag to copy, right-click for actions.",
-        ))
+        )
 }
 
 fn sample_file_hit_target_builder(

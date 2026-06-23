@@ -153,15 +153,13 @@ fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui::View<GuiM
             model.similarity_controls,
         )
         .fill_width(),
-        random_navigation_button(model.random_navigation_enabled).tooltip_opt(
-            model
-                .help_tooltips_enabled
-                .then_some("Random audition within the selected folder or active filter."),
+        random_navigation_button(model.random_navigation_enabled).tooltip_if(
+            model.help_tooltips_enabled,
+            "Random audition within the selected folder or active filter.",
         ),
-        sample_name_view_mode_button(model.mode).tooltip_opt(
-            model
-                .help_tooltips_enabled
-                .then_some("Switch sample names between disk filenames and metadata labels."),
+        sample_name_view_mode_button(model.mode).tooltip_if(
+            model.help_tooltips_enabled,
+            "Switch sample names between disk filenames and metadata labels.",
         ),
     ])
     .fill_width()

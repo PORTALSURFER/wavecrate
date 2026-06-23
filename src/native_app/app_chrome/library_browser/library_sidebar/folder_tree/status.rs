@@ -19,11 +19,13 @@ pub(super) fn selected_folder_status(
 ) -> ui::View<GuiMessage> {
     ui::row([
         ui::text(label).height(20.0).fill_width(),
-        include_subfolders_button(include_subfolders_available, include_subfolders).tooltip_opt(
-            help_tooltips_enabled.then_some("Include samples from subfolders in the sample list."),
+        include_subfolders_button(include_subfolders_available, include_subfolders).tooltip_if(
+            help_tooltips_enabled,
+            "Include samples from subfolders in the sample list.",
         ),
-        show_empty_folders_button(show_empty_folders).tooltip_opt(
-            help_tooltips_enabled.then_some("Show folders that contain no audio files."),
+        show_empty_folders_button(show_empty_folders).tooltip_if(
+            help_tooltips_enabled,
+            "Show folders that contain no audio files.",
         ),
     ])
     .spacing(4.0)

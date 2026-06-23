@@ -35,23 +35,27 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             true,
             false,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some("Focus the loaded sample in the browser.")),
+        .tooltip_if(
+            model.help_tooltips_enabled,
+            "Focus the loaded sample in the browser.",
+        ),
         toolbar_icon_button(
             TOOLBAR_LOOP_ID,
             ToolbarIcon::Loop,
             true,
             model.loop_playback,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some("Loop preview playback.")),
+        .tooltip_if(model.help_tooltips_enabled, "Loop preview playback."),
         toolbar_icon_button(
             TOOLBAR_RANDOM_ID,
             ToolbarIcon::Random,
             model.random_available,
             model.sticky_random_sample_range_playback,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some(
+        .tooltip_if(
+            model.help_tooltips_enabled,
             "Random section playback\nClick: play a random section now.\nShift-click: pick a random listed sample first.\nCommand-click: make Space use random sections.",
-        )),
+        ),
         toolbar_icon_button_with_icon_state(
             TOOLBAR_SIMILAR_SECTIONS_ID,
             ToolbarIcon::SimilarSections,
@@ -59,25 +63,27 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             model.similar_sections_available || model.similar_sections_enabled,
             model.similar_sections_enabled,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some(
+        .tooltip_if(
+            model.help_tooltips_enabled,
             "Mark sections similar to the playmark selection.\nSet a playmark first, then toggle this to scan the loaded sample.",
-        )),
+        ),
         toolbar_icon_button(
             TOOLBAR_BEAT_GUIDES_ID,
             ToolbarIcon::BeatGuides,
             true,
             model.beat_guides_enabled,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some(
+        .tooltip_if(
+            model.help_tooltips_enabled,
             "Show beat guide lines inside the play selection.",
-        )),
+        ),
         toolbar_icon_button(
             TOOLBAR_BEAT_GUIDE_DECREMENT_ID,
             ToolbarIcon::BeatGuideMinus,
             model.can_decrement_beat_guide_count,
             false,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some("Use fewer beat divisions.")),
+        .tooltip_if(model.help_tooltips_enabled, "Use fewer beat divisions."),
         beat_guide_count_label(model.beat_guide_count),
         toolbar_icon_button(
             TOOLBAR_BEAT_GUIDE_INCREMENT_ID,
@@ -85,28 +91,19 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             model.can_increment_beat_guide_count,
             false,
         )
-        .tooltip_opt(model.help_tooltips_enabled.then_some("Use more beat divisions.")),
+        .tooltip_if(model.help_tooltips_enabled, "Use more beat divisions."),
     ];
     if model.pending_edit_mark_edits {
-        controls.push(
-            apply_edit_mark_edits_button().tooltip_opt(
-                model
-                    .help_tooltips_enabled
-                    .then_some("Apply edit mark gain and fade edits."),
-            ),
-        );
+        controls.push(apply_edit_mark_edits_button().tooltip_if(
+            model.help_tooltips_enabled,
+            "Apply edit mark gain and fade edits.",
+        ));
     }
     controls.extend([
-        toolbar_icon_button(TOOLBAR_PLAY_ID, ToolbarIcon::Play, true, model.playing).tooltip_opt(
-            model
-                .help_tooltips_enabled
-                .then_some("Play the selected sample."),
-        ),
-        toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, true, false).tooltip_opt(
-            model
-                .help_tooltips_enabled
-                .then_some("Stop preview playback."),
-        ),
+        toolbar_icon_button(TOOLBAR_PLAY_ID, ToolbarIcon::Play, true, model.playing)
+            .tooltip_if(model.help_tooltips_enabled, "Play the selected sample."),
+        toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, true, false)
+            .tooltip_if(model.help_tooltips_enabled, "Stop preview playback."),
     ]);
 
     ui::row(controls)

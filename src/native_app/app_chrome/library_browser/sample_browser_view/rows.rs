@@ -166,9 +166,9 @@ fn similarity_anchor_toggle(
         ))
         .key(format!("sample-similarity-anchor-{file_id}"))
         .size(SIMILARITY_TOGGLE_WIDTH, SIMILARITY_TOGGLE_SIZE);
-    button.tooltip_opt(
-        help_tooltips_enabled
-            .then_some("Similarity anchor: compare nearby samples against this one."),
+    button.tooltip_if(
+        help_tooltips_enabled,
+        "Similarity anchor: compare nearby samples against this one.",
     )
 }
 
