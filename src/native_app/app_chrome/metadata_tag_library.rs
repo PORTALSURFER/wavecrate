@@ -39,22 +39,15 @@ pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessag
             )
         })
         .collect::<Vec<_>>();
-    ui::panel_section_from_parts(
+    ui::closeable_panel_section_from_parts(
         ui::PanelSectionParts::new(
             "Tag Editor",
             ui::scroll(ui::column(groups).spacing(3.0).fill_width())
                 .fill_width()
                 .fill_height(),
         )
-        .trailing(
-            ui::close_button()
-                .message(GuiMessage::Metadata(
-                    MetadataMessage::ToggleMetadataTagLibrary,
-                ))
-                .key("metadata-tag-library-close")
-                .size(22.0, 20.0),
-        )
         .title_height(24.0),
+        GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagLibrary),
     )
     .key("metadata-tag-library-panel")
     .width(220.0)
