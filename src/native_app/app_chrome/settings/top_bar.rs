@@ -37,19 +37,20 @@ struct ControlSize {
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let model = TopControlBarModel::from_app_state(state);
-    ui::row([
-        volume_slider(model.volume).tooltip_if(
+    ui::toolbar_from_parts(
+        ui::ToolbarParts::new([volume_slider(model.volume).tooltip_if(
             model.help_tooltips_enabled,
             "Preview volume for sample audition playback.",
-        ),
-        ui::spacer().fill_width().height(20.0),
-        settings_controls(model.settings_controls, model.help_tooltips_enabled),
-    ])
-    .spacing(8.0)
-    .padding_x(12.0)
-    .padding_y(4.0)
-    .fill_width()
-    .height(30.0)
+        )])
+        .trailing(settings_controls(
+            model.settings_controls,
+            model.help_tooltips_enabled,
+        ))
+        .spacing(8.0)
+        .padding_x(12.0)
+        .padding_y(4.0)
+        .height(30.0),
+    )
 }
 
 struct TopControlBarModel {

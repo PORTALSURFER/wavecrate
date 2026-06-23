@@ -28,7 +28,6 @@ pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RAN
 
 pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
     let mut controls = vec![
-        ui::spacer().fill_width().height(24.0),
         toolbar_icon_button(
             TOOLBAR_FOCUS_LOADED_ID,
             ToolbarIcon::FocusLoaded,
@@ -106,11 +105,7 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
             .tooltip_if(model.help_tooltips_enabled, "Stop preview playback."),
     ]);
 
-    ui::row(controls)
-        .padding_y(3.0)
-        .spacing(4.0)
-        .fill_width()
-        .height(34.0)
+    ui::toolbar_from_parts(ui::ToolbarParts::new(controls).alignment(ui::ToolbarAlignment::End))
 }
 
 fn beat_guide_count_label(count: u8) -> ui::View<GuiMessage> {
