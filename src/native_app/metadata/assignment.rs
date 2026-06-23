@@ -28,6 +28,7 @@ impl NativeAppState {
         self.add_metadata_tags_to_targets(tags, targets, context);
     }
 
+    #[cfg(test)]
     fn add_metadata_tags_to_file_ids(
         &mut self,
         tags: Vec<String>,
@@ -131,7 +132,6 @@ impl NativeAppState {
         }
     }
 
-    #[cfg(test)]
     pub(in crate::native_app) fn toggle_metadata_tag(
         &mut self,
         tag: String,
@@ -144,6 +144,7 @@ impl NativeAppState {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn toggle_metadata_tag_for_file_ids(
         &mut self,
         tag: String,
@@ -181,6 +182,7 @@ impl NativeAppState {
         self.remove_metadata_tag_from_targets(tag, targets, context);
     }
 
+    #[cfg(test)]
     fn remove_metadata_tag_from_file_ids(
         &mut self,
         tag: String,

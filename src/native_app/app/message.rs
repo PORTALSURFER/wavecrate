@@ -303,8 +303,8 @@ pub(in crate::native_app) enum MetadataMessage {
     ToggleMetadataTagLibrary,
     ToggleMetadataTagCategory(String),
     SelectMetadataTag(String),
-    #[cfg(test)]
     ToggleMetadataTag(String),
+    #[cfg(test)]
     ToggleMetadataTagForFiles {
         tag: String,
         file_ids: Vec<String>,

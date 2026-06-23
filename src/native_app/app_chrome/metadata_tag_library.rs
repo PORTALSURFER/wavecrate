@@ -17,27 +17,16 @@ struct TagRowContext<'a> {
     drag_active: bool,
     drag_source: bool,
     active_drop_target: bool,
-    target_file_ids: &'a [String],
 }
 
 pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessage> {
     let drag_active = state.metadata_tag_drag_active();
     let drop_hover = state.metadata_tag_drop_hover();
     let dragged_tag = state.dragged_metadata_tag();
-    let target_file_ids = state.selected_metadata_file_ids();
     let groups = state
         .categorized_metadata_tags()
         .into_iter()
-        .map(|group| {
-            category_group(
-                state,
-                group,
-                drag_active,
-                drop_hover,
-                dragged_tag,
-                &target_file_ids,
-            )
-        })
+        .map(|group| category_group(state, group, drag_active, drop_hover, dragged_tag))
         .collect::<Vec<_>>();
     ui::closeable_panel_section_from_parts(
         ui::PanelSectionParts::new(
@@ -60,7 +49,6 @@ fn category_group(
     drag_active: bool,
     drop_hover: Option<&str>,
     dragged_tag: Option<&str>,
-    target_file_ids: &[String],
 ) -> ui::View<GuiMessage> {
     let count_label = if group.tags.is_empty() {
         String::new()
@@ -112,7 +100,6 @@ fn category_group(
                         drag_active,
                         drag_source,
                         active_drop_target: category_hovered,
-                        target_file_ids,
                     },
                 )
             });
@@ -188,8 +175,8 @@ fn hover_metadata_tag_drop_category(category_id: String, _: ui::Point) -> GuiMes
     GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory { category_id })
 }
 
-fn toggle_metadata_tag_for_files((tag, file_ids): (String, Vec<String>)) -> GuiMessage {
-    GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagForFiles { tag, file_ids })
+fn toggle_metadata_tag(tag: String) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(tag))
 }
 
 fn toggle_metadata_tag_category(category_id: String) -> GuiMessage {
@@ -200,7 +187,6 @@ fn tag_row(tag: String, context: TagRowContext<'_>) -> ui::View<GuiMessage> {
     let style = metadata_tag_pill_selection_style(context.category_id, context.selection_state);
     let width = metadata_tag_pill_width(&tag);
     let tag_for_input = tag.clone();
-    let target_key = (tag.clone(), context.target_file_ids.to_vec());
     let category_for_input = context.category_id.to_string();
     let mut badge = ui::interactive_badge(tag.clone())
         .style(style)
@@ -221,7 +207,7 @@ fn tag_row(tag: String, context: TagRowContext<'_>) -> ui::View<GuiMessage> {
                     drop_metadata_tag_on_category,
                     hover_metadata_tag_drop_category,
                 )
-                .primary_key(target_key, toggle_metadata_tag_for_files),
+                .primary_key(tag_for_input, toggle_metadata_tag),
         )
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)

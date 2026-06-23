@@ -165,6 +165,45 @@ fn tag_library_toggle_uses_rendered_selection_when_navigation_moves_on() {
 }
 
 #[test]
+fn tag_library_toggle_uses_current_selection_after_fast_navigation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    for file in [&first, &second] {
+        fs::write(file, []).expect("sample");
+    }
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state.library.folder_browser.select_file(first_id.clone());
+    state.apply_message(
+        toggle_metadata_tag_library(),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    state.library.folder_browser.navigate_vertical(1, false);
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str())
+    );
+
+    state.apply_message(
+        toggle_metadata_tag(String::from("bass")),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata.tags_by_file.get(&first_id), None);
+    assert_eq!(
+        state.metadata.tags_by_file.get(&second_id),
+        Some(&vec![String::from("bass")])
+    );
+    assert_eq!(state.ui.status.sample, "Added tag bass");
+}
+
+#[test]
 fn default_gui_tag_library_button_removes_selected_tag() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("tag-target.wav");
