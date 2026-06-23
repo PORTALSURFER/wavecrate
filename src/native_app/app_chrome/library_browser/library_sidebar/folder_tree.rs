@@ -109,7 +109,6 @@ fn folder_row(folder: &VisibleFolder, drag_revision: u64) -> ui::View<GuiMessage
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
                 })
                 .id(input_id)
-                .key(format!("folder-rename-input-{id}"))
                 .fill_width()
                 .height(22.0),
         ])

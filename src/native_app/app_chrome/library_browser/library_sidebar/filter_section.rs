@@ -180,7 +180,6 @@ fn playback_type_filter_toggle(toggle: &PlaybackTypeFilterToggleViewModel) -> ui
             ))
         })
         .id(playback_type_filter_toggle_id(toggle.label))
-        .key(format!("filter-type-toggle-{}", toggle.label))
         .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
 }
 
@@ -221,7 +220,6 @@ fn rating_filter_toggle(toggle: &RatingFilterToggleViewModel) -> ui::View<GuiMes
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
         .id(rating_filter_toggle_id(toggle.label))
-        .key(format!("filter-rating-toggle-{}", toggle.label))
         .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE);
     let swatch = ui::color_marker(Some(rating_filter_swatch_color(level, toggle.active)))
         .side(RATING_FILTER_SWATCH_SIZE)

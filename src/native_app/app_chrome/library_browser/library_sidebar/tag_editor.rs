@@ -178,7 +178,6 @@ fn tag_text_input(
     input
         .message_event(|message| GuiMessage::Metadata(MetadataMessage::MetadataTagInput(message)))
         .id(METADATA_TAG_INPUT_ID)
-        .key("metadata-tag-input")
         .size(width, TAG_FIELD_CONTROL_HEIGHT)
 }
 

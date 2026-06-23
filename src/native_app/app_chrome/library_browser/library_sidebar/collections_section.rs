@@ -70,10 +70,6 @@ fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessage> {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
                 })
                 .id(rename.input_id)
-                .key(format!(
-                    "collection-rename-input-{}",
-                    collection.collection.index()
-                ))
                 .fill_width()
                 .height(COLLECTION_ROW_HEIGHT),
         ])

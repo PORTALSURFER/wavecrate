@@ -172,7 +172,6 @@ fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
         .active(active)
         .message(GuiMessage::ToggleRandomNavigationMode)
         .id(widget_ids::SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
-        .key("sample-random-navigation-toggle")
         .size(28.0, 22.0)
 }
 
@@ -330,7 +329,6 @@ fn sample_similarity_controls_bar(controls: &SimilarityAspectSettings) -> ui::Vi
             .subtle()
             .message(GuiMessage::SetSimilarityAspectWeightingEnabled)
             .id(widget_ids::SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID)
-            .key("sample-similarity-weighting-toggle")
             .size(70.0, 20.0),
     );
     for aspect in SimilarityAspect::ORDER {

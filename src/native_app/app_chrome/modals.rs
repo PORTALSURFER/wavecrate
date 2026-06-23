@@ -47,7 +47,6 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
         ),
         GuiMessage::CloseTransactionList,
     )
-    .key("transaction-list-modal")
     .id(TRANSACTION_LIST_MODAL_ID)
 }
 

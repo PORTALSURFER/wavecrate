@@ -42,7 +42,6 @@ fn include_subfolders_button(available: bool, active: bool) -> ui::View<GuiMessa
             FolderBrowserMessage::ToggleFolderSubtreeListing,
         ))
         .id(widget_ids::FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID)
-        .key("folder-tree-include-subfolders-toggle")
         .size(24.0, 20.0)
 }
 
@@ -53,7 +52,6 @@ fn show_empty_folders_button(active: bool) -> ui::View<GuiMessage> {
             FolderBrowserMessage::ToggleEmptyFolderVisibility,
         ))
         .id(widget_ids::FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID)
-        .key("folder-tree-show-empty-folders-toggle")
         .size(24.0, 20.0)
 }
 

@@ -35,7 +35,6 @@ fn source_add_button() -> ui::View<GuiMessage> {
     ui::icon_button(source_add_icon())
         .message(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
         .id(SOURCE_ADD_BUTTON_ID)
-        .key("source-add-button")
         .size(SOURCE_ADD_BUTTON_WIDTH, SOURCE_ADD_BUTTON_HEIGHT)
 }
 

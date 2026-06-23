@@ -114,7 +114,6 @@ fn help_tooltips_button(active: bool) -> ui::View<GuiMessage> {
         .active(active)
         .message(GuiMessage::Settings(SettingsMessage::ToggleHelpTooltips))
         .id(HELP_TOOLTIPS_BUTTON_ID)
-        .key("top-help-tooltips-button")
         .size(
             HELP_TOOLTIPS_BUTTON_SIZE.width,
             HELP_TOOLTIPS_BUTTON_SIZE.height,
@@ -128,7 +127,6 @@ fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
         .active(model.active)
         .message(GuiMessage::Settings(SettingsMessage::ToggleAudioSettings))
         .id(AUDIO_ENGINE_PILL_ID)
-        .key("top-audio-engine-pill")
         .size(AUDIO_ENGINE_PILL_SIZE.width, AUDIO_ENGINE_PILL_SIZE.height)
 }
 
@@ -137,7 +135,6 @@ fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
         .active(active)
         .message(GuiMessage::Settings(SettingsMessage::OpenGeneralSettings))
         .id(GENERAL_SETTINGS_BUTTON_ID)
-        .key("top-general-settings-button")
         .size(
             GENERAL_SETTINGS_BUTTON_SIZE.width,
             GENERAL_SETTINGS_BUTTON_SIZE.height,
@@ -150,7 +147,6 @@ pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> 
         .paint_focus(false)
         .message(|volume| GuiMessage::Settings(SettingsMessage::SetVolume(volume)))
         .id(VOLUME_SLIDER_ID)
-        .key("top-volume-slider")
         .size(VOLUME_SLIDER_SIZE.width, VOLUME_SLIDER_SIZE.height)
 }
 

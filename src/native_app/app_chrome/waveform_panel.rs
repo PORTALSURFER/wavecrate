@@ -114,7 +114,6 @@ fn loaded_sample_drag_handle() -> ui::View<GuiMessage> {
             .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT),
         ui::drag_handle()
             .mapped(|drag| GuiMessage::Waveform(WaveformInteraction::DragLoadedSample(drag)))
-            .key("waveform-loaded-sample-drag-handle")
             .id(widget_ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
             .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
             .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT)

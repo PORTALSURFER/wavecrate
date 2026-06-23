@@ -121,7 +121,6 @@ fn apply_edit_mark_edits_button() -> ui::View<GuiMessage> {
         .style(ui::WidgetStyle::strong(ui::WidgetTone::Accent))
         .message(GuiMessage::RequestApplyEditSelectionEffects)
         .id(TOOLBAR_APPLY_EDIT_MARK_EDITS_ID)
-        .key("toolbar-apply-edit-mark-edits")
         .size(58.0, 24.0)
 }
 

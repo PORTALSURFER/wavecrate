@@ -126,9 +126,7 @@ fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
         SampleColumnContent::Text { value, cached } => {
             sample_file_cell(value, column.width, column.file_id, column.id, cached)
         }
-        SampleColumnContent::Rename(rename) => {
-            sample_rename_cell(rename, column.width, column.file_id)
-        }
+        SampleColumnContent::Rename(rename) => sample_rename_cell(rename, column.width),
         SampleColumnContent::Rating(indicator) => {
             sample_rating_cell(indicator, column.width, column.file_id)
         }
@@ -190,15 +188,14 @@ fn sample_playback_type_cell(
     ui::compact_details_cell(text, Some(width))
 }
 
-fn sample_rename_cell(rename: FileRenameView, width: f32, file_id: &str) -> ui::View<GuiMessage> {
+fn sample_rename_cell(rename: FileRenameView, width: f32) -> ui::View<GuiMessage> {
     ui::compact_details_cell(
         ui::text_input(rename.draft)
             .selection(rename.selection_start, rename.selection_end)
             .message_event(|message| {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
             })
-            .id(rename.input_id)
-            .key(format!("sample-rename-input-{file_id}")),
+            .id(rename.input_id),
         Some(width),
     )
 }
