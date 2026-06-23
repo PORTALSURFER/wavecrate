@@ -160,6 +160,62 @@ fn loaded_waveform_sample_drag_moves_file_to_hovered_folder() {
 }
 
 #[test]
+fn loaded_waveform_sample_drag_reports_missing_file_from_move_worker() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let source = drums.join("missing-loaded-drag.wav");
+    write_test_wav_i16(&source, &[0, 256, -256, 512]);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(source.clone())
+            .expect("load waveform");
+    fs::remove_file(&source).expect("remove loaded sample before drag");
+    let mut context = ui::UiUpdateContext::default();
+
+    assert!(state.drag_loaded_waveform_sample(
+        DragHandleMessage::started(Point::new(20.0, 12.0)),
+        &mut context,
+    ));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::HoverDropTarget(
+            loops.display().to_string(),
+            Point::new(40.0, 12.0),
+        ));
+    assert!(state.drag_loaded_waveform_sample(
+        DragHandleMessage::ended(Point::new(40.0, 12.0)),
+        &mut context,
+    ));
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(!state.library.folder_browser.drag_active());
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Sample move failed: missing-loaded-drag.wav is missing"),
+        "{}",
+        state.ui.status.sample
+    );
+}
+
+#[test]
 fn waveform_selection_drag_extracts_only_after_sample_list_drop() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("sample-list-drop.wav");

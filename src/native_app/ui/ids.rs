@@ -80,8 +80,6 @@ pub(in crate::native_app) const FILTER_SECTION_NODE_ID: u64 = FOLDER_FILTERS.id(
 pub(in crate::native_app) const NAME_FILTER_INPUT_ID: u64 = FOLDER_FILTERS.id(2);
 pub(in crate::native_app) const TAG_FILTER_INPUT_ID: u64 = FOLDER_FILTERS.id(3);
 pub(in crate::native_app) const FILTER_SECTION_SCROLL_NODE_ID: u64 = FOLDER_FILTERS.id(4);
-pub(in crate::native_app) const NAME_FILTER_CLEAR_BUTTON_ID: u64 = FOLDER_FILTERS.id(5);
-pub(in crate::native_app) const TAG_FILTER_CLEAR_BUTTON_ID: u64 = FOLDER_FILTERS.id(6);
 pub(in crate::native_app) const FILTER_RESIZE_HEADER_ID: u64 = FOLDER_FILTERS.id(7);
 pub(in crate::native_app) const RATING_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(20);
 pub(in crate::native_app) const PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(21);
@@ -278,16 +276,6 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         FolderFilters,
         FILTER_SECTION_SCROLL_NODE_ID,
         "folder_filters.scroll"
-    ),
-    registered_widget_id!(
-        FolderFilters,
-        NAME_FILTER_CLEAR_BUTTON_ID,
-        "folder_filters.name_clear_button"
-    ),
-    registered_widget_id!(
-        FolderFilters,
-        TAG_FILTER_CLEAR_BUTTON_ID,
-        "folder_filters.tag_clear_button"
     ),
     registered_widget_id!(
         FolderFilters,

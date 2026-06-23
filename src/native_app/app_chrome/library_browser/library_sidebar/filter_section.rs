@@ -20,7 +20,6 @@ const FILTER_ROW_HEIGHT: f32 = 24.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 const FILTER_LABEL_WIDTH: f32 = 38.0;
 const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
-const FILTER_INPUT_CLEAR_SPACING: f32 = 4.0;
 const FILTER_ROW_SPACING: f32 = 1.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
@@ -48,12 +47,20 @@ const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 const PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 = widget_ids::PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE;
 const RATING_FILTER_TOGGLE_SCOPE: u64 = widget_ids::RATING_FILTER_TOGGLE_SCOPE;
 const FILTER_SECTION_SCROLL_NODE_ID: u64 = widget_ids::FILTER_SECTION_SCROLL_NODE_ID;
-const NAME_FILTER_CLEAR_BUTTON_ID: u64 = widget_ids::NAME_FILTER_CLEAR_BUTTON_ID;
-const TAG_FILTER_CLEAR_BUTTON_ID: u64 = widget_ids::TAG_FILTER_CLEAR_BUTTON_ID;
 const FILTER_RESIZE_HEADER_ID: u64 = widget_ids::FILTER_RESIZE_HEADER_ID;
 
 #[cfg(test)]
 const FILTER_SECTION_NODE_ID: u64 = widget_ids::FILTER_SECTION_NODE_ID;
+
+#[cfg(test)]
+fn name_filter_clear_button_id() -> u64 {
+    ui::text_input_clear_button_id(NAME_FILTER_INPUT_ID)
+}
+
+#[cfg(test)]
+fn tag_filter_clear_button_id() -> u64 {
+    ui::text_input_clear_button_id(TAG_FILTER_INPUT_ID)
+}
 
 pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_header_parts(
@@ -109,21 +116,10 @@ fn name_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     filter_input_row(
         "Name",
         "filter-name-label",
-        ui::text_input(model.name_filter.clone())
-            .placeholder("Any")
-            .message_event(|message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::NameFilterInput(message))
-            })
-            .id(NAME_FILTER_INPUT_ID)
-            .key("filter-name-input")
-            .fill_width(),
-        filter_clear_slot(
-            !model.name_filter.is_empty(),
-            NAME_FILTER_CLEAR_BUTTON_ID,
-            "filter-name-clear-button",
-            GuiMessage::FolderBrowser(
-                FolderBrowserMessage::NameFilterInput(empty_filter_message()),
-            ),
+        filter_text_input(
+            model.name_filter.clone(),
+            NAME_FILTER_INPUT_ID,
+            FolderBrowserMessage::NameFilterInput,
         ),
         "filter-name-row",
     )
@@ -133,22 +129,27 @@ fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     filter_input_row(
         "Tags",
         "filter-tags-label",
-        ui::text_input(model.tag_filter.clone())
-            .placeholder("Any")
-            .message_event(|message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::TagFilterInput(message))
-            })
-            .id(TAG_FILTER_INPUT_ID)
-            .key("filter-tags-input")
-            .fill_width(),
-        filter_clear_slot(
-            !model.tag_filter.is_empty(),
-            TAG_FILTER_CLEAR_BUTTON_ID,
-            "filter-tags-clear-button",
-            GuiMessage::FolderBrowser(FolderBrowserMessage::TagFilterInput(empty_filter_message())),
+        filter_text_input(
+            model.tag_filter.clone(),
+            TAG_FILTER_INPUT_ID,
+            FolderBrowserMessage::TagFilterInput,
         ),
         "filter-tags-row",
     )
+}
+
+fn filter_text_input(
+    value: String,
+    input_id: u64,
+    map_message: fn(TextInputMessage) -> FolderBrowserMessage,
+) -> ui::View<GuiMessage> {
+    ui::text_input(value)
+        .placeholder("Any")
+        .clear_button(GuiMessage::FolderBrowser(map_message(
+            empty_filter_message(),
+        )))
+        .id(input_id)
+        .message_event(move |message| GuiMessage::FolderBrowser(map_message(message)))
 }
 
 fn playback_type_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
@@ -266,15 +267,10 @@ fn rating_filter_toggle_id(label: &str) -> u64 {
 fn filter_input_row(
     label: &'static str,
     label_key: &'static str,
-    input: ui::View<GuiMessage>,
-    clear_slot: ui::View<GuiMessage>,
+    control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
     let label = ui::text_line(label, FILTER_CLEAR_BUTTON_SIZE).key(label_key);
-    let control = ui::row([input, clear_slot])
-        .spacing(FILTER_INPUT_CLEAR_SPACING)
-        .fill_width()
-        .height(FILTER_CLEAR_BUTTON_SIZE);
     filter_labeled_control_row(label, control, key)
 }
 
@@ -296,26 +292,6 @@ fn filter_labeled_control_row(
     .key(key)
     .fill_width()
     .height(FILTER_ROW_HEIGHT)
-}
-
-fn filter_clear_slot(
-    active: bool,
-    widget_id: u64,
-    key: &'static str,
-    message: GuiMessage,
-) -> ui::View<GuiMessage> {
-    ui::fixed_slot_if(
-        active,
-        || {
-            ui::close_button()
-                .subtle()
-                .message(message)
-                .id(widget_id)
-                .key(key)
-        },
-        FILTER_CLEAR_BUTTON_SIZE,
-        FILTER_CLEAR_BUTTON_SIZE,
-    )
 }
 
 fn empty_filter_message() -> TextInputMessage {
@@ -473,18 +449,18 @@ mod tests {
         assert_eq!(
             frame
                 .paint_plan
-                .first_widget_rect(NAME_FILTER_CLEAR_BUTTON_ID),
+                .first_widget_rect(name_filter_clear_button_id()),
             None
         );
         assert_eq!(
             frame
                 .paint_plan
-                .first_widget_rect(TAG_FILTER_CLEAR_BUTTON_ID),
+                .first_widget_rect(tag_filter_clear_button_id()),
             None
         );
         assert_eq!(
             filter_section(&model).view_dispatch_widget_output(
-                NAME_FILTER_CLEAR_BUTTON_ID,
+                name_filter_clear_button_id(),
                 ui::WidgetOutput::typed(ButtonMessage::Activate),
             ),
             None
@@ -507,18 +483,18 @@ mod tests {
         assert!(
             frame
                 .paint_plan
-                .first_widget_rect(NAME_FILTER_CLEAR_BUTTON_ID)
+                .first_widget_rect(name_filter_clear_button_id())
                 .is_some()
         );
         assert_eq!(
             frame
                 .paint_plan
-                .first_widget_rect(TAG_FILTER_CLEAR_BUTTON_ID),
+                .first_widget_rect(tag_filter_clear_button_id()),
             None
         );
         assert_eq!(
             filter_section(&model).view_dispatch_widget_output(
-                NAME_FILTER_CLEAR_BUTTON_ID,
+                name_filter_clear_button_id(),
                 ui::WidgetOutput::typed(ButtonMessage::Activate),
             ),
             Some(GuiMessage::FolderBrowser(
@@ -543,18 +519,18 @@ mod tests {
         assert_eq!(
             frame
                 .paint_plan
-                .first_widget_rect(NAME_FILTER_CLEAR_BUTTON_ID),
+                .first_widget_rect(name_filter_clear_button_id()),
             None
         );
         assert!(
             frame
                 .paint_plan
-                .first_widget_rect(TAG_FILTER_CLEAR_BUTTON_ID)
+                .first_widget_rect(tag_filter_clear_button_id())
                 .is_some()
         );
         assert_eq!(
             filter_section(&model).view_dispatch_widget_output(
-                TAG_FILTER_CLEAR_BUTTON_ID,
+                tag_filter_clear_button_id(),
                 ui::WidgetOutput::typed(ButtonMessage::Activate),
             ),
             Some(GuiMessage::FolderBrowser(

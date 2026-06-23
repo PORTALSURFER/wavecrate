@@ -63,22 +63,6 @@ impl NativeAppState {
             return false;
         }
         let path = self.waveform.current.path();
-        if !path.is_file() {
-            let error = format!(
-                "Loaded sample is missing: {}",
-                sample_path_label(path.as_path())
-            );
-            self.ui.status.sample = error.clone();
-            emit_gui_action(
-                "waveform.loaded_sample_drag.start",
-                Some("waveform"),
-                None,
-                "missing",
-                started_at,
-                Some(&error),
-            );
-            return false;
-        }
         if let Some(error) = self
             .library
             .folder_browser
