@@ -357,7 +357,6 @@ fn sample_similarity_aspect_control(
                 SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
                 aspect_key,
             ))
-            .key(format!("sample-similarity-aspect-toggle-{aspect_key}"))
             .size(34.0, 20.0),
         ui::slider(control.weight)
             .compact()
@@ -367,7 +366,6 @@ fn sample_similarity_aspect_control(
                 SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
                 aspect_key,
             ))
-            .key(format!("sample-similarity-aspect-weight-{aspect_key}"))
             .size(62.0, 16.0),
     ])
     .spacing(3.0)
