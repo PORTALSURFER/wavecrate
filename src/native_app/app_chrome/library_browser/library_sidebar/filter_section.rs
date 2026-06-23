@@ -18,7 +18,6 @@ const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SP
 const FILTER_ROW_HEIGHT: f32 = 24.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 const FILTER_LABEL_WIDTH: f32 = 38.0;
-const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
 const FILTER_ROW_SPACING: f32 = 1.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
@@ -277,14 +276,7 @@ fn filter_labeled_control_row(
     key: &'static str,
 ) -> ui::View<GuiMessage> {
     ui::form_row_from_parts(
-        ui::FormRowParts::new(key, label, control)
-            .height(FILTER_ROW_HEIGHT)
-            .label_width(FILTER_LABEL_WIDTH)
-            .cell_height(FILTER_CLEAR_BUTTON_SIZE)
-            .padding_x(0.0)
-            .padding_y(0.0)
-            .spacing(FILTER_LABEL_CONTROL_SPACING)
-            .hoverable(false),
+        ui::FormRowParts::dense(key, label, control).label_width(FILTER_LABEL_WIDTH),
     )
     .key(key)
     .fill_width()
