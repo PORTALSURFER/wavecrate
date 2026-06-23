@@ -31,25 +31,8 @@ impl FolderBrowserState {
         change: ui::VirtualListWindowChange,
     ) {
         let viewport_rows = change.window.viewport_len().max(1);
-        let overscan_rows = change
-            .window
-            .viewport_start
-            .saturating_sub(change.window.window_start)
-            .max(
-                change
-                    .window
-                    .window_end
-                    .saturating_sub(change.window.viewport_end),
-            );
         self.tree.runtime_viewport_rows = Some(viewport_rows);
-        self.tree
-            .view_controller
-            .set_total_items(change.window.total_items);
-        self.tree.view_controller.set_viewport_len(viewport_rows);
-        self.tree.view_controller.set_overscan(overscan_rows);
-        self.tree
-            .view_controller
-            .set_viewport_start(change.window.viewport_start);
+        self.tree.view_controller.apply_window_change(change);
     }
 
     pub(in crate::native_app) fn tree_view_window(
@@ -116,8 +99,7 @@ impl FolderBrowserState {
 
         if runtime_viewport_rows.is_some()
             && selected_index.is_some_and(|index| {
-                tree_runtime_viewport_contains_index(
-                    &self.tree.view_controller,
+                self.tree.view_controller.viewport_contains_index(
                     visible_folders.len(),
                     viewport_rows,
                     index,
@@ -153,20 +135,4 @@ impl FolderBrowserState {
                 focus,
             )
     }
-}
-
-fn tree_runtime_viewport_contains_index(
-    controller: &ui::VirtualListController,
-    total_items: usize,
-    viewport_rows: usize,
-    index: usize,
-) -> bool {
-    if total_items == 0 || viewport_rows == 0 || index >= total_items {
-        return false;
-    }
-    let viewport_len = viewport_rows.min(total_items);
-    let max_start = total_items.saturating_sub(viewport_len);
-    let viewport_start = controller.viewport_start().min(max_start);
-    let viewport_end = viewport_start.saturating_add(viewport_len);
-    (viewport_start..viewport_end).contains(&index)
 }
