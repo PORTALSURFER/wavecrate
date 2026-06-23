@@ -85,54 +85,51 @@ pub(in crate::native_app) fn sample_browser(
         .spacing(0.0)
         .style(ui::WidgetStyle::default())
         .fill()
-        .pointer_target_opt(sample_list_browser_drag_cancel_target(
+        .pointer_target_if(
             model.file_drag_active,
-        ))
-        .pointer_target_opt(sample_list_waveform_drop_target(
+            sample_list_browser_drag_cancel_target,
+        )
+        .pointer_target_if(
             model.extracted_file_drag_active,
-        ))
-        .pointer_target_opt(sample_list_clear_folder_drop_target(
+            sample_list_waveform_drop_target,
+        )
+        .pointer_target_if(
             model.hovered_folder_drop_target,
-        ))
+            sample_list_clear_folder_drop_target,
+        )
 }
 
-fn sample_list_browser_drag_cancel_target(active: bool) -> Option<ui::PointerTarget<GuiMessage>> {
-    active.then(|| {
-        ui::pointer_target(true)
-            .pointer_move(false)
-            .pointer_press(false)
-            .wheel(false)
-            .filter_map(|message| match message {
-                ui::PointerShieldMessage::PointerRelease { .. }
-                | ui::PointerShieldMessage::PointerDrop { .. } => {
-                    Some(GuiMessage::CancelBrowserDragOnSampleList)
-                }
-                ui::PointerShieldMessage::PointerMove { .. }
-                | ui::PointerShieldMessage::PointerPress { .. } => {
-                    Some(GuiMessage::CancelBrowserDragOnSampleList)
-                }
-                ui::PointerShieldMessage::Wheel { .. } => None,
-            })
-            .key("sample-list-browser-drag-cancel-target")
-    })
+fn sample_list_browser_drag_cancel_target() -> ui::PointerTarget<GuiMessage> {
+    ui::pointer_target(true)
+        .pointer_move(false)
+        .pointer_press(false)
+        .wheel(false)
+        .filter_map(|message| match message {
+            ui::PointerShieldMessage::PointerRelease { .. }
+            | ui::PointerShieldMessage::PointerDrop { .. } => {
+                Some(GuiMessage::CancelBrowserDragOnSampleList)
+            }
+            ui::PointerShieldMessage::PointerMove { .. }
+            | ui::PointerShieldMessage::PointerPress { .. } => {
+                Some(GuiMessage::CancelBrowserDragOnSampleList)
+            }
+            ui::PointerShieldMessage::Wheel { .. } => None,
+        })
+        .key("sample-list-browser-drag-cancel-target")
 }
 
-fn sample_list_waveform_drop_target(active: bool) -> Option<ui::PointerTarget<GuiMessage>> {
-    active.then(|| {
-        ui::pointer_drop_target(true)
-            .on_drop(GuiMessage::DropWaveformSelectionOnSampleList)
-            .key("sample-list-waveform-drop-target")
-    })
+fn sample_list_waveform_drop_target() -> ui::PointerTarget<GuiMessage> {
+    ui::pointer_drop_target(true)
+        .on_drop(GuiMessage::DropWaveformSelectionOnSampleList)
+        .key("sample-list-waveform-drop-target")
 }
 
-fn sample_list_clear_folder_drop_target(active: bool) -> Option<ui::PointerTarget<GuiMessage>> {
-    active.then(|| {
-        ui::pointer_move_target(true)
-            .on_pointer_move(|position| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
-            })
-            .key("sample-list-clear-folder-drop-target")
-    })
+fn sample_list_clear_folder_drop_target() -> ui::PointerTarget<GuiMessage> {
+    ui::pointer_move_target(true)
+        .on_pointer_move(|position| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+        })
+        .key("sample-list-clear-folder-drop-target")
 }
 
 struct SampleBrowserHeaderBar<'a> {
