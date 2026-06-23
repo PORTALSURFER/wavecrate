@@ -48,15 +48,12 @@ fn primary_click_with_jitter(runtime: &mut NativeRuntimeForTests, point: Point) 
 
 #[test]
 fn sample_browser_frame_paints_column_and_file_text() {
-    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
-        .expect("default state loads");
-    let expected_stem = state
-        .library
-        .folder_browser
-        .selected_audio_files()
-        .first()
-        .map(|file| file.stem.clone())
-        .expect("default assets include an audio sample");
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("column-header.wav");
+    let expected_stem = std::path::Path::new(&selected_file)
+        .file_stem()
+        .expect("temp sample has a file stem")
+        .to_string_lossy();
     prepare_sample_browser_view(&mut state);
     let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
@@ -67,7 +64,9 @@ fn sample_browser_frame_paints_column_and_file_text() {
         "{texts:?}"
     );
     assert!(
-        texts.iter().any(|text| text.starts_with(&expected_stem)),
+        texts
+            .iter()
+            .any(|text| text.starts_with(expected_stem.as_ref())),
         "{texts:?}"
     );
 }
