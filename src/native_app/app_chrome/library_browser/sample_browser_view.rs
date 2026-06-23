@@ -23,8 +23,7 @@ mod row_widgets;
 mod rows;
 use rows::sample_browser_rows;
 
-const SAMPLE_HEADER_SORT_DRAG_SCOPE: u64 = widget_ids::SAMPLE_HEADER_SORT_DRAG_ID;
-const SAMPLE_HEADER_RESIZE_SCOPE: u64 = widget_ids::SAMPLE_HEADER_RESIZE_ID;
+const SAMPLE_HEADER_CELL_SCOPE: u64 = widget_ids::SAMPLE_HEADER_CELL_ID;
 const SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE: u64 =
     widget_ids::SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE;
 const SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE: u64 =
@@ -244,15 +243,10 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     let drag_id = column.id.clone();
     let resize_id = column.id.clone();
     let label = ui::details_sort_label(column.label.as_str(), column.id.as_str(), Some(sort));
-    ui::compact_resizable_details_header_cell_with_ids(
+    ui::compact_resizable_details_header_cell(
         format!("sample-header-{}", column.id),
         label,
         column.width,
-        ui::CompactDetailsHeaderCellIds::from_stable_key(
-            SAMPLE_HEADER_SORT_DRAG_SCOPE,
-            SAMPLE_HEADER_RESIZE_SCOPE,
-            column.id.as_str(),
-        ),
         GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
         move |drag| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::DragFileColumn(drag_id.clone(), drag))
@@ -264,6 +258,10 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
             ))
         },
     )
+    .id(ui::stable_widget_id(
+        SAMPLE_HEADER_CELL_SCOPE,
+        column.id.as_str(),
+    ))
 }
 
 fn sample_header_cells(

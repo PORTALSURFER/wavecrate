@@ -46,8 +46,7 @@ pub(in crate::native_app) const FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID: u64 = 
 pub(in crate::native_app) const FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID: u64 = FOLDER_TREE.id(2);
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
-pub(in crate::native_app) const SAMPLE_HEADER_SORT_DRAG_ID: u64 = SAMPLE_BROWSER_HEADER.id(1);
-pub(in crate::native_app) const SAMPLE_HEADER_RESIZE_ID: u64 = SAMPLE_BROWSER_HEADER.id(2);
+pub(in crate::native_app) const SAMPLE_HEADER_CELL_ID: u64 = SAMPLE_BROWSER_HEADER.id(1);
 pub(in crate::native_app) const SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID: u64 =
     SAMPLE_BROWSER_HEADER.id(3);
 pub(in crate::native_app) const SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID: u64 =
@@ -188,13 +187,8 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     registered_widget_id!(SampleBrowser, SAMPLE_BROWSER_LIST_ID, "sample_browser.list"),
     registered_widget_id!(
         SampleBrowserHeader,
-        SAMPLE_HEADER_SORT_DRAG_ID,
-        "sample_browser.header_sort_drag"
-    ),
-    registered_widget_id!(
-        SampleBrowserHeader,
-        SAMPLE_HEADER_RESIZE_ID,
-        "sample_browser.header_resize"
+        SAMPLE_HEADER_CELL_ID,
+        "sample_browser.header_cell"
     ),
     registered_widget_id!(
         SampleBrowserHeader,

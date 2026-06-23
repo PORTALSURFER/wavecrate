@@ -171,14 +171,16 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
     let state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
     let mut runtime = native_runtime_for_tests(state, Vector2::new(1100.0, 620.0));
-    let rating_header_id = radiant::widgets::stable_widget_id(
-        crate::native_app::ui::ids::SAMPLE_HEADER_SORT_DRAG_ID,
-        "rating",
-    );
-    let size_header_id = radiant::widgets::stable_widget_id(
-        crate::native_app::ui::ids::SAMPLE_HEADER_SORT_DRAG_ID,
-        "size",
-    );
+    let rating_header_id =
+        radiant::prelude::compact_details_header_sort_drag_id(radiant::widgets::stable_widget_id(
+            crate::native_app::ui::ids::SAMPLE_HEADER_CELL_ID,
+            "rating",
+        ));
+    let size_header_id =
+        radiant::prelude::compact_details_header_sort_drag_id(radiant::widgets::stable_widget_id(
+            crate::native_app::ui::ids::SAMPLE_HEADER_CELL_ID,
+            "size",
+        ));
     let rating_rect = *runtime
         .layout()
         .rects
