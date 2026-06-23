@@ -4,9 +4,9 @@ use super::*;
 fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     let (state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("resize-layout.wav");
-    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(1300.0, 620.0));
     let initial_frame = runtime.frame_with_default_theme();
-    let initial_extension_x = first_row_extension_x(&initial_frame);
+    let initial_extension_x = first_row_extension_x(&initial_frame, "resize-layout");
 
     runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::ResizeFileColumn(
@@ -33,7 +33,7 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     assert!(resized_name_width >= 340.0, "{resized_name_width}");
 
     let resized_frame = runtime.frame_with_default_theme();
-    let resized_extension_x = first_row_extension_x(&resized_frame);
+    let resized_extension_x = first_row_extension_x(&resized_frame, "resize-layout");
 
     assert!(
         resized_extension_x >= initial_extension_x + 100.0,
@@ -41,15 +41,24 @@ fn sample_column_resize_updates_rendered_row_layout_without_sorting() {
     );
 }
 
-fn first_row_extension_x(frame: &SurfaceFrame) -> f32 {
+fn first_row_extension_x(frame: &SurfaceFrame, sample_stem: &str) -> f32 {
     let texts = frame
         .paint_plan
         .text_runs()
         .map(|text| (text.text.as_str().to_string(), text.rect))
         .collect::<Vec<_>>();
+    let stem_rect = texts
+        .iter()
+        .find(|(text, _)| text == sample_stem)
+        .map(|(_, rect)| *rect)
+        .unwrap_or_else(|| panic!("first row sample stem should paint: {texts:?}"));
     texts
         .iter()
-        .filter(|(text, rect)| text.as_str() == "wav" && rect.min.y >= 336.0 && rect.min.y < 360.0)
+        .filter(|(text, rect)| {
+            text.as_str() == "wav"
+                && rect.min.y >= stem_rect.min.y - 1.0
+                && rect.min.y <= stem_rect.max.y + 1.0
+        })
         .map(|(_, rect)| rect.min.x)
         .min_by(f32::total_cmp)
         .unwrap_or_else(|| panic!("first row extension should paint: {texts:?}"))
@@ -161,7 +170,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
 fn full_gui_column_drag_marker_uses_header_local_coordinates() {
     let state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
-    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(1100.0, 620.0));
     let rating_header_id = radiant::widgets::stable_widget_id(
         crate::native_app::ui::ids::SAMPLE_HEADER_SORT_DRAG_ID,
         "rating",
