@@ -74,7 +74,6 @@ pub(super) struct SampleListState {
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
     pub(super) prepared_window: ui::VirtualListWindow,
-    pub(super) runtime_viewport_rows: Option<usize>,
     pub(super) content_revision: u64,
     pub(super) missing_collection_files: Vec<FileEntry>,
     pub(super) missing_collection_counts: BTreeMap<u8, usize>,
@@ -97,7 +96,6 @@ impl SampleListState {
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
             prepared_window: ui::VirtualListWindow::default(),
-            runtime_viewport_rows: None,
             content_revision: 0,
             missing_collection_files: Vec::new(),
             missing_collection_counts: BTreeMap::new(),
@@ -111,7 +109,6 @@ impl SampleListState {
         self.view_controller = ui::VirtualListController::default();
         self.follow_selection.clear();
         self.prepared_window = ui::VirtualListWindow::default();
-        self.runtime_viewport_rows = None;
     }
 
     pub(super) fn bump_content_revision(&mut self) {

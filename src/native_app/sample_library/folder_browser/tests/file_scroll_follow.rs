@@ -84,7 +84,7 @@ fn file_scroll_tracking_is_not_overridden_by_unchanged_selection_follow() {
 }
 
 #[test]
-fn file_scroll_tracking_uses_runtime_viewport_rows_after_scrollbar_update() {
+fn file_scroll_tracking_uses_controller_runtime_viewport_after_scrollbar_update() {
     let root = temp_source_root("wavecrate-gui-file-scroll-runtime-viewport");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");

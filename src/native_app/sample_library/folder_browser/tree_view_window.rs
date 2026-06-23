@@ -11,7 +11,6 @@ impl FolderBrowserState {
     pub(super) fn reset_tree_view(&mut self) {
         self.tree.view_controller = ui::VirtualListController::default();
         self.tree.follow_selection.clear();
-        self.tree.runtime_viewport_rows = None;
     }
 
     #[cfg(test)]
@@ -30,8 +29,6 @@ impl FolderBrowserState {
         &mut self,
         change: ui::VirtualListWindowChange,
     ) {
-        let viewport_rows = change.window.viewport_len().max(1);
-        self.tree.runtime_viewport_rows = Some(viewport_rows);
         self.tree.view_controller.apply_window_change(change);
     }
 
@@ -42,7 +39,10 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
-        let viewport_rows = self.tree.runtime_viewport_rows.unwrap_or(viewport_rows);
+        let viewport_rows = self
+            .tree
+            .view_controller
+            .runtime_viewport_len_or(viewport_rows);
         ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
             total_items: visible_folders.len(),
             viewport_len: viewport_rows,
@@ -71,8 +71,10 @@ impl FolderBrowserState {
         overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
-        let runtime_viewport_rows = self.tree.runtime_viewport_rows;
-        let viewport_rows = runtime_viewport_rows.unwrap_or(viewport_rows);
+        let viewport_rows = self
+            .tree
+            .view_controller
+            .runtime_viewport_len_or(viewport_rows);
         let selected_id = self
             .selection
             .selected_collection
@@ -97,15 +99,11 @@ impl FolderBrowserState {
             return self.tree.view_controller.resolve();
         }
 
-        if runtime_viewport_rows.is_some()
-            && selected_index.is_some_and(|index| {
-                self.tree.view_controller.viewport_contains_index(
-                    visible_folders.len(),
-                    viewport_rows,
-                    index,
-                )
-            })
-        {
+        if selected_index.is_some_and(|index| {
+            self.tree
+                .view_controller
+                .runtime_viewport_contains_index(visible_folders.len(), index)
+        }) {
             let projection = ui::VirtualListProjection::for_slice(
                 visible_folders,
                 viewport_rows,

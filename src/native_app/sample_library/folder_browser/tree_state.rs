@@ -13,7 +13,6 @@ pub(super) struct FolderTreeState {
     pub(super) show_empty_folders: bool,
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
-    pub(super) runtime_viewport_rows: Option<usize>,
 }
 
 impl FolderTreeState {
@@ -25,7 +24,6 @@ impl FolderTreeState {
             show_empty_folders: false,
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
-            runtime_viewport_rows: None,
         }
     }
 }

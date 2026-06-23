@@ -46,8 +46,6 @@ impl FolderBrowserState {
         &mut self,
         change: ui::VirtualListWindowChange,
     ) {
-        let viewport_rows = change.window.viewport_len().max(1);
-        self.sample_list.runtime_viewport_rows = Some(viewport_rows);
         self.sample_list.prepared_window =
             self.sample_list.view_controller.apply_window_change(change);
     }
@@ -84,8 +82,10 @@ impl FolderBrowserState {
         guard_rows: usize,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> ui::VirtualListWindow {
-        let runtime_viewport_rows = self.sample_list.runtime_viewport_rows;
-        let viewport_rows = runtime_viewport_rows.unwrap_or(viewport_rows);
+        let viewport_rows = self
+            .sample_list
+            .view_controller
+            .runtime_viewport_len_or(viewport_rows);
         let selected_file = self.selection.selected_file.clone();
         let total_items = self.selected_audio_file_count_matching_tags(tags_by_file);
         let selected_index = self.selected_audio_file_index_matching_tags(tags_by_file);
@@ -106,15 +106,11 @@ impl FolderBrowserState {
             return window;
         }
 
-        if runtime_viewport_rows.is_some()
-            && selected_index.is_some_and(|index| {
-                self.sample_list.view_controller.viewport_contains_index(
-                    total_items,
-                    viewport_rows,
-                    index,
-                )
-            })
-        {
+        if selected_index.is_some_and(|index| {
+            self.sample_list
+                .view_controller
+                .runtime_viewport_contains_index(total_items, index)
+        }) {
             let projection = ui::VirtualListProjection::new(
                 total_items,
                 viewport_rows,
