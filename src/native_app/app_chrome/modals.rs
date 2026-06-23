@@ -120,7 +120,7 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
         .spacing(6.0)
         .fill_width()
         .height(22.0),
-        ui::row([
+        ui::button_row([
             ui::button("Overwrite")
                 .danger()
                 .message(GuiMessage::ResolveFileMoveConflict(
@@ -129,8 +129,7 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
                         apply_to_remaining,
                     ),
                 ))
-                .width(92.0)
-                .height(24.0),
+                .width(92.0),
             ui::button("Rename")
                 .primary()
                 .message(GuiMessage::ResolveFileMoveConflict(
@@ -139,8 +138,7 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
                         apply_to_remaining,
                     ),
                 ))
-                .width(78.0)
-                .height(24.0),
+                .width(78.0),
             ui::button("Skip")
                 .message(GuiMessage::ResolveFileMoveConflict(
                     FileMoveConflictResolutionRequest::new(
@@ -148,12 +146,8 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
                         apply_to_remaining,
                     ),
                 ))
-                .width(64.0)
-                .height(24.0),
-        ])
-        .spacing(6.0)
-        .fill_width()
-        .height(26.0),
+                .width(64.0),
+        ]),
     ])
     .spacing(6.0)
     .fill_width()
@@ -186,20 +180,15 @@ pub(in crate::native_app) fn folder_delete_confirmation(
             20.0,
         )
         .fill_width(),
-        ui::row([
+        ui::button_row([
             ui::button("Delete Folder")
                 .danger()
                 .message(GuiMessage::ConfirmContextFolderDelete)
-                .width(112.0)
-                .height(24.0),
+                .width(112.0),
             ui::button("Cancel")
                 .message(GuiMessage::CancelContextFolderDelete)
-                .width(72.0)
-                .height(24.0),
-        ])
-        .spacing(6.0)
-        .fill_width()
-        .height(26.0),
+                .width(72.0),
+        ]),
     ])
     .spacing(6.0)
     .fill_width()
@@ -227,20 +216,15 @@ pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
     let content = ui::column([
         ui::text_line(pending.prompt.title.clone(), 24.0).fill_width(),
         ui::text_line(pending.prompt.message.clone(), 20.0).fill_width(),
-        ui::row([
+        ui::button_row([
             ui::button("Apply Edit")
                 .danger()
                 .message(GuiMessage::ConfirmPendingWaveformDestructiveEdit)
-                .width(92.0)
-                .height(24.0),
+                .width(92.0),
             ui::button("Cancel")
                 .message(GuiMessage::CancelPendingWaveformDestructiveEdit)
-                .width(72.0)
-                .height(24.0),
-        ])
-        .spacing(6.0)
-        .fill_width()
-        .height(26.0),
+                .width(72.0),
+        ]),
     ])
     .spacing(6.0)
     .fill_width()
