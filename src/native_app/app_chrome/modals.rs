@@ -40,11 +40,11 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
         .fill_width()
         .fill_height();
 
-    ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::dialog("Transactions", content, ui::WidgetTone::Neutral),
-            ui::Vector2::new(420.0, 300.0),
-        ),
+    ui::closeable_dialog_layer(
+        "Transactions",
+        content,
+        ui::WidgetTone::Neutral,
+        ui::Vector2::new(420.0, 300.0),
         GuiMessage::CloseTransactionList,
     )
     .id(TRANSACTION_LIST_MODAL_ID)
@@ -77,11 +77,11 @@ pub(in crate::native_app) fn shortcut_help(state: &NativeAppState) -> ui::View<G
     .fill_width()
     .fill_height();
 
-    ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::dialog("Shortcuts", content, ui::WidgetTone::Neutral),
-            ui::Vector2::new(SHORTCUT_HELP_MODAL_WIDTH, SHORTCUT_HELP_MODAL_HEIGHT),
-        ),
+    ui::closeable_dialog_layer(
+        "Shortcuts",
+        content,
+        ui::WidgetTone::Neutral,
+        ui::Vector2::new(SHORTCUT_HELP_MODAL_WIDTH, SHORTCUT_HELP_MODAL_HEIGHT),
         GuiMessage::CloseShortcutHelp,
     )
     .key("shortcut-help-modal")
@@ -152,11 +152,11 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
     .fill_width()
     .fill_height();
 
-    ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::dialog("File Move Conflict", content, ui::WidgetTone::Warning),
-            ui::Vector2::new(430.0, 210.0),
-        ),
+    ui::closeable_dialog_layer(
+        "File Move Conflict",
+        content,
+        ui::WidgetTone::Warning,
+        ui::Vector2::new(430.0, 210.0),
         GuiMessage::CancelFileMoveConflicts,
     )
     .key("file-move-conflict-modal")
@@ -193,11 +193,11 @@ pub(in crate::native_app) fn folder_delete_confirmation(
     .fill_width()
     .fill_height();
 
-    ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::dialog("Delete Folder", content, ui::WidgetTone::Warning),
-            ui::Vector2::new(440.0, 190.0),
-        ),
+    ui::closeable_dialog_layer(
+        "Delete Folder",
+        content,
+        ui::WidgetTone::Warning,
+        ui::Vector2::new(440.0, 190.0),
         GuiMessage::CancelContextFolderDelete,
     )
     .key("folder-delete-confirmation-modal")
@@ -229,11 +229,11 @@ pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
     .fill_width()
     .fill_height();
 
-    ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::dialog("Destructive Edit", content, ui::WidgetTone::Warning),
-            ui::Vector2::new(500.0, 190.0),
-        ),
+    ui::closeable_dialog_layer(
+        "Destructive Edit",
+        content,
+        ui::WidgetTone::Warning,
+        ui::Vector2::new(500.0, 190.0),
         GuiMessage::CancelPendingWaveformDestructiveEdit,
     )
     .key("waveform-destructive-edit-modal")
