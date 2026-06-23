@@ -42,15 +42,9 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
 
     ui::closeable_panel_section_layer_from_parts(
         ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Transactions", content)
-                .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
-                .padding(8.0)
-                .spacing(6.0)
-                .title_height(24.0),
+            ui::PanelSectionParts::dialog("Transactions", content, ui::WidgetTone::Neutral),
             ui::Vector2::new(420.0, 300.0),
-        )
-        .horizontal(ui::LayerHorizontalAnchor::Center)
-        .vertical(ui::LayerVerticalAnchor::Center),
+        ),
         GuiMessage::CloseTransactionList,
     )
     .key("transaction-list-modal")
@@ -86,15 +80,9 @@ pub(in crate::native_app) fn shortcut_help(state: &NativeAppState) -> ui::View<G
 
     ui::closeable_panel_section_layer_from_parts(
         ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Shortcuts", content)
-                .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
-                .padding(8.0)
-                .spacing(6.0)
-                .title_height(24.0),
+            ui::PanelSectionParts::dialog("Shortcuts", content, ui::WidgetTone::Neutral),
             ui::Vector2::new(SHORTCUT_HELP_MODAL_WIDTH, SHORTCUT_HELP_MODAL_HEIGHT),
-        )
-        .horizontal(ui::LayerHorizontalAnchor::Center)
-        .vertical(ui::LayerVerticalAnchor::Center),
+        ),
         GuiMessage::CloseShortcutHelp,
     )
     .key("shortcut-help-modal")
@@ -173,15 +161,9 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
 
     ui::closeable_panel_section_layer_from_parts(
         ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("File Move Conflict", content)
-                .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
-                .padding(8.0)
-                .spacing(6.0)
-                .title_height(24.0),
+            ui::PanelSectionParts::dialog("File Move Conflict", content, ui::WidgetTone::Warning),
             ui::Vector2::new(430.0, 210.0),
-        )
-        .horizontal(ui::LayerHorizontalAnchor::Center)
-        .vertical(ui::LayerVerticalAnchor::Center),
+        ),
         GuiMessage::CancelFileMoveConflicts,
     )
     .key("file-move-conflict-modal")
@@ -225,15 +207,9 @@ pub(in crate::native_app) fn folder_delete_confirmation(
 
     ui::closeable_panel_section_layer_from_parts(
         ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Delete Folder", content)
-                .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
-                .padding(8.0)
-                .spacing(6.0)
-                .title_height(24.0),
+            ui::PanelSectionParts::dialog("Delete Folder", content, ui::WidgetTone::Warning),
             ui::Vector2::new(440.0, 190.0),
-        )
-        .horizontal(ui::LayerHorizontalAnchor::Center)
-        .vertical(ui::LayerVerticalAnchor::Center),
+        ),
         GuiMessage::CancelContextFolderDelete,
     )
     .key("folder-delete-confirmation-modal")
@@ -272,15 +248,9 @@ pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
 
     ui::closeable_panel_section_layer_from_parts(
         ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Destructive Edit", content)
-                .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
-                .padding(8.0)
-                .spacing(6.0)
-                .title_height(24.0),
+            ui::PanelSectionParts::dialog("Destructive Edit", content, ui::WidgetTone::Warning),
             ui::Vector2::new(500.0, 190.0),
-        )
-        .horizontal(ui::LayerHorizontalAnchor::Center)
-        .vertical(ui::LayerVerticalAnchor::Center),
+        ),
         GuiMessage::CancelPendingWaveformDestructiveEdit,
     )
     .key("waveform-destructive-edit-modal")
