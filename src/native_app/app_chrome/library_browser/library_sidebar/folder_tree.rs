@@ -73,24 +73,16 @@ fn folder_tree_window(
     visible_folders: Vec<VisibleFolder>,
     window: ui::VirtualListWindow,
 ) -> ui::View<GuiMessage> {
-    ui::virtual_tree_list_window(
+    ui::virtual_tree_list_windowed(
         window,
         TREE_ROW_HEIGHT,
         &folder_tree_guide_rows(&visible_folders),
         folder_tree_guide_style(),
         |index| folder_row(&visible_folders[index]),
-        TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
     )
-    .on_scroll_update({
-        move |update| {
-            GuiMessage::FolderTreeWindowChanged(ui::virtual_list_window_change_for_scroll(
-                update,
-                TREE_ROW_HEIGHT,
-                window,
-                FOLDER_TREE_OVERSCAN_ROWS,
-            ))
-        }
-    })
+    .overscan_px(TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32)
+    .on_window_changed(GuiMessage::FolderTreeWindowChanged)
+    .view()
     .style(ui::WidgetStyle::default())
     .fill_height()
 }
