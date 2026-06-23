@@ -179,17 +179,18 @@ fn folder_row_actions(
         .drag_key(id.clone(), |id, drag| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag))
         })
-        .drop_key(id.clone(), |id| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id))
-        })
-        .hover_drop_key(id, move |id, position| {
-            GuiMessage::FolderBrowser(folder_hover_drop_message(
-                id,
-                position,
-                drop_candidate,
-                drop_target_active,
-            ))
-        })
+        .drop_target_key(
+            id,
+            |id| GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id)),
+            move |id, position| {
+                GuiMessage::FolderBrowser(folder_hover_drop_message(
+                    id,
+                    position,
+                    drop_candidate,
+                    drop_target_active,
+                ))
+            },
+        )
 }
 
 fn folder_hover_drop_message(

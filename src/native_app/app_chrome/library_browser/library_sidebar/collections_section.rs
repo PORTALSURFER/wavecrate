@@ -102,15 +102,20 @@ fn collection_input(
         .selected(collection.selected)
         .actions(
             ui::row_actions()
-                .drop_key(collection_id, |collection_id| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))
-                })
-                .hover_drop_key(collection_id, |collection_id, position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
-                        collection_id,
-                        position,
-                    ))
-                })
+                .drop_target_key(
+                    collection_id,
+                    |collection_id| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(
+                            collection_id,
+                        ))
+                    },
+                    |collection_id, position| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
+                            collection_id,
+                            position,
+                        ))
+                    },
+                )
                 .primary_key(collection_id, |collection_id| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
                         collection_id,
