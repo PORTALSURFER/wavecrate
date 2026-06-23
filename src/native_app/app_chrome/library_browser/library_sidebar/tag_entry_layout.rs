@@ -134,21 +134,20 @@ fn tag_field_rows_with_pending_category(
     library_toggle_width: Option<f32>,
 ) -> Vec<Vec<TagEntryRowItem>> {
     let label = format!("{pending_category_tag} ->");
-    let input_width = flow_width_with_library_toggle_reservation(input_width, library_toggle_width);
-    let mut trailing = vec![
-        ui::FlowItem::new(
+    ui::pack_flow_rows_with_flexible_trailing_group(
+        tag_entry_flow_items(tags),
+        [ui::FlowItem::new(
             TagEntryRowItem::PendingCategory(label.clone()),
             tag_pill_width(&label),
+        )],
+        ui::FlowTrailingItemParts::new(
+            TagEntryRowItem::Input,
+            input_width,
+            input_width,
+            MIN_TAG_INPUT_REMAINING_WIDTH,
         ),
-        ui::FlowItem::new(TagEntryRowItem::Input(input_width), input_width),
-    ];
-    if let Some(width) = library_toggle_width {
-        trailing.push(library_toggle_flow_item(width));
-    }
-
-    ui::pack_flow_rows_with_trailing_group(
-        tag_entry_flow_items(tags),
-        trailing,
+        library_toggle_width.map(library_toggle_flow_item),
+        TAG_INPUT_MIN_WIDTH,
         content_width,
         tag_field_flow_metrics(),
     )
@@ -199,21 +198,6 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
         TagEntryRowItem::Input(width) => *width,
         TagEntryRowItem::LibraryToggle(width) => *width,
     }
-}
-
-fn flow_width_with_library_toggle_reservation(
-    input_width: f32,
-    library_toggle_width: Option<f32>,
-) -> f32 {
-    let Some(toggle_width) = library_toggle_width else {
-        return input_width;
-    };
-    ui::flow_width_with_following_item_reserved(
-        input_width,
-        toggle_width,
-        tag_field_flow_metrics().item_gap,
-        TAG_INPUT_MIN_WIDTH,
-    )
 }
 
 pub(super) fn tag_field_layout(row_count: usize, content_width: f32) -> ui::FlowFieldLayout {
