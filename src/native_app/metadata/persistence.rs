@@ -1,8 +1,11 @@
+use super::playback_type_tags::sanitize_playback_type_tags;
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
 use crate::native_app::audio::playback::tagged_playback_mode_for_tag;
-#[cfg(test)]
-use std::path::PathBuf;
-use std::{collections::HashMap, path::Path, time::SystemTime};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 use wavecrate::sample_sources::{SourceDatabase, SourceDbError, db::SourceWriteBatch};
 
 pub(super) fn persist_metadata_tag_assignment(
@@ -146,17 +149,51 @@ pub(super) fn load_persisted_metadata_tags_for_source(
         Err(SourceDbError::ReadOnlyDatabaseMissing(_)) => return Ok(()),
         Err(err) => return Err(err.to_string()),
     };
+    let mut repairs = Vec::new();
     for entry in db.list_files().map_err(|err| err.to_string())? {
-        if entry.normal_tags.is_empty() {
+        let mut normal_tags = entry.normal_tags;
+        if normal_tags.is_empty() {
             continue;
         }
+        if sanitize_playback_type_tags(&mut normal_tags) {
+            repairs.push(PersistedMetadataTagRepair {
+                relative_path: entry.relative_path.clone(),
+                tags: normal_tags.clone(),
+            });
+        }
         let absolute_path = source_root.join(entry.relative_path);
-        tags_by_file.insert(
-            absolute_path.to_string_lossy().to_string(),
-            entry.normal_tags,
+        tags_by_file.insert(absolute_path.to_string_lossy().to_string(), normal_tags);
+    }
+    if let Err(err) = repair_persisted_metadata_tag_conflicts(source_root, repairs) {
+        tracing::warn!(
+            "Failed to repair persisted playback-type tag conflicts for {}: {err}",
+            source_root.display()
         );
     }
     Ok(())
+}
+
+struct PersistedMetadataTagRepair {
+    relative_path: PathBuf,
+    tags: Vec<String>,
+}
+
+fn repair_persisted_metadata_tag_conflicts(
+    source_root: &Path,
+    repairs: Vec<PersistedMetadataTagRepair>,
+) -> Result<(), String> {
+    if repairs.is_empty() {
+        return Ok(());
+    }
+    let db =
+        SourceDatabase::open_for_user_metadata_write(source_root).map_err(|err| err.to_string())?;
+    let mut batch = db.write_batch().map_err(|err| err.to_string())?;
+    for repair in repairs {
+        batch
+            .replace_tags_for_path(&repair.relative_path, &repair.tags)
+            .map_err(|err| err.to_string())?;
+    }
+    batch.commit().map_err(|err| err.to_string())
 }
 
 fn file_metadata(path: &Path) -> Result<(u64, i64), String> {

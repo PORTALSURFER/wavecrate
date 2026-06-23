@@ -1,7 +1,9 @@
 use super::persistence::{persist_metadata_tag_assignment, persist_metadata_tag_assignments};
+use super::playback_type_tags::{
+    playback_type_replacement_present, replace_other_playback_type_tags,
+};
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
 use super::{GuiMessage, MetadataMessage, NativeAppState};
-use crate::native_app::audio::playback::tagged_playback_mode_for_tag;
 use radiant::prelude as ui;
 use std::path::PathBuf;
 
@@ -63,7 +65,7 @@ impl NativeAppState {
             let mut added = Vec::new();
             let mut removed_conflicting = Vec::new();
             for tag in &tags {
-                let removed = remove_conflicting_playback_tags(&mut file_tags, tag, &mut added);
+                let removed = replace_other_playback_type_tags(&mut file_tags, tag, &mut added);
                 extend_unique(&mut removed_conflicting, removed);
                 if file_tags.iter().any(|existing| existing == tag) {
                     continue;
@@ -137,7 +139,9 @@ impl NativeAppState {
         tag: String,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if self.metadata_tag_selection_state(&tag).is_all() {
+        if self.metadata_tag_selection_state(&tag).is_all()
+            && !self.selected_metadata_has_replaced_playback_type_tag(&tag)
+        {
             self.remove_metadata_tag(tag, context);
         } else {
             self.add_metadata_tags(vec![tag], context);
@@ -309,30 +313,15 @@ impl NativeAppState {
             })
             .collect()
     }
-}
 
-fn remove_conflicting_playback_tags(
-    file_tags: &mut Vec<String>,
-    incoming: &str,
-    added: &mut Vec<String>,
-) -> Vec<String> {
-    let Some(incoming_mode) = tagged_playback_mode_for_tag(incoming) else {
-        return Vec::new();
-    };
-    let mut removed = Vec::new();
-    file_tags.retain(|existing| {
-        let conflicts = tagged_playback_mode_for_tag(existing)
-            .is_some_and(|existing_mode| existing_mode != incoming_mode);
-        if conflicts && !added.iter().any(|added_tag| added_tag == existing) {
-            push_unique(&mut removed, existing.clone());
-        }
-        !conflicts
-    });
-    added.retain(|existing| {
-        !tagged_playback_mode_for_tag(existing)
-            .is_some_and(|existing_mode| existing_mode != incoming_mode)
-    });
-    removed
+    fn selected_metadata_has_replaced_playback_type_tag(&self, incoming: &str) -> bool {
+        self.selected_metadata_file_ids().iter().any(|file_id| {
+            self.metadata
+                .tags_by_file
+                .get(file_id)
+                .is_some_and(|tags| playback_type_replacement_present(tags, incoming))
+        })
+    }
 }
 
 fn push_unique(tags: &mut Vec<String>, tag: String) {

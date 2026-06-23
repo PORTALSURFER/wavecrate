@@ -29,6 +29,7 @@ mod completion;
 mod library;
 mod metrics;
 mod persistence;
+mod playback_type_tags;
 mod style;
 mod types;
 mod vocabulary;

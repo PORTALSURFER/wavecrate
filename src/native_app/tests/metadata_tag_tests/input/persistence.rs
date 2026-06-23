@@ -122,6 +122,65 @@ fn metadata_tag_persistence_replaces_conflicting_playback_type_tags() {
 }
 
 #[test]
+fn metadata_tag_load_sanitizes_and_repairs_conflicting_playback_type_tags() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("playback-type.wav");
+    fs::write(&sample_path, []).expect("sample file");
+    let relative_path = PathBuf::from("playback-type.wav");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("metadata-playback-tag-repair-test"),
+        source_root.path().to_path_buf(),
+    );
+    let selected_file = sample_path.display().to_string();
+    let db =
+        wavecrate::sample_sources::SourceDatabase::open_for_user_metadata_write(source_root.path())
+            .expect("open source db");
+    let mut batch = db.write_batch().expect("write batch");
+    batch
+        .upsert_file(
+            relative_path.as_path(),
+            fs::metadata(&sample_path).expect("sample metadata").len(),
+            0,
+        )
+        .expect("upsert sample");
+    batch
+        .assign_tag_to_path(relative_path.as_path(), "loop")
+        .expect("assign loop");
+    batch
+        .assign_tag_to_path(relative_path.as_path(), "one-shot")
+        .expect("assign one-shot");
+    batch
+        .assign_tag_to_path(relative_path.as_path(), "warm")
+        .expect("assign warm");
+    batch.commit().expect("commit dirty tags");
+    assert_eq!(
+        db.tag_labels_for_path(relative_path.as_path())
+            .expect("dirty labels"),
+        vec![
+            String::from("loop"),
+            String::from("one-shot"),
+            String::from("warm")
+        ]
+    );
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+
+    state.refresh_persisted_metadata_tags_for_source("metadata-playback-tag-repair-test");
+
+    assert_eq!(
+        state.metadata.tags_by_file.get(&selected_file),
+        Some(&vec![String::from("loop"), String::from("warm")])
+    );
+    assert_eq!(
+        db.tag_labels_for_path(relative_path.as_path())
+            .expect("repaired labels"),
+        vec![String::from("loop"), String::from("warm")]
+    );
+}
+
+#[test]
 fn metadata_tag_input_keeps_delimiters_while_editing() {
     let mut state = gui_state_for_span_tests();
 
