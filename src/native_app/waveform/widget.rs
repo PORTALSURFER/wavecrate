@@ -61,23 +61,21 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
     viewport: WaveformViewport,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
 ) -> ui::View<GuiMessage> {
-    ui::gpu_surface_configured_from_parts(
-        ui::GpuSurfaceConfiguredParts::new(
-            file.path_hash(),
-            file.content_revision(),
-            GpuSurfaceContent::SignalSummaryBands {
-                frames: file.frames,
-                band_count: super::BAND_COUNT,
-                frame_range: [viewport.start as f32, viewport.end as f32],
-                summary: Arc::clone(&file.gpu_signal_summary),
-                gain_preview: gain_preview_for_selection(edit_selection),
-            },
-        )
-        .capabilities(GpuSurfaceCapabilities {
+    ui::gpu_surface_with_capabilities(
+        file.path_hash(),
+        file.content_revision(),
+        GpuSurfaceContent::SignalSummaryBands {
+            frames: file.frames,
+            band_count: super::BAND_COUNT,
+            frame_range: [viewport.start as f32, viewport.end as f32],
+            summary: Arc::clone(&file.gpu_signal_summary),
+            gain_preview: gain_preview_for_selection(edit_selection),
+        },
+        GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
             runtime_overlays: Default::default(),
-        }),
+        },
     )
 }
 
