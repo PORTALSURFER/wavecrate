@@ -1,4 +1,4 @@
-//! Shared automation-snapshot lookup helpers for scenario assertions and AIV wrappers.
+//! Shared automation-snapshot lookup helpers for scenario assertions.
 
 use crate::app_core::actions::{NativeAutomationNodeSnapshot, NativeGuiAutomationSnapshot};
 use serde::Serialize;

@@ -2529,9 +2529,6 @@ Current development loops:
 
 * semantic contract lane: `scripts/gui.ps1 contract`
 * broader suite: `scripts/gui.ps1 suite`
-* local desktop AIV smoke/suite: `scripts/gui.ps1 aiv-smoke` and `scripts/gui.ps1 aiv-suite -PackName desktop-regression`
-
-Desktop AIV remains local-only until foreground/focus stability is strong enough for promotion.
 
 ### Run Artifacts
 

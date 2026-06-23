@@ -13,9 +13,9 @@ use super::{
     project_status_model, project_update_model, project_waveform_chrome_model,
     project_waveform_model, selected_column_index,
 };
+use crate::app_core::actions::ui_projection_dtos::BrowserActionsModel;
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeAudioEngineModel as AudioEngineModel,
-    NativeBrowserActionsModel as BrowserActionsModel,
     NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
     NativeColumnModel as ColumnModel, NativeConfirmPromptModel as ConfirmPromptModel,
     NativeDragOverlayModel as DragOverlayModel, NativeFocusContextModel as FocusContextModel,

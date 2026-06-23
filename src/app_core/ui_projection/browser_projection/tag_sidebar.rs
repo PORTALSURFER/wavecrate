@@ -1,5 +1,5 @@
+use crate::app_core::actions::ui_projection_dtos::BrowserTagPillModel;
 use crate::app_core::actions::{
-    NativeBrowserTagPillModel as BrowserTagPillModel,
     NativeBrowserTagSidebarModel as BrowserTagSidebarModel,
     NativeBrowserTagState as BrowserTagState,
 };

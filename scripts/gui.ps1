@@ -21,12 +21,10 @@ $psExe = (Get-Process -Id $PID).Path
 $commands = @{
   "contract" = "run_gui_contract.ps1"
   "suite" = "run_gui_suite.ps1"
-  "aiv-smoke" = "run_gui_aiv_smoke.ps1"
-  "aiv-suite" = "run_gui_aiv_suite.ps1"
 }
 
 if ([string]::IsNullOrWhiteSpace($Command)) {
-  Write-Host "Usage: scripts/gui.ps1 <contract|suite|aiv-smoke|aiv-suite> [args...]"
+  Write-Host "Usage: scripts/gui.ps1 <contract|suite> [args...]"
   exit 0
 }
 

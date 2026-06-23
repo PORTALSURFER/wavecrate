@@ -229,7 +229,7 @@ impl AppController {
             return;
         }
         if self.random_navigation_mode_enabled() {
-            self.focus_random_visible_sample();
+            self.focus_random_visible_sample_avoiding_history();
             return;
         }
         let target_row =

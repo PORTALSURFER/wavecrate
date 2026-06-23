@@ -2,6 +2,7 @@ use super::*;
 use rand::Rng;
 #[cfg(test)]
 use rand::{SeedableRng, rngs::StdRng};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 mod executor;
@@ -22,6 +23,16 @@ pub(crate) fn play_random_visible_sample_with_seed(controller: &mut AppControlle
 pub(crate) fn focus_random_visible_sample(controller: &mut AppController) {
     let mut rng = rand::rng();
     play_random_visible_sample_internal(controller, &mut rng, false);
+}
+
+/// Focus and play a random visible sample, preferring samples not yet hit in the current source.
+pub(crate) fn focus_random_visible_sample_avoiding_history(controller: &mut AppController) {
+    let mut rng = rand::rng();
+    let Some(target) = next_random_visible_target_avoiding_history(controller, &mut rng) else {
+        return;
+    };
+    record_random_navigation_target_for_source(controller, &target.source_id, &target.path);
+    executor::play_visible_target(controller, target, false);
 }
 
 /// Return the next random visible sample path without changing browser focus.
@@ -113,6 +124,42 @@ fn next_random_visible_target<R: Rng + ?Sized>(
     let available_rows =
         history::available_unplayed_rows(controller, &visible_list, current_path.as_deref());
     visible_list.choose_target(&available_rows, rng)
+}
+
+/// Pick a random visible row outside random history when possible, falling back to all rows.
+fn next_random_visible_target_avoiding_history<R: Rng + ?Sized>(
+    controller: &mut AppController,
+    rng: &mut R,
+) -> Option<planner::RandomVisibleTarget> {
+    let Some(source_id) = controller.selection_state.ctx.selected_source.clone() else {
+        controller.set_status_message(StatusMessage::SelectSourceFirst {
+            tone: StatusTone::Info,
+        });
+        return None;
+    };
+    if controller.visible_browser_len() == 0 {
+        controller.set_status_message(StatusMessage::NoSamplesToRandomize);
+        return None;
+    }
+
+    let played_history: HashSet<PathBuf> = controller
+        .history
+        .random_history
+        .entries
+        .iter()
+        .filter(|entry| entry.source_id == source_id)
+        .map(|entry| entry.relative_path.clone())
+        .collect();
+    let visible_list = planner::RandomVisibleList::from_controller(controller, source_id);
+    let current_path = planner::current_path(controller);
+    let mut rows = visible_list.available_rows(
+        |path| played_history.contains(path),
+        current_path.as_deref(),
+    );
+    if rows.is_empty() {
+        rows = visible_list.available_rows(|_| false, current_path.as_deref());
+    }
+    visible_list.choose_target(&rows, rng)
 }
 
 fn mark_current_random_navigation_focus(controller: &mut AppController) {

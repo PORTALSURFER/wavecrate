@@ -1,8 +1,8 @@
 use super::tree_rows::{project_tree_rows, projected_focused_tree_row};
 use super::{FolderBrowserUiState, FolderPaneId};
-use crate::app_core::actions::{
-    NativeFolderActionsModel as FolderActionsModel, NativeFolderPaneIdModel as FolderPaneIdModel,
-    NativeFolderPaneModel as FolderPaneModel, NativeFolderRecoveryModel as FolderRecoveryModel,
+use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
+use crate::app_core::actions::ui_projection_dtos::{
+    FolderActionsModel, FolderPaneModel, FolderRecoveryModel,
 };
 use crate::app_core::controller::AppController;
 use crate::app_core::state::UiState;

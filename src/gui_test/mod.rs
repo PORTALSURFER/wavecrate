@@ -1,6 +1,5 @@
 //! GUI test contracts, deterministic artifact helpers, and scenario runners.
 
-mod aiv;
 mod artifacts;
 mod automation;
 mod config;
@@ -11,10 +10,6 @@ mod scenario;
 #[cfg(test)]
 mod shell_automation;
 
-pub use self::aiv::{
-    GuiAivAssertion, GuiAivCase, GuiAivStep, GuiAivSuiteManifest, export_aiv_suite,
-    export_aiv_suite_pack, gui_aiv_suite_manifest,
-};
 pub use self::artifacts::{
     GuiActionTraceEvent, GuiModelSummary, GuiStepTimingSample, GuiTestArtifactBundle,
     build_model_summary, write_artifact_bundle,

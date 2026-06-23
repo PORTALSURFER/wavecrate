@@ -3,7 +3,7 @@
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
-use std::env;
+use std::{env, process::ExitCode};
 
 mod cleanup;
 mod download;
@@ -19,14 +19,20 @@ const APP_PUBLISHER: &str = "SemPal";
 #[cfg(target_os = "windows")]
 const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\SemPal";
 
-fn main() -> Result<(), String> {
-    run_with_args(
+fn main() -> ExitCode {
+    match run_with_args(
         env::args(),
         cleanup::run_uninstall,
         install::run_dry_run,
         run_headless_install,
         events::removed_interactive_installer_entrypoint,
-    )
+    ) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("{err}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,18 +59,14 @@ where
 {
     match select_entry_command(args) {
         InstallerEntryCommand::Uninstall => {
-            if let Err(err) = run_uninstall() {
-                eprintln!("Uninstall failed: {err}");
-            }
-            Ok(())
+            run_uninstall().map_err(|err| format!("Uninstall failed: {err}"))
         }
         InstallerEntryCommand::DryRun => {
-            if let Err(err) = run_dry_run() {
-                eprintln!("Dry run failed: {err}");
-            }
-            Ok(())
+            run_dry_run().map_err(|err| format!("Dry run failed: {err}"))
         }
-        InstallerEntryCommand::Install => run_install(),
+        InstallerEntryCommand::Install => {
+            run_install().map_err(|err| format!("Install failed: {err}"))
+        }
         InstallerEntryCommand::RemovedInteractive => run_removed_interactive(),
     }
 }
@@ -238,6 +240,41 @@ mod tests {
         assert!(dry_run_called.get());
         assert!(!install_called.get());
         assert!(!removed_interactive_called.get());
+    }
+
+    #[test]
+    fn run_with_args_propagates_dry_run_errors() {
+        let result = run_with_args(
+            vec![
+                String::from("wavecrate-installer"),
+                String::from("--dry-run"),
+            ],
+            || Ok(()),
+            || Err(String::from("bundle missing")),
+            || Ok(()),
+            || Ok(()),
+        );
+
+        assert_eq!(result, Err(String::from("Dry run failed: bundle missing")));
+    }
+
+    #[test]
+    fn run_with_args_propagates_uninstall_errors() {
+        let result = run_with_args(
+            vec![
+                String::from("wavecrate-installer"),
+                String::from("--uninstall"),
+            ],
+            || Err(String::from("registry unavailable")),
+            || Ok(()),
+            || Ok(()),
+            || Ok(()),
+        );
+
+        assert_eq!(
+            result,
+            Err(String::from("Uninstall failed: registry unavailable"))
+        );
     }
 
     #[test]

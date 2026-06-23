@@ -18,9 +18,6 @@ pub use self::catalog::{
 };
 pub use self::ui_projection_dtos::folder_row_model as native_folder_row_model;
 
-/// UI runtime browser action metadata model.
-pub type NativeBrowserActionsModel = self::ui_projection_dtos::BrowserActionsModel;
-
 /// UI runtime browser chrome model.
 pub type NativeBrowserChromeModel = self::ui_projection_dtos::BrowserChromeModel;
 
@@ -29,9 +26,6 @@ pub type NativeBrowserPanelModel = self::ui_projection_dtos::BrowserPanelModel;
 
 /// UI runtime browser tag-sidebar model.
 pub type NativeBrowserTagSidebarModel = self::ui_projection_dtos::BrowserTagSidebarModel;
-
-/// UI runtime browser tag pill model.
-pub type NativeBrowserTagPillModel = self::ui_projection_dtos::BrowserTagPillModel;
 
 /// UI runtime browser tag pill state.
 pub type NativeBrowserTagState = self::ui_projection_dtos::BrowserTagState;
@@ -153,17 +147,8 @@ pub type NativeConfirmPromptModel = self::ui_projection_dtos::ConfirmPromptModel
 /// UI runtime drag overlay model.
 pub type NativeDragOverlayModel = self::ui_projection_dtos::DragOverlayModel;
 
-/// UI runtime folder actions model.
-pub type NativeFolderActionsModel = self::ui_projection_dtos::FolderActionsModel;
-
 /// UI runtime folder pane identifier.
 pub type NativeFolderPaneIdModel = self::ui_projection_dtos::FolderPaneIdModel;
-
-/// UI runtime folder pane model.
-pub type NativeFolderPaneModel = self::ui_projection_dtos::FolderPaneModel;
-
-/// UI runtime folder recovery model.
-pub type NativeFolderRecoveryModel = self::ui_projection_dtos::FolderRecoveryModel;
 
 /// UI runtime folder row model.
 pub type NativeFolderRowModel = self::ui_projection_dtos::FolderRowModel;
@@ -176,9 +161,6 @@ pub type NativeMapPanelModel = self::ui_projection_dtos::MapPanelModel;
 
 /// UI runtime map point model.
 pub type NativeMapPointModel = self::ui_projection_dtos::MapPointModel;
-
-/// UI runtime map render mode model.
-pub type NativeMapRenderModeModel = self::ui_projection_dtos::MapRenderModeModel;
 
 /// UI runtime options panel model.
 pub type NativeOptionsPanelModel = self::ui_projection_dtos::OptionsPanelModel;
@@ -215,12 +197,6 @@ pub type NativeWaveformChannelViewModel = self::ui_projection_dtos::WaveformChan
 
 /// UI runtime waveform slice preview model.
 pub type NativeWaveformSlicePreviewModel = self::ui_projection_dtos::WaveformSlicePreviewModel;
-
-/// UI runtime waveform tool state model.
-pub type NativeWaveformToolStateModel = self::ui_projection_dtos::WaveformToolStateModel;
-
-/// UI runtime waveform motion aggregate model.
-pub type NativeWaveformMotionModel = self::ui_projection_dtos::WaveformMotionModel;
 
 /// Extract the numeric BPM token from a native waveform tempo label.
 pub use self::ui_projection_dtos::parse_waveform_tempo_number_text;

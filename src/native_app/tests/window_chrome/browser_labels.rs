@@ -6,16 +6,12 @@ fn default_folder_browser_loads_assets_root() {
     assert!(browser.root_path().ends_with("assets"));
     assert_eq!(browser.source_labels(), vec![String::from("Assets")]);
     assert!(
-        browser
-            .selected_files()
-            .iter()
-            .any(|file| file.name == "portal_SS_kick_001.wav")
+        !browser.selected_files().is_empty(),
+        "default assets source should expose bundled asset files"
     );
     assert!(
-        browser
-            .selected_audio_files()
-            .iter()
-            .any(|file| file.name == "portal_SS_kick_001.wav")
+        browser.selected_audio_files().is_empty(),
+        "bundled font/icon assets should not appear as audio samples"
     );
 }
 

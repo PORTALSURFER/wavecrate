@@ -1,13 +1,12 @@
 use super::{
-    GUI_ACTION_CATALOG, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass, GuiSurface,
-    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
+    GUI_ACTION_CATALOG, GuiDispatchPolicy, GuiEffectClass, GuiSurface, action_catalog_entry_by_id,
+    action_kind, representative_action_for_kind,
 };
 use crate::app_core::ui_bridge::{
     InteractionActionClass, InvalidationSource, catalog_dirty_source, catalog_interaction_class,
     catalog_is_immediate_waveform_preview_action, catalog_prefers_targeted_invalidation,
     catalog_uses_local_model_pull_fast_path,
 };
-use crate::gui_test::{GuiAivAssertion, GuiAivStep, gui_aiv_suite_manifest};
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -51,33 +50,6 @@ fn every_catalog_entry_declares_required_coverage() {
             );
         }
     }
-}
-
-#[test]
-fn desktop_aiv_catalog_claims_are_backed_by_manifest_cases() {
-    let mut covered_action_ids = BTreeSet::new();
-    for pack_name in ["desktop-smoke", "desktop-regression"] {
-        let manifest = gui_aiv_suite_manifest(pack_name).expect("desktop AIV manifest");
-        collect_desktop_aiv_action_ids(&manifest.cases, &mut covered_action_ids);
-    }
-    let claimed_action_ids = GUI_ACTION_CATALOG
-        .iter()
-        .filter(|entry| {
-            entry
-                .coverage_layers
-                .contains(&GuiCoverageLayer::DesktopAiv)
-        })
-        .map(|entry| entry.action_id.to_string())
-        .collect::<BTreeSet<_>>();
-    let missing_claims = claimed_action_ids
-        .difference(&covered_action_ids)
-        .cloned()
-        .collect::<Vec<_>>();
-    assert!(
-        missing_claims.is_empty(),
-        "catalog DesktopAiv coverage has no matching desktop-AIV case assertions: {}",
-        missing_claims.join(", ")
-    );
 }
 
 #[test]
@@ -279,34 +251,4 @@ fn native_projection_dtos_keep_product_defaults_and_generic_primitives() {
     assert_eq!(preferences.toggles.len(), 4);
     assert_eq!(model.waveform.timeline_surface().markers.len(), 0);
     assert!(model.waveform_chrome.signal_tools().markers_visible);
-}
-fn collect_desktop_aiv_action_ids(
-    cases: &[crate::gui_test::GuiAivCase],
-    out: &mut BTreeSet<String>,
-) {
-    for case in cases {
-        collect_desktop_aiv_step_action_ids(&case.steps, out);
-        collect_desktop_aiv_assertion_action_ids(&case.expected_assertions, out);
-    }
-}
-
-fn collect_desktop_aiv_step_action_ids(steps: &[GuiAivStep], out: &mut BTreeSet<String>) {
-    for step in steps {
-        let GuiAivStep::Assert { assertion } = step else {
-            continue;
-        };
-        collect_desktop_aiv_assertion_action_ids(std::slice::from_ref(assertion), out);
-    }
-}
-
-fn collect_desktop_aiv_assertion_action_ids(
-    assertions: &[GuiAivAssertion],
-    out: &mut BTreeSet<String>,
-) {
-    for assertion in assertions {
-        let GuiAivAssertion::AssertActionRecorded { action_id } = assertion else {
-            continue;
-        };
-        out.insert(action_id.clone());
-    }
 }

@@ -5,9 +5,9 @@
 //! GUI work should compose Radiant's current public API through `src/native_app.rs`
 //! instead of expanding this migration projection surface.
 
+use crate::app_core::actions::ui_projection_dtos::BrowserActionsModel;
 use crate::app_core::actions::{
-    NativeBrowserActionsModel as BrowserActionsModel, NativeDragOverlayModel as DragOverlayModel,
-    NativeFocusContextModel as FocusContextModel,
+    NativeDragOverlayModel as DragOverlayModel, NativeFocusContextModel as FocusContextModel,
     NativeProgressOverlayModel as ProgressOverlayModel,
 };
 use crate::app_core::controller::supports_wav_destructive_edits;

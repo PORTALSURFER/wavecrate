@@ -1,0 +1,28 @@
+//! Build script for Wavecrate installer Windows resources.
+
+use std::env;
+
+fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build/windows/wavecrate-installer.rc");
+    println!("cargo:rerun-if-changed=build/windows/wavecrate-installer.exe.manifest");
+
+    if compiling_for_windows_target()
+        && let Err(error) = compile_windows_resources()
+    {
+        eprintln!("Failed to embed installer Windows resources: {error}");
+        std::process::exit(1);
+    }
+}
+
+fn compiling_for_windows_target() -> bool {
+    env::var("CARGO_CFG_TARGET_OS")
+        .map(|target| target == "windows")
+        .unwrap_or_else(|_| cfg!(target_os = "windows"))
+}
+
+fn compile_windows_resources() -> Result<(), Box<dyn std::error::Error>> {
+    embed_resource::compile("build/windows/wavecrate-installer.rc", embed_resource::NONE)
+        .manifest_optional()?;
+    Ok(())
+}

@@ -5,8 +5,8 @@ Runs a broader integrated local development test pass.
 .DESCRIPTION
 Executes the broader integrated local test loop by running the quick nextest
 profile over library and integration tests plus the semantic GUI contract lane.
-This intentionally skips support-tool binaries, slower recovery tests, desktop
-AIV loops, clippy, rustdoc, benches, perf guards, and other CI-parity checks
+This intentionally skips support-tool binaries, slower recovery tests, clippy,
+rustdoc, benches, perf guards, and other CI-parity checks
 reserved for `scripts/ci.ps1 local`.
 #>
 

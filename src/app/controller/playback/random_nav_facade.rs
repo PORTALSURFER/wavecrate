@@ -26,6 +26,11 @@ impl AppController {
         random_nav::focus_random_visible_sample(self);
     }
 
+    /// Focus and play a random visible sample while avoiding recent random-history hits.
+    pub(crate) fn focus_random_visible_sample_avoiding_history(&mut self) {
+        random_nav::focus_random_visible_sample_avoiding_history(self);
+    }
+
     /// Resolve the next random visible sample path without changing browser focus.
     pub(crate) fn next_random_visible_sample_path(&mut self) -> Option<PathBuf> {
         random_nav::next_random_visible_sample_path(self)

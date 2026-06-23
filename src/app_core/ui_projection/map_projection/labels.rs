@@ -2,9 +2,8 @@
 // shape while the map surface is being split into smaller projection objects.
 #![allow(clippy::too_many_arguments)]
 
-use crate::app_core::actions::{
-    NativeMapPanelModel as MapPanelModel, NativeMapRenderModeModel as MapRenderModeModel,
-};
+use crate::app_core::actions::NativeMapPanelModel as MapPanelModel;
+use crate::app_core::actions::ui_projection_dtos::MapRenderModeModel;
 use crate::app_core::controller::AppController;
 use crate::app_core::state::MapRenderMode;
 use crate::app_core::state::MapSimilarityPrepStatus;

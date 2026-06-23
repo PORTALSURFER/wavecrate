@@ -1038,6 +1038,7 @@ fn rating_advance_uses_pre_rating_sorted_order_when_rating_sort_changes() {
 
     let mut context = radiant::prelude::UiUpdateContext::default();
     state.adjust_selected_rating(1, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),

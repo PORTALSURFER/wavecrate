@@ -42,7 +42,7 @@ GitHub CI and local wrappers share this contract:
 | Required tests | `Required: tests (linux/windows/macos)` | `scripts/ci.* local` runs `cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast` on the local platform | Required for PRs and pushes to `main` |
 | Quarantined/slow tests | `Advisory: quarantined tests (linux/windows/macos)` | `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast` | Advisory until the tests are hardened |
 | Dead dependency sweep and env-var nudge | `Advisory: repository hygiene` | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
-| GUI semantic contracts | none in required GitHub CI | `scripts/gui.ps1 contract`, `scripts/gui.ps1 suite`, or AIV lanes | Local/manual or issue-specific |
+| GUI semantic contracts | none in required GitHub CI | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none in required GitHub CI | `scripts/perf.* guard` | Local/manual or release-risk validation |
 | Release build/sync | `Create release on main` after a successful `CI` workflow on `main` | release workflow dispatch | Release-only, after required CI is green |
 
@@ -162,7 +162,7 @@ runtime dependency.
 
 ### GUI test platform
 
-Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
+Use for semantic GUI contracts and CLI scenarios.
 
 - Automated GUI runs default to the isolated `isolated-startup` fixture, which
   exercises persisted startup against the dedicated `automated-tests`
@@ -184,10 +184,6 @@ Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
     checks.
 - broader GUI suite:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 suite`
-- live AIV smoke:
-  - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 aiv-smoke`
-- live AIV suite:
-  - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 aiv-suite -PackName desktop-regression`
 
 See `docs/TARGET.md` for the GUI artifact and automation contract details.
 

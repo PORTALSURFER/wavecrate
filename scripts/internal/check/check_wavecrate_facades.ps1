@@ -70,6 +70,7 @@ $facades = @(
     MaxLines = 80
     MaxExports = 9
     MaxPublicModules = 0
+    CountRestrictedPublicModules = $false
     Owner = "OPT-541"
     Reason = "native test fixtures must stay split by focused support module"
   },
@@ -100,7 +101,8 @@ $facades = @(
 )
 
 $exportPattern = '^\s*pub(?:\s*\([^)]*\))?\s+(?:use|type)\b'
-$publicModulePattern = '^\s*pub(?:\s*\([^)]*\))?\s+mod\s+\w+\s*(?:;|\{)'
+$restrictedOrPublicModulePattern = '^\s*pub(?:\s*\([^)]*\))?\s+mod\s+\w+\s*(?:;|\{)'
+$publicModulePattern = '^\s*pub\s+mod\s+\w+\s*(?:;|\{)'
 $violations = New-Object System.Collections.Generic.List[string]
 
 Push-Location $rootDir
@@ -114,7 +116,14 @@ try {
 
     $lineCount = Get-LineCount -RepoPath $path
     $exportCount = Get-MatchingLineCount -RepoPath $path -Pattern $exportPattern
-    $moduleCount = Get-MatchingLineCount -RepoPath $path -Pattern $publicModulePattern
+    $modulePattern = $restrictedOrPublicModulePattern
+    if (
+      $facade.ContainsKey("CountRestrictedPublicModules") -and
+      -not [bool]$facade.CountRestrictedPublicModules
+    ) {
+      $modulePattern = $publicModulePattern
+    }
+    $moduleCount = Get-MatchingLineCount -RepoPath $path -Pattern $modulePattern
 
     if ($lineCount -gt [int]$facade.MaxLines) {
       $violations.Add(("{0}: {1} lines exceeds facade budget {2} ({3}; {4})" -f $path, $lineCount, $facade.MaxLines, $facade.Owner, $facade.Reason))

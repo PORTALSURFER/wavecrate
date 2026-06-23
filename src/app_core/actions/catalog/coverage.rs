@@ -51,8 +51,6 @@ pub enum GuiCoverageLayer {
     RuntimeInput,
     /// App-core or bridge projection snapshot coverage.
     ProjectionSnapshot,
-    /// Desktop AIV coverage against the live Windows application.
-    DesktopAiv,
 }
 
 /// Public-dispatch policy for one cataloged GUI action.
