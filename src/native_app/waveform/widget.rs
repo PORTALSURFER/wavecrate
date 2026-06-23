@@ -1,11 +1,11 @@
 use radiant::{
-    gui::types::{Rect, Vector2},
+    gui::types::Rect,
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
     runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive},
     theme::ThemeTokens,
-    widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput},
 };
 use std::sync::Arc;
 
@@ -191,12 +191,9 @@ impl WaveformWidget {
             playing,
             active_drag_kind,
         } = props;
-        let common = WidgetCommon::new(
-            0,
-            WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
-        )
-        .with_pointer_focus()
-        .without_default_chrome();
+        let common = WidgetCommon::fixed(0, WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
+            .with_pointer_focus()
+            .without_default_chrome();
         Self {
             common,
             gesture: CanvasGestureState::new(),
