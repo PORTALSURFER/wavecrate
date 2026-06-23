@@ -41,27 +41,24 @@ pub(super) fn sample_browser_rows(
         return empty_sample_browser_rows();
     }
 
-    ui::virtual_list_windowed(|index: usize| {
-        let Some(row_index) = index.checked_sub(visible_samples.window.window_start) else {
-            return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
-        };
-        let Some(row) = visible_samples.rows.get(row_index) else {
-            return ui::empty().fill_width().height(SAMPLE_BROWSER_ROW_HEIGHT);
-        };
-        sample_browser_row(
-            sample_row_display(
-                row,
-                &visible_samples.columns,
-                visible_samples.similarity_mode_active,
-                visible_samples.similarity_controls.aspect_enabled_flags(),
-                name_view_mode,
-                metadata_tags_by_file,
-            ),
-            help_tooltips_enabled,
-        )
-    })
+    ui::virtual_list_materialized_windowed(
+        visible_samples.window,
+        &visible_samples.rows,
+        |_, row| {
+            sample_browser_row(
+                sample_row_display(
+                    row,
+                    &visible_samples.columns,
+                    visible_samples.similarity_mode_active,
+                    visible_samples.similarity_controls.aspect_enabled_flags(),
+                    name_view_mode,
+                    metadata_tags_by_file,
+                ),
+                help_tooltips_enabled,
+            )
+        },
+    )
     .row_height(SAMPLE_BROWSER_ROW_HEIGHT)
-    .window(visible_samples.window)
     .overscan_px(SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32)
     .on_window_changed(GuiMessage::SampleBrowserWindowChanged)
     .view()
