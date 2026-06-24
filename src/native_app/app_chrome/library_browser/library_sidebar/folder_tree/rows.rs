@@ -39,27 +39,56 @@ const FOLDER_LOCK_INHERITED_ICON_COLOR: ui::Rgba8 = ui::Rgba8 {
 
 pub(super) fn folder_row(folder: &VisibleFolder) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
-    if let (Some(draft), Some(input_id)) = (&folder.rename_draft, folder.rename_input_id) {
-        let caret = draft.chars().count();
-        return ui::row([
-            ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
-            ui::text_input(draft.clone())
-                .selection(0, caret)
-                .message_event(|message| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
-                })
-                .id(input_id)
-                .fill_width()
-                .height(22.0),
-        ])
-        .key(folder_row_key(&id))
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .fill_width()
-        .height(TREE_ROW_HEIGHT)
-        .spacing(1.0)
-        .hoverable();
+    if let Some(rename) = FolderRenameProjection::from_folder(folder) {
+        return folder_rename_row(folder, &id, rename);
     }
 
+    standard_folder_row(folder, id)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FolderRenameProjection<'a> {
+    draft: &'a str,
+    input_id: u64,
+    caret: usize,
+}
+
+impl<'a> FolderRenameProjection<'a> {
+    fn from_folder(folder: &'a VisibleFolder) -> Option<Self> {
+        let draft = folder.rename_draft.as_deref()?;
+        Some(Self {
+            draft,
+            input_id: folder.rename_input_id?,
+            caret: draft.chars().count(),
+        })
+    }
+}
+
+fn folder_rename_row(
+    folder: &VisibleFolder,
+    id: &str,
+    rename: FolderRenameProjection<'_>,
+) -> ui::View<GuiMessage> {
+    ui::row([
+        ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
+        ui::text_input(rename.draft.to_owned())
+            .selection(0, rename.caret)
+            .message_event(|message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+            })
+            .id(rename.input_id)
+            .fill_width()
+            .height(22.0),
+    ])
+    .key(folder_row_key(id))
+    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+    .fill_width()
+    .height(TREE_ROW_HEIGHT)
+    .spacing(1.0)
+    .hoverable()
+}
+
+fn standard_folder_row(folder: &VisibleFolder, id: String) -> ui::View<GuiMessage> {
     let row = ui::tree_row(folder.name.clone())
         .depth(folder.depth)
         .expanded(folder.expanded)

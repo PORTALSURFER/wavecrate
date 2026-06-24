@@ -3,11 +3,14 @@ use super::rows::{
     FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH, folder_row, folder_tree_label_color,
     folder_tree_palette_for_tests, folder_tree_selected_hover_marker,
 };
+use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_full_palette;
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::TREE_ROW_HEIGHT;
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
+use radiant::widgets::TextInputMessage;
 
 #[test]
 fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
@@ -148,6 +151,44 @@ fn focused_selected_folder_rows_paint_selected_fill_without_hover_marker() {
             .fill_rects()
             .any(|fill| fill.color == marker.color && fill.rect.width() == marker.parts.width),
         "focused selected folder rows should reserve the selected-hover marker for pointer hover"
+    );
+}
+
+#[test]
+fn rename_folder_rows_project_draft_into_stable_input() {
+    let mut folder = visible_folder_for_tests(false);
+    folder.rename_draft = Some(String::from("Renamed Folder"));
+    folder.rename_input_id = Some(4_242);
+
+    let frame = folder_row(&folder)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+    let input = frame
+        .paint_plan
+        .first_text_input()
+        .expect("rename row should project a text input");
+
+    assert_eq!(input.widget_id, 4_242);
+    assert_eq!(input.state.value, "Renamed Folder");
+    assert_eq!(input.state.selection_anchor, 0);
+    assert_eq!(input.state.caret, "Renamed Folder".chars().count());
+    assert!(!frame.paint_plan.contains_text("Folder"));
+}
+
+#[test]
+fn rename_folder_rows_route_input_messages_to_folder_browser() {
+    let mut folder = visible_folder_for_tests(false);
+    folder.rename_draft = Some(String::from("Folder"));
+    folder.rename_input_id = Some(4_242);
+    let message = TextInputMessage::Changed {
+        value: String::from("Renamed Folder"),
+    };
+
+    assert_eq!(
+        folder_row(&folder)
+            .view_dispatch_widget_output(4_242, ui::WidgetOutput::typed(message.clone()),),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::RenameInput(message)
+        ))
     );
 }
 
