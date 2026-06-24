@@ -3,92 +3,62 @@ use radiant::prelude as ui;
 mod projection;
 
 use self::projection::{
-    AudioSettingsPanelProjection, CacheMaintenanceProjection, GeneralSettingsPanelProjection,
-    SettingsPanelProjection, TrashFolderProjection, settings_panel_projection,
+    CacheMaintenanceProjection, SettingsActionProjection, SettingsPanelRowProjection,
+    TrashFolderProjection, settings_panel_projection,
 };
 use super::AUDIO_SETTINGS_LABELED_ROW_HEIGHT;
 use super::AUDIO_SETTINGS_ROW_SPACING;
 use super::dropdowns::{audio_host_dropdown, audio_output_dropdown, audio_sample_rate_dropdown};
-use crate::native_app::app::{GuiMessage, SettingsMessage};
+use crate::native_app::app::{AudioSettingsDropdown, GuiMessage};
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 
 pub(super) fn settings_content(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    let rows = match settings_panel_projection(snapshot) {
-        SettingsPanelProjection::General(projection) => general_settings_panel_rows(projection),
-        SettingsPanelProjection::AudioEngine(projection) => {
-            audio_settings_panel_rows(snapshot, projection)
-        }
-    };
-    ui::column(rows)
-        .key("settings-content")
-        .spacing(AUDIO_SETTINGS_ROW_SPACING)
-        .fill()
+    let rows = settings_panel_projection(snapshot)
+        .rows()
+        .into_iter()
+        .map(|row| settings_panel_row(snapshot, row))
+        .collect::<Vec<_>>();
+    ui::column(rows).spacing(AUDIO_SETTINGS_ROW_SPACING).fill()
 }
 
-fn audio_settings_panel_rows(
+fn settings_panel_row(
     snapshot: &AudioSettingsSnapshot,
-    projection: AudioSettingsPanelProjection,
-) -> Vec<ui::View<GuiMessage>> {
-    let mut rows = vec![audio_engine_detail_row(projection.detail_label)];
-    if let Some(error) = projection.error {
-        rows.push(audio_settings_error_row(error));
+    row: SettingsPanelRowProjection,
+) -> ui::View<GuiMessage> {
+    match row {
+        SettingsPanelRowProjection::Title { label } => ui::text_line(label, 24.0),
+        SettingsPanelRowProjection::AudioDetail { label } => audio_engine_detail_row(label),
+        SettingsPanelRowProjection::AudioError { message } => audio_settings_error_row(message),
+        SettingsPanelRowProjection::AudioDropdown { label, dropdown } => {
+            audio_settings_dropdown_row(label, dropdown, snapshot)
+        }
+        SettingsPanelRowProjection::TrashFolder(projection) => trash_folder_section(projection),
+        SettingsPanelRowProjection::CacheMaintenance(projection) => {
+            cache_maintenance_section(projection)
+        }
     }
-    rows.push(audio_settings_backend_section(
-        projection.backend_label,
-        snapshot,
-    ));
-    rows.push(audio_settings_labeled_control(
-        projection.output_label,
-        audio_output_dropdown(snapshot),
-    ));
-    rows.push(audio_settings_labeled_control(
-        projection.sample_rate_label,
-        audio_sample_rate_dropdown(snapshot),
-    ));
-    rows
-}
-
-fn general_settings_panel_rows(
-    projection: GeneralSettingsPanelProjection,
-) -> Vec<ui::View<GuiMessage>> {
-    vec![
-        ui::text_line(projection.title, 24.0).key("general-settings-title"),
-        trash_folder_section(projection.trash_folder),
-        cache_maintenance_section(projection.maintenance),
-    ]
 }
 
 fn audio_engine_detail_row(detail_label: String) -> ui::View<GuiMessage> {
-    ui::text_line(detail_label, 20.0).key("audio-settings-detail")
+    ui::text_line(detail_label, 20.0)
 }
 
 fn audio_settings_error_row(error: String) -> ui::View<GuiMessage> {
-    ui::text_line(error, 20.0)
-        .key("audio-settings-error")
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Danger))
+    ui::text_line(error, 20.0).style(ui::WidgetStyle::subtle(ui::WidgetTone::Danger))
 }
 
 fn trash_folder_section(projection: TrashFolderProjection) -> ui::View<GuiMessage> {
     ui::column([
-        ui::text_line(projection.label, 20.0).key("settings-trash-folder-label"),
-        ui::text_line(projection.value, 20.0)
-            .key("settings-trash-folder-value")
-            .fill_width(),
+        ui::text_line(projection.label, 20.0),
+        ui::text_line(projection.value, 20.0).fill_width(),
         ui::row([
-            ui::button(projection.choose_button_label)
-                .message(GuiMessage::Settings(SettingsMessage::PickTrashFolder))
-                .key("settings-trash-folder-pick")
-                .height(24.0),
-            ui::button(projection.clear_button_label)
-                .message(GuiMessage::Settings(SettingsMessage::ClearTrashFolder))
-                .key("settings-trash-folder-clear")
-                .height(24.0),
+            settings_action_button(projection.choose_action),
+            settings_action_button(projection.clear_action),
         ])
         .spacing(6.0)
         .fill_width()
         .height(26.0),
     ])
-    .key("settings-trash-folder-section")
     .spacing(4.0)
     .fill_width()
     .height(72.0)
@@ -97,22 +67,28 @@ fn trash_folder_section(projection: TrashFolderProjection) -> ui::View<GuiMessag
 fn cache_maintenance_section(projection: CacheMaintenanceProjection) -> ui::View<GuiMessage> {
     ui::labeled_control(
         projection.label,
-        ui::button(projection.clear_button_label)
-            .message(GuiMessage::Settings(
-                SettingsMessage::ClearRebuildableCaches,
-            ))
-            .key("settings-clear-rebuildable-caches")
-            .fill_width()
-            .height(24.0),
+        settings_action_button(projection.clear_action).fill_width(),
         AUDIO_SETTINGS_LABELED_ROW_HEIGHT,
     )
 }
 
-fn audio_settings_backend_section(
+fn settings_action_button(action: SettingsActionProjection) -> ui::View<GuiMessage> {
+    ui::button(action.label)
+        .message(GuiMessage::Settings(action.message))
+        .height(24.0)
+}
+
+fn audio_settings_dropdown_row(
     label: &'static str,
+    dropdown: AudioSettingsDropdown,
     snapshot: &AudioSettingsSnapshot,
 ) -> ui::View<GuiMessage> {
-    audio_settings_labeled_control(label, audio_host_dropdown(snapshot))
+    let control = match dropdown {
+        AudioSettingsDropdown::Backend => audio_host_dropdown(snapshot),
+        AudioSettingsDropdown::Output => audio_output_dropdown(snapshot),
+        AudioSettingsDropdown::SampleRate => audio_sample_rate_dropdown(snapshot),
+    };
+    audio_settings_labeled_control(label, control)
 }
 
 fn audio_settings_labeled_control(
