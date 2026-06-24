@@ -168,7 +168,6 @@ fn sample_header_cell(
     let resize_id = column.id.clone();
     let label = ui::details_sort_label(column.label.as_str(), column.id.as_str(), Some(sort));
     ui::compact_resizable_details_header_cell(
-        identity::sample_header_cell_key(column.id.as_str()),
         label,
         column.width,
         GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),

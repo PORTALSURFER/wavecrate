@@ -16,10 +16,6 @@ pub(super) fn random_navigation_toggle_id() -> u64 {
     widget_ids::SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID
 }
 
-pub(super) fn sample_header_cell_key(column_id: &str) -> String {
-    format!("sample-header-{column_id}")
-}
-
 pub(super) fn sample_header_cell_id(column_id: &str) -> u64 {
     stable_widget_id(widget_ids::SAMPLE_HEADER_CELL_ID, column_id)
 }
@@ -96,7 +92,6 @@ mod tests {
 
     #[test]
     fn sample_header_cell_ids_are_stable_per_column() {
-        assert_eq!(sample_header_cell_key("name"), "sample-header-name");
         assert_eq!(sample_header_cell_id("name"), sample_header_cell_id("name"));
         assert_ne!(sample_header_cell_id("name"), sample_header_cell_id("size"));
     }
