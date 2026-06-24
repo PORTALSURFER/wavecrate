@@ -18,7 +18,7 @@ pub(in crate::native_app) fn metadata_tag_pill_style(
     category_id: &str,
     active: bool,
 ) -> ui::WidgetStyle {
-    let tone = metadata_tag_category_tone(category_id);
+    let tone = metadata_tag_pill_tone(category_id, active);
     if active {
         ui::WidgetStyle::strong(tone)
     } else {
@@ -30,16 +30,29 @@ pub(in crate::native_app) fn metadata_tag_pill_selection_style(
     category_id: &str,
     state: MetadataTagSelectionState,
 ) -> ui::WidgetStyle {
-    let tone = metadata_tag_category_tone(category_id);
     match state {
-        MetadataTagSelectionState::None => ui::WidgetStyle::subtle(tone),
-        MetadataTagSelectionState::Mixed => ui::WidgetStyle::normal(tone),
-        MetadataTagSelectionState::All => ui::WidgetStyle::strong(tone),
+        MetadataTagSelectionState::None => {
+            ui::WidgetStyle::subtle(metadata_tag_pill_tone(category_id, false))
+        }
+        MetadataTagSelectionState::Mixed => {
+            ui::WidgetStyle::normal(metadata_tag_pill_tone(category_id, true))
+        }
+        MetadataTagSelectionState::All => {
+            ui::WidgetStyle::strong(metadata_tag_pill_tone(category_id, true))
+        }
     }
 }
 
 pub(in crate::native_app) fn metadata_tag_category_is_pinned(category_id: &str) -> bool {
     category_id == "playback-type"
+}
+
+fn metadata_tag_pill_tone(category_id: &str, active: bool) -> ui::WidgetTone {
+    if category_id == "playback-type" && !active {
+        ui::WidgetTone::Neutral
+    } else {
+        metadata_tag_category_tone(category_id)
+    }
 }
 
 #[cfg(test)]
@@ -61,8 +74,25 @@ mod tests {
             ui::WidgetProminence::Subtle
         );
         assert_eq!(
+            metadata_tag_pill_style("playback-type", false).tone,
+            ui::WidgetTone::Neutral
+        );
+        assert_eq!(
             metadata_tag_pill_style("playback-type", true).prominence,
             ui::WidgetProminence::Strong
+        );
+        assert_eq!(
+            metadata_tag_pill_style("playback-type", true).tone,
+            ui::WidgetTone::Warning
+        );
+        assert_eq!(
+            metadata_tag_pill_selection_style("playback-type", MetadataTagSelectionState::None)
+                .tone,
+            ui::WidgetTone::Neutral
+        );
+        assert_eq!(
+            metadata_tag_pill_selection_style("playback-type", MetadataTagSelectionState::All).tone,
+            ui::WidgetTone::Warning
         );
         assert_eq!(
             metadata_tag_pill_style("character", false).prominence,

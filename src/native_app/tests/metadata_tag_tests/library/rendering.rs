@@ -97,6 +97,65 @@ fn default_gui_tag_library_paints_applied_playback_tags_as_active_pills() {
 }
 
 #[test]
+fn tag_library_paints_opposite_playback_type_as_inactive_after_replacement() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata
+        .tags_by_file
+        .insert(selected_file, vec![String::from("loop")]);
+    state.metadata.tag_library_open = true;
+    let theme = radiant::theme::ThemeTokens::default();
+    let inactive = radiant::widgets::resolve_widget_visual_tokens(
+        &theme,
+        crate::native_app::metadata::metadata_tag_pill_selection_style(
+            "playback-type",
+            crate::native_app::metadata::MetadataTagSelectionState::None,
+        ),
+        radiant::widgets::WidgetState::default(),
+    );
+    let active = radiant::widgets::resolve_widget_visual_tokens(
+        &theme,
+        crate::native_app::metadata::metadata_tag_pill_selection_style(
+            "playback-type",
+            crate::native_app::metadata::MetadataTagSelectionState::All,
+        ),
+        radiant::widgets::WidgetState {
+            active: true,
+            ..radiant::widgets::WidgetState::default()
+        },
+    );
+
+    let frame = crate::native_app::test_support::state::view(&mut state)
+        .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
+    let one_shot_rect = frame
+        .paint_plan
+        .first_text_run_after_x("one-shot", DEFAULT_FOLDER_WIDTH)
+        .expect("library one-shot tag should paint")
+        .rect;
+    let loop_rect = frame
+        .paint_plan
+        .first_text_run_after_x("loop", DEFAULT_FOLDER_WIDTH)
+        .expect("library loop tag should paint")
+        .rect;
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == inactive.fill && fill.rect.intersects(one_shot_rect)),
+        "opposite playback tag should paint as inactive"
+    );
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == active.fill && fill.rect.intersects(loop_rect)),
+        "assigned playback tag should paint as active"
+    );
+}
+
+#[test]
 fn default_gui_tag_library_paints_mixed_tags_as_partial_pills() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("first.wav");
