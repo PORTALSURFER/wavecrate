@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::file_actions::sample_path_label;
@@ -146,6 +146,56 @@ impl NativeAppState {
             started_at,
             None,
         );
+    }
+
+    pub(in crate::native_app) fn focus_browser_file_for_playback_navigation(
+        &mut self,
+        path: &Path,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> bool {
+        let previous_selection = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
+        if !self.library.folder_browser.focus_file_across_sources(path) {
+            return false;
+        }
+
+        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+            self.metadata.selected_tag = None;
+        }
+        self.library.folder_browser.sync_tree_view_to_selection(
+            FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+            FOLDER_TREE_OVERSCAN_ROWS,
+            FOLDER_TREE_EDGE_CONTEXT_ROWS,
+        );
+        if let Some(index) = self.library.folder_browser.selected_folder_visible_index() {
+            context.scroll_fixed_row_into_view(
+                FOLDER_TREE_LIST_ID,
+                index,
+                TREE_ROW_HEIGHT,
+                FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+                FOLDER_TREE_SELECTION_CONTEXT_ROWS,
+                0,
+            );
+        }
+        if let Some(index) = self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+        {
+            context.scroll_fixed_row_into_view(
+                SAMPLE_BROWSER_LIST_ID,
+                index,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                0,
+            );
+        }
+        true
     }
 
     pub(in crate::native_app) fn toggle_selected_sample_and_advance(

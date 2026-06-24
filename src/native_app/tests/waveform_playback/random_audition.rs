@@ -197,8 +197,11 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
 fn random_listed_audition_resolves_region_from_loaded_target_duration() {
     let root = temp_gui_root("wavecrate-random-listed-target-duration");
     let current = root.join("a-current.wav");
-    let target = root.join("z-target.wav");
+    let target_folder = root.join("drums");
+    fs::create_dir_all(&target_folder).expect("target folder");
+    let target = target_folder.join("z-target.wav");
     let current_id = current.display().to_string();
+    let target_folder_id = target_folder.display().to_string();
     let target_id = target.display().to_string();
     write_test_wav_i16(&current, &vec![0_i16; 48_000]);
     write_test_wav_i16(&target, &vec![0_i16; 96_000]);
@@ -208,6 +211,7 @@ fn random_listed_audition_resolves_region_from_loaded_target_duration() {
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(root.clone()),
         ]);
+    state.library.folder_browser.toggle_folder_subtree_listing();
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::load_path(current.clone())
             .expect("current sample loads");
@@ -224,6 +228,10 @@ fn random_listed_audition_resolves_region_from_loaded_target_duration() {
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(target_id.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(target_folder_id.as_str())
     );
     let ticket = active_sample_load_ticket(&state).expect("target sample load queued");
     let mut context = ui::UiUpdateContext::default();

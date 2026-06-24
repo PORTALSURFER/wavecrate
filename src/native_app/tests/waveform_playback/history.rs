@@ -118,6 +118,62 @@ fn playback_history_load_completion_restores_region_without_unneeded_zoom() {
 }
 
 #[test]
+fn playback_history_replay_focuses_loaded_entry_in_browser_location() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let kicks = source_root.path().join("drums").join("kicks");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    let loop_file = loops.join("loop.wav");
+    write_test_wav_i16(&kick, &[0, 1024, -1024, 512]);
+    write_test_wav_i16(&loop_file, &[0, 512, -512, 256]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    assert!(
+        state
+            .library
+            .folder_browser
+            .focus_file_across_sources(&loop_file)
+    );
+    let kicks_id = kicks.display().to_string();
+    let kick_id = kick.display().to_string();
+    let loop_id = loop_file.display().to_string();
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(loop_id.as_str())
+    );
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(kick.clone())
+            .expect("kick waveform loads");
+
+    state
+        .audio
+        .playback_history
+        .record(kick_id.clone(), 0.25, 0.50);
+    state
+        .audio
+        .playback_history
+        .record(loop_id.clone(), 0.0, 1.0);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.play_previous_playback_history(&mut context);
+
+    assert_eq!(
+        state.library.folder_browser.selected_folder_id(),
+        Some(kicks_id.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(kick_id.as_str())
+    );
+}
+
+#[test]
 fn playback_history_reports_empty_previous_history() {
     let mut scenario = WaveformPlaybackScenario::synthetic();
     let mut context = ui::UiUpdateContext::default();

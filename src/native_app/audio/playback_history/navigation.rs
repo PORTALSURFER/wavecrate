@@ -152,9 +152,9 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let label = sample_path_label(entry.path.as_str());
-        if self.waveform.current.has_loaded_sample()
-            && self.waveform.current.path() == Path::new(&entry.path)
-        {
+        let entry_path = Path::new(&entry.path);
+        self.focus_browser_file_for_playback_navigation(entry_path, context);
+        if self.waveform.current.has_loaded_sample() && self.waveform.current.path() == entry_path {
             self.start_loaded_playback_history_entry(entry, &label, action, started_at, context);
             return;
         }
@@ -163,14 +163,6 @@ impl NativeAppState {
             start: entry.start_ratio,
             end: entry.end_ratio,
         });
-        if self
-            .library
-            .folder_browser
-            .focus_file_across_sources(Path::new(&entry.path))
-        {
-            self.cancel_metadata_tag_entry();
-            self.metadata.selected_tag = None;
-        }
         self.load_sample_without_autoplay(entry.path, context);
         self.ui.status.sample = format!("Loading {label} from playback history");
         emit_gui_action(

@@ -155,7 +155,7 @@ impl NativeAppState {
                 avoid_file_id.as_deref(),
             )
         {
-            self.select_random_listed_sample(path);
+            self.select_random_listed_sample(path, context);
             self.play_random_sample_range_with_units(region_units, context);
             return;
         }
@@ -225,9 +225,7 @@ impl NativeAppState {
                 start_unit: units.start,
                 length_unit: units.length,
             });
-            self.library
-                .folder_browser
-                .focus_file_across_sources(Path::new(&path));
+            self.focus_browser_file_for_playback_navigation(Path::new(&path), context);
             self.load_sample_without_autoplay(path, context);
             return;
         }
@@ -271,17 +269,12 @@ impl NativeAppState {
             .map(str::to_owned)
     }
 
-    fn select_random_listed_sample(&mut self, path: String) {
-        let previous_selection = self
-            .library
-            .folder_browser
-            .selected_file_id()
-            .map(str::to_owned);
-        self.library.folder_browser.select_file(path);
-        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
-            self.cancel_metadata_tag_entry();
-            self.metadata.selected_tag = None;
-        }
+    fn select_random_listed_sample(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.focus_browser_file_for_playback_navigation(Path::new(&path), context);
     }
 
     pub(in crate::native_app) fn random_audition_span_for_loaded_waveform(
