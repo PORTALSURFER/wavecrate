@@ -1,7 +1,16 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{AppSettingsTab, GuiMessage, NativeAppState, SettingsMessage};
+mod projection;
+#[cfg(test)]
+mod tests;
+
+use crate::native_app::app::{GuiMessage, NativeAppState, SettingsMessage};
 use crate::native_app::ui::ids as widget_ids;
+
+use self::projection::{
+    AudioEnginePillProjection, GeneralSettingsButtonProjection, HelpTooltipsButtonProjection,
+    SettingsControlsProjection, TopControlBarProjection, VolumeSliderProjection,
+};
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
 const VOLUME_SLIDER_SIZE: ControlSize = ControlSize {
@@ -36,16 +45,11 @@ struct ControlSize {
 }
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let model = TopControlBarModel::from_app_state(state);
+    let projection = TopControlBarProjection::from_app_state(state);
     ui::toolbar_from_parts(
-        ui::ToolbarParts::new([volume_slider(model.volume).tooltip_if(
-            model.help_tooltips_enabled,
-            "Preview volume for sample audition playback.",
-        )])
-        .trailing(settings_controls(
-            model.settings_controls,
-            model.help_tooltips_enabled,
-        ))
+        ui::ToolbarParts::new([volume_slider(projection.volume.value)
+            .tooltip_if(projection.help_tooltips_enabled, projection.volume.tooltip)])
+        .trailing(settings_controls(projection.settings_controls))
         .spacing(8.0)
         .padding_x(12.0)
         .padding_y(4.0)
@@ -53,86 +57,44 @@ pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View
     )
 }
 
-struct TopControlBarModel {
-    volume: f32,
-    help_tooltips_enabled: bool,
-    settings_controls: SettingsControlsModel,
-}
-
-struct SettingsControlsModel {
-    audio_engine: AudioEnginePillModel,
-    general_settings_active: bool,
-}
-
-struct AudioEnginePillModel {
-    label: String,
-    style: ui::WidgetStyle,
-    active: bool,
-}
-
-impl TopControlBarModel {
-    fn from_app_state(state: &NativeAppState) -> Self {
-        let settings_window = &state.ui.settings.ui;
-        let active_settings_tab = settings_window
-            .audio_settings_open
-            .then_some(settings_window.app_settings_tab);
-        Self {
-            volume: state.audio.volume,
-            help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
-            settings_controls: SettingsControlsModel {
-                audio_engine: AudioEnginePillModel {
-                    label: state.audio_engine_pill_label(),
-                    style: state.audio_engine_pill_style(),
-                    active: active_settings_tab == Some(AppSettingsTab::AudioEngine),
-                },
-                general_settings_active: active_settings_tab == Some(AppSettingsTab::General),
-            },
-        }
-    }
-}
-
-fn settings_controls(
-    model: SettingsControlsModel,
-    help_tooltips_enabled: bool,
-) -> ui::View<GuiMessage> {
+fn settings_controls(model: SettingsControlsProjection) -> ui::View<GuiMessage> {
+    let audio_engine_tooltip = model.audio_engine.tooltip;
     ui::row([
-        audio_engine_pill(model.audio_engine).tooltip_if(
-            help_tooltips_enabled,
-            "Audio engine status and output settings.",
-        ),
-        general_settings_button(model.general_settings_active)
-            .tooltip_if(help_tooltips_enabled, "Open Wavecrate settings."),
-        help_tooltips_button(help_tooltips_enabled),
+        audio_engine_pill(model.audio_engine)
+            .tooltip_if(model.help_tooltips_enabled, audio_engine_tooltip),
+        general_settings_button(model.general_settings)
+            .tooltip_if(model.help_tooltips_enabled, model.general_settings.tooltip),
+        help_tooltips_button(model.help_tooltips),
     ])
     .spacing(4.0)
     .height(24.0)
 }
 
-fn help_tooltips_button(active: bool) -> ui::View<GuiMessage> {
-    let button = ui::icon_button(help_tooltips_icon(active))
+fn help_tooltips_button(projection: HelpTooltipsButtonProjection) -> ui::View<GuiMessage> {
+    let button = ui::icon_button(help_tooltips_icon(projection.active))
         .bare()
-        .active(active)
+        .active(projection.active)
         .message(GuiMessage::Settings(SettingsMessage::ToggleHelpTooltips))
         .id(HELP_TOOLTIPS_BUTTON_ID)
         .size(
             HELP_TOOLTIPS_BUTTON_SIZE.width,
             HELP_TOOLTIPS_BUTTON_SIZE.height,
         );
-    button.tooltip_if(active, "Help tips: hover controls to see what they do.")
+    button.tooltip_if(projection.active, projection.active_tooltip)
 }
 
-fn audio_engine_pill(model: AudioEnginePillModel) -> ui::View<GuiMessage> {
-    ui::badge(model.label)
-        .style(model.style)
-        .active(model.active)
+fn audio_engine_pill(projection: AudioEnginePillProjection) -> ui::View<GuiMessage> {
+    ui::badge(projection.label)
+        .style(projection.style)
+        .active(projection.active)
         .message(GuiMessage::Settings(SettingsMessage::ToggleAudioSettings))
         .id(AUDIO_ENGINE_PILL_ID)
         .size(AUDIO_ENGINE_PILL_SIZE.width, AUDIO_ENGINE_PILL_SIZE.height)
 }
 
-fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
-    ui::icon_button(settings_gear_icon(active))
-        .active(active)
+fn general_settings_button(projection: GeneralSettingsButtonProjection) -> ui::View<GuiMessage> {
+    ui::icon_button(settings_gear_icon(projection.active))
+        .active(projection.active)
         .message(GuiMessage::Settings(SettingsMessage::OpenGeneralSettings))
         .id(GENERAL_SETTINGS_BUTTON_ID)
         .size(
@@ -142,7 +104,11 @@ fn general_settings_button(active: bool) -> ui::View<GuiMessage> {
 }
 
 pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
-    ui::slider(volume)
+    volume_slider_from_projection(VolumeSliderProjection::new(volume))
+}
+
+fn volume_slider_from_projection(projection: VolumeSliderProjection) -> ui::View<GuiMessage> {
+    ui::slider(projection.value)
         .compact()
         .paint_focus(false)
         .message(|volume| GuiMessage::Settings(SettingsMessage::SetVolume(volume)))
