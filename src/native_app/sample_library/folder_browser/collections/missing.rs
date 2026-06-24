@@ -48,9 +48,10 @@ impl FolderBrowserState {
         path: &Path,
         collection: SampleCollection,
     ) -> Option<MissingCollectionFile> {
-        self.sample_list
-            .missing_collection_files
+        self.source
+            .sources
             .iter()
+            .flat_map(|source| source.missing_collection_snapshot.files.iter())
             .find(|file| path_id_matches(&file.id, path) && file.belongs_to_collection(collection))
             .and_then(|file| self.missing_collection_file_from_entry(file, collection))
     }
@@ -59,9 +60,10 @@ impl FolderBrowserState {
         &self,
         collection: SampleCollection,
     ) -> Vec<MissingCollectionFile> {
-        self.sample_list
-            .missing_collection_files
+        self.source
+            .sources
             .iter()
+            .flat_map(|source| source.missing_collection_snapshot.files.iter())
             .filter(|file| file.belongs_to_collection(collection))
             .filter_map(|file| self.missing_collection_file_from_entry(file, collection))
             .collect()

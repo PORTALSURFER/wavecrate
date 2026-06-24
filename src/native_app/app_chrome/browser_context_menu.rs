@@ -25,9 +25,13 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             .danger(),
         ];
     }
+    if menu.kind == BrowserContextTargetKind::Collection {
+        return collection_context_menu_commands(menu);
+    }
 
     let action_label = match menu.kind {
         BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => "Open in Explorer",
+        BrowserContextTargetKind::Collection => unreachable!("handled above"),
         BrowserContextTargetKind::Sample => "Reveal in Explorer",
         BrowserContextTargetKind::MetadataTag => unreachable!("handled above"),
     };
@@ -118,6 +122,19 @@ fn missing_sample_context_menu_commands(
         );
     }
     actions
+}
+
+fn collection_context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMessage>> {
+    if menu.collection.is_none() {
+        return Vec::new();
+    }
+    vec![
+        ui::MenuCommand::new(
+            "Clear all broken files",
+            GuiMessage::CleanMissingFilesFromActiveCollection,
+        )
+        .danger(),
+    ]
 }
 
 fn folder_lock_command_label(menu: &BrowserContextMenu) -> &'static str {

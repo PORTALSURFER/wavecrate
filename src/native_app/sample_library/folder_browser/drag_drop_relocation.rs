@@ -45,6 +45,9 @@ impl FolderBrowserState {
             ));
         };
         upsert_folder(&mut target_folder.children, moved_folder);
+        let removed_old_missing = source.missing_collection_snapshot.remove_prefix(old_path);
+        let removed_new_missing = source.missing_collection_snapshot.remove_prefix(new_path);
+        let missing_changed = removed_old_missing || removed_new_missing;
         self.tree.folders = vec![root_folder.clone()];
 
         self.selection.rewrite_folder_prefix(old_path, new_path);
@@ -56,6 +59,9 @@ impl FolderBrowserState {
             .collect();
         self.tree.expanded_folders.insert(target_parent_id);
         self.bump_file_content_revision();
+        if missing_changed {
+            self.refresh_missing_collection_state();
+        }
         Ok(())
     }
 
@@ -123,6 +129,11 @@ impl FolderBrowserState {
             }
             upsert_file(&mut target_folder.files, moved_file);
         }
+        let mut missing_changed = false;
+        for (old_path, new_path) in moves {
+            missing_changed |= source.missing_collection_snapshot.remove_path(old_path);
+            missing_changed |= source.missing_collection_snapshot.remove_path(new_path);
+        }
         self.tree.folders = vec![root_folder.clone()];
         let moved_file_ids = moves
             .iter()
@@ -132,6 +143,9 @@ impl FolderBrowserState {
             .select_moved_files(target_parent_id.clone(), &moved_file_ids);
         self.tree.expanded_folders.insert(target_parent_id);
         self.bump_file_content_revision();
+        if missing_changed {
+            self.refresh_missing_collection_state();
+        }
         Ok(())
     }
 }

@@ -274,6 +274,7 @@ impl FolderBrowserState {
             FolderBrowserMessage::AddSource
             | FolderBrowserMessage::SelectSource(_)
             | FolderBrowserMessage::OpenSourceContextMenu(_, _)
+            | FolderBrowserMessage::OpenCollectionContextMenu(_, _)
             | FolderBrowserMessage::BeginRenameSelected
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)

@@ -36,7 +36,9 @@ impl NativeAppState {
                     context,
                 );
             }
-            BrowserContextTargetKind::Source | BrowserContextTargetKind::MetadataTag => {
+            BrowserContextTargetKind::Source
+            | BrowserContextTargetKind::Collection
+            | BrowserContextTargetKind::MetadataTag => {
                 self.ui.status.sample = String::from("Context target cannot be moved to trash");
                 emit_gui_action(
                     "browser.context_menu.trash",

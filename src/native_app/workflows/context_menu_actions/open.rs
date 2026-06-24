@@ -8,6 +8,8 @@ use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
 use crate::native_app::sample_library::file_actions::sample_path_label;
+use crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey;
+use wavecrate::sample_sources::SampleCollection;
 
 impl NativeAppState {
     pub(in crate::native_app) fn open_source_context_menu(
@@ -93,6 +95,34 @@ impl NativeAppState {
             collection: None,
             sample_missing: false,
             anchor: position,
+        });
+    }
+
+    pub(in crate::native_app) fn open_collection_context_menu(
+        &mut self,
+        collection: SampleCollection,
+        position: Point,
+    ) {
+        let title = self
+            .library
+            .folder_browser
+            .visible_collections()
+            .into_iter()
+            .find(|entry| entry.collection == collection)
+            .map(|entry| entry.name)
+            .unwrap_or_else(|| format!("Collection {}", collection_hotkey(collection)));
+        self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
+            kind: BrowserContextTargetKind::Collection,
+            path: Path::new("").to_path_buf(),
+            source_id: None,
+            source_removable: false,
+            folder_locked: false,
+            folder_lock_inherited: false,
+            metadata_tag: None,
+            collection: Some(collection),
+            sample_missing: false,
+            anchor: position,
+            title,
         });
     }
 

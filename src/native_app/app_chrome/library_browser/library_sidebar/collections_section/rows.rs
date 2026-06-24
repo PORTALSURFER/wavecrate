@@ -80,6 +80,12 @@ fn collection_row_actions(
         .double_key(collection_id, |collection_id| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
         })
+        .secondary_key(collection_id, |collection_id, position| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::OpenCollectionContextMenu(
+                collection_id,
+                position,
+            ))
+        })
 }
 
 /// Builds the visible collection row contents above the input layer.

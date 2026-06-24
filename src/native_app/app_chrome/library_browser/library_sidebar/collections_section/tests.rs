@@ -55,6 +55,27 @@ fn collection_input_routes_double_click_to_rename() {
 }
 
 #[test]
+fn collection_input_routes_secondary_activation_to_context_menu() {
+    let collection = collection_view(false, false);
+    let collection_id = collection.collection;
+    let row = CollectionRowViewModel {
+        collection,
+        rename: None,
+    };
+    let position = ui::Point::new(12.0, 20.0);
+
+    assert!(matches!(
+        collection_row(&row).view_dispatch_widget_output(
+            retained_collection_row_input_id(collection_id),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::OpenCollectionContextMenu(collection, actual_position)
+        )) if collection == collection_id && actual_position == position
+    ));
+}
+
+#[test]
 /// Verifies active drop targets keep a distinct visual state.
 fn collection_input_paints_current_drop_target_fill() {
     let collection = collection_view(true, true);

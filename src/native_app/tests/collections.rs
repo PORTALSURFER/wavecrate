@@ -291,6 +291,73 @@ fn sample_context_menu_cleans_all_missing_members_in_collection() {
 }
 
 #[test]
+fn collection_context_menu_cleans_all_missing_members_without_sample_context() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let present = source_root.path().join("present.wav");
+    std::fs::write(&present, []).expect("write present sample");
+    let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
+    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    seed_file_collections(&db, "missing/one.wav", &[collection]);
+    seed_file_collections(&db, "missing/two.wav", &[collection]);
+    seed_file_collections(&db, "present.wav", &[collection]);
+    let mut state = super::gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    state.apply_message(
+        GuiMessage::FolderBrowser(FolderBrowserMessage::OpenCollectionContextMenu(
+            collection,
+            Point::new(12.0, 24.0),
+        )),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state
+            .ui
+            .browser_interaction
+            .context_menu
+            .as_ref()
+            .map(|menu| (menu.kind.clone(), menu.collection)),
+        Some((
+            crate::native_app::test_support::context_menu::BrowserContextTargetKind::Collection,
+            Some(collection)
+        ))
+    );
+
+    state.apply_message(
+        GuiMessage::CleanMissingFilesFromActiveCollection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        db.collections_for_path(Path::new("missing/one.wav"))
+            .expect("first missing collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("missing/two.wav"))
+            .expect("second missing collections"),
+        Vec::<wavecrate::sample_sources::SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("present.wav"))
+            .expect("present collections"),
+        vec![collection]
+    );
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Cleaned 2 missing samples from Collection 1")
+    );
+}
+
+#[test]
 fn collection_rename_input_selects_name_when_focused() {
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
     let mut state = NativeAppState::load_default().expect("default state loads");

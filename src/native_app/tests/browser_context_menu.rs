@@ -349,6 +349,29 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
 }
 
 #[test]
+fn collection_context_menu_paints_collection_cleanup_action() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Collection,
+        path: PathBuf::new(),
+        source_id: None,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: wavecrate::sample_sources::SampleCollection::new(0),
+        sample_missing: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Collection 1"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text("Clear all broken files"));
+    assert!(!frame.paint_plan.contains_text("Clean missing entry"));
+    assert!(!frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
 fn missing_sample_context_menu_paints_cleanup_actions_without_file_actions() {
     let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
         kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,

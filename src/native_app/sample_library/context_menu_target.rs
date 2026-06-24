@@ -8,6 +8,7 @@ use wavecrate::sample_sources::SampleCollection;
 pub(in crate::native_app) enum BrowserContextTargetKind {
     Source,
     Folder,
+    Collection,
     Sample,
     MetadataTag,
 }
@@ -37,6 +38,7 @@ pub(in crate::native_app) fn pane(kind: &BrowserContextTargetKind) -> &'static s
     match kind {
         BrowserContextTargetKind::Source => "sources",
         BrowserContextTargetKind::Folder => "folder_browser",
+        BrowserContextTargetKind::Collection => "collections",
         BrowserContextTargetKind::Sample => "browser",
         BrowserContextTargetKind::MetadataTag => "tag_editor",
     }
@@ -55,6 +57,7 @@ pub(in crate::native_app) fn missing_target_message(
     match kind {
         BrowserContextTargetKind::Source => "Source folder is missing",
         BrowserContextTargetKind::Folder => "Folder is missing",
+        BrowserContextTargetKind::Collection => "Collection is unavailable",
         BrowserContextTargetKind::Sample => "Sample file is missing",
         BrowserContextTargetKind::MetadataTag => "Tag is unavailable",
     }

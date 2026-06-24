@@ -131,7 +131,7 @@ impl NativeAppState {
                     }
                 });
             }
-            BrowserContextTargetKind::MetadataTag => return,
+            BrowserContextTargetKind::Collection | BrowserContextTargetKind::MetadataTag => return,
         };
         emit_gui_action(
             "browser.context_menu.open_explorer",
@@ -156,6 +156,9 @@ impl NativeAppState {
                     BrowserContextTargetKind::Sample => String::from("Revealed sample"),
                     BrowserContextTargetKind::Source => String::from("Opened source folder"),
                     BrowserContextTargetKind::Folder => String::from("Opened folder"),
+                    BrowserContextTargetKind::Collection => {
+                        String::from("Collection action complete")
+                    }
                     BrowserContextTargetKind::MetadataTag => String::from("Tag action complete"),
                 };
                 emit_gui_action(

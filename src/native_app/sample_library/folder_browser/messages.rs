@@ -25,6 +25,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     ResizeFilterPanel(DragHandleMessage),
     ResizeMetadataPanel(DragHandleMessage),
     ActivateCollection(SampleCollection),
+    OpenCollectionContextMenu(SampleCollection, Point),
     RenameCollection(SampleCollection),
     HoverCollectionDropTarget(SampleCollection, Point),
     DropOnCollection(SampleCollection),

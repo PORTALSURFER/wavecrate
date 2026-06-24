@@ -1,3 +1,4 @@
+use super::super::FileEntry;
 use super::*;
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::collections::{HashMap, HashSet};
@@ -192,6 +193,106 @@ fn collection_file_drag_drop_moves_file_to_folder_and_preserves_collection_membe
     assert_eq!(
         browser.selected_file_id(),
         Some(path_id(&moved_kick).as_str())
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn collection_multi_file_move_replaces_stale_missing_rows_with_new_paths() {
+    let root = temp_source_root("wavecrate-gui-collection-multi-file-move");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let hat = drums.join("hat.wav");
+    for file in [&kick, &snare, &hat] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let collection = SampleCollection::new(0).expect("collection");
+    let db = SourceDatabase::open(&root).expect("open source database");
+    seed_file_collections(&db, "drums/kick.wav", &[collection]);
+    seed_file_collections(&db, "drums/snare.wav", &[collection]);
+    seed_file_collections(&db, "drums/hat.wav", &[collection]);
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_collection(collection);
+    browser.select_file(path_id(&kick));
+    browser.select_file_with_modifiers(
+        path_id(&snare),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    browser.source.sources[0]
+        .missing_collection_snapshot
+        .add_missing_file(FileEntry::missing_collection_member(
+            &kick,
+            Rating::NEUTRAL,
+            false,
+            vec![collection],
+            None,
+        ));
+    browser.source.sources[0]
+        .missing_collection_snapshot
+        .add_missing_file(FileEntry::missing_collection_member(
+            &snare,
+            Rating::NEUTRAL,
+            false,
+            vec![collection],
+            None,
+        ));
+    browser.refresh_missing_collection_state();
+
+    let result =
+        submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    let moved_kick = loops.join("kick.wav");
+    let moved_snare = loops.join("snare.wav");
+    assert_eq!(
+        result.moved_paths,
+        vec![
+            (kick.clone(), moved_kick.clone()),
+            (snare.clone(), moved_snare.clone())
+        ]
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("drums/kick.wav"))
+            .expect("old kick collections"),
+        Vec::<SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("drums/snare.wav"))
+            .expect("old snare collections"),
+        Vec::<SampleCollection>::new()
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("loops/kick.wav"))
+            .expect("moved kick collections"),
+        vec![collection]
+    );
+    assert_eq!(
+        db.collections_for_path(Path::new("loops/snare.wav"))
+            .expect("moved snare collections"),
+        vec![collection]
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![path_id(&hat), path_id(&moved_kick), path_id(&moved_snare)]
+    );
+    assert!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .all(|file| !file.is_missing()),
+        "moved collection files should not leave stale broken rows behind"
     );
     let _ = fs::remove_dir_all(root);
 }
