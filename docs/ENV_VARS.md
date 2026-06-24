@@ -40,9 +40,10 @@ and its wrapper probe passes. Default: unset, so repo scripts use direct
 ### Release upload secrets
 
 The `release-build.yml` workflow uploads built release zips to GitHub Releases
-and, when these repository secrets are configured, uploads the same zips to the
-PortalSurfer Wavecrate release-upload API. GitHub Actions does not need SSH
-access or write access to the PortalSurfer frontend repository.
+and, when these repository secrets are configured, uploads the same zips plus
+the generated Markdown release log to the PortalSurfer Wavecrate release-upload
+API. GitHub Actions does not need SSH access or write access to the PortalSurfer
+frontend repository.
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
 Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store

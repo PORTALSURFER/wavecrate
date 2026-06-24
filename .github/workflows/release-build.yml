@@ -300,6 +300,43 @@ jobs:
             echo "Missing required secret: PORTALSURFER_RELEASE_UPLOAD_TOKEN" >&2
             exit 1
           fi
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+      - name: Generate Wavecrate release log
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
+          if [[ -z "$tag" && "$EVENT_NAME" == "push" ]]; then
+            tag="nightly"
+          fi
+          if [[ -z "$tag" ]]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+
+          git fetch --tags --force
+          if [[ "$tag" == "nightly" ]]; then
+            git tag -f "$tag" "$GITHUB_SHA"
+          else
+            git tag "$tag" "$GITHUB_SHA" 2>/dev/null || true
+          fi
+
+          mkdir -p dist/release
+          git cliff --config cliff.toml --tag "$tag" --latest > dist/release/release-log.md
+          if [[ ! -s dist/release/release-log.md ]]; then
+            echo "Generated release log is empty." >&2
+            exit 1
+          fi
       - uses: actions/download-artifact@v4
         with:
           path: dist/artifacts
@@ -356,6 +393,7 @@ jobs:
           fi
           catalog_url="${upload_base%/release-uploads}/releases"
           response_dir="$(mktemp -d)"
+          changelog_file="dist/release/release-log.md"
           uploaded_names=()
 
           for file in "${files[@]}"; do
@@ -397,6 +435,32 @@ jobs:
             uploaded_names+=("$file_name")
           done
 
+          changelog_response_file="$response_dir/changelog-upload.json"
+          curl --fail-with-body --retry 3 --retry-delay 2 \
+            --request PUT \
+            --header "Authorization: Bearer $UPLOAD_TOKEN" \
+            --header "Content-Type: text/markdown; charset=utf-8" \
+            --header "X-Wavecrate-Build-Number: ${GITHUB_RUN_NUMBER}" \
+            --header "X-Wavecrate-Release-Version: $version" \
+            --header "X-Wavecrate-Released-At: $released_at" \
+            --data-binary "@$changelog_file" \
+            "$upload_base/$build_id/changelog" > "$changelog_response_file"
+          python3 - "$changelog_response_file" "$build_id" <<'PY'
+          import json
+          import sys
+
+          response_path, expected_build = sys.argv[1:]
+          response = json.loads(open(response_path, encoding="utf-8").read())
+          release = response.get("release") or {}
+          changelog = response.get("changelog") or {}
+          if release.get("build_id") != expected_build:
+              raise SystemExit(f"Uploaded changelog release id mismatch: {release.get('build_id')} != {expected_build}")
+          if changelog.get("format") != "markdown":
+              raise SystemExit("Uploaded changelog was not recorded as markdown")
+          if not changelog.get("url"):
+              raise SystemExit("Uploaded changelog did not expose a public URL")
+          PY
+
           catalog_file="$response_dir/releases.json"
           curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
           python3 - "$catalog_file" "$build_id" "${uploaded_names[@]}" <<'PY'
@@ -415,5 +479,26 @@ jobs:
           missing = sorted(expected_files - catalog_files)
           if missing:
               raise SystemExit(f"Release catalog is missing files: {', '.join(missing)}")
+          changelog = release.get("changelog") or {}
+          if changelog.get("format") != "markdown" or not changelog.get("url"):
+              raise SystemExit("Release catalog is missing the markdown changelog link")
           print(f"Uploaded {len(expected_files)} Wavecrate release file(s) to {expected_build}")
+          PY
+
+          changelog_catalog_file="$response_dir/changelog-catalog.json"
+          curl --fail-with-body --retry 3 --retry-delay 2 \
+            "$catalog_url/$build_id/changelog" > "$changelog_catalog_file"
+          python3 - "$changelog_catalog_file" "$build_id" "$changelog_file" <<'PY'
+          import json
+          import sys
+
+          catalog_path, expected_build, changelog_path = sys.argv[1:]
+          response = json.loads(open(catalog_path, encoding="utf-8").read())
+          if response.get("build_id") != expected_build:
+              raise SystemExit(f"Fetched changelog id mismatch: {response.get('build_id')} != {expected_build}")
+          body = (response.get("changelog") or {}).get("body", "").strip()
+          expected_body = open(changelog_path, encoding="utf-8").read().strip()
+          if body != expected_body:
+              raise SystemExit("Fetched changelog body does not match generated release log")
+          print(f"Uploaded Wavecrate release log to {expected_build}")
           PY
