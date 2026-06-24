@@ -14,13 +14,21 @@ use crate::native_app::app::{
 use crate::native_app::sample_library::file_actions::{
     WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
 };
+use crate::native_app::sample_library::folder_browser::file_refresh::refreshed_file_entries_for_paths;
 
 const NORMALIZATION_WORK_UNITS_PER_FILE: usize = 1_000;
 const NORMALIZATION_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(80);
 const NORMALIZATION_PROGRESS_MIN_UNITS: usize = 20;
+const BULK_NORMALIZATION_BACKGROUND_THRESHOLD: usize = 32;
+const BULK_NORMALIZATION_PROGRESS_FILE_STEP: usize = 8;
+const VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT: usize = 64;
 
-pub(in crate::native_app) fn normalization_priority() -> ui::TaskPriority {
-    ui::TaskPriority::Interactive
+pub(in crate::native_app) fn normalization_priority(file_count: usize) -> ui::TaskPriority {
+    if file_count > BULK_NORMALIZATION_BACKGROUND_THRESHOLD {
+        ui::TaskPriority::Background
+    } else {
+        ui::TaskPriority::Interactive
+    }
 }
 
 impl NativeAppState {
@@ -117,9 +125,24 @@ impl NativeAppState {
             return;
         }
         self.pause_active_folder_cache_warm(context);
-        let request = self.prepare_normalization_request(paths);
+        let source_id = self.library.folder_browser.selected_source_id().to_string();
+        let Some(source_root) = self.library.folder_browser.source_root_path(&source_id) else {
+            let error = String::from("Normalize failed: selected source is not available");
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "browser.normalize_selected_samples",
+                Some("browser"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        };
+        let request = self.prepare_normalization_request(paths, source_id, source_root);
         let label = normalize_progress_label(request.paths.len());
         let queued = self.background.normalization_queue.len();
+        let priority = normalization_priority(request.paths.len());
         self.background.normalization_active_paths =
             request.paths.iter().cloned().collect::<HashSet<_>>();
         self.background.normalization_progress = Some(NormalizationProgress {
@@ -132,10 +155,14 @@ impl NativeAppState {
             queued,
             detail: String::from("Queued"),
         });
-        self.ui.status.sample = format!("Normalizing {label}");
+        self.ui.status.sample = if priority == ui::TaskPriority::Background {
+            format!("Normalizing {label} in background")
+        } else {
+            format!("Normalizing {label}")
+        };
         context
             .business()
-            .priority("gui-normalize-selected-samples", normalization_priority())
+            .priority("gui-normalize-selected-samples", priority)
             .stream(
                 move |_context, events| run_normalization_worker(request, events),
                 GuiMessage::NormalizationProgress,
@@ -151,7 +178,12 @@ impl NativeAppState {
         );
     }
 
-    fn prepare_normalization_request(&mut self, paths: Vec<PathBuf>) -> NormalizationWorkerRequest {
+    fn prepare_normalization_request(
+        &mut self,
+        paths: Vec<PathBuf>,
+        source_id: String,
+        source_root: PathBuf,
+    ) -> NormalizationWorkerRequest {
         let loaded_path = self.waveform.current.path();
         let normalizing_loaded = paths.iter().any(|path| path == &loaded_path);
         let was_playing = self.waveform.current.is_playing() && normalizing_loaded;
@@ -171,6 +203,8 @@ impl NativeAppState {
         let task_id = self.background.next_task_id();
         NormalizationWorkerRequest {
             task_id,
+            source_id,
+            source_root,
             paths,
             loaded_path,
             normalizing_loaded,
@@ -240,7 +274,7 @@ impl NativeAppState {
         }
         self.library
             .folder_browser
-            .refresh_file_paths(&result.normalized);
+            .refresh_file_entries(&result.source_id, &result.refreshed_files);
 
         let normalized_loaded = result.normalizing_loaded
             && result
@@ -388,6 +422,8 @@ impl NativeAppState {
 
 struct NormalizationWorkerRequest {
     task_id: u64,
+    source_id: String,
+    source_root: PathBuf,
     paths: Vec<PathBuf>,
     loaded_path: PathBuf,
     normalizing_loaded: bool,
@@ -406,11 +442,11 @@ fn run_normalization_worker(
 ) -> NormalizationResult {
     let total = request.paths.len();
     let label = normalize_progress_label(total);
+    let work_total = normalization_work_total(total);
     let mut normalized = Vec::new();
     let mut skipped = Vec::new();
     let mut failed = Vec::new();
     for (index, path) in request.paths.iter().enumerate() {
-        let work_total = normalization_work_total(total);
         let file_started_at = Instant::now();
         let file_label = sample_path_label(path);
         let mut progress_reporter = NormalizationProgressReporter::new(
@@ -422,7 +458,12 @@ fn run_normalization_worker(
             file_label.clone(),
             events.clone(),
         );
-        progress_reporter.emit(index, 0.0, "Queued", true);
+        progress_reporter.emit(
+            index,
+            0.0,
+            "Queued",
+            force_file_start_progress(index, total),
+        );
         match normalize_wav_file_in_place_with_progress(path, |fraction, phase| {
             progress_reporter.emit(index, fraction, phase, false);
         }) {
@@ -447,19 +488,63 @@ fn run_normalization_worker(
                 });
             }
         }
-        progress_reporter.emit(index + 1, 0.0, "Done", true);
+        progress_reporter.emit(
+            index + 1,
+            0.0,
+            "Done",
+            force_file_done_progress(index + 1, total),
+        );
     }
+    emit_normalization_metadata_refresh_progress(
+        &request,
+        label.as_str(),
+        total,
+        work_total,
+        &events,
+    );
+    let refreshed_files = refreshed_file_entries_for_paths(&normalized, &request.source_root);
     NormalizationResult {
         task_id: request.task_id,
+        source_id: request.source_id,
         loaded_path: request.loaded_path,
         normalizing_loaded: request.normalizing_loaded,
         was_playing: request.was_playing,
         restart_ratio: request.restart_ratio,
         restart_span: request.restart_span,
         normalized,
+        refreshed_files,
         skipped,
         failed,
     }
+}
+
+fn force_file_start_progress(file_index: usize, total_files: usize) -> bool {
+    total_files <= VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT || file_index == 0
+}
+
+fn force_file_done_progress(completed_files: usize, total_files: usize) -> bool {
+    total_files <= VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT
+        || completed_files == total_files
+        || completed_files.is_multiple_of(BULK_NORMALIZATION_PROGRESS_FILE_STEP)
+}
+
+fn emit_normalization_metadata_refresh_progress(
+    request: &NormalizationWorkerRequest,
+    label: &str,
+    total_files: usize,
+    work_total: usize,
+    events: &ui::BusinessEventSink<NormalizationProgress>,
+) {
+    let _ = events.emit(NormalizationProgress {
+        task_id: request.task_id,
+        label: label.to_string(),
+        completed: total_files,
+        total: total_files,
+        work_completed: work_total,
+        work_total,
+        queued: 0,
+        detail: String::from("Refreshing browser metadata"),
+    });
 }
 
 fn normalization_failure_status(
@@ -503,6 +588,7 @@ struct NormalizationProgressReporter<'a> {
     events: ui::BusinessEventSink<NormalizationProgress>,
     last_emit: Instant,
     last_work_completed: usize,
+    min_work_units: usize,
 }
 
 impl<'a> NormalizationProgressReporter<'a> {
@@ -524,6 +610,7 @@ impl<'a> NormalizationProgressReporter<'a> {
             events,
             last_emit: Instant::now() - NORMALIZATION_PROGRESS_MIN_INTERVAL,
             last_work_completed: normalization_work_completed(file_index, 0.0),
+            min_work_units: normalization_progress_min_units(total_files),
         }
     }
 
@@ -539,7 +626,7 @@ impl<'a> NormalizationProgressReporter<'a> {
         let now = Instant::now();
         let advanced = work_completed.saturating_sub(self.last_work_completed);
         if !force
-            && advanced < NORMALIZATION_PROGRESS_MIN_UNITS
+            && advanced < self.min_work_units
             && now.duration_since(self.last_emit) < NORMALIZATION_PROGRESS_MIN_INTERVAL
         {
             return;
@@ -561,6 +648,14 @@ impl<'a> NormalizationProgressReporter<'a> {
             queued: 0,
             detail,
         });
+    }
+}
+
+fn normalization_progress_min_units(total_files: usize) -> usize {
+    if total_files > VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT {
+        NORMALIZATION_WORK_UNITS_PER_FILE * BULK_NORMALIZATION_PROGRESS_FILE_STEP
+    } else {
+        NORMALIZATION_PROGRESS_MIN_UNITS
     }
 }
 

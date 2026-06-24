@@ -44,6 +44,17 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_for_sour
     file_entry_with_metadata(path, metadata.0, metadata.1, metadata.2, metadata.3)
 }
 
+pub(in crate::native_app::sample_library::folder_browser) fn refreshed_file_entries_for_paths(
+    paths: &[PathBuf],
+    source_root: &Path,
+) -> Vec<FileEntry> {
+    let ratings = source_rating_map(source_root);
+    paths
+        .iter()
+        .map(|path| rated_file_entry(path, source_root, &ratings))
+        .collect()
+}
+
 pub(super) fn rated_file_entry(
     path: &PathBuf,
     source_root: &Path,

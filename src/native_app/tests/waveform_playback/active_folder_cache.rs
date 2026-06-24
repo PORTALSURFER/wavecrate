@@ -1386,15 +1386,22 @@ fn normalize_finish_keeps_changed_file_in_active_folder_cache_warm_queue() {
             detail: sample_id.clone(),
         },
     );
+    let normalization_source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
     state.finish_normalization(
         crate::native_app::app::NormalizationResult {
             task_id: 42,
+            source_id: normalization_source_id,
             loaded_path: sample_path.clone(),
             normalizing_loaded: false,
             was_playing: false,
             restart_ratio: 0.0,
             restart_span: None,
             normalized: vec![sample_path.clone()],
+            refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: Vec::new(),
         },

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::native_app::sample_library::folder_browser::file_refresh::RefreshedFileEntry;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct NormalizationProgress {
     pub(in crate::native_app) task_id: u64,
@@ -35,12 +37,14 @@ pub(in crate::native_app) struct NormalizationFailure {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct NormalizationResult {
     pub(in crate::native_app) task_id: u64,
+    pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) loaded_path: PathBuf,
     pub(in crate::native_app) normalizing_loaded: bool,
     pub(in crate::native_app) was_playing: bool,
     pub(in crate::native_app) restart_ratio: f32,
     pub(in crate::native_app) restart_span: Option<(f32, f32)>,
     pub(in crate::native_app) normalized: Vec<PathBuf>,
+    pub(in crate::native_app) refreshed_files: Vec<RefreshedFileEntry>,
     pub(in crate::native_app) skipped: Vec<PathBuf>,
     pub(in crate::native_app) failed: Vec<NormalizationFailure>,
 }

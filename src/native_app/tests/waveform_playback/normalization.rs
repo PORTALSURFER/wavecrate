@@ -237,6 +237,48 @@ fn normalize_selected_samples_uses_interactive_worker_priority() {
 }
 
 #[test]
+fn normalize_many_selected_samples_uses_background_worker_priority() {
+    let source_root = tempfile::tempdir().expect("source root");
+    for index in 0..33 {
+        let path = source_root.path().join(format!("bulk-{index:02}.wav"));
+        write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    }
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    assert_eq!(state.library.folder_browser.select_all_audio_files(), 33);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
+        &mut context,
+    );
+
+    let command = context.into_command();
+    assert_eq!(
+        command.business_task_priority("gui-normalize-selected-samples"),
+        Some(ui::TaskPriority::Background),
+        "large normalization batches should run on the background lane"
+    );
+    assert!(
+        state.ui.status.sample.contains("in background"),
+        "bulk normalization should make the background behavior visible in status"
+    );
+    assert_eq!(
+        state
+            .background
+            .normalization_progress
+            .as_ref()
+            .expect("bulk normalization should report progress")
+            .total,
+        33
+    );
+}
+
+#[test]
 fn uncached_sample_load_waits_for_active_normalization() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("wait-load.wav");
@@ -367,16 +409,23 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             detail: selected_file.clone(),
         },
     );
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
     let mut context = ui::UiUpdateContext::default();
     state.finish_normalization(
         NormalizationResult {
             task_id: 42,
+            source_id,
             loaded_path: path.clone(),
             normalizing_loaded: true,
             was_playing: false,
             restart_ratio: 0.0,
             restart_span: None,
             normalized: vec![path.clone()],
+            refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: Vec::new(),
         },
@@ -448,16 +497,23 @@ fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalizati
         },
     );
 
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
     let mut context = ui::UiUpdateContext::default();
     state.finish_normalization(
         NormalizationResult {
             task_id: 42,
+            source_id,
             loaded_path: path,
             normalizing_loaded: true,
             was_playing: false,
             restart_ratio: 0.0,
             restart_span: None,
             normalized: vec![PathBuf::from(&selected_file)],
+            refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: Vec::new(),
         },
@@ -517,16 +573,23 @@ fn normalize_finish_resumes_loaded_playback_when_current_sample_is_skipped() {
         },
     );
 
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
     let mut context = ui::UiUpdateContext::default();
     state.finish_normalization(
         NormalizationResult {
             task_id: 42,
+            source_id,
             loaded_path: path.clone(),
             normalizing_loaded: true,
             was_playing: true,
             restart_ratio: 0.35,
             restart_span: Some((0.20, 0.80)),
             normalized: Vec::new(),
+            refreshed_files: Vec::new(),
             skipped: vec![path],
             failed: Vec::new(),
         },
@@ -579,16 +642,23 @@ fn normalize_finish_resumes_loaded_playback_when_current_sample_fails_before_wri
         },
     );
 
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
     let mut context = ui::UiUpdateContext::default();
     state.finish_normalization(
         NormalizationResult {
             task_id: 42,
+            source_id,
             loaded_path: path.clone(),
             normalizing_loaded: true,
             was_playing: true,
             restart_ratio: 0.30,
             restart_span: Some((0.10, 0.90)),
             normalized: Vec::new(),
+            refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: vec![crate::native_app::app::NormalizationFailure {
                 path,
@@ -627,16 +697,23 @@ fn normalize_finish_reports_failed_file_without_success_count() {
         },
     );
 
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
     let mut context = ui::UiUpdateContext::default();
     state.finish_normalization(
         NormalizationResult {
             task_id: 42,
+            source_id,
             loaded_path: path.clone(),
             normalizing_loaded: true,
             was_playing: false,
             restart_ratio: 0.0,
             restart_span: None,
             normalized: Vec::new(),
+            refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: vec![crate::native_app::app::NormalizationFailure {
                 path,

@@ -92,6 +92,40 @@ fn selected_folder_audio_projection_refreshes_multiple_files_as_one_batch() {
 }
 
 #[test]
+fn selected_folder_refresh_applies_precomputed_file_entries_without_disk_reread() {
+    let root = temp_source_root("wavecrate-gui-folder-precomputed-refresh");
+    let drums = root.join("drums");
+    let kick = drums.join("kick.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&kick, [0_u8; 8]).expect("write initial kick");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    fs::write(&kick, [1_u8; 16]).expect("write worker-visible kick");
+    let entries =
+        crate::native_app::sample_library::folder_browser::file_refresh::refreshed_file_entries_for_paths(
+            std::slice::from_ref(&kick),
+            &root,
+        );
+    fs::write(&kick, [2_u8; 32]).expect("write later kick");
+
+    let source_id = browser.selected_source_id().to_string();
+    assert!(browser.refresh_file_entries(&source_id, &entries));
+
+    let refreshed = browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.name == "kick.wav")
+        .expect("refreshed kick row");
+    assert_eq!(
+        refreshed.size_bytes, 16,
+        "UI-side refresh should merge the worker's precomputed row without rereading the file"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn targeted_filesystem_refresh_prunes_deleted_cached_file() {
     let root = temp_source_root("wavecrate-gui-targeted-refresh-prune-file");
     let drums = root.join("drums");

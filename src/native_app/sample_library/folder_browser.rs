@@ -55,6 +55,7 @@ mod file_rename_workflow;
 mod file_model;
 use file_model::{FileEntry, plural};
 
+pub(in crate::native_app) mod file_refresh;
 mod filesystem_refresh;
 mod scanning;
 use scanning::{default_root_path, file_entry, load_source_snapshot, placeholder_folder};
