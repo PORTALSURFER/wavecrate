@@ -523,6 +523,110 @@ fn full_gui_bottom_pointer_selection_does_not_jump_sample_window() {
 }
 
 #[test]
+fn full_gui_bottom_row_hover_does_not_shift_sample_window() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_paths = (0..160)
+        .map(|index| {
+            let path = source_root
+                .path()
+                .join(format!("bottom_hover_sample_{index:03}.wav"));
+            std::fs::write(&path, []).expect("sample file");
+            path
+        })
+        .collect::<Vec<_>>();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let scroll_point = Point::new(list_rect.center().x, list_rect.min.y + 48.0);
+    for _ in 0..64 {
+        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+    }
+
+    let before = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .file_view_start();
+    let viewport_rows = (list_rect.height()
+        / crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT)
+        .ceil()
+        .max(1.0) as usize;
+    let bottom_visible_row = (before + viewport_rows.saturating_sub(1)).min(sample_paths.len() - 1);
+    let first_hover_row = bottom_visible_row.saturating_sub(3).max(before);
+    let hover_stems = (first_hover_row..=bottom_visible_row)
+        .map(|index| {
+            sample_paths[index]
+                .file_stem()
+                .expect("sample file stem")
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    let tracked_stem = hover_stems
+        .last()
+        .expect("at least one hover row")
+        .to_string();
+
+    let mut starts = vec![before];
+    let mut tracked_row_tops = vec![text_top(&runtime.frame_with_default_theme(), &tracked_stem)];
+    for _ in 0..3 {
+        for stem in &hover_stems {
+            let frame = runtime.frame_with_default_theme();
+            let hover_target = text_center(&frame, stem);
+            assert!(
+                runtime
+                    .dispatch_event(Event::pointer_move(hover_target))
+                    .is_some(),
+                "sample row should receive pointer hover"
+            );
+            starts.push(
+                runtime
+                    .bridge()
+                    .state()
+                    .library
+                    .folder_browser
+                    .file_view_start(),
+            );
+            tracked_row_tops.push(text_top(&runtime.frame_with_default_theme(), &tracked_stem));
+            runtime.refresh();
+            starts.push(
+                runtime
+                    .bridge()
+                    .state()
+                    .library
+                    .folder_browser
+                    .file_view_start(),
+            );
+            tracked_row_tops.push(text_top(&runtime.frame_with_default_theme(), &tracked_stem));
+        }
+    }
+
+    assert_eq!(
+        starts,
+        vec![before; starts.len()],
+        "hovering bottom-visible rows should not move an already settled bottom viewport"
+    );
+    assert!(
+        tracked_row_tops
+            .windows(2)
+            .all(|pair| (pair[0] - pair[1]).abs() < 0.5),
+        "hovering bottom-visible rows should not repaint them at different y positions: {tracked_row_tops:?}"
+    );
+}
+
+#[test]
 fn full_gui_lower_pointer_selection_preserves_manual_scroll_window() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
