@@ -1,12 +1,20 @@
 use radiant::prelude as ui;
 
+mod projection;
+#[cfg(test)]
+mod tests;
+
 use crate::native_app::app::{GuiMessage, MetadataMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
+use crate::native_app::sample_library::folder_browser::model::FileColumn;
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
-use wavecrate_analysis::aspects::SimilarityAspect;
 
+use self::projection::{
+    HeaderColumnProjection, RandomNavigationButtonProjection, SampleNameViewModeButtonProjection,
+    SampleSimilarityAspectControlProjection, SampleSimilarityControlsProjection,
+    SampleSimilarityHeaderProjection, projected_header_columns,
+};
 use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, identity, similarity_aspect_color};
 
 const SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH: f32 = 22.0;
@@ -31,23 +39,20 @@ pub(super) struct SampleBrowserHeaderBar<'a> {
 }
 
 pub(super) fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui::View<GuiMessage> {
+    let random_navigation = RandomNavigationButtonProjection::new(model.random_navigation_enabled);
+    let name_view_mode = SampleNameViewModeButtonProjection::from_mode(model.mode);
     ui::row([
         sample_browser_header(
-            model.columns,
+            projected_header_columns(model.columns, model.similarity_mode_active),
             model.sort,
             model.drag_feedback,
-            model.similarity_mode_active,
-            model.similarity_controls,
+            SampleSimilarityHeaderProjection::from_settings(model.similarity_controls),
         )
         .fill_width(),
-        random_navigation_button(model.random_navigation_enabled).tooltip_if(
-            model.help_tooltips_enabled,
-            "Random audition within the selected folder or active filter.",
-        ),
-        sample_name_view_mode_button(model.mode).tooltip_if(
-            model.help_tooltips_enabled,
-            "Switch sample names between disk filenames and metadata labels.",
-        ),
+        random_navigation_button(random_navigation)
+            .tooltip_if(model.help_tooltips_enabled, random_navigation.tooltip),
+        sample_name_view_mode_button(name_view_mode)
+            .tooltip_if(model.help_tooltips_enabled, name_view_mode.tooltip),
     ])
     .fill_width()
     .height(24.0)
@@ -57,21 +62,22 @@ pub(super) fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui
 pub(super) fn sample_similarity_controls_bar(
     controls: &SimilarityAspectSettings,
 ) -> ui::View<GuiMessage> {
-    let mut controls_row = Vec::with_capacity(SimilarityAspect::ORDER.len() + 2);
+    let projection = SampleSimilarityControlsProjection::from_settings(controls);
+    let mut controls_row = Vec::with_capacity(projection.aspects.len() + 2);
     controls_row.push(
         ui::spacer()
             .width(SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH)
             .height(22.0),
     );
     controls_row.push(
-        ui::toggle("Weight", controls.weighting_enabled)
+        ui::toggle(projection.weighting_label, projection.weighting_enabled)
             .subtle()
             .message(GuiMessage::SetSimilarityAspectWeightingEnabled)
             .id(identity::sample_similarity_weighting_toggle_id())
             .size(70.0, 20.0),
     );
-    for aspect in SimilarityAspect::ORDER {
-        controls_row.push(sample_similarity_aspect_control(aspect, controls));
+    for aspect in projection.aspects {
+        controls_row.push(sample_similarity_aspect_control(aspect));
     }
     ui::row(controls_row)
         .spacing(5.0)
@@ -80,9 +86,9 @@ pub(super) fn sample_similarity_controls_bar(
         .height(28.0)
 }
 
-fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
-    ui::icon_button(random_navigation_icon(active))
-        .active(active)
+fn random_navigation_button(projection: RandomNavigationButtonProjection) -> ui::View<GuiMessage> {
+    ui::icon_button(random_navigation_icon(projection.active))
+        .active(projection.active)
         .message(GuiMessage::ToggleRandomNavigationMode)
         .id(identity::random_navigation_toggle_id())
         .size(28.0, 22.0)
@@ -92,12 +98,10 @@ fn random_navigation_icon(active: bool) -> ui::SvgIcon {
     DICE_ICON.icon_for_state(SAMPLE_BROWSER_ICON_TINTS, true, active)
 }
 
-fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage> {
-    let label = match mode {
-        SampleNameViewMode::DiskFilename => "Disk",
-        SampleNameViewMode::MetadataLabel => "Label",
-    };
-    ui::button(label)
+fn sample_name_view_mode_button(
+    projection: SampleNameViewModeButtonProjection,
+) -> ui::View<GuiMessage> {
+    ui::button(projection.label)
         .message(GuiMessage::Metadata(
             MetadataMessage::ToggleSampleNameViewMode,
         ))
@@ -117,15 +121,14 @@ static DICE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
 );
 
 fn sample_browser_header(
-    columns: &[&FileColumn],
+    columns: Vec<HeaderColumnProjection<'_>>,
     sort: &ui::DetailsSort,
     drag_feedback: Option<&FileColumnDragFeedback>,
-    similarity_mode_active: bool,
-    similarity_controls: &SimilarityAspectSettings,
+    similarity_header: SampleSimilarityHeaderProjection,
 ) -> ui::View<GuiMessage> {
-    let header_cells = columns.iter().flat_map(|column| {
-        sample_header_cells(column, sort, similarity_mode_active, similarity_controls)
-    });
+    let header_cells = columns
+        .iter()
+        .flat_map(|column| sample_header_cells(column, sort, &similarity_header));
     let header = ui::row([
         ui::spacer()
             .width(SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH)
@@ -152,7 +155,11 @@ fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
         .padding_y(2.0)
 }
 
-fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
+fn sample_header_cell(
+    projection: &HeaderColumnProjection<'_>,
+    sort: &ui::DetailsSort,
+) -> ui::View<GuiMessage> {
+    let column = projection.column;
     let sort_id = column.id.clone();
     let drag_id = column.id.clone();
     let resize_id = column.id.clone();
@@ -176,39 +183,35 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
 }
 
 fn sample_header_cells(
-    column: &FileColumn,
+    column: &HeaderColumnProjection<'_>,
     sort: &ui::DetailsSort,
-    similarity_mode_active: bool,
-    similarity_controls: &SimilarityAspectSettings,
+    similarity_header: &SampleSimilarityHeaderProjection,
 ) -> Vec<ui::View<GuiMessage>> {
     let mut cells = vec![sample_header_cell(column, sort)];
-    if column.kind() == FileColumnKind::Name && similarity_mode_active {
-        cells.push(sample_similarity_header_cell(
-            similarity_controls.aspect_enabled_flags(),
-        ));
+    if column.show_similarity_after {
+        cells.push(sample_similarity_header_cell(similarity_header));
     }
     cells
 }
 
 fn sample_similarity_header_cell(
-    aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
+    projection: &SampleSimilarityHeaderProjection,
 ) -> ui::View<GuiMessage> {
     let mut header_parts = Vec::with_capacity(wavecrate_analysis::aspects::ASPECT_COUNT + 1);
-    for aspect in SimilarityAspect::ORDER {
-        let label = similarity_aspect_short_label(aspect);
-        let text = ui::text(label)
+    for aspect in &projection.aspects {
+        let text = ui::text(aspect.label)
             .align_text(ui::TextAlign::Center)
-            .key(identity::sample_similarity_header_aspect_key(label))
+            .key(identity::sample_similarity_header_aspect_key(aspect.label))
             .height(20.0)
             .width(SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH);
-        header_parts.push(if aspect_enabled[aspect.index()] {
+        header_parts.push(if aspect.enabled {
             text
         } else {
             text.muted_text()
         });
     }
     header_parts.push(
-        ui::text("Sim")
+        ui::text(projection.score_label)
             .muted_text()
             .key(identity::SAMPLE_HEADER_SIMILARITY_LABEL_KEY)
             .height(20.0)
@@ -222,40 +225,37 @@ fn sample_similarity_header_cell(
 }
 
 fn sample_similarity_aspect_control(
-    aspect: SimilarityAspect,
-    controls: &SimilarityAspectSettings,
+    projection: SampleSimilarityAspectControlProjection,
 ) -> ui::View<GuiMessage> {
-    let control = controls.control(aspect);
-    let label = similarity_aspect_short_label(aspect);
     ui::row([
-        ui::color_marker(Some(similarity_aspect_color(aspect)))
+        ui::color_marker(Some(similarity_aspect_color(projection.aspect)))
             .side(7)
             .inset(0)
             .view()
             .width(8.0)
             .height(20.0),
-        ui::toggle(label, control.enabled)
+        ui::toggle(projection.label, projection.enabled)
             .subtle()
-            .message(move |enabled| GuiMessage::SetSimilarityAspectEnabled { aspect, enabled })
-            .id(identity::sample_similarity_aspect_toggle_id(aspect))
+            .message(move |enabled| GuiMessage::SetSimilarityAspectEnabled {
+                aspect: projection.aspect,
+                enabled,
+            })
+            .id(identity::sample_similarity_aspect_toggle_id(
+                projection.aspect,
+            ))
             .size(34.0, 20.0),
-        ui::slider(control.weight)
+        ui::slider(projection.weight)
             .compact()
             .subtle()
-            .message(move |weight| GuiMessage::SetSimilarityAspectWeight { aspect, weight })
-            .id(identity::sample_similarity_aspect_weight_id(aspect))
+            .message(move |weight| GuiMessage::SetSimilarityAspectWeight {
+                aspect: projection.aspect,
+                weight,
+            })
+            .id(identity::sample_similarity_aspect_weight_id(
+                projection.aspect,
+            ))
             .size(62.0, 16.0),
     ])
     .spacing(3.0)
     .height(22.0)
-}
-
-fn similarity_aspect_short_label(aspect: SimilarityAspect) -> &'static str {
-    match aspect {
-        SimilarityAspect::Overall => "O",
-        SimilarityAspect::Spectrum => "S",
-        SimilarityAspect::Timbre => "T",
-        SimilarityAspect::Pitch => "P",
-        SimilarityAspect::Amplitude => "A",
-    }
 }
