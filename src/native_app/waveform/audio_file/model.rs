@@ -2,7 +2,7 @@ use radiant::runtime::GpuSignalSummary;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -42,6 +42,21 @@ impl PersistedPlaybackCacheFile {
 }
 
 impl WaveformFile {
+    pub(in crate::native_app) fn clone_remapped_after_path_move(
+        &self,
+        old_path: &Path,
+        new_path: &Path,
+    ) -> Option<Self> {
+        let mapped_path = remapped_waveform_path(&self.path, old_path, new_path)?;
+        if mapped_path == self.path {
+            return None;
+        }
+        let mut file = self.clone();
+        file.path = mapped_path;
+        file.playback_cache_file = None;
+        Some(file)
+    }
+
     pub(in crate::native_app::waveform) fn has_loaded_sample_metadata(&self) -> bool {
         !self.path.as_os_str().is_empty()
             && (!self.audio_bytes.is_empty()
@@ -71,4 +86,13 @@ impl WaveformFile {
     pub(in crate::native_app::waveform) fn content_revision(&self) -> u64 {
         self.content_revision
     }
+}
+
+fn remapped_waveform_path(path: &Path, old_path: &Path, new_path: &Path) -> Option<PathBuf> {
+    if path == old_path {
+        return Some(new_path.to_path_buf());
+    }
+    path.strip_prefix(old_path)
+        .ok()
+        .map(|relative| new_path.join(relative))
 }

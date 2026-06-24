@@ -10,7 +10,7 @@ use radiant::{
     prelude::{self as ui, IntoView},
     widgets::{DragHandleMessage, PointerModifiers},
 };
-use std::fs;
+use std::{fs, sync::Arc};
 use wavecrate::sample_sources::Rating;
 
 fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
@@ -564,6 +564,81 @@ fn cut_paste_selected_files_moves_audio_into_selected_folder() {
             moved_kick.display().to_string(),
             moved_snare.display().to_string()
         ]
+    );
+}
+
+#[test]
+fn cut_paste_moved_cached_file_reloads_from_new_path() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    write_test_wav_i16(&kick, &[0, 256, -256, 512, -1024, 1024, 0, 128]);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(kick.clone())
+            .expect("sample loads");
+    let loaded = state.waveform.current.clone();
+    state.remember_waveform(&loaded);
+
+    state.cut_selected_files();
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            loops.display().to_string(),
+            Default::default(),
+        ));
+    let mut context = ui::UiUpdateContext::default();
+    state.paste_cut_files(&mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    let moved_kick = loops.join("kick.wav");
+    assert!(moved_kick.is_file());
+    assert!(state.waveform.cache.entries.contains_key(&moved_kick));
+    assert!(!state.waveform.cache.entries.contains_key(&kick));
+    let cached_state =
+        crate::native_app::test_support::state::WaveformState::from_cached_file(Arc::clone(
+            &state
+                .waveform
+                .cache
+                .entries
+                .get(&moved_kick)
+                .expect("moved cache entry")
+                .file,
+        ));
+    assert_eq!(cached_state.path(), moved_kick);
+
+    state.waveform.current = crate::native_app::test_support::state::WaveformState::load_default()
+        .expect("clear current waveform");
+    let mut context = ui::UiUpdateContext::default();
+    state.load_validated_sample_without_autoplay(
+        moved_kick.display().to_string(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+
+    assert_eq!(state.waveform.current.path(), moved_kick);
+    assert!(
+        state.waveform.current.has_loaded_sample(),
+        "moved cached files should reload from the remapped cache entry"
     );
 }
 

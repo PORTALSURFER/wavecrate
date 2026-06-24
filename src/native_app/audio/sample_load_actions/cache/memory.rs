@@ -1,6 +1,7 @@
 use std::{
     collections::hash_map::Entry,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Instant,
 };
 
@@ -51,7 +52,13 @@ impl NativeAppState {
             if mapped == path {
                 continue;
             }
-            if let Some(entry) = self.waveform.cache.entries.remove(&path) {
+            if let Some(mut entry) = self.waveform.cache.entries.remove(&path) {
+                if let Some(file) = entry
+                    .file
+                    .clone_remapped_after_path_move(old_path, new_path)
+                {
+                    entry.file = Arc::new(file);
+                }
                 self.waveform.cache.entries.insert(mapped, entry);
             }
         }
