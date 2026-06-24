@@ -95,10 +95,8 @@ fn sample_list_browser_drag_cancel_target() -> ui::PointerTarget<GuiMessage> {
                 Some(GuiMessage::CancelBrowserDragOnSampleList)
             }
             ui::PointerShieldMessage::PointerMove { .. }
-            | ui::PointerShieldMessage::PointerPress { .. } => {
-                Some(GuiMessage::CancelBrowserDragOnSampleList)
-            }
-            ui::PointerShieldMessage::Wheel { .. } => None,
+            | ui::PointerShieldMessage::PointerPress { .. }
+            | ui::PointerShieldMessage::Wheel { .. } => None,
         })
         .key("sample-list-browser-drag-cancel-target")
 }
