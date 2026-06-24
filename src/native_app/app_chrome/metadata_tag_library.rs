@@ -84,10 +84,8 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
     let visual = ui::row([
         ui::disclosure_button(category.expanded)
             .passive()
-            .key(identity::category_disclosure_key(category.id))
             .size(20.0, 18.0),
-        ui::text_line(category.header_label.clone(), 22.0)
-            .key(identity::category_label_key(category.id)),
+        ui::text_line(category.header_label.clone(), 22.0),
     ])
     .style(style)
     .padding_x(4.0)
@@ -97,6 +95,7 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
     ui::interactive_row_underlay(visual)
         .tracked_drop_target(category.accepts_drop, category.drop_hover)
         .style(style)
+        .input_key(identity::category_input_key(category.id))
         .actions(
             ui::row_actions()
                 .drop_target_key(
@@ -106,7 +105,6 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
                 )
                 .primary_key(category_for_input, toggle_metadata_tag_category),
         )
-        .key(identity::category_underlay_key(category.id))
         .fill_width()
         .height(22.0)
 }
@@ -170,12 +168,12 @@ fn empty_category_target(category: MetadataTagEmptyCategoryProjection) -> ui::Vi
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
         .tracked_drop_target(category.accepts_drop, category.drop_hover)
+        .input_key(identity::empty_category_input_key(category.category_id))
         .actions(ui::row_actions().drop_target_key(
             category_for_input,
             drop_metadata_tag_on_category,
             hover_metadata_tag_drop_category,
         ))
-        .key(identity::empty_category_key(category.category_id))
         .fill_width()
         .height(20.0)
 }
