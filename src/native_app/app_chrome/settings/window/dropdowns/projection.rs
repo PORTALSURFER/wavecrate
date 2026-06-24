@@ -43,67 +43,31 @@ pub(super) struct OpenAudioSettingsDropdownProjection {
 pub(super) fn audio_host_dropdown_projection(
     snapshot: &AudioSettingsSnapshot,
 ) -> AudioStringDropdownProjection {
-    let selected_value = snapshot.audio_output_config.host.clone();
-    let selected_label = selected_value
-        .as_deref()
-        .and_then(|selected| {
-            snapshot
-                .audio_hosts
-                .iter()
-                .find(|host| host.id == selected)
-                .map(|host| default_option_label(host.label.as_str(), host.is_default))
-        })
-        .or_else(|| selected_value.clone())
-        .unwrap_or_else(|| SYSTEM_DEFAULT_HOST_LABEL.to_string());
-    let mut options = vec![AudioStringDropdownOptionProjection::new(
+    audio_string_dropdown_projection(
+        snapshot.audio_output_config.host.clone(),
         SYSTEM_DEFAULT_HOST_LABEL,
-        None,
-    )];
-    options.extend(snapshot.audio_hosts.iter().map(|host| {
-        AudioStringDropdownOptionProjection::new(
-            default_option_label(host.label.as_str(), host.is_default),
-            Some(host.id.clone()),
-        )
-    }));
-    AudioStringDropdownProjection {
-        selected_label,
-        selected_value,
-        open: snapshot.dropdown_open(AudioSettingsDropdown::Backend),
-        options,
-    }
+        snapshot.dropdown_open(AudioSettingsDropdown::Backend),
+        snapshot.audio_hosts.iter().map(|host| {
+            AudioStringDropdownEntry::new(host.id.as_str(), host.label.as_str(), host.is_default)
+        }),
+    )
 }
 
 pub(super) fn audio_output_dropdown_projection(
     snapshot: &AudioSettingsSnapshot,
 ) -> AudioStringDropdownProjection {
-    let selected_value = snapshot.audio_output_config.device.clone();
-    let selected_label = selected_value
-        .as_deref()
-        .and_then(|selected| {
-            snapshot
-                .audio_devices
-                .iter()
-                .find(|device| device.name == selected)
-                .map(|device| default_option_label(device.name.as_str(), device.is_default))
-        })
-        .or_else(|| selected_value.clone())
-        .unwrap_or_else(|| HOST_DEFAULT_DEVICE_LABEL.to_string());
-    let mut options = vec![AudioStringDropdownOptionProjection::new(
+    audio_string_dropdown_projection(
+        snapshot.audio_output_config.device.clone(),
         HOST_DEFAULT_DEVICE_LABEL,
-        None,
-    )];
-    options.extend(snapshot.audio_devices.iter().map(|device| {
-        AudioStringDropdownOptionProjection::new(
-            default_option_label(device.name.as_str(), device.is_default),
-            Some(device.name.clone()),
-        )
-    }));
-    AudioStringDropdownProjection {
-        selected_label,
-        selected_value,
-        open: snapshot.dropdown_open(AudioSettingsDropdown::Output),
-        options,
-    }
+        snapshot.dropdown_open(AudioSettingsDropdown::Output),
+        snapshot.audio_devices.iter().map(|device| {
+            AudioStringDropdownEntry::new(
+                device.name.as_str(),
+                device.name.as_str(),
+                device.is_default,
+            )
+        }),
+    )
 }
 
 pub(super) fn audio_sample_rate_dropdown_projection(
@@ -140,6 +104,59 @@ pub(super) fn open_audio_settings_dropdown_projection(
             AudioSettingsDropdown::SampleRate => 2,
         },
     })
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct AudioStringDropdownEntry<'a> {
+    value: &'a str,
+    label: &'a str,
+    is_default: bool,
+}
+
+impl<'a> AudioStringDropdownEntry<'a> {
+    fn new(value: &'a str, label: &'a str, is_default: bool) -> Self {
+        Self {
+            value,
+            label,
+            is_default,
+        }
+    }
+}
+
+fn audio_string_dropdown_projection<'a>(
+    selected_value: Option<String>,
+    default_label: &'static str,
+    open: bool,
+    entries: impl IntoIterator<Item = AudioStringDropdownEntry<'a>>,
+) -> AudioStringDropdownProjection {
+    let entries = entries.into_iter().collect::<Vec<_>>();
+    let selected_label = selected_value
+        .as_deref()
+        .and_then(|selected| {
+            entries
+                .iter()
+                .find(|entry| entry.value == selected)
+                .map(|entry| default_option_label(entry.label, entry.is_default))
+        })
+        .or_else(|| selected_value.clone())
+        .unwrap_or_else(|| default_label.to_string());
+    let mut options = vec![AudioStringDropdownOptionProjection::new(
+        default_label,
+        None,
+    )];
+    options.extend(entries.into_iter().map(|entry| {
+        AudioStringDropdownOptionProjection::new(
+            default_option_label(entry.label, entry.is_default),
+            Some(entry.value.to_string()),
+        )
+    }));
+
+    AudioStringDropdownProjection {
+        selected_label,
+        selected_value,
+        open,
+        options,
+    }
 }
 
 impl AudioStringDropdownOptionProjection {
@@ -204,6 +221,27 @@ mod tests {
 
         assert_eq!(projection.selected_label, "jack");
         assert_eq!(projection.selected_value.as_deref(), Some("jack"));
+        assert_eq!(
+            option_labels(&projection.options),
+            ["System default", "WASAPI (default)", "ASIO"]
+        );
+    }
+
+    #[test]
+    fn string_dropdown_projection_preserves_unknown_value_and_default_labels() {
+        let projection = audio_string_dropdown_projection(
+            Some("custom".to_string()),
+            "System default",
+            true,
+            [
+                AudioStringDropdownEntry::new("wasapi", "WASAPI", true),
+                AudioStringDropdownEntry::new("asio", "ASIO", false),
+            ],
+        );
+
+        assert_eq!(projection.selected_label, "custom");
+        assert_eq!(projection.selected_value.as_deref(), Some("custom"));
+        assert!(projection.open);
         assert_eq!(
             option_labels(&projection.options),
             ["System default", "WASAPI (default)", "ASIO"]
