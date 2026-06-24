@@ -33,6 +33,7 @@ const TOOLBAR: WidgetIdNamespace = WidgetIdNamespace::new(32_100);
 const FOLDER_FILTERS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4600);
 const SAMPLE_BROWSER_HEADER: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4800);
 const COLLECTIONS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4c00);
+const SOURCES: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5300);
 const METADATA_TAGS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5440);
 
 pub(in crate::native_app) const WAVEFORM_VIEWPORT_STACK_ID: u64 = WAVEFORM.id(10);
@@ -88,6 +89,10 @@ pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = COLLECTIO
 #[cfg(test)]
 pub(in crate::native_app) const EMPTY_COLLECTION_COUNT_NODE_ID: u64 = COLLECTIONS.id(4);
 pub(in crate::native_app) const COLLECTIONS_RESIZE_HEADER_ID: u64 = COLLECTIONS.id(5);
+pub(in crate::native_app) const COLLECTION_ROW_INPUT_SCOPE: u64 = COLLECTIONS.id(1);
+
+pub(in crate::native_app) const SOURCE_ADD_BUTTON_ID: u64 = SOURCES.id(0);
+pub(in crate::native_app) const SOURCE_ROW_INPUT_SCOPE: u64 = SOURCES.id(1);
 
 pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = METADATA_TAGS.id(7);
 #[cfg(test)]
@@ -117,6 +122,7 @@ enum WidgetIdOwner {
     Toolbar,
     FolderFilters,
     Collections,
+    Sources,
     MetadataTags,
 }
 
@@ -133,6 +139,7 @@ impl WidgetIdOwner {
             Self::Toolbar => TOOLBAR,
             Self::FolderFilters => FOLDER_FILTERS,
             Self::Collections => COLLECTIONS,
+            Self::Sources => SOURCES,
             Self::MetadataTags => METADATA_TAGS,
         }
     }
@@ -296,6 +303,7 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         COLLECTIONS_RESIZE_HEADER_ID,
         "collections.resize_header"
     ),
+    registered_widget_id!(Sources, SOURCE_ADD_BUTTON_ID, "sources.add_button"),
     registered_widget_id!(MetadataTags, METADATA_TAG_INPUT_ID, "metadata_tags.input"),
     registered_widget_id!(
         MetadataTags,

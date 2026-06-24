@@ -7,9 +7,10 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
     SourceRowViewModel, SourceSelectorViewModel,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::ui::ids as widget_ids;
 
-const SOURCE_ADD_BUTTON_ID: u64 = 0x5743_0000_0000_5300;
-const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
+const SOURCE_ADD_BUTTON_ID: u64 = widget_ids::SOURCE_ADD_BUTTON_ID;
+const SOURCE_ROW_INPUT_SCOPE: u64 = widget_ids::SOURCE_ROW_INPUT_SCOPE;
 const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
 const SOURCE_ADD_BUTTON_WIDTH: f32 = 28.0;
 const SOURCE_ADD_BUTTON_HEIGHT: f32 = 24.0;

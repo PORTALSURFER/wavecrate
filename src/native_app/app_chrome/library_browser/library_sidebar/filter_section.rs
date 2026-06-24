@@ -113,7 +113,6 @@ fn filter_controls_content_height(row_count: usize) -> f32 {
 fn name_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     filter_input_row(
         "Name",
-        "filter-name-label",
         filter_text_input(
             model.name_filter.clone(),
             NAME_FILTER_INPUT_ID,
@@ -126,7 +125,6 @@ fn name_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
 fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     filter_input_row(
         "Tags",
-        "filter-tags-label",
         filter_text_input(
             model.tag_filter.clone(),
             TAG_FILTER_INPUT_ID,
@@ -151,7 +149,7 @@ fn filter_text_input(
 }
 
 fn playback_type_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let label = ui::text_line("Type", FILTER_CLEAR_BUTTON_SIZE).key("filter-type-label");
+    let label = filter_row_label("Type");
     filter_labeled_control_row(
         label,
         ui::row(
@@ -193,7 +191,7 @@ fn playback_type_filter_toggle_id(label: &str) -> u64 {
 }
 
 fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let label = ui::text_line("Rating", FILTER_CLEAR_BUTTON_SIZE).key("filter-rating-label");
+    let label = filter_row_label("Rating");
     filter_labeled_control_row(
         label,
         ui::row(
@@ -256,12 +254,14 @@ fn rating_filter_toggle_id(label: &str) -> u64 {
 
 fn filter_input_row(
     label: &'static str,
-    label_key: &'static str,
     control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    let label = ui::text_line(label, FILTER_CLEAR_BUTTON_SIZE).key(label_key);
-    filter_labeled_control_row(label, control, key)
+    filter_labeled_control_row(filter_row_label(label), control, key)
+}
+
+fn filter_row_label(label: &'static str) -> ui::View<GuiMessage> {
+    ui::text_line(label, FILTER_CLEAR_BUTTON_SIZE)
 }
 
 fn filter_labeled_control_row(
@@ -272,7 +272,6 @@ fn filter_labeled_control_row(
     ui::form_row_from_parts(
         ui::FormRowParts::dense(key, label, control).label_width(FILTER_LABEL_WIDTH),
     )
-    .key(key)
     .fill_width()
     .height(FILTER_ROW_HEIGHT)
 }

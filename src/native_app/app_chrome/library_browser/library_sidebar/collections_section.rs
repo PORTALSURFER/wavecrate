@@ -12,7 +12,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::{
 };
 use crate::native_app::ui::ids as widget_ids;
 
-const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
+const COLLECTION_ROW_INPUT_SCOPE: u64 = widget_ids::COLLECTION_ROW_INPUT_SCOPE;
 /// Stable layout node id for collection-panel resize regression coverage.
 const COLLECTIONS_SECTION_NODE_ID: u64 = widget_ids::COLLECTIONS_SECTION_NODE_ID;
 /// Stable layout node id for the collection rows scroll viewport.
