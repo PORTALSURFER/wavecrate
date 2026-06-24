@@ -59,7 +59,7 @@ impl WaveformState {
         end: f32,
     ) {
         self.set_play_selection_range(start, end);
-        self.zoom_to_play_selection();
+        self.ensure_play_selection_visible();
     }
 
     pub(in crate::native_app) fn set_edit_selection_range(&mut self, selection: SelectionRange) {

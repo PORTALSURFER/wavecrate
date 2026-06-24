@@ -71,8 +71,9 @@ fn zoom_to_play_selection_fits_active_playmark_range() {
 }
 
 #[test]
-fn restoring_play_selection_range_focuses_region_viewport() {
+fn restoring_play_selection_range_keeps_visible_region_viewport() {
     let mut state = WaveformState::synthetic_for_tests();
+    let original_viewport = state.viewport();
 
     state.restore_play_selection_range_in_focus(0.75, 0.90);
 
@@ -81,15 +82,61 @@ fn restoring_play_selection_range_focuses_region_viewport() {
         Some(wavecrate::selection::SelectionRange::new(0.75, 0.90))
     );
     assert_eq!(state.play_mark_ratio(), Some(0.75));
+    assert_eq!(state.viewport(), original_viewport);
+    assert!(state.visible_ratio_for_absolute(0.75).is_some());
+    assert!(state.visible_ratio_for_absolute(0.90).is_some());
+}
+
+#[test]
+fn restoring_play_selection_range_pans_current_zoom_to_unclipped_region() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.viewport = super::WaveformViewport {
+        start: 0,
+        end: 12_000,
+    };
+
+    state.restore_play_selection_range_in_focus(0.50, 0.60);
+
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.50, 0.60))
+    );
+    assert_eq!(state.play_mark_ratio(), Some(0.50));
     assert_eq!(
         state.viewport(),
         super::WaveformViewport {
-            start: 36_000,
-            end: 43_200,
+            start: 20_400,
+            end: 32_400,
         }
     );
-    assert!(state.visible_ratio_for_absolute(0.75).is_some());
-    assert!(state.visible_ratio_for_absolute(0.90).is_some());
+    assert!(state.visible_ratio_for_absolute(0.50).is_some());
+    assert!(state.visible_ratio_for_absolute(0.60).is_some());
+}
+
+#[test]
+fn restoring_play_selection_range_zooms_only_when_region_cannot_fit_current_viewport() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.viewport = super::WaveformViewport {
+        start: 0,
+        end: 4_000,
+    };
+
+    state.restore_play_selection_range_in_focus(0.25, 0.50);
+
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.25, 0.50))
+    );
+    assert_eq!(state.play_mark_ratio(), Some(0.25));
+    assert_eq!(
+        state.viewport(),
+        super::WaveformViewport {
+            start: 12_000,
+            end: 24_000,
+        }
+    );
+    assert!(state.visible_ratio_for_absolute(0.25).is_some());
+    assert!(state.visible_ratio_for_absolute(0.50).is_some());
 }
 
 #[test]

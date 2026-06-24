@@ -44,7 +44,7 @@ fn playback_history_steps_between_regions_without_duplicate_recording() {
 }
 
 #[test]
-fn playback_history_load_completion_restores_region_and_focuses_waveform() {
+fn playback_history_load_completion_restores_region_without_unneeded_zoom() {
     let samples = vec![0_i16; 48_000];
     let mut scenario = WaveformPlaybackScenario::with_temp_wav("history-load.wav", &samples)
         .with_unloaded_waveform();
@@ -97,8 +97,8 @@ fn playback_history_load_completion_restores_region_and_focuses_waveform() {
         Some(0.25)
     );
     let viewport = scenario.state.waveform.current.viewport();
-    assert_eq!(viewport.start, 12_000);
-    assert_eq!(viewport.end, 24_000);
+    assert_eq!(viewport.start, 0);
+    assert_eq!(viewport.end, samples.len());
     assert!(
         scenario
             .state
