@@ -1,3 +1,8 @@
+mod projection;
+
+use self::projection::{
+    JobDetailsPopoverProjection, bottom_status_bar_projection, job_details_popover_projection,
+};
 use crate::native_app::app::{FolderScanProgress, GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::modals;
 use crate::native_app::app_chrome::view_models::status_bar::{
@@ -26,21 +31,18 @@ pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::V
 }
 
 pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui::View<GuiMessage> {
+    let projection = bottom_status_bar_projection(model);
     ui::status_bar_from_parts(
         ui::StatusBarParts::new(ui::StatusSegments::left_center(
-            selected_sample_count_label(model.selected_sample_count),
-            model.status_text,
+            projection.selected_sample_count_label,
+            projection.status_text,
         ))
         .left_width(120.0)
         .trailing(worker_progress_bar(
-            model.worker_progress,
-            model.progress_tick,
+            projection.worker_progress,
+            projection.progress_tick,
         )),
     )
-}
-
-fn selected_sample_count_label(count: usize) -> String {
-    format!("{count} sample{}", if count == 1 { "" } else { "s" })
 }
 
 pub(in crate::native_app) fn worker_progress_bar(
@@ -165,24 +167,24 @@ fn transaction_list_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessag
 pub(in crate::native_app) fn job_details_popover(
     progress: &FolderScanProgress,
 ) -> ui::View<GuiMessage> {
-    let total_label =
-        ui::ProgressSnapshot::new(progress.completed, progress.total).count_label("found");
-    let detail = if progress.detail.is_empty() {
-        String::from("Waiting for next item")
-    } else {
-        progress.detail.clone()
-    };
-    let content = ui::column([
-        ui::text_line(format!("Type: {}", progress.phase), 20.0),
-        ui::text_line(format!("Source: {}", progress.label), 20.0),
-        ui::text_line(format!("Progress: {total_label}"), 20.0),
-        ui::text_line(format!("Current: {detail}"), 20.0),
-    ])
+    job_details_popover_from_projection(job_details_popover_projection(progress))
+}
+
+fn job_details_popover_from_projection(
+    projection: JobDetailsPopoverProjection,
+) -> ui::View<GuiMessage> {
+    let content = ui::column(
+        projection
+            .rows
+            .into_iter()
+            .map(|row| ui::text_line(row, 20.0))
+            .collect::<Vec<_>>(),
+    )
     .spacing(5.0)
     .fill_width();
     ui::closeable_dialog_layer_from_parts(
         ui::DialogLayerParts::new(
-            "Job Details",
+            projection.title,
             content,
             ui::WidgetTone::Neutral,
             ui::Vector2::new(300.0, 132.0),
