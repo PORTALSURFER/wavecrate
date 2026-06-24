@@ -10,11 +10,14 @@ use crate::native_app::app::{
     SampleSelectionLoadState, WaveformCacheEntry,
 };
 use crate::native_app::waveform::WaveformState;
+use wavecrate::selection::SelectionRange;
 
 pub(in crate::native_app) struct WaveformAppState {
     pub(in crate::native_app) current: WaveformState,
     pub(in crate::native_app) load: WaveformLoadState,
     pub(in crate::native_app) cache: WaveformCacheState,
+    pub(in crate::native_app) pending_play_selection_transaction:
+        Option<WaveformPlaySelectionSnapshot>,
 }
 
 impl WaveformAppState {
@@ -23,6 +26,26 @@ impl WaveformAppState {
             current,
             load: WaveformLoadState::default(),
             cache: WaveformCacheState::default(),
+            pending_play_selection_transaction: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct WaveformPlaySelectionSnapshot {
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) play_mark_ratio: Option<f32>,
+    pub(in crate::native_app) play_selection: Option<SelectionRange>,
+    pub(in crate::native_app) marked_play_ranges: Vec<SelectionRange>,
+}
+
+impl WaveformPlaySelectionSnapshot {
+    pub(in crate::native_app) fn from_waveform(waveform: &WaveformState) -> Self {
+        Self {
+            path: waveform.path(),
+            play_mark_ratio: waveform.play_mark_ratio(),
+            play_selection: waveform.play_selection(),
+            marked_play_ranges: waveform.marked_play_ranges().to_vec(),
         }
     }
 }

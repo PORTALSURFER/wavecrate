@@ -2,8 +2,8 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind,
-    emit_gui_action,
+    GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformInteraction,
+    WaveformPlaySelectionSnapshot, WaveformSelectionKind, emit_gui_action,
 };
 
 impl NativeAppState {
@@ -19,15 +19,24 @@ impl NativeAppState {
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.current.active_drag_kind();
+        let play_selection_before = self.play_selection_transaction_begin_snapshot(&message);
         if let WaveformInteraction::DragPlaySelectionExport(drag) = message
             && !self.drag_waveform_play_selection(drag, context)
         {
             return;
         }
         self.waveform.current.apply_interaction(message);
+        if let Some(before) = play_selection_before {
+            self.waveform.pending_play_selection_transaction =
+                play_selection_drag_active(self.waveform.current.active_drag_kind())
+                    .then_some(before);
+        }
         self.sync_edit_fade_audio_state();
         if waveform_interaction_updates_play_selection(&message, active_drag) {
             self.retarget_loop_playback_to_play_selection();
+        }
+        if play_selection_transaction_finishes(&message, active_drag) {
+            self.register_finished_play_selection_transaction();
         }
         if let Some(action) = action {
             emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
@@ -36,6 +45,44 @@ impl NativeAppState {
             self.maybe_open_audio_player(context);
             self.play_waveform_from_ratio(start_ratio, context);
         }
+    }
+
+    fn play_selection_transaction_begin_snapshot(
+        &self,
+        interaction: &WaveformInteraction,
+    ) -> Option<WaveformPlaySelectionSnapshot> {
+        let begins_play_selection_change = matches!(
+            interaction,
+            WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                ..
+            } | WaveformInteraction::BeginSelectionResize {
+                kind: WaveformSelectionKind::Play,
+                ..
+            } | WaveformInteraction::BeginSelectionMove {
+                kind: WaveformSelectionKind::Play,
+                ..
+            }
+        );
+        begins_play_selection_change
+            .then(|| WaveformPlaySelectionSnapshot::from_waveform(&self.waveform.current))
+    }
+
+    fn register_finished_play_selection_transaction(&mut self) {
+        let Some(before) = self.waveform.pending_play_selection_transaction.take() else {
+            return;
+        };
+        let after = WaveformPlaySelectionSnapshot::from_waveform(&self.waveform.current);
+        if before.path != after.path || before == after {
+            return;
+        }
+        let undo_snapshot = before.clone();
+        let redo_snapshot = after;
+        self.register_transaction_action(
+            "Change play mark selection",
+            move |transaction| transaction.restore_play_selection(undo_snapshot.clone()),
+            move |transaction| transaction.restore_play_selection(redo_snapshot.clone()),
+        );
     }
 }
 
@@ -49,6 +96,18 @@ fn waveform_interaction_updates_play_selection(
     ) {
         return false;
     }
+    play_selection_drag_active(active_drag)
+}
+
+fn play_selection_transaction_finishes(
+    interaction: &WaveformInteraction,
+    active_drag: Option<WaveformActiveDragKind>,
+) -> bool {
+    matches!(interaction, WaveformInteraction::FinishSelection { .. })
+        && play_selection_drag_active(active_drag)
+}
+
+fn play_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bool {
     matches!(
         active_drag,
         Some(WaveformActiveDragKind::Selection(

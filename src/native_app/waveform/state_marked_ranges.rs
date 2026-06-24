@@ -1,9 +1,7 @@
 use super::WaveformState;
-#[cfg(test)]
 use wavecrate::selection::SelectionRange;
 
 impl WaveformState {
-    #[cfg(test)]
     pub(in crate::native_app) fn marked_play_ranges(&self) -> &[SelectionRange] {
         &self.marked_play_ranges
     }

@@ -53,6 +53,21 @@ impl WaveformState {
         self.record_current_play_selection_mark();
     }
 
+    pub(in crate::native_app) fn restore_play_selection_state(
+        &mut self,
+        play_mark_ratio: Option<f32>,
+        play_selection: Option<SelectionRange>,
+        marked_play_ranges: Vec<SelectionRange>,
+    ) {
+        if self.play_selection != play_selection {
+            self.clear_similar_sections();
+        }
+        self.active_drag = None;
+        self.play_mark_ratio = play_mark_ratio.map(|ratio| ratio.clamp(0.0, 1.0));
+        self.play_selection = play_selection;
+        self.marked_play_ranges = marked_play_ranges;
+    }
+
     pub(in crate::native_app) fn restore_play_selection_range_in_focus(
         &mut self,
         start: f32,

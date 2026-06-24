@@ -679,6 +679,79 @@ fn whole_file_copy_uses_radiant_platform_clipboard_handoff() {
     );
 }
 
+#[test]
+fn playmark_selection_change_undoes_and_redoes_through_transactions() {
+    let mut scenario = WaveformPlaybackScenario::synthetic();
+
+    scenario.select_play_range(0.20, 0.50);
+
+    assert_play_selection_state(&scenario.state, Some((0.20, 0.50)), Some(0.20));
+    assert_eq!(
+        scenario.state.waveform.current.marked_play_ranges().len(),
+        1
+    );
+    assert_eq!(scenario.state.transactions.history.list_items().len(), 1);
+
+    apply_transaction_message(
+        &mut scenario.state,
+        crate::native_app::test_support::state::GuiMessage::UndoTransaction,
+    );
+
+    assert_play_selection_state(&scenario.state, None, None);
+    assert!(
+        scenario
+            .state
+            .waveform
+            .current
+            .marked_play_ranges()
+            .is_empty()
+    );
+    assert!(scenario.state.transactions.history.can_redo());
+
+    apply_transaction_message(
+        &mut scenario.state,
+        crate::native_app::test_support::state::GuiMessage::RedoTransaction,
+    );
+
+    assert_play_selection_state(&scenario.state, Some((0.20, 0.50)), Some(0.20));
+    assert_eq!(
+        scenario.state.waveform.current.marked_play_ranges().len(),
+        1
+    );
+}
+
+#[test]
+fn playmark_resize_registers_one_undoable_selection_change() {
+    let mut scenario = WaveformPlaybackScenario::synthetic();
+    scenario.select_play_range(0.20, 0.40);
+
+    scenario.begin_play_range_end_resize(0.40);
+    scenario.update_play_range_drag(0.60);
+    scenario.update_play_range_drag(0.70);
+    scenario.finish_play_range_drag(0.70);
+
+    assert_play_selection_state(&scenario.state, Some((0.20, 0.70)), Some(0.20));
+    assert_eq!(
+        scenario.state.transactions.history.list_items().len(),
+        2,
+        "the initial selection and the completed resize should be separate transaction entries"
+    );
+
+    apply_transaction_message(
+        &mut scenario.state,
+        crate::native_app::test_support::state::GuiMessage::UndoTransaction,
+    );
+
+    assert_play_selection_state(&scenario.state, Some((0.20, 0.40)), Some(0.20));
+
+    apply_transaction_message(
+        &mut scenario.state,
+        crate::native_app::test_support::state::GuiMessage::RedoTransaction,
+    );
+
+    assert_play_selection_state(&scenario.state, Some((0.20, 0.70)), Some(0.20));
+}
+
 fn load_selected_sample_into_waveform(scenario: &mut WaveformPlaybackScenario) {
     let selected_file = scenario
         .state
@@ -692,6 +765,47 @@ fn load_selected_sample_into_waveform(scenario: &mut WaveformPlaybackScenario) {
             selected_file,
         ))
         .expect("test sample loads");
+}
+
+fn apply_transaction_message(
+    state: &mut NativeAppState,
+    message: crate::native_app::test_support::state::GuiMessage,
+) {
+    state.apply_message(message, &mut ui::UiUpdateContext::default());
+}
+
+fn assert_play_selection_state(
+    state: &NativeAppState,
+    expected_selection: Option<(f32, f32)>,
+    expected_mark: Option<f32>,
+) {
+    match (state.waveform.current.play_mark_ratio(), expected_mark) {
+        (None, None) => {}
+        (Some(actual), Some(expected)) => {
+            assert!(
+                (actual - expected).abs() < 0.001,
+                "play mark was {actual}, expected {expected}"
+            );
+        }
+        (actual, expected) => panic!("expected play mark {expected:?}, got {actual:?}"),
+    }
+
+    match (state.waveform.current.play_selection(), expected_selection) {
+        (None, None) => {}
+        (Some(selection), Some((expected_start, expected_end))) => {
+            assert!(
+                (selection.start() - expected_start).abs() < 0.001,
+                "selection start was {}, expected {expected_start}",
+                selection.start()
+            );
+            assert!(
+                (selection.end() - expected_end).abs() < 0.001,
+                "selection end was {}, expected {expected_end}",
+                selection.end()
+            );
+        }
+        (actual, expected) => panic!("expected play selection {expected:?}, got {actual:?}"),
+    }
 }
 
 fn drain_play_selection_flash(state: &mut NativeAppState) {
