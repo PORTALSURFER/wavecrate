@@ -71,6 +71,28 @@ fn zoom_to_play_selection_fits_active_playmark_range() {
 }
 
 #[test]
+fn restoring_play_selection_range_focuses_region_viewport() {
+    let mut state = WaveformState::synthetic_for_tests();
+
+    state.restore_play_selection_range_in_focus(0.75, 0.90);
+
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.75, 0.90))
+    );
+    assert_eq!(state.play_mark_ratio(), Some(0.75));
+    assert_eq!(
+        state.viewport(),
+        super::WaveformViewport {
+            start: 36_000,
+            end: 43_200,
+        }
+    );
+    assert!(state.visible_ratio_for_absolute(0.75).is_some());
+    assert!(state.visible_ratio_for_absolute(0.90).is_some());
+}
+
+#[test]
 fn zoom_full_restores_complete_waveform_view() {
     let mut state = WaveformState::synthetic_for_tests();
     state.set_play_selection_range(0.25, 0.50);

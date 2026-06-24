@@ -53,6 +53,15 @@ impl WaveformState {
         self.record_current_play_selection_mark();
     }
 
+    pub(in crate::native_app) fn restore_play_selection_range_in_focus(
+        &mut self,
+        start: f32,
+        end: f32,
+    ) {
+        self.set_play_selection_range(start, end);
+        self.zoom_to_play_selection();
+    }
+
     pub(in crate::native_app) fn set_edit_selection_range(&mut self, selection: SelectionRange) {
         self.set_selection_for_kind(WaveformSelectionKind::Edit, selection.start(), selection);
     }

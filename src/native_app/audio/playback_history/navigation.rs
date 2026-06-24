@@ -191,8 +191,13 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let start_ratio = entry.start_ratio;
+        let end_ratio = entry.end_ratio;
         match self.start_playback_fixed_span_without_history(entry.start_ratio, entry.end_ratio) {
             Ok(()) => {
+                self.waveform
+                    .current
+                    .restore_play_selection_range_in_focus(start_ratio, end_ratio);
                 self.record_sample_last_played(entry.path, context);
                 self.ui.status.sample = format!("Playing {label} from history");
                 emit_gui_action(

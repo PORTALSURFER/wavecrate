@@ -202,6 +202,9 @@ impl NativeAppState {
             PendingSamplePlayback::ReplayHistory { start, end } => {
                 match self.start_playback_fixed_span_without_history(start, end) {
                     Ok(()) => {
+                        self.waveform
+                            .current
+                            .restore_play_selection_range_in_focus(start, end);
                         self.record_selected_sample_last_played(context);
                         self.ui.status.sample = format!("Playing {file_name} from history");
                         emit_gui_action(
