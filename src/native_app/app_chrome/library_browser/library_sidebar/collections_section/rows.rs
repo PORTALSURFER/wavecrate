@@ -37,7 +37,6 @@ pub(super) fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessag
         .spacing(2.0);
     }
     collection_input(collection_id, collection_visual(collection), collection)
-        .key(collection_row_key(collection_id))
         .fill_width()
         .height(COLLECTION_ROW_HEIGHT)
 }
@@ -50,7 +49,10 @@ fn collection_input(
 ) -> ui::View<GuiMessage> {
     sidebar_row_underlay(visual)
         .tracked_drop_target(collection.drag_active, collection.drop_target)
-        .stable_u64_input_id(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64)
+        .stable_row_identity(
+            COLLECTION_ROW_INPUT_SCOPE,
+            collection_row_key(collection_id),
+        )
         .selected(collection.selected)
         .actions(collection_row_actions(collection_id))
         .fill_width()

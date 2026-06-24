@@ -26,7 +26,7 @@ fn source_add_icon() -> ui::SvgIcon {
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source_row_label(source));
     sidebar_row_underlay(visual)
-        .stable_input_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str())
+        .stable_row_identity(SOURCE_ROW_INPUT_SCOPE, source_row_key(source.id.as_str()))
         .selected(source.selected)
         .actions(ui::row_actions().primary_secondary_key(
             source.id.clone(),
@@ -37,7 +37,6 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
                 ))
             },
         ))
-        .key(source_row_key(source.id.as_str()))
         .fill_width()
         .height(SOURCE_ROW_HEIGHT)
 }
