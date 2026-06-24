@@ -12,6 +12,7 @@ const REPLACE_PROGRESS: f32 = 0.98;
 const NORMALIZATION_PROGRESS_SAMPLE_STEP: u64 = 16_384;
 const REPLACE_RETRY_COUNT: usize = 12;
 const REPLACE_RETRY_DELAY: Duration = Duration::from_millis(75);
+const SLOW_NORMALIZATION_PHASE_LOG_THRESHOLD: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum WavNormalizationOutcome {
@@ -341,11 +342,24 @@ fn sibling_work_path(path: &Path, label: &str, extension: &str) -> PathBuf {
 }
 
 fn log_normalization_phase(path: &Path, phase: &'static str, started_at: Instant) {
-    tracing::info!(
-        target: "wavecrate::debug::normalization",
-        event = "browser.normalize.worker.phase",
-        phase,
-        elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
-        path = %path.display()
-    );
+    let elapsed = started_at.elapsed();
+    let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
+    if elapsed >= SLOW_NORMALIZATION_PHASE_LOG_THRESHOLD {
+        tracing::warn!(
+            target: "wavecrate::debug::normalization",
+            event = "browser.normalize.worker.phase",
+            phase,
+            elapsed_ms,
+            path = %path.display(),
+            "Slow normalization phase"
+        );
+    } else {
+        tracing::debug!(
+            target: "wavecrate::debug::normalization",
+            event = "browser.normalize.worker.phase",
+            phase,
+            elapsed_ms,
+            path = %path.display()
+        );
+    }
 }

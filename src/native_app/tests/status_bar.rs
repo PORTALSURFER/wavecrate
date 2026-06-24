@@ -170,6 +170,27 @@ fn source_cache_warm_advances_activity_tick_on_frame() {
 }
 
 #[test]
+fn normalization_progress_does_not_advance_activity_tick_on_frame() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 9,
+            label: String::from("6000 samples"),
+            completed: 256,
+            total: 6000,
+            work_completed: 256_000,
+            work_total: 6_000_000,
+            queued: 0,
+            detail: String::from("kick.wav | Analyzing"),
+        },
+    );
+
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(state.background.progress_tick, 0.0);
+}
+
+#[test]
 fn job_details_popover_reports_active_scan_progress() {
     let progress = crate::native_app::test_support::state::FolderScanProgress {
         task_id: 7,

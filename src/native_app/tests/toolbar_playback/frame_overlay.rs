@@ -78,6 +78,31 @@ fn source_cache_progress_frame_repaints_surface_for_status_bar_animation() {
 }
 
 #[test]
+fn normalization_progress_frame_uses_paint_only_when_progress_is_stable() {
+    let mut state = gui_state_for_span_tests();
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 9,
+            label: String::from("6000 samples"),
+            completed: 800,
+            total: 6000,
+            work_completed: 800_000,
+            work_total: 6_000_000,
+            queued: 0,
+            detail: String::from("kick.wav | Analyzing"),
+        },
+    );
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "determinate normalization progress should repaint only when progress messages arrive"
+    );
+}
+
+#[test]
 fn playback_frame_repaints_surface_when_playback_state_changes() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);

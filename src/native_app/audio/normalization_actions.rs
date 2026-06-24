@@ -24,6 +24,7 @@ const BULK_NORMALIZATION_PROGRESS_FILE_STEP: usize = 8;
 const BULK_NORMALIZATION_PACE_INTERVAL: Duration = Duration::from_millis(16);
 const BULK_NORMALIZATION_PACE_SLEEP: Duration = Duration::from_millis(1);
 const VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT: usize = 64;
+const SLOW_NORMALIZATION_FILE_LOG_THRESHOLD: Duration = Duration::from_millis(500);
 
 pub(in crate::native_app) fn normalization_priority(file_count: usize) -> ui::TaskPriority {
     if file_count > BULK_NORMALIZATION_BACKGROUND_THRESHOLD {
@@ -702,12 +703,27 @@ fn log_normalization_worker_result(
     error: Option<&str>,
     started_at: Instant,
 ) {
-    tracing::info!(
-        target: "wavecrate::debug::normalization",
-        event = "browser.normalize.worker.result",
-        outcome,
-        elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
-        error = error.unwrap_or_default(),
-        path = %path.display()
-    );
+    let elapsed = started_at.elapsed();
+    let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
+    let error = error.unwrap_or_default();
+    if !error.is_empty() || elapsed >= SLOW_NORMALIZATION_FILE_LOG_THRESHOLD {
+        tracing::warn!(
+            target: "wavecrate::debug::normalization",
+            event = "browser.normalize.worker.result",
+            outcome,
+            elapsed_ms,
+            error,
+            path = %path.display(),
+            "Slow or failed normalization result"
+        );
+    } else {
+        tracing::debug!(
+            target: "wavecrate::debug::normalization",
+            event = "browser.normalize.worker.result",
+            outcome,
+            elapsed_ms,
+            error,
+            path = %path.display()
+        );
+    }
 }

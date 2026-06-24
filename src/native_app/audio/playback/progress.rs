@@ -451,7 +451,6 @@ impl FrameRepaintScopeSnapshot {
         self.play_selection_flash_active
             || self.copy_flash_active
             || self.folder_progress_active
-            || self.normalization_progress_active
             || self.file_move_progress_active
             || self.source_cache_progress_active
             || self.sample_loading
