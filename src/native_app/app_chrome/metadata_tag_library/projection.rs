@@ -56,6 +56,15 @@ pub(super) struct MetadataTagProjection {
     pub(super) drop_hover: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MetadataTagCategoryProjectionContext<'a> {
+    category_id: &'static str,
+    locked: bool,
+    drag_active: bool,
+    drop_hover: bool,
+    dragged_tag: Option<&'a str>,
+}
+
 impl MetadataTagLibraryProjection {
     pub(super) fn from_state(state: &NativeAppState) -> Self {
         Self::from_groups(
@@ -98,44 +107,68 @@ impl MetadataTagCategoryProjection {
         dragged_tag: Option<&str>,
         selection_state: &mut impl FnMut(&str) -> MetadataTagSelectionState,
     ) -> Self {
-        let drop_hover = drop_hover == Some(group.id);
-        let accepts_drop = drag_active && !group.locked;
-        let category_id = group.id;
-        let tags = group
-            .tags
+        let MetadataTagCategoryGroup {
+            id: category_id,
+            label,
+            tags,
+            collapsed,
+            locked,
+        } = group;
+        let context = MetadataTagCategoryProjectionContext {
+            category_id,
+            locked,
+            drag_active,
+            drop_hover: drop_hover == Some(category_id),
+            dragged_tag,
+        };
+        let tags = tags
             .into_iter()
             .map(|tag| {
                 let selection_state = selection_state(&tag);
-                MetadataTagProjection {
-                    style: metadata_tag_pill_selection_style(category_id, selection_state),
-                    width: metadata_tag_pill_width(&tag),
-                    active: selection_state.is_all(),
-                    selection_state,
-                    drag_source: dragged_tag == Some(tag.as_str()),
-                    label: tag,
-                    category_id,
-                    draggable: !group.locked,
-                    drag_active,
-                    drop_hover,
-                }
+                context.project_tag(tag, selection_state)
             })
             .collect::<Vec<_>>();
         let tag_count = tags.len();
         let body = MetadataTagCategoryBodyProjection::from_category_state(
             category_id,
-            group.collapsed,
-            accepts_drop,
-            drop_hover,
+            collapsed,
+            context.accepts_drop(),
+            context.drop_hover,
             tags,
         );
 
         Self {
             id: category_id,
-            header_label: category_header_label(group.label, tag_count, group.locked),
-            expanded: !group.collapsed,
-            accepts_drop,
-            drop_hover,
+            header_label: category_header_label(label, tag_count, locked),
+            expanded: !collapsed,
+            accepts_drop: context.accepts_drop(),
+            drop_hover: context.drop_hover,
             body,
+        }
+    }
+}
+
+impl MetadataTagCategoryProjectionContext<'_> {
+    fn accepts_drop(self) -> bool {
+        self.drag_active && !self.locked
+    }
+
+    fn project_tag(
+        self,
+        tag: String,
+        selection_state: MetadataTagSelectionState,
+    ) -> MetadataTagProjection {
+        MetadataTagProjection {
+            style: metadata_tag_pill_selection_style(self.category_id, selection_state),
+            width: metadata_tag_pill_width(&tag),
+            active: selection_state.is_all(),
+            selection_state,
+            drag_source: self.dragged_tag == Some(tag.as_str()),
+            label: tag,
+            category_id: self.category_id,
+            draggable: !self.locked,
+            drag_active: self.drag_active,
+            drop_hover: self.drop_hover,
         }
     }
 }
@@ -175,135 +208,5 @@ fn category_header_label(label: &str, tag_count: usize, locked: bool) -> String 
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn category_projection_carries_header_count_and_locked_state() {
-        let projection = MetadataTagLibraryProjection::from_groups(
-            vec![MetadataTagCategoryGroup {
-                id: "playback-type",
-                label: "Playback Type",
-                tags: vec![String::from("loop"), String::from("one-shot")],
-                collapsed: false,
-                locked: true,
-            }],
-            true,
-            Some("playback-type"),
-            Some("loop"),
-            |_| MetadataTagSelectionState::All,
-        );
-
-        assert_eq!(
-            projection.categories[0].header_label,
-            "Playback Type (2) [locked]"
-        );
-        assert!(!projection.categories[0].accepts_drop);
-        assert!(projection.categories[0].drop_hover);
-        let tags = projected_tags(&projection.categories[0]);
-        assert!(!tags[0].draggable);
-        assert!(tags[0].drag_source);
-        assert!(tags[0].active);
-        assert_eq!(tags[0].style.prominence, ui::WidgetProminence::Strong);
-    }
-
-    #[test]
-    fn category_projection_marks_unlocked_drop_target_and_tag_selection() {
-        let projection = MetadataTagLibraryProjection::from_groups(
-            vec![MetadataTagCategoryGroup {
-                id: "character",
-                label: "Character",
-                tags: vec![String::from("warm")],
-                collapsed: false,
-                locked: false,
-            }],
-            true,
-            Some("character"),
-            None,
-            |tag| {
-                if tag == "warm" {
-                    MetadataTagSelectionState::Mixed
-                } else {
-                    MetadataTagSelectionState::None
-                }
-            },
-        );
-
-        let category = &projection.categories[0];
-        assert_eq!(category.header_label, "Character (1)");
-        assert!(category.accepts_drop);
-        let tags = projected_tags(category);
-        assert_eq!(tags[0].selection_state, MetadataTagSelectionState::Mixed);
-        assert_eq!(tags[0].style.prominence, ui::WidgetProminence::Normal);
-        assert!(tags[0].width >= 38.0);
-        assert!(!tags[0].active);
-        assert!(tags[0].draggable);
-        assert!(tags[0].drop_hover);
-    }
-
-    #[test]
-    fn empty_unlocked_category_projects_empty_drop_body() {
-        let projection = MetadataTagLibraryProjection::from_groups(
-            vec![MetadataTagCategoryGroup {
-                id: "character",
-                label: "Character",
-                tags: Vec::new(),
-                collapsed: false,
-                locked: false,
-            }],
-            true,
-            Some("character"),
-            None,
-            |_| MetadataTagSelectionState::None,
-        );
-
-        assert_eq!(projection.categories[0].header_label, "Character");
-        assert!(matches!(
-            projection.categories[0].body,
-            MetadataTagCategoryBodyProjection::Empty(MetadataTagEmptyCategoryProjection {
-                category_id: "character",
-                accepts_drop: true,
-                drop_hover: true,
-            })
-        ));
-    }
-
-    #[test]
-    fn collapsed_category_keeps_header_count_but_hides_body() {
-        let projection = MetadataTagLibraryProjection::from_groups(
-            vec![MetadataTagCategoryGroup {
-                id: "character",
-                label: "Character",
-                tags: vec![String::from("warm")],
-                collapsed: true,
-                locked: false,
-            }],
-            true,
-            None,
-            None,
-            |_| MetadataTagSelectionState::None,
-        );
-
-        assert_eq!(projection.categories[0].header_label, "Character (1)");
-        assert!(matches!(
-            projection.categories[0].body,
-            MetadataTagCategoryBodyProjection::Collapsed
-        ));
-    }
-
-    #[test]
-    fn empty_category_header_omits_count() {
-        assert_eq!(category_header_label("Character", 0, false), "Character");
-        assert_eq!(
-            category_header_label("Playback Type", 0, true),
-            "Playback Type [locked]"
-        );
-    }
-
-    fn projected_tags(category: &MetadataTagCategoryProjection) -> &[MetadataTagProjection] {
-        match &category.body {
-            MetadataTagCategoryBodyProjection::Tags(group) => group.tags.as_slice(),
-            _ => panic!("expected projected tag group"),
-        }
-    }
-}
+#[path = "projection/tests.rs"]
+mod tests;
