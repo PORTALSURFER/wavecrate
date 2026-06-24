@@ -537,14 +537,15 @@ fn source_prep_trigger_drains_similarity_jobs_after_queueing_them() {
         state.library.similarity_prep.summary, None,
         "automatic source prep should not show transient similarity prep footer text"
     );
-    assert_eq!(state.waveform.cache.active_folder_warm_total, 2);
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 0);
     assert!(
         state
             .waveform
             .cache
             .active_folder_warm_plan_task
             .active()
-            .is_some()
+            .is_none(),
+        "automatic source prep should not launch source-wide waveform cache warming"
     );
 
     super::super::run_command_for_tests(&mut state, context.into_command());

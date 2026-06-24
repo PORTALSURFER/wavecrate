@@ -1,6 +1,8 @@
+use radiant::prelude as ui;
+use std::path::Path;
+
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app::NativeAppState;
-use radiant::prelude as ui;
 
 impl NativeAppState {
     pub(super) fn clear_sample_loading_state(&mut self) {
@@ -39,6 +41,19 @@ impl NativeAppState {
     pub(in crate::native_app) fn normalization_work_active(&self) -> bool {
         self.background.normalization_progress.is_some()
             || !self.background.normalization_queue.is_empty()
+    }
+
+    pub(in crate::native_app) fn sample_load_blocked_by_normalization(&self, path: &str) -> bool {
+        if !self.normalization_work_active() {
+            return false;
+        }
+        let path = Path::new(path);
+        self.background.normalization_active_paths.contains(path)
+            || self
+                .background
+                .normalization_queue
+                .iter()
+                .any(|item| item.paths.iter().any(|queued| queued.as_path() == path))
     }
 
     pub(in crate::native_app) fn yield_sample_cache_warm_for_foreground_load(

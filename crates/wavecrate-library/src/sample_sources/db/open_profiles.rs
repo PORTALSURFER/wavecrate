@@ -50,4 +50,11 @@ impl SourceDatabaseConnectionRole {
     pub(super) fn uses_read_only_connection(self) -> bool {
         matches!(self, Self::UiRead)
     }
+
+    pub(super) fn busy_timeout_ms(self) -> u64 {
+        match self {
+            Self::UiRead => 25,
+            Self::JobWorker | Self::UserMetadataWrite | Self::Maintenance => 5_000,
+        }
+    }
 }

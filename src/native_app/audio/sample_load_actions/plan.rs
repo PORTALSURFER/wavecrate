@@ -11,7 +11,7 @@ use crate::native_app::{
 };
 
 pub(in crate::native_app::audio) const NORMALIZATION_SAMPLE_LOAD_RETRY_DELAY: Duration =
-    Duration::from_millis(250);
+    Duration::from_secs(2);
 
 impl NativeAppState {
     pub(super) fn schedule_deferred_sample_load(
@@ -76,7 +76,7 @@ impl NativeAppState {
             );
             return;
         }
-        if self.normalization_work_active() {
+        if self.sample_load_blocked_by_normalization(&path) {
             self.ui.status.sample = format!(
                 "Selected {} | waiting for normalization",
                 sample_path_label(path.as_str())
@@ -138,7 +138,7 @@ impl NativeAppState {
         strategy: SampleLoadStrategy,
         started_at: Instant,
     ) {
-        if self.normalization_work_active() {
+        if self.sample_load_blocked_by_normalization(&path) {
             self.ui.status.sample = format!(
                 "Selected {} | waiting for normalization",
                 sample_path_label(path.as_str())

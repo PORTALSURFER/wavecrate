@@ -174,15 +174,20 @@ impl SourceDatabase {
         Ok(())
     }
 
-    fn apply_read_only_pragmas(&self) -> Result<(), SourceDbError> {
-        self.connection
-            .execute_batch(
-                "PRAGMA foreign_keys=ON;
-             PRAGMA busy_timeout=5000;
+    fn apply_read_only_pragmas(
+        &self,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<(), SourceDbError> {
+        let pragmas = format!(
+            "PRAGMA foreign_keys=ON;
+             PRAGMA busy_timeout={};
              PRAGMA temp_store=MEMORY;
              PRAGMA cache_size=-32000;
              PRAGMA mmap_size=134217728;",
-            )
+            role.busy_timeout_ms(),
+        );
+        self.connection
+            .execute_batch(&pragmas)
             .map_err(util::map_sql_error)?;
         if let Err(err) = crate::sqlite_ext::try_load_optional_extension(&self.connection) {
             tracing::debug!("SQLite extension not loaded: {err}");

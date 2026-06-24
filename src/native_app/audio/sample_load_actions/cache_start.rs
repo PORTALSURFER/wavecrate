@@ -132,7 +132,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        if self.normalization_work_active() {
+        if self.sample_load_blocked_by_normalization(path) {
             self.ui.status.sample = format!(
                 "Selected {} | waiting for normalization",
                 sample_path_label(path)

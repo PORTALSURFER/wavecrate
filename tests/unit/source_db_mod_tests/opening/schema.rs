@@ -122,3 +122,18 @@ fn ui_read_queries_remain_available_while_job_worker_holds_write_transaction() {
 
     tx.rollback().unwrap();
 }
+
+#[test]
+fn ui_read_role_uses_short_busy_timeout() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    drop(db);
+
+    let ui_read =
+        SourceDatabase::open_with_role(dir.path(), SourceDatabaseConnectionRole::UiRead).unwrap();
+    let busy_timeout: i64 = ui_read
+        .connection
+        .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(busy_timeout, 25);
+}

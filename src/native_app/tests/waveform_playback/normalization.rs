@@ -296,6 +296,10 @@ fn uncached_sample_load_waits_for_active_normalization() {
             detail: String::from("normalizing.wav"),
         },
     );
+    state
+        .background
+        .normalization_active_paths
+        .insert(path.clone());
 
     let mut context = ui::UiUpdateContext::default();
     state.load_sample(selected_file.clone(), &mut context);
@@ -348,6 +352,47 @@ fn uncached_sample_load_waits_for_active_normalization() {
     assert!(
         active_sample_load_ticket(&state).is_some(),
         "deferred sample load should start once normalization is idle"
+    );
+}
+
+#[test]
+fn uncached_sample_load_does_not_wait_for_unrelated_active_normalization() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("unrelated-load.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 88,
+            label: String::from("1 sample"),
+            completed: 0,
+            total: 1,
+            work_completed: 250,
+            work_total: 1_000,
+            queued: 0,
+            detail: String::from("other.wav"),
+        },
+    );
+    state
+        .background
+        .normalization_active_paths
+        .insert(path.with_file_name("other.wav"));
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_sample(selected_file, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "unrelated foreground sample loads should not be delayed by normalization"
+    );
+    assert!(
+        state
+            .background
+            .deferred_sample_load_task
+            .active()
+            .is_none(),
+        "unrelated sample loads should not enter the normalization retry loop"
     );
 }
 

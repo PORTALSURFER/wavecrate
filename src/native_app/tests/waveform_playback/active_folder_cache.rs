@@ -65,17 +65,18 @@ fn folder_activation_schedules_cache_indicator_refresh_without_ui_thread_probe()
 }
 
 #[test]
-fn folder_activation_delays_active_folder_cache_warm() {
+fn folder_activation_does_not_schedule_active_folder_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");
     fs::create_dir_all(&folder).expect("create folder");
-    let first = folder.join("first.wav");
-    let second = folder.join("second.wav");
-    write_test_wav_i16(&first, &[0, 1024, -2048, 4096, -1024, 512]);
-    write_test_wav_i16(&second, &[0, 512, -512, 1024, -1024, 0]);
+    write_test_wav_i16(
+        &folder.join("first.wav"),
+        &[0, 1024, -2048, 4096, -1024, 512],
+    );
+    write_test_wav_i16(&folder.join("second.wav"), &[0, 512, -512, 1024, -1024, 0]);
 
     let mut state = gui_state_for_span_tests();
     state.library.folder_browser =
@@ -93,28 +94,21 @@ fn folder_activation_delays_active_folder_cache_warm() {
         ),
         &mut context,
     );
-    finish_active_folder_cache_warm_plan(
-        &mut state,
-        &mut context,
-        source_root.path().display().to_string(),
-        Vec::new(),
-        vec![first, second],
-    );
-
     assert!(
         state
             .waveform
             .cache
             .active_folder_warm_delay_task
             .active()
-            .is_some(),
-        "folder activation should wait briefly before assuming browse intent"
+            .is_none(),
+        "folder activation should not start source-wide cache warming"
     );
     assert!(
         active_folder_cache_warm_ticket(&state).is_none(),
         "active folder cache warm must not start during folder activation"
     );
-    assert_eq!(state.waveform.cache.active_folder_warm_pending.len(), 2);
+    assert!(active_folder_cache_warm_plan_ticket(&state).is_none());
+    assert!(state.waveform.cache.active_folder_warm_pending.is_empty());
 }
 
 #[test]
@@ -209,7 +203,7 @@ fn active_folder_cache_plan_uses_blocking_io_lane() {
 }
 
 #[test]
-fn folder_activation_queues_entire_source_for_background_cache_warm() {
+fn manual_source_processing_queues_entire_source_for_background_cache_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -241,6 +235,7 @@ fn folder_activation_queues_entire_source_for_background_cache_warm() {
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     let (_folder_id, pending) = state
         .library
         .folder_browser
@@ -532,6 +527,7 @@ fn active_folder_cache_warm_waits_while_sample_load_is_foreground() {
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     finish_active_folder_cache_warm_plan(
         &mut state,
         &mut context,
@@ -603,6 +599,7 @@ fn sample_selection_pauses_running_active_folder_cache_warm_without_hiding_progr
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     finish_active_folder_cache_warm_plan(
         &mut state,
         &mut context,
@@ -715,6 +712,7 @@ fn active_folder_cache_warm_yields_while_normalization_is_active() {
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     finish_active_folder_cache_warm_plan(
         &mut state,
         &mut context,
@@ -789,6 +787,7 @@ fn changing_folder_in_same_source_keeps_active_source_cache_warm() {
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     finish_active_folder_cache_warm_plan(
         &mut state,
         &mut context,
@@ -868,6 +867,7 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     finish_active_folder_cache_warm_plan(
         &mut state,
         &mut context,
@@ -1357,6 +1357,7 @@ fn normalize_finish_keeps_changed_file_in_active_folder_cache_warm_queue() {
         ),
         &mut context,
     );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
     finish_active_folder_cache_warm_plan(
         &mut state,
         &mut context,

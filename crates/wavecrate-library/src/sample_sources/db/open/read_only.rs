@@ -65,7 +65,7 @@ pub(super) fn open_read_only_source_database(
         telemetry_label: role.label(),
     };
     let pragmas_started = std::time::Instant::now();
-    if let Err(err) = db.apply_read_only_pragmas() {
+    if let Err(err) = db.apply_read_only_pragmas(role) {
         telemetry::record_open_phase(
             root,
             &db_path,
