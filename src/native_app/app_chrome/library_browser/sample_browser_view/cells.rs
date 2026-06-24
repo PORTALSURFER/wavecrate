@@ -166,7 +166,7 @@ fn render_similarity_cell(
             ui::determinate_progress_bar(overall)
                 .colors(SIMILARITY_SCORE_TRACK, SIMILARITY_SCORE_FILL)
                 .max_track_height(5.0)
-                .mapped(|_| GuiMessage::CloseContextMenu)
+                .passive::<GuiMessage>()
                 .key(identity::similarity_score_key(file_id))
                 .height(12.0)
                 .fill_width(),
@@ -207,7 +207,7 @@ fn sample_similarity_aspect_indicator(
     ui::determinate_progress_bar(value)
         .colors(track, fill)
         .max_track_height(10.0)
-        .mapped(|_| GuiMessage::CloseContextMenu)
+        .passive::<GuiMessage>()
         .key(identity::similarity_aspect_key(aspect.aspect, file_id))
         .height(12.0)
         .width(SIMILARITY_ASPECT_WIDTH)
