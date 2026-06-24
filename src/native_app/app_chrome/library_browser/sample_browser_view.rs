@@ -201,7 +201,7 @@ mod tests {
         );
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
 
-        runtime.dispatch_input_at(position, WidgetInput::pointer_move(position));
+        runtime.dispatch_pointer_move_with_outcome(position);
         runtime.dispatch_input_at(position, WidgetInput::primary_release(position));
         runtime.dispatch_input_at(position, WidgetInput::primary_drop(position));
 
