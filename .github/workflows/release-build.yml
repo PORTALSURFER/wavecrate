@@ -1,8 +1,10 @@
 name: Build release assets
 
 on:
-  push:
-    branches: [next]
+  schedule:
+    # GitHub cron is UTC. This runs once per night and only publishes if `next`
+    # is ahead of the current rolling `nightly` tag.
+    - cron: "30 3 * * *"
   release:
     types: [published]
   workflow_dispatch:
@@ -16,13 +18,68 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-build-${{ github.event_name == 'push' && 'next-nightly' || github.event.release.tag_name || inputs.tag || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/next' }}
+  group: release-build-${{ github.event_name == 'schedule' && 'next-nightly' || github.event.release.tag_name || inputs.tag || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 jobs:
+  resolve:
+    name: Resolve release target
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.target.outputs.should_build }}
+      target_sha: ${{ steps.target.outputs.target_sha }}
+    steps:
+      - name: Resolve nightly target
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          requested_tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
+          if [[ "$EVENT_NAME" == "release" && "$requested_tag" == "nightly" ]]; then
+            echo "nightly release event is already handled by the scheduled/manual nightly build; skipping."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "target_sha=$EVENT_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$EVENT_NAME" != "schedule" && "$requested_tag" != "nightly" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "target_sha=$EVENT_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          next_sha="$(gh api "repos/$REPOSITORY/commits/next" --jq '.sha')"
+          if [[ "$EVENT_NAME" != "schedule" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "target_sha=$next_sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ahead_by="$(gh api "repos/$REPOSITORY/compare/nightly...next" --jq '.ahead_by' 2>/dev/null)"; then
+            if [[ "$ahead_by" == "0" ]]; then
+              echo "next is already covered by the current nightly tag; skipping."
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+              echo "target_sha=$next_sha" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "next is $ahead_by commit(s) ahead of nightly; building nightly."
+          else
+            echo "No comparable nightly tag exists yet; building nightly."
+          fi
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$next_sha" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} asset
     runs-on: ${{ matrix.os }}
+    needs: resolve
+    if: ${{ needs.resolve.outputs.should_build == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -46,6 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           lfs: true
+          ref: ${{ needs.resolve.outputs.target_sha }}
       - name: Checkout Radiant submodule
         shell: bash
         env:
@@ -111,7 +169,7 @@ jobs:
           DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           TAG="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$TAG" && "$EVENT_NAME" == "push" ]]; then
+          if [[ -z "$TAG" && "$EVENT_NAME" == "schedule" ]]; then
             TAG="nightly"
           fi
           if [[ -z "$TAG" ]]; then
@@ -154,7 +212,7 @@ jobs:
   publish:
     name: Publish release assets
     runs-on: ubuntu-latest
-    needs: build
+    needs: [resolve, build]
     steps:
       - name: Set release metadata
         env:
@@ -163,7 +221,7 @@ jobs:
           DISPATCH_TAG: ${{ inputs.tag }}
         run: |
           TAG="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$TAG" && "$EVENT_NAME" == "push" ]]; then
+          if [[ -z "$TAG" && "$EVENT_NAME" == "schedule" ]]; then
             TAG="nightly"
           fi
           if [[ -z "$TAG" ]]; then
@@ -237,6 +295,7 @@ jobs:
       - name: Move nightly tag to this commit
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
         run: |
           set -euo pipefail
           if [[ "${RELEASE_TAG:-}" != "nightly" ]]; then
@@ -245,13 +304,13 @@ jobs:
           if ! gh api \
             --method PATCH \
             "repos/${{ github.repository }}/git/refs/tags/nightly" \
-            -f sha="${GITHUB_SHA}" \
+            -f sha="${TARGET_SHA}" \
             -F force=true; then
             gh api \
               --method POST \
               "repos/${{ github.repository }}/git/refs" \
               -f ref="refs/tags/nightly" \
-              -f sha="${GITHUB_SHA}"
+              -f sha="${TARGET_SHA}"
           fi
       - name: Remove stale nightly assets
         env:
@@ -283,13 +342,13 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.resolve.outputs.target_sha }}
           files: dist/release/*
 
   publish-frontend:
     name: Upload PortalSurfer Wavecrate downloads
     runs-on: ubuntu-latest
-    needs: publish
+    needs: [resolve, publish]
     steps:
       - name: Verify PortalSurfer upload secret
         env:
@@ -303,6 +362,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.target_sha }}
       - name: Install git-cliff
         uses: taiki-e/install-action@v2
         with:
@@ -313,10 +373,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
           DISPATCH_TAG: ${{ inputs.tag }}
+          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
         run: |
           set -euo pipefail
           tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$tag" && "$EVENT_NAME" == "push" ]]; then
+          if [[ -z "$tag" && "$EVENT_NAME" == "schedule" ]]; then
             tag="nightly"
           fi
           if [[ -z "$tag" ]]; then
@@ -326,9 +387,9 @@ jobs:
 
           git fetch --tags --force
           if [[ "$tag" == "nightly" ]]; then
-            git tag -f "$tag" "$GITHUB_SHA"
+            git tag -f "$tag" "$TARGET_SHA"
           else
-            git tag "$tag" "$GITHUB_SHA" 2>/dev/null || true
+            git tag "$tag" "$TARGET_SHA" 2>/dev/null || true
           fi
 
           mkdir -p dist/release
@@ -351,6 +412,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
           DISPATCH_TAG: ${{ inputs.tag }}
+          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -361,7 +423,7 @@ jobs:
           fi
 
           tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$tag" && "$EVENT_NAME" == "push" ]]; then
+          if [[ -z "$tag" && "$EVENT_NAME" == "schedule" ]]; then
             tag="nightly"
           fi
           if [[ -z "$tag" ]]; then
@@ -378,7 +440,7 @@ jobs:
             echo "Release tag did not produce a safe build id component: $tag" >&2
             exit 1
           fi
-          short_sha="${GITHUB_SHA::8}"
+          short_sha="${TARGET_SHA::8}"
           build_id="wavecrate-${safe_tag}-${short_sha}"
           released_at="${RELEASE_PUBLISHED_AT:-}"
           if [[ -z "$released_at" ]]; then

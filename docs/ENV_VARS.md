@@ -45,6 +45,11 @@ the generated Markdown release log to the PortalSurfer Wavecrate release-upload
 API. GitHub Actions does not need SSH access or write access to the PortalSurfer
 frontend repository.
 
+The rolling `nightly` release is scheduled at `03:30 UTC`. It resolves the
+current `next` branch and skips the build when `next` is not ahead of the
+current `nightly` tag, so ordinary pushes to `next` do not publish release
+assets on every commit.
+
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
 Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store
 the matching `WAVECRATE_RELEASE_UPLOAD_TOKEN_SHA256` on the PortalSurfer server
