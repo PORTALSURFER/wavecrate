@@ -127,6 +127,15 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn load_validated_sample_without_autoplay(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
+        self.load_sample_with_autoplay_validated(path, context, false, started_at);
+    }
+
     pub(in crate::native_app) fn load_navigation_sample(
         &mut self,
         path: String,

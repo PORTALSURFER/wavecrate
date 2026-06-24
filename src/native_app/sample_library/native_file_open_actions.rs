@@ -223,7 +223,7 @@ impl NativeAppState {
         }
         let file_id = path.display().to_string();
         self.audio.pending_sample_playback = None;
-        self.load_sample_without_autoplay(file_id, context);
+        self.load_validated_sample_without_autoplay(file_id, context, started_at);
         self.ui.status.sample = format!("Opened {}", sample_path_label(path));
         emit_gui_action(
             "waveform.native_file_open",
