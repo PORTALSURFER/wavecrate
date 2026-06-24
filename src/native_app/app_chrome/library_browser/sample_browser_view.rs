@@ -146,3 +146,72 @@ fn sample_browser_status(audio_count: usize, includes_subfolders: bool) -> ui::V
     .fill_width()
     .height(28.0)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use radiant::{
+        layout::Vector2,
+        prelude::IntoView,
+        runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime},
+        widgets::WidgetInput,
+    };
+    use wavecrate::sample_sources::config::SimilarityAspectSettings;
+
+    use super::*;
+    use crate::native_app::app::SampleNameViewMode;
+    use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+    use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
+
+    #[test]
+    fn sample_list_stacked_pointer_targets_route_each_event_to_matching_domain_action() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+        let columns = Vec::new();
+        let position = ui::Point::new(12.0, 12.0);
+
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<GuiMessage>::new(),
+            |_| {
+                sample_browser(SampleBrowserViewModel {
+                    visible_samples: VisibleSampleList {
+                        total_count: 0,
+                        includes_subfolders: false,
+                        window: ui::VirtualListWindow::default(),
+                        rows: Vec::new(),
+                        columns: columns.clone(),
+                        sort: &sort,
+                        similarity_mode_active: false,
+                        similarity_controls: &similarity_controls,
+                    },
+                    name_view_mode: SampleNameViewMode::DiskFilename,
+                    random_navigation_enabled: false,
+                    metadata_tags_by_file: &metadata_tags_by_file,
+                    file_drag_active: true,
+                    extracted_file_drag_active: true,
+                    hovered_folder_drop_target: true,
+                    drag_feedback: None,
+                    help_tooltips_enabled: false,
+                })
+                .into_surface()
+            },
+            |messages, message| messages.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
+
+        runtime.dispatch_input_at(position, WidgetInput::pointer_move(position));
+        runtime.dispatch_input_at(position, WidgetInput::primary_release(position));
+        runtime.dispatch_input_at(position, WidgetInput::primary_drop(position));
+
+        assert_eq!(
+            runtime.bridge().state(),
+            &[
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position)),
+                GuiMessage::CancelBrowserDragOnSampleList,
+                GuiMessage::DropWaveformSelectionOnSampleList,
+            ]
+        );
+    }
+}
