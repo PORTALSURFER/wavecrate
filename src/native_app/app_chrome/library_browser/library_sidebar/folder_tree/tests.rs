@@ -1,3 +1,4 @@
+use super::identity::{FOLDER_TREE_ROW_INPUT_SCOPE, folder_row_key};
 use super::rows::{
     FOLDER_TREE_EMPTY_LABEL, FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA,
     FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH, folder_row, folder_tree_label_color,
@@ -188,6 +189,44 @@ fn rename_folder_rows_route_input_messages_to_folder_browser() {
             .view_dispatch_widget_output(4_242, ui::WidgetOutput::typed(message.clone()),),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::RenameInput(message)
+        ))
+    );
+}
+
+#[test]
+fn standard_folder_rows_derive_stable_input_id_from_row_key() {
+    let folder = visible_folder_for_tests(false);
+    let input_id = ui::stable_widget_id(
+        FOLDER_TREE_ROW_INPUT_SCOPE,
+        folder_row_key(folder.id.as_str()),
+    );
+    let mut surface = folder_row(&folder).into_surface();
+    let bounds = ui::Rect::from_size(220.0, TREE_ROW_HEIGHT);
+    let position = ui::Point::new(8.0, 10.0);
+
+    surface.dispatch_widget_input(
+        input_id,
+        bounds,
+        ui::WidgetInput::PointerPress {
+            position,
+            button: ui::PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+    );
+    let output = surface.dispatch_widget_input(
+        input_id,
+        bounds,
+        ui::WidgetInput::PointerRelease {
+            position,
+            button: ui::PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+    );
+
+    assert_eq!(
+        output.and_then(|output| output.typed_cloned::<GuiMessage>()),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::ActivateFolder(folder.id.clone(), Default::default())
         ))
     );
 }

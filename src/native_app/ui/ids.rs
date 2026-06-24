@@ -44,6 +44,7 @@ pub(in crate::native_app) const WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID: u64 = WAV
 pub(in crate::native_app) const FOLDER_TREE_LIST_ID: u64 = FOLDER_TREE.id(0);
 pub(in crate::native_app) const FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID: u64 = FOLDER_TREE.id(1);
 pub(in crate::native_app) const FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID: u64 = FOLDER_TREE.id(2);
+pub(in crate::native_app) const FOLDER_TREE_ROW_INPUT_SCOPE: u64 = FOLDER_TREE.id(3);
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
 pub(in crate::native_app) const SAMPLE_ROW_INPUT_SCOPE: u64 = SAMPLE_BROWSER.id(1);
