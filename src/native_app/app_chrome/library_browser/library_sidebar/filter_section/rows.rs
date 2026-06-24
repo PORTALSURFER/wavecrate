@@ -234,11 +234,9 @@ fn filter_labeled_control_row(
     control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    ui::form_row_from_parts(
-        ui::FormRowParts::dense(key, label, control).label_width(FILTER_LABEL_WIDTH),
-    )
-    .fill_width()
-    .height(FILTER_ROW_HEIGHT)
+    ui::dense_form_row(key, label, control, FILTER_LABEL_WIDTH)
+        .fill_width()
+        .height(FILTER_ROW_HEIGHT)
 }
 
 pub(super) fn empty_filter_message() -> TextInputMessage {

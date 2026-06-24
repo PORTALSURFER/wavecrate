@@ -6,6 +6,14 @@ use radiant::{
     runtime::{Command, SurfaceFrame, UiSurface},
 };
 
+type AudioSettingsBridge = radiant::runtime::DeclarativeOwnedCommandRuntimeBridge<
+    NativeAppState,
+    GuiMessage,
+    fn(&mut NativeAppState) -> UiSurface<GuiMessage>,
+    fn(&mut NativeAppState, GuiMessage) -> Command<GuiMessage>,
+>;
+type AudioSettingsRuntime = radiant::runtime::SurfaceRuntime<AudioSettingsBridge, GuiMessage>;
+
 fn audio_settings_texts(
     state: &crate::native_app::test_support::state::NativeAppState,
 ) -> Vec<String> {
@@ -263,17 +271,7 @@ fn audio_dropdown_overlay_keeps_uncovered_base_controls_interactive() {
     );
 }
 
-fn audio_settings_runtime(
-    state: NativeAppState,
-) -> radiant::runtime::SurfaceRuntime<
-    radiant::runtime::DeclarativeOwnedCommandRuntimeBridge<
-        NativeAppState,
-        GuiMessage,
-        fn(&mut NativeAppState) -> UiSurface<GuiMessage>,
-        fn(&mut NativeAppState, GuiMessage) -> Command<GuiMessage>,
-    >,
-    GuiMessage,
-> {
+fn audio_settings_runtime(state: NativeAppState) -> AudioSettingsRuntime {
     radiant::runtime::SurfaceRuntime::new(
         radiant::runtime::declarative_owned_command_runtime_bridge(
             state,
