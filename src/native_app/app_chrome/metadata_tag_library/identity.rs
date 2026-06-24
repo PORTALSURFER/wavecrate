@@ -1,3 +1,8 @@
+use crate::native_app::ui::ids as widget_ids;
+
+pub(super) const METADATA_CATEGORY_ROW_INPUT_SCOPE: u64 =
+    widget_ids::METADATA_CATEGORY_ROW_INPUT_SCOPE;
+
 pub(super) const PANEL_KEY: &str = "metadata-tag-library-panel";
 
 pub(super) fn category_drop_indicator_key(category_id: &str) -> String {
@@ -12,15 +17,15 @@ pub(super) fn category_group_key(category_id: &str) -> String {
     format!("metadata-tag-category-group-{category_id}")
 }
 
-pub(super) fn category_input_key(category_id: &str) -> String {
-    format!("metadata-tag-category-{category_id}")
+pub(super) fn category_header_row_key(category_id: &str) -> String {
+    format!("metadata-tag-category-header-{category_id}")
 }
 
 pub(super) fn tag_row_key(tag: &str) -> String {
     format!("metadata-tag-library-row-{tag}")
 }
 
-pub(super) fn empty_category_input_key(category_id: &str) -> String {
+pub(super) fn empty_category_row_key(category_id: &str) -> String {
     format!("metadata-tag-empty-category-{category_id}")
 }
 
@@ -29,18 +34,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn category_input_keys_keep_header_and_empty_drop_target_distinct() {
+    fn category_row_keys_keep_header_and_empty_drop_target_distinct() {
         assert_eq!(
-            category_input_key("character"),
-            "metadata-tag-category-character"
+            category_header_row_key("character"),
+            "metadata-tag-category-header-character"
         );
         assert_eq!(
-            empty_category_input_key("character"),
+            empty_category_row_key("character"),
             "metadata-tag-empty-category-character"
         );
         assert_ne!(
-            category_input_key("character"),
-            empty_category_input_key("character")
+            category_header_row_key("character"),
+            empty_category_row_key("character")
         );
     }
 }

@@ -100,3 +100,4 @@ pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 = METADATA_TAGS.i
 #[cfg(test)]
 pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 = METADATA_TAGS.id(9);
 pub(in crate::native_app) const METADATA_RESIZE_HEADER_ID: u64 = METADATA_TAGS.id(10);
+pub(in crate::native_app) const METADATA_CATEGORY_ROW_INPUT_SCOPE: u64 = METADATA_TAGS.id(11);

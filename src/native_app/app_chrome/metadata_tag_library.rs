@@ -100,7 +100,10 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
             category.drop_target_active,
         )
         .style(style)
-        .input_key(identity::category_input_key(category.id))
+        .stable_row_identity(
+            identity::METADATA_CATEGORY_ROW_INPUT_SCOPE,
+            identity::category_header_row_key(category.id),
+        )
         .actions(
             ui::row_actions()
                 .tracked_drop_candidate_key(
@@ -190,7 +193,10 @@ fn empty_category_target(category: MetadataTagEmptyCategoryProjection) -> ui::Vi
             category.drop_candidate,
             category.drop_target_active,
         )
-        .input_key(identity::empty_category_input_key(category.category_id))
+        .stable_row_identity(
+            identity::METADATA_CATEGORY_ROW_INPUT_SCOPE,
+            identity::empty_category_row_key(category.category_id),
+        )
         .actions(ui::row_actions().tracked_drop_candidate_key(
             category_for_input,
             drop_metadata_tag_on_category,
@@ -238,5 +244,62 @@ mod tests {
             );
 
         assert_eq!(output, None);
+    }
+
+    #[test]
+    fn category_header_routes_activation_through_stable_row_identity() {
+        let category_id = "character";
+        let category = MetadataTagCategoryProjection {
+            id: category_id,
+            header_label: String::from("Character"),
+            expanded: false,
+            drag_active: false,
+            drop_candidate: false,
+            drop_target: false,
+            drop_target_active: false,
+            body: MetadataTagCategoryBodyProjection::Collapsed,
+        };
+        let input_id = ui::stable_widget_id(
+            identity::METADATA_CATEGORY_ROW_INPUT_SCOPE,
+            identity::category_header_row_key(category_id),
+        );
+
+        assert_eq!(
+            category_header(&category).view_dispatch_widget_output(
+                input_id,
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            ),
+            Some(GuiMessage::Metadata(
+                MetadataMessage::ToggleMetadataTagCategory(String::from(category_id))
+            ))
+        );
+    }
+
+    #[test]
+    fn empty_category_drop_target_routes_drop_through_stable_row_identity() {
+        let category_id = "character";
+        let category = MetadataTagEmptyCategoryProjection {
+            category_id,
+            drag_active: true,
+            drop_candidate: true,
+            drop_target: false,
+            drop_target_active: false,
+        };
+        let input_id = ui::stable_widget_id(
+            identity::METADATA_CATEGORY_ROW_INPUT_SCOPE,
+            identity::empty_category_row_key(category_id),
+        );
+
+        assert_eq!(
+            empty_category_target(category).view_dispatch_widget_output(
+                input_id,
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::Drop),
+            ),
+            Some(GuiMessage::Metadata(
+                MetadataMessage::DropMetadataTagOnCategory {
+                    category_id: String::from(category_id),
+                }
+            ))
+        );
     }
 }
