@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::Source;
 
+#[cfg(test)]
 pub(crate) fn fade_duration(span_seconds: f32, max_fade: Duration) -> Duration {
     if span_seconds <= 0.0 || max_fade.is_zero() {
         return Duration::ZERO;
@@ -20,6 +21,7 @@ pub(crate) fn fade_frames_for_duration(sample_rate: u32, fade: Duration) -> u32 
     frames.clamp(1.0, u32::MAX as f64) as u32
 }
 
+#[cfg(test)]
 fn duration_from_secs_f32(seconds: f32) -> Duration {
     if !seconds.is_finite() || seconds <= 0.0 {
         return Duration::ZERO;
@@ -27,6 +29,7 @@ fn duration_from_secs_f32(seconds: f32) -> Duration {
     Duration::from_secs_f64(seconds as f64)
 }
 
+#[cfg(test)]
 #[derive(Clone)]
 pub(crate) struct EdgeFade<S> {
     inner: S,
@@ -38,6 +41,7 @@ pub(crate) struct EdgeFade<S> {
     samples_emitted: u64,
 }
 
+#[cfg(test)]
 impl<S> EdgeFade<S> {
     pub(crate) fn new(inner: S, fade: Duration) -> Self
     where
@@ -66,6 +70,7 @@ impl<S> EdgeFade<S> {
     }
 }
 
+#[cfg(test)]
 impl<S> Iterator for EdgeFade<S>
 where
     S: Source,
@@ -96,6 +101,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S> Source for EdgeFade<S>
 where
     S: Source,

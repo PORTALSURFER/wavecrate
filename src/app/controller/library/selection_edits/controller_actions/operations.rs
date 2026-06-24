@@ -1,4 +1,5 @@
 use super::*;
+use crate::audio::short_edge_fade_frame_count;
 
 impl AppController {
     /// Remove the selected span from the loaded sample.
@@ -149,7 +150,7 @@ fn apply_short_edge_fades_to_selection(
 ) -> Result<(), String> {
     let selection_frames = buffer.end_frame.saturating_sub(buffer.start_frame);
     let fade_frames =
-        edge_fade_frame_count(buffer.sample_rate.max(1), selection_frames, fade_duration);
+        short_edge_fade_frame_count(buffer.sample_rate.max(1), selection_frames, fade_duration);
     if fade_frames == 0 {
         return Err("Selection is too short for edge fades".into());
     }

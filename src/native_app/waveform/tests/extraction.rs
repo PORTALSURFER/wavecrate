@@ -21,7 +21,7 @@ fn playmark_extraction_writes_sibling_wav_range() {
         .expect("extract range");
 
     assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
-    assert_eq!(read_test_wav_i16(&output), vec![100, 200, 300, 400]);
+    assert_eq!(read_test_wav_i16(&output), vec![0, 200, 300, 0]);
     assert_eq!(
         state.extracted_ranges(),
         &[wavecrate::selection::SelectionRange::new(0.25, 0.75)]
@@ -60,7 +60,7 @@ fn playmark_extraction_uses_channel_independent_frame_bounds() {
 
     assert_eq!(
         read_test_wav_i16(&output),
-        vec![100, 101, 200, 201, 300, 301, 400, 401]
+        vec![0, 0, 200, 201, 300, 301, 0, 0]
     );
     let _ = fs::remove_dir_all(root);
 }
@@ -87,7 +87,7 @@ fn playmark_drag_extraction_writes_to_target_folder() {
 
     assert_eq!(output.parent(), Some(target.as_path()));
     assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
-    assert_eq!(read_test_wav_i16(&output), vec![100, 200, 300, 400]);
+    assert_eq!(read_test_wav_i16(&output), vec![0, 200, 300, 0]);
     assert_eq!(
         state.extracted_ranges(),
         &[wavecrate::selection::SelectionRange::new(0.25, 0.75)]
@@ -119,7 +119,7 @@ fn playmark_extraction_writes_from_decoded_playback_samples_without_audio_bytes(
     let output = completion.result.expect("extract range");
 
     assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
-    assert_eq!(read_test_wav_f32(&output), vec![0.2, 0.3, 0.4, 0.5]);
+    assert_eq!(read_test_wav_f32(&output), vec![0.0, 0.0, 0.0, 0.0]);
     let _ = fs::remove_dir_all(root);
 }
 
@@ -149,7 +149,7 @@ fn playmark_extraction_writes_from_persisted_playback_cache_without_audio_bytes(
     let output = completion.result.expect("extract range");
 
     assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
-    assert_eq!(read_test_wav_f32(&output), vec![0.2, 0.3, 0.4, 0.5]);
+    assert_eq!(read_test_wav_f32(&output), vec![0.0, 0.0, 0.0, 0.0]);
     let _ = fs::remove_dir_all(root);
 }
 

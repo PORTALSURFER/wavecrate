@@ -2,9 +2,13 @@ use std::{
     fs::File,
     io::{BufWriter, ErrorKind, Read, Seek, SeekFrom, Write},
     path::Path,
+    time::Duration,
 };
 
+use wavecrate::audio::short_edge_fade_frame_count;
 use wavecrate::selection::SelectionRange;
+
+mod fade;
 
 const RIFF_ID: &[u8; 4] = b"RIFF";
 const WAVE_ID: &[u8; 4] = b"WAVE";
@@ -24,6 +28,7 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
     loaded_frames: usize,
     selection: SelectionRange,
     output_path: &Path,
+    fade_duration: Duration,
 ) -> Result<bool, String> {
     if selection.has_edit_effects() {
         return Ok(false);
@@ -37,7 +42,7 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
     }
     let frame_range = selection.frame_bounds(total_frames);
     let byte_span = layout.byte_span(frame_range.start_frame, frame_range.end_frame)?;
-    write_raw_slice(reader, &layout, byte_span, output_path)?;
+    write_raw_slice(reader, &layout, byte_span, output_path, fade_duration)?;
     Ok(true)
 }
 
@@ -45,6 +50,10 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
 struct RawWavLayout {
     fmt_chunk: Vec<u8>,
     block_align: u16,
+    channels: u16,
+    sample_rate: u32,
+    bits_per_sample: u16,
+    encoding: SampleEncoding,
     data_offset: u64,
     data_len: u64,
 }
@@ -95,6 +104,10 @@ struct RawByteSpan {
 struct ParsedFmt {
     chunk: Vec<u8>,
     block_align: u16,
+    channels: u16,
+    sample_rate: u32,
+    bits_per_sample: u16,
+    encoding: SampleEncoding,
 }
 
 #[derive(Clone, Copy)]
@@ -143,6 +156,10 @@ fn parse_layout<R: Read + Seek>(reader: &mut R) -> Result<Option<RawWavLayout>, 
             return Ok(Some(RawWavLayout {
                 fmt_chunk: fmt.chunk,
                 block_align: fmt.block_align,
+                channels: fmt.channels,
+                sample_rate: fmt.sample_rate,
+                bits_per_sample: fmt.bits_per_sample,
+                encoding: fmt.encoding,
                 data_offset: chunk_data_offset,
                 data_len,
             }));
@@ -199,7 +216,14 @@ fn parse_fmt_chunk(chunk: Vec<u8>) -> Option<ParsedFmt> {
         block_align,
         bits_per_sample,
     )?;
-    Some(ParsedFmt { chunk, block_align })
+    Some(ParsedFmt {
+        chunk,
+        block_align,
+        channels,
+        sample_rate,
+        bits_per_sample,
+        encoding,
+    })
 }
 
 fn extensible_encoding(chunk: &[u8], container_bits_per_sample: u16) -> Option<SampleEncoding> {
@@ -258,6 +282,7 @@ fn write_raw_slice<R: Read + Seek>(
     layout: &RawWavLayout,
     span: RawByteSpan,
     output_path: &Path,
+    fade_duration: Duration,
 ) -> Result<(), String> {
     let data_len = u32::try_from(span.byte_len)
         .map_err(|_| String::from("WAV selection is too large for RIFF output"))?;
@@ -277,13 +302,13 @@ fn write_raw_slice<R: Read + Seek>(
     write_header(&mut writer, layout, data_len, riff_size)
         .map_err(|err| format!("failed to write extraction header: {err}"))?;
 
-    let copied = {
-        let mut limited = reader.take(span.byte_len);
-        std::io::copy(&mut limited, &mut writer)
-            .map_err(|err| format!("failed to copy WAV selection data: {err}"))?
-    };
-    if copied != span.byte_len {
-        return Err(String::from("failed to copy complete WAV selection data"));
+    let frame_count = span.byte_len / u64::from(layout.block_align);
+    let fade_frames =
+        short_edge_fade_frame_count(layout.sample_rate, frame_count as usize, fade_duration);
+    if fade_frames == 0 {
+        copy_exact_data(reader, &mut writer, span.byte_len)?;
+    } else {
+        fade::write_faded_data(reader, &mut writer, layout, frame_count, fade_frames)?;
     }
     if span.byte_len % 2 == 1 {
         writer
@@ -293,6 +318,22 @@ fn write_raw_slice<R: Read + Seek>(
     writer
         .flush()
         .map_err(|err| format!("failed to finalize extraction: {err}"))?;
+    Ok(())
+}
+
+pub(super) fn copy_exact_data<R: Read, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    byte_len: u64,
+) -> Result<(), String> {
+    let copied = {
+        let mut limited = reader.take(byte_len);
+        std::io::copy(&mut limited, writer)
+            .map_err(|err| format!("failed to copy WAV selection data: {err}"))?
+    };
+    if copied != byte_len {
+        return Err(String::from("failed to copy complete WAV selection data"));
+    }
     Ok(())
 }
 

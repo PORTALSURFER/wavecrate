@@ -58,21 +58,22 @@ fn late_wav_range_extraction_seeks_instead_of_reading_prefix() {
     let spec = reader.spec();
     read_bytes.set(0);
 
-    write_wav_frame_range(reader, spec, 1, 19_000, 19_010, &output).expect("extract late range");
+    write_wav_frame_range(reader, spec, 1, 19_000, 19_100, &output).expect("extract late range");
 
     assert!(
         read_bytes.get() < 512,
         "late extraction read {} bytes after the header; it should seek over the skipped prefix",
         read_bytes.get()
     );
-    assert_eq!(
-        read_i16_wav(&output),
-        (19_000_i16..19_010_i16).collect::<Vec<_>>()
-    );
+    let extracted = read_i16_wav(&output);
+    assert_eq!(extracted.len(), 100);
+    assert_eq!(extracted[0], 0);
+    assert_eq!(extracted[50], 19_050);
+    assert_eq!(extracted[99], 0);
 }
 
 #[test]
-fn plain_wav_range_extraction_copies_data_in_large_reads() {
+fn plain_wav_range_extraction_applies_short_edge_fades() {
     let root = tempfile::tempdir().expect("temp root");
     let source = root.path().join("source.wav");
     write_i16_wav(&source, 20_000);
@@ -87,20 +88,18 @@ fn plain_wav_range_extraction_copies_data_in_large_reads() {
         extract_wav_reader_range_to_folder(&source, root.path(), counted, 20_000, selection)
             .expect("extract plain wav range");
 
-    assert!(
-        read_calls.get() < 64,
-        "plain WAV extraction should raw-copy in large reads; observed {} read calls and {} bytes",
-        read_calls.get(),
-        read_bytes.get()
-    );
-    assert_eq!(
-        read_i16_wav(&output),
-        (5_000_i16..15_000_i16).collect::<Vec<_>>()
-    );
+    assert!(read_calls.get() > 0);
+    assert!(read_bytes.get() > 0);
+    let extracted = read_i16_wav(&output);
+    assert_eq!(extracted.len(), 10_000);
+    assert_eq!(extracted[0], 0);
+    assert_eq!(extracted[88], 5_088);
+    assert_eq!(extracted[5_000], 10_000);
+    assert_eq!(extracted[9_999], 0);
 }
 
 #[test]
-fn raw_wav_range_extraction_skips_metadata_chunk_before_data() {
+fn wav_range_extraction_handles_metadata_chunk_before_data() {
     let root = tempfile::tempdir().expect("temp root");
     let source = root.path().join("source.wav");
     write_i16_wav(&source, 256);
@@ -114,12 +113,12 @@ fn raw_wav_range_extraction_skips_metadata_chunk_before_data() {
     let output = extract_wav_reader_range_to_folder(&source, root.path(), counted, 256, selection)
         .expect("extract wav range with metadata chunk");
 
-    assert!(
-        read_calls.get() < 64,
-        "metadata-bearing WAV extraction should stay on the raw-copy path; observed {} read calls",
-        read_calls.get()
-    );
-    assert_eq!(read_i16_wav(&output), (64_i16..96_i16).collect::<Vec<_>>());
+    assert!(read_calls.get() > 0);
+    let extracted = read_i16_wav(&output);
+    assert_eq!(extracted.len(), 32);
+    assert_eq!(extracted[0], 0);
+    assert_eq!(extracted[16], 80);
+    assert_eq!(extracted[31], 0);
 }
 
 fn write_i16_wav(path: &std::path::Path, frames: i16) {

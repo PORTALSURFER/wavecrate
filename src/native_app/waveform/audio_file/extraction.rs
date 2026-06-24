@@ -4,6 +4,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use wavecrate::audio::{
+    DEFAULT_SHORT_EDGE_FADE, short_edge_fade_frame_count, short_edge_fade_gain,
+};
+
 mod raw_wav;
 
 const F32_SAMPLE_BYTES: u64 = std::mem::size_of::<f32>() as u64;
@@ -59,15 +63,38 @@ pub(in crate::native_app) fn extract_interleaved_f32_range_to_folder(
     let output_path = next_extraction_path(source_path, target_folder)?;
     let mut writer = hound::WavWriter::create(&output_path, spec)
         .map_err(|err| format!("failed to create extraction: {err}"))?;
-    for sample in &samples[sample_bounds.start..sample_bounds.end] {
-        writer
-            .write_sample(sample.clamp(-1.0, 1.0))
-            .map_err(|err| format!("failed to write extraction: {err}"))?;
-    }
+    write_f32_samples_with_edge_fade(
+        &mut writer,
+        &samples[sample_bounds.start..sample_bounds.end],
+        channels,
+        sample_rate,
+        frame_range
+            .end_frame
+            .saturating_sub(frame_range.start_frame),
+    )?;
     writer
         .finalize()
         .map_err(|err| format!("failed to finalize extraction: {err}"))?;
     Ok(output_path)
+}
+
+fn write_f32_samples_with_edge_fade(
+    writer: &mut hound::WavWriter<std::io::BufWriter<std::fs::File>>,
+    samples: &[f32],
+    channels: usize,
+    sample_rate: u32,
+    frame_count: usize,
+) -> Result<(), String> {
+    let fade_frames =
+        short_edge_fade_frame_count(sample_rate, frame_count, DEFAULT_SHORT_EDGE_FADE);
+    for (sample_index, sample) in samples.iter().enumerate() {
+        let frame = sample_index / channels.max(1);
+        let gain = short_edge_fade_gain(frame, frame_count, fade_frames);
+        writer
+            .write_sample((sample * gain).clamp(-1.0, 1.0))
+            .map_err(|err| format!("failed to write extraction: {err}"))?;
+    }
+    Ok(())
 }
 
 pub(in crate::native_app) fn extract_interleaved_f32_file_range_to_folder(
@@ -97,12 +124,19 @@ pub(in crate::native_app) fn extract_interleaved_f32_file_range_to_folder(
     let mut writer = hound::WavWriter::create(&output_path, spec)
         .map_err(|err| format!("failed to create extraction: {err}"))?;
     let mut bytes = [0_u8; F32_SAMPLE_BYTES as usize];
-    for _ in 0..samples_to_write {
+    let frame_count = frame_range
+        .end_frame
+        .saturating_sub(frame_range.start_frame);
+    let fade_frames =
+        short_edge_fade_frame_count(cache.sample_rate, frame_count, DEFAULT_SHORT_EDGE_FADE);
+    for sample_index in 0..samples_to_write {
         reader
             .read_exact(&mut bytes)
             .map_err(|err| format!("failed to read playback cache: {err}"))?;
+        let frame = sample_index / cache.channels.max(1);
+        let gain = short_edge_fade_gain(frame, frame_count, fade_frames);
         writer
-            .write_sample(f32::from_le_bytes(bytes).clamp(-1.0, 1.0))
+            .write_sample((f32::from_le_bytes(bytes) * gain).clamp(-1.0, 1.0))
             .map_err(|err| format!("failed to write extraction: {err}"))?;
     }
     writer
@@ -119,7 +153,13 @@ pub(super) fn extract_wav_reader_range_to_folder<R: Read + Seek>(
     selection: wavecrate::selection::SelectionRange,
 ) -> Result<PathBuf, String> {
     let output_path = next_extraction_path(source_path, target_folder)?;
-    if raw_wav::copy_selection_to_file(&mut reader, loaded_frames, selection, &output_path)? {
+    if raw_wav::copy_selection_to_file(
+        &mut reader,
+        loaded_frames,
+        selection,
+        &output_path,
+        DEFAULT_SHORT_EDGE_FADE,
+    )? {
         return Ok(output_path);
     }
     reader
@@ -263,15 +303,27 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
         .seek(start_frame)
         .map_err(|err| format!("failed to seek WAV selection: {err}"))?;
     match spec.sample_format {
-        hound::SampleFormat::Float => {
-            write_samples::<_, f32>(&mut reader, &mut writer, sample_count)?
-        }
-        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
-            write_samples::<_, i16>(&mut reader, &mut writer, sample_count)?
-        }
-        hound::SampleFormat::Int => {
-            write_samples::<_, i32>(&mut reader, &mut writer, sample_count)?
-        }
+        hound::SampleFormat::Float => write_samples::<_, f32>(
+            &mut reader,
+            &mut writer,
+            sample_count,
+            channels,
+            spec.sample_rate,
+        )?,
+        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => write_samples::<_, i16>(
+            &mut reader,
+            &mut writer,
+            sample_count,
+            channels,
+            spec.sample_rate,
+        )?,
+        hound::SampleFormat::Int => write_samples::<_, i32>(
+            &mut reader,
+            &mut writer,
+            sample_count,
+            channels,
+            spec.sample_rate,
+        )?,
     }
     writer
         .finalize()
@@ -283,15 +335,52 @@ fn write_samples<R, S>(
     reader: &mut hound::WavReader<R>,
     writer: &mut hound::WavWriter<std::io::BufWriter<std::fs::File>>,
     sample_count: usize,
+    channels: usize,
+    sample_rate: u32,
 ) -> Result<(), String>
 where
     R: std::io::Read,
-    S: hound::Sample,
+    S: hound::Sample + FadedSample,
 {
-    for sample in reader.samples::<S>().take(sample_count) {
+    let frame_count = sample_count / channels.max(1);
+    let fade_frames =
+        short_edge_fade_frame_count(sample_rate, frame_count, DEFAULT_SHORT_EDGE_FADE);
+    for (sample_index, sample) in reader.samples::<S>().take(sample_count).enumerate() {
+        let frame = sample_index / channels.max(1);
+        let gain = short_edge_fade_gain(frame, frame_count, fade_frames);
         writer
-            .write_sample(sample.map_err(|err| format!("failed to read sample: {err}"))?)
+            .write_sample(
+                sample
+                    .map_err(|err| format!("failed to read sample: {err}"))?
+                    .with_gain(gain),
+            )
             .map_err(|err| format!("failed to write extraction: {err}"))?;
     }
     Ok(())
+}
+
+trait FadedSample {
+    fn with_gain(self, gain: f32) -> Self;
+}
+
+impl FadedSample for f32 {
+    fn with_gain(self, gain: f32) -> Self {
+        (self * gain).clamp(-1.0, 1.0)
+    }
+}
+
+impl FadedSample for i16 {
+    fn with_gain(self, gain: f32) -> Self {
+        (f32::from(self) * gain)
+            .round()
+            .clamp(i16::MIN as f32, i16::MAX as f32) as i16
+    }
+}
+
+impl FadedSample for i32 {
+    fn with_gain(self, gain: f32) -> Self {
+        (self as f32 * gain)
+            .round()
+            .clamp(i32::MIN as f32, i32::MAX as f32) as i32
+    }
 }

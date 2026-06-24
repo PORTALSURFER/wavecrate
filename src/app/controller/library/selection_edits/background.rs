@@ -3,6 +3,7 @@ use super::*;
 use crate::app::controller::jobs::{FileOpResult, SelectionEditCommitResult};
 use crate::app::controller::library::selection_edits::buffer::load_selection_buffer;
 use crate::app::controller::library::selection_edits::duplicate_cleanup::trim_cleanup_ranges_from_buffer;
+use crate::audio::short_edge_fade_frame_count;
 use crate::selection::SelectionRange;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::Duration;
@@ -41,7 +42,7 @@ impl SelectionEditWorkerOp {
             Self::Normalize { edge_fade } => normalize_selection(buffer, *edge_fade),
             Self::ShortEdgeFades { fade_duration } => {
                 let selection_frames = buffer.end_frame.saturating_sub(buffer.start_frame);
-                let fade_frames = edge_fade_frame_count(
+                let fade_frames = short_edge_fade_frame_count(
                     buffer.sample_rate.max(1),
                     selection_frames,
                     *fade_duration,

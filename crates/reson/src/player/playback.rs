@@ -3,7 +3,6 @@ use crate::telemetry;
 use crate::timebase::{frames_to_seconds, seconds_to_frames_round};
 use crate::{AsyncSource, Source};
 
-use super::super::fade::{EdgeFade, fade_duration};
 use super::metronome::MetronomeSource;
 use super::{
     AudioPlaybackSource, AudioPlayer, EditFadeSource, PlaybackChannelLayout,
@@ -16,7 +15,9 @@ use lazy_sources::{
     LazySpanSource, PcmWavFileRepeatingSpanSource, PcmWavFileSpanSource,
 };
 mod lazy_sources;
+mod span_edge_fade;
 mod span_samples;
+use span_edge_fade::StaticSpanEdgeFadeSource;
 use span_samples::{SpanSamplesMode, SpanSamplesSource};
 #[cfg(test)]
 mod test_support;
@@ -272,10 +273,6 @@ impl AudioPlayer {
         let channels = plan.layout().channels();
 
         let source_started_at = playback_stage_started();
-        let fade = fade_duration(
-            (plan.end_seconds() - plan.start_seconds()).max(f32::EPSILON),
-            self.anti_clip_fade(),
-        );
         let mut active_playback_span = None;
         let final_source: Box<dyn Source<Item = f32> + Send> = if looped {
             let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
@@ -289,7 +286,8 @@ impl AudioPlayer {
                     playback_span.clone(),
                     SpanSamplesMode::Looped,
                     plan.start_sample(),
-                );
+                )
+                .with_edge_fade(self.anti_clip_fade());
                 active_playback_span = Some(playback_span);
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                     source,
@@ -299,8 +297,10 @@ impl AudioPlayer {
                 let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
                 let mut async_source = AsyncSource::new(loop_source);
                 async_source.prefill();
+                let faded =
+                    StaticSpanEdgeFadeSource::new(async_source, &plan, self.anti_clip_fade());
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                    async_source,
+                    faded,
                     plan.sample_count(),
                 ))
             };
@@ -323,23 +323,26 @@ impl AudioPlayer {
                         playback_span.clone(),
                         SpanSamplesMode::OneShot,
                         plan.start_sample(),
-                    );
+                    )
+                    .with_edge_fade(self.anti_clip_fade());
                     active_playback_span = Some(playback_span);
                     Box::new(source)
                 } else {
                     let lazy_source = span_source_for_audio_source(self.audio_source()?, &plan)?;
                     let mut async_source = AsyncSource::new(lazy_source);
                     async_source.prefill();
-                    Box::new(
-                        async_source
-                            .take_samples(plan.sample_count() as usize)
-                            .buffered(),
-                    )
+                    let source = async_source
+                        .take_samples(plan.sample_count() as usize)
+                        .buffered();
+                    Box::new(StaticSpanEdgeFadeSource::new(
+                        source,
+                        &plan,
+                        self.anti_clip_fade(),
+                    ))
                 };
             let editable =
                 EditFadeSource::new(source, self.edit_fade_handle.clone(), plan.start_seconds());
-            let faded = EdgeFade::new(editable, fade);
-            Box::new(faded)
+            Box::new(editable)
         };
         let final_source = source_with_metronome(final_source, metronome, &plan);
         log_playback_stage(
@@ -411,45 +414,48 @@ impl AudioPlayer {
 
         let source_started_at = playback_stage_started();
         let mut active_playback_span = None;
-        let diagnostic: Box<dyn Source<Item = f32> + Send> =
-            if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                let playback_span = PlaybackSpanHandle::from_plan(&plan);
-                let source = SpanSamplesSource::new(
-                    channels,
-                    sample_rate,
-                    samples,
-                    playback_span.clone(),
-                    SpanSamplesMode::Looped,
-                    plan.seek_sample(),
-                );
-                let editable = EditFadeSource::new_looped(
-                    source,
-                    self.edit_fade_handle.clone(),
-                    plan.start_seconds(),
-                    plan.frame_count(),
-                    plan.seek_offset_frames(),
-                );
-                active_playback_span = Some(playback_span);
-                Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                    editable,
-                    plan.sample_count(),
-                ))
-            } else {
-                let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
-                let mut async_source = AsyncSource::new(loop_source);
-                async_source.prefill();
-                let editable = EditFadeSource::new_looped(
-                    async_source,
-                    self.edit_fade_handle.clone(),
-                    plan.start_seconds(),
-                    plan.frame_count(),
-                    plan.seek_offset_frames(),
-                );
-                Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                    editable,
-                    plan.sample_count(),
-                ))
-            };
+        let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
+            self.playback_samples.as_ref().cloned()
+        {
+            let playback_span = PlaybackSpanHandle::from_plan(&plan);
+            let source = SpanSamplesSource::new(
+                channels,
+                sample_rate,
+                samples,
+                playback_span.clone(),
+                SpanSamplesMode::Looped,
+                plan.seek_sample(),
+            )
+            .with_edge_fade(self.anti_clip_fade());
+            let editable = EditFadeSource::new_looped(
+                source,
+                self.edit_fade_handle.clone(),
+                plan.start_seconds(),
+                plan.frame_count(),
+                plan.seek_offset_frames(),
+            );
+            active_playback_span = Some(playback_span);
+            Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
+                editable,
+                plan.sample_count(),
+            ))
+        } else {
+            let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
+            let mut async_source = AsyncSource::new(loop_source);
+            async_source.prefill();
+            let faded = StaticSpanEdgeFadeSource::new(async_source, &plan, self.anti_clip_fade());
+            let editable = EditFadeSource::new_looped(
+                faded,
+                self.edit_fade_handle.clone(),
+                plan.start_seconds(),
+                plan.frame_count(),
+                plan.seek_offset_frames(),
+            );
+            Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
+                editable,
+                plan.sample_count(),
+            ))
+        };
         let diagnostic = source_with_metronome(diagnostic, metronome, &plan);
         log_playback_stage("source_construction", source_started_at, source_kind, true);
 

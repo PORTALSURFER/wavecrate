@@ -1,6 +1,5 @@
 use super::*;
 use crate::app::state::DestructiveSelectionEdit;
-use std::time::Duration;
 
 mod background;
 mod buffer;
@@ -32,6 +31,7 @@ use ops::{
 use ops::{apply_muted_selection, fade_factor, slice_frames};
 
 use crate::app::controller::undo;
+pub(crate) use crate::audio::apply_short_edge_fades_to_clip;
 
 /// Direction of a fade applied over the active selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,34 +57,6 @@ fn selection_target_range(
     edit_selection
         .or(play_selection)
         .unwrap_or_else(|| SelectionRange::new(0.0, 1.0))
-}
-
-/// Apply short edge fades across an entire clip, returning true when applied.
-pub(crate) fn apply_short_edge_fades_to_clip(
-    samples: &mut [f32],
-    channels: usize,
-    sample_rate: u32,
-    fade_duration: Duration,
-) -> bool {
-    let channels = channels.max(1);
-    let total_frames = samples.len() / channels;
-    if total_frames == 0 {
-        return false;
-    }
-    let fade_frames = edge_fade_frame_count(sample_rate.max(1), total_frames, fade_duration);
-    if fade_frames == 0 {
-        return false;
-    }
-    apply_edge_fades(samples, channels, 0, total_frames, fade_frames);
-    true
-}
-
-fn edge_fade_frame_count(sample_rate: u32, selection_frames: usize, duration: Duration) -> usize {
-    if selection_frames == 0 {
-        return 0;
-    }
-    let frames = (sample_rate as f32 * duration.as_secs_f32()).round() as usize;
-    frames.min(selection_frames / 2)
 }
 
 #[cfg(test)]

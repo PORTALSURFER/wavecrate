@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use crate::Source;
 
 use super::super::PlaybackSpanHandle;
+use super::span_edge_fade::{span_edge_fade_frames, span_edge_fade_gain};
 
 pub(super) struct SpanSamplesSource {
     samples: Arc<[f32]>,
@@ -11,6 +12,7 @@ pub(super) struct SpanSamplesSource {
     playback_span: PlaybackSpanHandle,
     mode: SpanSamplesMode,
     position_sample: u64,
+    fade_frames: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,7 +37,13 @@ impl SpanSamplesSource {
             playback_span,
             mode,
             position_sample: position_sample as u64,
+            fade_frames: 0,
         }
+    }
+
+    pub(super) fn with_edge_fade(mut self, fade: Duration) -> Self {
+        self.fade_frames = span_edge_fade_frames(self.sample_rate, u64::MAX, fade);
+        self
     }
 
     fn align_position_to_span(&mut self) -> bool {
@@ -71,6 +79,18 @@ impl SpanSamplesSource {
         let index = usize::try_from(self.position_sample).ok()?;
         (index < self.samples.len()).then_some(index)
     }
+
+    fn edge_gain(&self, frame: u64) -> f32 {
+        let snapshot = self.playback_span.snapshot();
+        let frame_count = snapshot
+            .end_frame()
+            .saturating_sub(snapshot.start_frame())
+            .max(1);
+        let offset = frame
+            .saturating_sub(snapshot.start_frame())
+            .min(frame_count - 1);
+        span_edge_fade_gain(offset, frame_count, self.fade_frames)
+    }
 }
 
 impl Iterator for SpanSamplesSource {
@@ -84,6 +104,8 @@ impl Iterator for SpanSamplesSource {
         if !self.align_position_to_span() {
             return None;
         }
+        let frame = self.current_frame();
+        let gain = self.edge_gain(frame);
         let index = match self.sample_index() {
             Some(index) => index,
             None => {
@@ -97,7 +119,7 @@ impl Iterator for SpanSamplesSource {
         };
         let sample = self.samples[index];
         self.position_sample = self.position_sample.saturating_add(1);
-        Some(sample)
+        Some(sample * gain)
     }
 }
 
@@ -247,6 +269,44 @@ mod tests {
         assert_eq!(source.next(), Some(1.0));
         assert_eq!(source.next(), Some(2.0));
         assert_eq!(source.next(), None);
+    }
+
+    #[test]
+    fn edge_fade_applies_to_live_loop_cycles() {
+        let samples = Arc::<[f32]>::from(vec![1.0; 4]);
+        let handle = PlaybackSpanHandle::from_plan(&span_plan(0, 4, 0));
+        let source = SpanSamplesSource::new(1, 1_000, samples, handle, SpanSamplesMode::Looped, 0)
+            .with_edge_fade(Duration::from_millis(2));
+
+        assert_eq!(
+            source.take(8).collect::<Vec<_>>(),
+            vec![0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn edge_fade_uses_updated_span_after_retarget() {
+        let samples = Arc::<[f32]>::from(vec![1.0; 8]);
+        let handle = PlaybackSpanHandle::from_plan(&span_plan(0, 4, 0));
+        let mut source = SpanSamplesSource::new(
+            1,
+            1_000,
+            samples,
+            handle.clone(),
+            SpanSamplesMode::Looped,
+            0,
+        )
+        .with_edge_fade(Duration::from_millis(2));
+
+        assert_eq!(source.next(), Some(0.0));
+        assert_eq!(source.next(), Some(1.0));
+        handle.update_from_plan(&span_plan(0, 6, 1), None);
+
+        assert_eq!(source.next(), Some(1.0));
+        assert_eq!(source.next(), Some(1.0));
+        assert_eq!(source.next(), Some(1.0));
+        assert_eq!(source.next(), Some(0.0));
+        assert_eq!(source.next(), Some(0.0));
     }
 
     fn span_plan(start_frame: u64, end_frame: u64, offset_frame: u64) -> PlaybackSpanPlan {
