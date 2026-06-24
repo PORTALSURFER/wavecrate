@@ -1,34 +1,22 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, MetadataMessage};
+use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::TagEditorViewModel;
-use crate::native_app::metadata::{
-    MetadataTagDisplayCategory, metadata_tag_category_is_pinned, metadata_tag_pill_selection_style,
-    metadata_tag_pill_style,
-};
+use crate::native_app::metadata::MetadataTagDisplayCategory;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     SIDEBAR_PANEL_HEADER_CONTENT_SPACING, SIDEBAR_PANEL_HEADER_HEIGHT,
 };
-use crate::native_app::ui::ids as widget_ids;
 
 use super::tag_entry_layout::{
-    TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryFieldInput,
-    TagEntryFieldProjection, TagEntryRowItem, metadata_tag_category_id_for_display,
-    tag_field_content_width, tag_pill_width,
+    TAG_FIELD_LINE_GAP, TagEntryFieldInput, TagEntryFieldProjection, tag_field_content_width,
 };
 
-#[cfg(test)]
-pub(in crate::native_app) const METADATA_TAG_INPUT_ID: u64 = widget_ids::METADATA_TAG_INPUT_ID;
-#[cfg(not(test))]
-const METADATA_TAG_INPUT_ID: u64 = widget_ids::METADATA_TAG_INPUT_ID;
-#[cfg(test)]
-pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 =
-    widget_ids::METADATA_SIDEBAR_PANEL_ID;
-#[cfg(test)]
-pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 =
-    widget_ids::METADATA_TAG_LIBRARY_TOGGLE_ID;
-const METADATA_RESIZE_HEADER_ID: u64 = widget_ids::METADATA_RESIZE_HEADER_ID;
+mod identity;
+mod rows;
+
+use rows::{TagEntryRowContext, tag_entry_row};
+
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 const METADATA_TAG_LIBRARY_TOGGLE_WIDTH: f32 = 22.0;
@@ -77,28 +65,6 @@ impl<'a> TagEditorFieldParts<'a> {
     }
 }
 
-struct TagEntryRowContext<'a> {
-    display_categories: &'a [MetadataTagDisplayCategory],
-    draft: &'a str,
-    input_placeholder: &'a str,
-    completion_suffix: Option<&'a str>,
-    selected_tag: Option<&'a str>,
-    mixed_tags: &'a [String],
-}
-
-impl<'a> TagEntryRowContext<'a> {
-    fn from_field(field: &'a TagEditorFieldParts<'a>) -> Self {
-        Self {
-            display_categories: field.display_categories,
-            draft: field.draft,
-            input_placeholder: field.input_placeholder,
-            completion_suffix: field.completion_suffix,
-            selected_tag: field.selected_tag,
-            mixed_tags: field.mixed_tags,
-        }
-    }
-}
-
 pub(super) fn tag_editor_section(
     model: &TagEditorViewModel,
     sidebar_width: f32,
@@ -122,7 +88,7 @@ fn metadata_section(
 
     metadata_sidebar_panel(
         tag_entry_field(field, tag_field_height)
-            .key("metadata-tag-entry-field")
+            .key(identity::TAG_ENTRY_FIELD_KEY)
             .fill_width()
             .height(tag_field_height),
         Some(field.tags.len()),
@@ -162,98 +128,6 @@ fn tag_field_height(field: &TagEditorFieldParts<'_>) -> f32 {
         .field_height
 }
 
-fn tag_text_input(
-    tag_draft: &str,
-    placeholder: &str,
-    completion_suffix: Option<&str>,
-    width: f32,
-) -> ui::View<GuiMessage> {
-    let mut input = ui::text_input(tag_draft.to_string())
-        .placeholder(placeholder)
-        .underline();
-
-    if let Some(suffix) = completion_suffix.filter(|suffix| !suffix.is_empty()) {
-        input = input.completion_suffix(suffix);
-    }
-
-    input
-        .message_event(|message| GuiMessage::Metadata(MetadataMessage::MetadataTagInput(message)))
-        .id(METADATA_TAG_INPUT_ID)
-        .size(width, TAG_FIELD_CONTROL_HEIGHT)
-}
-
-fn tag_entry_row(
-    row: Vec<TagEntryRowItem>,
-    context: &TagEntryRowContext<'_>,
-    row_index: usize,
-) -> ui::View<GuiMessage> {
-    ui::row(
-        row.into_iter()
-            .map(|item| match item {
-                TagEntryRowItem::Accepted(tag) => accepted_tag_token(
-                    tag.as_str(),
-                    metadata_tag_category_id_for_display(tag.as_str(), context.display_categories),
-                    context.selected_tag == Some(tag.as_str()),
-                    context.mixed_tags.iter().any(|mixed| mixed == &tag),
-                ),
-                TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
-                TagEntryRowItem::Input(width) => tag_text_input(
-                    context.draft,
-                    context.input_placeholder,
-                    context.completion_suffix,
-                    width,
-                ),
-                TagEntryRowItem::LibraryToggle(width) => metadata_tag_library_toggle(width),
-            })
-            .collect::<Vec<_>>(),
-    )
-    .key(format!("metadata-tag-row-{row_index}"))
-    .height(TAG_FIELD_CONTROL_HEIGHT)
-    .fill_width()
-    .spacing(TAG_FIELD_ITEM_GAP)
-}
-
-fn accepted_tag_token(
-    tag: &str,
-    category_id: &str,
-    selected: bool,
-    mixed: bool,
-) -> ui::View<GuiMessage> {
-    let active = !mixed && (selected || metadata_tag_category_is_pinned(category_id));
-    let style = if active {
-        metadata_tag_pill_style(category_id, true)
-    } else if mixed {
-        metadata_tag_pill_selection_style(
-            category_id,
-            crate::native_app::metadata::MetadataTagSelectionState::Mixed,
-        )
-    } else {
-        metadata_tag_pill_style(category_id, false)
-    };
-    let tag_for_input = tag.to_string();
-    ui::interactive_badge(tag.to_string())
-        .style(style)
-        .active(active)
-        .actions(ui::row_actions().primary_secondary_key(
-            tag_for_input,
-            |tag| GuiMessage::Metadata(MetadataMessage::SelectMetadataTag(tag)),
-            |tag, position| {
-                GuiMessage::Metadata(MetadataMessage::OpenMetadataTagContextMenu { tag, position })
-            },
-        ))
-        .key(format!("metadata-tag-accepted-{tag}"))
-        .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
-}
-
-fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
-    ui::badge(tag.to_string())
-        .subtle()
-        .passive()
-        .key(format!("metadata-tag-pending-category-{tag}"))
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
-}
-
 fn metadata_sidebar_panel(
     content: ui::View<GuiMessage>,
     _tag_count: Option<usize>,
@@ -266,7 +140,7 @@ fn metadata_sidebar_panel(
             content,
             |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message)),
         )
-        .header_id(METADATA_RESIZE_HEADER_ID)
+        .header_id(identity::metadata_resize_header_id())
         .height(height)
         .padding(METADATA_PANEL_PADDING)
         .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING),
@@ -274,27 +148,10 @@ fn metadata_sidebar_panel(
     .fill_width();
     #[cfg(test)]
     {
-        panel.id(METADATA_SIDEBAR_PANEL_ID)
+        panel.id(identity::metadata_sidebar_panel_id())
     }
     #[cfg(not(test))]
     {
         panel
-    }
-}
-
-fn metadata_tag_library_toggle(width: f32) -> ui::View<GuiMessage> {
-    let toggle = ui::disclosure_button(false)
-        .message(GuiMessage::Metadata(
-            MetadataMessage::ToggleMetadataTagLibrary,
-        ))
-        .key("metadata-tag-library-toggle")
-        .size(width, TAG_FIELD_CONTROL_HEIGHT);
-    #[cfg(test)]
-    {
-        toggle.id(METADATA_TAG_LIBRARY_TOGGLE_ID)
-    }
-    #[cfg(not(test))]
-    {
-        toggle
     }
 }
