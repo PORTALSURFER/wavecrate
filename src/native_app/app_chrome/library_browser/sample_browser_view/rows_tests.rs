@@ -1,3 +1,9 @@
+use super::super::cells::{
+    SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL, sample_collection_cell,
+    sample_file_cell, sample_playback_type_cell, sample_rating_cell, sample_similarity_cell,
+};
+use super::super::row_widgets::RatingIndicator;
+use super::super::similarity_aspect_color;
 use super::*;
 use crate::native_app::sample_library::folder_browser::{FolderBrowserState, model::FileEntry};
 use radiant::{layout::Vector2, prelude::IntoView, theme::ThemeTokens};
