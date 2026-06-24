@@ -127,6 +127,7 @@ impl NativeAppState {
             | GuiMessage::ToggleShortcutHelp
             | GuiMessage::CloseShortcutHelp
             | GuiMessage::ToggleStickyRandomSampleRangePlayback
+            | GuiMessage::ToggleZeroCrossingSnap
             | GuiMessage::ToggleBeatGuides
             | GuiMessage::AdjustBeatGuideCount(_)
             | GuiMessage::ToggleSimilarSections

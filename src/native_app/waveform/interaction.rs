@@ -202,12 +202,19 @@ impl WaveformSelectionResizeDrag {
         }
     }
 
-    pub(super) fn apply(self, ratio: f32) -> wavecrate::selection::SelectionRange {
+    pub(super) fn apply_with_adjusted_bounds(
+        self,
+        ratio: f32,
+        adjust: impl FnOnce(
+            wavecrate::selection::SelectionRange,
+        ) -> wavecrate::selection::SelectionRange,
+    ) -> wavecrate::selection::SelectionRange {
         let resized = selection_from_normalized_range(NormalizedRange::from_edge_fraction(
             normalized_range_edge(self.edge),
             self.fixed_ratio,
             ratio,
         ));
+        let resized = adjust(resized);
         match self.kind {
             WaveformSelectionKind::Play => resized,
             WaveformSelectionKind::Edit => preserve_edit_selection_effects(self.baseline, resized),

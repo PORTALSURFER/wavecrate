@@ -23,6 +23,7 @@ mod paint;
 mod signal_widget;
 mod state;
 mod widget_input;
+mod zero_crossing_snap;
 
 fn waveform_widget_for_state(state: &WaveformState) -> WaveformWidget {
     waveform_widget_for_state_with_beat_guides(state, false, 4)

@@ -17,6 +17,8 @@ pub(in crate::native_app) const TOOLBAR_METRONOME_ID: u64 = widget_ids::TOOLBAR_
 pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =
     chrome_toolbar::TOOLBAR_SIMILAR_SECTIONS_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = chrome_toolbar::TOOLBAR_STOP_ID;
+pub(in crate::native_app) const TOOLBAR_ZERO_CROSSING_SNAP_ID: u64 =
+    chrome_toolbar::TOOLBAR_ZERO_CROSSING_SNAP_ID;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MainToolbarProjection {
@@ -26,6 +28,7 @@ pub(in crate::native_app) struct MainToolbarProjection {
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) loop_playback: bool,
     pub(in crate::native_app) playing: bool,
+    pub(in crate::native_app) zero_crossing_snap_enabled: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) metronome_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
@@ -49,6 +52,7 @@ pub(in crate::native_app) fn main_toolbar_projection(
         sticky_random_sample_range_playback: model.sticky_random_sample_range_playback,
         loop_playback: model.loop_playback,
         playing: model.playing,
+        zero_crossing_snap_enabled: model.zero_crossing_snap_enabled,
         beat_guides_enabled: model.beat_guides_enabled,
         metronome_enabled: model.metronome_enabled,
         beat_guide_count: model.beat_guide_count,

@@ -46,7 +46,7 @@ This workflow should support:
 7. Loop selected regions for closer listening.
 8. Slide or move loop selections through the waveform to audition different parts quickly.
 9. Mark interesting sections.
-10. Adjust region boundaries accurately, including grid-aware or transient-aware adjustment where practical.
+10. Adjust region boundaries accurately, including zero-crossing, grid-aware, or transient-aware adjustment where practical.
 11. Extract selected regions into new audio files that sound exactly like what was auditioned.
 12. Show immediate extraction success feedback for the extracted range.
 13. Continue searching the original audio file without losing flow.

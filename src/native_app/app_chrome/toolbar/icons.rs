@@ -15,6 +15,7 @@ pub(in crate::native_app) enum ToolbarIcon {
     Loop,
     Random,
     SimilarSections,
+    ZeroCrossingSnap,
     BeatGuides,
     Metronome,
     BeatGuideMinus,
@@ -30,6 +31,7 @@ impl ToolbarIcon {
             Self::Loop => &LOOP_ICON,
             Self::Random => &RANDOM_ICON,
             Self::SimilarSections => &SIMILAR_SECTIONS_ICON,
+            Self::ZeroCrossingSnap => &ZERO_CROSSING_SNAP_ICON,
             Self::BeatGuides => &BEAT_GUIDES_ICON,
             Self::Metronome => &METRONOME_ICON,
             Self::BeatGuideMinus => &BEAT_GUIDE_MINUS_ICON,
@@ -89,6 +91,14 @@ static SIMILAR_SECTIONS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
   <rect x="6.5" y="11.1" width="3" height="1.2"/>
   <rect x="3.15" y="7" width="1.2" height="2"/>
   <rect x="11.65" y="7" width="1.2" height="2"/>
+</svg>"#,
+);
+
+static ZERO_CROSSING_SNAP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="7.25" width="12" height="1.5"/>
+  <path d="M2 10.8c2.2 0 2.7-5.6 5-5.6s2.8 5.6 5 5.6h2v1.5h-2c-2.9 0-3.4-5.6-5-5.6s-2.1 5.6-5 5.6z"/>
+  <rect x="7.25" y="2" width="1.5" height="12"/>
 </svg>"#,
 );
 

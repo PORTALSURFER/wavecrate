@@ -15,6 +15,7 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) edit_mark_ratio: Option<f32>,
     pub(in crate::native_app::waveform) play_selection: Option<SelectionRange>,
     pub(in crate::native_app::waveform) edit_selection: Option<SelectionRange>,
+    pub(in crate::native_app::waveform) zero_crossing_snap_enabled: bool,
     pub(in crate::native_app::waveform) marked_play_ranges: Vec<SelectionRange>,
     pub(in crate::native_app::waveform) extracted_ranges: Vec<SelectionRange>,
     pub(in crate::native_app::waveform) similar_sections: SimilarSectionsState,

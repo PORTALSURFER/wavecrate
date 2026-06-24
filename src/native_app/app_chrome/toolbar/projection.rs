@@ -5,7 +5,7 @@ use crate::native_app::app_chrome::toolbar::identity::{
 };
 use crate::native_app::app_chrome::toolbar::{
     TOOLBAR_APPLY_EDIT_MARK_EDITS_ID, TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_RANDOM_ID,
-    TOOLBAR_SIMILAR_SECTIONS_ID, TOOLBAR_STOP_ID,
+    TOOLBAR_SIMILAR_SECTIONS_ID, TOOLBAR_STOP_ID, TOOLBAR_ZERO_CROSSING_SNAP_ID,
 };
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
 
@@ -13,6 +13,7 @@ const FOCUS_LOADED_TOOLTIP: &str = "Focus the loaded sample in the browser.";
 const LOOP_TOOLTIP: &str = "Loop preview playback.";
 const RANDOM_TOOLTIP: &str = "Random section playback\nClick: play a random section now.\nShift-click: pick a random listed sample first.\nCommand-click: make Space use random sections.";
 const SIMILAR_SECTIONS_TOOLTIP: &str = "Mark sections similar to the playmark selection.\nSet a playmark first, then toggle this to scan the loaded sample.";
+const ZERO_CROSSING_SNAP_TOOLTIP: &str = "Snap play and edit mark edges to nearby zero crossings.";
 const BEAT_GUIDES_TOOLTIP: &str = "Show beat guide lines inside the play selection.";
 const METRONOME_TOOLTIP: &str = "Play a metronome from the beat guide divisions.";
 const BEAT_GUIDE_DECREMENT_TOOLTIP: &str = "Use fewer beat divisions.";
@@ -62,6 +63,14 @@ impl ToolbarProjection {
                 SIMILAR_SECTIONS_TOOLTIP,
             )
             .with_icon_enabled(model.similar_sections_available || model.similar_sections_enabled)
+            .into(),
+            ToolbarIconButtonProjection::new(
+                TOOLBAR_ZERO_CROSSING_SNAP_ID,
+                ToolbarIcon::ZeroCrossingSnap,
+                true,
+                model.zero_crossing_snap_enabled,
+                ZERO_CROSSING_SNAP_TOOLTIP,
+            )
             .into(),
             ToolbarIconButtonProjection::new(
                 TOOLBAR_BEAT_GUIDES_ID,

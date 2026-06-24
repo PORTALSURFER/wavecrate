@@ -126,6 +126,7 @@ impl WaveformState {
             edit_mark_ratio: None,
             play_selection: None,
             edit_selection: None,
+            zero_crossing_snap_enabled: false,
             marked_play_ranges: Vec::new(),
             extracted_ranges: Vec::new(),
             similar_sections: Default::default(),

@@ -45,6 +45,7 @@ mod state_selection;
 mod state_transient;
 mod state_viewport;
 mod state_viewport_access;
+mod zero_crossing_snap;
 #[cfg(test)]
 pub(in crate::native_app) use state_marked_ranges::random_marked_play_range_for_unit;
 

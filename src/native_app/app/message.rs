@@ -218,6 +218,7 @@ pub(in crate::native_app) enum GuiMessage {
     CloseJobDetails,
     ToggleShortcutHelp,
     CloseShortcutHelp,
+    ToggleZeroCrossingSnap,
     ToggleBeatGuides,
     AdjustBeatGuideCount(i8),
     ToggleMetronome,

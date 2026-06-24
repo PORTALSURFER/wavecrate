@@ -19,6 +19,8 @@ pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =
     identity::TOOLBAR_SIMILAR_SECTIONS_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = identity::TOOLBAR_STOP_ID;
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = identity::TOOLBAR_RANDOM_ID;
+pub(in crate::native_app) const TOOLBAR_ZERO_CROSSING_SNAP_ID: u64 =
+    identity::TOOLBAR_ZERO_CROSSING_SNAP_ID;
 
 pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
     let projection = ToolbarProjection::from_model(model);
@@ -115,6 +117,7 @@ fn toolbar_button_message(icon: ToolbarIcon, message: ButtonMessage) -> GuiMessa
         }
         ToolbarIcon::Random => GuiMessage::PlayRandomSampleRange,
         ToolbarIcon::SimilarSections => GuiMessage::ToggleSimilarSections,
+        ToolbarIcon::ZeroCrossingSnap => GuiMessage::ToggleZeroCrossingSnap,
         ToolbarIcon::BeatGuides => GuiMessage::ToggleBeatGuides,
         ToolbarIcon::Metronome => GuiMessage::ToggleMetronome,
         ToolbarIcon::BeatGuideMinus => GuiMessage::AdjustBeatGuideCount(-1),

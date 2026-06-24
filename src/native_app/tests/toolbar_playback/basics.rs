@@ -7,6 +7,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         crate::native_app::test_support::toolbar::ToolbarIcon::Loop,
         crate::native_app::test_support::toolbar::ToolbarIcon::Random,
         crate::native_app::test_support::toolbar::ToolbarIcon::SimilarSections,
+        crate::native_app::test_support::toolbar::ToolbarIcon::ZeroCrossingSnap,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
         crate::native_app::test_support::toolbar::ToolbarIcon::Metronome,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
@@ -61,6 +62,10 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::SimilarSections,
             crate::native_app::test_support::state::GuiMessage::ToggleSimilarSections,
+        ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::ZeroCrossingSnap,
+            crate::native_app::test_support::state::GuiMessage::ToggleZeroCrossingSnap,
         ),
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
@@ -207,6 +212,7 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             sticky_random_sample_range_playback: true,
             loop_playback: true,
             playing: false,
+            zero_crossing_snap_enabled: true,
             beat_guides_enabled: true,
             metronome_enabled: true,
             beat_guide_count: 8,
@@ -218,7 +224,7 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     );
 
     assert!(projection.help_tooltips_enabled);
-    assert_eq!(projection.controls.len(), 12);
+    assert_eq!(projection.controls.len(), 13);
 
     let icon_control = |index| match projection.controls[index] {
         ToolbarControlProjection::Icon(button) => button,
@@ -239,45 +245,55 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     assert_eq!(icon_control(3).icon, ToolbarIcon::SimilarSections);
     assert!(icon_control(3).icon_enabled);
     assert!(icon_control(3).active);
-    assert_eq!(icon_control(4).icon, ToolbarIcon::BeatGuides);
+    assert_eq!(icon_control(4).icon, ToolbarIcon::ZeroCrossingSnap);
     assert!(icon_control(4).active);
-    assert_eq!(icon_control(5).icon, ToolbarIcon::Metronome);
     assert_eq!(
-        icon_control(5).id,
+        icon_control(4).tooltip,
+        "Snap play and edit mark edges to nearby zero crossings."
+    );
+    assert_eq!(
+        icon_control(4).id,
+        crate::native_app::test_support::toolbar::TOOLBAR_ZERO_CROSSING_SNAP_ID
+    );
+    assert_eq!(icon_control(5).icon, ToolbarIcon::BeatGuides);
+    assert!(icon_control(5).active);
+    assert_eq!(icon_control(6).icon, ToolbarIcon::Metronome);
+    assert_eq!(
+        icon_control(6).id,
         crate::native_app::test_support::toolbar::TOOLBAR_METRONOME_ID
     );
-    assert!(icon_control(5).active);
+    assert!(icon_control(6).active);
     assert_eq!(
-        icon_control(5).tooltip,
+        icon_control(6).tooltip,
         "Play a metronome from the beat guide divisions."
     );
-    assert_eq!(icon_control(6).icon, ToolbarIcon::BeatGuideMinus);
-    assert!(icon_control(6).enabled);
+    assert_eq!(icon_control(7).icon, ToolbarIcon::BeatGuideMinus);
+    assert!(icon_control(7).enabled);
 
     assert!(matches!(
-        projection.controls[7],
+        projection.controls[8],
         ToolbarControlProjection::BeatGuideCount {
             count: 8,
             key: "toolbar-beat-guide-count",
         }
     ));
 
-    assert_eq!(icon_control(8).icon, ToolbarIcon::BeatGuidePlus);
-    assert!(!icon_control(8).enabled);
+    assert_eq!(icon_control(9).icon, ToolbarIcon::BeatGuidePlus);
+    assert!(!icon_control(9).enabled);
 
     assert!(matches!(
-        projection.controls[9],
+        projection.controls[10],
         ToolbarControlProjection::ApplyEditMarkEdits {
             id: crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
             tooltip: "Apply edit mark gain and fade edits.",
         }
     ));
 
-    assert_eq!(icon_control(10).icon, ToolbarIcon::Play);
-    assert!(!icon_control(10).active);
-    assert_eq!(icon_control(11).icon, ToolbarIcon::Stop);
+    assert_eq!(icon_control(11).icon, ToolbarIcon::Play);
+    assert!(!icon_control(11).active);
+    assert_eq!(icon_control(12).icon, ToolbarIcon::Stop);
     assert_eq!(
-        icon_control(11).id,
+        icon_control(12).id,
         crate::native_app::test_support::toolbar::TOOLBAR_STOP_ID
     );
 }
@@ -335,6 +351,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.similar_sections_enabled);
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
+    assert!(!empty.zero_crossing_snap_enabled);
     assert!(!empty.beat_guides_enabled);
     assert!(!empty.metronome_enabled);
     assert_eq!(empty.beat_guide_count, 4);
@@ -350,6 +367,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
     state.waveform.current.start_playback(0.25);
+    state.waveform.current.toggle_zero_crossing_snap();
     state.waveform.current.set_edit_selection_range(
         wavecrate::selection::SelectionRange::new(0.2, 0.6).with_gain(0.5),
     );
@@ -362,6 +380,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!loaded.similar_sections_enabled);
     assert!(loaded.loop_playback);
     assert!(loaded.playing);
+    assert!(loaded.zero_crossing_snap_enabled);
     assert!(loaded.beat_guides_enabled);
     assert!(loaded.metronome_enabled);
     assert_eq!(loaded.beat_guide_count, 8);
@@ -396,6 +415,24 @@ fn sticky_random_toolbar_message_updates_space_playback_mode() {
         state.ui.status.sample,
         "Sticky random playback off: Space plays selected samples"
     );
+}
+
+#[test]
+fn zero_crossing_snap_toolbar_message_updates_waveform_state() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    assert!(!state.waveform.current.zero_crossing_snap_enabled());
+
+    state.apply_message(GuiMessage::ToggleZeroCrossingSnap, &mut context);
+
+    assert!(state.waveform.current.zero_crossing_snap_enabled());
+    assert_eq!(state.ui.status.sample, "Zero crossing snap enabled");
+
+    state.apply_message(GuiMessage::ToggleZeroCrossingSnap, &mut context);
+
+    assert!(!state.waveform.current.zero_crossing_snap_enabled());
+    assert_eq!(state.ui.status.sample, "Zero crossing snap disabled");
 }
 
 #[test]

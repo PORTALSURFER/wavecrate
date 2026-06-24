@@ -32,6 +32,14 @@ impl NativeAppState {
                     String::from("Sticky random playback off: Space plays selected samples")
                 };
             }
+            GuiMessage::ToggleZeroCrossingSnap => {
+                let enabled = self.waveform.current.toggle_zero_crossing_snap();
+                self.ui.status.sample = if enabled {
+                    String::from("Zero crossing snap enabled")
+                } else {
+                    String::from("Zero crossing snap disabled")
+                };
+            }
             GuiMessage::ToggleBeatGuides => {
                 self.ui.chrome.beat_guides_enabled = !self.ui.chrome.beat_guides_enabled;
             }

@@ -1,6 +1,7 @@
 use super::{
     WaveformSelectionKind, WaveformState,
     interaction::{WaveformDrag, WaveformSelectionDrag},
+    zero_crossing_snap::{snap_ratio_to_zero_crossing, snap_selection_to_zero_crossings},
 };
 
 type SelectionRange = wavecrate::selection::SelectionRange;
@@ -16,8 +17,10 @@ impl WaveformState {
     }
 
     pub(super) fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
-        let anchor_ratio = drag.anchor_ratio();
-        let range = super::interaction::selection_from_normalized_range(drag.range());
+        let anchor_ratio = self.snap_ratio_if_enabled(drag.anchor_ratio());
+        let range = self.snap_selection_if_enabled(
+            super::interaction::selection_from_normalized_range(drag.range()),
+        );
         self.set_selection_for_kind(drag.kind, anchor_ratio, range);
     }
 
@@ -28,7 +31,9 @@ impl WaveformState {
         if self.selection_for_kind(drag.kind).is_none() {
             return;
         }
-        let selection = drag.apply(ratio);
+        let selection = drag.apply_with_adjusted_bounds(ratio, |selection| {
+            self.snap_selection_if_enabled(selection)
+        });
         self.set_selection_for_kind(drag.kind, selection.start(), selection);
     }
 
@@ -36,7 +41,7 @@ impl WaveformState {
         let Some(WaveformDrag::SelectionMove(drag)) = self.active_drag else {
             return;
         };
-        let selection = drag.apply(ratio);
+        let selection = self.snap_selection_if_enabled(drag.apply(ratio));
         self.set_selection_for_kind(drag.kind, selection.start(), selection);
     }
 
@@ -81,6 +86,15 @@ impl WaveformState {
         self.set_selection_for_kind(WaveformSelectionKind::Edit, selection.start(), selection);
     }
 
+    pub(in crate::native_app) fn zero_crossing_snap_enabled(&self) -> bool {
+        self.zero_crossing_snap_enabled
+    }
+
+    pub(in crate::native_app) fn toggle_zero_crossing_snap(&mut self) -> bool {
+        self.zero_crossing_snap_enabled = !self.zero_crossing_snap_enabled;
+        self.zero_crossing_snap_enabled
+    }
+
     pub(super) fn record_current_play_selection_mark(&mut self) {
         let Some(selection) = self
             .play_selection
@@ -114,5 +128,19 @@ impl WaveformState {
                 self.edit_selection = Some(selection);
             }
         }
+    }
+
+    fn snap_selection_if_enabled(&self, selection: SelectionRange) -> SelectionRange {
+        if !self.zero_crossing_snap_enabled {
+            return selection;
+        }
+        snap_selection_to_zero_crossings(selection, &self.file)
+    }
+
+    fn snap_ratio_if_enabled(&self, ratio: f32) -> f32 {
+        if !self.zero_crossing_snap_enabled {
+            return ratio;
+        }
+        snap_ratio_to_zero_crossing(f64::from(ratio), &self.file) as f32
     }
 }

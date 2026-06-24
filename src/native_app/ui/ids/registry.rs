@@ -151,6 +151,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     ),
     registered_widget_id!(Toolbar, TOOLBAR_METRONOME_ID, "toolbar.metronome"),
     registered_widget_id!(
+        Toolbar,
+        TOOLBAR_ZERO_CROSSING_SNAP_ID,
+        "toolbar.zero_crossing_snap"
+    ),
+    registered_widget_id!(
         FolderFilters,
         FILTER_SECTION_NODE_ID,
         "folder_filters.section"
