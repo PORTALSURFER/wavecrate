@@ -33,7 +33,7 @@ impl NativeAppState {
         }
         self.sync_edit_fade_audio_state();
         if waveform_interaction_updates_play_selection(&message, active_drag) {
-            self.retarget_loop_playback_to_play_selection();
+            self.retarget_playback_to_play_selection();
         }
         if play_selection_transaction_finishes(&message, active_drag) {
             self.register_finished_play_selection_transaction();

@@ -22,15 +22,11 @@ impl AudioPlayer {
         ) {
             let span_frames = span_end.saturating_sub(span_start).max(1);
             let elapsed_frames = duration_to_frames_floor(elapsed, sample_rate);
-            let base_offset = if self.looping {
-                self.loop_offset_frames.unwrap_or(0) % span_frames
-            } else {
-                0
-            };
+            let base_offset = self.loop_offset_frames.unwrap_or(0).min(span_frames);
             let within_span = if self.looping {
-                (base_offset.saturating_add(elapsed_frames)) % span_frames
+                (base_offset % span_frames).saturating_add(elapsed_frames) % span_frames
             } else {
-                elapsed_frames.min(span_frames)
+                base_offset.saturating_add(elapsed_frames).min(span_frames)
             };
             let absolute_frame = span_start.saturating_add(within_span).min(track_frames);
             if track_frames == 0 {
@@ -45,15 +41,11 @@ impl AudioPlayer {
         if span_length.is_zero() {
             return None;
         }
-        let base_offset = if self.looping {
-            duration_from_secs_f32(self.loop_offset.unwrap_or(0.0))
-        } else {
-            Duration::ZERO
-        };
+        let base_offset = duration_from_secs_f32(self.loop_offset.unwrap_or(0.0)).min(span_length);
         let within_span = if self.looping {
             duration_mod(base_offset.saturating_add(elapsed), span_length)
         } else {
-            elapsed.min(span_length)
+            base_offset.saturating_add(elapsed).min(span_length)
         };
         let absolute_secs = span_start as f64 + within_span.as_secs_f64();
         Some(((absolute_secs / duration as f64) as f32).clamp(0.0, 1.0))
@@ -204,6 +196,34 @@ mod tests {
         let progress = player.progress().expect("progress");
         let elapsed_frames = duration_to_frames_floor(elapsed, 48_000);
         let expected_frame = 1_000 + ((100 + elapsed_frames) % 1_000);
+        let expected = expected_frame as f32 / 5_000.0;
+        assert!((progress - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn progress_applies_one_shot_retarget_offset_in_frames() {
+        let Ok(outcome) = open_output_stream(&AudioOutputConfig::default()) else {
+            return;
+        };
+        let stream = outcome.stream;
+        let elapsed = duration_for_frames(950, 48_000);
+        let mut player = AudioPlayer::test_with_state(
+            stream,
+            Some(2.0),
+            Some(Instant::now()),
+            Some((0.0, 2.0)),
+            false,
+            Some(0.0),
+            Some(elapsed),
+        );
+        player.sample_rate = Some(48_000);
+        player.track_total_frames = Some(5_000);
+        player.play_span_frames = Some((1_000, 2_000));
+        player.loop_offset_frames = Some(100);
+
+        let progress = player.progress().expect("progress");
+        let elapsed_frames = duration_to_frames_floor(elapsed, 48_000);
+        let expected_frame = 1_000 + (100 + elapsed_frames).min(1_000);
         let expected = expected_frame as f32 / 5_000.0;
         assert!((progress - expected).abs() < 1e-6);
     }

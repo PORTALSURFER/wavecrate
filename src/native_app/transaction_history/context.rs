@@ -23,7 +23,7 @@ impl TransactionContext<'_> {
             snapshot.marked_play_ranges,
         );
         self.state.waveform.current.ensure_play_selection_visible();
-        self.state.retarget_loop_playback_to_play_selection();
+        self.state.retarget_playback_to_play_selection();
         Ok(())
     }
 

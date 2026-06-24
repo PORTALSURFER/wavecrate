@@ -198,11 +198,6 @@ impl PlaybackSpanPlan {
             .saturating_mul(self.layout.channels() as u64) as usize
     }
 
-    pub(crate) fn end_sample(&self) -> usize {
-        self.start_sample()
-            .saturating_add(self.sample_count as usize)
-    }
-
     pub(crate) fn seek_offset_frames(&self) -> u64 {
         match self.seek {
             PlaybackSeekBehavior::SpanStart => 0,

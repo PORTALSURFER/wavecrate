@@ -30,7 +30,7 @@ impl AudioPlayer {
         self.play_span = None;
         self.play_span_frames = None;
         self.looping = false;
-        self.active_loop_span = None;
+        self.active_playback_span = None;
         self.loop_offset = None;
         self.loop_offset_frames = None;
         #[cfg(test)]

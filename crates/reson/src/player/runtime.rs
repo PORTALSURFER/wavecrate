@@ -149,13 +149,14 @@ impl PlaybackRuntimeMode {
     }
 }
 
-/// In-place loop-bound update for an already running loop.
+/// In-place span-bound update for already running playback.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlaybackRuntimeLoopUpdate {
+pub struct PlaybackRuntimeSpanUpdate {
     pub start: f64,
     pub end: f64,
     pub offset: f64,
     pub seek_to_offset: bool,
+    pub looped: bool,
     pub metronome: Option<PlaybackMetronomeConfig>,
 }
 
@@ -271,14 +272,14 @@ impl PlaybackRuntimeHandle {
             .map_err(map_try_send_error)
     }
 
-    /// Submit an in-place loop-retarget request without blocking the caller.
-    pub fn try_retarget_loop(
+    /// Submit an in-place span-retarget request without blocking the caller.
+    pub fn try_retarget_span(
         &self,
-        update: PlaybackRuntimeLoopUpdate,
+        update: PlaybackRuntimeSpanUpdate,
     ) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
         let id = self.next_request_id();
         self.commands
-            .try_send(PlaybackRuntimeCommand::RetargetLoop { id, update })
+            .try_send(PlaybackRuntimeCommand::RetargetSpan { id, update })
             .map(|()| id)
             .map_err(map_try_send_error)
     }
@@ -319,9 +320,9 @@ enum PlaybackRuntimeCommand {
     Stop {
         id: PlaybackRequestId,
     },
-    RetargetLoop {
+    RetargetSpan {
         id: PlaybackRequestId,
-        update: PlaybackRuntimeLoopUpdate,
+        update: PlaybackRuntimeSpanUpdate,
     },
     PollProgress {
         id: PlaybackRequestId,
@@ -338,7 +339,7 @@ trait PlaybackRuntimeExecutor: Send + 'static {
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRuntimeStartedData, String>;
     fn stop(&mut self) -> Result<(), String>;
-    fn retarget_loop(&mut self, update: PlaybackRuntimeLoopUpdate) -> Result<f32, String>;
+    fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String>;
     fn set_volume(&mut self, volume: f32);
     fn progress(&mut self) -> PlaybackRuntimeProgress;
 }
@@ -375,14 +376,24 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         Ok(())
     }
 
-    fn retarget_loop(&mut self, update: PlaybackRuntimeLoopUpdate) -> Result<f32, String> {
-        self.player.retarget_looped_range_with_metronome(
-            update.start,
-            update.end,
-            update.offset,
-            update.seek_to_offset,
-            update.metronome,
-        )?;
+    fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String> {
+        if update.looped {
+            self.player.retarget_looped_range_with_metronome(
+                update.start,
+                update.end,
+                update.offset,
+                update.seek_to_offset,
+                update.metronome,
+            )?;
+        } else {
+            self.player.retarget_one_shot_range_with_metronome(
+                update.start,
+                update.end,
+                update.offset,
+                update.seek_to_offset,
+                update.metronome,
+            )?;
+        }
         Ok(update
             .offset
             .clamp(update.start.min(update.end), update.start.max(update.end))
@@ -450,8 +461,8 @@ fn run_playback_runtime(
                 };
                 let _ = events.send(event);
             }
-            CoalescedCommand::RetargetLoop { id, update } => {
-                let event = match executor.retarget_loop(update) {
+            CoalescedCommand::RetargetSpan { id, update } => {
+                let event = match executor.retarget_span(update) {
                     Ok(_) => PlaybackRuntimeEvent::Progress {
                         id,
                         progress: executor.progress(),
@@ -489,9 +500,9 @@ enum CoalescedCommand {
     Stop {
         id: PlaybackRequestId,
     },
-    RetargetLoop {
+    RetargetSpan {
         id: PlaybackRequestId,
-        update: PlaybackRuntimeLoopUpdate,
+        update: PlaybackRuntimeSpanUpdate,
     },
     PollProgress {
         id: PlaybackRequestId,
@@ -535,8 +546,8 @@ fn coalesce_pending_command(
         current @ PlaybackRuntimeCommand::PollProgress { .. } => {
             coalesce_repeated_progress_command(current, pending)
         }
-        current @ PlaybackRuntimeCommand::RetargetLoop { .. } => {
-            coalesce_loop_retarget_command(current, pending)
+        current @ PlaybackRuntimeCommand::RetargetSpan { .. } => {
+            coalesce_span_retarget_command(current, pending)
         }
         current @ PlaybackRuntimeCommand::SetVolume { .. } => {
             coalesce_repeated_volume_command(current, pending)
@@ -577,21 +588,21 @@ fn coalesce_play_command(
             Some(PlaybackRuntimeCommand::PollProgress { .. }) => {
                 let _ = pending.pop_front();
             }
-            Some(PlaybackRuntimeCommand::RetargetLoop { .. })
+            Some(PlaybackRuntimeCommand::RetargetSpan { .. })
             | Some(PlaybackRuntimeCommand::SetVolume { .. })
             | None => return current,
         }
     }
 }
 
-fn coalesce_loop_retarget_command(
+fn coalesce_span_retarget_command(
     mut current: PlaybackRuntimeCommand,
     pending: &mut VecDeque<PlaybackRuntimeCommand>,
 ) -> PlaybackRuntimeCommand {
     loop {
         match pending.front() {
-            Some(PlaybackRuntimeCommand::RetargetLoop { .. }) => {
-                current = pending.pop_front().expect("pending loop retarget");
+            Some(PlaybackRuntimeCommand::RetargetSpan { .. }) => {
+                current = pending.pop_front().expect("pending span retarget");
             }
             Some(PlaybackRuntimeCommand::Play { .. }) => {
                 return pending.pop_front().expect("pending play command");
@@ -640,8 +651,8 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
     match command {
         PlaybackRuntimeCommand::Play { id, request } => CoalescedCommand::Play { id, request },
         PlaybackRuntimeCommand::Stop { id } => CoalescedCommand::Stop { id },
-        PlaybackRuntimeCommand::RetargetLoop { id, update } => {
-            CoalescedCommand::RetargetLoop { id, update }
+        PlaybackRuntimeCommand::RetargetSpan { id, update } => {
+            CoalescedCommand::RetargetSpan { id, update }
         }
         PlaybackRuntimeCommand::PollProgress { id } => CoalescedCommand::PollProgress { id },
         PlaybackRuntimeCommand::SetVolume { volume } => CoalescedCommand::SetVolume { volume },
@@ -698,7 +709,7 @@ mod tests {
     struct FakeExecutor {
         outcomes: Vec<FakeOutcome>,
         played: Arc<Mutex<Vec<PlaybackRuntimeMode>>>,
-        retargeted: Arc<Mutex<Vec<PlaybackRuntimeLoopUpdate>>>,
+        retargeted: Arc<Mutex<Vec<PlaybackRuntimeSpanUpdate>>>,
         stopped: Arc<Mutex<usize>>,
     }
 
@@ -716,7 +727,7 @@ mod tests {
             Arc::clone(&self.played)
         }
 
-        fn retargeted(&self) -> Arc<Mutex<Vec<PlaybackRuntimeLoopUpdate>>> {
+        fn retargeted(&self) -> Arc<Mutex<Vec<PlaybackRuntimeSpanUpdate>>> {
             Arc::clone(&self.retargeted)
         }
     }
@@ -741,7 +752,7 @@ mod tests {
             Ok(())
         }
 
-        fn retarget_loop(&mut self, update: PlaybackRuntimeLoopUpdate) -> Result<f32, String> {
+        fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String> {
             self.retargeted
                 .lock()
                 .expect("retargeted lock")
@@ -914,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn coalescing_loop_retarget_keeps_latest_update() {
+    fn coalescing_span_retarget_keeps_latest_update() {
         let first_id = PlaybackRequestId(1);
         let second_id = PlaybackRequestId(2);
         let (coalesced, pending, events) = coalesce_for_test(
@@ -924,7 +935,7 @@ mod tests {
 
         assert!(matches!(
             coalesced,
-            CoalescedCommand::RetargetLoop { id, update }
+            CoalescedCommand::RetargetSpan { id, update }
                 if id == second_id && update.start == 0.2 && update.end == 0.7
         ));
         assert!(pending.is_empty());
@@ -932,14 +943,14 @@ mod tests {
     }
 
     #[test]
-    fn playback_runtime_executes_loop_retarget() {
+    fn playback_runtime_executes_span_retarget() {
         let executor = FakeExecutor::new(vec![]);
         let retargeted = executor.retargeted();
         let runtime =
             spawn_executor(executor, PlaybackRuntimeConfig::default()).expect("spawn runtime");
-        let update = loop_update(0.2, 0.8);
+        let update = span_update(0.2, 0.8, true);
 
-        let id = runtime.handle.try_retarget_loop(update).expect("retarget");
+        let id = runtime.handle.try_retarget_span(update).expect("retarget");
         let event = runtime.events.recv().expect("event");
 
         assert!(matches!(
@@ -975,18 +986,19 @@ mod tests {
     }
 
     fn retarget_command(id: PlaybackRequestId, start: f64, end: f64) -> PlaybackRuntimeCommand {
-        PlaybackRuntimeCommand::RetargetLoop {
+        PlaybackRuntimeCommand::RetargetSpan {
             id,
-            update: loop_update(start, end),
+            update: span_update(start, end, true),
         }
     }
 
-    fn loop_update(start: f64, end: f64) -> PlaybackRuntimeLoopUpdate {
-        PlaybackRuntimeLoopUpdate {
+    fn span_update(start: f64, end: f64, looped: bool) -> PlaybackRuntimeSpanUpdate {
+        PlaybackRuntimeSpanUpdate {
             start,
             end,
             offset: start,
             seek_to_offset: true,
+            looped,
             metronome: None,
         }
     }

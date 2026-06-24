@@ -3,35 +3,35 @@ use std::sync::{Arc, RwLock};
 use super::PlaybackSpanPlan;
 
 #[derive(Clone, Debug)]
-pub(crate) struct LoopSpanHandle {
-    shared: Arc<LoopSpanShared>,
+pub(crate) struct PlaybackSpanHandle {
+    shared: Arc<PlaybackSpanShared>,
 }
 
 #[derive(Debug)]
-struct LoopSpanShared {
-    state: RwLock<LoopSpanState>,
+struct PlaybackSpanShared {
+    state: RwLock<PlaybackSpanState>,
 }
 
 #[derive(Clone, Copy, Debug)]
-struct LoopSpanState {
+struct PlaybackSpanState {
     start_frame: u64,
     end_frame: u64,
     pending_seek_frame: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct LoopSpanSnapshot {
+pub(crate) struct PlaybackSpanSnapshot {
     start_frame: u64,
     end_frame: u64,
 }
 
-impl LoopSpanHandle {
+impl PlaybackSpanHandle {
     pub(crate) fn from_plan(plan: &PlaybackSpanPlan) -> Self {
         let start_frame = plan.start_frame();
         let end_frame = plan.end_frame().max(start_frame.saturating_add(1));
         Self {
-            shared: Arc::new(LoopSpanShared {
-                state: RwLock::new(LoopSpanState {
+            shared: Arc::new(PlaybackSpanShared {
+                state: RwLock::new(PlaybackSpanState {
                     start_frame,
                     end_frame,
                     pending_seek_frame: None,
@@ -46,7 +46,7 @@ impl LoopSpanHandle {
         let pending_seek_frame =
             seek_frame.map(|frame| clamp_frame_to_span(frame, start_frame, end_frame));
         if let Ok(mut state) = self.shared.state.write() {
-            *state = LoopSpanState {
+            *state = PlaybackSpanState {
                 start_frame,
                 end_frame,
                 pending_seek_frame,
@@ -54,13 +54,13 @@ impl LoopSpanHandle {
         }
     }
 
-    pub(crate) fn snapshot(&self) -> LoopSpanSnapshot {
+    pub(crate) fn snapshot(&self) -> PlaybackSpanSnapshot {
         let state = self
             .shared
             .state
             .read()
             .unwrap_or_else(|err| err.into_inner());
-        LoopSpanSnapshot {
+        PlaybackSpanSnapshot {
             start_frame: state.start_frame,
             end_frame: state.end_frame,
         }
@@ -76,9 +76,13 @@ impl LoopSpanHandle {
     }
 }
 
-impl LoopSpanSnapshot {
+impl PlaybackSpanSnapshot {
     pub(crate) fn start_frame(self) -> u64 {
         self.start_frame
+    }
+
+    pub(crate) fn end_frame(self) -> u64 {
+        self.end_frame
     }
 
     pub(crate) fn contains(self, frame: u64) -> bool {
@@ -100,7 +104,7 @@ mod tests {
 
     #[test]
     fn pending_seek_is_clamped_to_updated_span() {
-        let handle = LoopSpanHandle::from_plan(&span_plan(0, 10, 0));
+        let handle = PlaybackSpanHandle::from_plan(&span_plan(0, 10, 0));
 
         handle.update_from_plan(&span_plan(20, 40, 0), Some(90));
 
