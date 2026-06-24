@@ -1,7 +1,9 @@
-use super::gui_state_for_span_tests;
+use super::{gui_state_for_span_tests, reduce_gui_message_for_tests};
+use crate::native_app::test_support::state::{GuiMessage, NativeAppState};
 use radiant::{
-    gui::types::Vector2,
+    gui::types::{Point, Vector2},
     prelude::{self as ui, IntoView},
+    runtime::{Command, SurfaceFrame, UiSurface},
 };
 
 fn audio_settings_texts(
@@ -237,6 +239,56 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
     assert!(!state.ui.settings.ui.audio_settings_dropdown.any_open());
 }
 
+#[test]
+fn audio_dropdown_overlay_keeps_uncovered_base_controls_interactive() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.settings_error = None;
+    state.ui.settings.ui.app_settings_tab = crate::native_app::app::AppSettingsTab::AudioEngine;
+    state
+        .ui
+        .settings
+        .ui
+        .audio_settings_dropdown
+        .open(crate::native_app::test_support::state::AudioSettingsDropdown::Backend);
+    let mut runtime = audio_settings_runtime(state);
+    let frame = runtime.frame_with_default_theme();
+
+    runtime.dispatch_primary_click(text_center(&frame, "General"));
+
+    let switched = runtime.frame_with_default_theme();
+    assert!(
+        switched.paint_plan.contains_text("Trash Folder"),
+        "clicking an uncovered base control while a menu is open should route to the base control: {:?}",
+        switched.paint_plan.text_label_strings()
+    );
+}
+
+fn audio_settings_runtime(
+    state: NativeAppState,
+) -> radiant::runtime::SurfaceRuntime<
+    radiant::runtime::DeclarativeOwnedCommandRuntimeBridge<
+        NativeAppState,
+        GuiMessage,
+        fn(&mut NativeAppState) -> UiSurface<GuiMessage>,
+        fn(&mut NativeAppState, GuiMessage) -> Command<GuiMessage>,
+    >,
+    GuiMessage,
+> {
+    radiant::runtime::SurfaceRuntime::new(
+        radiant::runtime::declarative_owned_command_runtime_bridge(
+            state,
+            project_audio_settings_surface as fn(&mut NativeAppState) -> UiSurface<GuiMessage>,
+            reduce_gui_message_for_tests
+                as fn(&mut NativeAppState, GuiMessage) -> Command<GuiMessage>,
+        ),
+        Vector2::new(480.0, 360.0),
+    )
+}
+
+fn project_audio_settings_surface(state: &mut NativeAppState) -> UiSurface<GuiMessage> {
+    crate::native_app::test_support::settings::audio_settings_popover(state).into_surface()
+}
+
 fn audio_settings_frame(
     state: &crate::native_app::test_support::state::NativeAppState,
 ) -> radiant::runtime::SurfaceFrame {
@@ -257,5 +309,13 @@ fn text_index(frame: &radiant::runtime::SurfaceFrame, label: &str) -> usize {
         .paint_plan
         .text_labels()
         .position(|text| text == label)
+        .unwrap_or_else(|| panic!("expected text {label}"))
+}
+
+fn text_center(frame: &SurfaceFrame, label: &str) -> Point {
+    frame
+        .paint_plan
+        .first_text_run(label)
+        .map(|text| text.rect.center())
         .unwrap_or_else(|| panic!("expected text {label}"))
 }

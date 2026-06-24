@@ -46,7 +46,7 @@ pub(in crate::native_app) fn audio_settings_window_view(
         ui::Vector2::new(AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT),
     );
     if snapshot.open_dropdown().is_some() {
-        ui::dismissible_overlay(
+        ui::dismissible_overlay_with_interactive_base(
             base,
             dropdowns::audio_settings_dropdown_overlay(snapshot),
             GuiMessage::Settings(SettingsMessage::CloseAudioSettingsDropdowns),
