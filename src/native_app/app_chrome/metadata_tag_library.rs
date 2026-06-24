@@ -151,7 +151,7 @@ fn tag_row(tag: MetadataTagProjection) -> ui::View<GuiMessage> {
         .active(tag.active);
 
     if tag.draggable {
-        badge = badge.tracked_drag_source_with_motion(tag.drag_active, tag.drag_source);
+        badge = badge.tracked_drag_source(tag.drag_active, tag.drag_source);
     }
     if tag.drop_tracking_active() {
         badge = badge.tracked_drop_candidate(
@@ -199,4 +199,44 @@ fn empty_category_target(category: MetadataTagEmptyCategoryProjection) -> ui::Vi
         ))
         .fill_width()
         .height(20.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::prelude::IntoView;
+
+    const TEST_TAG_INPUT_ID: u64 = 42_424;
+
+    #[test]
+    fn dragged_tag_source_motion_stays_runtime_local() {
+        let tag = MetadataTagProjection {
+            label: String::from("bass"),
+            category_id: "sound-type",
+            selection_state: crate::native_app::metadata::MetadataTagSelectionState::None,
+            style: ui::WidgetStyle::subtle(ui::WidgetTone::Accent),
+            width: 56.0,
+            active: false,
+            draggable: true,
+            drag_active: true,
+            drag_source: true,
+            drop_candidate: false,
+            drop_target: false,
+            drop_target_active: false,
+        };
+        let bounds =
+            ui::Rect::from_min_size(ui::Point::new(0.0, 0.0), ui::Vector2::new(56.0, 18.0));
+
+        let output = tag_row(tag)
+            .id(TEST_TAG_INPUT_ID)
+            .view_dispatch_widget_input(
+                TEST_TAG_INPUT_ID,
+                bounds,
+                ui::WidgetInput::PointerMove {
+                    position: bounds.center(),
+                },
+            );
+
+        assert_eq!(output, None);
+    }
 }
