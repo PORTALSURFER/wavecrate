@@ -33,6 +33,7 @@ impl NativeAppState {
             }
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
+            GuiMessage::ToggleMetronome => self.toggle_metronome(),
             _ => unreachable!("playback dispatcher received a non-playback message"),
         }
     }

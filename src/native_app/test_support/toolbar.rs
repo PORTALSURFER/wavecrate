@@ -1,6 +1,7 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::toolbar as chrome_toolbar;
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
+use crate::native_app::ui::ids as widget_ids;
 use radiant::prelude as ui;
 
 pub(in crate::native_app) use chrome_toolbar::{
@@ -12,6 +13,7 @@ pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 =
 pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 =
     chrome_toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID;
 pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = chrome_toolbar::TOOLBAR_RANDOM_ID;
+pub(in crate::native_app) const TOOLBAR_METRONOME_ID: u64 = widget_ids::TOOLBAR_METRONOME_ID;
 pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =
     chrome_toolbar::TOOLBAR_SIMILAR_SECTIONS_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = chrome_toolbar::TOOLBAR_STOP_ID;
@@ -25,6 +27,7 @@ pub(in crate::native_app) struct MainToolbarProjection {
     pub(in crate::native_app) loop_playback: bool,
     pub(in crate::native_app) playing: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
+    pub(in crate::native_app) metronome_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
     pub(in crate::native_app) can_decrement_beat_guide_count: bool,
     pub(in crate::native_app) can_increment_beat_guide_count: bool,
@@ -47,6 +50,7 @@ pub(in crate::native_app) fn main_toolbar_projection(
         loop_playback: model.loop_playback,
         playing: model.playing,
         beat_guides_enabled: model.beat_guides_enabled,
+        metronome_enabled: model.metronome_enabled,
         beat_guide_count: model.beat_guide_count,
         can_decrement_beat_guide_count: model.can_decrement_beat_guide_count,
         can_increment_beat_guide_count: model.can_increment_beat_guide_count,

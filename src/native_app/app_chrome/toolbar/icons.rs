@@ -16,6 +16,7 @@ pub(in crate::native_app) enum ToolbarIcon {
     Random,
     SimilarSections,
     BeatGuides,
+    Metronome,
     BeatGuideMinus,
     BeatGuidePlus,
     Play,
@@ -30,6 +31,7 @@ impl ToolbarIcon {
             Self::Random => &RANDOM_ICON,
             Self::SimilarSections => &SIMILAR_SECTIONS_ICON,
             Self::BeatGuides => &BEAT_GUIDES_ICON,
+            Self::Metronome => &METRONOME_ICON,
             Self::BeatGuideMinus => &BEAT_GUIDE_MINUS_ICON,
             Self::BeatGuidePlus => &BEAT_GUIDE_PLUS_ICON,
             Self::Play => &PLAY_ICON,
@@ -97,6 +99,15 @@ static BEAT_GUIDES_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
   <rect x="5.5" y="5" width="1" height="6"/>
   <rect x="9.5" y="5" width="1" height="6"/>
   <rect x="2" y="7.25" width="12" height="1.5"/>
+</svg>"#,
+);
+
+static METRONOME_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M8 2.2 11.8 13H10.2L9.5 10.8H6.5L5.8 13H4.2L8 2.2z"/>
+  <rect x="7.25" y="1.5" width="1.5" height="2.2"/>
+  <circle cx="8" cy="6.4" r="1.2"/>
+  <rect x="6.95" y="9.2" width="2.1" height="1.2"/>
 </svg>"#,
 );
 

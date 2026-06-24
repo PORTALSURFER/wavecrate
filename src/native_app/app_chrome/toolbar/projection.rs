@@ -1,7 +1,7 @@
 use crate::native_app::app_chrome::toolbar::icons::ToolbarIcon;
 use crate::native_app::app_chrome::toolbar::identity::{
     TOOLBAR_BEAT_GUIDE_COUNT_KEY, TOOLBAR_BEAT_GUIDE_DECREMENT_ID, TOOLBAR_BEAT_GUIDE_INCREMENT_ID,
-    TOOLBAR_BEAT_GUIDES_ID, TOOLBAR_LOOP_ID, TOOLBAR_PLAY_ID,
+    TOOLBAR_BEAT_GUIDES_ID, TOOLBAR_LOOP_ID, TOOLBAR_METRONOME_ID, TOOLBAR_PLAY_ID,
 };
 use crate::native_app::app_chrome::toolbar::{
     TOOLBAR_APPLY_EDIT_MARK_EDITS_ID, TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_RANDOM_ID,
@@ -14,6 +14,7 @@ const LOOP_TOOLTIP: &str = "Loop preview playback.";
 const RANDOM_TOOLTIP: &str = "Random section playback\nClick: play a random section now.\nShift-click: pick a random listed sample first.\nCommand-click: make Space use random sections.";
 const SIMILAR_SECTIONS_TOOLTIP: &str = "Mark sections similar to the playmark selection.\nSet a playmark first, then toggle this to scan the loaded sample.";
 const BEAT_GUIDES_TOOLTIP: &str = "Show beat guide lines inside the play selection.";
+const METRONOME_TOOLTIP: &str = "Play a metronome from the beat guide divisions.";
 const BEAT_GUIDE_DECREMENT_TOOLTIP: &str = "Use fewer beat divisions.";
 const BEAT_GUIDE_INCREMENT_TOOLTIP: &str = "Use more beat divisions.";
 const APPLY_EDIT_MARK_EDITS_TOOLTIP: &str = "Apply edit mark gain and fade edits.";
@@ -68,6 +69,14 @@ impl ToolbarProjection {
                 true,
                 model.beat_guides_enabled,
                 BEAT_GUIDES_TOOLTIP,
+            )
+            .into(),
+            ToolbarIconButtonProjection::new(
+                TOOLBAR_METRONOME_ID,
+                ToolbarIcon::Metronome,
+                true,
+                model.metronome_enabled,
+                METRONOME_TOOLTIP,
             )
             .into(),
             ToolbarIconButtonProjection::new(

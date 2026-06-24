@@ -131,7 +131,7 @@ Wavecrate should provide:
 6. A sample library usage workflow for finding, auditioning, and handing off sounds to a DAW or external creative tool.
 7. Immediate sample auditioning from keyboard, mouse, selection changes, region selections, and similarity workflows.
 8. A robust audio engine for playback, decoding, seeking, looping, range auditioning, edit auditioning, BPM-aware auditioning, and future extraction into a standalone audio-engine library.
-9. Clear waveform visualization with precise playhead, cursor, play selection, edit selection, range, marker, loop, fade, grid, transient, extraction-success, and edit-state feedback.
+9. Clear waveform visualization with precise playhead, cursor, play selection, edit selection, range, marker, loop, fade, grid, metronome, transient, extraction-success, and edit-state feedback.
 10. Lightweight destructive sample editing for both macro extraction support and micro cleanup, including trimming, cutting, splitting, muting, fading, gain adjustment, normalization, silence removal, timing metadata correction, and range export.
 11. Audio-analysis tools that help users find useful material, such as deliberate BPM/grid workflows, transient detection, silence detection, waveform overviews, aging/listen-history indicators, and similarity analysis where practical.
 12. Reliable file, folder, export, copy, drag, trash, and DAW handoff workflows with clear recovery behavior where relevant.

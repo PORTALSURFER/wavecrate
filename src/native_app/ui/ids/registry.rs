@@ -149,6 +149,7 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         TOOLBAR_SIMILAR_SECTIONS_ID,
         "toolbar.similar_sections"
     ),
+    registered_widget_id!(Toolbar, TOOLBAR_METRONOME_ID, "toolbar.metronome"),
     registered_widget_id!(
         FolderFilters,
         FILTER_SECTION_NODE_ID,

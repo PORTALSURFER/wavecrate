@@ -219,6 +219,7 @@ pub(in crate::native_app) enum GuiMessage {
     CloseShortcutHelp,
     ToggleBeatGuides,
     AdjustBeatGuideCount(i8),
+    ToggleMetronome,
     ToggleSimilarSections,
     SimilarSectionsResolved(SimilarSectionsResult),
     UndoTransaction,

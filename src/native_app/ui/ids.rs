@@ -74,6 +74,7 @@ pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_DECREMENT_ID: u64 = TOOLBAR.i
 pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_INCREMENT_ID: u64 = TOOLBAR.id(7);
 pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 = TOOLBAR.id(8);
 pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 = TOOLBAR.id(9);
+pub(in crate::native_app) const TOOLBAR_METRONOME_ID: u64 = TOOLBAR.id(10);
 
 #[cfg(test)]
 pub(in crate::native_app) const FILTER_SECTION_NODE_ID: u64 = FOLDER_FILTERS.id(1);

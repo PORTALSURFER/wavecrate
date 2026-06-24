@@ -4,9 +4,10 @@ use crate::timebase::{frames_to_seconds, seconds_to_frames_round};
 use crate::{AsyncSource, Source};
 
 use super::super::fade::{EdgeFade, fade_duration};
+use super::metronome::MetronomeSource;
 use super::{
-    AudioPlaybackSource, AudioPlayer, EditFadeSource, PlaybackChannelLayout, PlaybackSeekBehavior,
-    PlaybackSpanPlan, PlaybackSpanRequest,
+    AudioPlaybackSource, AudioPlayer, EditFadeSource, PlaybackChannelLayout,
+    PlaybackMetronomeConfig, PlaybackSeekBehavior, PlaybackSpanPlan, PlaybackSpanRequest,
 };
 
 use lazy_sources::{
@@ -30,10 +31,21 @@ impl AudioPlayer {
 
     /// Play between two normalized points, optionally looping the segment.
     pub fn play_range(&mut self, start: f64, end: f64, looped: bool) -> Result<(), String> {
+        self.play_range_with_metronome(start, end, looped, None)
+    }
+
+    /// Play between two normalized points with an optional click track.
+    pub fn play_range_with_metronome(
+        &mut self,
+        start: f64,
+        end: f64,
+        looped: bool,
+        metronome: Option<PlaybackMetronomeConfig>,
+    ) -> Result<(), String> {
         let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
         self.loop_offset = None;
         self.loop_offset_frames = None;
-        self.start_with_span(bounded_start, bounded_end, duration, looped)
+        self.start_with_span(bounded_start, bounded_end, duration, looped, metronome)
     }
 
     /// Loop a selection while starting playback at an offset within the selection.
@@ -43,11 +55,29 @@ impl AudioPlayer {
         end: f64,
         offset: f64,
     ) -> Result<(), String> {
+        self.play_looped_range_from_with_metronome(start, end, offset, None)
+    }
+
+    /// Loop a selection with an optional click track while starting playback at
+    /// an offset inside the selection.
+    pub fn play_looped_range_from_with_metronome(
+        &mut self,
+        start: f64,
+        end: f64,
+        offset: f64,
+        metronome: Option<PlaybackMetronomeConfig>,
+    ) -> Result<(), String> {
         let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
         let clamped_offset = offset.clamp(start.min(end), start.max(end));
         let offset_seconds =
             ((clamped_offset * f64::from(duration)) - f64::from(bounded_start)).max(0.0) as f32;
-        self.start_with_looped_span_offset(bounded_start, bounded_end, duration, offset_seconds)
+        self.start_with_looped_span_offset(
+            bounded_start,
+            bounded_end,
+            duration,
+            offset_seconds,
+            metronome,
+        )
     }
 
     /// Loop the full track while starting playback at the given normalized position.
@@ -115,6 +145,7 @@ impl AudioPlayer {
         end_seconds: f32,
         duration: f32,
         looped: bool,
+        metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
         let total_started_at = playback_stage_started();
         let source_kind = self.current_source_kind();
@@ -206,6 +237,7 @@ impl AudioPlayer {
             let faded = EdgeFade::new(editable, fade);
             Box::new(faded)
         };
+        let final_source = source_with_metronome(final_source, metronome, &plan);
         log_playback_stage(
             "source_construction",
             source_started_at,
@@ -234,6 +266,7 @@ impl AudioPlayer {
         end_seconds: f32,
         duration: f32,
         offset_seconds: f32,
+        metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
         let total_started_at = playback_stage_started();
         let source_kind = self.current_source_kind();
@@ -297,6 +330,7 @@ impl AudioPlayer {
                     plan.sample_count(),
                 ))
             };
+        let diagnostic = source_with_metronome(diagnostic, metronome, &plan);
         log_playback_stage("source_construction", source_started_at, source_kind, true);
 
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
@@ -358,6 +392,22 @@ impl AudioPlayer {
             .as_ref()
             .map(AudioPlaybackSource::kind)
             .unwrap_or("none")
+    }
+}
+
+fn source_with_metronome(
+    source: Box<dyn Source<Item = f32> + Send>,
+    metronome: Option<PlaybackMetronomeConfig>,
+    plan: &PlaybackSpanPlan,
+) -> Box<dyn Source<Item = f32> + Send> {
+    match metronome {
+        Some(config) => Box::new(MetronomeSource::new(
+            source,
+            config,
+            plan.frame_count(),
+            plan.seek_offset_frames(),
+        )),
+        None => source,
     }
 }
 

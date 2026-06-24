@@ -303,6 +303,7 @@ impl NativeAppState {
             },
             volume: self.audio.volume,
             edit_fade: None,
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
         let request_id = runtime
             .try_play(request)

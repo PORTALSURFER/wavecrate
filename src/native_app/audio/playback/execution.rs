@@ -5,7 +5,7 @@ use super::{
 use crate::native_app::app::{NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart};
 use std::time::Instant;
 use wavecrate::audio::{
-    PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
+    PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
     edit_fade_range_from_selection,
 };
 
@@ -205,6 +205,68 @@ impl NativeAppState {
             mode,
             volume: self.audio.volume,
             edit_fade: edit_fade_range_from_selection(waveform.edit_selection()),
+            metronome: self.playback_metronome_config_for_span(
+                command.resolved.start_ratio,
+                command.resolved.end_ratio,
+                match command.mode {
+                    PlaybackMode::Looped { offset_ratio } => offset_ratio,
+                    PlaybackMode::OneShot => command.resolved.start_ratio,
+                },
+            ),
         })
     }
+
+    pub(in crate::native_app) fn playback_metronome_config_for_span(
+        &self,
+        playback_start: f32,
+        playback_end: f32,
+        playback_offset: f32,
+    ) -> Option<PlaybackMetronomeConfig> {
+        if !self.audio.metronome_enabled {
+            return None;
+        }
+        let (grid_start, grid_end) = self.metronome_grid_span(playback_start, playback_end);
+        let total_frames = self.waveform.current.frames().max(1) as u64;
+        let grid_start_frame = ratio_to_frame(grid_start, total_frames);
+        let grid_end_frame = ratio_to_frame(grid_end, total_frames).max(grid_start_frame + 1);
+        let offset_frame = ratio_to_frame(playback_offset, total_frames);
+        let cycle_frames = grid_end_frame.saturating_sub(grid_start_frame).max(1);
+        let cycle_offset_frames = offset_frame
+            .saturating_sub(grid_start_frame)
+            .min(cycle_frames.saturating_sub(1));
+        Some(
+            PlaybackMetronomeConfig::new(u16::from(self.ui.chrome.beat_guide_count))
+                .with_cycle(cycle_frames, cycle_offset_frames),
+        )
+    }
+
+    fn metronome_grid_span(&self, playback_start: f32, playback_end: f32) -> (f32, f32) {
+        let playback_start = playback_start.clamp(0.0, 1.0);
+        let playback_end = playback_end.clamp(playback_start, 1.0);
+        if let Some(selection) = self
+            .waveform
+            .current
+            .play_selection()
+            .filter(|selection| selection.width() > 0.0)
+            && selection_contains_span(selection, playback_start, playback_end)
+        {
+            return (selection.start(), selection.end());
+        }
+        (playback_start, playback_end)
+    }
+}
+
+fn selection_contains_span(
+    selection: wavecrate::selection::SelectionRange,
+    start: f32,
+    end: f32,
+) -> bool {
+    const EPSILON: f32 = 0.000_1;
+    start + EPSILON >= selection.start() && end <= selection.end() + EPSILON
+}
+
+fn ratio_to_frame(ratio: f32, total_frames: u64) -> u64 {
+    let ratio = if ratio.is_finite() { ratio } else { 0.0 };
+    ((f64::from(ratio.clamp(0.0, 1.0)) * total_frames.max(1) as f64).round() as u64)
+        .min(total_frames.max(1))
 }

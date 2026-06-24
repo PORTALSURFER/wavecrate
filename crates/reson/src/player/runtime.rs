@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use super::{AudioPlayer, EditFadeRange};
+use super::{AudioPlayer, EditFadeRange, PlaybackMetronomeConfig};
 use crate::output::ResolvedOutput;
 
 const DEFAULT_PLAYBACK_COMMAND_QUEUE: usize = 8;
@@ -131,14 +131,18 @@ pub enum PlaybackRuntimeMode {
 }
 
 impl PlaybackRuntimeMode {
-    fn start_player(self, player: &mut AudioPlayer) -> Result<f32, String> {
+    fn start_player(
+        self,
+        player: &mut AudioPlayer,
+        metronome: Option<PlaybackMetronomeConfig>,
+    ) -> Result<f32, String> {
         match self {
             Self::OneShot { start, end } => {
-                player.play_range(start, end, false)?;
+                player.play_range_with_metronome(start, end, false, metronome)?;
                 Ok(start.clamp(0.0, 1.0) as f32)
             }
             Self::Looped { start, end, offset } => {
-                player.play_looped_range_from(start, end, offset)?;
+                player.play_looped_range_from_with_metronome(start, end, offset, metronome)?;
                 Ok(offset.clamp(start.min(end), start.max(end)).clamp(0.0, 1.0) as f32)
             }
         }
@@ -152,6 +156,7 @@ pub struct PlaybackRuntimeRequest {
     pub mode: PlaybackRuntimeMode,
     pub volume: f32,
     pub edit_fade: Option<EditFadeRange>,
+    pub metronome: Option<PlaybackMetronomeConfig>,
 }
 
 /// Successful playback-start outcome.
@@ -329,7 +334,9 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         let output = self.player.output_details().clone();
         request.source.apply_to_player(&mut self.player);
         self.player.set_edit_fade_state(request.edit_fade);
-        let playback_start = request.mode.start_player(&mut self.player)?;
+        let playback_start = request
+            .mode
+            .start_player(&mut self.player, request.metronome)?;
         Ok(PlaybackRuntimeStartedData {
             output,
             playback_start,
@@ -814,6 +821,7 @@ mod tests {
             mode: PlaybackRuntimeMode::OneShot { start, end: 1.0 },
             volume: 1.0,
             edit_fade: None,
+            metronome: None,
         }
     }
 

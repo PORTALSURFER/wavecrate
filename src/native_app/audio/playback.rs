@@ -3,6 +3,7 @@ mod diagnostics;
 mod execution;
 mod intent;
 mod loop_control;
+mod metronome;
 mod policy;
 mod progress;
 mod random_audition;

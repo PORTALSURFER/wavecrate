@@ -78,7 +78,8 @@ impl NativeAppState {
             | GuiMessage::LastPlayedPersisted(_)
             | GuiMessage::VolumeSettingsPersisted(_)
             | GuiMessage::StopPlayback
-            | GuiMessage::ToggleLoopPlayback => self.apply_playback_dispatch(message, context),
+            | GuiMessage::ToggleLoopPlayback
+            | GuiMessage::ToggleMetronome => self.apply_playback_dispatch(message, context),
             GuiMessage::Settings(message) => self.apply_settings_message(message, context),
             GuiMessage::Metadata(message) => self.apply_metadata_message(message, context),
             GuiMessage::FocusLoadedFile

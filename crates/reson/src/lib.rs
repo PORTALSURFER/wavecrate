@@ -33,12 +33,12 @@ pub use output::{
     available_devices, available_hosts, open_output_stream, supported_sample_rates,
 };
 pub use player::{
-    AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackRequestId,
-    PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig, PlaybackRuntimeEvent,
-    PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeProgress, PlaybackRuntimeRequest,
-    PlaybackRuntimeSource, PlaybackRuntimeStarted, PlaybackRuntimeSubmitError,
-    PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan,
-    PlaybackSpanPlanError, PlaybackSpanRequest,
+    AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackMetronomeConfig,
+    PlaybackRequestId, PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeProgress,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStarted,
+    PlaybackRuntimeSubmitError, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
+    PlaybackSpanPlan, PlaybackSpanPlanError, PlaybackSpanRequest,
 };
 pub use recording::{AudioRecorder, InputMonitor, RecordingOutcome};
 pub use time_stretch::Wsola;

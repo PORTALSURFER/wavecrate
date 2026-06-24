@@ -8,6 +8,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         crate::native_app::test_support::toolbar::ToolbarIcon::Random,
         crate::native_app::test_support::toolbar::ToolbarIcon::SimilarSections,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
+        crate::native_app::test_support::toolbar::ToolbarIcon::Metronome,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuidePlus,
         crate::native_app::test_support::toolbar::ToolbarIcon::Play,
@@ -64,6 +65,10 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
             crate::native_app::test_support::state::GuiMessage::ToggleBeatGuides,
+        ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::Metronome,
+            crate::native_app::test_support::state::GuiMessage::ToggleMetronome,
         ),
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
@@ -203,6 +208,7 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             loop_playback: true,
             playing: false,
             beat_guides_enabled: true,
+            metronome_enabled: true,
             beat_guide_count: 8,
             can_decrement_beat_guide_count: true,
             can_increment_beat_guide_count: false,
@@ -212,7 +218,7 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     );
 
     assert!(projection.help_tooltips_enabled);
-    assert_eq!(projection.controls.len(), 11);
+    assert_eq!(projection.controls.len(), 12);
 
     let icon_control = |index| match projection.controls[index] {
         ToolbarControlProjection::Icon(button) => button,
@@ -235,33 +241,43 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     assert!(icon_control(3).active);
     assert_eq!(icon_control(4).icon, ToolbarIcon::BeatGuides);
     assert!(icon_control(4).active);
-    assert_eq!(icon_control(5).icon, ToolbarIcon::BeatGuideMinus);
-    assert!(icon_control(5).enabled);
+    assert_eq!(icon_control(5).icon, ToolbarIcon::Metronome);
+    assert_eq!(
+        icon_control(5).id,
+        crate::native_app::test_support::toolbar::TOOLBAR_METRONOME_ID
+    );
+    assert!(icon_control(5).active);
+    assert_eq!(
+        icon_control(5).tooltip,
+        "Play a metronome from the beat guide divisions."
+    );
+    assert_eq!(icon_control(6).icon, ToolbarIcon::BeatGuideMinus);
+    assert!(icon_control(6).enabled);
 
     assert!(matches!(
-        projection.controls[6],
+        projection.controls[7],
         ToolbarControlProjection::BeatGuideCount {
             count: 8,
             key: "toolbar-beat-guide-count",
         }
     ));
 
-    assert_eq!(icon_control(7).icon, ToolbarIcon::BeatGuidePlus);
-    assert!(!icon_control(7).enabled);
+    assert_eq!(icon_control(8).icon, ToolbarIcon::BeatGuidePlus);
+    assert!(!icon_control(8).enabled);
 
     assert!(matches!(
-        projection.controls[8],
+        projection.controls[9],
         ToolbarControlProjection::ApplyEditMarkEdits {
             id: crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
             tooltip: "Apply edit mark gain and fade edits.",
         }
     ));
 
-    assert_eq!(icon_control(9).icon, ToolbarIcon::Play);
-    assert!(!icon_control(9).active);
-    assert_eq!(icon_control(10).icon, ToolbarIcon::Stop);
+    assert_eq!(icon_control(10).icon, ToolbarIcon::Play);
+    assert!(!icon_control(10).active);
+    assert_eq!(icon_control(11).icon, ToolbarIcon::Stop);
     assert_eq!(
-        icon_control(10).id,
+        icon_control(11).id,
         crate::native_app::test_support::toolbar::TOOLBAR_STOP_ID
     );
 }
@@ -320,12 +336,14 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
     assert!(!empty.beat_guides_enabled);
+    assert!(!empty.metronome_enabled);
     assert_eq!(empty.beat_guide_count, 4);
     assert!(empty.can_decrement_beat_guide_count);
     assert!(empty.can_increment_beat_guide_count);
     assert!(!empty.pending_edit_mark_edits);
 
     state.audio.loop_playback = true;
+    state.audio.metronome_enabled = true;
     state.ui.chrome.sticky_random_sample_range_playback = true;
     state.ui.chrome.beat_guides_enabled = true;
     state.ui.chrome.beat_guide_count = 8;
@@ -345,6 +363,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(loaded.loop_playback);
     assert!(loaded.playing);
     assert!(loaded.beat_guides_enabled);
+    assert!(loaded.metronome_enabled);
     assert_eq!(loaded.beat_guide_count, 8);
     assert!(loaded.pending_edit_mark_edits);
 }
@@ -395,4 +414,35 @@ fn beat_guide_toolbar_messages_update_chrome_state() {
 
     state.apply_message(GuiMessage::AdjustBeatGuideCount(100), &mut context);
     assert_eq!(state.ui.chrome.beat_guide_count, 64);
+}
+
+#[test]
+fn metronome_toolbar_message_updates_audio_state() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::ToggleMetronome, &mut context);
+
+    assert!(state.audio.metronome_enabled);
+    assert_eq!(state.ui.status.sample, "Metronome enabled");
+
+    state.apply_message(GuiMessage::ToggleMetronome, &mut context);
+
+    assert!(!state.audio.metronome_enabled);
+    assert_eq!(state.ui.status.sample, "Metronome disabled");
+}
+
+#[test]
+fn metronome_config_aligns_to_play_selection_grid_phase() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.metronome_enabled = true;
+    state.ui.chrome.beat_guide_count = 4;
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+
+    let config = state.playback_metronome_config_for_span(0.375, 0.625, 0.5);
+
+    assert_eq!(
+        config,
+        Some(wavecrate::audio::PlaybackMetronomeConfig::new(4).with_cycle(24_000, 12_000))
+    );
 }
