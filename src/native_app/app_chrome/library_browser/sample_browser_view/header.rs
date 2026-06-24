@@ -4,17 +4,11 @@ use crate::native_app::app::{GuiMessage, MetadataMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
-use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
-use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, similarity_aspect_color};
+use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, identity, similarity_aspect_color};
 
-const SAMPLE_HEADER_CELL_SCOPE: u64 = widget_ids::SAMPLE_HEADER_CELL_ID;
-const SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE: u64 =
-    widget_ids::SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE;
-const SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE: u64 =
-    widget_ids::SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE;
 const SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH: f32 = 22.0;
 const SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH: f32 = 14.0;
 const SAMPLE_BROWSER_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
@@ -73,7 +67,7 @@ pub(super) fn sample_similarity_controls_bar(
         ui::toggle("Weight", controls.weighting_enabled)
             .subtle()
             .message(GuiMessage::SetSimilarityAspectWeightingEnabled)
-            .id(widget_ids::SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID)
+            .id(identity::sample_similarity_weighting_toggle_id())
             .size(70.0, 20.0),
     );
     for aspect in SimilarityAspect::ORDER {
@@ -90,7 +84,7 @@ fn random_navigation_button(active: bool) -> ui::View<GuiMessage> {
     ui::icon_button(random_navigation_icon(active))
         .active(active)
         .message(GuiMessage::ToggleRandomNavigationMode)
-        .id(widget_ids::SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
+        .id(identity::random_navigation_toggle_id())
         .size(28.0, 22.0)
 }
 
@@ -107,7 +101,7 @@ fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage
         .message(GuiMessage::Metadata(
             MetadataMessage::ToggleSampleNameViewMode,
         ))
-        .key("sample-name-view-mode-toggle")
+        .key(identity::SAMPLE_NAME_VIEW_MODE_TOGGLE_KEY)
         .size(58.0, 22.0)
 }
 
@@ -151,7 +145,7 @@ fn sample_browser_header(
 
 fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
     ui::local_drop_marker(x, ui::Rgba8::new(255, 160, 82, 230), 2.0, 20.0)
-        .key("sample-column-drop-marker")
+        .key(identity::SAMPLE_COLUMN_DROP_MARKER_KEY)
         .fill_width()
         .height(24.0)
         .padding_x(8.0)
@@ -164,7 +158,7 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     let resize_id = column.id.clone();
     let label = ui::details_sort_label(column.label.as_str(), column.id.as_str(), Some(sort));
     ui::compact_resizable_details_header_cell(
-        format!("sample-header-{}", column.id),
+        identity::sample_header_cell_key(column.id.as_str()),
         label,
         column.width,
         GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
@@ -178,10 +172,7 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
             ))
         },
     )
-    .id(ui::stable_widget_id(
-        SAMPLE_HEADER_CELL_SCOPE,
-        column.id.as_str(),
-    ))
+    .id(identity::sample_header_cell_id(column.id.as_str()))
 }
 
 fn sample_header_cells(
@@ -207,7 +198,7 @@ fn sample_similarity_header_cell(
         let label = similarity_aspect_short_label(aspect);
         let text = ui::text(label)
             .align_text(ui::TextAlign::Center)
-            .key(format!("sample-header-similarity-aspect-{label}"))
+            .key(identity::sample_similarity_header_aspect_key(label))
             .height(20.0)
             .width(SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH);
         header_parts.push(if aspect_enabled[aspect.index()] {
@@ -219,7 +210,7 @@ fn sample_similarity_header_cell(
     header_parts.push(
         ui::text("Sim")
             .muted_text()
-            .key("sample-header-similarity-label")
+            .key(identity::SAMPLE_HEADER_SIMILARITY_LABEL_KEY)
             .height(20.0)
             .fill_width(),
     );
@@ -227,7 +218,7 @@ fn sample_similarity_header_cell(
         ui::row(header_parts).spacing(3.0).height(20.0).fill_width(),
         Some(SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH),
     )
-    .key("sample-header-similarity")
+    .key(identity::SAMPLE_HEADER_SIMILARITY_KEY)
 }
 
 fn sample_similarity_aspect_control(
@@ -236,7 +227,6 @@ fn sample_similarity_aspect_control(
 ) -> ui::View<GuiMessage> {
     let control = controls.control(aspect);
     let label = similarity_aspect_short_label(aspect);
-    let aspect_key = similarity_aspect_key(aspect);
     ui::row([
         ui::color_marker(Some(similarity_aspect_color(aspect)))
             .side(7)
@@ -247,19 +237,13 @@ fn sample_similarity_aspect_control(
         ui::toggle(label, control.enabled)
             .subtle()
             .message(move |enabled| GuiMessage::SetSimilarityAspectEnabled { aspect, enabled })
-            .id(ui::stable_widget_id(
-                SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
-                aspect_key,
-            ))
+            .id(identity::sample_similarity_aspect_toggle_id(aspect))
             .size(34.0, 20.0),
         ui::slider(control.weight)
             .compact()
             .subtle()
             .message(move |weight| GuiMessage::SetSimilarityAspectWeight { aspect, weight })
-            .id(ui::stable_widget_id(
-                SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
-                aspect_key,
-            ))
+            .id(identity::sample_similarity_aspect_weight_id(aspect))
             .size(62.0, 16.0),
     ])
     .spacing(3.0)
@@ -273,15 +257,5 @@ fn similarity_aspect_short_label(aspect: SimilarityAspect) -> &'static str {
         SimilarityAspect::Timbre => "T",
         SimilarityAspect::Pitch => "P",
         SimilarityAspect::Amplitude => "A",
-    }
-}
-
-fn similarity_aspect_key(aspect: SimilarityAspect) -> &'static str {
-    match aspect {
-        SimilarityAspect::Overall => "overall",
-        SimilarityAspect::Spectrum => "spectrum",
-        SimilarityAspect::Timbre => "timbre",
-        SimilarityAspect::Pitch => "pitch",
-        SimilarityAspect::Amplitude => "amplitude",
     }
 }
