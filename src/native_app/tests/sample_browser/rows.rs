@@ -211,8 +211,15 @@ fn full_gui_sample_row_hover_survives_surface_refresh() {
 
 #[test]
 fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
-    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
-        .expect("default state loads");
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    for name in ["visible_kick.wav", "visible_snare.wav"] {
+        std::fs::write(source_root.path().join(name), []).expect("sample file");
+    }
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
     let expected_names = state
         .library
         .folder_browser

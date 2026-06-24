@@ -2,6 +2,7 @@ use radiant::prelude as ui;
 #[cfg(test)]
 use radiant::theme::ThemeTokens;
 
+use super::identity;
 use crate::native_app::app::GuiMessage;
 
 const SAMPLE_ROW_STYLE: ui::WidgetStyle = ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
@@ -58,10 +59,12 @@ pub(super) fn sample_file_hit_target(
     content: ui::View<GuiMessage>,
     model: SampleFileHitTargetModel<'_>,
 ) -> ui::View<GuiMessage> {
-    let input_key = sample_file_hit_target_key(model.file_id);
     let actions = sample_file_row_actions(model.hit_path.clone());
     sample_file_hit_target_builder(content, &model)
-        .input_key(input_key)
+        .stable_row_identity(
+            identity::SAMPLE_ROW_INPUT_SCOPE,
+            identity::sample_row_key(model.file_id),
+        )
         .actions(actions)
         .tooltip_if(
             model.help_tooltips_enabled,
@@ -138,10 +141,6 @@ fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::D
         );
     }
     None
-}
-
-fn sample_file_hit_target_key(file_id: &str) -> String {
-    format!("sample-row-hit-{file_id}")
 }
 
 #[cfg(test)]

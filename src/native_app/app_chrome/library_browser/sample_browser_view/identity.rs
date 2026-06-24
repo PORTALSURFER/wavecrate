@@ -6,6 +6,7 @@ pub(super) const SAMPLE_NAME_VIEW_MODE_TOGGLE_KEY: &str = "sample-name-view-mode
 pub(super) const SAMPLE_COLUMN_DROP_MARKER_KEY: &str = "sample-column-drop-marker";
 pub(super) const SAMPLE_HEADER_SIMILARITY_LABEL_KEY: &str = "sample-header-similarity-label";
 pub(super) const SAMPLE_HEADER_SIMILARITY_KEY: &str = "sample-header-similarity";
+pub(super) const SAMPLE_ROW_INPUT_SCOPE: u64 = widget_ids::SAMPLE_ROW_INPUT_SCOPE;
 
 pub(super) fn sample_similarity_weighting_toggle_id() -> u64 {
     widget_ids::SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID

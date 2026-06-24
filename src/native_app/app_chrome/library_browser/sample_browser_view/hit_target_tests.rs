@@ -3,7 +3,8 @@ use radiant::gui::types::Point;
 use radiant::prelude::{self as ui, IntoView};
 use radiant::runtime::{SurfacePaintPlan, UiSurface};
 use radiant::widgets::{
-    DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetOutput,
+    DragHandleMessage, InteractiveRowMessage, PointerButton, PointerModifiers, WidgetInput,
+    WidgetOutput, stable_widget_id,
 };
 
 const TEST_INPUT_ID: u64 = 99_501;
@@ -91,6 +92,39 @@ fn sample_widget_is_hovered(surface: &UiSurface<GuiMessage>) -> bool {
         .widget()
         .common()
         .is_hovered()
+}
+
+#[test]
+/// Verifies production rows derive input identity from the same stable row key used by the row subtree.
+fn production_hit_target_derives_stable_input_identity_from_sample_row_key() {
+    let row_key = identity::sample_row_key("sample.wav");
+    let input_id = stable_widget_id(identity::SAMPLE_ROW_INPUT_SCOPE, row_key.as_str());
+    let message = sample_file_hit_target(
+        ui::empty(),
+        SampleFileHitTargetModel {
+            file_id: "sample.wav",
+            selected: false,
+            copy_flash: false,
+            drag_active: false,
+            drag_source: false,
+            cached: false,
+            missing: false,
+            hit_path: String::from("sample.wav"),
+            help_tooltips_enabled: false,
+        },
+    )
+    .view_dispatch_widget_output(
+        input_id,
+        WidgetOutput::typed(InteractiveRowMessage::DoubleActivate),
+    );
+
+    assert_eq!(
+        message,
+        Some(GuiMessage::SelectSampleWithModifiers {
+            path: String::from("sample.wav"),
+            modifiers: PointerModifiers::default(),
+        })
+    );
 }
 
 fn sample_widget_is_pressed(surface: &UiSurface<GuiMessage>) -> bool {
