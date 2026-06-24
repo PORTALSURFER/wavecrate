@@ -44,4 +44,27 @@ impl AudioSettingsSnapshot {
     pub(in crate::native_app) fn open_dropdown(&self) -> Option<AudioSettingsDropdown> {
         self.open_dropdown
     }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn test_default() -> Self {
+        Self {
+            tab: AppSettingsTab::AudioEngine,
+            trash_folder: None,
+            detail_label: "no audio".to_string(),
+            error: None,
+            audio_output_config: AudioOutputConfig::default(),
+            open_dropdown: None,
+            audio_hosts: Vec::new(),
+            audio_devices: Vec::new(),
+            audio_sample_rates: Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn set_open_dropdown_for_tests(
+        &mut self,
+        dropdown: AudioSettingsDropdown,
+    ) {
+        self.open_dropdown = Some(dropdown);
+    }
 }

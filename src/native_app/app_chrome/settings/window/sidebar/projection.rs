@@ -40,18 +40,17 @@ fn settings_tab_label(tab: AppSettingsTab) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::test_support::state::{NativeAppState, NativeAppStateFixture};
 
-    fn snapshot(configure: impl FnOnce(&mut NativeAppState)) -> AudioSettingsSnapshot {
-        let mut state = NativeAppStateFixture::default().build();
-        configure(&mut state);
-        AudioSettingsSnapshot::from_app_state(&state)
+    fn snapshot(configure: impl FnOnce(&mut AudioSettingsSnapshot)) -> AudioSettingsSnapshot {
+        let mut snapshot = AudioSettingsSnapshot::test_default();
+        configure(&mut snapshot);
+        snapshot
     }
 
     #[test]
     fn sidebar_projection_carries_tabs_and_selection_actions() {
-        let snapshot = snapshot(|state| {
-            state.ui.settings.ui.app_settings_tab = AppSettingsTab::General;
+        let snapshot = snapshot(|snapshot| {
+            snapshot.tab = AppSettingsTab::General;
         });
 
         let projection = settings_sidebar_projection(&snapshot);

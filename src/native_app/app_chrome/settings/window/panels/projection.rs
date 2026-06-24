@@ -131,19 +131,18 @@ fn general_settings_panel_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::test_support::state::{NativeAppState, NativeAppStateFixture};
 
-    fn snapshot(configure: impl FnOnce(&mut NativeAppState)) -> AudioSettingsSnapshot {
-        let mut state = NativeAppStateFixture::default().build();
-        configure(&mut state);
-        AudioSettingsSnapshot::from_app_state(&state)
+    fn snapshot(configure: impl FnOnce(&mut AudioSettingsSnapshot)) -> AudioSettingsSnapshot {
+        let mut snapshot = AudioSettingsSnapshot::test_default();
+        configure(&mut snapshot);
+        snapshot
     }
 
     #[test]
     fn audio_panel_projection_carries_product_labels_and_error() {
-        let snapshot = snapshot(|state| {
-            state.ui.settings.ui.app_settings_tab = AppSettingsTab::AudioEngine;
-            state.audio.settings_error = Some("Could not open output".to_string());
+        let snapshot = snapshot(|snapshot| {
+            snapshot.tab = AppSettingsTab::AudioEngine;
+            snapshot.error = Some("Could not open output".to_string());
         });
 
         let SettingsPanelProjection::AudioEngine { rows } = settings_panel_projection(&snapshot)
@@ -182,8 +181,8 @@ mod tests {
 
     #[test]
     fn general_panel_projection_uses_trash_folder_fallback() {
-        let snapshot = snapshot(|state| {
-            state.ui.settings.ui.app_settings_tab = AppSettingsTab::General;
+        let snapshot = snapshot(|snapshot| {
+            snapshot.tab = AppSettingsTab::General;
         });
 
         let SettingsPanelProjection::General { rows } = settings_panel_projection(&snapshot) else {
@@ -224,9 +223,9 @@ mod tests {
 
     #[test]
     fn general_panel_projection_formats_configured_trash_folder() {
-        let snapshot = snapshot(|state| {
-            state.ui.settings.ui.app_settings_tab = AppSettingsTab::General;
-            state.ui.settings.persisted.trash_folder = Some("wavecrate-trash".into());
+        let snapshot = snapshot(|snapshot| {
+            snapshot.tab = AppSettingsTab::General;
+            snapshot.trash_folder = Some("wavecrate-trash".into());
         });
 
         let SettingsPanelProjection::General { rows } = settings_panel_projection(&snapshot) else {

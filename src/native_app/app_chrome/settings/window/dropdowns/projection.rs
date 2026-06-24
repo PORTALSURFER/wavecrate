@@ -188,22 +188,19 @@ fn default_option_label(label: &str, is_default: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::test_support::{
-        audio::{AudioDeviceSummary, AudioHostSummary},
-        state::{NativeAppState, NativeAppStateFixture},
-    };
+    use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary};
 
-    fn snapshot(configure: impl FnOnce(&mut NativeAppState)) -> AudioSettingsSnapshot {
-        let mut state = NativeAppStateFixture::default().build();
-        configure(&mut state);
-        AudioSettingsSnapshot::from_app_state(&state)
+    fn snapshot(configure: impl FnOnce(&mut AudioSettingsSnapshot)) -> AudioSettingsSnapshot {
+        let mut snapshot = AudioSettingsSnapshot::test_default();
+        configure(&mut snapshot);
+        snapshot
     }
 
     #[test]
     fn audio_host_projection_preserves_unknown_configured_host() {
-        let snapshot = snapshot(|state| {
-            state.audio.output_config.host = Some("jack".to_string());
-            state.audio.hosts = vec![
+        let snapshot = snapshot(|snapshot| {
+            snapshot.audio_output_config.host = Some("jack".to_string());
+            snapshot.audio_hosts = vec![
                 AudioHostSummary {
                     id: "wasapi".to_string(),
                     label: "WASAPI".to_string(),
@@ -250,9 +247,9 @@ mod tests {
 
     #[test]
     fn audio_output_projection_marks_default_device() {
-        let snapshot = snapshot(|state| {
-            state.audio.output_config.device = Some("Studio Out".to_string());
-            state.audio.devices = vec![AudioDeviceSummary {
+        let snapshot = snapshot(|snapshot| {
+            snapshot.audio_output_config.device = Some("Studio Out".to_string());
+            snapshot.audio_devices = vec![AudioDeviceSummary {
                 host_id: "asio".to_string(),
                 name: "Studio Out".to_string(),
                 is_default: true,
@@ -271,9 +268,9 @@ mod tests {
 
     #[test]
     fn sample_rate_projection_formats_configured_rate_and_default_option() {
-        let snapshot = snapshot(|state| {
-            state.audio.output_config.sample_rate = Some(44_100);
-            state.audio.sample_rates = vec![44_100, 48_000];
+        let snapshot = snapshot(|snapshot| {
+            snapshot.audio_output_config.sample_rate = Some(44_100);
+            snapshot.audio_sample_rates = vec![44_100, 48_000];
         });
 
         let projection = audio_sample_rate_dropdown_projection(&snapshot);
@@ -296,8 +293,8 @@ mod tests {
             (AudioSettingsDropdown::Output, 1),
             (AudioSettingsDropdown::SampleRate, 2),
         ] {
-            let snapshot = snapshot(|state| {
-                state.ui.settings.ui.audio_settings_dropdown.open(dropdown);
+            let snapshot = snapshot(|snapshot| {
+                snapshot.set_open_dropdown_for_tests(dropdown);
             });
             assert_eq!(
                 open_audio_settings_dropdown_projection(&snapshot),
