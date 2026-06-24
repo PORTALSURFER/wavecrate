@@ -1,4 +1,4 @@
-use super::identity::{SOURCE_ADD_BUTTON_ID, source_row_input_id};
+use super::identity::{SOURCE_ADD_BUTTON_ID, SOURCE_ROW_INPUT_SCOPE};
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_LABEL_PADDING_X,
     source_add_button, source_row,
@@ -58,7 +58,7 @@ fn source_row_routes_primary_activation_through_interactive_row() {
 
     assert_eq!(
         source_row(row).view_dispatch_widget_output(
-            source_row_input_id(source.id.as_str()),
+            ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
             ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
@@ -77,7 +77,7 @@ fn source_row_routes_secondary_activation_to_context_menu() {
 
     assert_eq!(
         source_row(row).view_dispatch_widget_output(
-            source_row_input_id(source.id.as_str()),
+            ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str()),
             ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
         ),
         Some(GuiMessage::FolderBrowser(

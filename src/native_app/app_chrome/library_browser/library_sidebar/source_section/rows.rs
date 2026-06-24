@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::identity::{SOURCE_ADD_BUTTON_ID, source_row_input_id, source_row_key};
+use super::identity::{SOURCE_ADD_BUTTON_ID, SOURCE_ROW_INPUT_SCOPE, source_row_key};
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
@@ -26,7 +26,7 @@ fn source_add_icon() -> ui::SvgIcon {
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source_row_label(source));
     sidebar_row_underlay(visual)
-        .input_id(source_row_input_id(source.id.as_str()))
+        .stable_input_id(SOURCE_ROW_INPUT_SCOPE, source.id.as_str())
         .selected(source.selected)
         .actions(ui::row_actions().primary_secondary_key(
             source.id.clone(),

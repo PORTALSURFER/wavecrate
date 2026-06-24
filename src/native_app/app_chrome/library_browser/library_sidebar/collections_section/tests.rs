@@ -1,4 +1,4 @@
-use super::identity::collection_input_id;
+use super::identity::COLLECTION_ROW_INPUT_SCOPE;
 use super::rows::{collection_count, collection_row};
 use super::*;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
@@ -45,7 +45,7 @@ fn collection_input_routes_double_click_to_rename() {
 
     assert!(matches!(
         collection_row(&row).view_dispatch_widget_output(
-            collection_input_id(collection_id),
+            ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64),
             ui::WidgetOutput::typed(ui::InteractiveRowMessage::DoubleActivate),
         ),
         Some(GuiMessage::FolderBrowser(

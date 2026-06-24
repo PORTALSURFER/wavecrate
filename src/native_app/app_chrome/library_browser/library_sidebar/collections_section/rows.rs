@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 
 use super::identity::{
-    collection_input_id, collection_rename_row_key, collection_rename_swatch_key,
+    COLLECTION_ROW_INPUT_SCOPE, collection_rename_row_key, collection_rename_swatch_key,
     collection_row_key,
 };
 use crate::native_app::app::GuiMessage;
@@ -50,7 +50,7 @@ fn collection_input(
 ) -> ui::View<GuiMessage> {
     sidebar_row_underlay(visual)
         .tracked_drop_target(collection.drag_active, collection.drop_target)
-        .input_id(collection_input_id(collection_id))
+        .stable_u64_input_id(COLLECTION_ROW_INPUT_SCOPE, collection_id.index() as u64)
         .selected(collection.selected)
         .actions(collection_row_actions(collection_id))
         .fill_width()
