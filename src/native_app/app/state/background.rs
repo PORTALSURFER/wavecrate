@@ -11,8 +11,8 @@ use radiant::prelude as ui;
 use wavecrate::audio::AudioPlayer;
 
 use crate::native_app::app::{
-    FileMoveProgress, GuiMessage, NormalizationProgress, NormalizationQueueItem,
-    PendingWaveformDestructiveEdit,
+    ExtractedFilePlaybackType, FileMoveProgress, GuiMessage, NormalizationProgress,
+    NormalizationQueueItem, PendingWaveformDestructiveEdit,
 };
 use crate::native_app::waveform::WaveformPreservedMarks;
 
@@ -84,6 +84,7 @@ pub(in crate::native_app) struct WaveformDestructiveEditUiContext {
     pub(in crate::native_app) request: PendingWaveformDestructiveEdit,
     pub(in crate::native_app) before_selected_path: Option<String>,
     pub(in crate::native_app) playback_was_active: bool,
+    pub(in crate::native_app) extracted_playback_type: ExtractedFilePlaybackType,
     pub(in crate::native_app) preserved_marks: Option<WaveformPreservedMarks>,
 }
 

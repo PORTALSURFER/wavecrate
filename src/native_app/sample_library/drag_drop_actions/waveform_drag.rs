@@ -5,7 +5,9 @@ use radiant::{
     widgets::{DragHandleMessage, DragHandlePhase},
 };
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::app::{
+    ExtractedFilePlaybackType, GuiMessage, NativeAppState, emit_gui_action, sample_path_label,
+};
 use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
 
 impl NativeAppState {
@@ -243,6 +245,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        let playback_type = ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
         context.end_drag_session();
         self.clear_pending_internal_file_drag_paths();
         self.ui.status.sample = String::from("Extracting dragged range");
@@ -254,6 +257,7 @@ impl NativeAppState {
                 move |completion| GuiMessage::PlaySelectionExtractionFinished {
                     completion,
                     drag_position: None,
+                    playback_type,
                     started_at,
                 },
             );

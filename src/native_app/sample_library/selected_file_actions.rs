@@ -1,4 +1,4 @@
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{ExtractedFilePlaybackType, GuiMessage, NativeAppState};
 use crate::native_app::app::{emit_gui_action, sample_path_label};
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
@@ -135,6 +135,8 @@ impl NativeAppState {
             .play_selection_extraction_request(None)
         {
             Ok(request) => {
+                let playback_type =
+                    ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
                 if let Some(error) = self
                     .library
                     .folder_browser
@@ -157,6 +159,7 @@ impl NativeAppState {
                     move |completion| GuiMessage::PlaySelectionExtractionFinished {
                         completion,
                         drag_position: None,
+                        playback_type,
                         started_at,
                     },
                 );
@@ -179,6 +182,7 @@ impl NativeAppState {
         &mut self,
         completion: WaveformExtractionCompletion,
         drag_position: Option<Point>,
+        playback_type: ExtractedFilePlaybackType,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
@@ -189,12 +193,21 @@ impl NativeAppState {
                     .mark_extracted_play_selection(&completion.source_path, completion.selection);
                 self.waveform.current.flash_play_selection();
                 self.library.folder_browser.refresh_file_path(&path);
+                let playback_type_tag_error = self
+                    .tag_extracted_file_playback_type(&path, playback_type, context)
+                    .err();
                 if let Some(position) = drag_position {
                     self.library
                         .folder_browser
                         .begin_extracted_file_drag(path.clone(), position);
                     self.arm_browser_drag(context);
-                    self.ui.status.sample = format!("Dragging {}", sample_path_label(&path));
+                    let label = sample_path_label(&path);
+                    self.ui.status.sample = match playback_type_tag_error {
+                        Some(error) => {
+                            format!("Dragging {label}; playback type tag not saved: {error}")
+                        }
+                        None => format!("Dragging {label}"),
+                    };
                     emit_gui_action(
                         "waveform.selection_drag.start",
                         Some("waveform"),
@@ -205,7 +218,12 @@ impl NativeAppState {
                     );
                 } else {
                     let label = sample_path_label(&path);
-                    self.ui.status.sample = format!("Extracted {label}");
+                    self.ui.status.sample = match playback_type_tag_error {
+                        Some(error) => {
+                            format!("Extracted {label}; playback type tag not saved: {error}")
+                        }
+                        None => format!("Extracted {label}"),
+                    };
                     emit_gui_action(
                         "waveform.extract_playmarked_range",
                         Some("waveform"),

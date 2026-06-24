@@ -151,6 +151,29 @@ pub(in crate::native_app) struct PendingFolderDelete {
     pub(in crate::native_app) name: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum ExtractedFilePlaybackType {
+    OneShot,
+    Loop,
+}
+
+impl ExtractedFilePlaybackType {
+    pub(in crate::native_app) fn from_loop_active(loop_active: bool) -> Self {
+        if loop_active {
+            Self::Loop
+        } else {
+            Self::OneShot
+        }
+    }
+
+    pub(in crate::native_app) fn tag(self) -> &'static str {
+        match self {
+            Self::OneShot => "one-shot",
+            Self::Loop => "loop",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct PendingWaveformDestructiveEdit {
     pub(in crate::native_app) prompt: WaveformDestructiveEditPrompt,

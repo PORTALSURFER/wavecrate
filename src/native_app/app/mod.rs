@@ -32,12 +32,13 @@ pub(in crate::native_app) use settings::{
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::{
     AudioAppState, AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,
-    ChromeUiState, CutFileClipboard, FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT,
-    MIN_BEAT_GUIDE_COUNT, MetadataAppState, NativeAppState, PendingFolderDelete,
-    PendingPlaybackStart, PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit,
-    SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish,
-    StartupState, StatusState, UiAppState, WaveformAppState, WaveformDestructiveEditKind,
-    WaveformDestructiveEditPrompt, WaveformDestructiveEditUiContext, run_folder_scan_worker,
+    ChromeUiState, CutFileClipboard, ExtractedFilePlaybackType, FolderScanWorkerEvent,
+    LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT, MetadataAppState, NativeAppState,
+    PendingFolderDelete, PendingPlaybackStart, PendingRuntimePlaybackStart,
+    PendingWaveformDestructiveEdit, SettingsAppState, SourceFilesystemChangePlan,
+    SourceRefreshRequest, SourceScanFinish, StartupState, StatusState, UiAppState,
+    WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    WaveformDestructiveEditUiContext, run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;

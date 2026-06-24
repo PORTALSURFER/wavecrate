@@ -5,8 +5,8 @@ use wavecrate::sample_sources::config::AudioWriteFormatConfig;
 use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, PendingWaveformDestructiveEdit, WaveformDestructiveEditKind,
-    WaveformDestructiveEditUiContext, sample_path_label,
+    ExtractedFilePlaybackType, GuiMessage, NativeAppState, PendingWaveformDestructiveEdit,
+    WaveformDestructiveEditKind, WaveformDestructiveEditUiContext, sample_path_label,
 };
 use crate::native_app::transaction_history::TransactionContext;
 use crate::native_app::waveform::{WaveformPreservedMarks, WaveformState};
@@ -163,6 +163,8 @@ impl NativeAppState {
             .selected_file_id()
             .map(str::to_owned);
         let playback_was_active = self.waveform.current.is_playing();
+        let extracted_playback_type =
+            ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
         self.stop_audio_output_playback();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
@@ -178,6 +180,7 @@ impl NativeAppState {
                 request: request.clone(),
                 before_selected_path,
                 playback_was_active,
+                extracted_playback_type,
                 preserved_marks,
             });
         self.ui.status.sample = format!(
@@ -199,6 +202,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_waveform_destructive_edit(
         &mut self,
         completion: ui::TaskCompletion<WaveformDestructiveEditResult>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let Some(output) = self
             .background
@@ -238,10 +242,28 @@ impl NativeAppState {
             );
             return;
         }
+        let playback_type_tag_error = if let Some(extracted_path) = applied
+            .extracted
+            .as_ref()
+            .map(|extracted| extracted.path.clone())
+            && let Err(error) = self.tag_extracted_file_playback_type(
+                &extracted_path,
+                active.extracted_playback_type,
+                context,
+            ) {
+            Some(error)
+        } else {
+            None
+        };
         self.register_destructive_edit_transaction(active.request.prompt.edit, applied);
 
         let label = sample_path_label(&active.request.absolute_path);
-        self.ui.status.sample = if active.playback_was_active {
+        self.ui.status.sample = if let Some(error) = playback_type_tag_error {
+            format!(
+                "{} {label}; playback type tag not saved: {error}",
+                active.request.prompt.edit.past_tense_label()
+            )
+        } else if active.playback_was_active {
             format!(
                 "{} {label} and stopped playback",
                 active.request.prompt.edit.past_tense_label()

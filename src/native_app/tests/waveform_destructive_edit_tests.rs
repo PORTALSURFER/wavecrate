@@ -419,6 +419,7 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
         crate::native_app::test_support::state::WaveformState::load_path(path.clone())
             .expect("load waveform");
     state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    state.audio.loop_playback = true;
 
     select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
 
@@ -428,6 +429,13 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
     );
 
     assert_samples_close(&read_test_wav_f32(&extracted), &[2_000.0, 3_000.0]);
+    assert_eq!(
+        state
+            .metadata
+            .tags_by_file
+            .get(&extracted.to_string_lossy().to_string()),
+        Some(&vec![String::from("loop")])
+    );
     assert_samples_close(
         &read_test_wav_f32(&path),
         &[0.0, 1_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0],

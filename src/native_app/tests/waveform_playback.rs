@@ -500,6 +500,56 @@ fn playmark_selection_copy_uses_interactive_handoff_worker() {
 }
 
 #[test]
+fn playmark_extraction_tags_new_file_as_one_shot_by_default() {
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-one-shot.wav",
+        &[0, 1024, -1024, 512],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+
+    let extracted = run_playmark_extraction(&mut scenario);
+
+    assert_eq!(
+        scenario
+            .state
+            .metadata
+            .tags_by_file
+            .get(&extracted.to_string_lossy().to_string()),
+        Some(&vec![String::from("one-shot")])
+    );
+}
+
+#[test]
+fn playmark_extraction_tags_new_file_as_loop_when_looping_at_request_time() {
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-loop.wav",
+        &[0, 1024, -1024, 512],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    scenario.state.audio.loop_playback = true;
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    scenario.state.audio.loop_playback = false;
+    let extracted = extraction_path_for_loaded_sample(&scenario);
+    run_command_for_tests(&mut scenario.state, context.into_command());
+
+    assert_eq!(
+        scenario
+            .state
+            .metadata
+            .tags_by_file
+            .get(&extracted.to_string_lossy().to_string()),
+        Some(&vec![String::from("loop")])
+    );
+}
+
+#[test]
 fn playmark_selection_copy_flashes_on_submit_and_ready() {
     let mut scenario =
         WaveformPlaybackScenario::with_temp_wav("playmark-copy-ready.wav", &[0, 1024, -1024, 512]);
@@ -651,6 +701,26 @@ fn drain_play_selection_flash(state: &mut NativeAppState) {
             .current
             .apply_interaction(WaveformInteraction::Frame);
     }
+}
+
+fn run_playmark_extraction(scenario: &mut WaveformPlaybackScenario) -> PathBuf {
+    let extracted = extraction_path_for_loaded_sample(scenario);
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    run_command_for_tests(&mut scenario.state, context.into_command());
+    extracted
+}
+
+fn extraction_path_for_loaded_sample(scenario: &WaveformPlaybackScenario) -> PathBuf {
+    let source_path = scenario.state.waveform.current.path();
+    let stem = source_path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy())
+        .expect("test sample should have a stem");
+    source_path.with_file_name(format!("{stem}_extraction.wav"))
 }
 
 #[test]

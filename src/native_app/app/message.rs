@@ -7,6 +7,7 @@ use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
 use wavecrate::selection::SelectionRange;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
+use crate::native_app::app::ExtractedFilePlaybackType;
 use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
@@ -240,6 +241,7 @@ pub(in crate::native_app) enum GuiMessage {
     PlaySelectionExtractionFinished {
         completion: WaveformExtractionCompletion,
         drag_position: Option<Point>,
+        playback_type: ExtractedFilePlaybackType,
         started_at: Instant,
     },
     NavigateBrowser {

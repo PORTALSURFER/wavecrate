@@ -27,9 +27,10 @@ pub(in crate::native_app) use source_scan_workflow::{
 };
 pub(in crate::native_app) use transactions::TransactionState;
 pub(in crate::native_app) use ui_state::{
-    ChromeUiState, CutFileClipboard, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
-    PendingFolderDelete, PendingWaveformDestructiveEdit, SettingsAppState, StartupState,
-    StatusState, UiAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    ChromeUiState, CutFileClipboard, ExtractedFilePlaybackType, MAX_BEAT_GUIDE_COUNT,
+    MIN_BEAT_GUIDE_COUNT, PendingFolderDelete, PendingWaveformDestructiveEdit, SettingsAppState,
+    StartupState, StatusState, UiAppState, WaveformDestructiveEditKind,
+    WaveformDestructiveEditPrompt,
 };
 pub(in crate::native_app) use waveform::WaveformAppState;
 

@@ -4,8 +4,9 @@ use super::playback_type_tags::{
 };
 use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
 use super::{GuiMessage, MetadataMessage, NativeAppState};
+use crate::native_app::app::ExtractedFilePlaybackType;
 use radiant::prelude as ui;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 struct MetadataTagTarget {
     file_id: String,
@@ -28,6 +29,68 @@ impl NativeAppState {
             }
         };
         self.add_metadata_tags_to_targets(tags, targets, context);
+    }
+
+    pub(in crate::native_app) fn tag_extracted_file_playback_type(
+        &mut self,
+        absolute_path: &Path,
+        playback_type: ExtractedFilePlaybackType,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Result<(), String> {
+        let Some((source_root, relative_path)) = self
+            .library
+            .folder_browser
+            .source_relative_file_path(absolute_path)
+        else {
+            return Err(String::from(
+                "extracted file is not inside a configured source",
+            ));
+        };
+        let tag = playback_type.tag().to_string();
+        let file_id = absolute_path.to_string_lossy().to_string();
+        let mut file_tags = self
+            .metadata
+            .tags_by_file
+            .get(&file_id)
+            .cloned()
+            .unwrap_or_default();
+        let mut added = Vec::new();
+        let removed_conflicting =
+            replace_other_playback_type_tags(&mut file_tags, tag.as_str(), &mut added);
+        if !file_tags.iter().any(|existing| existing == &tag) {
+            file_tags.push(tag.clone());
+            push_unique(&mut added, tag);
+        }
+        if added.is_empty() && removed_conflicting.is_empty() {
+            return Ok(());
+        }
+
+        self.metadata
+            .tags_by_file
+            .insert(file_id.clone(), file_tags);
+        self.reconcile_playback_mode_after_metadata_tag_change(file_id.as_str());
+
+        let mut requests = Vec::new();
+        if !removed_conflicting.is_empty() {
+            requests.push(MetadataTagPersistRequest {
+                absolute_path: absolute_path.to_path_buf(),
+                source_root: source_root.clone(),
+                relative_path: relative_path.clone(),
+                tags: removed_conflicting,
+                assigned: false,
+            });
+        }
+        if !added.is_empty() {
+            requests.push(MetadataTagPersistRequest {
+                absolute_path: absolute_path.to_path_buf(),
+                source_root,
+                relative_path,
+                tags: added,
+                assigned: true,
+            });
+        }
+        enqueue_metadata_tag_persist_requests(requests, context);
+        Ok(())
     }
 
     #[cfg(test)]
@@ -114,24 +177,7 @@ impl NativeAppState {
         self.retain_visible_file_selection_after_metadata_tag_change();
         let status_tags = added_metadata_tag_status_tags(&requests, &tags);
         self.ui.status.sample = metadata_tag_added_status(&status_tags, changed_files.len());
-        if requests.len() == 1 {
-            let request = requests.remove(0);
-            context
-                .business()
-                .background("gui-metadata-tag-persist")
-                .run(
-                    move |_| persist_metadata_tag_assignment(request),
-                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
-                );
-        } else {
-            context
-                .business()
-                .background("gui-metadata-tag-persist")
-                .run(
-                    move |_| persist_metadata_tag_assignments(requests),
-                    |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
-                );
-        }
+        enqueue_metadata_tag_persist_requests(requests, context);
     }
 
     pub(in crate::native_app) fn toggle_metadata_tag(
@@ -364,5 +410,32 @@ fn metadata_tag_removed_status(tag: &str, changed_file_count: usize) -> String {
         format!("Removed tag {tag}")
     } else {
         format!("Removed tag {tag} from {changed_file_count} samples")
+    }
+}
+
+fn enqueue_metadata_tag_persist_requests(
+    mut requests: Vec<MetadataTagPersistRequest>,
+    context: &mut ui::UiUpdateContext<GuiMessage>,
+) {
+    if requests.is_empty() {
+        return;
+    }
+    if requests.len() == 1 {
+        let request = requests.remove(0);
+        context
+            .business()
+            .background("gui-metadata-tag-persist")
+            .run(
+                move |_| persist_metadata_tag_assignment(request),
+                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+            );
+    } else {
+        context
+            .business()
+            .background("gui-metadata-tag-persist")
+            .run(
+                move |_| persist_metadata_tag_assignments(requests),
+                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
+            );
     }
 }
