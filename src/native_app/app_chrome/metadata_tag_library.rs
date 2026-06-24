@@ -1,32 +1,29 @@
 use crate::native_app::{
     app::{GuiMessage, MetadataMessage, NativeAppState},
+    metadata::metadata_tag_pill_selection_style,
     metadata::metadata_tag_pill_width,
-    metadata::{
-        MetadataTagCategoryGroup, MetadataTagSelectionState, metadata_tag_pill_selection_style,
-    },
 };
 use radiant::prelude as ui;
+
+mod identity;
+mod projection;
+
+use projection::{
+    MetadataTagCategoryProjection, MetadataTagLibraryProjection, MetadataTagProjection,
+};
 
 const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
 const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
 
-struct TagRowContext<'a> {
-    category_id: &'a str,
-    locked: bool,
-    selection_state: MetadataTagSelectionState,
-    drag_active: bool,
-    drag_source: bool,
-    active_drop_target: bool,
+pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessage> {
+    panel_from_projection(MetadataTagLibraryProjection::from_state(state))
 }
 
-pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let drag_active = state.metadata_tag_drag_active();
-    let drop_hover = state.metadata_tag_drop_hover();
-    let dragged_tag = state.dragged_metadata_tag();
-    let groups = state
-        .categorized_metadata_tags()
+fn panel_from_projection(projection: MetadataTagLibraryProjection) -> ui::View<GuiMessage> {
+    let groups = projection
+        .categories
         .into_iter()
-        .map(|group| category_group(state, group, drag_active, drop_hover, dragged_tag))
+        .map(category_group)
         .collect::<Vec<_>>();
     ui::closeable_panel_section_from_parts(
         ui::PanelSectionParts::new(
@@ -38,104 +35,55 @@ pub(in crate::native_app) fn panel(state: &NativeAppState) -> ui::View<GuiMessag
         .title_height(24.0),
         GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagLibrary),
     )
-    .key("metadata-tag-library-panel")
+    .key(identity::PANEL_KEY)
     .width(220.0)
     .fill_height()
 }
 
-fn category_group(
-    state: &NativeAppState,
-    group: MetadataTagCategoryGroup,
-    drag_active: bool,
-    drop_hover: Option<&str>,
-    dragged_tag: Option<&str>,
-) -> ui::View<GuiMessage> {
-    let count_label = if group.tags.is_empty() {
-        String::new()
-    } else {
-        format!(" ({})", group.tags.len())
-    };
-    let locked = group.locked;
-    let category_id = group.id.to_string();
-    let category_hovered = drop_hover == Some(group.id);
-    let mut children = vec![category_header(
-        category_id.clone(),
-        group.collapsed,
-        format!(
-            "{}{count_label}{}",
-            group.label,
-            if locked { " [locked]" } else { "" }
-        ),
-        locked,
-        drag_active,
-        category_hovered,
-    )];
-    if category_hovered {
+fn category_group(category: MetadataTagCategoryProjection) -> ui::View<GuiMessage> {
+    let mut children = vec![category_header(&category)];
+    if category.drop_hover {
         children.push(
             ui::row(Vec::<ui::View<GuiMessage>>::new())
-                .key(format!("metadata-tag-category-drop-indicator-{}", group.id))
+                .key(identity::category_drop_indicator_key(category.id))
                 .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
                 .fill_width()
                 .height(4.0),
         );
     }
-    if !group.collapsed {
-        if group.tags.is_empty() {
-            children.push(empty_category_target(
-                category_id.as_str(),
-                locked,
-                drag_active,
-                category_hovered,
-            ));
+    if !category.collapsed {
+        if category.tags.is_empty() {
+            children.push(empty_category_target(&category));
         } else {
-            let pills = group.tags.into_iter().map(|tag| {
-                let drag_source = dragged_tag == Some(tag.as_str());
-                let selection_state = state.metadata_tag_selection_state(&tag);
-                tag_row(
-                    tag,
-                    TagRowContext {
-                        category_id: category_id.as_str(),
-                        locked,
-                        selection_state,
-                        drag_active,
-                        drag_source,
-                        active_drop_target: category_hovered,
-                    },
-                )
-            });
+            let category_id = category.id;
+            let pills = category.tags.into_iter().map(tag_row);
             children.push(
                 ui::wrap(pills, TAG_LIBRARY_PILL_GAP, TAG_LIBRARY_PILL_GAP)
-                    .key(format!("metadata-tag-category-pills-{}", group.id))
+                    .key(identity::category_pills_key(category_id))
                     .fill_width(),
             );
         }
     }
     ui::column(children)
-        .key(format!("metadata-tag-category-group-{}", group.id))
+        .key(identity::category_group_key(category.id))
         .spacing(2.0)
         .fill_width()
 }
 
-fn category_header(
-    category_id: String,
-    collapsed: bool,
-    label: String,
-    locked: bool,
-    drag_active: bool,
-    drop_hover: bool,
-) -> ui::View<GuiMessage> {
-    let category_for_input = category_id.clone();
-    let style = if drop_hover {
+fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMessage> {
+    let category_for_input = category.id.to_string();
+    let style = if category.drop_hover {
         ui::WidgetStyle::strong(ui::WidgetTone::Warning)
     } else {
         ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
     };
     let visual = ui::row([
-        ui::disclosure_button(!collapsed)
+        ui::disclosure_button(!category.collapsed)
             .passive()
-            .key(format!("metadata-tag-category-disclosure-{category_id}"))
+            .key(identity::category_disclosure_key(category.id))
             .size(20.0, 18.0),
-        ui::text_line(label, 22.0).key(format!("metadata-tag-category-label-{category_id}")),
+        ui::text_line(category.header_label.clone(), 22.0)
+            .key(identity::category_label_key(category.id)),
     ])
     .style(style)
     .padding_x(4.0)
@@ -143,7 +91,7 @@ fn category_header(
     .fill_width()
     .height(22.0);
     ui::interactive_row_underlay(visual)
-        .tracked_drop_target(drag_active && !locked, drop_hover)
+        .tracked_drop_target(category.accepts_drop, category.drop_hover)
         .style(style)
         .actions(
             ui::row_actions()
@@ -154,7 +102,7 @@ fn category_header(
                 )
                 .primary_key(category_for_input, toggle_metadata_tag_category),
         )
-        .key(format!("metadata-tag-category-{}", category_id))
+        .key(identity::category_underlay_key(category.id))
         .fill_width()
         .height(22.0)
 }
@@ -183,19 +131,19 @@ fn toggle_metadata_tag_category(category_id: String) -> GuiMessage {
     GuiMessage::Metadata(MetadataMessage::ToggleMetadataTagCategory(category_id))
 }
 
-fn tag_row(tag: String, context: TagRowContext<'_>) -> ui::View<GuiMessage> {
-    let style = metadata_tag_pill_selection_style(context.category_id, context.selection_state);
-    let width = metadata_tag_pill_width(&tag);
-    let tag_for_input = tag.clone();
-    let category_for_input = context.category_id.to_string();
-    let mut badge = ui::interactive_badge(tag.clone())
+fn tag_row(tag: MetadataTagProjection) -> ui::View<GuiMessage> {
+    let style = metadata_tag_pill_selection_style(tag.category_id, tag.selection_state);
+    let width = metadata_tag_pill_width(&tag.label);
+    let tag_for_input = tag.label.clone();
+    let category_for_input = tag.category_id.to_string();
+    let mut badge = ui::interactive_badge(tag.label.clone())
         .style(style)
-        .active(context.selection_state.is_all());
+        .active(tag.selection_state.is_all());
 
-    if !context.locked {
+    if tag.draggable {
         badge = badge
-            .tracked_drag_source_with_motion(context.drag_active, context.drag_source)
-            .tracked_drop_target(context.drag_active, context.active_drop_target);
+            .tracked_drag_source_with_motion(tag.drag_active, tag.drag_source)
+            .tracked_drop_target(tag.drag_active, tag.drop_hover);
     }
     badge
         .actions(
@@ -209,27 +157,22 @@ fn tag_row(tag: String, context: TagRowContext<'_>) -> ui::View<GuiMessage> {
                 )
                 .primary_key(tag_for_input, toggle_metadata_tag),
         )
-        .key(format!("metadata-tag-library-row-{tag}"))
+        .key(identity::tag_row_key(&tag.label))
         .width(width)
         .height(TAG_LIBRARY_PILL_HEIGHT)
 }
 
-fn empty_category_target(
-    category_id: &str,
-    locked: bool,
-    drag_active: bool,
-    active_drop_target: bool,
-) -> ui::View<GuiMessage> {
-    let category_for_input = category_id.to_string();
+fn empty_category_target(category: &MetadataTagCategoryProjection) -> ui::View<GuiMessage> {
+    let category_for_input = category.id.to_string();
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
-        .tracked_drop_target(drag_active && !locked, active_drop_target)
+        .tracked_drop_target(category.accepts_drop, category.drop_hover)
         .actions(ui::row_actions().drop_target_key(
             category_for_input,
             drop_metadata_tag_on_category,
             hover_metadata_tag_drop_category,
         ))
-        .key(format!("metadata-tag-empty-category-{category_id}"))
+        .key(identity::empty_category_key(category.id))
         .fill_width()
         .height(20.0)
 }
