@@ -1,15 +1,13 @@
-use crate::native_app::{
-    app::{GuiMessage, MetadataMessage, NativeAppState},
-    metadata::metadata_tag_pill_selection_style,
-    metadata::metadata_tag_pill_width,
-};
+use crate::native_app::app::{GuiMessage, MetadataMessage, NativeAppState};
 use radiant::prelude as ui;
 
 mod identity;
 mod projection;
 
 use projection::{
-    MetadataTagCategoryProjection, MetadataTagLibraryProjection, MetadataTagProjection,
+    MetadataTagCategoryBodyProjection, MetadataTagCategoryProjection,
+    MetadataTagEmptyCategoryProjection, MetadataTagLibraryProjection,
+    MetadataTagPillGroupProjection, MetadataTagProjection,
 };
 
 const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
@@ -51,22 +49,28 @@ fn category_group(category: MetadataTagCategoryProjection) -> ui::View<GuiMessag
                 .height(4.0),
         );
     }
-    if !category.collapsed {
-        if category.tags.is_empty() {
-            children.push(empty_category_target(&category));
-        } else {
-            let category_id = category.id;
-            let pills = category.tags.into_iter().map(tag_row);
-            children.push(
-                ui::wrap(pills, TAG_LIBRARY_PILL_GAP, TAG_LIBRARY_PILL_GAP)
-                    .key(identity::category_pills_key(category_id))
-                    .fill_width(),
-            );
-        }
+    if let Some(body) = category_body(category.body) {
+        children.push(body);
     }
     ui::column(children)
         .key(identity::category_group_key(category.id))
         .spacing(2.0)
+        .fill_width()
+}
+
+fn category_body(body: MetadataTagCategoryBodyProjection) -> Option<ui::View<GuiMessage>> {
+    match body {
+        MetadataTagCategoryBodyProjection::Collapsed => None,
+        MetadataTagCategoryBodyProjection::Empty(empty) => Some(empty_category_target(empty)),
+        MetadataTagCategoryBodyProjection::Tags(group) => Some(category_tag_pills(group)),
+    }
+}
+
+fn category_tag_pills(group: MetadataTagPillGroupProjection) -> ui::View<GuiMessage> {
+    let category_id = group.category_id;
+    let pills = group.tags.into_iter().map(tag_row);
+    ui::wrap(pills, TAG_LIBRARY_PILL_GAP, TAG_LIBRARY_PILL_GAP)
+        .key(identity::category_pills_key(category_id))
         .fill_width()
 }
 
@@ -78,7 +82,7 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
         ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
     };
     let visual = ui::row([
-        ui::disclosure_button(!category.collapsed)
+        ui::disclosure_button(category.expanded)
             .passive()
             .key(identity::category_disclosure_key(category.id))
             .size(20.0, 18.0),
@@ -132,13 +136,11 @@ fn toggle_metadata_tag_category(category_id: String) -> GuiMessage {
 }
 
 fn tag_row(tag: MetadataTagProjection) -> ui::View<GuiMessage> {
-    let style = metadata_tag_pill_selection_style(tag.category_id, tag.selection_state);
-    let width = metadata_tag_pill_width(&tag.label);
     let tag_for_input = tag.label.clone();
     let category_for_input = tag.category_id.to_string();
     let mut badge = ui::interactive_badge(tag.label.clone())
-        .style(style)
-        .active(tag.selection_state.is_all());
+        .style(tag.style)
+        .active(tag.active);
 
     if tag.draggable {
         badge = badge
@@ -158,12 +160,12 @@ fn tag_row(tag: MetadataTagProjection) -> ui::View<GuiMessage> {
                 .primary_key(tag_for_input, toggle_metadata_tag),
         )
         .key(identity::tag_row_key(&tag.label))
-        .width(width)
+        .width(tag.width)
         .height(TAG_LIBRARY_PILL_HEIGHT)
 }
 
-fn empty_category_target(category: &MetadataTagCategoryProjection) -> ui::View<GuiMessage> {
-    let category_for_input = category.id.to_string();
+fn empty_category_target(category: MetadataTagEmptyCategoryProjection) -> ui::View<GuiMessage> {
+    let category_for_input = category.category_id.to_string();
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
         .tracked_drop_target(category.accepts_drop, category.drop_hover)
@@ -172,7 +174,7 @@ fn empty_category_target(category: &MetadataTagCategoryProjection) -> ui::View<G
             drop_metadata_tag_on_category,
             hover_metadata_tag_drop_category,
         ))
-        .key(identity::empty_category_key(category.id))
+        .key(identity::empty_category_key(category.category_id))
         .fill_width()
         .height(20.0)
 }
