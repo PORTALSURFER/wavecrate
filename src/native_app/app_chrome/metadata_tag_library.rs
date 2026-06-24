@@ -157,6 +157,7 @@ fn tag_row(tag: MetadataTagProjection) -> ui::View<GuiMessage> {
                     drop_metadata_tag_on_category,
                     hover_metadata_tag_drop_category,
                 )
+                .double_key(tag_for_input.clone(), toggle_metadata_tag)
                 .primary_key(tag_for_input, toggle_metadata_tag),
         )
         .key(identity::tag_row_key(&tag.label))

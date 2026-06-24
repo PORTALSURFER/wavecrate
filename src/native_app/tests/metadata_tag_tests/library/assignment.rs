@@ -279,6 +279,41 @@ fn default_gui_tag_library_button_removes_selected_tag() {
 }
 
 #[test]
+fn tag_library_double_click_toggles_tag_immediately() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata
+        .tags_by_file
+        .insert(selected_file.clone(), vec![String::from("one-shot")]);
+    state.metadata.tag_library_open = true;
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let tag_rect = runtime
+        .frame_with_default_theme()
+        .paint_plan
+        .first_text_run_after_x("one-shot", DEFAULT_FOLDER_WIDTH)
+        .expect("tag library one-shot pill should paint")
+        .rect;
+    let point = tag_rect.center();
+
+    runtime.dispatch_input_at(point, WidgetInput::primary_double_click(point));
+
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .metadata
+            .tags_by_file
+            .get(&selected_file),
+        None
+    );
+    assert_eq!(
+        runtime.bridge().state().ui.status.sample,
+        "Removed tag one-shot"
+    );
+}
+
+#[test]
 fn mixed_metadata_tag_toggle_adds_missing_tag_to_all_selected_samples() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("first.wav");
