@@ -107,20 +107,12 @@ fn waveform_title_row(
 }
 
 fn loaded_sample_drag_handle() -> ui::View<GuiMessage> {
-    ui::stack([
-        ui::card()
-            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-            .id(widget_ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID)
-            .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT),
-        ui::drag_handle()
-            .mapped(|drag| GuiMessage::Waveform(WaveformInteraction::DragLoadedSample(drag)))
-            .id(widget_ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
-            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-            .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT)
-            .tooltip("Drag loaded sample"),
-    ])
-    .key("waveform-loaded-sample-drag-shell")
-    .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT)
+    ui::drag_handle()
+        .mapped(|drag| GuiMessage::Waveform(WaveformInteraction::DragLoadedSample(drag)))
+        .id(widget_ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .tooltip("Drag loaded sample")
+        .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT)
 }
 
 fn waveform_title(waveform: &WaveformState, loading_label: Option<&str>) -> String {

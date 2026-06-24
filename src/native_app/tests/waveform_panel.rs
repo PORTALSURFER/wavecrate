@@ -4,25 +4,29 @@ use crate::native_app::{
         waveform_panel::{WAVEFORM_PANEL_HEIGHT, waveform_panel},
     },
     test_support::state::NativeAppStateFixture,
-    ui::ids::{
-        WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID, WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID,
-    },
+    ui::ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID,
 };
 use radiant::prelude::{self as ui, IntoView};
 
 #[test]
 fn waveform_panel_omits_section_header_label() {
     let state = NativeAppStateFixture::default().build();
+    let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
     let frame = waveform_panel(WaveformPanelViewModel::from_app_state(&state))
         .view_frame_at_size_with_default_theme(ui::Vector2::new(800.0, WAVEFORM_PANEL_HEIGHT));
 
     assert!(frame.paint_plan.contains_text("No sample loaded"));
     assert!(!frame.paint_plan.contains_text("Waveform"));
     assert!(
+        surface
+            .find_widget(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
+            .is_none()
+    );
+    assert!(
         frame
             .paint_plan
-            .first_widget_rect(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID)
-            .is_none()
+            .stroke_polylines()
+            .all(|stroke| stroke.widget_id != WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
     );
 }
 
@@ -41,10 +45,15 @@ fn loaded_waveform_title_includes_sample_drag_handle_before_name() {
             .is_some(),
         "loaded waveform title should include interactive sample drag handle"
     );
-    let visual_rect = frame
+    let handle_right_edge = frame
         .paint_plan
-        .first_widget_rect(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_VISUAL_ID)
-        .expect("loaded waveform title should include sample drag handle visual");
+        .stroke_polylines()
+        .filter(|stroke| stroke.widget_id == WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
+        .flat_map(|stroke| stroke.points.iter().map(|point| point.x))
+        .fold(None, |max: Option<f32>, x| {
+            Some(max.map_or(x, |max| max.max(x)))
+        })
+        .expect("loaded waveform title should include sample drag handle");
     let title_rect = frame
         .paint_plan
         .text_runs()
@@ -52,7 +61,7 @@ fn loaded_waveform_title_includes_sample_drag_handle_before_name() {
         .map(|run| run.rect)
         .expect("loaded waveform title should include sample name");
 
-    assert!(visual_rect.max.x < title_rect.min.x);
+    assert!(handle_right_edge < title_rect.min.x);
 }
 
 #[test]
