@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::identity::{folder_row_hit_key, folder_row_key};
+use super::identity::folder_row_key;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -86,7 +86,6 @@ pub(super) fn folder_row(folder: &VisibleFolder) -> ui::View<GuiMessage> {
     };
 
     row.row_key(folder_row_key(&id))
-        .hit_key(folder_row_hit_key(&id))
         .on_toggle({
             let id = id.clone();
             move || {
