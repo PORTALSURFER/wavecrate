@@ -2,13 +2,31 @@ use crate::native_app::app::FolderScanProgress;
 use crate::native_app::app_chrome::view_models::status_bar::{
     StatusBarViewModel, WorkerProgressViewModel,
 };
+use radiant::prelude as ui;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct BottomStatusBarProjection {
     pub(super) selected_sample_count_label: String,
     pub(super) status_text: String,
-    pub(super) worker_progress: Option<WorkerProgressViewModel>,
+    pub(super) worker_progress: WorkerProgressBarProjection,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct WorkerProgressBarProjection {
     pub(super) progress_tick: f32,
+    pub(super) content: WorkerProgressBarContentProjection,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum WorkerProgressBarContentProjection {
+    Hidden,
+    Overall {
+        progress: ui::ProgressSnapshot,
+    },
+    SourceCache {
+        overall: ui::ProgressSnapshot,
+        current_fraction: Option<f32>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,8 +39,37 @@ pub(super) fn bottom_status_bar_projection(model: StatusBarViewModel) -> BottomS
     BottomStatusBarProjection {
         selected_sample_count_label: selected_sample_count_label(model.selected_sample_count),
         status_text: model.status_text,
-        worker_progress: model.worker_progress,
-        progress_tick: model.progress_tick,
+        worker_progress: WorkerProgressBarProjection::from_progress(
+            model.worker_progress,
+            model.progress_tick,
+        ),
+    }
+}
+
+impl WorkerProgressBarProjection {
+    pub(super) fn from_progress(
+        progress: Option<WorkerProgressViewModel>,
+        progress_tick: f32,
+    ) -> Self {
+        Self {
+            progress_tick,
+            content: progress
+                .map(WorkerProgressBarContentProjection::from_worker_progress)
+                .unwrap_or(WorkerProgressBarContentProjection::Hidden),
+        }
+    }
+}
+
+impl WorkerProgressBarContentProjection {
+    fn from_worker_progress(progress: WorkerProgressViewModel) -> Self {
+        let snapshot = ui::ProgressSnapshot::new(progress.completed, progress.total);
+        if progress.active_animation {
+            return Self::SourceCache {
+                overall: snapshot,
+                current_fraction: progress.current_fraction,
+            };
+        }
+        Self::Overall { progress: snapshot }
     }
 }
 
@@ -75,6 +122,56 @@ mod tests {
         assert_eq!(
             projection_for_count(2).selected_sample_count_label,
             "2 samples"
+        );
+    }
+
+    #[test]
+    fn worker_progress_projection_hides_absent_progress() {
+        assert_eq!(
+            WorkerProgressBarProjection::from_progress(None, 0.25).content,
+            WorkerProgressBarContentProjection::Hidden
+        );
+    }
+
+    #[test]
+    fn worker_progress_projection_uses_overall_progress_for_standard_workers() {
+        let projection = WorkerProgressBarProjection::from_progress(
+            Some(WorkerProgressViewModel {
+                completed: 3,
+                total: 10,
+                current_fraction: Some(0.5),
+                active_animation: false,
+            }),
+            0.25,
+        );
+
+        assert_eq!(projection.progress_tick, 0.25);
+        assert_eq!(
+            projection.content,
+            WorkerProgressBarContentProjection::Overall {
+                progress: ui::ProgressSnapshot::new(3, 10),
+            }
+        );
+    }
+
+    #[test]
+    fn worker_progress_projection_uses_source_cache_mode_for_active_animation() {
+        let projection = WorkerProgressBarProjection::from_progress(
+            Some(WorkerProgressViewModel {
+                completed: 3,
+                total: 10,
+                current_fraction: Some(0.5),
+                active_animation: true,
+            }),
+            0.25,
+        );
+
+        assert_eq!(
+            projection.content,
+            WorkerProgressBarContentProjection::SourceCache {
+                overall: ui::ProgressSnapshot::new(3, 10),
+                current_fraction: Some(0.5),
+            }
         );
     }
 

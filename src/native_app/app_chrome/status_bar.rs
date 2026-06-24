@@ -1,20 +1,15 @@
 mod projection;
 
 use self::projection::{
-    JobDetailsPopoverProjection, bottom_status_bar_projection, job_details_popover_projection,
+    JobDetailsPopoverProjection, WorkerProgressBarContentProjection, WorkerProgressBarProjection,
+    bottom_status_bar_projection, job_details_popover_projection,
 };
 use crate::native_app::app::{FolderScanProgress, GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::modals;
-use crate::native_app::app_chrome::view_models::status_bar::{
-    StatusBarViewModel, WorkerProgressViewModel,
-};
+use crate::native_app::app_chrome::view_models::status_bar::StatusBarViewModel;
+#[cfg(test)]
+use crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel;
 use radiant::prelude as ui;
-
-impl WorkerProgressViewModel {
-    fn snapshot(self) -> ui::ProgressSnapshot {
-        ui::ProgressSnapshot::new(self.completed, self.total)
-    }
-}
 
 const WORKER_PROGRESS_TRACK_WIDTH: f32 = 180.0;
 const WORKER_PROGRESS_HEIGHT: f32 = 10.0;
@@ -38,39 +33,54 @@ pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui:
             projection.status_text,
         ))
         .left_width(120.0)
-        .trailing(worker_progress_bar(
+        .trailing(worker_progress_bar_from_projection(
             projection.worker_progress,
-            projection.progress_tick,
         )),
     )
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn worker_progress_bar(
     progress: Option<WorkerProgressViewModel>,
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {
-    let Some(progress) = progress else {
-        return ui::empty().width(0.0).height(WORKER_PROGRESS_HEIGHT);
-    };
-    if progress.active_animation {
-        return source_cache_worker_progress(progress, progress_tick);
+    worker_progress_bar_from_projection(WorkerProgressBarProjection::from_progress(
+        progress,
+        progress_tick,
+    ))
+}
+
+fn worker_progress_bar_from_projection(
+    projection: WorkerProgressBarProjection,
+) -> ui::View<GuiMessage> {
+    match projection.content {
+        WorkerProgressBarContentProjection::Hidden => {
+            ui::empty().width(0.0).height(WORKER_PROGRESS_HEIGHT)
+        }
+        WorkerProgressBarContentProjection::Overall { progress } => {
+            overall_progress_bar(progress, projection.progress_tick)
+                .key("bottom-status-progress-bar")
+                .width(WORKER_PROGRESS_TRACK_WIDTH)
+                .height(WORKER_PROGRESS_HEIGHT)
+        }
+        WorkerProgressBarContentProjection::SourceCache {
+            overall,
+            current_fraction,
+        } => source_cache_worker_progress(overall, current_fraction, projection.progress_tick),
     }
-    overall_progress_bar(progress, progress_tick)
-        .key("bottom-status-progress-bar")
-        .width(WORKER_PROGRESS_TRACK_WIDTH)
-        .height(WORKER_PROGRESS_HEIGHT)
 }
 
 fn source_cache_worker_progress(
-    progress: WorkerProgressViewModel,
+    overall: ui::ProgressSnapshot,
+    current_fraction: Option<f32>,
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {
     ui::column([
-        overall_progress_bar(progress, progress_tick)
+        overall_progress_bar(overall, progress_tick)
             .key("bottom-status-progress-overall")
             .width(WORKER_PROGRESS_TRACK_WIDTH)
             .height(OVERALL_PROGRESS_HEIGHT),
-        active_cache_progress_bar(progress.current_fraction, progress_tick)
+        active_cache_progress_bar(current_fraction, progress_tick)
             .key("bottom-status-progress-active")
             .width(WORKER_PROGRESS_TRACK_WIDTH)
             .height(ACTIVE_PROGRESS_HEIGHT),
@@ -82,10 +92,10 @@ fn source_cache_worker_progress(
 }
 
 fn overall_progress_bar(
-    progress: WorkerProgressViewModel,
+    progress: ui::ProgressSnapshot,
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {
-    ui::progress_bar_for_snapshot(progress.snapshot(), progress_tick)
+    ui::progress_bar_for_snapshot(progress, progress_tick)
         .colors(
             ui::Rgba8::new(48, 50, 51, 210),
             ui::Rgba8::new(255, 112, 86, 210),
