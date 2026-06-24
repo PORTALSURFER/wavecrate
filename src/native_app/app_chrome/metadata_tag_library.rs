@@ -82,9 +82,7 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
         ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
     };
     let visual = ui::row([
-        ui::disclosure_button(category.expanded)
-            .passive()
-            .size(20.0, 18.0),
+        disclosure_indicator(category.expanded),
         ui::text_line(category.header_label.clone(), 22.0),
     ])
     .style(style)
@@ -116,6 +114,10 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
         )
         .fill_width()
         .height(22.0)
+}
+
+fn disclosure_indicator(expanded: bool) -> ui::View<GuiMessage> {
+    ui::text(if expanded { "v" } else { ">" }).size(20.0, 18.0)
 }
 
 fn open_metadata_tag_context_menu(tag: String, position: ui::Point) -> GuiMessage {
