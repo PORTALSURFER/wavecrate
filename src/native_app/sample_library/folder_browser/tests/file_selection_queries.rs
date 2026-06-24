@@ -20,6 +20,10 @@ fn select_all_audio_files_selects_current_folder_samples() {
         browser.selected_file_paths(),
         vec![hat.clone(), kick.clone()]
     );
+    assert_eq!(
+        browser.selected_normalization_paths(),
+        vec![hat.clone(), kick.clone()]
+    );
     assert!(!browser.is_file_selected(&path_id(&note)));
 
     let _ = fs::remove_dir_all(root);

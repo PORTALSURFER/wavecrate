@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use crate::native_app::app::NativeAppState;
 
@@ -17,6 +20,32 @@ impl NativeAppState {
             .cache
             .cached_sample_paths
             .remove(&path.display().to_string());
+    }
+
+    pub(in crate::native_app) fn evict_waveform_cache_paths(&mut self, paths: &[PathBuf]) {
+        if paths.len() <= 1 {
+            if let Some(path) = paths.first() {
+                self.evict_waveform_cache_path(path);
+            }
+            return;
+        }
+
+        let path_set = paths.iter().collect::<HashSet<_>>();
+        for path in paths {
+            self.remove_waveform_cache_path(path);
+            self.waveform
+                .cache
+                .cached_sample_paths
+                .remove(&path.display().to_string());
+        }
+        self.waveform
+            .cache
+            .order
+            .retain(|cached| !path_set.contains(cached));
+        self.waveform
+            .cache
+            .warm_pending
+            .retain(|cached| !path_set.contains(cached));
     }
 
     pub(super) fn enforce_waveform_cache_limit(&mut self) {

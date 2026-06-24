@@ -468,6 +468,53 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
 }
 
 #[test]
+fn bulk_waveform_cache_eviction_removes_pending_and_markers() {
+    let mut state = gui_state_for_span_tests();
+    let paths = (0..8)
+        .map(|index| PathBuf::from(format!("/tmp/wavecrate-normalize-bulk-{index}.wav")))
+        .collect::<Vec<_>>();
+    let keep = PathBuf::from("/tmp/wavecrate-normalize-keep.wav");
+
+    for path in &paths {
+        state.waveform.cache.order.push_back(path.clone());
+        state.waveform.cache.warm_pending.push_back(path.clone());
+        state
+            .waveform
+            .cache
+            .cached_sample_paths
+            .insert(path.display().to_string());
+    }
+    state.waveform.cache.order.push_back(keep.clone());
+    state.waveform.cache.warm_pending.push_back(keep.clone());
+    state
+        .waveform
+        .cache
+        .cached_sample_paths
+        .insert(keep.display().to_string());
+
+    state.evict_waveform_cache_paths(&paths);
+
+    assert_eq!(
+        state.waveform.cache.order.iter().collect::<Vec<_>>(),
+        vec![&keep]
+    );
+    assert_eq!(
+        state.waveform.cache.warm_pending.iter().collect::<Vec<_>>(),
+        vec![&keep]
+    );
+    assert_eq!(
+        state
+            .waveform
+            .cache
+            .cached_sample_paths
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![keep.display().to_string()]
+    );
+}
+
+#[test]
 fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalization() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("normalize-queue-reload.wav");

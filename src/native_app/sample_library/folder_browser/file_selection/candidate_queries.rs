@@ -16,6 +16,20 @@ impl FolderBrowserState {
             .collect()
     }
 
+    pub(in crate::native_app) fn selected_normalization_paths(&self) -> Vec<PathBuf> {
+        if self.selection.selected_collection.is_some() {
+            return self.selected_file_paths();
+        }
+        let mut paths = self
+            .selection
+            .active_file_ids()
+            .into_iter()
+            .map(PathBuf::from)
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
     pub(in crate::native_app) fn first_audio_file_path(&self) -> Option<PathBuf> {
         self.source
             .sources

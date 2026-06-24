@@ -5,7 +5,7 @@ use std::{
 use wavecrate::sample_sources::Rating;
 
 use super::{
-    FolderBrowserState, FolderVerifyOutcome, FolderVerifyResult,
+    FolderBrowserState, FolderEntry, FolderVerifyOutcome, FolderVerifyResult,
     file_refresh::RefreshedFileEntry,
     path_helpers::path_id,
     scanning::{file_entry_for_source_path, load_folder_at_path, upsert_file, upsert_folder},
@@ -130,27 +130,33 @@ impl FolderBrowserState {
         else {
             return false;
         };
-        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
-            return false;
+        let selected_source = self.source.selected_source == source_id;
+        let (source_changed, root_id) = {
+            let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+                return false;
+            };
+            let root_id = root_folder.id.clone();
+            (upsert_refreshed_file_entries(root_folder, entries), root_id)
         };
-
-        let mut changed = false;
-        for entry in entries {
-            let path = entry.path();
-            let Some(parent) = path.parent() else {
-                continue;
-            };
-            let Some(parent_folder) = root_folder.find_mut(&path_id(parent)) else {
-                continue;
-            };
-            changed |= upsert_file(&mut parent_folder.files, entry.file.clone());
-        }
-        if !changed {
+        if !source_changed {
             return false;
         }
 
-        if self.source.selected_source == source_id {
-            self.tree.folders = vec![root_folder.clone()];
+        if selected_source {
+            let visible_root_found = self
+                .tree
+                .folders
+                .iter_mut()
+                .find(|folder| folder.id == root_id)
+                .map(|root_folder| {
+                    upsert_refreshed_file_entries(root_folder, entries);
+                })
+                .is_some();
+            if !visible_root_found
+                && let Some(root_folder) = self.source.sources[source_index].root_folder.clone()
+            {
+                self.tree.folders = vec![root_folder];
+            }
         }
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
@@ -456,4 +462,22 @@ impl FolderBrowserState {
             }
         }
     }
+}
+
+fn upsert_refreshed_file_entries(
+    root_folder: &mut FolderEntry,
+    entries: &[RefreshedFileEntry],
+) -> bool {
+    let mut changed = false;
+    for entry in entries {
+        let path = entry.path();
+        let Some(parent) = path.parent() else {
+            continue;
+        };
+        let Some(parent_folder) = root_folder.find_mut(&path_id(parent)) else {
+            continue;
+        };
+        changed |= upsert_file(&mut parent_folder.files, entry.file.clone());
+    }
+    changed
 }

@@ -21,6 +21,8 @@ const NORMALIZATION_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(80);
 const NORMALIZATION_PROGRESS_MIN_UNITS: usize = 20;
 const BULK_NORMALIZATION_BACKGROUND_THRESHOLD: usize = 32;
 const BULK_NORMALIZATION_PROGRESS_FILE_STEP: usize = 8;
+const BULK_NORMALIZATION_PACE_INTERVAL: Duration = Duration::from_millis(16);
+const BULK_NORMALIZATION_PACE_SLEEP: Duration = Duration::from_millis(1);
 const VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT: usize = 64;
 
 pub(in crate::native_app) fn normalization_priority(file_count: usize) -> ui::TaskPriority {
@@ -37,7 +39,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let paths = self.library.folder_browser.selected_file_paths();
+        let paths = self.library.folder_browser.selected_normalization_paths();
         if paths.is_empty() {
             self.ui.status.sample = String::from("Select a sample to normalize");
             emit_gui_action(
@@ -269,9 +271,7 @@ impl NativeAppState {
         self.background.normalization_active_paths.clear();
         self.background.progress_tick = 0.0;
 
-        for path in &result.normalized {
-            self.evict_waveform_cache_path(path);
-        }
+        self.evict_waveform_cache_paths(&result.normalized);
         self.library
             .folder_browser
             .refresh_file_entries(&result.source_id, &result.refreshed_files);
@@ -446,6 +446,7 @@ fn run_normalization_worker(
     let mut normalized = Vec::new();
     let mut skipped = Vec::new();
     let mut failed = Vec::new();
+    let mut pacer = NormalizationWorkerPacer::new(total);
     for (index, path) in request.paths.iter().enumerate() {
         let file_started_at = Instant::now();
         let file_label = sample_path_label(path);
@@ -466,6 +467,7 @@ fn run_normalization_worker(
         );
         match normalize_wav_file_in_place_with_progress(path, |fraction, phase| {
             progress_reporter.emit(index, fraction, phase, false);
+            pacer.pause_if_due();
         }) {
             Ok(WavNormalizationOutcome::Normalized) => {
                 normalized.push(path.clone());
@@ -494,6 +496,7 @@ fn run_normalization_worker(
             "Done",
             force_file_done_progress(index + 1, total),
         );
+        pacer.pause_if_due();
     }
     emit_normalization_metadata_refresh_progress(
         &request,
@@ -515,6 +518,28 @@ fn run_normalization_worker(
         refreshed_files,
         skipped,
         failed,
+    }
+}
+
+struct NormalizationWorkerPacer {
+    enabled: bool,
+    last_pause: Instant,
+}
+
+impl NormalizationWorkerPacer {
+    fn new(total_files: usize) -> Self {
+        Self {
+            enabled: total_files > BULK_NORMALIZATION_BACKGROUND_THRESHOLD,
+            last_pause: Instant::now(),
+        }
+    }
+
+    fn pause_if_due(&mut self) {
+        if !self.enabled || self.last_pause.elapsed() < BULK_NORMALIZATION_PACE_INTERVAL {
+            return;
+        }
+        std::thread::sleep(BULK_NORMALIZATION_PACE_SLEEP);
+        self.last_pause = Instant::now();
     }
 }
 
