@@ -212,22 +212,16 @@ fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
 
 fn rating_filter_toggle(toggle: &RatingFilterToggleViewModel) -> ui::View<GuiMessage> {
     let level = toggle.level;
-    let input = ui::selectable("", toggle.active)
+    ui::selectable("", toggle.active)
         .style(ui::WidgetStyle::subtle(rating_filter_tone(level)))
+        .color_marker(Some(rating_filter_swatch_color(level, toggle.active)))
+        .color_marker_side(RATING_FILTER_SWATCH_SIZE)
+        .color_marker_inset(0)
+        .color_marker_align(ui::ColorMarkerAlign::Center)
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
         .id(rating_filter_toggle_id(toggle.label))
-        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE);
-    let swatch = ui::color_marker(Some(rating_filter_swatch_color(level, toggle.active)))
-        .side(RATING_FILTER_SWATCH_SIZE)
-        .inset(0)
-        .align(ui::ColorMarkerAlign::Center)
-        .view()
-        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE);
-
-    ui::input_underlay(swatch, input)
-        .key(format!("filter-rating-swatch-toggle-{}", toggle.label))
         .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
 }
 
