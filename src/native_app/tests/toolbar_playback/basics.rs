@@ -189,6 +189,84 @@ fn apply_edit_mark_edits_button_appears_only_for_pending_effects() {
 }
 
 #[test]
+fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
+    use crate::native_app::test_support::toolbar::{
+        ToolbarControlProjection, ToolbarIcon, ToolbarProjection,
+    };
+
+    let projection = ToolbarProjection::from_model(
+        crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel {
+            random_available: true,
+            similar_sections_available: false,
+            similar_sections_enabled: true,
+            sticky_random_sample_range_playback: true,
+            loop_playback: true,
+            playing: false,
+            beat_guides_enabled: true,
+            beat_guide_count: 8,
+            can_decrement_beat_guide_count: true,
+            can_increment_beat_guide_count: false,
+            pending_edit_mark_edits: true,
+            help_tooltips_enabled: true,
+        },
+    );
+
+    assert!(projection.help_tooltips_enabled);
+    assert_eq!(projection.controls.len(), 11);
+
+    let icon_control = |index| match projection.controls[index] {
+        ToolbarControlProjection::Icon(button) => button,
+        control => panic!("expected toolbar icon control at {index}, got {control:?}"),
+    };
+
+    assert_eq!(icon_control(0).icon, ToolbarIcon::FocusLoaded);
+    assert_eq!(
+        icon_control(0).id,
+        crate::native_app::test_support::toolbar::TOOLBAR_FOCUS_LOADED_ID
+    );
+    assert_eq!(icon_control(1).icon, ToolbarIcon::Loop);
+    assert!(icon_control(1).active);
+    assert_eq!(icon_control(2).icon, ToolbarIcon::Random);
+    assert!(icon_control(2).enabled);
+    assert!(icon_control(2).active);
+    assert!(icon_control(2).tooltip.contains("Shift-click"));
+    assert_eq!(icon_control(3).icon, ToolbarIcon::SimilarSections);
+    assert!(icon_control(3).icon_enabled);
+    assert!(icon_control(3).active);
+    assert_eq!(icon_control(4).icon, ToolbarIcon::BeatGuides);
+    assert!(icon_control(4).active);
+    assert_eq!(icon_control(5).icon, ToolbarIcon::BeatGuideMinus);
+    assert!(icon_control(5).enabled);
+
+    assert!(matches!(
+        projection.controls[6],
+        ToolbarControlProjection::BeatGuideCount {
+            count: 8,
+            key: "toolbar-beat-guide-count",
+        }
+    ));
+
+    assert_eq!(icon_control(7).icon, ToolbarIcon::BeatGuidePlus);
+    assert!(!icon_control(7).enabled);
+
+    assert!(matches!(
+        projection.controls[8],
+        ToolbarControlProjection::ApplyEditMarkEdits {
+            id: crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
+            tooltip: "Apply edit mark gain and fade edits.",
+        }
+    ));
+
+    assert_eq!(icon_control(9).icon, ToolbarIcon::Play);
+    assert!(!icon_control(9).active);
+    assert_eq!(icon_control(10).icon, ToolbarIcon::Stop);
+    assert_eq!(
+        icon_control(10).id,
+        crate::native_app::test_support::toolbar::TOOLBAR_STOP_ID
+    );
+}
+
+#[test]
 fn random_toolbar_help_tooltip_paints_multiline_guidance() {
     let mut state = gui_state_for_span_tests();
     state.ui.chrome.help_tooltips_enabled = true;

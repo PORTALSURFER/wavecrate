@@ -3,6 +3,10 @@ use crate::native_app::app_chrome::toolbar as chrome_toolbar;
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
 use radiant::prelude as ui;
 
+pub(in crate::native_app) use chrome_toolbar::{
+    ToolbarControlProjection, ToolbarIcon, ToolbarProjection,
+};
+
 pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 =
     chrome_toolbar::TOOLBAR_FOCUS_LOADED_ID;
 pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 =
@@ -11,35 +15,6 @@ pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = chrome_toolbar::TOOLBAR
 pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =
     chrome_toolbar::TOOLBAR_SIMILAR_SECTIONS_ID;
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = chrome_toolbar::TOOLBAR_STOP_ID;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::native_app) enum ToolbarIcon {
-    FocusLoaded,
-    Loop,
-    Random,
-    SimilarSections,
-    BeatGuides,
-    BeatGuideMinus,
-    BeatGuidePlus,
-    Play,
-    Stop,
-}
-
-impl ToolbarIcon {
-    fn chrome(self) -> chrome_toolbar::ToolbarIcon {
-        match self {
-            Self::FocusLoaded => chrome_toolbar::ToolbarIcon::FocusLoaded,
-            Self::Loop => chrome_toolbar::ToolbarIcon::Loop,
-            Self::Random => chrome_toolbar::ToolbarIcon::Random,
-            Self::SimilarSections => chrome_toolbar::ToolbarIcon::SimilarSections,
-            Self::BeatGuides => chrome_toolbar::ToolbarIcon::BeatGuides,
-            Self::BeatGuideMinus => chrome_toolbar::ToolbarIcon::BeatGuideMinus,
-            Self::BeatGuidePlus => chrome_toolbar::ToolbarIcon::BeatGuidePlus,
-            Self::Play => chrome_toolbar::ToolbarIcon::Play,
-            Self::Stop => chrome_toolbar::ToolbarIcon::Stop,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MainToolbarProjection {
@@ -85,7 +60,7 @@ pub(in crate::native_app) fn toolbar_icon_button(
     enabled: bool,
     active: bool,
 ) -> ui::View<GuiMessage> {
-    chrome_toolbar::toolbar_icon_button(id, icon.chrome(), enabled, active)
+    chrome_toolbar::toolbar_icon_button(id, icon, enabled, active)
 }
 
 pub(in crate::native_app) fn toolbar_icon_color(enabled: bool, active: bool) -> ui::Rgba8 {
@@ -97,5 +72,5 @@ pub(in crate::native_app) fn toolbar_icon_glyph(
     enabled: bool,
     active: bool,
 ) -> ui::SvgIcon {
-    chrome_toolbar::toolbar_icon_glyph(icon.chrome(), enabled, active)
+    chrome_toolbar::toolbar_icon_glyph(icon, enabled, active)
 }
