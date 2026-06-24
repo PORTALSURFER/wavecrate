@@ -10,6 +10,7 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let sample = drums.join("kick.wav");
     fs::write(&sample, []).expect("write sample");
+    fs::write(loops.join("loop.wav"), []).expect("write loop sample");
     state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),

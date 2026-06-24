@@ -92,18 +92,10 @@ pub(super) fn folder_row(folder: &VisibleFolder) -> ui::View<GuiMessage> {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleFolderExpansion(id.clone()))
             }
         })
-        .interactive_actions(folder_row_actions(
-            id,
-            folder.drop_candidate,
-            folder.drop_target_active,
-        ))
+        .interactive_actions(folder_row_actions(id))
 }
 
-fn folder_row_actions(
-    id: String,
-    drop_candidate: bool,
-    drop_target_active: bool,
-) -> ui::InteractiveRowActions<GuiMessage> {
+fn folder_row_actions(id: String) -> ui::InteractiveRowActions<GuiMessage> {
     ui::row_actions()
         .primary_with_modifiers_key(id.clone(), |id, modifiers| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id, modifiers))
@@ -117,31 +109,16 @@ fn folder_row_actions(
         .drag_key(id.clone(), |id, drag| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(id, drag))
         })
-        .drop_target_key(
+        .tracked_drop_candidate_key(
             id,
             |id| GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(id)),
-            move |id, position| {
-                GuiMessage::FolderBrowser(folder_hover_drop_message(
-                    id,
-                    position,
-                    drop_candidate,
-                    drop_target_active,
-                ))
+            |id, position| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::HoverDropTarget(id, position))
+            },
+            |id, position| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTargetUnless(id, position))
             },
         )
-}
-
-fn folder_hover_drop_message(
-    id: String,
-    position: ui::Point,
-    drop_candidate: bool,
-    drop_target_active: bool,
-) -> FolderBrowserMessage {
-    if drop_target_active && !drop_candidate {
-        FolderBrowserMessage::ClearDropTargetUnless(id, position)
-    } else {
-        FolderBrowserMessage::HoverDropTarget(id, position)
-    }
 }
 
 pub(super) fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba8> {
