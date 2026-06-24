@@ -48,6 +48,9 @@ impl NativeAppState {
             MetadataMessage::HoverMetadataTagDropCategory { category_id } => {
                 self.hover_metadata_tag_drop_category(category_id);
             }
+            MetadataMessage::ClearMetadataTagDropCategoryUnless { category_id } => {
+                self.clear_metadata_tag_drop_category_unless(category_id);
+            }
             MetadataMessage::DropMetadataTagOnCategory { category_id } => {
                 self.drop_metadata_tag_on_category(category_id, context);
             }

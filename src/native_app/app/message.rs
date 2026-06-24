@@ -316,6 +316,9 @@ pub(in crate::native_app) enum MetadataMessage {
     HoverMetadataTagDropCategory {
         category_id: String,
     },
+    ClearMetadataTagDropCategoryUnless {
+        category_id: String,
+    },
     DropMetadataTagOnCategory {
         category_id: String,
     },

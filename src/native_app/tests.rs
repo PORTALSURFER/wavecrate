@@ -140,6 +140,16 @@ fn hover_metadata_tag_completion(value: String) -> super::test_support::state::G
     metadata_message(super::test_support::state::MetadataMessage::HoverMetadataTagCompletion(value))
 }
 
+fn clear_metadata_tag_drop_category_unless(
+    category_id: String,
+) -> super::test_support::state::GuiMessage {
+    metadata_message(
+        super::test_support::state::MetadataMessage::ClearMetadataTagDropCategoryUnless {
+            category_id,
+        },
+    )
+}
+
 fn select_metadata_tag_completion(value: String) -> super::test_support::state::GuiMessage {
     metadata_message(
         super::test_support::state::MetadataMessage::SelectMetadataTagCompletion(value),

@@ -32,6 +32,17 @@ impl NativeAppState {
         self.metadata.tag_drop_hover = Some(category_id);
     }
 
+    pub(in crate::native_app) fn clear_metadata_tag_drop_category_unless(
+        &mut self,
+        category_id: String,
+    ) {
+        if self.metadata.tag_drag.is_none()
+            || self.metadata.tag_drop_hover.as_deref() != Some(category_id.as_str())
+        {
+            self.metadata.tag_drop_hover = None;
+        }
+    }
+
     pub(in crate::native_app) fn drag_metadata_tag(
         &mut self,
         tag: String,

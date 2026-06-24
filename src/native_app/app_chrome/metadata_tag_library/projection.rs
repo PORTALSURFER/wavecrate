@@ -17,8 +17,10 @@ pub(super) struct MetadataTagCategoryProjection {
     pub(super) id: &'static str,
     pub(super) header_label: String,
     pub(super) expanded: bool,
-    pub(super) accepts_drop: bool,
-    pub(super) drop_hover: bool,
+    pub(super) drag_active: bool,
+    pub(super) drop_candidate: bool,
+    pub(super) drop_target: bool,
+    pub(super) drop_target_active: bool,
     pub(super) body: MetadataTagCategoryBodyProjection,
 }
 
@@ -32,8 +34,10 @@ pub(super) enum MetadataTagCategoryBodyProjection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MetadataTagEmptyCategoryProjection {
     pub(super) category_id: &'static str,
-    pub(super) accepts_drop: bool,
-    pub(super) drop_hover: bool,
+    pub(super) drag_active: bool,
+    pub(super) drop_candidate: bool,
+    pub(super) drop_target: bool,
+    pub(super) drop_target_active: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,7 +57,9 @@ pub(super) struct MetadataTagProjection {
     pub(super) draggable: bool,
     pub(super) drag_active: bool,
     pub(super) drag_source: bool,
-    pub(super) drop_hover: bool,
+    pub(super) drop_candidate: bool,
+    pub(super) drop_target: bool,
+    pub(super) drop_target_active: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,8 +67,10 @@ struct MetadataTagCategoryProjectionContext<'a> {
     category_id: &'static str,
     locked: bool,
     drag_active: bool,
-    drop_hover: bool,
+    drop_target: bool,
+    drop_target_active: bool,
     dragged_tag: Option<&'a str>,
+    dragged_category_id: Option<&'static str>,
 }
 
 impl MetadataTagLibraryProjection {
@@ -83,6 +91,12 @@ impl MetadataTagLibraryProjection {
         dragged_tag: Option<&str>,
         mut selection_state: impl FnMut(&str) -> MetadataTagSelectionState,
     ) -> Self {
+        let dragged_category_id = dragged_tag.and_then(|dragged| {
+            groups
+                .iter()
+                .find(|group| group.tags.iter().any(|tag| tag == dragged))
+                .map(|group| group.id)
+        });
         let categories = groups
             .into_iter()
             .map(|group| {
@@ -91,6 +105,7 @@ impl MetadataTagLibraryProjection {
                     drag_active,
                     drop_hover,
                     dragged_tag,
+                    dragged_category_id,
                     &mut selection_state,
                 )
             })
@@ -105,6 +120,7 @@ impl MetadataTagCategoryProjection {
         drag_active: bool,
         drop_hover: Option<&str>,
         dragged_tag: Option<&str>,
+        dragged_category_id: Option<&'static str>,
         selection_state: &mut impl FnMut(&str) -> MetadataTagSelectionState,
     ) -> Self {
         let MetadataTagCategoryGroup {
@@ -118,8 +134,10 @@ impl MetadataTagCategoryProjection {
             category_id,
             locked,
             drag_active,
-            drop_hover: drop_hover == Some(category_id),
+            drop_target: drop_hover == Some(category_id),
+            drop_target_active: drop_hover.is_some(),
             dragged_tag,
+            dragged_category_id,
         };
         let tags = tags
             .into_iter()
@@ -132,8 +150,10 @@ impl MetadataTagCategoryProjection {
         let body = MetadataTagCategoryBodyProjection::from_category_state(
             category_id,
             collapsed,
-            context.accepts_drop(),
-            context.drop_hover,
+            context.drag_active,
+            context.drop_candidate(),
+            context.drop_target,
+            context.drop_target_active,
             tags,
         );
 
@@ -141,16 +161,22 @@ impl MetadataTagCategoryProjection {
             id: category_id,
             header_label: category_header_label(label, tag_count, locked),
             expanded: !collapsed,
-            accepts_drop: context.accepts_drop(),
-            drop_hover: context.drop_hover,
+            drag_active: context.drag_active,
+            drop_candidate: context.drop_candidate(),
+            drop_target: context.drop_target,
+            drop_target_active: context.drop_target_active,
             body,
         }
     }
 }
 
 impl MetadataTagCategoryProjectionContext<'_> {
-    fn accepts_drop(self) -> bool {
-        self.drag_active && !self.locked
+    fn drop_candidate(self) -> bool {
+        self.drag_active
+            && !self.locked
+            && self
+                .dragged_category_id
+                .is_some_and(|dragged_category_id| dragged_category_id != self.category_id)
     }
 
     fn project_tag(
@@ -168,7 +194,9 @@ impl MetadataTagCategoryProjectionContext<'_> {
             category_id: self.category_id,
             draggable: !self.locked,
             drag_active: self.drag_active,
-            drop_hover: self.drop_hover,
+            drop_candidate: self.drop_candidate(),
+            drop_target: self.drop_target,
+            drop_target_active: self.drop_target_active,
         }
     }
 }
@@ -177,8 +205,10 @@ impl MetadataTagCategoryBodyProjection {
     fn from_category_state(
         category_id: &'static str,
         collapsed: bool,
-        accepts_drop: bool,
-        drop_hover: bool,
+        drag_active: bool,
+        drop_candidate: bool,
+        drop_target: bool,
+        drop_target_active: bool,
         tags: Vec<MetadataTagProjection>,
     ) -> Self {
         if collapsed {
@@ -187,11 +217,31 @@ impl MetadataTagCategoryBodyProjection {
         if tags.is_empty() {
             return Self::Empty(MetadataTagEmptyCategoryProjection {
                 category_id,
-                accepts_drop,
-                drop_hover,
+                drag_active,
+                drop_candidate,
+                drop_target,
+                drop_target_active,
             });
         }
         Self::Tags(MetadataTagPillGroupProjection { category_id, tags })
+    }
+}
+
+impl MetadataTagCategoryProjection {
+    pub(super) fn drop_tracking_active(&self) -> bool {
+        self.drag_active && (self.drop_candidate || self.drop_target || self.drop_target_active)
+    }
+}
+
+impl MetadataTagEmptyCategoryProjection {
+    pub(super) fn drop_tracking_active(&self) -> bool {
+        self.drag_active && (self.drop_candidate || self.drop_target || self.drop_target_active)
+    }
+}
+
+impl MetadataTagProjection {
+    pub(super) fn drop_tracking_active(&self) -> bool {
+        self.drag_active && (self.drop_candidate || self.drop_target || self.drop_target_active)
     }
 }
 

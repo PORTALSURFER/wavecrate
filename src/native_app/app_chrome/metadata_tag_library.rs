@@ -40,7 +40,7 @@ fn panel_from_projection(projection: MetadataTagLibraryProjection) -> ui::View<G
 
 fn category_group(category: MetadataTagCategoryProjection) -> ui::View<GuiMessage> {
     let mut children = vec![category_header(&category)];
-    if category.drop_hover {
+    if category.drop_target {
         children.push(
             ui::row(Vec::<ui::View<GuiMessage>>::new())
                 .key(identity::category_drop_indicator_key(category.id))
@@ -76,7 +76,7 @@ fn category_tag_pills(group: MetadataTagPillGroupProjection) -> ui::View<GuiMess
 
 fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMessage> {
     let category_for_input = category.id.to_string();
-    let style = if category.drop_hover {
+    let style = if category.drop_target {
         ui::WidgetStyle::strong(ui::WidgetTone::Warning)
     } else {
         ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
@@ -93,15 +93,21 @@ fn category_header(category: &MetadataTagCategoryProjection) -> ui::View<GuiMess
     .fill_width()
     .height(22.0);
     ui::interactive_row_underlay(visual)
-        .tracked_drop_target(category.accepts_drop, category.drop_hover)
+        .tracked_drop_candidate(
+            category.drop_tracking_active(),
+            category.drop_target,
+            category.drop_candidate,
+            category.drop_target_active,
+        )
         .style(style)
         .input_key(identity::category_input_key(category.id))
         .actions(
             ui::row_actions()
-                .drop_target_key(
+                .tracked_drop_candidate_key(
                     category_for_input.clone(),
                     drop_metadata_tag_on_category,
                     hover_metadata_tag_drop_category,
+                    clear_metadata_tag_drop_category_unless,
                 )
                 .primary_key(category_for_input, toggle_metadata_tag_category),
         )
@@ -125,6 +131,10 @@ fn hover_metadata_tag_drop_category(category_id: String, _: ui::Point) -> GuiMes
     GuiMessage::Metadata(MetadataMessage::HoverMetadataTagDropCategory { category_id })
 }
 
+fn clear_metadata_tag_drop_category_unless(category_id: String, _: ui::Point) -> GuiMessage {
+    GuiMessage::Metadata(MetadataMessage::ClearMetadataTagDropCategoryUnless { category_id })
+}
+
 fn toggle_metadata_tag(tag: String) -> GuiMessage {
     GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(tag))
 }
@@ -141,19 +151,26 @@ fn tag_row(tag: MetadataTagProjection) -> ui::View<GuiMessage> {
         .active(tag.active);
 
     if tag.draggable {
-        badge = badge
-            .tracked_drag_source_with_motion(tag.drag_active, tag.drag_source)
-            .tracked_drop_target(tag.drag_active, tag.drop_hover);
+        badge = badge.tracked_drag_source_with_motion(tag.drag_active, tag.drag_source);
+    }
+    if tag.drop_tracking_active() {
+        badge = badge.tracked_drop_candidate(
+            true,
+            tag.drop_target,
+            tag.drop_candidate,
+            tag.drop_target_active,
+        );
     }
     badge
         .actions(
             ui::row_actions()
                 .secondary_key(tag_for_input.clone(), open_metadata_tag_context_menu)
                 .drag_key(tag_for_input.clone(), drag_metadata_tag)
-                .drop_target_key(
+                .tracked_drop_candidate_key(
                     category_for_input,
                     drop_metadata_tag_on_category,
                     hover_metadata_tag_drop_category,
+                    clear_metadata_tag_drop_category_unless,
                 )
                 .double_key(tag_for_input.clone(), toggle_metadata_tag)
                 .primary_key(tag_for_input, toggle_metadata_tag),
@@ -167,12 +184,18 @@ fn empty_category_target(category: MetadataTagEmptyCategoryProjection) -> ui::Vi
     let category_for_input = category.category_id.to_string();
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
-        .tracked_drop_target(category.accepts_drop, category.drop_hover)
+        .tracked_drop_candidate(
+            category.drop_tracking_active(),
+            category.drop_target,
+            category.drop_candidate,
+            category.drop_target_active,
+        )
         .input_key(identity::empty_category_input_key(category.category_id))
-        .actions(ui::row_actions().drop_target_key(
+        .actions(ui::row_actions().tracked_drop_candidate_key(
             category_for_input,
             drop_metadata_tag_on_category,
             hover_metadata_tag_drop_category,
+            clear_metadata_tag_drop_category_unless,
         ))
         .fill_width()
         .height(20.0)
