@@ -1,30 +1,42 @@
+mod identity;
+mod projection;
+#[cfg(test)]
+mod tests;
+
 use crate::native_app::{
     app::{
-        FileMoveConflictResolution, FileMoveConflictResolutionRequest, GuiMessage, NativeAppState,
-        ShortcutHelpItem, ShortcutHelpSection, shortcut_help_sections,
+        FileMoveConflictResolution, FileMoveConflictResolutionRequest, GuiMessage,
+        ShortcutHelpItem, ShortcutHelpSection,
     },
-    transaction_history::{TRANSACTION_LIST_MODAL_ID, TransactionListItem, TransactionListState},
+    transaction_history::TransactionListState,
 };
 use radiant::prelude as ui;
+
+use self::projection::{
+    FileMoveConflictProjection, FolderDeleteConfirmationProjection, ShortcutHelpProjection,
+    TransactionListProjection, TransactionListRowProjection, WaveformDestructiveEditProjection,
+};
+use crate::native_app::app::NativeAppState;
 
 const SHORTCUT_HELP_MODAL_WIDTH: f32 = 860.0;
 const SHORTCUT_HELP_MODAL_HEIGHT: f32 = 640.0;
 const SHORTCUT_HELP_KEY_WIDTH: f32 = 190.0;
 
 pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let items = state.transactions.history.list_items();
-    let summary = transaction_list_summary(state);
-    let list = if items.is_empty() {
+    let projection = TransactionListProjection::from_state(state);
+    let summary = transaction_list_summary(&projection);
+    let list = if projection.rows.is_empty() {
         ui::column([
-            ui::text_line("No transactions registered", 24.0).fill_width(),
-            ui::text_line("Undoable actions will appear here.", 22.0).fill_width(),
+            ui::text_line(projection.empty_title, 24.0).fill_width(),
+            ui::text_line(projection.empty_detail, 22.0).fill_width(),
         ])
         .spacing(4.0)
         .fill_width()
     } else {
         ui::scroll(
             ui::column(
-                items
+                projection
+                    .rows
                     .into_iter()
                     .map(transaction_list_row)
                     .collect::<Vec<_>>(),
@@ -47,14 +59,15 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
         ui::Vector2::new(420.0, 300.0),
         GuiMessage::CloseTransactionList,
     )
-    .id(TRANSACTION_LIST_MODAL_ID)
+    .id(identity::TRANSACTION_LIST_MODAL_ID)
 }
 
 pub(in crate::native_app) fn shortcut_help(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let sections = shortcut_help_sections(state);
+    let projection = ShortcutHelpProjection::from_state(state);
     let body = ui::scroll(
         ui::column(
-            sections
+            projection
+                .sections
                 .into_iter()
                 .map(shortcut_help_section_view)
                 .collect::<Vec<_>>(),
@@ -65,12 +78,9 @@ pub(in crate::native_app) fn shortcut_help(state: &NativeAppState) -> ui::View<G
     .fill_width()
     .fill_height();
     let content = ui::column([
-        ui::text_line(
-            "Context-aware keyboard shortcuts. Press Esc or Command-/ to close.",
-            20.0,
-        )
-        .muted_text()
-        .fill_width(),
+        ui::text_line(projection.intro, 20.0)
+            .muted_text()
+            .fill_width(),
         body,
     ])
     .spacing(6.0)
@@ -84,31 +94,16 @@ pub(in crate::native_app) fn shortcut_help(state: &NativeAppState) -> ui::View<G
         ui::Vector2::new(SHORTCUT_HELP_MODAL_WIDTH, SHORTCUT_HELP_MODAL_HEIGHT),
         GuiMessage::CloseShortcutHelp,
     )
-    .key("shortcut-help-modal")
+    .key(identity::SHORTCUT_HELP_MODAL_KEY)
 }
 
 pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let conflict = state
-        .library
-        .folder_browser
-        .pending_file_move_conflict_view()
-        .expect("file move conflict modal requires pending conflict state");
-    let summary = format!(
-        "Conflict {} of {}",
-        conflict.current_number, conflict.total_count
-    );
-    let apply_to_remaining = state
-        .ui
-        .browser_interaction
-        .file_move_conflict_apply_to_remaining;
+    let projection = FileMoveConflictProjection::from_state(state);
+    let apply_to_remaining = projection.apply_to_remaining;
     let content = ui::column([
-        ui::text_line(summary, 22.0).fill_width(),
-        ui::text_line(conflict.file_name, 24.0).fill_width(),
-        ui::text_line(
-            format!("Destination: {}", conflict.destination_folder),
-            20.0,
-        )
-        .fill_width(),
+        ui::text_line(projection.summary, 22.0).fill_width(),
+        ui::text_line(projection.file_name, 24.0).fill_width(),
+        ui::text_line(projection.destination, 20.0).fill_width(),
         ui::row([
             ui::checkbox(apply_to_remaining)
                 .message(GuiMessage::SetFileMoveConflictApplyToRemaining)
@@ -159,26 +154,17 @@ pub(in crate::native_app) fn file_move_conflict(state: &NativeAppState) -> ui::V
         ui::Vector2::new(430.0, 210.0),
         GuiMessage::CancelFileMoveConflicts,
     )
-    .key("file-move-conflict-modal")
+    .key(identity::FILE_MOVE_CONFLICT_MODAL_KEY)
 }
 
 pub(in crate::native_app) fn folder_delete_confirmation(
     state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
-    let target = state
-        .ui
-        .browser_interaction
-        .pending_folder_delete
-        .as_ref()
-        .expect("folder delete modal requires pending folder delete state");
+    let projection = FolderDeleteConfirmationProjection::from_state(state);
     let content = ui::column([
-        ui::text_line(target.name.clone(), 24.0).fill_width(),
-        ui::text_line("Move folder contents to the configured trash folder?", 20.0).fill_width(),
-        ui::text_line(
-            "The folder tree will update after the move completes.",
-            20.0,
-        )
-        .fill_width(),
+        ui::text_line(projection.name, 24.0).fill_width(),
+        ui::text_line(projection.question, 20.0).fill_width(),
+        ui::text_line(projection.detail, 20.0).fill_width(),
         ui::button_row([
             ui::button("Delete Folder")
                 .danger()
@@ -200,21 +186,16 @@ pub(in crate::native_app) fn folder_delete_confirmation(
         ui::Vector2::new(440.0, 190.0),
         GuiMessage::CancelContextFolderDelete,
     )
-    .key("folder-delete-confirmation-modal")
+    .key(identity::FOLDER_DELETE_CONFIRMATION_MODAL_KEY)
 }
 
 pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
     state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
-    let pending = state
-        .ui
-        .browser_interaction
-        .pending_waveform_destructive_edit
-        .as_ref()
-        .expect("waveform destructive modal requires pending edit state");
+    let projection = WaveformDestructiveEditProjection::from_state(state);
     let content = ui::column([
-        ui::text_line(pending.prompt.title.clone(), 24.0).fill_width(),
-        ui::text_line(pending.prompt.message.clone(), 20.0).fill_width(),
+        ui::text_line(projection.title, 24.0).fill_width(),
+        ui::text_line(projection.message, 20.0).fill_width(),
         ui::button_row([
             ui::button("Apply Edit")
                 .danger()
@@ -236,27 +217,12 @@ pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
         ui::Vector2::new(500.0, 190.0),
         GuiMessage::CancelPendingWaveformDestructiveEdit,
     )
-    .key("waveform-destructive-edit-modal")
+    .key(identity::WAVEFORM_DESTRUCTIVE_EDIT_MODAL_KEY)
 }
 
-fn transaction_list_summary(state: &NativeAppState) -> ui::View<GuiMessage> {
-    let undo = if state.transactions.history.can_undo() {
-        "undo ready"
-    } else {
-        "no undo"
-    };
-    let redo = if state.transactions.history.can_redo() {
-        "redo ready"
-    } else {
-        "no redo"
-    };
-    let active = if state.transactions.history.is_transaction_open() {
-        "open transaction"
-    } else {
-        "closed"
-    };
-    ui::text_line(format!("{undo} | {redo} | {active}"), 20.0)
-        .key("transaction-list-summary")
+fn transaction_list_summary(projection: &TransactionListProjection) -> ui::View<GuiMessage> {
+    ui::text_line(projection.summary.clone(), 20.0)
+        .key(identity::TRANSACTION_LIST_SUMMARY_KEY)
         .fill_width()
 }
 
@@ -294,24 +260,15 @@ fn shortcut_help_row(item: ShortcutHelpItem) -> ui::View<GuiMessage> {
     .height(22.0)
 }
 
-fn transaction_list_row(item: TransactionListItem) -> ui::View<GuiMessage> {
-    let action_label = match item.action_count {
-        1 => String::from("1 action"),
-        count => format!("{count} actions"),
-    };
-    let action_summary = if item.action_labels.is_empty() {
-        action_label
-    } else {
-        format!("{}: {}", action_label, item.action_labels.join(", "))
-    };
+fn transaction_list_row(row: TransactionListRowProjection) -> ui::View<GuiMessage> {
     ui::row([
-        ui::passive_badge(item.state.label().to_string())
-            .style(transaction_list_state_style(item.state))
+        ui::passive_badge(row.state.label().to_string())
+            .style(transaction_list_state_style(row.state))
             .size(58.0, 20.0),
-        ui::text_line(item.label, 22.0).fill_width(),
-        ui::text_line(action_summary, 22.0).width(150.0),
+        ui::text_line(row.label, 22.0).fill_width(),
+        ui::text_line(row.action_summary, 22.0).width(150.0),
     ])
-    .key(format!("transaction-list-row-{}", item.id))
+    .key(identity::transaction_list_row_key(row.id))
     .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
     .padding_x(6.0)
     .spacing(6.0)
