@@ -4,6 +4,7 @@ use std::path::Path;
 
 use super::super::{
     FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, SimilarityBrowserState,
+    playback_type_filter,
 };
 
 impl FolderBrowserState {
@@ -21,11 +22,27 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn sort_files(&self, files: &mut Vec<&FileEntry>) {
+        self.sort_files_with_tag_metadata(files, None);
+    }
+
+    pub(in crate::native_app) fn sort_files_matching_tags(
+        &self,
+        files: &mut Vec<&FileEntry>,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) {
+        self.sort_files_with_tag_metadata(files, Some(tags_by_file));
+    }
+
+    fn sort_files_with_tag_metadata(
+        &self,
+        files: &mut Vec<&FileEntry>,
+        tags_by_file: Option<&HashMap<String, Vec<String>>>,
+    ) {
         let kind = sort_kind_for_details_sort(&self.sample_list.file_sort);
         if kind == FileColumnKind::Similarity {
             self.sort_files_by_similarity(files);
         } else {
-            sort_file_refs_by_column_kind(kind, files);
+            sort_file_refs_by_column_kind(kind, files, tags_by_file);
         }
         if self.sample_list.file_sort.direction == ui::SortDirection::Descending {
             files.reverse();
@@ -53,6 +70,7 @@ pub(in crate::native_app) fn sort_file_indices_by_column_kind(
     kind: FileColumnKind,
     folder: &FolderEntry,
     indices: &mut [usize],
+    tags_by_file: Option<&HashMap<String, Vec<String>>>,
 ) {
     match kind {
         FileColumnKind::Extension => indices.sort_by_cached_key(|index| {
@@ -75,9 +93,13 @@ pub(in crate::native_app) fn sort_file_indices_by_column_kind(
             let file = &folder.files[*index];
             (file.rating.val(), file.name_sort_key())
         }),
-        FileColumnKind::PlaybackType => {
-            indices.sort_by_cached_key(|index| folder.files[*index].name_sort_key());
-        }
+        FileColumnKind::PlaybackType => indices.sort_by_cached_key(|index| {
+            let file = &folder.files[*index];
+            (
+                playback_type_filter::playback_type_sort_rank(file, tags_by_file),
+                file.name_sort_key(),
+            )
+        }),
         FileColumnKind::Collection => indices.sort_by_cached_key(|index| {
             let file = &folder.files[*index];
             (
@@ -102,7 +124,11 @@ pub(in crate::native_app) fn sort_kind_for_details_sort(sort: &ui::DetailsSort) 
     FileColumnKind::from_id(sort.column_id.as_str()).unwrap_or(FileColumnKind::Name)
 }
 
-fn sort_file_refs_by_column_kind(kind: FileColumnKind, files: &mut [&FileEntry]) {
+fn sort_file_refs_by_column_kind(
+    kind: FileColumnKind,
+    files: &mut [&FileEntry],
+    tags_by_file: Option<&HashMap<String, Vec<String>>>,
+) {
     match kind {
         FileColumnKind::Extension => {
             files.sort_by_cached_key(|file| {
@@ -121,7 +147,12 @@ fn sort_file_refs_by_column_kind(kind: FileColumnKind, files: &mut [&FileEntry])
         FileColumnKind::Rating => {
             files.sort_by_cached_key(|file| (file.rating.val(), file.name_sort_key()))
         }
-        FileColumnKind::PlaybackType => files.sort_by_cached_key(|file| file.name_sort_key()),
+        FileColumnKind::PlaybackType => files.sort_by_cached_key(|file| {
+            (
+                playback_type_filter::playback_type_sort_rank(file, tags_by_file),
+                file.name_sort_key(),
+            )
+        }),
         FileColumnKind::Collection => files.sort_by_cached_key(|file| {
             (
                 file.first_collection().map(|collection| collection.index()),
@@ -186,6 +217,7 @@ fn base_order_for(id: &str, base_order: &HashMap<&str, usize>) -> usize {
 pub(super) fn sort_file_refs_by_column_kind_for_tests(
     kind: FileColumnKind,
     files: &mut [&FileEntry],
+    tags_by_file: Option<&HashMap<String, Vec<String>>>,
 ) {
-    sort_file_refs_by_column_kind(kind, files);
+    sort_file_refs_by_column_kind(kind, files, tags_by_file);
 }

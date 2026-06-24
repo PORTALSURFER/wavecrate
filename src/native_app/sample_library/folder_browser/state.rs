@@ -379,6 +379,10 @@ impl FolderBrowserState {
     pub(super) fn bump_file_content_revision(&mut self) {
         self.sample_list.bump_content_revision();
     }
+
+    pub(in crate::native_app) fn invalidate_visible_sample_projection_cache(&mut self) {
+        self.sample_list.projection_cache.clear();
+    }
 }
 
 fn selected_source_index(sources: &[SourceEntry], selected_source: &str) -> usize {

@@ -279,6 +279,7 @@ pub(super) struct VisibleSampleProjectionRequest<'a> {
     sort: &'a ui::DetailsSort,
     similarity_anchor_id: Option<&'a str>,
     content_revision: u64,
+    playback_type_tag_sort: bool,
 }
 
 impl<'a> VisibleSampleProjectionRequest<'a> {
@@ -297,7 +298,13 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
             sort,
             similarity_anchor_id,
             content_revision,
+            playback_type_tag_sort: false,
         }
+    }
+
+    pub(super) fn with_playback_type_tag_sort(mut self, enabled: bool) -> Self {
+        self.playback_type_tag_sort = enabled;
+        self
     }
 
     fn key(&self) -> VisibleSampleProjectionKey {
@@ -309,6 +316,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
             self.sort.direction == ui::SortDirection::Descending,
             self.similarity_anchor_id.map(str::to_owned),
             self.content_revision,
+            self.playback_type_tag_sort,
         )
     }
 }
@@ -322,6 +330,7 @@ struct VisibleSampleProjectionKey {
     sort_descending: bool,
     similarity_anchor_id: Option<String>,
     content_revision: u64,
+    playback_type_tag_sort: bool,
 }
 
 impl VisibleSampleProjectionKey {
@@ -333,6 +342,7 @@ impl VisibleSampleProjectionKey {
         sort_descending: bool,
         similarity_anchor_id: Option<String>,
         content_revision: u64,
+        playback_type_tag_sort: bool,
     ) -> Self {
         Self {
             folder_id,
@@ -342,6 +352,7 @@ impl VisibleSampleProjectionKey {
             sort_descending,
             similarity_anchor_id,
             content_revision,
+            playback_type_tag_sort,
         }
     }
 }
@@ -355,6 +366,7 @@ impl Hash for VisibleSampleProjectionKey {
         self.sort_descending.hash(state);
         self.similarity_anchor_id.hash(state);
         self.content_revision.hash(state);
+        self.playback_type_tag_sort.hash(state);
     }
 }
 
@@ -549,6 +561,12 @@ mod tests {
             VisibleSampleProjectionRequest::new("folder", "kick", "-1,2", &ascending, None, 4)
                 .key(),
             VisibleSampleProjectionRequest::new("folder", "kick", "2", &ascending, None, 4).key()
+        );
+        assert_ne!(
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, None, 4).key(),
+            VisibleSampleProjectionRequest::new("folder", "kick", "", &ascending, None, 4)
+                .with_playback_type_tag_sort(true)
+                .key()
         );
     }
 

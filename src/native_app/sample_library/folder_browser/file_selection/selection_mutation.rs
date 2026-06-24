@@ -14,6 +14,7 @@ impl FolderBrowserState {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn select_file_with_modifiers(
         &mut self,
         id: String,
@@ -28,8 +29,33 @@ impl FolderBrowserState {
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
 
+    pub(in crate::native_app) fn select_file_with_modifiers_matching_tags(
+        &mut self,
+        id: String,
+        modifiers: PointerModifiers,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) {
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        if self.rename_active() || !file_ids.contains(&id) {
+            return;
+        }
+        self.cancel_rename();
+        self.selection
+            .select_file_with_modifiers(id, &file_ids, modifiers);
+    }
+
     pub(in crate::native_app) fn focus_file_preserving_selection(&mut self, id: String) {
         let file_ids = self.selected_audio_file_ids();
+        self.selection
+            .focus_file_preserving_selection(id, &file_ids);
+    }
+
+    pub(in crate::native_app) fn focus_file_preserving_selection_matching_tags(
+        &mut self,
+        id: String,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) {
+        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         self.selection
             .focus_file_preserving_selection(id, &file_ids);
     }

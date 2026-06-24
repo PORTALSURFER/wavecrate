@@ -13,11 +13,13 @@ use crate::native_app::sample_library::folder_browser::{
 };
 
 impl FolderBrowserState {
-    pub(super) fn selected_folder_recursive_audio_files<'a>(
+    pub(super) fn selected_folder_recursive_audio_files_with_sort_tags<'a>(
         &self,
         folder: &'a FolderEntry,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Vec<&'a FileEntry> {
-        let ids = self.selected_folder_recursive_audio_file_ids_ref(folder);
+        let ids =
+            self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags(folder, sort_tags);
         recursive_audio_files_for_ordered_ids(folder, ids.as_slice())
     }
 
@@ -29,7 +31,10 @@ impl FolderBrowserState {
     ) -> VisibleSampleWindowFiles<'a> {
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let playback_type_filters = &self.filters.playback_type_filter;
-        let ids = self.selected_folder_recursive_audio_file_ids_ref(folder);
+        let ids = self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags(
+            folder,
+            Some(tags_by_file),
+        );
         if required_tags.is_empty() && playback_type_filters.is_empty() {
             let total_count = ids.len();
             let window_start = window.window_start.min(total_count);
@@ -75,7 +80,10 @@ impl FolderBrowserState {
     ) -> Option<usize> {
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let playback_type_filters = &self.filters.playback_type_filter;
-        let ids = self.selected_folder_recursive_audio_file_ids_ref(folder);
+        let ids = self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags(
+            folder,
+            Some(tags_by_file),
+        );
         if required_tags.is_empty() && playback_type_filters.is_empty() {
             return ids.iter().position(|id| id == selected);
         }
@@ -98,6 +106,14 @@ impl FolderBrowserState {
         &self,
         folder: &FolderEntry,
     ) -> Ref<'_, Vec<String>> {
+        self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags(folder, None)
+    }
+
+    pub(super) fn selected_folder_recursive_audio_file_ids_ref_with_sort_tags(
+        &self,
+        folder: &FolderEntry,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Ref<'_, Vec<String>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let request = VisibleSampleProjectionRequest::new(
@@ -107,7 +123,8 @@ impl FolderBrowserState {
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
-        );
+        )
+        .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list.projection_cache.audio_ids(request, || {
             let mut files = Vec::new();
             traversal::collect_audio_files(folder, &mut files);
@@ -115,7 +132,11 @@ impl FolderBrowserState {
             files.retain(|file| {
                 rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
             });
-            self.sort_files(&mut files);
+            if let Some(tags_by_file) = sort_tags {
+                self.sort_files_matching_tags(&mut files, tags_by_file);
+            } else {
+                self.sort_files(&mut files);
+            }
             files.into_iter().map(|file| file.id.clone()).collect()
         })
     }

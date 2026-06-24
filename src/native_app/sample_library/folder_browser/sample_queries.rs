@@ -1,7 +1,9 @@
 use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
 use super::{
-    FileEntry, FolderBrowserState, FolderEntry, playback_type_filter, rating_filter,
+    FileColumnKind, FileEntry, FolderBrowserState, FolderEntry,
+    file_columns::sort_kind_for_details_sort,
+    playback_type_filter, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
 
@@ -21,17 +23,24 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn selected_audio_files(&self) -> Vec<&FileEntry> {
+        self.selected_audio_files_with_sort_tags(None)
+    }
+
+    fn selected_audio_files_with_sort_tags(
+        &self,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Vec<&FileEntry> {
         if let Some(collection) = self.selection.selected_collection {
-            return self.selected_collection_audio_files(collection);
+            return self.selected_collection_audio_files_with_sort_tags(collection, sort_tags);
         }
 
         let Some(folder) = self.selected_folder() else {
             return Vec::new();
         };
         if self.folder_subtree_listing_enabled() {
-            return self.selected_folder_recursive_audio_files(folder);
+            return self.selected_folder_recursive_audio_files_with_sort_tags(folder, sort_tags);
         }
-        self.selected_folder_audio_files(folder)
+        self.selected_folder_audio_files_with_sort_tags(folder, sort_tags)
     }
 
     pub(in crate::native_app) fn selected_cache_candidate_paths(
@@ -93,7 +102,7 @@ impl FolderBrowserState {
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<&FileEntry> {
-        let mut files = self.selected_audio_files();
+        let mut files = self.selected_audio_files_with_sort_tags(Some(tags_by_file));
         filters::filter_audio_files_by_tags(&mut files, tags_by_file, &self.filters.tag_filter);
         files.retain(|file| {
             playback_type_filter::playback_type_filter_matches(
@@ -203,7 +212,8 @@ impl FolderBrowserState {
 
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let playback_type_filter = &self.filters.playback_type_filter;
-        let indices = self.selected_folder_audio_file_indices_ref(folder);
+        let indices =
+            self.selected_folder_audio_file_indices_ref_with_sort_tags(folder, Some(tags_by_file));
         if required_tags.is_empty() && playback_type_filter.is_empty() {
             let total_count = indices.len();
             return VisibleSampleWindowFiles {
@@ -285,7 +295,7 @@ impl FolderBrowserState {
                     && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
             })
             .collect::<Vec<_>>();
-        self.sort_files(&mut files);
+        self.sort_files_matching_tags(&mut files, tags_by_file);
         files
     }
 
@@ -299,7 +309,10 @@ impl FolderBrowserState {
         if let Some(collection) = self.selection.selected_collection {
             if required_tags.is_empty() && playback_type_filter.is_empty() {
                 return self
-                    .selected_collection_audio_file_ids_ref(collection)
+                    .selected_collection_audio_file_ids_ref_with_sort_tags(
+                        collection,
+                        Some(tags_by_file),
+                    )
                     .iter()
                     .position(|id| id == selected);
             }
@@ -318,7 +331,7 @@ impl FolderBrowserState {
             });
         }
         let folder = self.selected_folder()?;
-        self.selected_folder_audio_file_indices_ref(folder)
+        self.selected_folder_audio_file_indices_ref_with_sort_tags(folder, Some(tags_by_file))
             .iter()
             .filter_map(|file_index| folder.files.get(*file_index))
             .filter(|file| {
@@ -386,14 +399,26 @@ impl FolderBrowserState {
             .and_then(|source| source.root_folder.as_ref())
     }
 
-    fn selected_folder_audio_files<'a>(&self, folder: &'a FolderEntry) -> Vec<&'a FileEntry> {
-        self.selected_folder_audio_file_indices_ref(folder)
+    fn selected_folder_audio_files_with_sort_tags<'a>(
+        &self,
+        folder: &'a FolderEntry,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Vec<&'a FileEntry> {
+        self.selected_folder_audio_file_indices_ref_with_sort_tags(folder, sort_tags)
             .iter()
             .filter_map(|index| folder.files.get(*index))
             .collect()
     }
 
     fn selected_folder_audio_file_indices_ref(&self, folder: &FolderEntry) -> Ref<'_, Vec<usize>> {
+        self.selected_folder_audio_file_indices_ref_with_sort_tags(folder, None)
+    }
+
+    pub(super) fn selected_folder_audio_file_indices_ref_with_sort_tags(
+        &self,
+        folder: &FolderEntry,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Ref<'_, Vec<usize>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let request = VisibleSampleProjectionRequest::new(
@@ -403,7 +428,8 @@ impl FolderBrowserState {
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
-        );
+        )
+        .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list
             .projection_cache
             .audio_indices(request, || {
@@ -421,10 +447,28 @@ impl FolderBrowserState {
                     })
                     .map(|(index, _)| index)
                     .collect::<Vec<_>>();
-                ordering::sort_file_indices(self, folder, &mut indices);
+                if let Some(tags_by_file) = sort_tags {
+                    ordering::sort_file_indices_matching_tags(
+                        self,
+                        folder,
+                        &mut indices,
+                        tags_by_file,
+                    );
+                } else {
+                    ordering::sort_file_indices(self, folder, &mut indices);
+                }
                 ordering::sort_file_indices_by_similarity(self, folder, &mut indices);
                 indices
             })
+    }
+
+    pub(super) fn playback_type_tag_sort_enabled(
+        &self,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> bool {
+        sort_tags.is_some()
+            && sort_kind_for_details_sort(&self.sample_list.file_sort)
+                == FileColumnKind::PlaybackType
     }
 
     pub(super) fn prewarm_selected_source_audio_projection_cache(&self) {

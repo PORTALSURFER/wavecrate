@@ -68,6 +68,9 @@ impl NativeAppState {
         self.metadata
             .tags_by_file
             .insert(file_id.clone(), file_tags);
+        self.library
+            .folder_browser
+            .invalidate_visible_sample_projection_cache();
         self.reconcile_playback_mode_after_metadata_tag_change(file_id.as_str());
 
         let mut requests = Vec::new();

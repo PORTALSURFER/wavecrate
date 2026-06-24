@@ -39,6 +39,75 @@ fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
 }
 
 #[test]
+fn playback_type_column_sorts_visible_rows_by_tagged_mode() {
+    let root = temp_source_root("wavecrate-gui-playback-type-sort");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let alpha_shot = drums.join("alpha-shot.wav");
+    let bravo_loop = drums.join("bravo-loop.wav");
+    let charlie_shot = drums.join("charlie-shot.wav");
+    for file in [&alpha_shot, &bravo_loop, &charlie_shot] {
+        fs::write(file, []).expect("write sample");
+    }
+    let tags_by_file = std::collections::HashMap::from([
+        (path_id(&alpha_shot), vec![String::from("one-shot")]),
+        (path_id(&bravo_loop), vec![String::from("loop")]),
+        (path_id(&charlie_shot), vec![String::from("oneshot")]),
+    ]);
+    let cached_sample_paths = Default::default();
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_message(FolderBrowserMessage::SortFileColumn(String::from(
+        "playback_type",
+    )));
+    browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+        offset_y: 0.0,
+        row_height: 22.0,
+        window: radiant::prelude::VirtualListWindow {
+            total_items: 3,
+            viewport_start: 0,
+            viewport_end: 3,
+            window_start: 0,
+            window_end: 3,
+        },
+    });
+
+    assert_eq!(
+        browser
+            .visible_samples(VisibleSampleQuery {
+                tags_by_file: &tags_by_file,
+                cached_sample_paths: &cached_sample_paths,
+            })
+            .rows
+            .iter()
+            .map(|row| row.file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["bravo-loop.wav", "alpha-shot.wav", "charlie-shot.wav"]
+    );
+
+    browser.select_file(path_id(&bravo_loop));
+    assert_eq!(
+        browser.navigate_vertical_matching_tags(1, false, false, &tags_by_file),
+        Some(path_id(&alpha_shot))
+    );
+
+    browser.select_file(path_id(&bravo_loop));
+    browser.select_file_with_modifiers_matching_tags(
+        path_id(&charlie_shot),
+        PointerModifiers {
+            shift: true,
+            ..Default::default()
+        },
+        &tags_by_file,
+    );
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![alpha_shot.clone(), bravo_loop.clone(), charlie_shot.clone()]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn history_column_label_reflects_last_played_behavior() {
     let browser = FolderBrowserState::load_default();
 

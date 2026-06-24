@@ -10,10 +10,29 @@ pub(super) fn sort_file_indices(
     folder: &FolderEntry,
     indices: &mut [usize],
 ) {
+    sort_file_indices_with_tag_metadata(state, folder, indices, None);
+}
+
+pub(super) fn sort_file_indices_matching_tags(
+    state: &FolderBrowserState,
+    folder: &FolderEntry,
+    indices: &mut [usize],
+    tags_by_file: &HashMap<String, Vec<String>>,
+) {
+    sort_file_indices_with_tag_metadata(state, folder, indices, Some(tags_by_file));
+}
+
+fn sort_file_indices_with_tag_metadata(
+    state: &FolderBrowserState,
+    folder: &FolderEntry,
+    indices: &mut [usize],
+    tags_by_file: Option<&HashMap<String, Vec<String>>>,
+) {
     sort_file_indices_by_column_kind(
         sort_kind_for_details_sort(&state.sample_list.file_sort),
         folder,
         indices,
+        tags_by_file,
     );
     if state.sample_list.file_sort.direction == ui::SortDirection::Descending {
         indices.reverse();

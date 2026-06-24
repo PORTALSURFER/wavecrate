@@ -1,4 +1,5 @@
 use radiant::prelude as ui;
+use std::collections::HashMap;
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
 use super::super::{FileColumnKind, FileEntry};
@@ -85,11 +86,81 @@ fn sort_names_by(kind: FileColumnKind) -> Vec<String> {
         .build(),
     ];
     let mut file_refs = files.iter().collect::<Vec<_>>();
-    sort_file_refs_by_column_kind_for_tests(kind, &mut file_refs);
+    sort_file_refs_by_column_kind_for_tests(kind, &mut file_refs, None);
     file_refs
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>()
+}
+
+#[test]
+fn playback_type_sort_groups_by_tags_before_name() {
+    let files = [
+        TestFileEntry {
+            stem: "alpha-shot",
+            id_prefix: "C:/samples",
+            extension: "wav",
+            size_bytes: 20,
+            modified_rank: 3,
+            kind: "Audio",
+            rating: Rating::NEUTRAL,
+            collection: None,
+        }
+        .build(),
+        TestFileEntry {
+            stem: "bravo-loop",
+            id_prefix: "C:/samples",
+            extension: "wav",
+            size_bytes: 10,
+            modified_rank: 2,
+            kind: "Audio",
+            rating: Rating::NEUTRAL,
+            collection: None,
+        }
+        .build(),
+        TestFileEntry {
+            stem: "charlie-shot",
+            id_prefix: "C:/samples",
+            extension: "wav",
+            size_bytes: 30,
+            modified_rank: 1,
+            kind: "Audio",
+            rating: Rating::NEUTRAL,
+            collection: None,
+        }
+        .build(),
+        TestFileEntry {
+            stem: "delta-unknown",
+            id_prefix: "C:/samples",
+            extension: "wav",
+            size_bytes: 40,
+            modified_rank: 4,
+            kind: "Audio",
+            rating: Rating::NEUTRAL,
+            collection: None,
+        }
+        .build(),
+    ];
+    let tags_by_file = HashMap::from([
+        (files[0].id.clone(), vec![String::from("one-shot")]),
+        (files[1].id.clone(), vec![String::from("loop")]),
+        (files[2].id.clone(), vec![String::from("oneshot")]),
+    ]);
+    let mut file_refs = files.iter().collect::<Vec<_>>();
+
+    sort_file_refs_by_column_kind_for_tests(
+        FileColumnKind::PlaybackType,
+        &mut file_refs,
+        Some(&tags_by_file),
+    );
+
+    assert_eq!(
+        file_refs
+            .into_iter()
+            .map(|file| file.stem.as_str())
+            .collect::<Vec<_>>(),
+        vec!["bravo-loop", "alpha-shot", "charlie-shot", "delta-unknown"]
+    );
 }
 
 #[test]

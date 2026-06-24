@@ -44,14 +44,21 @@ impl NativeAppState {
         let Some(root) = self.library.folder_browser.source_root_path(source_id) else {
             return;
         };
-        if let Err(error) =
-            load_persisted_metadata_tags_for_source(&root, &mut self.metadata.tags_by_file)
-        {
-            self.ui.status.sample = format!("Tags not loaded: {error}");
+        match load_persisted_metadata_tags_for_source(&root, &mut self.metadata.tags_by_file) {
+            Ok(()) => self
+                .library
+                .folder_browser
+                .invalidate_visible_sample_projection_cache(),
+            Err(error) => {
+                self.ui.status.sample = format!("Tags not loaded: {error}");
+            }
         }
     }
 
     pub(super) fn retain_visible_file_selection_after_metadata_tag_change(&mut self) {
+        self.library
+            .folder_browser
+            .invalidate_visible_sample_projection_cache();
         self.library
             .folder_browser
             .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);

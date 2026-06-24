@@ -10,6 +10,13 @@ pub(in crate::native_app) enum PlaybackTypeFilter {
     Loop,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum PlaybackTypeSortRank {
+    Loop,
+    OneShot,
+    Unknown,
+}
+
 pub(in crate::native_app) const PLAYBACK_TYPE_FILTERS: [PlaybackTypeFilter; 2] =
     [PlaybackTypeFilter::OneShot, PlaybackTypeFilter::Loop];
 
@@ -40,6 +47,22 @@ pub(super) fn playback_type_filter_matches_tags(
     tagged_playback_mode_for_tags(tags)
         .map(PlaybackTypeFilter::from)
         .is_some_and(|filter| filters.contains(&filter))
+}
+
+pub(super) fn playback_type_sort_rank(
+    file: &FileEntry,
+    tags_by_file: Option<&HashMap<String, Vec<String>>>,
+) -> PlaybackTypeSortRank {
+    let tags = tags_by_file.and_then(|tags_by_file| tags_by_file.get(&file.id).map(Vec::as_slice));
+    playback_type_sort_rank_for_tags(tags)
+}
+
+fn playback_type_sort_rank_for_tags(tags: Option<&[String]>) -> PlaybackTypeSortRank {
+    match tagged_playback_mode_for_tags(tags) {
+        Some(TaggedPlaybackMode::Loop) => PlaybackTypeSortRank::Loop,
+        Some(TaggedPlaybackMode::OneShot) => PlaybackTypeSortRank::OneShot,
+        None => PlaybackTypeSortRank::Unknown,
+    }
 }
 
 impl From<TaggedPlaybackMode> for PlaybackTypeFilter {
@@ -78,5 +101,17 @@ mod tests {
     #[test]
     fn empty_playback_type_filter_matches_everything() {
         assert!(playback_type_filter_matches_tags(None, &BTreeSet::new()));
+    }
+
+    #[test]
+    fn playback_type_sort_rank_groups_known_modes_before_unknown() {
+        assert!(
+            playback_type_sort_rank_for_tags(Some(&[String::from("loop")]))
+                < playback_type_sort_rank_for_tags(Some(&[String::from("one-shot")]))
+        );
+        assert!(
+            playback_type_sort_rank_for_tags(Some(&[String::from("one-shot")]))
+                < playback_type_sort_rank_for_tags(None)
+        );
     }
 }

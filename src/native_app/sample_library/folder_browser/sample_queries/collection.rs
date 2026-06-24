@@ -15,11 +15,12 @@ use crate::native_app::sample_library::folder_browser::{
 };
 
 impl FolderBrowserState {
-    pub(super) fn selected_collection_audio_files(
+    pub(super) fn selected_collection_audio_files_with_sort_tags(
         &self,
         collection: SampleCollection,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Vec<&FileEntry> {
-        let ids = self.selected_collection_audio_file_ids_ref(collection);
+        let ids = self.selected_collection_audio_file_ids_ref_with_sort_tags(collection, sort_tags);
         self.collection_audio_files_for_ordered_ids(ids.as_slice())
     }
 
@@ -31,7 +32,8 @@ impl FolderBrowserState {
     ) -> VisibleSampleWindowFiles<'_> {
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let playback_type_filters = &self.filters.playback_type_filter;
-        let ids = self.selected_collection_audio_file_ids_ref(collection);
+        let ids = self
+            .selected_collection_audio_file_ids_ref_with_sort_tags(collection, Some(tags_by_file));
         if required_tags.is_empty() && playback_type_filters.is_empty() {
             let total_count = ids.len();
             let window_start = window.window_start.min(total_count);
@@ -72,6 +74,14 @@ impl FolderBrowserState {
         &self,
         collection: SampleCollection,
     ) -> Ref<'_, Vec<String>> {
+        self.selected_collection_audio_file_ids_ref_with_sort_tags(collection, None)
+    }
+
+    pub(super) fn selected_collection_audio_file_ids_ref_with_sort_tags(
+        &self,
+        collection: SampleCollection,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Ref<'_, Vec<String>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let collection_key = format!("collection:{}", collection.index());
@@ -82,7 +92,8 @@ impl FolderBrowserState {
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
-        );
+        )
+        .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list.projection_cache.audio_ids(request, || {
             let mut files = Vec::new();
             for folder in self.loaded_source_root_folders() {
@@ -96,7 +107,11 @@ impl FolderBrowserState {
             );
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             filter_audio_files_by_rating(&mut files, &self.filters.rating_filter);
-            self.sort_files(&mut files);
+            if let Some(tags_by_file) = sort_tags {
+                self.sort_files_matching_tags(&mut files, tags_by_file);
+            } else {
+                self.sort_files(&mut files);
+            }
             files.into_iter().map(|file| file.id.clone()).collect()
         })
     }

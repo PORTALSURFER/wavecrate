@@ -56,7 +56,10 @@ impl NativeAppState {
             .map(str::to_owned);
         self.library
             .folder_browser
-            .focus_file_preserving_selection(path.clone());
+            .focus_file_preserving_selection_matching_tags(
+                path.clone(),
+                &self.metadata.tags_by_file,
+            );
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
@@ -84,7 +87,11 @@ impl NativeAppState {
             .map(str::to_owned);
         self.library
             .folder_browser
-            .select_file_with_modifiers(path.clone(), modifiers);
+            .select_file_with_modifiers_matching_tags(
+                path.clone(),
+                modifiers,
+                &self.metadata.tags_by_file,
+            );
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;

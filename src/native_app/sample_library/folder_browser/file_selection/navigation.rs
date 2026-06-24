@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::super::FolderBrowserState;
+use super::super::{FileColumnKind, FolderBrowserState, file_columns::sort_kind_for_details_sort};
 
 impl FolderBrowserState {
     #[cfg(test)]
@@ -173,7 +173,12 @@ impl FolderBrowserState {
     }
 
     fn navigate_selected_file_fast(&mut self, delta: i32, extend: bool) -> Option<Option<String>> {
-        if extend || tag_filter_has_requirements(&self.filters.tag_filter) {
+        if extend
+            || tag_filter_has_requirements(&self.filters.tag_filter)
+            || !self.filters.playback_type_filter.is_empty()
+            || sort_kind_for_details_sort(&self.sample_list.file_sort)
+                == FileColumnKind::PlaybackType
+        {
             return None;
         }
 
