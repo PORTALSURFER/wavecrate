@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::native_app::sample_library::folder_browser::file_refresh::RefreshedFileEntry;
+use crate::native_app::sample_library::folder_browser::RefreshedFileEntry;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct NormalizationProgress {

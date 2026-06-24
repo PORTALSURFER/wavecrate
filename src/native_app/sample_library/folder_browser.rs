@@ -55,7 +55,11 @@ mod file_rename_workflow;
 mod file_model;
 use file_model::{FileEntry, plural};
 
-pub(in crate::native_app) mod file_refresh;
+/// Worker-prepared file refresh rows applied by folder-browser state updates.
+mod file_refresh;
+pub(in crate::native_app) use file_refresh::{
+    RefreshedFileEntry, refreshed_file_entries_for_paths,
+};
 mod filesystem_refresh;
 mod scanning;
 use scanning::{default_root_path, file_entry, load_source_snapshot, placeholder_folder};

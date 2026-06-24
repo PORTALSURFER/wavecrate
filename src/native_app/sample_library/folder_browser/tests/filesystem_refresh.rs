@@ -1,5 +1,7 @@
 use super::*;
-use crate::native_app::sample_library::folder_browser::scan::verify_direct_folder;
+use crate::native_app::sample_library::folder_browser::{
+    refreshed_file_entries_for_paths, scan::verify_direct_folder,
+};
 use wavecrate::sample_sources::{Rating, SourceDatabase};
 #[test]
 fn selected_folder_audio_projection_refreshes_after_file_update() {
@@ -103,11 +105,7 @@ fn selected_folder_refresh_applies_precomputed_file_entries_without_disk_reread(
     browser.activate_folder(path_id(&drums));
 
     fs::write(&kick, [1_u8; 16]).expect("write worker-visible kick");
-    let entries =
-        crate::native_app::sample_library::folder_browser::file_refresh::refreshed_file_entries_for_paths(
-            std::slice::from_ref(&kick),
-            &root,
-        );
+    let entries = refreshed_file_entries_for_paths(std::slice::from_ref(&kick), &root);
     fs::write(&kick, [2_u8; 32]).expect("write later kick");
 
     let source_id = browser.selected_source_id().to_string();

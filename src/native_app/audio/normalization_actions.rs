@@ -14,7 +14,7 @@ use crate::native_app::app::{
 use crate::native_app::sample_library::file_actions::{
     WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
 };
-use crate::native_app::sample_library::folder_browser::file_refresh::refreshed_file_entries_for_paths;
+use crate::native_app::sample_library::folder_browser::refreshed_file_entries_for_paths;
 
 use super::normalization_worker_pacing::NormalizationWorkerPacer;
 
