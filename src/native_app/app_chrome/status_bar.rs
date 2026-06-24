@@ -180,13 +180,11 @@ pub(in crate::native_app) fn job_details_popover(
     ])
     .spacing(5.0)
     .fill_width();
-    ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Job Details", content)
-                .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
-                .padding(8.0)
-                .spacing(5.0)
-                .title_height(22.0),
+    ui::closeable_dialog_layer_from_parts(
+        ui::DialogLayerParts::new(
+            "Job Details",
+            content,
+            ui::WidgetTone::Neutral,
             ui::Vector2::new(300.0, 132.0),
         )
         .horizontal(ui::LayerHorizontalAnchor::End)
