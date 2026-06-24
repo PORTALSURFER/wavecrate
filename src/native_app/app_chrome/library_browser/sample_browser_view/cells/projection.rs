@@ -8,8 +8,6 @@ use crate::native_app::sample_library::folder_browser::model::SimilarityAspectSt
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SampleCellProjection {
-    pub(super) file_id: String,
-    pub(super) column_id: String,
     pub(super) width: f32,
     pub(super) content: SampleCellContentProjection,
 }
@@ -49,10 +47,9 @@ pub(super) struct SimilarityAspectProjection {
     pub(super) enabled: bool,
 }
 
-pub(super) fn sample_cell_projection(column: SampleColumnDisplay<'_>) -> SampleCellProjection {
+/// Convert row projection data into a cell render projection.
+pub(super) fn sample_cell_projection(column: SampleColumnDisplay) -> SampleCellProjection {
     SampleCellProjection {
-        file_id: column.file_id.to_string(),
-        column_id: column.id.to_string(),
         width: column.width,
         content: match column.content {
             SampleColumnContent::Text(value) => SampleCellContentProjection::Text(value),
@@ -81,10 +78,9 @@ pub(super) fn sample_cell_projection(column: SampleColumnDisplay<'_>) -> SampleC
 
 impl SampleCellProjection {
     #[cfg(test)]
-    pub(super) fn playback_type(file_id: &str, width: f32, label: Option<&'static str>) -> Self {
+    /// Build a playback-type projection for focused cell rendering tests.
+    pub(super) fn playback_type(width: f32, label: Option<&'static str>) -> Self {
         Self {
-            file_id: file_id.to_string(),
-            column_id: "playback_type".to_string(),
             width,
             content: SampleCellContentProjection::PlaybackType(PlaybackTypeCellProjection::new(
                 label,
@@ -158,7 +154,7 @@ mod tests {
 
     #[test]
     fn playback_type_projection_marks_missing_label_as_muted_dash_intent() {
-        let projection = SampleCellProjection::playback_type("sample.wav", 76.0, None);
+        let projection = SampleCellProjection::playback_type(76.0, None);
 
         assert!(matches!(
             projection.content,

@@ -76,7 +76,7 @@ pub(super) fn sample_similarity_controls_bar(
         ui::toggle(projection.weighting_label, projection.weighting_enabled)
             .subtle()
             .message(GuiMessage::SetSimilarityAspectWeightingEnabled)
-            .id(identity::sample_similarity_weighting_toggle_id())
+            .id(identity::automation_similarity_weighting_toggle_id())
             .size(70.0, 20.0),
     );
     for aspect in projection.aspects {
@@ -93,7 +93,7 @@ fn random_navigation_button(projection: RandomNavigationButtonProjection) -> ui:
     ui::icon_button(random_navigation_icon(projection.active))
         .active(projection.active)
         .message(GuiMessage::ToggleRandomNavigationMode)
-        .id(identity::random_navigation_toggle_id())
+        .id(identity::automation_random_navigation_toggle_id())
         .size(28.0, 22.0)
 }
 
@@ -108,7 +108,6 @@ fn sample_name_view_mode_button(
         .message(GuiMessage::Metadata(
             MetadataMessage::ToggleSampleNameViewMode,
         ))
-        .key(identity::SAMPLE_NAME_VIEW_MODE_TOGGLE_KEY)
         .size(58.0, 22.0)
 }
 
@@ -151,7 +150,6 @@ fn sample_browser_header(
 
 fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
     ui::local_drop_marker(x, ui::Rgba8::new(255, 160, 82, 230), 2.0, 20.0)
-        .key(identity::SAMPLE_COLUMN_DROP_MARKER_KEY)
         .fill_width()
         .height(24.0)
         .padding_x(8.0)
@@ -181,7 +179,7 @@ fn sample_header_cell(
             ))
         },
     )
-    .id(identity::sample_header_cell_id(column.id.as_str()))
+    .id(identity::retained_sample_header_cell_id(column.id.as_str()))
 }
 
 fn sample_header_cells(
@@ -203,7 +201,6 @@ fn sample_similarity_header_cell(
     for aspect in &projection.aspects {
         let text = ui::text(aspect.label)
             .align_text(ui::TextAlign::Center)
-            .key(identity::sample_similarity_header_aspect_key(aspect.label))
             .height(20.0)
             .width(SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH);
         header_parts.push(if aspect.enabled {
@@ -215,7 +212,6 @@ fn sample_similarity_header_cell(
     header_parts.push(
         ui::text(projection.score_label)
             .muted_text()
-            .key(identity::SAMPLE_HEADER_SIMILARITY_LABEL_KEY)
             .height(20.0)
             .fill_width(),
     );
@@ -223,7 +219,6 @@ fn sample_similarity_header_cell(
         ui::row(header_parts).spacing(3.0).height(20.0).fill_width(),
         Some(SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH),
     )
-    .key(identity::SAMPLE_HEADER_SIMILARITY_KEY)
 }
 
 fn sample_similarity_aspect_control(
@@ -242,7 +237,7 @@ fn sample_similarity_aspect_control(
                 aspect: projection.aspect,
                 enabled,
             })
-            .id(identity::sample_similarity_aspect_toggle_id(
+            .id(identity::automation_similarity_aspect_toggle_id(
                 projection.aspect,
             ))
             .size(34.0, 20.0),
@@ -253,7 +248,7 @@ fn sample_similarity_aspect_control(
                 aspect: projection.aspect,
                 weight,
             })
-            .id(identity::sample_similarity_aspect_weight_id(
+            .id(identity::automation_similarity_aspect_weight_id(
                 projection.aspect,
             ))
             .size(62.0, 16.0),

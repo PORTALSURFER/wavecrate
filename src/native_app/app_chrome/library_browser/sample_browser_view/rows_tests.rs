@@ -53,12 +53,8 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
     file.rating = Rating::KEEP_3;
     file.rating_locked = true;
     let theme = ThemeTokens::default();
-    let frame = sample_rating_cell(
-        RatingIndicator::new(file.rating, file.rating_locked),
-        64.0,
-        file.id.as_str(),
-    )
-    .view_frame_at_size(Vector2::new(64.0, 20.0), &theme);
+    let frame = sample_rating_cell(RatingIndicator::new(file.rating, file.rating_locked), 64.0)
+        .view_frame_at_size(Vector2::new(64.0, 20.0), &theme);
 
     assert!(
         frame.paint_plan.text_runs().any(|run| run.text == "KEEP"),
@@ -70,8 +66,7 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
 /// Verifies available sample names use primary text color without cache-state styling.
 fn sample_text_uses_primary_theme_color() {
     let theme = ThemeTokens::default();
-    let file = file_entry();
-    let frame = sample_file_cell(String::from("kick_deep"), 120.0, file.id.as_str(), "name")
+    let frame = sample_file_cell(String::from("kick_deep"), 120.0)
         .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
 
     assert!(
@@ -116,7 +111,7 @@ fn collection_cell_paints_each_collection_membership_color() {
         .into_iter()
         .filter_map(|collection| folder_browser.collection_color(collection))
         .collect::<Vec<_>>();
-    let frame = sample_collection_cell(collection_colors, 64.0, file.id.as_str())
+    let frame = sample_collection_cell(collection_colors, 64.0)
         .view_frame_at_size(Vector2::new(64.0, 20.0), &theme);
 
     let colors = frame
@@ -147,8 +142,7 @@ fn collection_cell_paints_each_collection_membership_color() {
 /// Verifies playback-type cells paint compact type labels.
 fn playback_type_cell_paints_loop_label() {
     let theme = ThemeTokens::default();
-    let file = file_entry();
-    let frame = sample_playback_type_cell(Some("Loop"), 76.0, file.id.as_str())
+    let frame = sample_playback_type_cell(Some("Loop"), 76.0)
         .view_frame_at_size(Vector2::new(76.0, 20.0), &theme);
 
     assert!(
@@ -161,9 +155,8 @@ fn playback_type_cell_paints_loop_label() {
 /// Verifies unknown playback type stays visually quiet.
 fn missing_playback_type_cell_paints_muted_dash() {
     let theme = ThemeTokens::default();
-    let file = file_entry();
-    let frame = sample_playback_type_cell(None, 76.0, file.id.as_str())
-        .view_frame_at_size(Vector2::new(76.0, 20.0), &theme);
+    let frame =
+        sample_playback_type_cell(None, 76.0).view_frame_at_size(Vector2::new(76.0, 20.0), &theme);
 
     assert!(
         frame
@@ -178,7 +171,6 @@ fn missing_playback_type_cell_paints_muted_dash() {
 /// Verifies similarity scores render as compact progress bars.
 fn similarity_score_cell_paints_progress_fill() {
     let theme = ThemeTokens::default();
-    let file = file_entry();
     let mut aspects =
         crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
     aspects[wavecrate_analysis::aspects::SimilarityAspect::Spectrum.index()] = Some(0.8);
@@ -187,7 +179,6 @@ fn similarity_score_cell_paints_progress_fill() {
         aspects,
         [true; wavecrate_analysis::aspects::ASPECT_COUNT],
         190.0,
-        file.id.as_str(),
     )
     .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
 
@@ -210,13 +201,11 @@ fn similarity_score_cell_paints_progress_fill() {
 /// Verifies unavailable similarity scores are explicit instead of showing a zero bar.
 fn missing_similarity_score_cell_paints_na_label() {
     let theme = ThemeTokens::default();
-    let file = file_entry();
     let frame = sample_similarity_cell(
         None,
         crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS,
         [true; wavecrate_analysis::aspects::ASPECT_COUNT],
         190.0,
-        file.id.as_str(),
     )
     .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
 
@@ -233,14 +222,13 @@ fn missing_similarity_score_cell_paints_na_label() {
 /// Verifies disabled aspects use the explicit disabled track color instead of an active fill.
 fn disabled_similarity_aspect_paints_disabled_track() {
     let theme = ThemeTokens::default();
-    let file = file_entry();
     let mut aspects =
         crate::native_app::sample_library::folder_browser::model::EMPTY_SIMILARITY_ASPECT_STRENGTHS;
     aspects[wavecrate_analysis::aspects::SimilarityAspect::Pitch.index()] = Some(0.9);
     let mut enabled = [true; wavecrate_analysis::aspects::ASPECT_COUNT];
     enabled[wavecrate_analysis::aspects::SimilarityAspect::Pitch.index()] = false;
 
-    let frame = sample_similarity_cell(Some(0.65), aspects, enabled, 190.0, file.id.as_str())
+    let frame = sample_similarity_cell(Some(0.65), aspects, enabled, 190.0)
         .view_frame_at_size(Vector2::new(190.0, 20.0), &theme);
 
     assert!(

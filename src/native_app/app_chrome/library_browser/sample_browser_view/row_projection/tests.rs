@@ -44,7 +44,7 @@ fn column_display<'a>(
     row: &VisibleSampleRow<'_>,
     column: &'a FileColumn,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-) -> SampleColumnDisplay<'a> {
+) -> SampleColumnDisplay {
     sample_column_display(
         file,
         row,

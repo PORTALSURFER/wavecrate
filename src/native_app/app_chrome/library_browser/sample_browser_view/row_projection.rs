@@ -22,12 +22,11 @@ pub(super) struct SampleRowDisplay<'a> {
     pub(super) missing: bool,
     pub(super) similarity_anchor: bool,
     pub(super) similarity_strength: Option<f32>,
-    pub(super) columns: Vec<SampleColumnDisplay<'a>>,
+    pub(super) columns: Vec<SampleColumnDisplay>,
 }
 
-pub(super) struct SampleColumnDisplay<'a> {
-    pub(super) file_id: &'a str,
-    pub(super) id: &'a str,
+/// Product projection for one visible sample-browser cell.
+pub(super) struct SampleColumnDisplay {
     pub(super) width: f32,
     pub(super) content: SampleColumnContent,
 }
@@ -84,7 +83,7 @@ fn sample_column_displays<'a>(
     similarity_aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-) -> Vec<SampleColumnDisplay<'a>> {
+) -> Vec<SampleColumnDisplay> {
     let mut displays = Vec::with_capacity(columns.len() + 1);
     for column in columns {
         displays.push(sample_column_display(
@@ -95,24 +94,18 @@ fn sample_column_displays<'a>(
             metadata_tags_by_file,
         ));
         if column.kind() == FileColumnKind::Name && similarity_mode_active {
-            displays.push(similarity_column_display(
-                file,
-                row,
-                similarity_aspect_enabled,
-            ));
+            displays.push(similarity_column_display(row, similarity_aspect_enabled));
         }
     }
     displays
 }
 
-fn similarity_column_display<'a>(
-    file: &'a FileEntry,
+/// Build the synthetic similarity column displayed after the sample name.
+fn similarity_column_display(
     row: &VisibleSampleRow<'_>,
     aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
-) -> SampleColumnDisplay<'a> {
+) -> SampleColumnDisplay {
     SampleColumnDisplay {
-        file_id: file.id.as_str(),
-        id: "similarity",
         width: SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH,
         content: SampleColumnContent::Similarity {
             overall: row.similarity_strength,
@@ -128,7 +121,7 @@ fn sample_column_display<'a>(
     column: &'a FileColumn,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
-) -> SampleColumnDisplay<'a> {
+) -> SampleColumnDisplay {
     let content = match column.kind() {
         FileColumnKind::Name => row.rename.clone().map_or_else(
             || {
@@ -154,8 +147,6 @@ fn sample_column_display<'a>(
         kind => SampleColumnContent::Text(sample_file_column_value(file, kind)),
     };
     SampleColumnDisplay {
-        file_id: file.id.as_str(),
-        id: column.id.as_str(),
         width: column.width,
         content,
     }

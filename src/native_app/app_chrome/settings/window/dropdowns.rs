@@ -3,9 +3,8 @@ use radiant::prelude as ui;
 mod projection;
 
 use self::projection::{
-    AudioStringDropdownProjection, audio_host_dropdown_projection,
-    audio_output_dropdown_projection, audio_sample_rate_dropdown_projection,
-    open_audio_settings_dropdown_projection,
+    AudioDropdownProjection, audio_host_dropdown_projection, audio_output_dropdown_projection,
+    audio_sample_rate_dropdown_projection, open_audio_settings_dropdown_projection,
 };
 use super::{
     AUDIO_SETTINGS_DROPDOWN_GAP, AUDIO_SETTINGS_LABELED_ROW_HEIGHT, AUDIO_SETTINGS_PANEL_PADDING,
@@ -86,7 +85,7 @@ fn audio_settings_dropdown_cursor(
 fn audio_host_dropdown_options(
     snapshot: &AudioSettingsSnapshot,
 ) -> Vec<ui::DropdownOption<GuiMessage>> {
-    string_dropdown_options(audio_host_dropdown_projection(snapshot), |host| {
+    audio_dropdown_options(audio_host_dropdown_projection(snapshot), |host| {
         SettingsMessage::SetAudioOutputHost(host)
     })
 }
@@ -94,7 +93,7 @@ fn audio_host_dropdown_options(
 fn audio_output_dropdown_options(
     snapshot: &AudioSettingsSnapshot,
 ) -> Vec<ui::DropdownOption<GuiMessage>> {
-    string_dropdown_options(audio_output_dropdown_projection(snapshot), |device| {
+    audio_dropdown_options(audio_output_dropdown_projection(snapshot), |device| {
         SettingsMessage::SetAudioOutputDevice(device)
     })
 }
@@ -102,28 +101,20 @@ fn audio_output_dropdown_options(
 fn audio_sample_rate_dropdown_options(
     snapshot: &AudioSettingsSnapshot,
 ) -> Vec<ui::DropdownOption<GuiMessage>> {
-    let projection = audio_sample_rate_dropdown_projection(snapshot);
-    let selected = projection.selected_value;
-    projection
-        .options
-        .into_iter()
-        .map(|option| {
-            ui::DropdownOption::for_optional_value(
-                option.label,
-                option.value,
-                selected.as_ref(),
-                |sample_rate| {
-                    GuiMessage::Settings(SettingsMessage::SetAudioOutputSampleRate(sample_rate))
-                },
-            )
-        })
-        .collect()
+    audio_dropdown_options(
+        audio_sample_rate_dropdown_projection(snapshot),
+        |sample_rate| SettingsMessage::SetAudioOutputSampleRate(sample_rate),
+    )
 }
 
-fn string_dropdown_options(
-    projection: AudioStringDropdownProjection,
-    message: impl Fn(Option<String>) -> SettingsMessage,
-) -> Vec<ui::DropdownOption<GuiMessage>> {
+/// Convert an audio dropdown projection into Radiant menu options.
+fn audio_dropdown_options<Value>(
+    projection: AudioDropdownProjection<Value>,
+    message: impl Fn(Option<Value>) -> SettingsMessage,
+) -> Vec<ui::DropdownOption<GuiMessage>>
+where
+    Value: PartialEq,
+{
     let selected = projection.selected_value;
     projection
         .options
