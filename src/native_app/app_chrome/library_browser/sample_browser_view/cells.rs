@@ -235,16 +235,15 @@ fn render_rating_cell(
     file_id: &str,
 ) -> ui::View<GuiMessage> {
     if projection == RatingCellProjection::KeepBadge {
-        return ui::compact_details_anchored_cell_from_parts(
-            ui::CompactDetailsAnchoredCellParts::new(
-                ui::passive_badge("KEEP").style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning)),
-                ui::Vector2::new(38.0, 14.0),
-            )
-            .width(Some(width))
-            .horizontal(ui::LayerHorizontalAnchor::End)
-            .vertical(ui::LayerVerticalAnchor::Start)
-            .inset(2.0, 3.0),
+        return ui::compact_details_anchored_cell(
+            ui::passive_badge("KEEP").style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning)),
+            ui::Vector2::new(38.0, 14.0),
         )
+        .width(width)
+        .horizontal(ui::LayerHorizontalAnchor::End)
+        .vertical(ui::LayerVerticalAnchor::Start)
+        .inset(2.0, 3.0)
+        .view()
         .key(identity::rating_key(file_id));
     }
 
