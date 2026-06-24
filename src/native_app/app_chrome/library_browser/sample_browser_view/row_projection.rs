@@ -16,6 +16,7 @@ pub(super) struct SampleRowDisplay<'a> {
     pub(super) file_id: &'a str,
     pub(super) selected: bool,
     pub(super) copy_flash: bool,
+    pub(super) cut_pending: bool,
     pub(super) drag_active: bool,
     pub(super) drag_source: bool,
     pub(super) cached: bool,
@@ -51,12 +52,14 @@ pub(super) fn sample_row_display<'a>(
     similarity_aspect_enabled: [bool; wavecrate_analysis::aspects::ASPECT_COUNT],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cut_file_ids: Option<&[String]>,
 ) -> SampleRowDisplay<'a> {
     let file = row.file;
     SampleRowDisplay {
         file_id: file.id.as_str(),
         selected: row.selected,
         copy_flash: row.copy_flash,
+        cut_pending: cut_file_ids.is_some_and(|ids| ids.iter().any(|id| id == &file.id)),
         drag_active: row.drag_active,
         drag_source: row.drag_source,
         cached: row.cached,

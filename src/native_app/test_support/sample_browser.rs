@@ -50,6 +50,7 @@ pub(in crate::native_app) fn sample_file_hit_target(
             file_id: "sample.wav",
             selected,
             copy_flash: false,
+            cut_pending: false,
             drag_active,
             drag_source,
             cached,

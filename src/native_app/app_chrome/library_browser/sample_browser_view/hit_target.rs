@@ -12,6 +12,24 @@ const COPY_FLASH_FILL: ui::Rgba8 = ui::Rgba8 {
     b: 255,
     a: 118,
 };
+const CUT_PENDING_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 182,
+    g: 111,
+    b: 44,
+    a: 120,
+};
+const CUT_PENDING_HOVER_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 214,
+    g: 132,
+    b: 52,
+    a: 150,
+};
+const CUT_PENDING_MARKER: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 163,
+    b: 73,
+    a: 245,
+};
 const MISSING_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 130,
     g: 30,
@@ -47,6 +65,7 @@ pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) copy_flash: bool,
+    pub(in crate::native_app) cut_pending: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
     pub(in crate::native_app) cached: bool,
@@ -77,7 +96,7 @@ fn sample_file_hit_target_builder(
     model: &SampleFileHitTargetModel<'_>,
 ) -> ui::InteractiveRowUnderlayBuilder<GuiMessage> {
     let visual_state = ui::InteractiveRowVisualStateParts {
-        selected: model.selected || model.copy_flash || model.missing,
+        selected: model.selected || model.copy_flash || model.cut_pending || model.missing,
         ..ui::InteractiveRowVisualStateParts::default()
     };
     let underlay = ui::interactive_row_underlay(content)
@@ -87,18 +106,20 @@ fn sample_file_hit_target_builder(
         .style(SAMPLE_ROW_STYLE)
         .visual_state(visual_state)
         .leading_marker_if(
-            model.selected || model.missing,
+            model.selected || model.cut_pending || model.missing,
             ui::DenseRowMarkerStyle::new(
                 ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
                 if model.missing {
                     MISSING_MARKER
+                } else if model.cut_pending {
+                    CUT_PENDING_MARKER
                 } else {
                     SELECTED_MARKER
                 },
             ),
         )
         .trailing_marker_if(
-            model.cached && !model.selected && !model.copy_flash,
+            model.cached && !model.selected && !model.copy_flash && !model.cut_pending,
             ui::DenseRowMarkerStyle::new(ui::DenseRowMarkerParts::trailing(2.0), CACHED_MARKER),
         );
     if let Some(palette) = sample_file_row_palette(model) {
@@ -138,6 +159,14 @@ fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::D
                 .selected(MISSING_FILL)
                 .selected_hovered(MISSING_HOVER_FILL)
                 .interaction_fills(MISSING_HOVER_FILL, MISSING_HOVER_FILL),
+        );
+    }
+    if model.cut_pending {
+        return Some(
+            ui::DenseRowPalette::new()
+                .selected(CUT_PENDING_FILL)
+                .selected_hovered(CUT_PENDING_HOVER_FILL)
+                .interaction_fills(CUT_PENDING_HOVER_FILL, CUT_PENDING_HOVER_FILL),
         );
     }
     None

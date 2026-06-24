@@ -58,6 +58,7 @@ pub(in crate::native_app) fn sample_browser(
             &model.visible_samples,
             model.name_view_mode,
             model.metadata_tags_by_file,
+            model.cut_file_ids,
             model.help_tooltips_enabled,
         )
         .fill(),
@@ -187,6 +188,7 @@ mod tests {
                     name_view_mode: SampleNameViewMode::DiskFilename,
                     random_navigation_enabled: false,
                     metadata_tags_by_file: &metadata_tags_by_file,
+                    cut_file_ids: None,
                     file_drag_active: true,
                     extracted_file_drag_active: true,
                     hovered_folder_drop_target: true,

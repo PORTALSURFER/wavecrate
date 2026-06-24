@@ -14,6 +14,7 @@ pub(super) fn sample_browser_rows(
     visible_samples: &VisibleSampleList<'_>,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cut_file_ids: Option<&[String]>,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     if visible_samples.total_count == 0 {
@@ -32,6 +33,7 @@ pub(super) fn sample_browser_rows(
                     visible_samples.similarity_controls.aspect_enabled_flags(),
                     name_view_mode,
                     metadata_tags_by_file,
+                    cut_file_ids,
                 ),
                 help_tooltips_enabled,
             )
@@ -82,6 +84,7 @@ fn sample_browser_row(
             file_id: row.file_id,
             selected: row.selected,
             copy_flash: row.copy_flash,
+            cut_pending: row.cut_pending,
             drag_active: row.drag_active,
             drag_source: row.drag_source,
             cached: row.cached,

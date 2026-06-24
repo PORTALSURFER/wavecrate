@@ -25,6 +25,7 @@ fn sample_hit_target(
         file_id: "sample.wav",
         selected,
         copy_flash: false,
+        cut_pending: false,
         drag_active,
         drag_source,
         cached,
@@ -39,6 +40,22 @@ fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> UiSurface<
         file_id: "sample.wav",
         selected,
         copy_flash: true,
+        cut_pending: false,
+        drag_active: false,
+        drag_source: false,
+        cached,
+        missing: false,
+        hit_path: String::from("sample.wav"),
+        help_tooltips_enabled: false,
+    })
+}
+
+fn sample_hit_target_with_cut_pending(selected: bool, cached: bool) -> UiSurface<GuiMessage> {
+    sample_hit_target_with_model(SampleFileHitTargetModel {
+        file_id: "sample.wav",
+        selected,
+        copy_flash: false,
+        cut_pending: true,
         drag_active: false,
         drag_source: false,
         cached,
@@ -105,6 +122,7 @@ fn production_hit_target_derives_stable_input_identity_from_sample_row_key() {
             file_id: "sample.wav",
             selected: false,
             copy_flash: false,
+            cut_pending: false,
             drag_active: false,
             drag_source: false,
             cached: false,
@@ -187,6 +205,28 @@ fn copied_rows_paint_flash_fill_without_selection_marker() {
     assert!(
         !plan.fill_rects().any(|fill| fill.color == CACHED_MARKER),
         "copy flash fill should not be interrupted by the cached marker"
+    );
+}
+
+#[test]
+/// Verifies cut rows keep a persistent move-pending treatment until paste completes.
+fn cut_pending_rows_paint_move_pending_fill_and_marker() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let target = sample_hit_target_with_cut_pending(false, true);
+    let plan = sample_widget_plan(&target, bounds);
+
+    assert!(
+        plan.fill_rects().any(|fill| fill.color == CUT_PENDING_FILL),
+        "cut rows should paint a persistent move-pending fill"
+    );
+    assert!(
+        plan.fill_rects()
+            .any(|fill| fill.color == CUT_PENDING_MARKER),
+        "cut rows should keep a leading move-pending marker"
+    );
+    assert!(
+        !plan.fill_rects().any(|fill| fill.color == CACHED_MARKER),
+        "cut rows should not be interrupted by the cached marker"
     );
 }
 

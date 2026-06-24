@@ -119,6 +119,7 @@ fn sample_collection_projection_uses_collection_colors() {
             [true; wavecrate_analysis::aspects::ASPECT_COUNT],
             SampleNameViewMode::DiskFilename,
             &HashMap::new(),
+            None,
         )
         .copy_flash
     );
@@ -144,12 +145,36 @@ fn sample_source_folder_projection_uses_row_folder_path_without_cache_state() {
         [true; wavecrate_analysis::aspects::ASPECT_COUNT],
         SampleNameViewMode::DiskFilename,
         &HashMap::new(),
+        None,
     );
 
     assert!(matches!(display.content, SampleColumnContent::Text(value) if value == "drums/kicks"));
     assert!(
         row_display.cached,
         "loaded/cache state belongs to the row hit-target projection, not text cells"
+    );
+}
+
+#[test]
+fn sample_row_display_marks_files_in_cut_clipboard_as_pending_cut() {
+    let file = file_entry();
+    let row = visible_row(&file);
+    let column = FileColumn::for_tests("name", "Name", 160.0);
+    let cut_file_ids = vec![file.id.clone()];
+
+    let display = sample_row_display(
+        &row,
+        &[&column],
+        false,
+        [true; wavecrate_analysis::aspects::ASPECT_COUNT],
+        SampleNameViewMode::DiskFilename,
+        &HashMap::new(),
+        Some(cut_file_ids.as_slice()),
+    );
+
+    assert!(
+        display.cut_pending,
+        "rows whose file id is in the cut clipboard should keep cut-pending styling"
     );
 }
 
