@@ -26,7 +26,7 @@ impl NativeAppState {
         }
         self.waveform.current.apply_interaction(message);
         self.sync_edit_fade_audio_state();
-        if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
+        if waveform_interaction_updates_play_selection(&message, active_drag) {
             self.retarget_loop_playback_to_play_selection();
         }
         if let Some(action) = action {
@@ -39,11 +39,14 @@ impl NativeAppState {
     }
 }
 
-fn waveform_interaction_finishes_play_selection_edit(
+fn waveform_interaction_updates_play_selection(
     interaction: &WaveformInteraction,
     active_drag: Option<WaveformActiveDragKind>,
 ) -> bool {
-    if !matches!(interaction, WaveformInteraction::FinishSelection { .. }) {
+    if !matches!(
+        interaction,
+        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::FinishSelection { .. }
+    ) {
         return false;
     }
     matches!(

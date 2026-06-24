@@ -67,21 +67,39 @@ impl WaveformPlaybackScenario {
     }
 
     pub(super) fn select_play_range(&mut self, start: f32, end: f32) {
+        self.begin_play_range(start);
+        self.update_play_range_drag(end);
+        self.finish_play_range_drag(end);
+    }
+
+    pub(super) fn begin_play_range(&mut self, start: f32) {
         self.apply_waveform(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
             visible_ratio: start,
         });
-        self.apply_waveform(WaveformInteraction::UpdateSelection { visible_ratio: end });
-        self.apply_waveform(WaveformInteraction::FinishSelection { visible_ratio: end });
     }
 
-    pub(super) fn resize_play_range_start(&mut self, from: f32, to: f32) {
+    pub(super) fn begin_play_range_start_resize(&mut self, from: f32) {
         self.apply_waveform(WaveformInteraction::BeginSelectionResize {
             kind: WaveformSelectionKind::Play,
             edge: WaveformSelectionEdge::Start,
             visible_ratio: from,
         });
+    }
+
+    pub(super) fn begin_play_range_end_resize(&mut self, from: f32) {
+        self.apply_waveform(WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Play,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: from,
+        });
+    }
+
+    pub(super) fn update_play_range_drag(&mut self, to: f32) {
         self.apply_waveform(WaveformInteraction::UpdateSelection { visible_ratio: to });
+    }
+
+    pub(super) fn finish_play_range_drag(&mut self, to: f32) {
         self.apply_waveform(WaveformInteraction::FinishSelection { visible_ratio: to });
     }
 
