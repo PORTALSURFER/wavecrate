@@ -1,13 +1,21 @@
 use radiant::prelude as ui;
 
+use self::projection::{
+    RatingCellProjection, SampleCellContentProjection, SampleCellProjection,
+    SimilarityAspectProjection, SimilarityCellProjection, sample_cell_projection,
+};
 use super::identity;
-use super::row_projection::{SampleColumnContent, SampleColumnDisplay};
+use super::row_projection::SampleColumnDisplay;
+#[cfg(test)]
 use super::row_widgets::RatingIndicator;
 use super::similarity_aspect_color;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+#[cfg(test)]
 use crate::native_app::sample_library::folder_browser::model::SimilarityAspectStrengths;
+
+mod projection;
 
 const SIMILARITY_TOGGLE_WIDTH: f32 = 22.0;
 const SIMILARITY_TOGGLE_SIZE: f32 = 18.0;
@@ -23,31 +31,34 @@ const SIMILARITY_ANCHOR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPale
 );
 
 pub(super) fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<GuiMessage> {
-    match column.content {
-        SampleColumnContent::Text { value, cached } => {
-            sample_file_cell(value, column.width, column.file_id, column.id, cached)
-        }
-        SampleColumnContent::Rename(rename) => sample_rename_cell(rename, column.width),
-        SampleColumnContent::Rating(indicator) => {
-            sample_rating_cell(indicator, column.width, column.file_id)
-        }
-        SampleColumnContent::PlaybackType(label) => {
-            sample_playback_type_cell(label, column.width, column.file_id)
-        }
-        SampleColumnContent::Collection(colors) => {
-            sample_collection_cell(colors, column.width, column.file_id)
-        }
-        SampleColumnContent::Similarity {
-            overall,
-            aspects,
-            aspect_enabled,
-        } => sample_similarity_cell(
-            overall,
-            aspects,
-            aspect_enabled,
-            column.width,
-            column.file_id,
+    render_sample_cell(sample_cell_projection(column))
+}
+
+fn render_sample_cell(projection: SampleCellProjection) -> ui::View<GuiMessage> {
+    match projection.content {
+        SampleCellContentProjection::Text { value, cached } => sample_file_cell(
+            value,
+            projection.width,
+            projection.file_id.as_str(),
+            projection.column_id.as_str(),
+            cached,
         ),
+        SampleCellContentProjection::Rename(rename) => sample_rename_cell(rename, projection.width),
+        SampleCellContentProjection::Rating(rating) => {
+            render_rating_cell(rating, projection.width, projection.file_id.as_str())
+        }
+        SampleCellContentProjection::PlaybackType(playback_type) => render_playback_type_cell(
+            playback_type.label,
+            playback_type.available,
+            projection.width,
+            projection.file_id.as_str(),
+        ),
+        SampleCellContentProjection::Collection(colors) => {
+            sample_collection_cell(colors, projection.width, projection.file_id.as_str())
+        }
+        SampleCellContentProjection::Similarity(similarity) => {
+            render_similarity_cell(similarity, projection.width, projection.file_id.as_str())
+        }
     }
 }
 
@@ -71,21 +82,30 @@ pub(super) fn similarity_anchor_toggle(
     )
 }
 
+#[cfg(test)]
 pub(super) fn sample_playback_type_cell(
     label: Option<&'static str>,
     width: f32,
     file_id: &str,
 ) -> ui::View<GuiMessage> {
-    let text = label.unwrap_or("-");
-    let text = ui::text(text)
+    let projection = SampleCellProjection::playback_type(file_id, width, label);
+    let SampleCellContentProjection::PlaybackType(playback_type) = projection.content else {
+        unreachable!("playback type constructor should project playback type content");
+    };
+    render_playback_type_cell(playback_type.label, playback_type.available, width, file_id)
+}
+
+fn render_playback_type_cell(
+    label: String,
+    available: bool,
+    width: f32,
+    file_id: &str,
+) -> ui::View<GuiMessage> {
+    let text = ui::text(label)
         .key(identity::playback_type_key(file_id))
         .height(18.0)
         .fill_width();
-    let text = if label.is_some() {
-        text
-    } else {
-        text.muted_text()
-    };
+    let text = if available { text } else { text.muted_text() };
     ui::compact_details_cell(text, Some(width))
 }
 
@@ -117,6 +137,7 @@ pub(super) fn sample_collection_cell(
     )
 }
 
+#[cfg(test)]
 pub(super) fn sample_similarity_cell(
     overall: Option<f32>,
     aspects: SimilarityAspectStrengths,
@@ -124,15 +145,22 @@ pub(super) fn sample_similarity_cell(
     width: f32,
     file_id: &str,
 ) -> ui::View<GuiMessage> {
-    let content = if let Some(overall) = overall {
+    render_similarity_cell(
+        SimilarityCellProjection::new(overall, aspects, aspect_enabled),
+        width,
+        file_id,
+    )
+}
+
+fn render_similarity_cell(
+    projection: SimilarityCellProjection,
+    width: f32,
+    file_id: &str,
+) -> ui::View<GuiMessage> {
+    let content = if let Some(overall) = projection.overall {
         let mut cells = Vec::with_capacity(wavecrate_analysis::aspects::ASPECT_COUNT + 1);
-        for aspect in wavecrate_analysis::aspects::SimilarityAspect::ORDER {
-            cells.push(sample_similarity_aspect_indicator(
-                aspect,
-                aspects[aspect.index()],
-                aspect_enabled[aspect.index()],
-                file_id,
-            ));
+        for aspect in projection.aspects {
+            cells.push(sample_similarity_aspect_indicator(aspect, file_id));
         }
         cells.push(
             ui::determinate_progress_bar(overall)
@@ -155,18 +183,20 @@ pub(super) fn sample_similarity_cell(
 }
 
 fn sample_similarity_aspect_indicator(
-    aspect: wavecrate_analysis::aspects::SimilarityAspect,
-    strength: Option<f32>,
-    enabled: bool,
+    aspect: SimilarityAspectProjection,
     file_id: &str,
 ) -> ui::View<GuiMessage> {
-    let (track, fill, value) = if enabled {
-        let fill = if strength.is_some() {
-            similarity_aspect_color(aspect)
+    let (track, fill, value) = if aspect.enabled {
+        let fill = if aspect.strength.is_some() {
+            similarity_aspect_color(aspect.aspect)
         } else {
             SIMILARITY_ASPECT_TRACK
         };
-        (SIMILARITY_ASPECT_TRACK, fill, strength.unwrap_or(0.0))
+        (
+            SIMILARITY_ASPECT_TRACK,
+            fill,
+            aspect.strength.unwrap_or(0.0),
+        )
     } else {
         (
             SIMILARITY_ASPECT_DISABLED_TRACK,
@@ -178,7 +208,7 @@ fn sample_similarity_aspect_indicator(
         .colors(track, fill)
         .max_track_height(10.0)
         .mapped(|_| GuiMessage::CloseContextMenu)
-        .key(identity::similarity_aspect_key(aspect, file_id))
+        .key(identity::similarity_aspect_key(aspect.aspect, file_id))
         .height(12.0)
         .width(SIMILARITY_ASPECT_WIDTH)
 }
@@ -187,12 +217,25 @@ fn similarity_anchor_icon(active: bool, available: bool) -> ui::SvgIcon {
     SIMILARITY_ANCHOR_ICON.icon_for_state(SIMILARITY_ANCHOR_ICON_TINTS, available, active)
 }
 
+#[cfg(test)]
 pub(super) fn sample_rating_cell(
     indicator: RatingIndicator,
     width: f32,
     file_id: &str,
 ) -> ui::View<GuiMessage> {
-    if indicator.shows_keep_badge() {
+    render_rating_cell(
+        RatingCellProjection::from_indicator(indicator),
+        width,
+        file_id,
+    )
+}
+
+fn render_rating_cell(
+    projection: RatingCellProjection,
+    width: f32,
+    file_id: &str,
+) -> ui::View<GuiMessage> {
+    if projection == RatingCellProjection::KeepBadge {
         return ui::compact_details_anchored_cell_from_parts(
             ui::CompactDetailsAnchoredCellParts::new(
                 ui::passive_badge("KEEP").style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning)),
@@ -207,7 +250,7 @@ pub(super) fn sample_rating_cell(
     }
 
     ui::compact_details_cell(
-        ui::marker_run(indicator.color(), indicator.count() as u8)
+        ui::marker_run(projection.marker_color(), projection.marker_count())
             .side(5)
             .gap(4)
             .inset(4)
