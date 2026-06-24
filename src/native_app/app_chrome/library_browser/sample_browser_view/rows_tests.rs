@@ -67,48 +67,19 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
 }
 
 #[test]
-/// Verifies uncached-but-available sample names still use primary text color.
-fn uncached_sample_text_uses_primary_theme_color() {
+/// Verifies available sample names use primary text color without cache-state styling.
+fn sample_text_uses_primary_theme_color() {
     let theme = ThemeTokens::default();
     let file = file_entry();
-    let frame = sample_file_cell(
-        String::from("kick_deep"),
-        120.0,
-        file.id.as_str(),
-        "name",
-        false,
-    )
-    .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
+    let frame = sample_file_cell(String::from("kick_deep"), 120.0, file.id.as_str(), "name")
+        .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
 
     assert!(
         frame
             .paint_plan
             .text_runs()
             .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
-        "uncached sample rows should not look disabled"
-    );
-}
-
-#[test]
-/// Verifies loaded sample names use primary text color.
-fn loaded_sample_text_uses_primary_theme_color() {
-    let theme = ThemeTokens::default();
-    let file = file_entry();
-    let frame = sample_file_cell(
-        String::from("kick_deep"),
-        120.0,
-        file.id.as_str(),
-        "name",
-        true,
-    )
-    .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
-
-    assert!(
-        frame
-            .paint_plan
-            .text_runs()
-            .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
-        "loaded sample rows should paint text with the primary theme color"
+        "sample rows should not express loaded/cache state through text color"
     );
 }
 

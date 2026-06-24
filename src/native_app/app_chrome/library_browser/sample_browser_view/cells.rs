@@ -36,12 +36,11 @@ pub(super) fn sample_column_cell(column: SampleColumnDisplay<'_>) -> ui::View<Gu
 
 fn render_sample_cell(projection: SampleCellProjection) -> ui::View<GuiMessage> {
     match projection.content {
-        SampleCellContentProjection::Text { value, cached } => sample_file_cell(
+        SampleCellContentProjection::Text(value) => sample_file_cell(
             value,
             projection.width,
             projection.file_id.as_str(),
             projection.column_id.as_str(),
-            cached,
         ),
         SampleCellContentProjection::Rename(rename) => sample_rename_cell(rename, projection.width),
         SampleCellContentProjection::Rating(rating) => {
@@ -265,7 +264,6 @@ pub(super) fn sample_file_cell(
     width: f32,
     file_id: &str,
     column_id: &str,
-    _cached: bool,
 ) -> ui::View<GuiMessage> {
     let text = ui::text(value);
     ui::compact_details_cell(

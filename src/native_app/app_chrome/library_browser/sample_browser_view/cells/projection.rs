@@ -16,7 +16,7 @@ pub(super) struct SampleCellProjection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum SampleCellContentProjection {
-    Text { value: String, cached: bool },
+    Text(String),
     Rename(FileRenameView),
     Rating(RatingCellProjection),
     PlaybackType(PlaybackTypeCellProjection),
@@ -55,9 +55,7 @@ pub(super) fn sample_cell_projection(column: SampleColumnDisplay<'_>) -> SampleC
         column_id: column.id.to_string(),
         width: column.width,
         content: match column.content {
-            SampleColumnContent::Text { value, cached } => {
-                SampleCellContentProjection::Text { value, cached }
-            }
+            SampleColumnContent::Text(value) => SampleCellContentProjection::Text(value),
             SampleColumnContent::Rename(rename) => SampleCellContentProjection::Rename(rename),
             SampleColumnContent::Rating(indicator) => {
                 SampleCellContentProjection::Rating(RatingCellProjection::from_indicator(indicator))

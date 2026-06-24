@@ -33,10 +33,7 @@ pub(super) struct SampleColumnDisplay<'a> {
 }
 
 pub(super) enum SampleColumnContent {
-    Text {
-        value: String,
-        cached: bool,
-    },
+    Text(String),
     Rename(FileRenameView),
     Rating(RatingIndicator),
     PlaybackType(Option<&'static str>),
@@ -134,9 +131,12 @@ fn sample_column_display<'a>(
 ) -> SampleColumnDisplay<'a> {
     let content = match column.kind() {
         FileColumnKind::Name => row.rename.clone().map_or_else(
-            || SampleColumnContent::Text {
-                value: sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
-                cached: row.cached,
+            || {
+                SampleColumnContent::Text(sample_name_cell_value(
+                    file,
+                    name_view_mode,
+                    metadata_tags_by_file,
+                ))
             },
             SampleColumnContent::Rename,
         ),
@@ -150,14 +150,8 @@ fn sample_column_display<'a>(
         FileColumnKind::Collection => {
             SampleColumnContent::Collection(row.collection_colors.clone())
         }
-        FileColumnKind::SourceFolder => SampleColumnContent::Text {
-            value: row.source_folder_path.clone(),
-            cached: row.cached,
-        },
-        kind => SampleColumnContent::Text {
-            value: sample_file_column_value(file, kind),
-            cached: row.cached,
-        },
+        FileColumnKind::SourceFolder => SampleColumnContent::Text(row.source_folder_path.clone()),
+        kind => SampleColumnContent::Text(sample_file_column_value(file, kind)),
     };
     SampleColumnDisplay {
         file_id: file.id.as_str(),

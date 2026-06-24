@@ -130,18 +130,27 @@ fn sample_collection_projection_uses_collection_colors() {
 }
 
 #[test]
-fn sample_source_folder_projection_uses_row_folder_path() {
+fn sample_source_folder_projection_uses_row_folder_path_without_cache_state() {
     let file = file_entry();
     let mut row = visible_row(&file);
     row.cached = true;
     let column = FileColumn::for_tests("source_folder", "Folder", 160.0);
 
     let display = column_display(&file, &row, &column, &HashMap::new());
+    let row_display = sample_row_display(
+        &row,
+        &[&column],
+        false,
+        [true; wavecrate_analysis::aspects::ASPECT_COUNT],
+        SampleNameViewMode::DiskFilename,
+        &HashMap::new(),
+    );
 
-    assert!(matches!(
-        display.content,
-        SampleColumnContent::Text { value, cached: true } if value == "drums/kicks"
-    ));
+    assert!(matches!(display.content, SampleColumnContent::Text(value) if value == "drums/kicks"));
+    assert!(
+        row_display.cached,
+        "loaded/cache state belongs to the row hit-target projection, not text cells"
+    );
 }
 
 #[test]
