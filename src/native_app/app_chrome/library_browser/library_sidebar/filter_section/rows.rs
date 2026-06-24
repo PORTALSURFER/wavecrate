@@ -39,8 +39,12 @@ const RATING_FILTER_KEEP_COLOR: ui::Rgba8 = ui::Rgba8 {
 };
 pub(super) const NAME_FILTER_INPUT_ID: u64 = widget_ids::NAME_FILTER_INPUT_ID;
 pub(super) const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
-const PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 = widget_ids::PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE;
-const RATING_FILTER_TOGGLE_SCOPE: u64 = widget_ids::RATING_FILTER_TOGGLE_SCOPE;
+/// Scope for automation-facing playback-type filter toggle ids.
+const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 =
+    widget_ids::AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE;
+/// Scope for automation-facing rating filter toggle ids.
+const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 =
+    widget_ids::AUTOMATION_RATING_FILTER_TOGGLE_SCOPE;
 
 pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 4] {
     let projection = filter_rows_projection(model);
@@ -141,7 +145,7 @@ fn playback_type_filter_toggle(
                 filter, enabled,
             ))
         })
-        .id(playback_type_filter_toggle_id(toggle.label))
+        .id(automation_playback_type_filter_toggle_id(toggle.label))
         .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
 }
 
@@ -152,8 +156,9 @@ fn playback_type_filter_tone(filter: PlaybackTypeFilter) -> ui::WidgetTone {
     }
 }
 
-pub(super) fn playback_type_filter_toggle_id(label: &str) -> u64 {
-    ui::stable_widget_id(PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE, label)
+/// Automation-facing id for a playback-type filter toggle.
+pub(super) fn automation_playback_type_filter_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE, label)
 }
 
 fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
@@ -184,7 +189,7 @@ fn rating_filter_toggle(toggle: &RatingFilterToggleProjection) -> ui::View<GuiMe
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
-        .id(rating_filter_toggle_id(toggle.label))
+        .id(automation_rating_filter_toggle_id(toggle.label))
         .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
 }
 
@@ -213,8 +218,9 @@ pub(super) fn rating_filter_swatch_color(level: i8, active: bool) -> ui::Rgba8 {
     }
 }
 
-pub(super) fn rating_filter_toggle_id(label: &str) -> u64 {
-    ui::stable_widget_id(RATING_FILTER_TOGGLE_SCOPE, label)
+/// Automation-facing id for a rating filter toggle.
+pub(super) fn automation_rating_filter_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_RATING_FILTER_TOGGLE_SCOPE, label)
 }
 
 fn filter_input_row(

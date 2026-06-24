@@ -48,7 +48,7 @@ fn sample_browser_random_navigation_toggle_renders_and_updates_state() {
     let dice_rect = disk_frame
         .layout
         .rects
-        .get(&crate::native_app::ui::ids::SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
+        .get(&crate::native_app::ui::ids::AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
         .expect("random navigation toggle should be laid out");
     let disk_label = disk_frame
         .paint_plan

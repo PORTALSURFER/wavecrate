@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::identity::{FOLDER_TREE_ROW_INPUT_SCOPE, folder_row_key};
+use super::identity::{RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE, retained_folder_row_key};
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -80,7 +80,7 @@ fn folder_rename_row(
             .fill_width()
             .height(22.0),
     ])
-    .key(folder_row_key(id))
+    .key(retained_folder_row_key(id))
     .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
     .fill_width()
     .height(TREE_ROW_HEIGHT)
@@ -114,14 +114,15 @@ fn standard_folder_row(folder: &VisibleFolder, id: String) -> ui::View<GuiMessag
         row
     };
 
-    row.stable_row_identity(FOLDER_TREE_ROW_INPUT_SCOPE, folder_row_key(&id))
-        .on_toggle({
-            let id = id.clone();
-            move || {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleFolderExpansion(id.clone()))
-            }
-        })
-        .interactive_actions(folder_row_actions(id))
+    row.stable_row_identity(
+        RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE,
+        retained_folder_row_key(&id),
+    )
+    .on_toggle({
+        let id = id.clone();
+        move || GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleFolderExpansion(id.clone()))
+    })
+    .interactive_actions(folder_row_actions(id))
 }
 
 fn folder_row_actions(id: String) -> ui::InteractiveRowActions<GuiMessage> {

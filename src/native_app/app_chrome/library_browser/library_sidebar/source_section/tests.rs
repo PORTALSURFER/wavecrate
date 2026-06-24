@@ -1,4 +1,4 @@
-use super::identity::{SOURCE_ADD_BUTTON_ID, SOURCE_ROW_INPUT_SCOPE, source_row_key};
+use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_LABEL_PADDING_X,
     source_add_button, source_row,
@@ -23,7 +23,7 @@ fn test_source(id: &str) -> SourceEntry {
 fn source_add_button_routes_add_source_message() {
     assert_eq!(
         source_add_button().view_dispatch_widget_output(
-            SOURCE_ADD_BUTTON_ID,
+            AUTOMATION_SOURCE_ADD_BUTTON_ID,
             ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
@@ -38,7 +38,7 @@ fn source_add_button_uses_regular_icon_button_chrome() {
     ));
     let icon_rect = frame
         .paint_plan
-        .first_svg_rect_for_widget(SOURCE_ADD_BUTTON_ID)
+        .first_svg_rect_for_widget(AUTOMATION_SOURCE_ADD_BUTTON_ID)
         .expect("source add button should paint a plus icon");
 
     assert!(
@@ -58,7 +58,7 @@ fn source_row_routes_primary_activation_through_interactive_row() {
 
     assert_eq!(
         source_row(row).view_dispatch_widget_output(
-            ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source_row_key(source.id.as_str())),
+            retained_source_row_input_id(source.id.as_str()),
             ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
@@ -77,7 +77,7 @@ fn source_row_routes_secondary_activation_to_context_menu() {
 
     assert_eq!(
         source_row(row).view_dispatch_widget_output(
-            ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source_row_key(source.id.as_str())),
+            retained_source_row_input_id(source.id.as_str()),
             ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
         ),
         Some(GuiMessage::FolderBrowser(

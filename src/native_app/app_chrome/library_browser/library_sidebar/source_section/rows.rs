@@ -1,6 +1,8 @@
 use radiant::prelude as ui;
 
-use super::identity::{SOURCE_ADD_BUTTON_ID, SOURCE_ROW_INPUT_SCOPE, source_row_key};
+use super::identity::{
+    AUTOMATION_SOURCE_ADD_BUTTON_ID, RETAINED_SOURCE_ROW_INPUT_SCOPE, retained_source_row_key,
+};
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
@@ -15,7 +17,7 @@ const SOURCE_ROW_HEIGHT: f32 = 24.0;
 pub(super) fn source_add_button() -> ui::View<GuiMessage> {
     ui::icon_button(source_add_icon())
         .message(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
-        .id(SOURCE_ADD_BUTTON_ID)
+        .id(AUTOMATION_SOURCE_ADD_BUTTON_ID)
         .size(SOURCE_ADD_BUTTON_WIDTH, SOURCE_ADD_BUTTON_HEIGHT)
 }
 
@@ -26,7 +28,10 @@ fn source_add_icon() -> ui::SvgIcon {
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source_row_label(source));
     sidebar_row_underlay(visual)
-        .stable_row_identity(SOURCE_ROW_INPUT_SCOPE, source_row_key(source.id.as_str()))
+        .stable_row_identity(
+            RETAINED_SOURCE_ROW_INPUT_SCOPE,
+            retained_source_row_key(source.id.as_str()),
+        )
         .selected(source.selected)
         .actions(ui::row_actions().primary_secondary_key(
             source.id.clone(),

@@ -173,12 +173,12 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
     let mut runtime = native_runtime_for_tests(state, Vector2::new(1100.0, 620.0));
     let rating_header_id =
         radiant::prelude::compact_details_header_sort_drag_id(radiant::widgets::stable_widget_id(
-            crate::native_app::ui::ids::SAMPLE_HEADER_CELL_ID,
+            crate::native_app::ui::ids::RETAINED_SAMPLE_HEADER_CELL_ID,
             "rating",
         ));
     let size_header_id =
         radiant::prelude::compact_details_header_sort_drag_id(radiant::widgets::stable_widget_id(
-            crate::native_app::ui::ids::SAMPLE_HEADER_CELL_ID,
+            crate::native_app::ui::ids::RETAINED_SAMPLE_HEADER_CELL_ID,
             "size",
         ));
     let rating_rect = *runtime

@@ -4,21 +4,22 @@ use wavecrate_analysis::aspects::SimilarityAspect;
 
 /// Retained key for the similarity-anchor button inside each keyed sample row.
 pub(super) const RETAINED_SIMILARITY_ANCHOR_BUTTON_KEY: &str = "sample-similarity-anchor";
-pub(super) const SAMPLE_ROW_INPUT_SCOPE: u64 = widget_ids::SAMPLE_ROW_INPUT_SCOPE;
+/// Scope for retained sample-row input identity.
+pub(super) const RETAINED_SAMPLE_ROW_INPUT_SCOPE: u64 = widget_ids::RETAINED_SAMPLE_ROW_INPUT_SCOPE;
 
 /// Automation-facing id for the similarity weighting toggle.
 pub(super) fn automation_similarity_weighting_toggle_id() -> u64 {
-    widget_ids::SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID
+    widget_ids::AUTOMATION_SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID
 }
 
 /// Automation-facing id for the random navigation toggle.
 pub(super) fn automation_random_navigation_toggle_id() -> u64 {
-    widget_ids::SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID
+    widget_ids::AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID
 }
 
 /// Retained id for a sortable, draggable, resizable sample header cell.
 pub(super) fn retained_sample_header_cell_id(column_id: &str) -> u64 {
-    stable_widget_id(widget_ids::SAMPLE_HEADER_CELL_ID, column_id)
+    stable_widget_id(widget_ids::RETAINED_SAMPLE_HEADER_CELL_ID, column_id)
 }
 
 #[cfg(test)]
@@ -34,7 +35,7 @@ pub(super) fn retained_sample_header_child_ids(
 /// Automation-facing id for one similarity aspect enabled toggle.
 pub(super) fn automation_similarity_aspect_toggle_id(aspect: SimilarityAspect) -> u64 {
     stable_widget_id(
-        widget_ids::SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
+        widget_ids::AUTOMATION_SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
         similarity_aspect_control_key(aspect),
     )
 }
@@ -42,7 +43,7 @@ pub(super) fn automation_similarity_aspect_toggle_id(aspect: SimilarityAspect) -
 /// Automation-facing id for one similarity aspect weight slider.
 pub(super) fn automation_similarity_aspect_weight_id(aspect: SimilarityAspect) -> u64 {
     stable_widget_id(
-        widget_ids::SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
+        widget_ids::AUTOMATION_SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
         similarity_aspect_control_key(aspect),
     )
 }

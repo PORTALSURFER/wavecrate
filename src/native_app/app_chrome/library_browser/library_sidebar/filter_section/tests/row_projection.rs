@@ -168,20 +168,20 @@ fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
     assert!(
         frame
             .paint_plan
-            .first_widget_rect(playback_type_filter_toggle_id("1-Shot"))
+            .first_widget_rect(automation_playback_type_filter_toggle_id("1-Shot"))
             .is_some()
     );
     assert!(
         frame
             .paint_plan
-            .first_widget_rect(playback_type_filter_toggle_id("Loop"))
+            .first_widget_rect(automation_playback_type_filter_toggle_id("Loop"))
             .is_some()
     );
     assert!(frame.paint_plan.contains_text("1-Shot"));
     assert!(frame.paint_plan.contains_text("Loop"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            playback_type_filter_toggle_id("1-Shot"),
+            automation_playback_type_filter_toggle_id("1-Shot"),
             ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
         ),
         Some(GuiMessage::FolderBrowser(
@@ -190,7 +190,7 @@ fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
     );
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            playback_type_filter_toggle_id("Loop"),
+            automation_playback_type_filter_toggle_id("Loop"),
             ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
         ),
         Some(GuiMessage::FolderBrowser(
@@ -213,19 +213,19 @@ fn filter_section_projects_rating_toggles_and_dispatches_changes() {
     assert!(
         frame
             .paint_plan
-            .first_widget_rect(rating_filter_toggle_id("T3"))
+            .first_widget_rect(automation_rating_filter_toggle_id("T3"))
             .is_some()
     );
     assert!(
         frame
             .paint_plan
-            .first_widget_rect(rating_filter_toggle_id("U"))
+            .first_widget_rect(automation_rating_filter_toggle_id("U"))
             .is_some()
     );
     assert!(
         frame
             .paint_plan
-            .first_widget_rect(rating_filter_toggle_id("K4"))
+            .first_widget_rect(automation_rating_filter_toggle_id("K4"))
             .is_some()
     );
     assert!(frame.paint_plan.fill_rects().any(|fill| {
@@ -246,7 +246,7 @@ fn filter_section_projects_rating_toggles_and_dispatches_changes() {
     );
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            rating_filter_toggle_id("K4"),
+            automation_rating_filter_toggle_id("K4"),
             ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
         ),
         Some(GuiMessage::FolderBrowser(
@@ -255,7 +255,7 @@ fn filter_section_projects_rating_toggles_and_dispatches_changes() {
     );
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            rating_filter_toggle_id("U"),
+            automation_rating_filter_toggle_id("U"),
             ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
         ),
         Some(GuiMessage::FolderBrowser(
@@ -264,7 +264,7 @@ fn filter_section_projects_rating_toggles_and_dispatches_changes() {
     );
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            rating_filter_toggle_id("T3"),
+            automation_rating_filter_toggle_id("T3"),
             ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
         ),
         Some(GuiMessage::FolderBrowser(

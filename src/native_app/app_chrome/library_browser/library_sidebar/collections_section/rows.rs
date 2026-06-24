@@ -1,8 +1,8 @@
 use radiant::prelude as ui;
 
 use super::identity::{
-    COLLECTION_ROW_INPUT_SCOPE, collection_rename_row_key, collection_rename_swatch_key,
-    collection_row_key,
+    RETAINED_COLLECTION_ROW_INPUT_SCOPE, retained_collection_rename_row_key,
+    retained_collection_row_key,
 };
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
@@ -19,7 +19,6 @@ pub(super) fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessag
     if let Some(rename) = &row.rename {
         return ui::row([
             collection_swatch(collection.color)
-                .key(collection_rename_swatch_key(collection_id))
                 .width(34.0)
                 .height(COLLECTION_ROW_HEIGHT),
             ui::text_input(rename.draft.clone())
@@ -31,7 +30,7 @@ pub(super) fn collection_row(row: &CollectionRowViewModel) -> ui::View<GuiMessag
                 .fill_width()
                 .height(COLLECTION_ROW_HEIGHT),
         ])
-        .key(collection_rename_row_key(collection_id))
+        .key(retained_collection_rename_row_key(collection_id))
         .fill_width()
         .height(COLLECTION_ROW_HEIGHT)
         .spacing(2.0);
@@ -50,8 +49,8 @@ fn collection_input(
     sidebar_row_underlay(visual)
         .tracked_drop_target(collection.drag_active, collection.drop_target)
         .stable_row_identity(
-            COLLECTION_ROW_INPUT_SCOPE,
-            collection_row_key(collection_id),
+            RETAINED_COLLECTION_ROW_INPUT_SCOPE,
+            retained_collection_row_key(collection_id),
         )
         .selected(collection.selected)
         .actions(collection_row_actions(collection_id))

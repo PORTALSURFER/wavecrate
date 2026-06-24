@@ -98,7 +98,7 @@ fn sample_widget_is_hovered(surface: &UiSurface<GuiMessage>) -> bool {
 /// Verifies production rows derive input identity from the same stable row key used by the row subtree.
 fn production_hit_target_derives_stable_input_identity_from_sample_row_key() {
     let row_key = identity::retained_sample_row_key("sample.wav");
-    let input_id = stable_widget_id(identity::SAMPLE_ROW_INPUT_SCOPE, row_key.as_str());
+    let input_id = stable_widget_id(identity::RETAINED_SAMPLE_ROW_INPUT_SCOPE, row_key.as_str());
     let message = sample_file_hit_target(
         ui::empty(),
         SampleFileHitTargetModel {

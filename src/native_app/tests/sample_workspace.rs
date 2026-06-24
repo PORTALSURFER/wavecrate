@@ -7,7 +7,7 @@ use crate::native_app::{
         },
     },
     test_support::state::NativeAppStateFixture,
-    ui::ids::{SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID, WAVEFORM_WIDGET_ID},
+    ui::ids::{AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID, WAVEFORM_WIDGET_ID},
 };
 use radiant::{layout::Vector2, prelude::IntoView};
 
@@ -33,7 +33,7 @@ fn sample_workspace_projects_toolbar_waveform_and_browser_in_order() {
     let browser = frame
         .layout
         .rects
-        .get(&SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
+        .get(&AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID)
         .expect("sample browser should lay out");
 
     assert!(toolbar.max.y <= waveform.min.y);

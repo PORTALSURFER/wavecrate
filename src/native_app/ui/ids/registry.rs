@@ -85,17 +85,17 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     registered_widget_id!(SampleBrowser, SAMPLE_BROWSER_LIST_ID, "sample_browser.list"),
     registered_widget_id!(
         SampleBrowserHeader,
-        SAMPLE_HEADER_CELL_ID,
+        RETAINED_SAMPLE_HEADER_CELL_ID,
         "sample_browser.header_cell"
     ),
     registered_widget_id!(
         SampleBrowserHeader,
-        SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID,
+        AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID,
         "sample_browser.random_navigation_toggle"
     ),
     registered_widget_id!(
         SampleBrowserHeader,
-        SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID,
+        AUTOMATION_SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID,
         "sample_browser.similarity_weighting_toggle"
     ),
     registered_widget_id!(
@@ -200,7 +200,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         COLLECTIONS_RESIZE_HEADER_ID,
         "collections.resize_header"
     ),
-    registered_widget_id!(Sources, SOURCE_ADD_BUTTON_ID, "sources.add_button"),
+    registered_widget_id!(
+        Sources,
+        AUTOMATION_SOURCE_ADD_BUTTON_ID,
+        "sources.add_button"
+    ),
     registered_widget_id!(MetadataTags, METADATA_TAG_INPUT_ID, "metadata_tags.input"),
     registered_widget_id!(
         MetadataTags,

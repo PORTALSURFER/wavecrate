@@ -62,7 +62,7 @@ pub(super) fn sample_file_hit_target(
     let actions = sample_file_row_actions(model.hit_path.clone());
     sample_file_hit_target_builder(content, &model)
         .stable_row_identity(
-            identity::SAMPLE_ROW_INPUT_SCOPE,
+            identity::RETAINED_SAMPLE_ROW_INPUT_SCOPE,
             identity::retained_sample_row_key(model.file_id),
         )
         .actions(actions)

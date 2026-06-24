@@ -146,7 +146,7 @@ fn sample_browser_similarity_controls_emit_control_messages() {
         crate::native_app::test_support::sample_browser::sample_browser(&state).into_surface();
     assert_eq!(
         surface.dispatch_widget_output(
-            crate::native_app::ui::ids::SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID,
+            crate::native_app::ui::ids::AUTOMATION_SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID,
             radiant::widgets::WidgetOutput::typed(radiant::widgets::ToggleMessage::ValueChanged {
                 checked: true
             },),
@@ -160,7 +160,7 @@ fn sample_browser_similarity_controls_emit_control_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             radiant::widgets::stable_widget_id(
-                crate::native_app::ui::ids::SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
+                crate::native_app::ui::ids::AUTOMATION_SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE,
                 "spectrum",
             ),
             radiant::widgets::WidgetOutput::typed(radiant::widgets::ToggleMessage::ValueChanged {
@@ -177,7 +177,7 @@ fn sample_browser_similarity_controls_emit_control_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             radiant::widgets::stable_widget_id(
-                crate::native_app::ui::ids::SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
+                crate::native_app::ui::ids::AUTOMATION_SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE,
                 "spectrum",
             ),
             radiant::widgets::WidgetOutput::typed(radiant::widgets::SliderMessage::ValueChanged {
