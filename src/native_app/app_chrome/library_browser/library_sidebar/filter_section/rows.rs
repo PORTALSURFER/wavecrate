@@ -1,9 +1,13 @@
 use radiant::{prelude as ui, widgets::TextInputMessage};
 
-use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::view_models::library_sidebar::{
-    FilterSectionViewModel, PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
+mod projection;
+
+use self::projection::{
+    PlaybackTypeFilterRowProjection, PlaybackTypeFilterToggleProjection, RatingFilterRowProjection,
+    RatingFilterToggleProjection, TextFilterField, TextFilterRowProjection, filter_rows_projection,
 };
+use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::ui::ids as widget_ids;
@@ -39,11 +43,12 @@ const PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 = widget_ids::PLAYBACK_TYPE_FILTER_
 const RATING_FILTER_TOGGLE_SCOPE: u64 = widget_ids::RATING_FILTER_TOGGLE_SCOPE;
 
 pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 4] {
+    let projection = filter_rows_projection(model);
     [
-        name_filter_row(model),
-        tag_filter_row(model),
-        playback_type_filter_row(model),
-        rating_filter_row(model),
+        text_filter_row(projection.name_filter),
+        text_filter_row(projection.tag_filter),
+        playback_type_filter_row(projection.playback_type),
+        rating_filter_row(projection.rating),
     ]
 }
 
@@ -57,37 +62,27 @@ pub(super) fn tag_filter_clear_button_id() -> u64 {
     ui::text_input_clear_button_id(TAG_FILTER_INPUT_ID)
 }
 
-fn name_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
+fn text_filter_row(projection: TextFilterRowProjection) -> ui::View<GuiMessage> {
     filter_input_row(
-        "Name",
+        projection.label,
         filter_text_input(
-            model.name_filter.clone(),
-            NAME_FILTER_INPUT_ID,
-            FolderBrowserMessage::NameFilterInput,
+            projection.value,
+            projection.placeholder,
+            text_filter_input_id(projection.field),
+            text_filter_message_mapper(projection.field),
         ),
-        "filter-name-row",
-    )
-}
-
-fn tag_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    filter_input_row(
-        "Tags",
-        filter_text_input(
-            model.tag_filter.clone(),
-            TAG_FILTER_INPUT_ID,
-            FolderBrowserMessage::TagFilterInput,
-        ),
-        "filter-tags-row",
+        text_filter_row_key(projection.field),
     )
 }
 
 fn filter_text_input(
     value: String,
+    placeholder: &'static str,
     input_id: u64,
     map_message: fn(TextInputMessage) -> FolderBrowserMessage,
 ) -> ui::View<GuiMessage> {
     ui::text_input(value)
-        .placeholder("Any")
+        .placeholder(placeholder)
         .clear_button(GuiMessage::FolderBrowser(map_message(
             empty_filter_message(),
         )))
@@ -95,13 +90,35 @@ fn filter_text_input(
         .message_event(move |message| GuiMessage::FolderBrowser(map_message(message)))
 }
 
-fn playback_type_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let label = filter_row_label("Type");
+fn text_filter_input_id(field: TextFilterField) -> u64 {
+    match field {
+        TextFilterField::Name => NAME_FILTER_INPUT_ID,
+        TextFilterField::Tags => TAG_FILTER_INPUT_ID,
+    }
+}
+
+fn text_filter_message_mapper(
+    field: TextFilterField,
+) -> fn(TextInputMessage) -> FolderBrowserMessage {
+    match field {
+        TextFilterField::Name => FolderBrowserMessage::NameFilterInput,
+        TextFilterField::Tags => FolderBrowserMessage::TagFilterInput,
+    }
+}
+
+fn text_filter_row_key(field: TextFilterField) -> &'static str {
+    match field {
+        TextFilterField::Name => "filter-name-row",
+        TextFilterField::Tags => "filter-tags-row",
+    }
+}
+
+fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<GuiMessage> {
+    let label = filter_row_label(row.label);
     filter_labeled_control_row(
         label,
         ui::row(
-            model
-                .playback_type_filters
+            row.toggles
                 .iter()
                 .map(playback_type_filter_toggle)
                 .collect::<Vec<_>>(),
@@ -113,7 +130,9 @@ fn playback_type_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessa
     )
 }
 
-fn playback_type_filter_toggle(toggle: &PlaybackTypeFilterToggleViewModel) -> ui::View<GuiMessage> {
+fn playback_type_filter_toggle(
+    toggle: &PlaybackTypeFilterToggleProjection,
+) -> ui::View<GuiMessage> {
     let filter = toggle.filter;
     ui::selectable(toggle.label, toggle.active)
         .style(ui::WidgetStyle::subtle(playback_type_filter_tone(filter)))
@@ -137,13 +156,12 @@ pub(super) fn playback_type_filter_toggle_id(label: &str) -> u64 {
     ui::stable_widget_id(PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE, label)
 }
 
-fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let label = filter_row_label("Rating");
+fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
+    let label = filter_row_label(row.label);
     filter_labeled_control_row(
         label,
         ui::row(
-            model
-                .rating_filters
+            row.toggles
                 .iter()
                 .map(rating_filter_toggle)
                 .collect::<Vec<_>>(),
@@ -155,7 +173,7 @@ fn rating_filter_row(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     )
 }
 
-fn rating_filter_toggle(toggle: &RatingFilterToggleViewModel) -> ui::View<GuiMessage> {
+fn rating_filter_toggle(toggle: &RatingFilterToggleProjection) -> ui::View<GuiMessage> {
     let level = toggle.level;
     ui::selectable("", toggle.active)
         .style(ui::WidgetStyle::subtle(rating_filter_tone(level)))

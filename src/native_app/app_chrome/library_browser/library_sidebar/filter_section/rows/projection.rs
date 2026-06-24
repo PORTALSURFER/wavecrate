@@ -1,0 +1,200 @@
+use crate::native_app::app_chrome::view_models::library_sidebar::{
+    FilterSectionViewModel, PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
+};
+use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FilterRowsProjection {
+    pub(super) name_filter: TextFilterRowProjection,
+    pub(super) tag_filter: TextFilterRowProjection,
+    pub(super) playback_type: PlaybackTypeFilterRowProjection,
+    pub(super) rating: RatingFilterRowProjection,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TextFilterField {
+    Name,
+    Tags,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct TextFilterRowProjection {
+    pub(super) field: TextFilterField,
+    pub(super) label: &'static str,
+    pub(super) value: String,
+    pub(super) placeholder: &'static str,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PlaybackTypeFilterRowProjection {
+    pub(super) label: &'static str,
+    pub(super) toggles: Vec<PlaybackTypeFilterToggleProjection>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PlaybackTypeFilterToggleProjection {
+    pub(super) filter: PlaybackTypeFilter,
+    pub(super) label: &'static str,
+    pub(super) active: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct RatingFilterRowProjection {
+    pub(super) label: &'static str,
+    pub(super) toggles: Vec<RatingFilterToggleProjection>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RatingFilterToggleProjection {
+    pub(super) level: i8,
+    pub(super) label: &'static str,
+    pub(super) active: bool,
+}
+
+pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRowsProjection {
+    FilterRowsProjection {
+        name_filter: TextFilterRowProjection {
+            field: TextFilterField::Name,
+            label: "Name",
+            value: model.name_filter.clone(),
+            placeholder: "Any",
+        },
+        tag_filter: TextFilterRowProjection {
+            field: TextFilterField::Tags,
+            label: "Tags",
+            value: model.tag_filter.clone(),
+            placeholder: "Any",
+        },
+        playback_type: PlaybackTypeFilterRowProjection {
+            label: "Type",
+            toggles: model
+                .playback_type_filters
+                .iter()
+                .map(PlaybackTypeFilterToggleProjection::from_view_model)
+                .collect(),
+        },
+        rating: RatingFilterRowProjection {
+            label: "Rating",
+            toggles: model
+                .rating_filters
+                .iter()
+                .map(RatingFilterToggleProjection::from_view_model)
+                .collect(),
+        },
+    }
+}
+
+impl PlaybackTypeFilterToggleProjection {
+    fn from_view_model(model: &PlaybackTypeFilterToggleViewModel) -> Self {
+        Self {
+            filter: model.filter,
+            label: model.label,
+            active: model.active,
+        }
+    }
+}
+
+impl RatingFilterToggleProjection {
+    fn from_view_model(model: &RatingFilterToggleViewModel) -> Self {
+        Self {
+            level: model.level,
+            label: model.label,
+            active: model.active,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filter_rows_projection_carries_text_filter_intent() {
+        let projection = filter_rows_projection(&filter_model());
+
+        assert_eq!(
+            projection.name_filter,
+            TextFilterRowProjection {
+                field: TextFilterField::Name,
+                label: "Name",
+                value: "kick".to_string(),
+                placeholder: "Any",
+            }
+        );
+        assert_eq!(
+            projection.tag_filter,
+            TextFilterRowProjection {
+                field: TextFilterField::Tags,
+                label: "Tags",
+                value: "drum".to_string(),
+                placeholder: "Any",
+            }
+        );
+    }
+
+    #[test]
+    fn filter_rows_projection_preserves_toggle_order_and_state() {
+        let projection = filter_rows_projection(&filter_model());
+
+        assert_eq!(projection.playback_type.label, "Type");
+        assert_eq!(
+            projection
+                .playback_type
+                .toggles
+                .iter()
+                .map(|toggle| (toggle.filter, toggle.label, toggle.active))
+                .collect::<Vec<_>>(),
+            vec![
+                (PlaybackTypeFilter::OneShot, "1-Shot", false),
+                (PlaybackTypeFilter::Loop, "Loop", true),
+            ]
+        );
+        assert_eq!(projection.rating.label, "Rating");
+        assert_eq!(
+            projection
+                .rating
+                .toggles
+                .iter()
+                .map(|toggle| (toggle.level, toggle.label, toggle.active))
+                .collect::<Vec<_>>(),
+            vec![(-1, "T1", true), (0, "U", false), (4, "K4", true)]
+        );
+    }
+
+    fn filter_model() -> FilterSectionViewModel {
+        FilterSectionViewModel {
+            name_filter: "kick".to_string(),
+            tag_filter: "drum".to_string(),
+            playback_type_filters: vec![
+                PlaybackTypeFilterToggleViewModel {
+                    filter: PlaybackTypeFilter::OneShot,
+                    label: "1-Shot",
+                    active: false,
+                },
+                PlaybackTypeFilterToggleViewModel {
+                    filter: PlaybackTypeFilter::Loop,
+                    label: "Loop",
+                    active: true,
+                },
+            ],
+            rating_filters: vec![
+                RatingFilterToggleViewModel {
+                    level: -1,
+                    label: "T1",
+                    active: true,
+                },
+                RatingFilterToggleViewModel {
+                    level: 0,
+                    label: "U",
+                    active: false,
+                },
+                RatingFilterToggleViewModel {
+                    level: 4,
+                    label: "K4",
+                    active: true,
+                },
+            ],
+            panel_height: 120.0,
+        }
+    }
+}
