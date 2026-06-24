@@ -1,9 +1,13 @@
+use super::SampleBrowserHeaderBar;
 use super::projection::{
-    RandomNavigationButtonProjection, SampleNameViewModeButtonProjection,
-    SampleSimilarityControlsProjection, SampleSimilarityHeaderProjection, projected_header_columns,
+    RandomNavigationButtonProjection, SampleBrowserHeaderProjection,
+    SampleNameViewModeButtonProjection, SampleSimilarityControlsProjection,
+    SampleSimilarityHeaderProjection, projected_header_columns,
 };
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::model::FileColumn;
+use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
+use radiant::prelude as ui;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
@@ -50,6 +54,42 @@ fn header_column_projection_inserts_similarity_after_name_column_only() {
 
     let inactive = projected_header_columns(&columns, false);
     assert!(inactive.iter().all(|column| !column.show_similarity_after));
+}
+
+#[test]
+fn header_bar_projection_collects_controls_columns_and_drag_marker() {
+    let name = FileColumn::for_tests("name", "Name", 240.0);
+    let size = FileColumn::for_tests("size", "Size", 78.0);
+    let columns = [&name, &size];
+    let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+    let drag_feedback = FileColumnDragFeedback {
+        label: "Name".to_string(),
+        pointer: ui::Point::new(42.0, 9.0),
+        width: 240.0,
+        marker_x: 138.0,
+    };
+    let settings = SimilarityAspectSettings::default();
+
+    let projection = SampleBrowserHeaderProjection::from_model(SampleBrowserHeaderBar {
+        columns: &columns,
+        sort: &sort,
+        drag_feedback: Some(&drag_feedback),
+        mode: SampleNameViewMode::MetadataLabel,
+        random_navigation_enabled: true,
+        similarity_mode_active: true,
+        similarity_controls: &settings,
+        help_tooltips_enabled: true,
+    });
+
+    assert_eq!(projection.sort.column_id, "name");
+    assert_eq!(projection.drag_marker_x, Some(138.0));
+    assert!(projection.random_navigation.active);
+    assert_eq!(projection.name_view_mode.label, "Label");
+    assert!(projection.help_tooltips_enabled);
+    assert_eq!(projection.columns.len(), 2);
+    assert!(projection.columns[0].show_similarity_after);
+    assert!(!projection.columns[1].show_similarity_after);
+    assert_eq!(projection.similarity_header.score_label, "Sim");
 }
 
 #[test]

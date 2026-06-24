@@ -11,9 +11,9 @@ use crate::native_app::sample_library::folder_browser::projection::FileColumnDra
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
 use self::projection::{
-    HeaderColumnProjection, RandomNavigationButtonProjection, SampleNameViewModeButtonProjection,
-    SampleSimilarityAspectControlProjection, SampleSimilarityControlsProjection,
-    SampleSimilarityHeaderProjection, projected_header_columns,
+    HeaderColumnProjection, RandomNavigationButtonProjection, SampleBrowserHeaderProjection,
+    SampleNameViewModeButtonProjection, SampleSimilarityAspectControlProjection,
+    SampleSimilarityControlsProjection, SampleSimilarityHeaderProjection,
 };
 use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, identity, similarity_aspect_color};
 
@@ -39,20 +39,23 @@ pub(super) struct SampleBrowserHeaderBar<'a> {
 }
 
 pub(super) fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui::View<GuiMessage> {
-    let random_navigation = RandomNavigationButtonProjection::new(model.random_navigation_enabled);
-    let name_view_mode = SampleNameViewModeButtonProjection::from_mode(model.mode);
+    let projection = SampleBrowserHeaderProjection::from_model(model);
     ui::row([
         sample_browser_header(
-            projected_header_columns(model.columns, model.similarity_mode_active),
-            model.sort,
-            model.drag_feedback,
-            SampleSimilarityHeaderProjection::from_settings(model.similarity_controls),
+            projection.columns,
+            projection.sort,
+            projection.drag_marker_x,
+            projection.similarity_header,
         )
         .fill_width(),
-        random_navigation_button(random_navigation)
-            .tooltip_if(model.help_tooltips_enabled, random_navigation.tooltip),
-        sample_name_view_mode_button(name_view_mode)
-            .tooltip_if(model.help_tooltips_enabled, name_view_mode.tooltip),
+        random_navigation_button(projection.random_navigation).tooltip_if(
+            projection.help_tooltips_enabled,
+            projection.random_navigation.tooltip,
+        ),
+        sample_name_view_mode_button(projection.name_view_mode).tooltip_if(
+            projection.help_tooltips_enabled,
+            projection.name_view_mode.tooltip,
+        ),
     ])
     .fill_width()
     .height(24.0)
@@ -123,7 +126,7 @@ static DICE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
 fn sample_browser_header(
     columns: Vec<HeaderColumnProjection<'_>>,
     sort: &ui::DetailsSort,
-    drag_feedback: Option<&FileColumnDragFeedback>,
+    drag_marker_x: Option<f32>,
     similarity_header: SampleSimilarityHeaderProjection,
 ) -> ui::View<GuiMessage> {
     let header_cells = columns
@@ -138,10 +141,10 @@ fn sample_browser_header(
     .spacing(0.0)
     .fill_width()
     .height(24.0);
-    let Some(feedback) = drag_feedback else {
+    let Some(marker_x) = drag_marker_x else {
         return header;
     };
-    ui::stack([header, column_drop_marker(feedback.marker_x)])
+    ui::stack([header, column_drop_marker(marker_x)])
         .fill_width()
         .height(24.0)
 }

@@ -1,12 +1,44 @@
+use radiant::prelude as ui;
+
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
+use super::SampleBrowserHeaderBar;
+
 pub(super) const RANDOM_NAVIGATION_TOOLTIP: &str =
     "Random audition within the selected folder or active filter.";
 pub(super) const SAMPLE_NAME_VIEW_MODE_TOOLTIP: &str =
     "Switch sample names between disk filenames and metadata labels.";
+
+pub(super) struct SampleBrowserHeaderProjection<'a> {
+    pub(super) columns: Vec<HeaderColumnProjection<'a>>,
+    pub(super) sort: &'a ui::DetailsSort,
+    pub(super) drag_marker_x: Option<f32>,
+    pub(super) random_navigation: RandomNavigationButtonProjection,
+    pub(super) name_view_mode: SampleNameViewModeButtonProjection,
+    pub(super) similarity_header: SampleSimilarityHeaderProjection,
+    pub(super) help_tooltips_enabled: bool,
+}
+
+impl<'a> SampleBrowserHeaderProjection<'a> {
+    pub(super) fn from_model(model: SampleBrowserHeaderBar<'a>) -> Self {
+        Self {
+            columns: projected_header_columns(model.columns, model.similarity_mode_active),
+            sort: model.sort,
+            drag_marker_x: model.drag_feedback.map(|feedback| feedback.marker_x),
+            random_navigation: RandomNavigationButtonProjection::new(
+                model.random_navigation_enabled,
+            ),
+            name_view_mode: SampleNameViewModeButtonProjection::from_mode(model.mode),
+            similarity_header: SampleSimilarityHeaderProjection::from_settings(
+                model.similarity_controls,
+            ),
+            help_tooltips_enabled: model.help_tooltips_enabled,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct RandomNavigationButtonProjection {
