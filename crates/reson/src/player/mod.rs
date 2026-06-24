@@ -7,6 +7,7 @@ use super::output::{CpalAudioStream, ResolvedOutput};
 
 mod edit_fade_impl;
 mod helpers;
+mod loop_span;
 mod metronome;
 mod playback;
 mod playback_span_plan;
@@ -15,6 +16,7 @@ mod runtime;
 mod state;
 pub(crate) use edit_fade_impl::{EditFadeHandle, EditFadeSource};
 pub use edit_fade_impl::{EditFadeRange, FadeParams};
+pub(crate) use loop_span::LoopSpanHandle;
 pub use metronome::PlaybackMetronomeConfig;
 pub use playback_span_plan::{
     PlaybackChannelLayout, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
@@ -22,8 +24,8 @@ pub use playback_span_plan::{
 };
 pub use runtime::{
     PlaybackRequestId, PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig,
-    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeProgress,
-    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStarted,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeLoopUpdate, PlaybackRuntimeMode,
+    PlaybackRuntimeProgress, PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStarted,
     PlaybackRuntimeSubmitError,
 };
 
@@ -72,6 +74,7 @@ pub struct AudioPlayer {
     play_span: Option<(f32, f32)>,
     play_span_frames: Option<(u64, u64)>,
     looping: bool,
+    active_loop_span: Option<LoopSpanHandle>,
     loop_offset: Option<f32>,
     loop_offset_frames: Option<u64>,
     volume: f32,

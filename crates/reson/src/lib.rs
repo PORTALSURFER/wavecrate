@@ -35,8 +35,8 @@ pub use output::{
 pub use player::{
     AudioPlayer, EditFadeRange, FadeParams, PlaybackChannelLayout, PlaybackMetronomeConfig,
     PlaybackRequestId, PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig,
-    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeMode, PlaybackRuntimeProgress,
-    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStarted,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeLoopUpdate, PlaybackRuntimeMode,
+    PlaybackRuntimeProgress, PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStarted,
     PlaybackRuntimeSubmitError, PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind,
     PlaybackSpanPlan, PlaybackSpanPlanError, PlaybackSpanRequest,
 };

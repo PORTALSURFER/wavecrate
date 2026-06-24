@@ -149,6 +149,16 @@ impl PlaybackRuntimeMode {
     }
 }
 
+/// In-place loop-bound update for an already running loop.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlaybackRuntimeLoopUpdate {
+    pub start: f64,
+    pub end: f64,
+    pub offset: f64,
+    pub seek_to_offset: bool,
+    pub metronome: Option<PlaybackMetronomeConfig>,
+}
+
 /// Complete neutral playback-start request.
 #[derive(Clone, Debug)]
 pub struct PlaybackRuntimeRequest {
@@ -261,6 +271,18 @@ impl PlaybackRuntimeHandle {
             .map_err(map_try_send_error)
     }
 
+    /// Submit an in-place loop-retarget request without blocking the caller.
+    pub fn try_retarget_loop(
+        &self,
+        update: PlaybackRuntimeLoopUpdate,
+    ) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
+        let id = self.next_request_id();
+        self.commands
+            .try_send(PlaybackRuntimeCommand::RetargetLoop { id, update })
+            .map(|()| id)
+            .map_err(map_try_send_error)
+    }
+
     /// Request runtime shutdown without blocking the caller.
     pub fn try_shutdown(&self) -> Result<(), PlaybackRuntimeSubmitError> {
         self.commands
@@ -297,6 +319,10 @@ enum PlaybackRuntimeCommand {
     Stop {
         id: PlaybackRequestId,
     },
+    RetargetLoop {
+        id: PlaybackRequestId,
+        update: PlaybackRuntimeLoopUpdate,
+    },
     PollProgress {
         id: PlaybackRequestId,
     },
@@ -312,6 +338,7 @@ trait PlaybackRuntimeExecutor: Send + 'static {
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRuntimeStartedData, String>;
     fn stop(&mut self) -> Result<(), String>;
+    fn retarget_loop(&mut self, update: PlaybackRuntimeLoopUpdate) -> Result<f32, String>;
     fn set_volume(&mut self, volume: f32);
     fn progress(&mut self) -> PlaybackRuntimeProgress;
 }
@@ -346,6 +373,20 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
     fn stop(&mut self) -> Result<(), String> {
         self.player.stop();
         Ok(())
+    }
+
+    fn retarget_loop(&mut self, update: PlaybackRuntimeLoopUpdate) -> Result<f32, String> {
+        self.player.retarget_looped_range_with_metronome(
+            update.start,
+            update.end,
+            update.offset,
+            update.seek_to_offset,
+            update.metronome,
+        )?;
+        Ok(update
+            .offset
+            .clamp(update.start.min(update.end), update.start.max(update.end))
+            .clamp(0.0, 1.0) as f32)
     }
 
     fn set_volume(&mut self, volume: f32) {
@@ -409,6 +450,16 @@ fn run_playback_runtime(
                 };
                 let _ = events.send(event);
             }
+            CoalescedCommand::RetargetLoop { id, update } => {
+                let event = match executor.retarget_loop(update) {
+                    Ok(_) => PlaybackRuntimeEvent::Progress {
+                        id,
+                        progress: executor.progress(),
+                    },
+                    Err(error) => PlaybackRuntimeEvent::Failed { id, error },
+                };
+                let _ = events.send(event);
+            }
             CoalescedCommand::PollProgress { id } => {
                 let _ = events.send(PlaybackRuntimeEvent::Progress {
                     id,
@@ -437,6 +488,10 @@ enum CoalescedCommand {
     },
     Stop {
         id: PlaybackRequestId,
+    },
+    RetargetLoop {
+        id: PlaybackRequestId,
+        update: PlaybackRuntimeLoopUpdate,
     },
     PollProgress {
         id: PlaybackRequestId,
@@ -480,6 +535,9 @@ fn coalesce_pending_command(
         current @ PlaybackRuntimeCommand::PollProgress { .. } => {
             coalesce_repeated_progress_command(current, pending)
         }
+        current @ PlaybackRuntimeCommand::RetargetLoop { .. } => {
+            coalesce_loop_retarget_command(current, pending)
+        }
         current @ PlaybackRuntimeCommand::SetVolume { .. } => {
             coalesce_repeated_volume_command(current, pending)
         }
@@ -519,6 +577,34 @@ fn coalesce_play_command(
             Some(PlaybackRuntimeCommand::PollProgress { .. }) => {
                 let _ = pending.pop_front();
             }
+            Some(PlaybackRuntimeCommand::RetargetLoop { .. })
+            | Some(PlaybackRuntimeCommand::SetVolume { .. })
+            | None => return current,
+        }
+    }
+}
+
+fn coalesce_loop_retarget_command(
+    mut current: PlaybackRuntimeCommand,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+) -> PlaybackRuntimeCommand {
+    loop {
+        match pending.front() {
+            Some(PlaybackRuntimeCommand::RetargetLoop { .. }) => {
+                current = pending.pop_front().expect("pending loop retarget");
+            }
+            Some(PlaybackRuntimeCommand::Play { .. }) => {
+                return pending.pop_front().expect("pending play command");
+            }
+            Some(PlaybackRuntimeCommand::Stop { .. }) => {
+                return pending.pop_front().expect("pending stop command");
+            }
+            Some(PlaybackRuntimeCommand::Shutdown) => {
+                return pending.pop_front().expect("pending shutdown command");
+            }
+            Some(PlaybackRuntimeCommand::PollProgress { .. }) => {
+                let _ = pending.pop_front();
+            }
             Some(PlaybackRuntimeCommand::SetVolume { .. }) | None => return current,
         }
     }
@@ -554,6 +640,9 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
     match command {
         PlaybackRuntimeCommand::Play { id, request } => CoalescedCommand::Play { id, request },
         PlaybackRuntimeCommand::Stop { id } => CoalescedCommand::Stop { id },
+        PlaybackRuntimeCommand::RetargetLoop { id, update } => {
+            CoalescedCommand::RetargetLoop { id, update }
+        }
         PlaybackRuntimeCommand::PollProgress { id } => CoalescedCommand::PollProgress { id },
         PlaybackRuntimeCommand::SetVolume { volume } => CoalescedCommand::SetVolume { volume },
         PlaybackRuntimeCommand::Shutdown => CoalescedCommand::Shutdown,
@@ -609,6 +698,7 @@ mod tests {
     struct FakeExecutor {
         outcomes: Vec<FakeOutcome>,
         played: Arc<Mutex<Vec<PlaybackRuntimeMode>>>,
+        retargeted: Arc<Mutex<Vec<PlaybackRuntimeLoopUpdate>>>,
         stopped: Arc<Mutex<usize>>,
     }
 
@@ -617,12 +707,17 @@ mod tests {
             Self {
                 outcomes,
                 played: Arc::new(Mutex::new(Vec::new())),
+                retargeted: Arc::new(Mutex::new(Vec::new())),
                 stopped: Arc::new(Mutex::new(0)),
             }
         }
 
         fn played(&self) -> Arc<Mutex<Vec<PlaybackRuntimeMode>>> {
             Arc::clone(&self.played)
+        }
+
+        fn retargeted(&self) -> Arc<Mutex<Vec<PlaybackRuntimeLoopUpdate>>> {
+            Arc::clone(&self.retargeted)
         }
     }
 
@@ -644,6 +739,14 @@ mod tests {
         fn stop(&mut self) -> Result<(), String> {
             *self.stopped.lock().expect("stopped lock") += 1;
             Ok(())
+        }
+
+        fn retarget_loop(&mut self, update: PlaybackRuntimeLoopUpdate) -> Result<f32, String> {
+            self.retargeted
+                .lock()
+                .expect("retargeted lock")
+                .push(update);
+            Ok(update.offset as f32)
         }
 
         fn set_volume(&mut self, _volume: f32) {}
@@ -810,6 +913,45 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn coalescing_loop_retarget_keeps_latest_update() {
+        let first_id = PlaybackRequestId(1);
+        let second_id = PlaybackRequestId(2);
+        let (coalesced, pending, events) = coalesce_for_test(
+            retarget_command(first_id, 0.1, 0.5),
+            vec![retarget_command(second_id, 0.2, 0.7)],
+        );
+
+        assert!(matches!(
+            coalesced,
+            CoalescedCommand::RetargetLoop { id, update }
+                if id == second_id && update.start == 0.2 && update.end == 0.7
+        ));
+        assert!(pending.is_empty());
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn playback_runtime_executes_loop_retarget() {
+        let executor = FakeExecutor::new(vec![]);
+        let retargeted = executor.retargeted();
+        let runtime =
+            spawn_executor(executor, PlaybackRuntimeConfig::default()).expect("spawn runtime");
+        let update = loop_update(0.2, 0.8);
+
+        let id = runtime.handle.try_retarget_loop(update).expect("retarget");
+        let event = runtime.events.recv().expect("event");
+
+        assert!(matches!(
+            event,
+            PlaybackRuntimeEvent::Progress {
+                id: event_id,
+                progress
+            } if event_id == id && progress.active
+        ));
+        assert_eq!(retargeted.lock().expect("retargeted").as_slice(), &[update]);
+    }
+
     fn test_request(start: f64) -> PlaybackRuntimeRequest {
         PlaybackRuntimeRequest {
             source: PlaybackRuntimeSource::AudioBytes {
@@ -829,6 +971,23 @@ mod tests {
         PlaybackRuntimeCommand::Play {
             id,
             request: test_request(start),
+        }
+    }
+
+    fn retarget_command(id: PlaybackRequestId, start: f64, end: f64) -> PlaybackRuntimeCommand {
+        PlaybackRuntimeCommand::RetargetLoop {
+            id,
+            update: loop_update(start, end),
+        }
+    }
+
+    fn loop_update(start: f64, end: f64) -> PlaybackRuntimeLoopUpdate {
+        PlaybackRuntimeLoopUpdate {
+            start,
+            end,
+            offset: start,
+            seek_to_offset: true,
+            metronome: None,
         }
     }
 

@@ -6,7 +6,7 @@ use crate::{AsyncSource, Source};
 use super::super::fade::{EdgeFade, fade_duration};
 use super::metronome::MetronomeSource;
 use super::{
-    AudioPlaybackSource, AudioPlayer, EditFadeSource, PlaybackChannelLayout,
+    AudioPlaybackSource, AudioPlayer, EditFadeSource, LoopSpanHandle, PlaybackChannelLayout,
     PlaybackMetronomeConfig, PlaybackSeekBehavior, PlaybackSpanPlan, PlaybackSpanRequest,
 };
 
@@ -15,6 +15,8 @@ use lazy_sources::{
     LazySpanSource, PcmWavFileRepeatingSpanSource, PcmWavFileSpanSource,
 };
 mod lazy_sources;
+mod looping_samples;
+use looping_samples::LoopingSamplesSource;
 #[cfg(test)]
 mod test_support;
 
@@ -80,6 +82,50 @@ impl AudioPlayer {
         )
     }
 
+    /// Retarget the active loop span without rebuilding the sink when the
+    /// current source supports live loop bounds.
+    pub fn retarget_looped_range_with_metronome(
+        &mut self,
+        start: f64,
+        end: f64,
+        offset: f64,
+        seek_to_offset: bool,
+        metronome: Option<PlaybackMetronomeConfig>,
+    ) -> Result<(), String> {
+        let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
+        let clamped_offset = offset.clamp(start.min(end), start.max(end));
+        let offset_seconds =
+            ((clamped_offset * f64::from(duration)) - f64::from(bounded_start)).max(0.0) as f32;
+        let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
+        let offset_frames = seconds_to_frames_round(offset_seconds, sample_rate);
+        let plan = self.playback_span_plan(
+            bounded_start,
+            bounded_end,
+            duration,
+            true,
+            PlaybackSeekBehavior::FrameOffset(offset_frames),
+        )?;
+
+        let Some(loop_span) = self.active_loop_span.clone() else {
+            return self.start_with_looped_span_offset(
+                bounded_start,
+                bounded_end,
+                duration,
+                offset_seconds,
+                metronome,
+            );
+        };
+        let seek_frame = seek_to_offset.then_some(
+            plan.start_frame()
+                .saturating_add(plan.seek_offset_frames())
+                .min(plan.end_frame().saturating_sub(1)),
+        );
+        loop_span.update_from_plan(&plan, seek_frame);
+        self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
+        self.active_loop_span = Some(loop_span);
+        Ok(())
+    }
+
     /// Loop the full track while starting playback at the given normalized position.
     pub fn play_full_wrapped_from(&mut self, start: f64) -> Result<(), String> {
         let duration = self
@@ -134,6 +180,7 @@ impl AudioPlayer {
 
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
         self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
+        self.active_loop_span = None;
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
         Ok(())
@@ -179,18 +226,20 @@ impl AudioPlayer {
             (plan.end_seconds() - plan.start_seconds()).max(f32::EPSILON),
             self.anti_clip_fade(),
         );
+        let mut active_loop_span = None;
         let final_source: Box<dyn Source<Item = f32> + Send> = if looped {
             let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
                 self.playback_samples.as_ref().cloned()
             {
-                let source = SamplesBuffer::from_arc_span(
+                let loop_span = LoopSpanHandle::from_plan(&plan);
+                let source = LoopingSamplesSource::new(
                     channels,
                     sample_rate,
                     samples,
+                    loop_span.clone(),
                     plan.start_sample(),
-                    plan.end_sample(),
-                )
-                .repeat_infinite();
+                );
+                active_loop_span = Some(loop_span);
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
                     source,
                     plan.sample_count(),
@@ -248,6 +297,7 @@ impl AudioPlayer {
         let (handle, format) = self.build_sink_with_fade(final_source)?;
         let finish_started_at = playback_stage_started();
         self.finish_span_playback(&plan, None);
+        self.active_loop_span = active_loop_span;
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
         log_playback_stage("finish_span_state", finish_started_at, source_kind, looped);
@@ -293,14 +343,15 @@ impl AudioPlayer {
         let channels = plan.layout().channels();
 
         let source_started_at = playback_stage_started();
+        let mut active_loop_span = None;
         let diagnostic: Box<dyn Source<Item = f32> + Send> =
             if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                let source = SamplesBuffer::from_arc_span_at(
+                let loop_span = LoopSpanHandle::from_plan(&plan);
+                let source = LoopingSamplesSource::new(
                     channels,
                     sample_rate,
                     samples,
-                    plan.start_sample(),
-                    plan.end_sample(),
+                    loop_span.clone(),
                     plan.seek_sample(),
                 );
                 let editable = EditFadeSource::new_looped(
@@ -310,8 +361,9 @@ impl AudioPlayer {
                     plan.frame_count(),
                     plan.seek_offset_frames(),
                 );
+                active_loop_span = Some(loop_span);
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                    editable.repeat_infinite(),
+                    editable,
                     plan.sample_count(),
                 ))
             } else {
@@ -336,6 +388,7 @@ impl AudioPlayer {
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
         let finish_started_at = playback_stage_started();
         self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
+        self.active_loop_span = active_loop_span;
         self.fade_out = Some(handle);
         self.sink_format = Some(format);
         log_playback_stage("finish_span_state", finish_started_at, source_kind, true);

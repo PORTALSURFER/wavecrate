@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use super::span::{loop_retarget_offset_for_selection, playback_span_matches_selection};
 use crate::native_app::app::{NativeAppState, emit_gui_action};
-use wavecrate::audio::AudioPlayer;
+use wavecrate::audio::{AudioPlayer, PlaybackRuntimeLoopUpdate};
 
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {
@@ -92,7 +92,13 @@ impl NativeAppState {
             .current_audio_progress_ratio()
             .unwrap_or_else(|| selection.start());
         let offset = loop_retarget_offset_for_selection(current, selection);
-        match self.start_playback_span(selection.start(), selection.end(), Some(offset)) {
+        let seek_to_offset = !(selection.start()..=selection.end()).contains(&current);
+        match self.retarget_active_loop_playback(
+            selection.start(),
+            selection.end(),
+            offset,
+            seek_to_offset,
+        ) {
             Ok(()) => {
                 let file_name = self.waveform.current.file_name();
                 self.ui.status.sample = format!("Loop range updated | {file_name}");
@@ -117,5 +123,42 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    fn retarget_active_loop_playback(
+        &mut self,
+        start: f32,
+        end: f32,
+        offset: f32,
+        seek_to_offset: bool,
+    ) -> Result<(), String> {
+        let metronome = self.playback_metronome_config_for_span(start, end, offset);
+        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+            runtime
+                .try_retarget_loop(PlaybackRuntimeLoopUpdate {
+                    start: f64::from(start),
+                    end: f64::from(end),
+                    offset: f64::from(offset),
+                    seek_to_offset,
+                    metronome,
+                })
+                .map_err(|err| format!("submit loop retarget request: {err:?}"))?;
+        } else if let Some(player) = self.audio.player.as_mut() {
+            player.retarget_looped_range_with_metronome(
+                f64::from(start),
+                f64::from(end),
+                f64::from(offset),
+                seek_to_offset,
+                metronome,
+            )?;
+        } else {
+            return Err(String::from("audio player did not initialize"));
+        }
+
+        self.audio.current_playback_span = Some((start, end));
+        if seek_to_offset {
+            self.waveform.current.start_playback(offset);
+        }
+        Ok(())
     }
 }

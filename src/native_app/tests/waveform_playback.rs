@@ -871,14 +871,24 @@ fn looped_playback_retarget_keeps_current_cycle_when_playhead_still_fits() {
     scenario.begin_play_range_end_resize(0.60);
 
     scenario.state.waveform.current.set_playhead_ratio(0.50);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.80);
 
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id
+    );
     assert_playback_span_state(&scenario.state, 0.20, 0.80);
     assert_waveform_progress_near(&scenario.state, 0.50);
 
     scenario.state.waveform.current.set_playhead_ratio(0.50);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.65);
 
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id
+    );
     assert_playback_span_state(&scenario.state, 0.20, 0.65);
     assert_waveform_progress_near(&scenario.state, 0.50);
     scenario.finish_play_range_drag(0.65);
@@ -894,11 +904,24 @@ fn looped_playback_retarget_restarts_when_playhead_is_past_new_end() {
     scenario.begin_play_range_end_resize(0.80);
 
     scenario.state.waveform.current.set_playhead_ratio(0.70);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.55);
 
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id
+    );
     assert_playback_span_state(&scenario.state, 0.20, 0.55);
     assert_waveform_progress_near(&scenario.state, 0.20);
     scenario.finish_play_range_drag(0.55);
+}
+
+fn pending_runtime_playback_start_id(state: &NativeAppState) -> Option<u64> {
+    state
+        .audio
+        .pending_runtime_start
+        .as_ref()
+        .map(|pending| pending.id.get())
 }
 
 fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expected_end: f32) {
