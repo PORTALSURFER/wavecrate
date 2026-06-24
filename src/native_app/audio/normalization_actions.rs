@@ -16,13 +16,13 @@ use crate::native_app::sample_library::file_actions::{
 };
 use crate::native_app::sample_library::folder_browser::file_refresh::refreshed_file_entries_for_paths;
 
+use super::normalization_worker_pacing::NormalizationWorkerPacer;
+
 const NORMALIZATION_WORK_UNITS_PER_FILE: usize = 1_000;
 const NORMALIZATION_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(80);
 const NORMALIZATION_PROGRESS_MIN_UNITS: usize = 20;
 const BULK_NORMALIZATION_BACKGROUND_THRESHOLD: usize = 32;
 const BULK_NORMALIZATION_PROGRESS_FILE_STEP: usize = 8;
-const BULK_NORMALIZATION_PACE_INTERVAL: Duration = Duration::from_millis(16);
-const BULK_NORMALIZATION_PACE_SLEEP: Duration = Duration::from_millis(1);
 const VERBOSE_NORMALIZATION_PROGRESS_FILE_LIMIT: usize = 64;
 const SLOW_NORMALIZATION_FILE_LOG_THRESHOLD: Duration = Duration::from_millis(500);
 
@@ -447,7 +447,7 @@ fn run_normalization_worker(
     let mut normalized = Vec::new();
     let mut skipped = Vec::new();
     let mut failed = Vec::new();
-    let mut pacer = NormalizationWorkerPacer::new(total);
+    let mut pacer = NormalizationWorkerPacer::new(total > BULK_NORMALIZATION_BACKGROUND_THRESHOLD);
     for (index, path) in request.paths.iter().enumerate() {
         let file_started_at = Instant::now();
         let file_label = sample_path_label(path);
@@ -519,28 +519,6 @@ fn run_normalization_worker(
         refreshed_files,
         skipped,
         failed,
-    }
-}
-
-struct NormalizationWorkerPacer {
-    enabled: bool,
-    last_pause: Instant,
-}
-
-impl NormalizationWorkerPacer {
-    fn new(total_files: usize) -> Self {
-        Self {
-            enabled: total_files > BULK_NORMALIZATION_BACKGROUND_THRESHOLD,
-            last_pause: Instant::now(),
-        }
-    }
-
-    fn pause_if_due(&mut self) {
-        if !self.enabled || self.last_pause.elapsed() < BULK_NORMALIZATION_PACE_INTERVAL {
-            return;
-        }
-        std::thread::sleep(BULK_NORMALIZATION_PACE_SLEEP);
-        self.last_pause = Instant::now();
     }
 }
 

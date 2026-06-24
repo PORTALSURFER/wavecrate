@@ -524,6 +524,10 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
             "last-played persistence worker",
         ),
         (
+            "src/native_app/audio/normalization_worker_pacing.rs",
+            "normalization business worker pacing",
+        ),
+        (
             "src/native_app/file_actions/wav_normalize.rs",
             "audio file worker",
         ),
