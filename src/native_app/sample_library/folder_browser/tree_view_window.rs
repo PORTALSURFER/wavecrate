@@ -86,37 +86,6 @@ impl FolderBrowserState {
                 .position(|folder| folder.id == *selected_id)
         });
 
-        if self.tree.follow_selection.focus_key() == selected_id.as_ref() {
-            let projection = ui::VirtualListProjection::for_slice(
-                visible_folders,
-                viewport_rows,
-                overscan_rows,
-                guard_rows,
-            )
-            .with_context_row();
-            self.tree.view_controller.configure_projection(projection);
-            self.tree.view_controller.clear_focus();
-            return self.tree.view_controller.resolve();
-        }
-
-        if selected_index.is_some_and(|index| {
-            self.tree
-                .view_controller
-                .runtime_viewport_contains_index(visible_folders.len(), index)
-        }) {
-            let projection = ui::VirtualListProjection::for_slice(
-                visible_folders,
-                viewport_rows,
-                overscan_rows,
-                guard_rows,
-            )
-            .with_context_row();
-            self.tree.follow_selection.remember_focus_key(selected_id);
-            self.tree.view_controller.configure_projection(projection);
-            self.tree.view_controller.clear_focus();
-            return self.tree.view_controller.resolve();
-        }
-
         let projection = ui::VirtualListProjection::for_slice(
             visible_folders,
             viewport_rows,
@@ -127,7 +96,7 @@ impl FolderBrowserState {
         let focus = ui::VirtualListFocusTarget::new(selected_id, selected_index);
         self.tree
             .view_controller
-            .configure_projection_and_focus_changed_optional(
+            .configure_projection_and_focus_changed_unless_visible_optional(
                 &mut self.tree.follow_selection,
                 projection,
                 focus,

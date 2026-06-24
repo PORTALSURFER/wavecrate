@@ -89,47 +89,6 @@ impl FolderBrowserState {
         let selected_file = self.selection.selected_file.clone();
         let total_items = self.selected_audio_file_count_matching_tags(tags_by_file);
         let selected_index = self.selected_audio_file_index_matching_tags(tags_by_file);
-        if self.sample_list.follow_selection.focus_key() == selected_file.as_ref() {
-            let projection = ui::VirtualListProjection::new(
-                total_items,
-                viewport_rows,
-                overscan_rows,
-                guard_rows,
-            )
-            .with_context_row();
-            self.sample_list
-                .view_controller
-                .configure_projection(projection);
-            self.sample_list.view_controller.clear_focus();
-            let window = self.sample_list.view_controller.resolve();
-            self.sample_list.prepared_window = window;
-            return window;
-        }
-
-        if selected_index.is_some_and(|index| {
-            self.sample_list
-                .view_controller
-                .runtime_viewport_contains_index(total_items, index)
-        }) {
-            let projection = ui::VirtualListProjection::new(
-                total_items,
-                viewport_rows,
-                overscan_rows,
-                guard_rows,
-            )
-            .with_context_row();
-            self.sample_list
-                .follow_selection
-                .remember_focus_key(selected_file);
-            self.sample_list
-                .view_controller
-                .configure_projection(projection);
-            self.sample_list.view_controller.clear_focus();
-            let window = self.sample_list.view_controller.resolve();
-            self.sample_list.prepared_window = window;
-            return window;
-        }
-
         let projection =
             ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
                 .with_context_row();
@@ -137,7 +96,7 @@ impl FolderBrowserState {
         let window = self
             .sample_list
             .view_controller
-            .configure_projection_and_focus_changed_optional(
+            .configure_projection_and_focus_changed_unless_visible_optional(
                 &mut self.sample_list.follow_selection,
                 projection,
                 focus,
