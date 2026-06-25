@@ -4,6 +4,7 @@ use radiant::{
 };
 use wavecrate::sample_sources::SampleCollection;
 
+use super::curation::BrowserCurationScope;
 use super::playback_type_filter::PlaybackTypeFilter;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,7 +38,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     TagFilterInput(TextInputMessage),
     TogglePlaybackTypeFilter(PlaybackTypeFilter, bool),
     ToggleRatingFilter(i8, bool),
-    ToggleCurationMode(bool),
+    SetCurationScope(BrowserCurationScope, bool),
     SortFileColumn(String),
     ResizeFileColumn(String, DragHandleMessage),
     DragFileColumn(String, DragHandleMessage),

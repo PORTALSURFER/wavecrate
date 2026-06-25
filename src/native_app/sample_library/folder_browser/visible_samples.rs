@@ -605,7 +605,7 @@ mod tests {
                 "folder",
                 "kick",
                 "",
-                "curation:14:0:0",
+                "curation:all:14:0:0",
                 &ascending,
                 None,
                 4

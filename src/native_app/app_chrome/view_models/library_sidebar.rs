@@ -9,8 +9,9 @@ use crate::native_app::sample_library::folder_browser::view_contract::{
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState,
     model::{
-        PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter, RATING_FILTER_LEVELS, SourceEntry,
-        VisibleFolder, playback_type_filter_label, rating_filter_label,
+        BROWSER_CURATION_SCOPES, BrowserCurationScope, PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter,
+        RATING_FILTER_LEVELS, SourceEntry, VisibleFolder, playback_type_filter_label,
+        rating_filter_label,
     },
 };
 
@@ -66,8 +67,13 @@ pub(in crate::native_app) struct FilterSectionViewModel {
 }
 
 pub(in crate::native_app) struct CurationFilterViewModel {
+    pub(in crate::native_app) toggles: Vec<CurationFilterToggleViewModel>,
+}
+
+pub(in crate::native_app) struct CurationFilterToggleViewModel {
+    pub(in crate::native_app) scope: BrowserCurationScope,
+    pub(in crate::native_app) label: &'static str,
     pub(in crate::native_app) active: bool,
-    pub(in crate::native_app) status: String,
 }
 
 pub(in crate::native_app) struct PlaybackTypeFilterToggleViewModel {
@@ -186,8 +192,15 @@ impl FilterSectionViewModel {
             name_filter: folder_browser.name_filter().to_owned(),
             tag_filter: folder_browser.tag_filter().to_owned(),
             curation: CurationFilterViewModel {
-                active: folder_browser.curation_mode_enabled(),
-                status: format!("{}d", folder_browser.curation_mode().recent_ignore_days),
+                toggles: BROWSER_CURATION_SCOPES
+                    .into_iter()
+                    .map(|scope| CurationFilterToggleViewModel {
+                        scope,
+                        label: scope.label(),
+                        active: folder_browser.curation_mode_enabled()
+                            && folder_browser.curation_scope() == scope,
+                    })
+                    .collect(),
             },
             playback_type_filters: PLAYBACK_TYPE_FILTERS
                 .into_iter()

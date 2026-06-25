@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::{
     DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
-    curation::BrowserCurationMode,
+    curation::{BrowserCurationMode, BrowserCurationScope},
     playback_type_filter::{PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter},
     rating_filter::RATING_FILTER_LEVELS,
 };
@@ -106,6 +106,10 @@ impl FolderBrowserState {
         self.filters.curation.enabled
     }
 
+    pub(in crate::native_app) fn curation_scope(&self) -> BrowserCurationScope {
+        self.filters.curation.scope
+    }
+
     pub(in crate::native_app) fn apply_name_filter_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
@@ -171,11 +175,17 @@ impl FolderBrowserState {
         }
     }
 
-    pub(in crate::native_app) fn set_curation_mode_enabled(&mut self, enabled: bool) {
-        if self.filters.curation.enabled == enabled {
+    pub(in crate::native_app) fn set_curation_scope(
+        &mut self,
+        scope: BrowserCurationScope,
+        enabled: bool,
+    ) {
+        let next_enabled = enabled || self.filters.curation.scope != scope;
+        if self.filters.curation.enabled == next_enabled && self.filters.curation.scope == scope {
             return;
         }
-        self.filters.curation.enabled = enabled;
+        self.filters.curation.enabled = next_enabled;
+        self.filters.curation.scope = scope;
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }

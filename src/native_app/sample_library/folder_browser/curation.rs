@@ -13,9 +13,24 @@ use super::FolderEntry;
 const DEFAULT_RECENT_IGNORE_DAYS: u16 = 14;
 const SECONDS_PER_DAY: i64 = 86_400;
 
+pub(in crate::native_app) const BROWSER_CURATION_SCOPES: [BrowserCurationScope; 3] = [
+    BrowserCurationScope::All,
+    BrowserCurationScope::Ratings,
+    BrowserCurationScope::Tags,
+];
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub(in crate::native_app) enum BrowserCurationScope {
+    #[default]
+    All,
+    Ratings,
+    Tags,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct BrowserCurationMode {
     pub(in crate::native_app) enabled: bool,
+    pub(in crate::native_app) scope: BrowserCurationScope,
     pub(in crate::native_app) recent_ignore_days: u16,
     pub(in crate::native_app) include_k4: bool,
     pub(in crate::native_app) include_recent: bool,
@@ -25,9 +40,28 @@ impl Default for BrowserCurationMode {
     fn default() -> Self {
         Self {
             enabled: false,
+            scope: BrowserCurationScope::All,
             recent_ignore_days: DEFAULT_RECENT_IGNORE_DAYS,
             include_k4: false,
             include_recent: false,
+        }
+    }
+}
+
+impl BrowserCurationScope {
+    pub(in crate::native_app) const fn label(self) -> &'static str {
+        match self {
+            Self::All => "All",
+            Self::Ratings => "Rate",
+            Self::Tags => "Tags",
+        }
+    }
+
+    const fn token(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Ratings => "ratings",
+            Self::Tags => "tags",
         }
     }
 }
@@ -59,8 +93,11 @@ impl BrowserCurationMode {
             return String::new();
         }
         format!(
-            "curation:{}:{}:{}",
-            self.recent_ignore_days, self.include_k4 as u8, self.include_recent as u8
+            "curation:{}:{}:{}:{}",
+            self.scope.token(),
+            self.recent_ignore_days,
+            self.include_k4 as u8,
+            self.include_recent as u8
         )
     }
 }
@@ -92,6 +129,9 @@ pub(super) fn curation_entry_for_file(
 
     let metadata = curation_metadata(tags);
     let priority = curation_priority(file, &metadata, locked_keep, recent);
+    if !curation_scope_includes_file(mode.scope, file, &metadata) {
+        return None;
+    }
     Some(CurationEntry {
         priority,
         curated_rank: file.last_curated_at.unwrap_or(i64::MIN),
@@ -245,7 +285,7 @@ fn curation_priority(
     if recent {
         return CurationPriority::Recent;
     }
-    let complete_metadata = metadata.has_descriptive_tag && metadata.has_playback_type;
+    let complete_metadata = metadata.has_complete_metadata();
     if file.last_curated_at.is_none() {
         if file.rating == Rating::NEUTRAL && !metadata.has_any_metadata {
             CurationPriority::NeverCuratedEmpty
@@ -262,6 +302,18 @@ fn curation_priority(
         CurationPriority::LowRatingIncomplete
     } else {
         CurationPriority::Stale
+    }
+}
+
+fn curation_scope_includes_file(
+    scope: BrowserCurationScope,
+    file: &FileEntry,
+    metadata: &CurationMetadata,
+) -> bool {
+    match scope {
+        BrowserCurationScope::All => true,
+        BrowserCurationScope::Ratings => file.rating.val().abs() <= 1,
+        BrowserCurationScope::Tags => !metadata.has_complete_metadata(),
     }
 }
 
@@ -282,6 +334,12 @@ struct CurationMetadata {
     has_any_metadata: bool,
     has_descriptive_tag: bool,
     has_playback_type: bool,
+}
+
+impl CurationMetadata {
+    fn has_complete_metadata(self) -> bool {
+        self.has_descriptive_tag && self.has_playback_type
+    }
 }
 
 fn curation_metadata(tags: Option<&[String]>) -> CurationMetadata {
@@ -369,11 +427,66 @@ mod tests {
         assert_eq!(curation_entry_order(&empty, &tagged), Ordering::Less);
     }
 
+    #[test]
+    fn curation_scopes_split_rating_and_tag_work() {
+        let now = 1_000_000;
+        let complete_tags = [String::from("kick"), String::from("one-shot")];
+        let rating_mode = BrowserCurationMode::default_enabled_for_tests_with_scope(
+            BrowserCurationScope::Ratings,
+        );
+        let tag_mode =
+            BrowserCurationMode::default_enabled_for_tests_with_scope(BrowserCurationScope::Tags);
+
+        assert!(
+            curation_entry_for_file(
+                &file("unrated-complete.wav", Rating::NEUTRAL, false, None),
+                Some(&complete_tags),
+                &rating_mode,
+                now,
+            )
+            .is_some()
+        );
+        assert!(
+            curation_entry_for_file(
+                &file("rated-missing-tags.wav", Rating::KEEP_3, false, None),
+                Some(&[]),
+                &rating_mode,
+                now,
+            )
+            .is_none()
+        );
+        assert!(
+            curation_entry_for_file(
+                &file("rated-missing-tags.wav", Rating::KEEP_3, false, None),
+                Some(&[]),
+                &tag_mode,
+                now,
+            )
+            .is_some()
+        );
+        assert!(
+            curation_entry_for_file(
+                &file("unrated-complete.wav", Rating::NEUTRAL, false, None),
+                Some(&complete_tags),
+                &tag_mode,
+                now,
+            )
+            .is_none()
+        );
+    }
+
     impl BrowserCurationMode {
         fn default_enabled_for_tests() -> Self {
             Self {
                 enabled: true,
                 ..Self::default()
+            }
+        }
+
+        fn default_enabled_for_tests_with_scope(scope: BrowserCurationScope) -> Self {
+            Self {
+                scope,
+                ..Self::default_enabled_for_tests()
             }
         }
     }

@@ -1,5 +1,7 @@
 use super::*;
-use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
+use crate::native_app::sample_library::folder_browser::model::{
+    BrowserCurationScope, PlaybackTypeFilter,
+};
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -63,7 +65,10 @@ fn curation_mode_filters_recent_and_locked_keep_rows() {
     assert!(browser.set_file_last_curated_at(&recent, now - 60));
     assert!(browser.set_file_rating_state(&locked, Rating::KEEP_3, true));
     assert!(browser.set_file_last_curated_at(&locked, now - 60 * 60 * 24 * 90));
-    browser.apply_message(FolderBrowserMessage::ToggleCurationMode(true));
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::All,
+        true,
+    ));
     let tags_by_file = HashMap::from([
         (
             path_id(&tagged),
@@ -103,6 +108,83 @@ fn curation_mode_filters_recent_and_locked_keep_rows() {
 }
 
 #[test]
+fn curation_scope_modes_filter_rating_and_tag_work_separately() {
+    let root = temp_source_root("wavecrate-gui-curation-scope-filter");
+    let complete_unrated = root.join("complete-unrated.wav");
+    let complete_low_rating = root.join("complete-low-rating.wav");
+    let missing_tags_rated = root.join("missing-tags-rated.wav");
+    let complete_rated = root.join("complete-rated.wav");
+    for file in [
+        &complete_unrated,
+        &complete_low_rating,
+        &missing_tags_rated,
+        &complete_rated,
+    ] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.set_file_rating_state(&complete_low_rating, Rating::KEEP_1, false));
+    assert!(browser.set_file_rating_state(&missing_tags_rated, Rating::KEEP_3, false));
+    assert!(browser.set_file_rating_state(&complete_rated, Rating::KEEP_3, false));
+    let stale_curated_at = curation_test_now() - 60 * 60 * 24 * 90;
+    assert!(browser.set_file_last_curated_at(&complete_low_rating, stale_curated_at));
+    assert!(browser.set_file_last_curated_at(&missing_tags_rated, stale_curated_at));
+    let complete_tags = vec![String::from("kick"), String::from("one-shot")];
+    let tags_by_file = HashMap::from([
+        (path_id(&complete_unrated), complete_tags.clone()),
+        (path_id(&complete_low_rating), complete_tags.clone()),
+        (path_id(&complete_rated), complete_tags),
+    ]);
+
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::Ratings,
+        true,
+    ));
+    let rating_rows = browser.selected_audio_file_window_matching_tags(
+        radiant::prelude::VirtualListWindow {
+            total_items: 4,
+            viewport_start: 0,
+            viewport_end: 4,
+            window_start: 0,
+            window_end: 4,
+        },
+        &tags_by_file,
+    );
+    assert_eq!(
+        rating_rows
+            .rows
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["complete-unrated.wav", "complete-low-rating.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::Tags,
+        true,
+    ));
+    let tag_rows = browser.selected_audio_file_window_matching_tags(
+        radiant::prelude::VirtualListWindow {
+            total_items: 4,
+            viewport_start: 0,
+            viewport_end: 4,
+            window_start: 0,
+            window_end: 4,
+        },
+        &tags_by_file,
+    );
+    assert_eq!(
+        tag_rows
+            .rows
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["missing-tags-rated.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn curation_random_navigation_draws_from_current_priority_bucket() {
     let root = temp_source_root("wavecrate-gui-curation-random");
     let empty_a = root.join("empty-a.wav");
@@ -116,7 +198,10 @@ fn curation_random_navigation_draws_from_current_priority_bucket() {
         vec![String::from("kick"), String::from("one-shot")],
     )]);
     let mut browser = FolderBrowserState::from_root(root.clone());
-    browser.apply_message(FolderBrowserMessage::ToggleCurationMode(true));
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::All,
+        true,
+    ));
     browser.select_file(path_id(&empty_a));
     browser.toggle_random_navigation();
 

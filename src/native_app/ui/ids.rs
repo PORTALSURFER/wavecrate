@@ -96,6 +96,9 @@ pub(in crate::native_app) const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 = FOL
 /// Scope for automation-facing playback-type filter toggle ids.
 pub(in crate::native_app) const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 =
     FOLDER_FILTERS.id(21);
+/// Scope for automation-facing curation filter toggle ids.
+pub(in crate::native_app) const AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE: u64 =
+    FOLDER_FILTERS.id(22);
 
 pub(in crate::native_app) const COLLECTIONS_SECTION_NODE_ID: u64 = COLLECTIONS.id(2);
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = COLLECTIONS.id(3);

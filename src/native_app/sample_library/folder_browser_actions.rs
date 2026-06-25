@@ -40,10 +40,10 @@ impl NativeAppState {
             FolderBrowserMessage::TogglePlaybackTypeFilter(filter, enabled) => {
                 self.toggle_folder_browser_playback_type_filter(filter, enabled);
             }
-            FolderBrowserMessage::ToggleCurationMode(enabled) => {
+            FolderBrowserMessage::SetCurationScope(scope, enabled) => {
                 self.library
                     .folder_browser
-                    .set_curation_mode_enabled(enabled);
+                    .set_curation_scope(scope, enabled);
                 self.library
                     .folder_browser
                     .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);

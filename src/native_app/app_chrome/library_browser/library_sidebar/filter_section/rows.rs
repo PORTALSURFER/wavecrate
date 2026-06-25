@@ -3,7 +3,7 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 mod projection;
 
 use self::projection::{
-    CurationFilterRowProjection, PlaybackTypeFilterRowProjection,
+    CurationFilterRowProjection, CurationFilterToggleProjection, PlaybackTypeFilterRowProjection,
     PlaybackTypeFilterToggleProjection, RatingFilterRowProjection, RatingFilterToggleProjection,
     TextFilterField, TextFilterRowProjection, filter_rows_projection,
 };
@@ -17,6 +17,7 @@ pub(super) const FILTER_ROW_HEIGHT: f32 = 24.0;
 pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 const FILTER_LABEL_WIDTH: f32 = 38.0;
+const CURATION_FILTER_TOGGLE_WIDTH: f32 = 44.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
 pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
@@ -43,6 +44,9 @@ pub(super) const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 /// Scope for automation-facing playback-type filter toggle ids.
 const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE;
+/// Scope for automation-facing curation filter toggle ids.
+const AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE: u64 =
+    widget_ids::AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE;
 /// Scope for automation-facing rating filter toggle ids.
 const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_RATING_FILTER_TOGGLE_SCOPE;
@@ -137,26 +141,35 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
 }
 
 fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage> {
-    let active = row.active;
     filter_labeled_control_row(
         filter_row_label(row.label),
-        ui::row([
-            ui::selectable("Source", active)
-                .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-                .message(|enabled| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleCurationMode(enabled))
-                })
-                .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE),
-            ui::text(row.status)
-                .muted_text()
-                .height(FILTER_CLEAR_BUTTON_SIZE)
-                .width(34.0),
-        ])
+        ui::row(
+            row.toggles
+                .iter()
+                .map(curation_filter_toggle)
+                .collect::<Vec<_>>(),
+        )
         .spacing(4.0)
         .fill_width()
         .height(FILTER_CLEAR_BUTTON_SIZE),
         "filter-curation-row",
     )
+}
+
+fn curation_filter_toggle(toggle: &CurationFilterToggleProjection) -> ui::View<GuiMessage> {
+    let scope = toggle.scope;
+    ui::selectable(toggle.label, toggle.active)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .message(move |enabled| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::SetCurationScope(scope, enabled))
+        })
+        .id(automation_curation_filter_toggle_id(toggle.label))
+        .size(CURATION_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+}
+
+/// Automation-facing id for a curation filter toggle.
+pub(super) fn automation_curation_filter_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE, label)
 }
 
 fn playback_type_filter_toggle(

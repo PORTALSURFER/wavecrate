@@ -1,8 +1,10 @@
 use crate::native_app::app_chrome::view_models::library_sidebar::{
-    CurationFilterViewModel, FilterSectionViewModel, PlaybackTypeFilterToggleViewModel,
-    RatingFilterToggleViewModel,
+    CurationFilterToggleViewModel, CurationFilterViewModel, FilterSectionViewModel,
+    PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
 };
-use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
+use crate::native_app::sample_library::folder_browser::model::{
+    BrowserCurationScope, PlaybackTypeFilter,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FilterRowsProjection {
@@ -36,8 +38,14 @@ pub(super) struct PlaybackTypeFilterRowProjection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CurationFilterRowProjection {
     pub(super) label: &'static str,
+    pub(super) toggles: Vec<CurationFilterToggleProjection>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct CurationFilterToggleProjection {
+    pub(super) scope: BrowserCurationScope,
+    pub(super) label: &'static str,
     pub(super) active: bool,
-    pub(super) status: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,8 +106,21 @@ impl CurationFilterRowProjection {
     fn from_view_model(model: &CurationFilterViewModel) -> Self {
         Self {
             label: "Curate",
+            toggles: model
+                .toggles
+                .iter()
+                .map(CurationFilterToggleProjection::from_view_model)
+                .collect(),
+        }
+    }
+}
+
+impl CurationFilterToggleProjection {
+    fn from_view_model(model: &CurationFilterToggleViewModel) -> Self {
+        Self {
+            scope: model.scope,
+            label: model.label,
             active: model.active,
-            status: model.status.clone(),
         }
     }
 }
@@ -156,6 +177,20 @@ mod tests {
     fn filter_rows_projection_preserves_toggle_order_and_state() {
         let projection = filter_rows_projection(&filter_model());
 
+        assert_eq!(projection.curation.label, "Curate");
+        assert_eq!(
+            projection
+                .curation
+                .toggles
+                .iter()
+                .map(|toggle| (toggle.scope, toggle.label, toggle.active))
+                .collect::<Vec<_>>(),
+            vec![
+                (BrowserCurationScope::All, "All", true),
+                (BrowserCurationScope::Ratings, "Rate", false),
+                (BrowserCurationScope::Tags, "Tags", false),
+            ]
+        );
         assert_eq!(projection.playback_type.label, "Type");
         assert_eq!(
             projection
@@ -186,8 +221,23 @@ mod tests {
             name_filter: "kick".to_string(),
             tag_filter: "drum".to_string(),
             curation: CurationFilterViewModel {
-                active: true,
-                status: "14d".to_string(),
+                toggles: vec![
+                    CurationFilterToggleViewModel {
+                        scope: BrowserCurationScope::All,
+                        label: "All",
+                        active: true,
+                    },
+                    CurationFilterToggleViewModel {
+                        scope: BrowserCurationScope::Ratings,
+                        label: "Rate",
+                        active: false,
+                    },
+                    CurationFilterToggleViewModel {
+                        scope: BrowserCurationScope::Tags,
+                        label: "Tags",
+                        active: false,
+                    },
+                ],
             },
             playback_type_filters: vec![
                 PlaybackTypeFilterToggleViewModel {

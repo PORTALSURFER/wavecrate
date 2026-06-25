@@ -41,6 +41,7 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
 
     assert!(frame.paint_plan.contains_text("Name"));
     assert!(frame.paint_plan.contains_text("Tags"));
+    assert!(frame.paint_plan.contains_text("Curate"));
     assert!(frame.paint_plan.contains_text("Type"));
     assert!(frame.paint_plan.contains_text("Rating"));
     assert_eq!(
@@ -49,6 +50,57 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
             .map(|input| input.widget_id)
             .collect::<Vec<_>>(),
         vec![NAME_FILTER_INPUT_ID, TAG_FILTER_INPUT_ID]
+    );
+}
+
+#[test]
+fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
+    let mut state = FolderBrowserState::load_default();
+    state.set_curation_scope(BrowserCurationScope::Ratings, true);
+    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(automation_curation_filter_toggle_id("All"))
+            .is_some()
+    );
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(automation_curation_filter_toggle_id("Rate"))
+            .is_some()
+    );
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(automation_curation_filter_toggle_id("Tags"))
+            .is_some()
+    );
+    assert!(frame.paint_plan.contains_text("All"));
+    assert!(frame.paint_plan.contains_text("Rate"));
+    assert!(frame.paint_plan.contains_text("Tags"));
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            automation_curation_filter_toggle_id("Tags"),
+            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetCurationScope(BrowserCurationScope::Tags, true)
+        ))
+    );
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            automation_curation_filter_toggle_id("Rate"),
+            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetCurationScope(BrowserCurationScope::Ratings, false)
+        ))
     );
 }
 
