@@ -10,6 +10,13 @@ pub(in crate::native_app) fn folder_move_progress_label(request: &FolderMoveRequ
         FolderMoveRequest::Files { file_ids, .. } => {
             format!("Moving {} file{}", file_ids.len(), plural(file_ids.len()))
         }
+        FolderMoveRequest::SourcedFiles { file_moves, .. } => {
+            format!(
+                "Moving {} file{}",
+                file_moves.len(),
+                plural(file_moves.len())
+            )
+        }
         FolderMoveRequest::ExtractedFile { .. } => String::from("Moving sample"),
     }
 }
@@ -19,6 +26,9 @@ pub(in crate::native_app) fn folder_move_progress_total(request: &FolderMoveRequ
         FolderMoveRequest::Folder { moves, .. } => moves.len().saturating_add(2).max(2),
         FolderMoveRequest::ExtractedFile { .. } => 2,
         FolderMoveRequest::Files { file_ids, .. } => file_ids.len().saturating_add(1).max(1),
+        FolderMoveRequest::SourcedFiles { file_moves, .. } => {
+            file_moves.len().saturating_add(1).max(1)
+        }
     }
 }
 

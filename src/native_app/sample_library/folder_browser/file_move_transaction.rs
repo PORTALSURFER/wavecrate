@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::FileMoveConflict;
+use super::{FileMoveConflict, FileMoveItem};
 
 #[derive(Debug, Default)]
 pub(super) struct FileMovePlan {
@@ -19,16 +19,32 @@ pub(super) struct OverwriteBackup {
 }
 
 pub(super) fn file_move_plan_to_folder(
+    source_root: &Path,
     file_ids: &[String],
+    target_path: &Path,
+) -> Result<FileMovePlan, String> {
+    let file_moves = file_ids
+        .iter()
+        .map(|file_id| FileMoveItem {
+            source_root: source_root.to_path_buf(),
+            file_id: file_id.clone(),
+        })
+        .collect::<Vec<_>>();
+    file_move_items_plan_to_folder(&file_moves, target_path)
+}
+
+pub(super) fn file_move_items_plan_to_folder(
+    file_moves: &[FileMoveItem],
     target_path: &Path,
 ) -> Result<FileMovePlan, String> {
     let mut plan = FileMovePlan::default();
     let mut seen = HashSet::new();
-    for id in file_ids {
-        if !seen.insert(id.clone()) {
+    let mut planned_destinations = HashSet::new();
+    for item in file_moves {
+        if !seen.insert(item.file_id.clone()) {
             continue;
         }
-        let old_path = PathBuf::from(id);
+        let old_path = PathBuf::from(&item.file_id);
         if !old_path.is_file() {
             return Err(format!(
                 "File move failed: {} is missing",
@@ -45,8 +61,9 @@ pub(super) fn file_move_plan_to_folder(
             return Err(String::from("File move failed: source file has no name"));
         };
         let new_path = target_path.join(file_name);
-        if new_path.exists() {
+        if new_path.exists() || !planned_destinations.insert(new_path.clone()) {
             plan.conflicts.push(FileMoveConflict {
+                source_root: item.source_root.clone(),
                 source_path: old_path,
                 destination_path: new_path,
             });
@@ -70,9 +87,9 @@ pub(super) fn rename_files_with_rollback_and_progress(
 ) -> Result<Vec<(PathBuf, PathBuf)>, String> {
     let mut completed = Vec::new();
     for (old_path, new_path) in moves {
-        if let Err(error) = fs::rename(old_path, new_path) {
+        if let Err(error) = move_file(old_path, new_path) {
             rollback_completed_file_moves(&completed);
-            return Err(format!("File move failed: {error}"));
+            return Err(error);
         }
         completed.push((old_path.clone(), new_path.clone()));
         progress(completed.len(), new_path);
@@ -89,13 +106,41 @@ pub(super) fn move_file_to_unique_destination(
         return Err(format!("{error_prefix}: file has no name"));
     };
     let destination = unique_destination(&target_folder.join(file_name));
-    fs::rename(source_path, &destination).map_err(|error| format!("{error_prefix}: {error}"))?;
+    move_file_with_prefix(source_path, &destination, error_prefix)?;
     Ok((source_path.to_path_buf(), destination))
 }
 
 pub(super) fn rollback_completed_file_moves(completed: &[(PathBuf, PathBuf)]) {
     for (moved_old, moved_new) in completed.iter().rev() {
-        let _ = fs::rename(moved_new, moved_old);
+        let _ = move_file(moved_new, moved_old);
+    }
+}
+
+pub(super) fn move_file(source: &Path, destination: &Path) -> Result<(), String> {
+    move_file_with_prefix(source, destination, "File move failed")
+}
+
+fn move_file_with_prefix(
+    source: &Path,
+    destination: &Path,
+    error_prefix: &'static str,
+) -> Result<(), String> {
+    match fs::rename(source, destination) {
+        Ok(()) => Ok(()),
+        Err(rename_error) => {
+            if let Err(copy_error) = fs::copy(source, destination) {
+                return Err(format!(
+                    "{error_prefix}: {rename_error}; copy failed: {copy_error}"
+                ));
+            }
+            if let Err(remove_error) = fs::remove_file(source) {
+                let _ = fs::remove_file(destination);
+                return Err(format!(
+                    "{error_prefix}: copied but failed to remove original: {remove_error}"
+                ));
+            }
+            Ok(())
+        }
     }
 }
 
@@ -128,8 +173,7 @@ pub(super) fn move_existing_destination_to_backup(
     destination_path: &Path,
 ) -> Result<OverwriteBackup, String> {
     let backup_path = unique_overwrite_backup_path(destination_path);
-    fs::rename(destination_path, &backup_path)
-        .map_err(|error| format!("File overwrite failed: {error}"))?;
+    move_file_with_prefix(destination_path, &backup_path, "File overwrite failed")?;
     Ok(OverwriteBackup {
         destination_path: destination_path.to_path_buf(),
         backup_path,
@@ -140,12 +184,11 @@ pub(super) fn move_file_over_backup(
     source_path: &Path,
     destination_path: &Path,
 ) -> Result<(), String> {
-    fs::rename(source_path, destination_path)
-        .map_err(|error| format!("File overwrite failed: {error}"))
+    move_file_with_prefix(source_path, destination_path, "File overwrite failed")
 }
 
 pub(super) fn restore_overwrite_backup(backup: &OverwriteBackup) {
-    let _ = fs::rename(&backup.backup_path, &backup.destination_path);
+    let _ = move_file(&backup.backup_path, &backup.destination_path);
 }
 
 pub(super) fn remove_overwrite_backup(backup: &OverwriteBackup) {
@@ -199,6 +242,7 @@ mod tests {
         fs::write(&existing, b"existing").expect("write conflict destination");
 
         let plan = file_move_plan_to_folder(
+            &root,
             &[
                 ready.display().to_string(),
                 ready.display().to_string(),
@@ -212,6 +256,7 @@ mod tests {
         assert_eq!(
             plan.conflicts,
             vec![FileMoveConflict {
+                source_root: root.clone(),
                 source_path: conflict,
                 destination_path: existing,
             }]

@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use super::{
     FileMoveConflictBatch, FileMoveConflictCompletion, FileMoveConflictExecutionFailure,
     FileMoveConflictExecutionSuccess, FileMoveConflictResolution, FileMoveConflictView,
-    FolderBrowserState, FolderDropResult, plural,
+    FolderBrowserState, FolderDropResult, file_move_execution::sourced_moved_files_from_conflicts,
+    plural,
 };
 
 impl FolderBrowserState {
@@ -69,16 +70,28 @@ impl FolderBrowserState {
         let previous_selection = self.selection.snapshot();
         let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         if !success.moved_paths.is_empty() {
-            self.relocate_moved_files(&success.moved_paths, &success.batch.target_folder)?;
+            if conflict_batch_moves_cross_sources(&success.batch, &success.moved_paths) {
+                let sourced_moves = sourced_moved_files_from_conflicts(
+                    &success.batch.conflicts,
+                    &success.moved_paths,
+                );
+                self.relocate_sourced_moved_files(
+                    &sourced_moves,
+                    &success.batch.source_root,
+                    &success.batch.target_folder,
+                )?;
+            } else {
+                self.relocate_moved_files(&success.moved_paths, &success.batch.target_folder)?;
+                self.restore_selection_after_file_drop(
+                    previous_selection,
+                    &success.moved_paths,
+                    &before_visible_ids,
+                    tags_by_file,
+                );
+            }
             if let Some(collection) = success.batch.remove_from_collection {
                 self.remove_moved_file_collection_states(&success.moved_paths, collection);
             }
-            self.restore_selection_after_file_drop(
-                previous_selection,
-                &success.moved_paths,
-                &before_visible_ids,
-                tags_by_file,
-            );
         }
         let status = conflict_resolution_status(
             &success.batch,
@@ -102,16 +115,28 @@ impl FolderBrowserState {
         let previous_selection = self.selection.snapshot();
         let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         if !failure.moved_paths.is_empty() {
-            self.relocate_moved_files(&failure.moved_paths, &failure.batch.target_folder)?;
+            if conflict_batch_moves_cross_sources(&failure.batch, &failure.moved_paths) {
+                let sourced_moves = sourced_moved_files_from_conflicts(
+                    &failure.batch.conflicts,
+                    &failure.moved_paths,
+                );
+                self.relocate_sourced_moved_files(
+                    &sourced_moves,
+                    &failure.batch.source_root,
+                    &failure.batch.target_folder,
+                )?;
+            } else {
+                self.relocate_moved_files(&failure.moved_paths, &failure.batch.target_folder)?;
+                self.restore_selection_after_file_drop(
+                    previous_selection,
+                    &failure.moved_paths,
+                    &before_visible_ids,
+                    tags_by_file,
+                );
+            }
             if let Some(collection) = failure.batch.remove_from_collection {
                 self.remove_moved_file_collection_states(&failure.moved_paths, collection);
             }
-            self.restore_selection_after_file_drop(
-                previous_selection,
-                &failure.moved_paths,
-                &before_visible_ids,
-                tags_by_file,
-            );
         }
         self.drag_drop.pending_file_move_conflicts = Some(failure.batch);
         Err(status_with_metadata_error(
@@ -119,6 +144,15 @@ impl FolderBrowserState {
             failure.metadata_error,
         ))
     }
+}
+
+fn conflict_batch_moves_cross_sources(
+    batch: &FileMoveConflictBatch,
+    moved_paths: &[(std::path::PathBuf, std::path::PathBuf)],
+) -> bool {
+    sourced_moved_files_from_conflicts(&batch.conflicts, moved_paths)
+        .iter()
+        .any(|move_item| move_item.source_root != batch.source_root)
 }
 
 pub(super) fn file_move_status(moved_count: usize, conflict_count: usize) -> String {

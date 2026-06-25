@@ -30,6 +30,7 @@ mod drag_drop;
 use drag_drop::{BrowserDragDropState, FolderBrowserDropTarget};
 mod drag_drop_move;
 mod drag_drop_relocation;
+mod drag_drop_sourced_files;
 
 mod delete_workflow;
 
@@ -108,7 +109,7 @@ mod move_types;
 use move_types::{
     FileMoveConflict, FileMoveConflictBatch, FileMoveConflictCompletion,
     FileMoveConflictExecutionFailure, FileMoveConflictExecutionSuccess, FileMoveConflictResolution,
-    FileMoveConflictResolutionRequest, FileMoveConflictView, FolderMoveCompletion,
+    FileMoveConflictResolutionRequest, FileMoveConflictView, FileMoveItem, FolderMoveCompletion,
     FolderMoveDropInput, FolderMoveRequest, FolderMoveSuccess,
 };
 

@@ -44,6 +44,7 @@ impl From<FileMoveConflictResolution> for FileMoveConflictResolutionRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FileMoveConflict {
+    pub(in crate::native_app) source_root: PathBuf,
     pub(in crate::native_app) source_path: PathBuf,
     pub(in crate::native_app) destination_path: PathBuf,
 }
@@ -58,6 +59,12 @@ pub(in crate::native_app) struct FileMoveConflictBatch {
     pub(in crate::native_app) resolved_count: usize,
     pub(in crate::native_app) skipped_count: usize,
     pub(in crate::native_app) batch_policy: Option<FileMoveConflictResolution>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FileMoveItem {
+    pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) file_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,6 +93,12 @@ pub(in crate::native_app) enum FolderMoveRequest {
     Files {
         source_root: PathBuf,
         file_ids: Vec<String>,
+        target_folder: PathBuf,
+        remove_from_collection: Option<SampleCollection>,
+    },
+    SourcedFiles {
+        target_source_root: PathBuf,
+        file_moves: Vec<FileMoveItem>,
         target_folder: PathBuf,
         remove_from_collection: Option<SampleCollection>,
     },

@@ -4,10 +4,10 @@ use std::{
 };
 
 use super::{
-    FileMoveConflictBatch, FolderBrowserState, FolderDropResult, FolderMoveDropInput,
+    FileMoveConflictBatch, FileMoveItem, FolderBrowserState, FolderDropResult, FolderMoveDropInput,
     FolderMoveRequest, FolderMoveSuccess, delete_workflow::fallback_after_deleted_focus,
-    file_move_conflicts::file_move_status, path_helpers::path_id,
-    selection_state::BrowserSelectionSnapshot,
+    drag_drop_sourced_files::sourced_moved_files_from_items, file_move_conflicts::file_move_status,
+    path_helpers::path_id, selection_state::BrowserSelectionSnapshot,
 };
 
 impl FolderBrowserState {
@@ -124,7 +124,41 @@ impl FolderBrowserState {
         file_ids: &[String],
         target_folder_id: &str,
     ) -> Result<FolderMoveDropInput, String> {
-        self.prepare_move_files_to_folder(file_ids, target_folder_id, None)
+        if self.rename_active() {
+            return Err(String::from("Finish rename before moving files"));
+        }
+        let target_folder = self
+            .find_folder(target_folder_id)
+            .cloned()
+            .ok_or_else(|| String::from("File move failed: target folder is missing"))?;
+        let target_source_root = self.selected_source_root_for_move("File move failed")?;
+        let target_path = PathBuf::from(&target_folder.id);
+        if let Some(error) = self.folder_target_lock_error(&target_path, "File move") {
+            return Err(error);
+        }
+        let file_moves = self
+            .source_file_moves_for_cut_paste(file_ids, &target_path)
+            .collect::<Vec<_>>();
+        if let Some(error) = file_moves
+            .iter()
+            .find_map(|item| self.file_change_lock_error(Path::new(&item.file_id), "File move"))
+        {
+            return Err(error);
+        }
+        if file_moves.is_empty() {
+            return Ok(FolderMoveDropInput::Status(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("File move unchanged")),
+            }));
+        }
+        Ok(FolderMoveDropInput::Request(
+            FolderMoveRequest::SourcedFiles {
+                target_source_root,
+                file_moves,
+                target_folder: target_path,
+                remove_from_collection: None,
+            },
+        ))
     }
 
     fn source_file_ids_for_move<'a>(
@@ -137,6 +171,40 @@ impl FolderBrowserState {
             (self.source_contains_audio_file(file_id) && path.parent() != Some(target_path))
                 .then(|| file_id.clone())
         })
+    }
+
+    fn source_file_moves_for_cut_paste<'a>(
+        &'a self,
+        file_ids: &'a [String],
+        target_path: &'a Path,
+    ) -> impl Iterator<Item = FileMoveItem> + 'a {
+        file_ids.iter().filter_map(move |file_id| {
+            let path = Path::new(file_id);
+            if path.parent() == Some(target_path) {
+                return None;
+            }
+            self.source_root_for_cut_file(file_id)
+                .map(|source_root| FileMoveItem {
+                    source_root,
+                    file_id: file_id.clone(),
+                })
+        })
+    }
+
+    fn source_root_for_cut_file(&self, file_id: &str) -> Option<PathBuf> {
+        let path = Path::new(file_id);
+        self.source
+            .sources
+            .iter()
+            .filter(|source| path.starts_with(&source.root))
+            .filter(|source| {
+                source.root_folder.as_ref().is_some_and(|root| {
+                    root.find_file(file_id)
+                        .is_some_and(super::FileEntry::is_audio)
+                }) || path.is_file()
+            })
+            .max_by_key(|source| source.root.components().count())
+            .map(|source| source.root.clone())
     }
 
     pub(super) fn restore_selection_after_file_drop(
@@ -232,6 +300,18 @@ impl FolderBrowserState {
                 success,
                 tags_by_file,
             )?,
+            FolderMoveRequest::SourcedFiles {
+                target_source_root,
+                file_moves,
+                target_folder,
+                remove_from_collection,
+            } => self.apply_sourced_file_move(
+                target_source_root,
+                file_moves,
+                target_folder,
+                *remove_from_collection,
+                success,
+            )?,
             FolderMoveRequest::ExtractedFile { target_folder, .. } => {
                 self.apply_extracted_file_move(target_folder, success)?
             }
@@ -292,6 +372,46 @@ impl FolderBrowserState {
         if !success.conflicts.is_empty() {
             self.drag_drop.pending_file_move_conflicts = Some(FileMoveConflictBatch {
                 source_root: source_root.to_path_buf(),
+                target_folder: target_folder.to_path_buf(),
+                remove_from_collection,
+                conflicts: success.conflicts,
+                current_index: 0,
+                resolved_count: 0,
+                skipped_count: 0,
+                batch_policy: None,
+            });
+        }
+        let status = file_move_status(
+            success.moved_paths.len(),
+            self.pending_file_move_conflict_count(),
+        );
+        Ok(FolderDropResult {
+            moved_paths: success.moved_paths,
+            status: Some(move_status_with_metadata_error(
+                status,
+                success.metadata_error,
+            )),
+        })
+    }
+
+    fn apply_sourced_file_move(
+        &mut self,
+        target_source_root: &Path,
+        file_moves: &[FileMoveItem],
+        target_folder: &Path,
+        remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
+        success: FolderMoveSuccess,
+    ) -> Result<FolderDropResult, String> {
+        if !success.moved_paths.is_empty() {
+            let sourced_moves = sourced_moved_files_from_items(file_moves, &success.moved_paths);
+            self.relocate_sourced_moved_files(&sourced_moves, target_source_root, target_folder)?;
+            if let Some(collection) = remove_from_collection {
+                self.remove_moved_file_collection_states(&success.moved_paths, collection);
+            }
+        }
+        if !success.conflicts.is_empty() {
+            self.drag_drop.pending_file_move_conflicts = Some(FileMoveConflictBatch {
+                source_root: target_source_root.to_path_buf(),
                 target_folder: target_folder.to_path_buf(),
                 remove_from_collection,
                 conflicts: success.conflicts,

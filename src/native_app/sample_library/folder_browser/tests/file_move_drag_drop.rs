@@ -648,6 +648,152 @@ fn file_drag_drop_preserves_rating_metadata_after_move() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn cut_paste_moves_files_between_sources_and_preserves_metadata() {
+    let source_root = temp_source_root("wavecrate-gui-cut-paste-source-a");
+    let target_root = temp_source_root("wavecrate-gui-cut-paste-source-b");
+    let drums = source_root.join("drums");
+    let loops = target_root.join("loops");
+    fs::create_dir_all(&drums).expect("create source folder");
+    fs::create_dir_all(&loops).expect("create target folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+
+    let first_collection = SampleCollection::new(0).expect("first collection");
+    let second_collection = SampleCollection::new(1).expect("second collection");
+    let source_db = SourceDatabase::open(&source_root).expect("open source db");
+    let source_relative = Path::new("drums/kick.wav");
+    let mut batch = source_db.write_batch().expect("open metadata batch");
+    batch
+        .upsert_file_with_hash(source_relative, 8, 1, "kick-content-hash")
+        .expect("upsert source row");
+    batch
+        .set_tag(source_relative, Rating::new(2))
+        .expect("set rating");
+    batch
+        .set_looped(source_relative, true)
+        .expect("set loop marker");
+    batch
+        .set_locked(source_relative, true)
+        .expect("set keep lock");
+    batch
+        .set_sound_type(
+            source_relative,
+            Some(wavecrate::sample_sources::SampleSoundType::Kick),
+        )
+        .expect("set sound type");
+    batch
+        .set_user_tag(source_relative, Some("Punchy"))
+        .expect("set user tag");
+    batch
+        .set_tag_named(source_relative, true)
+        .expect("set tag-named marker");
+    batch
+        .set_last_played_at(source_relative, 1234)
+        .expect("set last played");
+    batch
+        .replace_tags_for_path(
+            source_relative,
+            &[String::from("Hard"), String::from("Drum")],
+        )
+        .expect("set normal tags");
+    batch
+        .add_collection(source_relative, first_collection)
+        .expect("set first collection");
+    batch
+        .add_collection(source_relative, second_collection)
+        .expect("set second collection");
+    batch
+        .set_last_curated_at(source_relative, 5678)
+        .expect("restore curation timestamp");
+    batch.commit().expect("commit source metadata");
+
+    let sources = vec![
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string("source-a"),
+            source_root.clone(),
+        ),
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string("source-b"),
+            target_root.clone(),
+        ),
+    ];
+    let mut browser = FolderBrowserState::from_sample_sources(&sources);
+    load_source_for_test(&mut browser, "source-b", 11);
+    let loops_id = path_id(&loops);
+    browser.activate_folder(loops_id.clone());
+
+    let moved = loops.join("kick.wav");
+    let moved_id = path_id(&moved);
+    let result = submit_cut_paste(&mut browser, &[kick.display().to_string()], &loops_id)
+        .expect("cut paste should move across sources");
+
+    assert_eq!(result.moved_paths, vec![(kick.clone(), moved.clone())]);
+    assert!(!kick.exists());
+    assert!(moved.is_file());
+    assert_eq!(browser.selected_source_id(), "source-b");
+    assert_eq!(browser.selected_folder_id(), Some(loops_id.as_str()));
+    assert_eq!(browser.selected_file_id(), Some(moved_id.as_str()));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| (file.id.as_str(), file.rating, file.rating_locked))
+            .collect::<Vec<_>>(),
+        vec![(moved_id.as_str(), Rating::new(2), true)]
+    );
+
+    let target_db = SourceDatabase::open(&target_root).expect("open target db");
+    let target_relative = Path::new("loops/kick.wav");
+    assert_eq!(
+        source_db
+            .tag_for_path(source_relative)
+            .expect("old source row should be gone"),
+        None
+    );
+    let target_entry = target_db
+        .entry_for_path(target_relative)
+        .expect("read target row")
+        .expect("target row");
+    assert_eq!(
+        target_entry.content_hash.as_deref(),
+        Some("kick-content-hash")
+    );
+    assert_eq!(target_entry.tag, Rating::new(2));
+    assert!(target_entry.looped);
+    assert!(target_entry.locked);
+    assert_eq!(
+        target_entry.sound_type,
+        Some(wavecrate::sample_sources::SampleSoundType::Kick)
+    );
+    assert_eq!(target_entry.user_tag.as_deref(), Some("Punchy"));
+    assert!(target_entry.tag_named);
+    assert_eq!(target_entry.last_played_at, Some(1234));
+    assert_eq!(target_entry.last_curated_at, Some(5678));
+    assert_eq!(
+        target_db
+            .tag_labels_for_path(target_relative)
+            .expect("target normal tags"),
+        vec![String::from("Drum"), String::from("Hard")]
+    );
+    assert_eq!(
+        target_db
+            .collections_for_path(target_relative)
+            .expect("target collections"),
+        vec![first_collection, second_collection]
+    );
+
+    load_source_for_test(&mut browser, "source-a", 12);
+    browser.activate_folder(path_id(&drums));
+    assert!(
+        browser.selected_audio_files().is_empty(),
+        "source cache should no longer show the moved file"
+    );
+    let _ = fs::remove_dir_all(source_root);
+    let _ = fs::remove_dir_all(target_root);
+}
+
 #[test]
 fn file_drag_drop_defers_destination_name_conflicts() {
     let root = temp_source_root("wavecrate-gui-file-drag-conflict");
@@ -1016,4 +1162,29 @@ fn select_two_files_for_move(
             ..Default::default()
         },
     );
+}
+
+fn submit_cut_paste(
+    browser: &mut FolderBrowserState,
+    file_ids: &[String],
+    target_folder_id: &str,
+) -> Result<FolderDropResult, String> {
+    match browser.prepare_paste_cut_files_to_folder(file_ids, target_folder_id)? {
+        FolderMoveDropInput::Status(result) => Ok(result),
+        FolderMoveDropInput::Request(request) => {
+            let completion = execute_folder_move_request(request);
+            let tags_by_file = HashMap::new();
+            completion.result.and_then(|success| {
+                browser.apply_folder_move_completion(&completion.request, success, &tags_by_file)
+            })
+        }
+    }
+}
+
+fn load_source_for_test(browser: &mut FolderBrowserState, source_id: &str, task_id: u64) {
+    let Some(request) = browser.begin_select_source(source_id.to_string(), task_id) else {
+        return;
+    };
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    assert!(browser.apply_scan_finished(result));
 }

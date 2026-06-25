@@ -7,11 +7,16 @@ use super::{
     FileMoveConflictExecutionFailure, FileMoveConflictExecutionSuccess, FileMoveConflictResolution,
     FileMoveConflictResolutionRequest, FolderMoveCompletion, FolderMoveRequest, FolderMoveSuccess,
     drag_drop_relocation::{persist_moved_file_metadata, persist_moved_folders_metadata},
+    drag_drop_sourced_files::{
+        SourcedMovedFile, persist_sourced_moved_file_metadata, sourced_moved_files_from_items,
+    },
     file_move_progress::{
         FileMoveProgressReporter, file_move_conflict_progress_label,
         file_move_conflict_progress_total, folder_move_progress_label,
     },
-    file_move_transaction::{FileMovePlan, file_move_plan_to_folder},
+    file_move_transaction::{
+        FileMovePlan, file_move_items_plan_to_folder, file_move_plan_to_folder,
+    },
     file_move_transaction::{
         move_existing_destination_to_backup, move_file_over_backup,
         move_file_to_unique_destination, remove_overwrite_backup,
@@ -64,6 +69,18 @@ where
         } => execute_file_drop(
             source_root,
             file_ids,
+            target_folder,
+            *remove_from_collection,
+            reporter,
+        ),
+        FolderMoveRequest::SourcedFiles {
+            target_source_root,
+            file_moves,
+            target_folder,
+            remove_from_collection,
+        } => execute_sourced_file_drop(
+            target_source_root,
+            file_moves,
             target_folder,
             *remove_from_collection,
             reporter,
@@ -162,7 +179,7 @@ where
     if !target_folder.is_dir() {
         return Err(String::from("File move failed: target folder is missing"));
     }
-    let plan = file_move_plan_to_folder(file_ids, target_folder)?;
+    let plan = file_move_plan_to_folder(source_root, file_ids, target_folder)?;
     let total = file_move_work_total(&plan);
     reporter.emit(0, total, String::from("Moving files"));
     let moved_paths = rename_files_with_rollback_and_progress(&plan.ready, |completed, path| {
@@ -178,6 +195,48 @@ where
     reporter.emit(checked, total, String::from("Updating metadata"));
     let metadata_error =
         persist_moved_file_metadata(source_root, &moved_paths, remove_from_collection).err();
+    reporter.emit(total, total, String::from("Done"));
+    Ok(FolderMoveSuccess {
+        moved_paths,
+        conflicts: plan.conflicts,
+        metadata_error,
+    })
+}
+
+fn execute_sourced_file_drop<Emit>(
+    target_source_root: &Path,
+    file_moves: &[super::FileMoveItem],
+    target_folder: &Path,
+    remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
+    reporter: &FileMoveProgressReporter<Emit>,
+) -> Result<FolderMoveSuccess, String>
+where
+    Emit: Fn(FileMoveProgress) -> bool,
+{
+    if !target_folder.is_dir() {
+        return Err(String::from("File move failed: target folder is missing"));
+    }
+    let plan = file_move_items_plan_to_folder(file_moves, target_folder)?;
+    let total = file_move_work_total(&plan);
+    reporter.emit(0, total, String::from("Moving files"));
+    let moved_paths = rename_files_with_rollback_and_progress(&plan.ready, |completed, path| {
+        reporter.emit(
+            completed,
+            total,
+            format!("Moved {}", sample_path_label(path)),
+        );
+    })?;
+    let checked = moved_paths.len().saturating_add(plan.conflicts.len());
+    reporter.emit(checked, total, String::from("Preserving waveform cache"));
+    remap_persisted_waveform_cache_for_moves(&moved_paths);
+    reporter.emit(checked, total, String::from("Updating metadata"));
+    let sourced_moves = sourced_moved_files_from_items(file_moves, &moved_paths);
+    let metadata_error = persist_sourced_moved_file_metadata(
+        target_source_root,
+        &sourced_moves,
+        remove_from_collection,
+    )
+    .err();
     reporter.emit(total, total, String::from("Done"));
     Ok(FolderMoveSuccess {
         moved_paths,
@@ -262,12 +321,8 @@ pub(in crate::native_app) fn execute_file_move_conflict_request_with_progress(
             Ok(completed) => completed,
             Err(error) => {
                 batch.batch_policy = None;
-                let metadata_error = persist_moved_file_metadata(
-                    &batch.source_root,
-                    &moved_paths,
-                    batch.remove_from_collection,
-                )
-                .err();
+                let metadata_error =
+                    persist_conflict_moved_file_metadata(&batch, &moved_paths).err();
                 return FileMoveConflictCompletion {
                     task_id,
                     result: Err(FileMoveConflictExecutionFailure {
@@ -307,12 +362,7 @@ pub(in crate::native_app) fn execute_file_move_conflict_request_with_progress(
         total,
         String::from("Updating metadata"),
     );
-    let metadata_error = persist_moved_file_metadata(
-        &batch.source_root,
-        &moved_paths,
-        batch.remove_from_collection,
-    )
-    .err();
+    let metadata_error = persist_conflict_moved_file_metadata(&batch, &moved_paths).err();
     reporter.emit(total, total, String::from("Done"));
 
     FileMoveConflictCompletion {
@@ -358,6 +408,41 @@ fn execute_rename_conflict(conflict: &FileMoveConflict) -> Result<Vec<(PathBuf, 
     let destination = unique_destination(&conflict.destination_path);
     let move_pair = (conflict.source_path.clone(), destination);
     rename_files_with_rollback_and_progress(std::slice::from_ref(&move_pair), |_, _| {})
+}
+
+fn persist_conflict_moved_file_metadata(
+    batch: &FileMoveConflictBatch,
+    moved_paths: &[(PathBuf, PathBuf)],
+) -> Result<(), String> {
+    let sourced_moves = sourced_moved_files_from_conflicts(&batch.conflicts, moved_paths);
+    persist_sourced_moved_file_metadata(
+        &batch.source_root,
+        &sourced_moves,
+        batch.remove_from_collection,
+    )
+}
+
+pub(super) fn sourced_moved_files_from_conflicts(
+    conflicts: &[FileMoveConflict],
+    moved_paths: &[(PathBuf, PathBuf)],
+) -> Vec<SourcedMovedFile> {
+    let source_roots = conflicts
+        .iter()
+        .map(|conflict| (conflict.source_path.clone(), conflict.source_root.clone()))
+        .collect::<std::collections::HashMap<_, _>>();
+    moved_paths
+        .iter()
+        .filter_map(|(old_path, new_path)| {
+            source_roots
+                .get(old_path)
+                .cloned()
+                .map(|source_root| SourcedMovedFile {
+                    source_root,
+                    old_path: old_path.clone(),
+                    new_path: new_path.clone(),
+                })
+        })
+        .collect()
 }
 
 fn file_move_work_total(plan: &FileMovePlan) -> usize {
@@ -476,6 +561,7 @@ mod tests {
         fs::write(&source, b"source").expect("write source");
         fs::write(&destination, b"destination").expect("write destination");
         let conflict = FileMoveConflict {
+            source_root: root.clone(),
             source_path: source.clone(),
             destination_path: destination.clone(),
         };
