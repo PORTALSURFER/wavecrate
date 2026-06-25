@@ -3,7 +3,10 @@ use crate::native_app::app::MetadataMessage;
 use crate::native_app::app::NativeAppState;
 use radiant::prelude as ui;
 use radiant::widgets::{TextInputMessage, TextInputMessageKind};
-use std::time::Instant;
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 pub(super) use metrics::{metadata_tag_input_width_policy, metadata_tag_pill_width};
 pub(in crate::native_app) use style::{
@@ -40,6 +43,52 @@ pub(super) use persistence::{
     persist_metadata_tag_additions_for_tests, persist_metadata_tag_removals_for_tests,
 };
 impl NativeAppState {
+    pub(in crate::native_app) fn remap_metadata_tags_for_moved_files(
+        &mut self,
+        moved_paths: &[(PathBuf, PathBuf)],
+    ) {
+        if moved_paths.is_empty() {
+            return;
+        }
+
+        let mut changed = false;
+        for (old_path, new_path) in moved_paths {
+            if old_path == new_path {
+                continue;
+            }
+            let remaps = self
+                .metadata
+                .tags_by_file
+                .iter()
+                .filter_map(|(file_id, tags)| {
+                    remapped_metadata_tag_file_id(file_id, old_path, new_path)
+                        .map(|new_id| (file_id.clone(), new_id, tags.clone()))
+                })
+                .collect::<Vec<_>>();
+            if remaps.is_empty() {
+                changed |= self
+                    .metadata
+                    .tags_by_file
+                    .remove(new_path.to_string_lossy().as_ref())
+                    .is_some();
+                continue;
+            }
+            for (old_id, _, _) in &remaps {
+                self.metadata.tags_by_file.remove(old_id);
+            }
+            for (_, new_id, tags) in remaps {
+                self.metadata.tags_by_file.insert(new_id, tags);
+                changed = true;
+            }
+        }
+
+        if changed {
+            self.library
+                .folder_browser
+                .invalidate_visible_sample_projection_cache();
+        }
+    }
+
     pub(super) fn refresh_persisted_metadata_tags_for_source(&mut self, source_id: &str) {
         let Some(root) = self.library.folder_browser.source_root_path(source_id) else {
             return;
@@ -302,6 +351,24 @@ impl NativeAppState {
         self.metadata.tag_input_mode = MetadataTagInputMode::Tag;
         self.reset_metadata_tag_completion_cycle();
     }
+}
+
+fn remapped_metadata_tag_file_id(
+    file_id: &str,
+    old_path: &Path,
+    new_path: &Path,
+) -> Option<String> {
+    let path = Path::new(file_id);
+    let suffix = path.strip_prefix(old_path).ok()?;
+    Some(
+        if suffix.as_os_str().is_empty() {
+            new_path.to_path_buf()
+        } else {
+            new_path.join(suffix)
+        }
+        .to_string_lossy()
+        .to_string(),
+    )
 }
 
 #[cfg(test)]

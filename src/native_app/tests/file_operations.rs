@@ -10,8 +10,8 @@ use radiant::{
     prelude::{self as ui, IntoView},
     widgets::{DragHandleMessage, PointerModifiers},
 };
-use std::{fs, sync::Arc};
-use wavecrate::sample_sources::Rating;
+use std::{fs, path::Path, sync::Arc};
+use wavecrate::sample_sources::{Rating, SourceDatabase};
 
 fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
     let mut reader = hound::WavReader::open(path).expect("open wav");
@@ -480,10 +480,47 @@ fn cut_paste_selected_files_moves_audio_into_selected_folder() {
     for file in [&kick, &snare, &hat] {
         write_test_wav_i16(file, &[0, 256, -256, 512]);
     }
+    let db = SourceDatabase::open(source_root.path()).expect("open source db");
+    let kick_relative = Path::new("drums/kick.wav");
+    let snare_relative = Path::new("drums/snare.wav");
+    db.upsert_file(kick_relative, 8, 1)
+        .expect("register kick metadata row");
+    db.upsert_file(snare_relative, 8, 1)
+        .expect("register snare metadata row");
+    let mut batch = db.write_batch().expect("open metadata batch");
+    batch
+        .set_tag(kick_relative, Rating::new(2))
+        .expect("set kick rating");
+    batch
+        .set_locked(kick_relative, true)
+        .expect("lock kick rating");
+    batch
+        .set_looped(kick_relative, true)
+        .expect("set kick loop marker");
+    batch
+        .assign_tag_to_path(kick_relative, "Analog Kick")
+        .expect("tag kick");
+    batch
+        .assign_tag_to_path(kick_relative, "loop")
+        .expect("tag kick playback type");
+    batch
+        .assign_tag_to_path(snare_relative, "Snappy Snare")
+        .expect("tag snare");
+    batch
+        .assign_tag_to_path(snare_relative, "one-shot")
+        .expect("tag snare playback type");
+    batch.commit().expect("commit metadata");
+
     state.library.folder_browser =
         FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
             source_root.path().to_path_buf(),
         )]);
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    state.refresh_persisted_metadata_tags_for_source(&source_id);
     state
         .library
         .folder_browser
@@ -542,11 +579,66 @@ fn cut_paste_selected_files_moves_audio_into_selected_folder() {
 
     let moved_kick = loops.join("kick.wav");
     let moved_snare = loops.join("snare.wav");
+    let moved_kick_id = moved_kick.to_string_lossy().to_string();
+    let moved_snare_id = moved_snare.to_string_lossy().to_string();
     assert!(!kick.exists());
     assert!(!snare.exists());
     assert!(hat.is_file());
     assert!(moved_kick.is_file());
     assert!(moved_snare.is_file());
+    assert!(
+        !state
+            .metadata
+            .tags_by_file
+            .contains_key(kick.to_string_lossy().as_ref())
+    );
+    assert!(
+        !state
+            .metadata
+            .tags_by_file
+            .contains_key(snare.to_string_lossy().as_ref())
+    );
+    assert_eq!(
+        state.metadata.tags_by_file.get(&moved_kick_id),
+        Some(&vec![String::from("Analog Kick"), String::from("loop")])
+    );
+    assert_eq!(
+        state.metadata.tags_by_file.get(&moved_snare_id),
+        Some(&vec![
+            String::from("one-shot"),
+            String::from("Snappy Snare")
+        ])
+    );
+    assert_eq!(
+        db.tag_for_path(kick_relative)
+            .expect("read old kick rating"),
+        None
+    );
+    assert_eq!(
+        db.tag_for_path(Path::new("loops/kick.wav"))
+            .expect("read moved kick rating"),
+        Some(Rating::new(2))
+    );
+    assert_eq!(
+        db.looped_for_path(Path::new("loops/kick.wav"))
+            .expect("read moved kick loop marker"),
+        Some(true)
+    );
+    assert!(
+        db.locked_for_path(Path::new("loops/kick.wav"))
+            .expect("read moved kick lock")
+            .unwrap_or(false)
+    );
+    assert_eq!(
+        db.tag_labels_for_path(Path::new("loops/kick.wav"))
+            .expect("read moved kick tags"),
+        vec![String::from("Analog Kick"), String::from("loop")]
+    );
+    assert_eq!(
+        db.tag_labels_for_path(Path::new("loops/snare.wav"))
+            .expect("read moved snare tags"),
+        vec![String::from("one-shot"), String::from("Snappy Snare")]
+    );
     assert!(state.ui.browser_interaction.cut_file_clipboard.is_none());
     assert_eq!(
         state.library.folder_browser.selected_file_paths(),
@@ -564,6 +656,92 @@ fn cut_paste_selected_files_moves_audio_into_selected_folder() {
             moved_kick.display().to_string(),
             moved_snare.display().to_string()
         ]
+    );
+}
+
+#[test]
+fn folder_move_remaps_nested_metadata_tags_in_live_cache() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let kicks = source_root.path().join("drums").join("kicks");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    write_test_wav_i16(&kick, &[0, 256, -256, 512]);
+
+    let db = SourceDatabase::open(source_root.path()).expect("open source db");
+    let kick_relative = Path::new("drums/kicks/kick.wav");
+    db.upsert_file(kick_relative, 8, 1)
+        .expect("register kick metadata row");
+    let mut batch = db.write_batch().expect("open metadata batch");
+    batch
+        .assign_tag_to_path(kick_relative, "loop")
+        .expect("tag kick playback type");
+    batch
+        .assign_tag_to_path(kick_relative, "Rubber Kick")
+        .expect("tag kick");
+    batch.commit().expect("commit metadata");
+
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    state.refresh_persisted_metadata_tags_for_source(&source_id);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            kicks.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::DragFolder(
+            kicks.display().to_string(),
+            DragHandleMessage::started(Point::new(0.0, 0.0)),
+        ));
+    let request = match state
+        .library
+        .folder_browser
+        .drop_drag_on_folder(&loops.display().to_string())
+        .expect("drop should be accepted")
+    {
+        crate::native_app::sample_library::folder_browser::commands::FolderMoveDropInput::Request(
+            request,
+        ) => request,
+        other => panic!("expected folder move request, got {other:?}"),
+    };
+    let completion =
+        crate::native_app::sample_library::folder_browser::commands::execute_folder_move_request(
+            request,
+        );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+
+    let moved_kick = loops.join("kicks").join("kick.wav");
+    let moved_kick_id = moved_kick.to_string_lossy().to_string();
+    assert!(
+        !state
+            .metadata
+            .tags_by_file
+            .contains_key(kick.to_string_lossy().as_ref())
+    );
+    assert_eq!(
+        state.metadata.tags_by_file.get(&moved_kick_id),
+        Some(&vec![String::from("loop"), String::from("Rubber Kick")])
+    );
+    assert_eq!(
+        db.tag_labels_for_path(Path::new("loops/kicks/kick.wav"))
+            .expect("read moved kick tags"),
+        vec![String::from("loop"), String::from("Rubber Kick")]
     );
 }
 

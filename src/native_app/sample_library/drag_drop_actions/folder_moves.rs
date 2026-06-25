@@ -242,10 +242,15 @@ impl NativeAppState {
         moved_paths: &[(PathBuf, PathBuf)],
     ) {
         for (old_path, new_path) in moved_paths {
-            self.waveform
+            let loaded_path_moved = self
+                .waveform
                 .current
                 .rewrite_path_prefix(old_path, new_path);
             self.remap_renamed_waveform_cache_path(old_path, new_path);
+            if loaded_path_moved {
+                let moved_file_id = self.waveform.current.path().to_string_lossy().to_string();
+                self.reconcile_playback_mode_after_metadata_tag_change(&moved_file_id);
+            }
         }
     }
 
@@ -264,6 +269,7 @@ impl NativeAppState {
             .selected_file_id()
             .map(str::to_owned);
         let result = completion.result.and_then(|success| {
+            self.remap_metadata_tags_for_moved_files(&success.moved_paths);
             self.library.folder_browser.apply_folder_move_completion(
                 &request,
                 success,
@@ -349,6 +355,11 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
+        let moved_paths = match &completion.result {
+            Ok(success) => success.moved_paths.clone(),
+            Err(failure) => failure.moved_paths.clone(),
+        };
+        self.remap_metadata_tags_for_moved_files(&moved_paths);
         let result = self
             .library
             .folder_browser
