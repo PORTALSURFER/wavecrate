@@ -98,6 +98,67 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn failed_sample_load_status_names_and_focuses_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-selected.wav");
+    let failed = source_root.path().join("b-failed.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&failed, &[0, 512, -512, 1024]);
+    let first_path = first.display().to_string();
+    let failed_path = failed.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.select_file(first_path.clone());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_sample(failed_path.clone(), &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(first_path.as_str()),
+        "plain load requests should not depend on pre-focused browser state"
+    );
+
+    let ticket = active_sample_load_ticket(&state).expect("sample load queued");
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                failed_path.clone(),
+                Err(String::from("synthetic decode failed")),
+                true,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(failed_path.as_str())
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Could not load b-failed.wav"),
+        "{}",
+        state.ui.status.sample
+    );
+    assert!(
+        state.ui.status.sample.contains("synthetic decode failed"),
+        "{}",
+        state.ui.status.sample
+    );
+    assert_eq!(state.waveform.load.label, None);
+}
+
+#[test]
 fn foreground_sample_load_persists_waveform_cache() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

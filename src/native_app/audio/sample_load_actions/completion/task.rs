@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 use crate::native_app::app::{
     NativeAppState, SampleLoadResult, SampleLoadTaskCompletion, WaveformState, emit_gui_action,
@@ -79,7 +79,8 @@ impl NativeAppState {
                     .selection
                     .failed(path.as_str(), error.clone());
                 self.audio.pending_sample_playback = None;
-                self.ui.status.sample = format!("Could not load sample: {error}");
+                self.focus_browser_file_for_playback_navigation(Path::new(&path), context);
+                self.ui.status.sample = format!("Could not load {label}: {error}");
                 emit_gui_action(
                     "browser.sample_load.finish",
                     Some("browser"),
