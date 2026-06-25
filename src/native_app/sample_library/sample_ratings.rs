@@ -144,20 +144,18 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
-        let Some(path) = self.library.folder_browser.navigate_selected_file_in_ids(
-            1,
-            false,
+        let candidate = previous_index
+            .and_then(|index| visible_ids_before_rating.get(index.saturating_add(1)))
+            .map(String::as_str);
+        let Some(path) = self.rating_advance_visible_target(
             visible_ids_before_rating,
+            previous_index,
+            candidate,
         ) else {
             return;
         };
-        let Some(path) =
-            self.rating_advance_visible_target(visible_ids_before_rating, previous_index, &path)
-        else {
-            return;
-        };
 
-        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+        if Some(path.as_str()) != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
@@ -191,7 +189,7 @@ impl NativeAppState {
         &self,
         visible_ids_before_rating: &[String],
         previous_index: Option<usize>,
-        candidate: &str,
+        candidate: Option<&str>,
     ) -> Option<String> {
         let visible_ids_after_rating = self
             .library
@@ -200,7 +198,9 @@ impl NativeAppState {
             .into_iter()
             .map(|file| file.id.clone())
             .collect::<Vec<_>>();
-        if visible_ids_after_rating.iter().any(|id| id == candidate) {
+        if let Some(candidate) = candidate
+            && visible_ids_after_rating.iter().any(|id| id == candidate)
+        {
             return Some(candidate.to_owned());
         }
         let visible_after = visible_ids_after_rating
@@ -216,7 +216,6 @@ impl NativeAppState {
                 visible_ids_before_rating
                     .iter()
                     .take(primary_index)
-                    .rev()
                     .find(|id| visible_after.contains(id.as_str()))
             })
             .cloned()

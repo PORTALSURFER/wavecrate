@@ -1522,6 +1522,64 @@ fn rating_advance_uses_pre_rating_recursive_unrated_filter_order() {
 }
 
 #[test]
+fn rating_advance_wraps_to_first_remaining_visible_sample() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let first = drums.join("a-first.wav");
+    let last = drums.join("b-last.wav");
+    write_test_wav_i16(&first, &[0, 256, -256, 512]);
+    write_test_wav_i16(&last, &[0, 1024, -2048, 4096]);
+    let first_id = first.display().to_string();
+    state.ui.settings.persisted.controls.advance_after_rating = true;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleRatingFilter(0, true));
+    state
+        .library
+        .folder_browser
+        .select_file(last.display().to_string());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(first_id.as_str())
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![first_id.as_str()]
+    );
+    assert_eq!(
+        last_fixed_sample_browser_row_scroll(&command),
+        Some((0, -1))
+    );
+    run_command_for_tests(&mut state, command);
+    assert_eq!(state.waveform.load.label.as_deref(), Some("a-first.wav"));
+}
+
+#[test]
 fn rating_adjustment_applies_to_history_revealed_rating_filtered_curation_sample() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
