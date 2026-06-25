@@ -1,8 +1,10 @@
 app_name = "wavecrate"
 repo_slug = "PORTALSURFER/wavecrate"
-channels = ["nightly", "stable"]
+channels = ["nightly"]
 targets = [
-  "x86_64-pc-windows-msvc"
+  "x86_64-pc-windows-msvc",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin"
 ]
 
 [platform_labels]
@@ -13,14 +15,11 @@ x86_64 = "x86_64"
 aarch64 = "aarch64"
 
 [templates]
-stable_asset = "{APP_NAME}-v{VERSION}-{platform}-{arch}.zip"
 nightly_asset = "{APP_NAME}-nightly-{platform}-{arch}.zip"
-stable_checksums = "checksums-v{VERSION}.txt"
 nightly_checksums = "checksums-nightly.txt"
-stable_checksums_sig = "checksums-v{VERSION}.txt.sig"
 nightly_checksums_sig = "checksums-nightly.txt.sig"
 
 [archive_layout]
 root_dir = "{APP_NAME}"
-files = ["{APP_NAME}.exe", "models/panns_cnn14_16k.bpk", "update-manifest.json"]
-optional_dirs = ["resources"]
+files = ["{APP_NAME}", "{APP_NAME}.exe"]
+optional_dirs = []

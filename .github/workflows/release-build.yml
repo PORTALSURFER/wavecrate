@@ -1,85 +1,144 @@
-name: Build release assets
+name: Wavecrate nightly release
 
 on:
   schedule:
-    # GitHub cron is UTC. This runs once per night and only publishes if `main`
-    # is ahead of the current rolling `nightly` tag.
-    - cron: "30 3 * * *"
-  release:
-    types: [published]
+    # GitHub cron is UTC. This is 21:30 in Amsterdam during summer time and
+    # 20:30 during winter time.
+    - cron: "30 19 * * *"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Release tag to build (e.g. v0.378.0 or nightly)
-        required: true
-        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-build-${{ github.event_name == 'schedule' && 'main-nightly' || github.event.release.tag_name || inputs.tag || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'schedule' }}
+  group: wavecrate-nightly-release-main
+  cancel-in-progress: true
 
 jobs:
-  resolve:
-    name: Resolve release target
+  resolve-main:
+    name: Resolve main nightly target
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.target.outputs.should_build }}
       target_sha: ${{ steps.target.outputs.target_sha }}
+      previous_nightly_sha: ${{ steps.target.outputs.previous_nightly_sha }}
+      released_at: ${{ steps.target.outputs.released_at }}
     steps:
-      - name: Resolve nightly target
+      - name: Resolve main commit
         id: target
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          DISPATCH_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          EVENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          requested_tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ "$EVENT_NAME" == "release" && "$requested_tag" == "nightly" ]]; then
-            echo "nightly release event is already handled by the scheduled/manual nightly build; skipping."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-            echo "target_sha=$EVENT_SHA" >> "$GITHUB_OUTPUT"
+          target_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq '.sha')"
+          previous_nightly_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/nightly" --jq '.object.sha' 2>/dev/null || true)"
+          released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "previous_nightly_sha=$previous_nightly_sha" >> "$GITHUB_OUTPUT"
+          echo "released_at=$released_at" >> "$GITHUB_OUTPUT"
+
+  release-log:
+    name: Generate nightly release log
+    runs-on: ubuntu-latest
+    needs: resolve-main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.resolve-main.outputs.target_sha }}
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+      - name: Generate release log
+        shell: bash
+        env:
+          TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
+          PREVIOUS_NIGHTLY_SHA: ${{ needs.resolve-main.outputs.previous_nightly_sha }}
+          RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          git fetch --tags --force
+
+          previous="${PREVIOUS_NIGHTLY_SHA:-}"
+          if [[ -n "$previous" ]] && ! git cat-file -e "${previous}^{commit}" 2>/dev/null; then
+            echo "Previous nightly ref does not resolve to a commit: $previous" >&2
+            previous=""
+          fi
+          if [[ -n "$previous" ]] && ! git merge-base --is-ancestor "$previous" "$TARGET_SHA"; then
+            echo "Previous nightly is not an ancestor of main; generating a bounded log window." >&2
+            previous=""
+          fi
+
+          if [[ -n "$previous" && "$previous" == "$TARGET_SHA" ]]; then
+            cat > dist/release/release-log.md <<EOF
+          # Wavecrate Nightly
+
+          - Build: ${GITHUB_RUN_NUMBER}
+          - Commit: ${TARGET_SHA}
+          - Previous nightly: ${previous}
+          - Generated: ${RELEASED_AT}
+
+          No code changes since the previous nightly. This run refreshed the nightly artifacts from the current main commit.
+          EOF
             exit 0
           fi
 
-          if [[ "$EVENT_NAME" != "schedule" && "$requested_tag" != "nightly" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            echo "target_sha=$EVENT_SHA" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          main_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq '.sha')"
-          if [[ "$EVENT_NAME" != "schedule" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ahead_by="$(gh api "repos/$REPOSITORY/compare/nightly...main" --jq '.ahead_by' 2>/dev/null)"; then
-            if [[ "$ahead_by" == "0" ]]; then
-              echo "main is already covered by the current nightly tag; skipping."
-              echo "should_build=false" >> "$GITHUB_OUTPUT"
-              echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "main is $ahead_by commit(s) ahead of nightly; building nightly."
+          range=""
+          if [[ -n "$previous" ]]; then
+            range="${previous}..${TARGET_SHA}"
           else
-            echo "No comparable nightly tag exists yet; building nightly."
+            first_in_window="$(git rev-list --max-count=80 "$TARGET_SHA" | tail -n 1)"
+            if parent="$(git rev-parse "${first_in_window}^" 2>/dev/null)"; then
+              range="${parent}..${TARGET_SHA}"
+            else
+              range="$TARGET_SHA"
+            fi
           fi
-          echo "should_build=true" >> "$GITHUB_OUTPUT"
-          echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+          args=(--config cliff.toml --tag nightly)
+          if [[ -n "$range" ]]; then
+            args+=("$range")
+          fi
+          git cliff "${args[@]}" > /tmp/wavecrate-release-log-body.md
+          if ! grep -Eq '^[[:space:]]*-' /tmp/wavecrate-release-log-body.md; then
+            git log --no-merges --pretty=format:'- %s' "$range" > /tmp/wavecrate-release-log-body.md
+          fi
+          if [[ ! -s /tmp/wavecrate-release-log-body.md ]]; then
+            echo "- No commit messages were found for this nightly window." > /tmp/wavecrate-release-log-body.md
+          fi
+
+          {
+            echo "# Wavecrate Nightly"
+            echo
+            echo "- Build: ${GITHUB_RUN_NUMBER}"
+            echo "- Commit: ${TARGET_SHA}"
+            if [[ -n "$previous" ]]; then
+              echo "- Previous nightly: ${previous}"
+            else
+              echo "- Previous nightly: unavailable"
+            fi
+            echo "- Generated: ${RELEASED_AT}"
+            echo
+            cat /tmp/wavecrate-release-log-body.md
+          } > dist/release/release-log.md
+
+          if [[ ! -s dist/release/release-log.md ]]; then
+            echo "Generated release log is empty." >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-log
+          path: dist/release/release-log.md
+          if-no-files-found: error
 
   build:
-    name: Build ${{ matrix.platform }} ${{ matrix.arch }} asset
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }} nightly
     runs-on: ${{ matrix.os }}
-    needs: resolve
-    if: ${{ needs.resolve.outputs.should_build == 'true' }}
+    needs: resolve-main
     strategy:
       fail-fast: false
       matrix:
@@ -88,22 +147,19 @@ jobs:
             target: x86_64-pc-windows-msvc
             platform: windows
             arch: x86_64
-            use_cross: false
           - os: macos-15-intel
             target: x86_64-apple-darwin
             platform: macos
             arch: x86_64
-            use_cross: false
           - os: macos-14
             target: aarch64-apple-darwin
             platform: macos
             arch: aarch64
-            use_cross: false
     steps:
       - uses: actions/checkout@v4
         with:
           lfs: true
-          ref: ${{ needs.resolve.outputs.target_sha }}
+          ref: ${{ needs.resolve-main.outputs.target_sha }}
       - name: Checkout Radiant submodule
         shell: bash
         env:
@@ -158,44 +214,14 @@ jobs:
             throw "ASIO SDK directory not found for $($asioHeader.FullName)"
           }
           "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
-      - name: Install cross
-        if: ${{ matrix.use_cross }}
-        run: cargo install cross --locked
-      - name: Set release metadata
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          DISPATCH_TAG: ${{ inputs.tag }}
-        run: |
-          TAG="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$TAG" && "$EVENT_NAME" == "schedule" ]]; then
-            TAG="nightly"
-          fi
-          if [[ -z "$TAG" ]]; then
-            echo "Release tag is required." >&2
-            exit 1
-          fi
-          if [[ "$TAG" == "nightly" ]]; then
-            echo "RELEASE_CHANNEL=nightly" >> "$GITHUB_ENV"
-            echo "RELEASE_VERSION=" >> "$GITHUB_ENV"
-            echo "RELEASE_TAG=nightly" >> "$GITHUB_ENV"
-          else
-            echo "RELEASE_CHANNEL=stable" >> "$GITHUB_ENV"
-            echo "RELEASE_VERSION=${TAG#v}" >> "$GITHUB_ENV"
-            echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
-          fi
-      - name: Build release zip
-        env:
-          WAVECRATE_CARGO_BIN: ${{ matrix.use_cross && 'cross' || 'cargo' }}
+      - name: Build nightly zip
         shell: bash
         run: |
           scripts/internal/release/build_release_zip.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
-            --channel "${RELEASE_CHANNEL}" \
-            ${RELEASE_VERSION:+--version "${RELEASE_VERSION}"} \
+            --channel nightly \
             --build-number "${GITHUB_RUN_NUMBER}" \
             --out-dir dist/release
       - name: Uniquify checksums entry
@@ -209,39 +235,24 @@ jobs:
           path: dist/release
           if-no-files-found: error
 
-  publish:
-    name: Publish release assets
+  publish-github:
+    name: Publish GitHub nightly
     runs-on: ubuntu-latest
-    needs: [resolve, build]
+    needs: [resolve-main, release-log, build]
     steps:
-      - name: Set release metadata
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          DISPATCH_TAG: ${{ inputs.tag }}
-        run: |
-          TAG="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$TAG" && "$EVENT_NAME" == "schedule" ]]; then
-            TAG="nightly"
-          fi
-          if [[ -z "$TAG" ]]; then
-            echo "Release tag is required." >&2
-            exit 1
-          fi
-          if [[ "$TAG" == "nightly" ]]; then
-            echo "CHECKSUMS_NAME=checksums-nightly.txt" >> "$GITHUB_ENV"
-            echo "RELEASE_TAG=nightly" >> "$GITHUB_ENV"
-          else
-            echo "CHECKSUMS_NAME=checksums-v${TAG#v}.txt" >> "$GITHUB_ENV"
-            echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
-          fi
       - uses: actions/download-artifact@v4
         with:
           path: dist/artifacts
           pattern: release-*
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-log
+          path: dist/release
       - name: Assemble release files
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist/release
           cp dist/artifacts/*.zip dist/release/
           shopt -s nullglob
@@ -250,11 +261,12 @@ jobs:
             echo "No checksums entry files found." >&2
             exit 1
           fi
-          cat "${entries[@]}" > "dist/release/${CHECKSUMS_NAME}"
+          cat "${entries[@]}" > dist/release/checksums-nightly.txt
       - name: Sign release checksums
         env:
           CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
         run: |
+          set -euo pipefail
           if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
             echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY or SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
             exit 1
@@ -262,45 +274,42 @@ jobs:
           key_path="dist/release/checksums-signing-key.pem"
           printf "%s" "$CHECKSUMS_SIGNING_KEY" > "$key_path"
           openssl pkeyutl -sign -inkey "$key_path" -rawin \
-            -in "dist/release/${CHECKSUMS_NAME}" \
-            -out "dist/release/${CHECKSUMS_NAME}.sig.bin"
-          base64 -w 0 "dist/release/${CHECKSUMS_NAME}.sig.bin" \
-            > "dist/release/${CHECKSUMS_NAME}.sig"
+            -in dist/release/checksums-nightly.txt \
+            -out dist/release/checksums-nightly.txt.sig.bin
+          base64 -w 0 dist/release/checksums-nightly.txt.sig.bin \
+            > dist/release/checksums-nightly.txt.sig
           rm -f "$key_path"
       - name: Verify release checksum signature
         env:
           CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
         run: |
+          set -euo pipefail
           if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
             echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY or SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
             exit 1
           fi
           key_path="dist/release/checksums-signing-key.pem"
           pub_der="dist/release/checksums-signing-key.pub.der"
-          sig_bin="dist/release/${CHECKSUMS_NAME}.sig.bin"
+          sig_bin="dist/release/checksums-nightly.txt.sig.bin"
           printf "%s" "$CHECKSUMS_SIGNING_KEY" > "$key_path"
           openssl pkey -in "$key_path" -pubout -outform DER -out "$pub_der"
-          tail -c 32 "$pub_der" | base64 -w 0 > "dist/release/checksums-pubkey.txt"
+          tail -c 32 "$pub_der" | base64 -w 0 > dist/release/checksums-pubkey.txt
           openssl pkeyutl -verify -pubin -inkey "$pub_der" -rawin \
-            -in "dist/release/${CHECKSUMS_NAME}" \
+            -in dist/release/checksums-nightly.txt \
             -sigfile "$sig_bin"
           expected_pubkey="8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4="
-          actual_pubkey="$(cat "dist/release/checksums-pubkey.txt")"
+          actual_pubkey="$(cat dist/release/checksums-pubkey.txt)"
           if [[ "$actual_pubkey" != "$expected_pubkey" ]]; then
             echo "Public key mismatch: $actual_pubkey" >&2
             exit 1
           fi
-          rm -f "$key_path" "$pub_der" "dist/release/checksums-pubkey.txt" \
-            "$sig_bin"
-      - name: Move nightly tag to this commit
+          rm -f "$key_path" "$pub_der" dist/release/checksums-pubkey.txt "$sig_bin"
+      - name: Move nightly tag to main commit
         env:
           GH_TOKEN: ${{ github.token }}
-          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
+          TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
         run: |
           set -euo pipefail
-          if [[ "${RELEASE_TAG:-}" != "nightly" ]]; then
-            exit 0
-          fi
           if ! gh api \
             --method PATCH \
             "repos/${{ github.repository }}/git/refs/tags/nightly" \
@@ -318,9 +327,6 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ "${RELEASE_TAG:-}" != "nightly" ]]; then
-            exit 0
-          fi
           current_assets="$(mktemp)"
           for asset_path in dist/release/*; do
             basename "$asset_path"
@@ -338,17 +344,21 @@ jobs:
             fi
           done </tmp/nightly-assets.txt
           rm -f "$current_assets" /tmp/nightly-assets.txt
-      - name: Upload release assets
+      - name: Upload nightly release assets
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ needs.resolve.outputs.target_sha }}
+          tag_name: nightly
+          name: Wavecrate Nightly
+          target_commitish: ${{ needs.resolve-main.outputs.target_sha }}
+          body_path: dist/release/release-log.md
+          prerelease: true
+          make_latest: false
           files: dist/release/*
 
   publish-frontend:
-    name: Upload PortalSurfer Wavecrate downloads
+    name: Upload PortalSurfer nightly downloads
     runs-on: ubuntu-latest
-    needs: [resolve, publish]
+    needs: [resolve-main, publish-github]
     steps:
       - name: Verify PortalSurfer upload secret
         env:
@@ -359,60 +369,22 @@ jobs:
             echo "Missing required secret: PORTALSURFER_RELEASE_UPLOAD_TOKEN" >&2
             exit 1
           fi
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.resolve.outputs.target_sha }}
-      - name: Install git-cliff
-        uses: taiki-e/install-action@v2
-        with:
-          tool: git-cliff
-      - name: Generate Wavecrate release log
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          DISPATCH_TAG: ${{ inputs.tag }}
-          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
-        run: |
-          set -euo pipefail
-          tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$tag" && "$EVENT_NAME" == "schedule" ]]; then
-            tag="nightly"
-          fi
-          if [[ -z "$tag" ]]; then
-            echo "Release tag is required." >&2
-            exit 1
-          fi
-
-          git fetch --tags --force
-          if [[ "$tag" == "nightly" ]]; then
-            git tag -f "$tag" "$TARGET_SHA"
-          else
-            git tag "$tag" "$TARGET_SHA" 2>/dev/null || true
-          fi
-
-          mkdir -p dist/release
-          git cliff --config cliff.toml --tag "$tag" --latest > dist/release/release-log.md
-          if [[ ! -s dist/release/release-log.md ]]; then
-            echo "Generated release log is empty." >&2
-            exit 1
-          fi
       - uses: actions/download-artifact@v4
         with:
           path: dist/artifacts
           pattern: release-*
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-log
+          path: dist/release
       - name: Upload Wavecrate downloads
         shell: bash
         env:
-          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at || '' }}
           UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
           UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
-          EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          DISPATCH_TAG: ${{ inputs.tag }}
-          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
+          TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
+          RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -422,30 +394,10 @@ jobs:
             exit 1
           fi
 
-          tag="${RELEASE_TAG_NAME:-${DISPATCH_TAG:-}}"
-          if [[ -z "$tag" && "$EVENT_NAME" == "schedule" ]]; then
-            tag="nightly"
-          fi
-          if [[ -z "$tag" ]]; then
-            echo "Release tag is required." >&2
-            exit 1
-          fi
-          if [[ "$tag" == "nightly" ]]; then
-            version="nightly"
-          else
-            version="${tag#v}"
-          fi
-          safe_tag="$(printf '%s' "$tag" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g')"
-          if [[ -z "$safe_tag" ]]; then
-            echo "Release tag did not produce a safe build id component: $tag" >&2
-            exit 1
-          fi
+          version="nightly"
           short_sha="${TARGET_SHA::8}"
-          build_id="wavecrate-${safe_tag}-${short_sha}"
-          released_at="${RELEASE_PUBLISHED_AT:-}"
-          if [[ -z "$released_at" ]]; then
-            released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          fi
+          build_id="wavecrate-nightly-b${GITHUB_RUN_NUMBER}-${short_sha}"
+          released_at="${RELEASED_AT}"
 
           upload_base="${UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
           upload_base="${upload_base%/}"

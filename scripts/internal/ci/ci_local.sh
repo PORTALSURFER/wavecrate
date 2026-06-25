@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Local required CI mirror: run the merge-blocking checks from
-# `.github/workflows/ci.yml` that are practical on this platform.
+# Local full validation lane: run the canonical broad checks that are practical
+# on this platform.
 
 # `--skip-agent-preflight` is useful for agent entrypoint scripts that have already
 # run `run_agent_ci_checks.sh` and want to avoid duplicate checks.
@@ -29,7 +29,7 @@ while (( $# > 0 )); do
       cat <<'USAGE'
 Usage: scripts/ci.sh local [--skip-agent-preflight]
 
-Run the local required CI parity sequence used by this repository.
+Run the local full validation sequence used by this repository.
 
 Options:
   --skip-agent-preflight  Skip ./scripts/internal/agent/run_agent_ci_checks.sh.

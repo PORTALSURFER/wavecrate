@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Compatibility wrapper for the local CI parity lane.
+Compatibility wrapper for the local full validation lane.
 
 .DESCRIPTION
 Preserves the legacy `scripts/ci_local.ps1` entrypoint while delegating to the

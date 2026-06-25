@@ -30,21 +30,22 @@ Use the lightest lane that still gives trustworthy coverage for the change.
    - macOS/Linux/WSL:
      `bash scripts/ci.sh local`
 
-## CI lane contract
+## Validation and release lane contract
 
-GitHub CI and local wrappers share this contract:
+GitHub Actions currently owns only nightly packaging and upload. Local wrappers
+remain the validation contract for development and release-risk checks:
 
-| Lane | GitHub job | Local command | Blocking policy |
+| Lane | GitHub job | Local command | Policy |
 | --- | --- | --- | --- |
-| Required format and guardrails | `Required: format and guardrails` | `scripts/ci.* local` includes the same required guardrails; use `scripts/check.* <name>` for focused reruns | Required for PRs and pushes to `main` |
-| Required clippy | `Required: clippy` | `scripts/ci.* local` | Required for PRs and pushes to `main` |
-| Required docs | `Required: docs` | `scripts/ci.* local` | Required for PRs and pushes to `main` |
-| Required tests | `Required: tests (linux/windows/macos)` | `scripts/ci.* local` runs `cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast` on the local platform | Required for PRs and pushes to `main` |
-| Quarantined/slow tests | `Advisory: quarantined tests (linux/windows/macos)` | `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast` | Advisory until the tests are hardened |
-| Dead dependency sweep and env-var nudge | `Advisory: repository hygiene` | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
-| GUI semantic contracts | none in required GitHub CI | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
-| Perf guard | none in required GitHub CI | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Release build/sync | `Create release on main` after successful `CI`; scheduled `nightly` from `main` only when `main` is ahead of the `nightly` tag | release workflow dispatch | Release-only, after required CI is green; nightly-only for rolling `main` builds |
+| Format and guardrails | none | `scripts/ci.* local` includes the required guardrails; use `scripts/check.* <name>` for focused reruns | Run locally before broad/risky changes |
+| Clippy | none | `scripts/ci.* local` | Run locally before broad/risky changes |
+| Docs | none | `scripts/ci.* local` | Run locally before broad/risky changes |
+| Tests | none | `scripts/ci.* local` runs `cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast` on the local platform | Run locally before broad/risky changes |
+| Quarantined/slow tests | none | `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast` | Advisory until the tests are hardened |
+| Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
+| GUI semantic contracts | none | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
+| Perf guard | none | `scripts/perf.* guard` | Local/manual or release-risk validation |
+| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, updates the rolling GitHub `nightly` release, and uploads downloads plus release log to PortalSurfer |
 
 The nextest policy is:
 
@@ -55,8 +56,8 @@ The nextest policy is:
   stale-removal behavior.
 - The default nextest profile stays unfiltered for maintainers who want the
   complete suite and are prepared to triage environment-specific failures.
-- Required GitHub test jobs upload nextest JUnit and archive summaries on
-  failure; start with the job summary before reading the raw log.
+- Local nextest runs are the source of test evidence while GitHub Actions is
+  narrowed to the nightly release workflow.
 
 The non-blocking app architecture is enforced by
 `scripts/check.* non-blocking-architecture`, and that check is required by

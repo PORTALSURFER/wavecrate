@@ -5,7 +5,7 @@
 
 Audio sample triage tool built with Rust.
 
-[![Build release assets](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
+[![Wavecrate nightly release](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
 
 ---
 
@@ -15,12 +15,14 @@ Audio sample triage tool built with Rust.
 
 ## Downloads
 
-- GitHub Releases publish Windows and macOS assets.
-- Windows is the primary supported release platform today; macOS assets are also published for the workflow targets in `.github/workflows/release-build.yml`.
-- When the PortalSurfer release-upload secret is configured, the release
-  workflow also uploads the built zips through the scoped PortalSurfer upload
-  API and exposes them through the `/wavecrate/` frontend.
-- Publishing a release triggers a workflow that regenerates `CHANGELOG.md` via `git-cliff` and opens a PR (since `main` is protected).
+- The GitHub Actions release lane publishes rolling nightly builds only.
+- The nightly workflow builds Windows x86_64 plus macOS x86_64 and aarch64
+  assets from `main`.
+- It runs every evening and can also be started manually from the GitHub Actions
+  page to force a fresh nightly from the current `main` commit.
+- The workflow uploads the built zips and generated Markdown release log through
+  the scoped PortalSurfer upload API so the `/wavecrate/` frontend can show the
+  latest downloadable build and changelog.
 
 ## Build from source
 
@@ -63,7 +65,7 @@ Broader integrated local validation loop:
 - Built around `cargo nextest`; the Windows PowerShell wrapper also runs the semantic GUI contract lane.
 
 The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
-in the same order used by repository workflows.
+in the canonical local validation order.
 On headless Linux hosts, `scripts/ci.sh local` and `scripts/perf.sh guard`
 automatically set `ALSA_CONFIG_PATH=scripts/internal/alsa_headless.conf` (unless already
 set) to route audio probing to a dummy sink and reduce ALSA warning noise.
@@ -152,9 +154,10 @@ Legacy golden regression tests still use PANNs reference artifacts:
 
 - Install tooling once: `rustup component add rustfmt clippy`.
 - Format locally: `cargo fmt --all`.
-- Check formatting (same as CI): `cargo fmt --all -- --check`.
-- Lint locally (same as CI): `cargo clippy --workspace --all-targets`.
-- CI runs `rustfmt`, `clippy`, and `cargo test` on Ubuntu/Windows/macOS for every push to `main` and all pull requests targeting `main`.
+- Check formatting: `cargo fmt --all -- --check`.
+- Lint locally: `cargo clippy --workspace --all-targets`.
+- Run the local validation wrappers before release-risk changes; GitHub Actions
+  currently owns nightly packaging and upload, not push/PR validation.
 
 ## Configuration and data
 

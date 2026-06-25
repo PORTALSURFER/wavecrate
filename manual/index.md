@@ -12,7 +12,7 @@ Wavecrate is a focused sample-library workstation for browsing large folders, au
 > This manual (`manual/`) is user-facing documentation only.
 > Developer documentation lives in `docs/` in the repository.
 
-[![Build release assets](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
+[![Wavecrate nightly release](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
 
 <div class="download-hero">
   <div class="download-copy">Download the latest portable bundle.</div>

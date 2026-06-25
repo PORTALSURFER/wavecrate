@@ -4,9 +4,9 @@
 Runs the PowerShell local CI core lane.
 
 .DESCRIPTION
-Runs the required GitHub CI parity lane that is practical in the PowerShell
+Runs the canonical broad validation lane that is practical in the PowerShell
 environment. Linux-only advisory checks, perf guards, and GUI/manual lanes stay
-outside this merge-blocking parity command.
+outside this local command.
 #>
 
 param(

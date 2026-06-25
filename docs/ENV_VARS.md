@@ -18,7 +18,7 @@ Path to the Steinberg ASIO SDK root directory (expected to contain `host/` and
 
 - `WAVECRATE_CARGO_BIN`
 Overrides the build tool used by `scripts/internal/release/build_release_zip.sh` (defaults to
-`cargo`). CI sets this to `cross` for cross builds.
+`cargo`).
 
 - `WAVECRATE_CHECKSUMS_ED25519_KEY`
 CI secret used by `.github/workflows/release-build.yml` to sign release checksum
@@ -39,16 +39,18 @@ and its wrapper probe passes. Default: unset, so repo scripts use direct
 
 ### Release upload secrets
 
-The `release-build.yml` workflow uploads built release zips to GitHub Releases
-and, when these repository secrets are configured, uploads the same zips plus
-the generated Markdown release log to the PortalSurfer Wavecrate release-upload
-API. GitHub Actions does not need SSH access or write access to the PortalSurfer
-frontend repository.
+The `release-build.yml` workflow is the only GitHub Actions workflow in this
+repo. It publishes rolling `nightly` builds only: Windows x86_64 plus macOS
+x86_64/aarch64 assets from the current `main` commit. The schedule is
+`19:30 UTC` (evening in Europe/Amsterdam), and `workflow_dispatch` provides a
+manual "force a nightly now" button with the same build/upload path.
 
-The rolling `nightly` release is scheduled at `03:30 UTC`. It resolves the
-current `main` branch and skips the build when `main` is not ahead of the
-current `nightly` tag, so ordinary pushes to `main` do not publish release
-assets on every commit.
+The workflow updates the rolling GitHub `nightly` release, then uploads the same
+zips plus the generated Markdown release log to the PortalSurfer Wavecrate
+release-upload API. Each PortalSurfer upload gets a run-numbered build id so
+the website can show a distinct nightly entry even when the same commit is
+rebuilt. GitHub Actions does not need SSH access or write access to the
+PortalSurfer frontend repository.
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
 Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store
