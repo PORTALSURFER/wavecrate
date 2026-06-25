@@ -6,6 +6,7 @@ pub(in crate::native_app) enum WaveformInteraction {
     Wheel {
         delta: Vector2,
         anchor_ratio: f32,
+        expand_silence_margin: bool,
     },
     ZoomToPlaySelection,
     ZoomFull,

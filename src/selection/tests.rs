@@ -14,6 +14,24 @@ fn new_range_orders_bounds() {
 }
 
 #[test]
+fn unclamped_range_preserves_virtual_silence_bounds() {
+    let range = SelectionRange::new_unclamped(1.25, -0.25);
+    assert_eq!(range.start(), -0.25);
+    assert_eq!(range.end(), 1.25);
+}
+
+#[test]
+fn signed_frame_bounds_preserve_out_of_file_padding() {
+    let range = SelectionRange::new_unclamped(-0.25, 1.25);
+    let bounds = range.signed_frame_bounds(8);
+
+    assert_eq!(bounds.start_frame, -2);
+    assert_eq!(bounds.end_frame, 10);
+    assert_eq!(range.frame_bounds(8).start_frame, 0);
+    assert_eq!(range.frame_bounds(8).end_frame, 8);
+}
+
+#[test]
 fn empty_range_reports_zero_width() {
     let range = SelectionRange::new(0.5, 0.5);
     assert!(range.is_empty());
@@ -143,6 +161,15 @@ fn shift_clamps_within_bounds() {
 fn shift_noops_on_nan() {
     let range = SelectionRange::new(0.2, 0.4);
     assert_eq!(range.shift(f32::NAN), range);
+}
+
+#[test]
+fn shift_unclamped_preserves_out_of_file_bounds() {
+    let range = SelectionRange::new_unclamped(-0.2, 0.4);
+    assert_range_close(
+        range.shift_unclamped(0.7),
+        SelectionRange::new_unclamped(0.5, 1.1),
+    );
 }
 
 #[test]

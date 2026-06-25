@@ -188,18 +188,24 @@ impl WaveformWidget {
         &self,
         range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<NormalizedRange> {
-        self.viewport_scope()
-            .visible_normalized_range(normalized_range_for_selection(range?))
+        let range = range?;
+        let (start, end) = self.viewport.visible_range_from_absolute(
+            self.file.frames,
+            range.start(),
+            range.end(),
+        )?;
+        Some(NormalizedRange::from_fractions(start, end))
     }
 
     pub(super) fn visible_ratio_for_absolute(&self, ratio: Option<f32>) -> Option<f32> {
-        self.viewport_scope().visible_ratio_from_absolute(ratio?)
+        self.viewport
+            .visible_ratio_from_absolute(self.file.frames, ratio?)
     }
 
     pub(super) fn absolute_ratio_for_visible(&self, visible_ratio: f32) -> Option<f32> {
         Some(
-            self.viewport_scope()
-                .absolute_ratio_from_visible(visible_ratio),
+            self.viewport
+                .absolute_ratio_from_visible(self.file.frames, visible_ratio),
         )
     }
 
@@ -208,24 +214,9 @@ impl WaveformWidget {
         bounds: Rect,
         range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<CanvasSelectionGeometry> {
-        CanvasSelectionGeometry::from_viewport_range(
-            bounds,
-            self.viewport_scope(),
-            normalized_range_for_selection(range?),
-        )
+        let range = self.visible_normalized_range_for_selection(range)?;
+        CanvasSelectionGeometry::new(bounds, range.start_fraction(), range.end_fraction())
     }
-
-    fn viewport_scope(&self) -> radiant::prelude::IndexViewportScope {
-        radiant::prelude::IndexViewportScope::new(
-            self.viewport,
-            self.file.frames,
-            super::MIN_VISIBLE_FRAMES,
-        )
-    }
-}
-
-fn normalized_range_for_selection(range: wavecrate::selection::SelectionRange) -> NormalizedRange {
-    NormalizedRange::from_fractions(range.start(), range.end())
 }
 
 fn selection_export_affordance_style() -> CanvasSelectionAffordanceStyle {

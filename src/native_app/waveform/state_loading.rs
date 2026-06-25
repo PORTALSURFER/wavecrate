@@ -7,8 +7,7 @@ use super::audio_file::load_waveform_file_with_progress_cancel_and_playback_read
 #[cfg(test)]
 use super::audio_file::synthetic_waveform_file;
 use super::{
-    MIN_VISIBLE_FRAMES, SELECTION_FLASH_FRAMES, WaveformDrag, WaveformFile, WaveformState,
-    WaveformViewport,
+    SELECTION_FLASH_FRAMES, WaveformDrag, WaveformFile, WaveformState, WaveformViewport,
     audio_file::{
         empty_waveform_file, load_cached_waveform_file_for_playback,
         load_waveform_file_for_foreground_audition,
@@ -135,10 +134,6 @@ impl WaveformState {
             active_drag: None::<WaveformDrag>,
             pending_playback_start: None,
         }
-    }
-
-    pub(super) fn viewport_scope(&self) -> super::ui::IndexViewportScope {
-        super::ui::IndexViewportScope::new(self.viewport, self.file.frames, MIN_VISIBLE_FRAMES)
     }
 
     pub(super) fn selection_flash_frame_count() -> u8 {

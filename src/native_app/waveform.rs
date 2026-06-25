@@ -1,7 +1,5 @@
 #![allow(missing_docs)]
 
-use radiant::prelude as ui;
-
 use crate::native_app::ui::ids as widget_ids;
 
 const WAVEFORM_WIDTH: usize = 1200;
@@ -87,7 +85,8 @@ mod edit_fade_geometry;
 mod edit_fade_paint;
 mod selection_paint;
 
-pub(super) type WaveformViewport = ui::IndexViewport;
+mod viewport;
+pub(super) use viewport::WaveformViewport;
 
 #[cfg(test)]
 mod tests;

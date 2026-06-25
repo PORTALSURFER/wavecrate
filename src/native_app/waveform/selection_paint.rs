@@ -207,7 +207,7 @@ impl WaveformWidget {
     fn append_marker_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
         if self
             .play_mark_ratio
-            .is_some_and(|ratio| ratio.clamp(0.0, 1.0) > IMPLICIT_SAMPLE_START_RATIO)
+            .is_some_and(|ratio| ratio.abs() > IMPLICIT_SAMPLE_START_RATIO)
             && let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio)
         {
             paint.push_horizontal_value_cursor_fill(

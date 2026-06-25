@@ -1,5 +1,5 @@
 use radiant::gui::{
-    range::{NormalizedRange, NormalizedRangeDrag, NormalizedRangeEdge},
+    range::NormalizedRange,
     visualization::{TimelineEditPreview, TimelineEditRamp},
 };
 
@@ -123,31 +123,56 @@ impl WaveformPanDrag {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct WaveformSelectionDrag {
     pub(super) kind: WaveformSelectionKind,
-    drag: NormalizedRangeDrag,
+    anchor_ratio: f32,
+    current_ratio: f32,
+    moved: bool,
 }
 
 impl WaveformSelectionDrag {
     pub(super) fn new(kind: WaveformSelectionKind, ratio: f32) -> Self {
+        let ratio = finite_or_zero(ratio);
         Self {
             kind,
-            drag: NormalizedRangeDrag::new(ratio),
+            anchor_ratio: ratio,
+            current_ratio: ratio,
+            moved: false,
         }
     }
 
     pub(super) fn update(&mut self, ratio: f32) {
-        self.drag.update(ratio, SELECTION_DRAG_EPSILON);
+        self.current_ratio = finite_or_zero(ratio);
+        self.moved |= (self.current_ratio - self.anchor_ratio).abs() > SELECTION_DRAG_EPSILON;
     }
 
     pub(super) fn moved(self) -> bool {
-        self.drag.moved
+        self.moved
     }
 
     pub(super) fn anchor_ratio(self) -> f32 {
-        self.drag.anchor_fraction
+        self.anchor_ratio
     }
 
-    pub(super) fn range(self) -> NormalizedRange {
-        self.drag.range()
+    pub(super) fn range(self) -> WaveformRawSelectionRange {
+        WaveformRawSelectionRange::new(self.anchor_ratio, self.current_ratio)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct WaveformRawSelectionRange {
+    start: f32,
+    end: f32,
+}
+
+impl WaveformRawSelectionRange {
+    fn new(start: f32, end: f32) -> Self {
+        if start <= end {
+            Self { start, end }
+        } else {
+            Self {
+                start: end,
+                end: start,
+            }
+        }
     }
 }
 
@@ -156,6 +181,7 @@ pub(super) struct WaveformSelectionMoveDrag {
     pub(super) kind: WaveformSelectionKind,
     pub(super) anchor_ratio: f32,
     pub(super) baseline: wavecrate::selection::SelectionRange,
+    allow_out_of_bounds: bool,
 }
 
 impl WaveformSelectionMoveDrag {
@@ -163,16 +189,22 @@ impl WaveformSelectionMoveDrag {
         kind: WaveformSelectionKind,
         anchor_ratio: f32,
         baseline: wavecrate::selection::SelectionRange,
+        allow_out_of_bounds: bool,
     ) -> Self {
         Self {
             kind,
             anchor_ratio,
             baseline,
+            allow_out_of_bounds,
         }
     }
 
     pub(super) fn apply(self, ratio: f32) -> wavecrate::selection::SelectionRange {
-        self.baseline.shift(ratio - self.anchor_ratio)
+        if self.allow_out_of_bounds {
+            self.baseline.shift_unclamped(ratio - self.anchor_ratio)
+        } else {
+            self.baseline.shift(ratio - self.anchor_ratio)
+        }
     }
 }
 
@@ -182,6 +214,7 @@ pub(super) struct WaveformSelectionResizeDrag {
     pub(super) edge: WaveformSelectionEdge,
     pub(super) fixed_ratio: f32,
     baseline: wavecrate::selection::SelectionRange,
+    allow_out_of_bounds: bool,
 }
 
 impl WaveformSelectionResizeDrag {
@@ -189,6 +222,7 @@ impl WaveformSelectionResizeDrag {
         kind: WaveformSelectionKind,
         edge: WaveformSelectionEdge,
         selection: wavecrate::selection::SelectionRange,
+        allow_out_of_bounds: bool,
     ) -> Self {
         let fixed_ratio = match edge {
             WaveformSelectionEdge::Start => selection.end(),
@@ -199,6 +233,7 @@ impl WaveformSelectionResizeDrag {
             edge,
             fixed_ratio,
             baseline: selection,
+            allow_out_of_bounds,
         }
     }
 
@@ -209,11 +244,11 @@ impl WaveformSelectionResizeDrag {
             wavecrate::selection::SelectionRange,
         ) -> wavecrate::selection::SelectionRange,
     ) -> wavecrate::selection::SelectionRange {
-        let resized = selection_from_normalized_range(NormalizedRange::from_edge_fraction(
-            normalized_range_edge(self.edge),
-            self.fixed_ratio,
-            ratio,
-        ));
+        let resized = if self.allow_out_of_bounds {
+            wavecrate::selection::SelectionRange::new_unclamped(self.fixed_ratio, ratio)
+        } else {
+            wavecrate::selection::SelectionRange::new(self.fixed_ratio, ratio)
+        };
         let resized = adjust(resized);
         match self.kind {
             WaveformSelectionKind::Play => resized,
@@ -284,17 +319,10 @@ fn preserved_fade_out_mute(
     ((source_outer_end - resized.end()) / resized.width()).max(0.0)
 }
 
-fn normalized_range_edge(edge: WaveformSelectionEdge) -> NormalizedRangeEdge {
-    match edge {
-        WaveformSelectionEdge::Start => NormalizedRangeEdge::Start,
-        WaveformSelectionEdge::End => NormalizedRangeEdge::End,
-    }
-}
-
-pub(super) fn selection_from_normalized_range(
-    range: NormalizedRange,
+pub(super) fn selection_from_raw_range(
+    range: WaveformRawSelectionRange,
 ) -> wavecrate::selection::SelectionRange {
-    wavecrate::selection::SelectionRange::new(range.start_fraction(), range.end_fraction())
+    wavecrate::selection::SelectionRange::new_unclamped(range.start, range.end)
 }
 
 pub(super) fn edit_preview_for_selection(
@@ -312,4 +340,8 @@ pub(super) fn edit_preview_for_selection(
         fade_in.map(|fade| TimelineEditRamp::new(fade.length, fade.mute, Some(fade.curve))),
         fade_out.map(|fade| TimelineEditRamp::new(fade.length, fade.mute, Some(fade.curve))),
     )
+}
+
+fn finite_or_zero(value: f32) -> f32 {
+    if value.is_finite() { value } else { 0.0 }
 }

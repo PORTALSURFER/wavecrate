@@ -231,21 +231,28 @@ fn apply_destructive_edit_to_wav(
     selection: wavecrate::selection::SelectionRange,
 ) -> Result<(), String> {
     let total_frames = wav.samples.len() / wav.channels.max(1);
-    let (start_frame, end_frame) = selection_frame_bounds(total_frames, selection);
-    let start = start_frame * wav.channels;
-    let end = end_frame * wav.channels;
     match edit {
         WaveformDestructiveEditKind::CropSelection => {
-            wav.samples = wav.samples[start..end].to_vec();
+            crop_wav_to_selection_with_silence(wav, selection)?;
         }
         WaveformDestructiveEditKind::TrimSelection
         | WaveformDestructiveEditKind::ExtractAndTrimSelection => {
+            let (start_frame, end_frame) =
+                selection_existing_frame_bounds(total_frames, selection)?;
+            let start = start_frame * wav.channels;
+            let end = end_frame * wav.channels;
             wav.samples.drain(start..end);
         }
         WaveformDestructiveEditKind::ReverseSelection => {
+            let (start_frame, end_frame) =
+                selection_existing_frame_bounds(total_frames, selection)?;
+            let start = start_frame * wav.channels;
+            let end = end_frame * wav.channels;
             reverse_interleaved_frames(&mut wav.samples[start..end], wav.channels);
         }
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
+            let (start_frame, end_frame) =
+                selection_existing_frame_bounds(total_frames, selection)?;
             apply_edit_selection_effects(
                 &mut wav.samples,
                 wav.channels,
@@ -259,6 +266,33 @@ fn apply_destructive_edit_to_wav(
     if wav.samples.is_empty() {
         return Err(format!("No audio data after {}", edit.gerund_label()));
     }
+    Ok(())
+}
+
+fn crop_wav_to_selection_with_silence(
+    wav: &mut EditableWav,
+    selection: wavecrate::selection::SelectionRange,
+) -> Result<(), String> {
+    let channels = wav.channels.max(1);
+    let total_frames = wav.samples.len() / channels;
+    let bounds = selection.signed_frame_bounds(total_frames);
+    let output_frames = usize::try_from(bounds.end_frame.saturating_sub(bounds.start_frame).max(1))
+        .map_err(|_| String::from("Selected crop range is too large to write"))?;
+    let output_samples = output_frames
+        .checked_mul(channels)
+        .ok_or_else(|| String::from("Selected crop range is too large to write"))?;
+    let mut output = vec![0.0; output_samples];
+    let source_start_frame = bounds.start_frame.clamp(0, total_frames as i64);
+    let source_end_frame = bounds.end_frame.clamp(0, total_frames as i64);
+    if source_end_frame > source_start_frame {
+        let source_start = source_start_frame as usize * channels;
+        let source_end = source_end_frame as usize * channels;
+        let target_start = (source_start_frame - bounds.start_frame) as usize * channels;
+        let sample_count = source_end.saturating_sub(source_start);
+        output[target_start..target_start + sample_count]
+            .copy_from_slice(&wav.samples[source_start..source_end]);
+    }
+    wav.samples = output;
     Ok(())
 }
 
@@ -326,17 +360,20 @@ fn write_edited_wav(path: &Path, wav: &EditableWav) -> Result<(), String> {
         .map_err(|err| format!("Failed to finalize wav: {err}"))
 }
 
-fn selection_frame_bounds(
+fn selection_existing_frame_bounds(
     total_frames: usize,
     bounds: wavecrate::selection::SelectionRange,
-) -> (usize, usize) {
-    let start_frame = ((bounds.start() * total_frames as f32).floor() as usize)
-        .min(total_frames.saturating_sub(1));
-    let mut end_frame = ((bounds.end() * total_frames as f32).ceil() as usize).min(total_frames);
-    if end_frame <= start_frame {
-        end_frame = (start_frame + 1).min(total_frames);
+) -> Result<(usize, usize), String> {
+    if total_frames == 0 {
+        return Err(String::from("No audio data available"));
     }
-    (start_frame, end_frame)
+    let authored = bounds.signed_frame_bounds(total_frames);
+    let start_frame = authored.start_frame.clamp(0, total_frames as i64) as usize;
+    let end_frame = authored.end_frame.clamp(0, total_frames as i64) as usize;
+    if end_frame <= start_frame {
+        return Err(String::from("Selection is outside the audio data"));
+    }
+    Ok((start_frame, end_frame))
 }
 
 fn sync_source_entry(

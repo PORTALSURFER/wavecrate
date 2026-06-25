@@ -65,6 +65,38 @@ impl SelectionRange {
         }
     }
 
+    /// Create an ordered range that may extend outside the loaded waveform.
+    ///
+    /// Most selection editing uses [`Self::new`] so ratios stay in `0.0..=1.0`.
+    /// This constructor is reserved for virtual silence margins where a
+    /// destructive crop needs to preserve authored leading or trailing silence.
+    pub fn new_unclamped(start: f32, end: f32) -> Self {
+        Self::new_precise_unclamped(f64::from(start), f64::from(end))
+    }
+
+    /// Create a high-precision ordered range that may extend outside the loaded waveform.
+    pub fn new_precise_unclamped(start: f64, end: f64) -> Self {
+        let a = finite_or_zero(start);
+        let b = finite_or_zero(end);
+        if a <= b {
+            Self {
+                start: a,
+                end: b,
+                gain: 1.0,
+                fade_in: None,
+                fade_out: None,
+            }
+        } else {
+            Self {
+                start: b,
+                end: a,
+                gain: 1.0,
+                fade_in: None,
+                fade_out: None,
+            }
+        }
+    }
+
     /// Start position within the waveform.
     pub fn start(&self) -> f32 {
         self.start as f32
@@ -380,9 +412,29 @@ impl SelectionRange {
         result
     }
 
+    /// Shift the selection by the given delta without clamping to the waveform bounds.
+    pub fn shift_unclamped(self, delta: f32) -> Self {
+        if !delta.is_finite() {
+            return self;
+        }
+        self.with_bounds_precise_unclamped(
+            self.start + f64::from(delta),
+            self.end + f64::from(delta),
+        )
+    }
+
     /// Move the range to new normalized bounds while preserving edit parameters.
     pub fn with_bounds_precise(self, start: f64, end: f64) -> Self {
         let mut result = SelectionRange::new_precise(start, end);
+        result.fade_in = self.fade_in;
+        result.fade_out = self.fade_out;
+        result.gain = self.gain;
+        result
+    }
+
+    /// Move the range to new bounds without clamping while preserving edit parameters.
+    pub fn with_bounds_precise_unclamped(self, start: f64, end: f64) -> Self {
+        let mut result = SelectionRange::new_precise_unclamped(start, end);
         result.fade_in = self.fade_in;
         result.fade_out = self.fade_out;
         result.gain = self.gain;
@@ -392,4 +444,8 @@ impl SelectionRange {
 
 fn clamp01_f64(value: f64) -> f64 {
     value.clamp(0.0, 1.0)
+}
+
+fn finite_or_zero(value: f64) -> f64 {
+    if value.is_finite() { value } else { 0.0 }
 }

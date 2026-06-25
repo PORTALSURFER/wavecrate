@@ -13,6 +13,17 @@ pub struct SampleFrameRange {
     pub total_frames: usize,
 }
 
+/// Inclusive/exclusive decoded frame bounds that may extend outside the sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignedSampleFrameRange {
+    /// First authored frame included in the range. May be negative.
+    pub start_frame: i64,
+    /// First authored frame after the range. May exceed `total_frames`.
+    pub end_frame: i64,
+    /// Total decoded frames in the loaded sample used for the conversion.
+    pub total_frames: usize,
+}
+
 impl SelectionRange {
     /// Create a normalized range whose endpoints exactly represent decoded frame bounds.
     pub fn from_frame_bounds(total_frames: usize, start_frame: usize, end_frame: usize) -> Self {
@@ -42,14 +53,38 @@ impl SelectionRange {
                 total_frames,
             };
         }
-        let start_frame = (self.start_f64() * total_frames as f64).floor() as usize;
-        let start_frame = start_frame.min(total_frames.saturating_sub(1));
-        let mut end_frame = (self.end_f64() * total_frames as f64).ceil() as usize;
-        end_frame = end_frame.min(total_frames);
+        let signed = self.signed_frame_bounds(total_frames);
+        let total_frames_i64 = total_frames as i64;
+        let start_frame = signed
+            .start_frame
+            .clamp(0, total_frames_i64.saturating_sub(1)) as usize;
+        let mut end_frame = signed.end_frame.clamp(0, total_frames_i64) as usize;
         if end_frame <= start_frame {
             end_frame = (start_frame + 1).min(total_frames);
         }
         SampleFrameRange {
+            start_frame,
+            end_frame,
+            total_frames,
+        }
+    }
+
+    /// Convert authored bounds to decoded sample-frame bounds without clamping.
+    pub fn signed_frame_bounds(&self, total_frames: usize) -> SignedSampleFrameRange {
+        if total_frames == 0 {
+            return SignedSampleFrameRange {
+                start_frame: 0,
+                end_frame: 0,
+                total_frames,
+            };
+        }
+        let total = total_frames as f64;
+        let start_frame = finite_frame(self.start_f64() * total, f64::floor);
+        let mut end_frame = finite_frame(self.end_f64() * total, f64::ceil);
+        if end_frame <= start_frame {
+            end_frame = start_frame.saturating_add(1);
+        }
+        SignedSampleFrameRange {
             start_frame,
             end_frame,
             total_frames,
@@ -62,4 +97,11 @@ impl SelectionRange {
         let frames = range.frame_bounds(total_frames);
         Self::from_frame_bounds(total_frames, frames.start_frame, frames.end_frame)
     }
+}
+
+fn finite_frame(value: f64, round: fn(f64) -> f64) -> i64 {
+    if !value.is_finite() {
+        return 0;
+    }
+    round(value).clamp(i64::MIN as f64, i64::MAX as f64) as i64
 }

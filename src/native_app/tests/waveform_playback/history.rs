@@ -98,7 +98,7 @@ fn playback_history_load_completion_restores_region_without_unneeded_zoom() {
     );
     let viewport = scenario.state.waveform.current.viewport();
     assert_eq!(viewport.start, 0);
-    assert_eq!(viewport.end, samples.len());
+    assert_eq!(viewport.end, samples.len() as i64);
     assert!(
         scenario
             .state

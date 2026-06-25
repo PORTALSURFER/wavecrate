@@ -28,13 +28,7 @@ fn overlay_paint_projects_play_edit_and_playhead_markers() {
     state.set_playhead_ratio(0.25);
     state.stop_playback();
     state.set_playhead_ratio(0.25);
-    state.apply_interaction(WaveformInteraction::BeginSelection {
-        kind: WaveformSelectionKind::Edit,
-        visible_ratio: 0.375,
-    });
-    state.apply_interaction(WaveformInteraction::FinishSelection {
-        visible_ratio: 0.375,
-    });
+    state.edit_mark_ratio = Some(0.375);
 
     let widget = waveform_widget_for_state(&state);
     let plan = widget.paint_plan_with_defaults(Rect::from_size(400.0, 80.0));

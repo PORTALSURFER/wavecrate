@@ -6,18 +6,19 @@ impl WaveformState {
     }
 
     pub(in crate::native_app) fn visible_fraction(&self) -> f32 {
-        self.viewport_scope().visible_fraction()
+        self.viewport.visible_fraction(self.file.frames)
     }
 
     pub(in crate::native_app) fn fully_zoomed_out(&self) -> bool {
-        !self.viewport_scope().is_zoomed_in()
+        !self.viewport.is_zoomed_in(self.file.frames)
     }
 
     pub(in crate::native_app) fn offset_fraction(&self) -> f32 {
-        self.viewport_scope().offset_fraction()
+        self.viewport.offset_fraction(self.file.frames)
     }
 
     pub(in crate::native_app) fn visible_ratio_for_absolute(&self, ratio: f32) -> Option<f32> {
-        self.viewport_scope().visible_ratio_from_absolute(ratio)
+        self.viewport
+            .visible_ratio_from_absolute(self.file.frames, ratio)
     }
 }

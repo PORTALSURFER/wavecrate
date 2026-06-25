@@ -14,11 +14,14 @@ pub(super) fn snap_selection_to_zero_crossings(
     if start >= end {
         return selection;
     }
-    selection.with_bounds_precise(start, end)
+    selection.with_bounds_precise_unclamped(start, end)
 }
 
 pub(super) fn snap_ratio_to_zero_crossing(ratio: f64, file: &WaveformFile) -> f64 {
     if !ratio.is_finite() {
+        return ratio;
+    }
+    if !(0.0..=1.0).contains(&ratio) {
         return ratio;
     }
     let Some(samples) = file.playback_samples.as_ref() else {

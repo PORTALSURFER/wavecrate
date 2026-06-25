@@ -501,6 +501,38 @@ fn empty_waveform_keeps_hover_cursor_but_emits_no_interactions() {
 }
 
 #[test]
+fn shift_wheel_marks_zoom_out_as_silence_margin_expand() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+    let output = widget
+        .handle_input(
+            bounds,
+            WidgetInput::wheel(
+                Point::new(60.0, 40.0),
+                Vector2::new(0.0, 120.0),
+                radiant::widgets::PointerModifiers {
+                    shift: true,
+                    ..Default::default()
+                },
+            ),
+        )
+        .expect("shift wheel should emit waveform wheel interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::Wheel {
+            delta: Vector2::new(0.0, 120.0),
+            anchor_ratio: 0.25,
+            expand_silence_margin: true,
+        }
+    );
+}
+
+#[test]
 fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

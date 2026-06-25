@@ -1,5 +1,5 @@
 use super::{WaveformState, similar_sections::SimilarSectionsState};
-use wavecrate::selection::{SampleFrameRange, SelectionRange};
+use wavecrate::selection::{SampleFrameRange, SelectionRange, SignedSampleFrameRange};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformPreservedMarks {
@@ -110,7 +110,7 @@ enum FrameRangeTransform {
     Crop {
         old_total_frames: usize,
         new_total_frames: usize,
-        kept: SampleFrameRange,
+        kept: SignedSampleFrameRange,
     },
 }
 
@@ -130,10 +130,10 @@ impl FrameRangeTransform {
     }
 
     fn crop(old_total_frames: usize, selection: SelectionRange) -> Self {
-        let kept = selection.frame_bounds(old_total_frames);
+        let kept = selection.signed_frame_bounds(old_total_frames);
         Self::Crop {
             old_total_frames,
-            new_total_frames: kept.end_frame.saturating_sub(kept.start_frame),
+            new_total_frames: kept.end_frame.saturating_sub(kept.start_frame).max(1) as usize,
             kept,
         }
     }
@@ -157,10 +157,11 @@ impl FrameRangeTransform {
                 }
             }
             Self::Crop { kept, .. } => {
-                if frame < kept.start_frame || frame > kept.end_frame {
+                let mapped = frame as i64 - kept.start_frame;
+                if frame as i64 > kept.end_frame || mapped < 0 {
                     return None;
                 }
-                frame.saturating_sub(kept.start_frame)
+                mapped as usize
             }
         };
         Some((mapped as f64 / new_total_frames as f64) as f32)
@@ -226,13 +227,21 @@ fn map_trimmed_range(
     None
 }
 
-fn map_cropped_range(bounds: SampleFrameRange, kept: SampleFrameRange) -> Option<(usize, usize)> {
-    let start_frame = bounds.start_frame.max(kept.start_frame);
-    let end_frame = bounds.end_frame.min(kept.end_frame);
+fn map_cropped_range(
+    bounds: SampleFrameRange,
+    kept: SignedSampleFrameRange,
+) -> Option<(usize, usize)> {
+    let start_frame = (bounds.start_frame as i64).max(kept.start_frame).max(0);
+    let end_frame = (bounds.end_frame as i64)
+        .min(kept.end_frame)
+        .min(bounds.total_frames as i64);
     if end_frame <= start_frame {
         return None;
     }
-    Some((start_frame - kept.start_frame, end_frame - kept.start_frame))
+    Some((
+        (start_frame - kept.start_frame) as usize,
+        (end_frame - kept.start_frame) as usize,
+    ))
 }
 
 fn ratio_frame(ratio: f32, total_frames: usize) -> usize {

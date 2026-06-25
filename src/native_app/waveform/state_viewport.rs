@@ -1,4 +1,4 @@
-use radiant::{gui::types::Vector2, prelude as ui};
+use radiant::gui::types::Vector2;
 use wavecrate::selection::SelectionRange;
 
 use super::{MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformState, interaction::WaveformPanDrag};
@@ -7,30 +7,42 @@ const KEYBOARD_SELECTION_ZOOM_FACTOR: f32 = 0.82;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SelectionFrameRange {
-    start: usize,
-    end: usize,
+    start: i64,
+    end: i64,
 }
 
 impl WaveformState {
     pub(super) fn absolute_ratio_from_visible(&self, visible_ratio: f32) -> f32 {
-        self.viewport_scope()
-            .absolute_ratio_from_visible(visible_ratio)
+        self.viewport
+            .absolute_ratio_from_visible(self.file.frames, visible_ratio)
     }
 
-    pub(super) fn handle_wheel(&mut self, delta: Vector2, anchor_ratio: f32) {
+    pub(super) fn handle_wheel(
+        &mut self,
+        delta: Vector2,
+        anchor_ratio: f32,
+        expand_silence_margin: bool,
+    ) {
         if delta.x.abs() > delta.y.abs() && delta.x.abs() > f32::EPSILON {
             self.pan_by_visible_fraction(delta.x / WAVEFORM_WIDTH as f32);
             return;
         }
         if delta.y < -f32::EPSILON {
-            self.zoom_around_anchor(0.82, anchor_ratio);
+            self.zoom_around_anchor(0.82, anchor_ratio, true);
         } else if delta.y > f32::EPSILON {
-            self.zoom_around_anchor(1.22, anchor_ratio);
+            if !expand_silence_margin && self.viewport.extends_beyond_audio(self.file.frames) {
+                return;
+            }
+            self.zoom_around_anchor(1.22, anchor_ratio, expand_silence_margin);
         }
     }
 
     pub(super) fn set_offset_fraction(&mut self, offset_fraction: f32) {
-        self.viewport = self.viewport_scope().with_offset_fraction(offset_fraction);
+        self.viewport = self.viewport.with_offset_fraction(
+            self.file.frames,
+            MIN_VISIBLE_FRAMES,
+            offset_fraction,
+        );
     }
 
     pub(in crate::native_app) fn zoom_to_play_selection(&mut self) {
@@ -42,7 +54,7 @@ impl WaveformState {
             .play_mark_ratio
             .and_then(|ratio| self.visible_ratio_for_absolute(ratio))
             .unwrap_or(self.zoom_anchor_ratio);
-        self.zoom_around_anchor(KEYBOARD_SELECTION_ZOOM_FACTOR, anchor_ratio);
+        self.zoom_around_anchor(KEYBOARD_SELECTION_ZOOM_FACTOR, anchor_ratio, true);
     }
 
     pub(in crate::native_app) fn ensure_play_selection_visible(&mut self) {
@@ -60,19 +72,28 @@ impl WaveformState {
     }
 
     pub(super) fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
-        self.viewport = self
-            .viewport_scope_for(drag.viewport)
-            .pan_by_visible_ratio_drag(drag.anchor_visible_ratio, visible_ratio);
+        self.viewport = drag.viewport.pan_by_visible_ratio_drag(
+            self.file.frames,
+            MIN_VISIBLE_FRAMES,
+            drag.anchor_visible_ratio,
+            visible_ratio,
+        );
     }
 
-    fn zoom_around_anchor(&mut self, factor: f32, anchor_ratio: f32) {
-        self.viewport = self
-            .viewport_scope()
-            .zoom_around_anchor(factor, anchor_ratio);
+    fn zoom_around_anchor(&mut self, factor: f32, anchor_ratio: f32, allow_silence_margin: bool) {
+        self.viewport = self.viewport.zoom_around_anchor(
+            self.file.frames,
+            MIN_VISIBLE_FRAMES,
+            factor,
+            anchor_ratio,
+            allow_silence_margin,
+        );
     }
 
     fn pan_by_visible_fraction(&mut self, fraction: f32) {
-        self.viewport = self.viewport_scope().pan_by_visible_fraction(fraction);
+        self.viewport =
+            self.viewport
+                .pan_by_visible_fraction(self.file.frames, MIN_VISIBLE_FRAMES, fraction);
     }
 
     fn play_selection_zoom_viewport(&self) -> Option<super::WaveformViewport> {
@@ -88,7 +109,9 @@ impl WaveformState {
     }
 
     fn viewport_containing_selection(&self, selection: SelectionRange) -> super::WaveformViewport {
-        let current = self.viewport_scope().viewport();
+        let current = self
+            .viewport
+            .clamp_to_current_domain(self.file.frames, MIN_VISIBLE_FRAMES);
         let selection_frames = self.selection_frame_range(selection);
         if viewport_contains_frame_range(current, selection_frames) {
             return current;
@@ -108,21 +131,18 @@ impl WaveformState {
     ) -> super::WaveformViewport {
         let total_frames = self.file.frames.max(1);
         let min_visible_frames = MIN_VISIBLE_FRAMES.min(total_frames);
+        let max_visible_frames = max_visible_frames_for_selection(total_frames, selection_frames);
         let selected_frames = selection_frames
             .visible_items()
             .max(1)
-            .clamp(min_visible_frames, total_frames);
-        let center =
-            ((selection.start_f64() + selection.end_f64()) * 0.5 * total_frames as f64).round();
-        let max_start = total_frames.saturating_sub(selected_frames);
-        let start = (center - selected_frames as f64 * 0.5)
-            .round()
-            .clamp(0.0, max_start as f64) as usize;
+            .clamp(min_visible_frames, max_visible_frames);
+        let center = selection_center_frame(selection, total_frames);
+        let start = (center - selected_frames as f64 * 0.5).round() as i64;
         super::WaveformViewport {
             start,
-            end: start + selected_frames,
+            end: start + selected_frames as i64,
         }
-        .clamp(total_frames, MIN_VISIBLE_FRAMES)
+        .clamp(total_frames, MIN_VISIBLE_FRAMES, max_visible_frames)
     }
 
     fn viewport_centered_on_selection_with_visible_span(
@@ -131,37 +151,33 @@ impl WaveformState {
         visible_frames: usize,
     ) -> super::WaveformViewport {
         let total_frames = self.file.frames.max(1);
+        let selection_frames = self.selection_frame_range(selection);
+        let max_visible_frames =
+            max_visible_frames_for_selection(total_frames, selection_frames).max(visible_frames);
         let visible_frames =
-            visible_frames.clamp(MIN_VISIBLE_FRAMES.min(total_frames), total_frames);
-        let center =
-            ((selection.start_f64() + selection.end_f64()) * 0.5 * total_frames as f64).round();
-        let max_start = total_frames.saturating_sub(visible_frames);
-        let start = (center - visible_frames as f64 * 0.5)
-            .round()
-            .clamp(0.0, max_start as f64) as usize;
+            visible_frames.clamp(MIN_VISIBLE_FRAMES.min(total_frames), max_visible_frames);
+        let center = selection_center_frame(selection, total_frames);
+        let start = (center - visible_frames as f64 * 0.5).round() as i64;
         super::WaveformViewport {
             start,
-            end: start + visible_frames,
+            end: start + visible_frames as i64,
         }
-        .clamp(total_frames, MIN_VISIBLE_FRAMES)
+        .clamp(total_frames, MIN_VISIBLE_FRAMES, max_visible_frames)
     }
 
     fn selection_frame_range(&self, selection: SelectionRange) -> SelectionFrameRange {
         let total_frames = self.file.frames.max(1);
+        let bounds = selection.signed_frame_bounds(total_frames);
         SelectionFrameRange {
-            start: normalized_floor_frame(selection.start_f64(), total_frames),
-            end: normalized_ceil_frame(selection.end_f64(), total_frames),
+            start: bounds.start_frame,
+            end: bounds.end_frame,
         }
-    }
-
-    fn viewport_scope_for(&self, viewport: super::WaveformViewport) -> ui::IndexViewportScope {
-        ui::IndexViewportScope::new(viewport, self.file.frames, MIN_VISIBLE_FRAMES)
     }
 }
 
 impl SelectionFrameRange {
     fn visible_items(self) -> usize {
-        self.end.saturating_sub(self.start).max(1)
+        self.end.saturating_sub(self.start).max(1) as usize
     }
 }
 
@@ -172,16 +188,17 @@ fn viewport_contains_frame_range(
     range.start >= viewport.start && range.end <= viewport.end
 }
 
-fn normalized_floor_frame(value: f64, total_frames: usize) -> usize {
-    normalized_frame(value, total_frames, f64::floor)
+fn max_visible_frames_for_selection(
+    total_frames: usize,
+    selection_frames: SelectionFrameRange,
+) -> usize {
+    if selection_frames.start < 0 || selection_frames.end > total_frames.max(1) as i64 {
+        super::WaveformViewport::virtual_max_visible_items(total_frames)
+    } else {
+        total_frames.max(1)
+    }
 }
 
-fn normalized_ceil_frame(value: f64, total_frames: usize) -> usize {
-    normalized_frame(value, total_frames, f64::ceil)
-}
-
-fn normalized_frame(value: f64, total_frames: usize, round: fn(f64) -> f64) -> usize {
-    let value = if value.is_finite() { value } else { 0.0 };
-    round(value.clamp(0.0, 1.0) * total_frames.max(1) as f64).clamp(0.0, total_frames.max(1) as f64)
-        as usize
+fn selection_center_frame(selection: SelectionRange, total_frames: usize) -> f64 {
+    ((selection.start_f64() + selection.end_f64()) * 0.5 * total_frames.max(1) as f64).round()
 }

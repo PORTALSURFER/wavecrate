@@ -67,7 +67,7 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
         GpuSurfaceContent::SignalSummaryBands {
             frames: file.frames,
             band_count: super::BAND_COUNT,
-            frame_range: [viewport.start as f32, viewport.end as f32],
+            frame_range: viewport.frame_range(),
             summary: Arc::clone(&file.gpu_signal_summary),
             gain_preview: gain_preview_for_selection(edit_selection),
         },

@@ -18,9 +18,8 @@ impl WaveformState {
 
     pub(super) fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
         let anchor_ratio = self.snap_ratio_if_enabled(drag.anchor_ratio());
-        let range = self.snap_selection_if_enabled(
-            super::interaction::selection_from_normalized_range(drag.range()),
-        );
+        let range = self
+            .snap_selection_if_enabled(super::interaction::selection_from_raw_range(drag.range()));
         self.set_selection_for_kind(drag.kind, anchor_ratio, range);
     }
 
@@ -68,7 +67,7 @@ impl WaveformState {
             self.clear_similar_sections();
         }
         self.active_drag = None;
-        self.play_mark_ratio = play_mark_ratio.map(|ratio| ratio.clamp(0.0, 1.0));
+        self.play_mark_ratio = play_mark_ratio.filter(|ratio| ratio.is_finite());
         self.play_selection = play_selection;
         self.marked_play_ranges = marked_play_ranges;
     }
@@ -102,7 +101,7 @@ impl WaveformState {
         else {
             return;
         };
-        let selection = SelectionRange::new(selection.start(), selection.end());
+        let selection = SelectionRange::new_unclamped(selection.start(), selection.end());
         if self.marked_play_ranges.contains(&selection) {
             return;
         }

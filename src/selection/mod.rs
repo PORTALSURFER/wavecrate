@@ -12,7 +12,7 @@ mod state;
 pub use fade::FadeParams;
 pub use fade::fade_curve_value;
 pub(crate) use fade::fade_gain_at_position;
-pub use frames::SampleFrameRange;
+pub use frames::{SampleFrameRange, SignedSampleFrameRange};
 pub use range::SelectionRange;
 pub use state::{SelectionEdge, SelectionState};
 

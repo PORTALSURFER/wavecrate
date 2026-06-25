@@ -410,6 +410,35 @@ fn crop_request_rewrites_file_and_undo_restores_original_audio() {
 }
 
 #[test]
+fn crop_request_pads_virtual_silence_outside_source_bounds() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("crop-silence-margin.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    state.waveform.current.restore_play_selection_state(
+        Some(-0.25),
+        Some(wavecrate::selection::SelectionRange::new_unclamped(
+            -0.25, 1.25,
+        )),
+        Vec::new(),
+    );
+
+    apply_message_and_run_command(&mut state, GuiMessage::RequestCropWaveformSelection);
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 0.0, 0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0, 0.0, 0.0,
+        ],
+    );
+    assert!(state.ui.status.sample.contains("Cropped"));
+}
+
+#[test]
 fn trim_request_rewrites_file_and_undo_restores_original_audio() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("trim.wav");
     let path = PathBuf::from(&selected_file);

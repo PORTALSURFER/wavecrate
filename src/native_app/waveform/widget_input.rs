@@ -90,10 +90,13 @@ impl WaveformWidget {
             return None;
         }
         if let Some((pointer, delta)) = event.wheel_pointer_delta_inside(bounds) {
+            let expand_silence_margin =
+                matches!(&input, WidgetInput::Wheel { modifiers, .. } if modifiers.shift);
             return has_loaded_sample.then(|| {
                 WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
                     anchor_ratio: pointer.normalized_x(),
+                    expand_silence_margin,
                 })
             });
         }

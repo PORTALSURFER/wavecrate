@@ -37,6 +37,58 @@ fn visible_ratio_maps_to_absolute_audio_position_inside_viewport() {
 }
 
 #[test]
+fn shift_zoom_out_extends_viewport_beyond_audio_bounds() {
+    let mut state = WaveformState::synthetic_for_tests();
+
+    state.apply_interaction(WaveformInteraction::Wheel {
+        delta: Vector2::new(0.0, 120.0),
+        anchor_ratio: 0.5,
+        expand_silence_margin: true,
+    });
+
+    assert!(state.viewport().start < 0);
+    assert!(state.viewport().end > state.frames() as i64);
+    assert!(state.viewport().visible_items() > state.frames());
+}
+
+#[test]
+fn plain_zoom_out_keeps_full_view_at_audio_bounds() {
+    let mut state = WaveformState::synthetic_for_tests();
+
+    state.apply_interaction(WaveformInteraction::Wheel {
+        delta: Vector2::new(0.0, 120.0),
+        anchor_ratio: 0.5,
+        expand_silence_margin: false,
+    });
+
+    assert_eq!(
+        state.viewport(),
+        super::WaveformViewport::full(state.frames())
+    );
+}
+
+#[test]
+fn dragging_playmark_selection_in_silence_margin_keeps_unclamped_ratios() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.viewport = super::WaveformViewport {
+        start: -12_000,
+        end: 60_000,
+    };
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Play,
+        visible_ratio: 0.0,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 1.0 });
+    state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 1.0 });
+
+    let selection = state.play_selection().expect("playmark selection");
+    assert!((selection.start() + 0.25).abs() < 0.001);
+    assert!((selection.end() - 1.25).abs() < 0.001);
+    assert_eq!(state.play_mark_ratio(), Some(-0.25));
+}
+
+#[test]
 fn dragging_primary_creates_playmark_selection_without_starting_playback() {
     let mut state = WaveformState::synthetic_for_tests();
 
@@ -160,10 +212,7 @@ fn zoom_to_tiny_play_selection_expands_to_minimum_visible_span() {
 
     state.apply_interaction(WaveformInteraction::ZoomToPlaySelection);
 
-    assert_eq!(
-        state.viewport().end - state.viewport().start,
-        MIN_VISIBLE_FRAMES
-    );
+    assert_eq!(state.viewport().visible_items(), MIN_VISIBLE_FRAMES);
     assert!(state.visible_ratio_for_absolute(0.5).is_some());
 }
 

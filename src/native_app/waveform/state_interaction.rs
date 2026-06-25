@@ -18,9 +18,10 @@ impl WaveformState {
             WaveformInteraction::Wheel {
                 delta,
                 anchor_ratio,
+                expand_silence_margin,
             } => {
                 self.zoom_anchor_ratio = anchor_ratio;
-                self.handle_wheel(delta, anchor_ratio);
+                self.handle_wheel(delta, anchor_ratio, expand_silence_margin);
             }
             WaveformInteraction::ZoomToPlaySelection => {
                 self.zoom_to_play_selection();
@@ -115,8 +116,9 @@ impl WaveformState {
                     return;
                 };
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                let allow_out_of_bounds = self.viewport.extends_beyond_audio(self.file.frames);
                 self.active_drag = Some(WaveformDrag::SelectionResize(
-                    WaveformSelectionResizeDrag::new(kind, edge, selection),
+                    WaveformSelectionResizeDrag::new(kind, edge, selection, allow_out_of_bounds),
                 ));
                 self.update_active_selection_resize(ratio);
             }
@@ -128,8 +130,9 @@ impl WaveformState {
                     return;
                 };
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                let allow_out_of_bounds = self.viewport.extends_beyond_audio(self.file.frames);
                 self.active_drag = Some(WaveformDrag::SelectionMove(
-                    WaveformSelectionMoveDrag::new(kind, ratio, selection),
+                    WaveformSelectionMoveDrag::new(kind, ratio, selection, allow_out_of_bounds),
                 ));
                 self.update_active_selection_move(ratio);
             }
@@ -137,7 +140,7 @@ impl WaveformState {
                 self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
                     visible_ratio,
                     self.viewport
-                        .clamp(self.file.frames.max(1), MIN_VISIBLE_FRAMES),
+                        .clamp_to_current_domain(self.file.frames, MIN_VISIBLE_FRAMES),
                 )));
             }
             WaveformInteraction::UpdateSelection { visible_ratio } => {

@@ -86,7 +86,11 @@ impl WaveformWidget {
 
     pub(super) fn timeline_mapper(&self, bounds: Rect) -> TimelineCoordinateMapper {
         TimelineCoordinateMapper::new(
-            TimelineViewport::from_index_viewport(self.viewport, self.file.frames),
+            TimelineViewport::from_index_viewport(
+                self.viewport
+                    .clamped_index_viewport(self.file.frames, super::MIN_VISIBLE_FRAMES),
+                self.file.frames,
+            ),
             bounds,
             NormalizedPixelSnap::None,
         )
