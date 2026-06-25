@@ -12,6 +12,9 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 
 - `docs/ENV_VARS.md`
   - environment variable reference and safety notes
+- `docs/DATABASE_MIGRATIONS.md`
+  - SQLite schema-change contract, migration rules, read-only compatibility,
+    and database validation commands
 - `docs/TEST.md`
   - development workflow, validation gates, and test suite map
 - `docs/TARGET.md`

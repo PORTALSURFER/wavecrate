@@ -33,8 +33,8 @@ fn revision_read_failure_preserves_existing_search_cache() {
 }
 
 #[test]
-/// Verifies metadata read failure preserves existing search cache.
-fn metadata_read_failure_preserves_existing_search_cache() {
+/// Verifies search-entry read failure preserves existing search cache.
+fn search_entry_read_failure_preserves_existing_search_cache() {
     let (temp, root, _db, job, queue, generation, mut cache, source_id) =
         loaded_search_cache_for_tests("");
     let _keep_temp = temp;
@@ -42,7 +42,7 @@ fn metadata_read_failure_preserves_existing_search_cache() {
     let original_labels = cached_display_labels(&cache);
     set_raw_source_metadata(&root, "revision", &(original_revision + 1).to_string());
     raw_source_conn(&root)
-        .execute("DROP TABLE source_tags", [])
+        .execute("DROP TABLE wav_files", [])
         .unwrap();
 
     assert!(ensure_search_cache_ready_for_job(
@@ -93,7 +93,7 @@ fn targeted_metadata_delta_failure_preserves_cache_when_full_reload_fails() {
     let original_labels = cached_display_labels(&cache);
     set_raw_source_metadata(&root, "revision", &(original_revision + 1).to_string());
     raw_source_conn(&root)
-        .execute("DROP TABLE source_tags", [])
+        .execute("DROP TABLE wav_files", [])
         .unwrap();
     let delta_job = SearchJob {
         metadata_delta_paths: vec![PathBuf::from("../bad-delta.wav")],

@@ -1,10 +1,149 @@
 use super::*;
-use rusqlite::OptionalExtension;
+use rusqlite::{Connection, OptionalExtension};
+use std::collections::HashSet;
 use tempfile::tempdir;
+
+struct TableContract {
+    name: &'static str,
+    columns: &'static [&'static str],
+}
+
+const LIBRARY_DB_SCHEMA_CONTRACT: &[TableContract] = &[
+    TableContract {
+        name: "metadata",
+        columns: &["key", "value"],
+    },
+    TableContract {
+        name: "sources",
+        columns: &["id", "root", "sort_order"],
+    },
+    TableContract {
+        name: "analysis_jobs",
+        columns: &[
+            "id",
+            "sample_id",
+            "job_type",
+            "content_hash",
+            "status",
+            "attempts",
+            "created_at",
+            "last_error",
+        ],
+    },
+    TableContract {
+        name: "samples",
+        columns: &[
+            "sample_id",
+            "content_hash",
+            "size",
+            "mtime_ns",
+            "duration_seconds",
+            "sr_used",
+            "analysis_version",
+            "bpm",
+            "long_sample_mark",
+        ],
+    },
+    TableContract {
+        name: "analysis_features",
+        columns: &["sample_id", "content_hash", "features"],
+    },
+    TableContract {
+        name: "features",
+        columns: &[
+            "sample_id",
+            "feat_version",
+            "vec_blob",
+            "light_dsp_blob",
+            "rms",
+            "computed_at",
+        ],
+    },
+    TableContract {
+        name: "layout_umap",
+        columns: &[
+            "sample_id",
+            "model_id",
+            "umap_version",
+            "x",
+            "y",
+            "created_at",
+        ],
+    },
+    TableContract {
+        name: "hdbscan_clusters",
+        columns: &[
+            "sample_id",
+            "model_id",
+            "method",
+            "umap_version",
+            "cluster_id",
+            "created_at",
+        ],
+    },
+    TableContract {
+        name: "embeddings",
+        columns: &[
+            "sample_id",
+            "model_id",
+            "dim",
+            "dtype",
+            "l2_normed",
+            "vec",
+            "created_at",
+        ],
+    },
+    TableContract {
+        name: "analysis_cache_features",
+        columns: &[
+            "content_hash",
+            "analysis_version",
+            "feat_version",
+            "vec_blob",
+            "light_dsp_blob",
+            "rms",
+            "computed_at",
+            "duration_seconds",
+            "sr_used",
+        ],
+    },
+    TableContract {
+        name: "analysis_cache_embeddings",
+        columns: &[
+            "content_hash",
+            "analysis_version",
+            "model_id",
+            "dim",
+            "dtype",
+            "l2_normed",
+            "vec",
+            "created_at",
+        ],
+    },
+    TableContract {
+        name: "ann_index_meta",
+        columns: &[
+            "model_id",
+            "index_path",
+            "count",
+            "params_json",
+            "updated_at",
+        ],
+    },
+];
 
 fn with_config_home<T>(dir: &Path, f: impl FnOnce() -> T) -> T {
     let _guard = crate::app_dirs::ConfigBaseGuard::set(dir.to_path_buf());
     f()
+}
+
+#[test]
+fn library_database_satisfies_schema_contract() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let conn = open_connection().unwrap();
+        assert_library_db_schema_contract(&conn);
+    });
 }
 
 #[test]
@@ -24,6 +163,37 @@ fn recovers_from_library_lock_poisoning() {
         let loaded = load().unwrap();
         assert!(loaded.sources.is_empty());
     });
+}
+
+fn assert_library_db_schema_contract(connection: &Connection) {
+    for table in LIBRARY_DB_SCHEMA_CONTRACT {
+        let actual = column_names(connection, table.name)
+            .into_iter()
+            .collect::<HashSet<_>>();
+        assert!(
+            !actual.is_empty(),
+            "expected library DB table `{}` to exist",
+            table.name
+        );
+        for column in table.columns {
+            assert!(
+                actual.contains(*column),
+                "expected library DB table `{}` to contain column `{}`; actual columns: {:?}",
+                table.name,
+                column,
+                actual
+            );
+        }
+    }
+}
+
+fn column_names(connection: &Connection, table_name: &str) -> Vec<String> {
+    let pragma = format!("PRAGMA table_info({table_name})");
+    let mut stmt = connection.prepare(&pragma).unwrap();
+    stmt.query_map([], |row| row.get::<_, String>(1))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
 }
 
 #[test]

@@ -4,8 +4,9 @@ use rusqlite::{Params, params_from_iter};
 
 use super::super::super::util::map_sql_error;
 use super::super::super::{Rating, SourceDatabase, SourceDbError};
-use super::super::decode::{decode_path_row, wav_file_last_curated_at_select_expr};
-use super::sql::supported_audio_filter;
+use super::super::decode::{
+    decode_path_row, wav_file_search_metadata_select_columns, wav_file_supported_audio_filter,
+};
 
 /// Search-worker metadata for one ordered wav row.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,21 +32,6 @@ pub struct SearchEntryRow {
     pub relative_path: PathBuf,
     /// Worker-visible metadata for the same ordered row.
     pub metadata: SearchEntryMetadata,
-}
-
-fn normal_tags_select_sql(path_expr: &str) -> String {
-    format!(
-        "(
-            SELECT json_group_array(display_label)
-            FROM (
-                SELECT st.display_label
-                FROM source_tags st
-                JOIN wav_file_tags wft ON wft.tag_id = st.id
-                WHERE wft.path = {path_expr}
-                ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
-            )
-        )"
-    )
 }
 
 fn decode_search_entry_row(
@@ -124,11 +110,10 @@ fn placeholder_list(start_index: usize, count: usize) -> String {
 impl SourceDatabase {
     /// Fetch lightweight browser-search rows ordered by path.
     pub fn list_search_entry_rows(&self) -> Result<Vec<SearchEntryRow>, SourceDbError> {
-        let filter = supported_audio_filter();
-        let normal_tags = normal_tags_select_sql("wav_files.path");
-        let last_curated_at = wav_file_last_curated_at_select_expr(self)?;
+        let filter = wav_file_supported_audio_filter(self)?;
+        let metadata_columns = wav_file_search_metadata_select_columns(self)?;
         let sql = format!(
-            "SELECT path, tag, locked, last_played_at, {last_curated_at}, tag_named, {normal_tags}
+            "SELECT path, {metadata_columns}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"
@@ -149,13 +134,12 @@ impl SourceDatabase {
         if paths.is_empty() {
             return Ok(Vec::new());
         }
-        let filter = supported_audio_filter();
-        let last_curated_at = wav_file_last_curated_at_select_expr(self)?;
+        let filter = wav_file_supported_audio_filter(self)?;
         let mut rows = Vec::new();
         for batch in paths.chunks(900) {
-            let normal_tags = normal_tags_select_sql("wav_files.path");
+            let metadata_columns = wav_file_search_metadata_select_columns(self)?;
             let sql = format!(
-                "SELECT path, tag, locked, last_played_at, {last_curated_at}, tag_named, {normal_tags}
+                "SELECT path, {metadata_columns}
                  FROM wav_files
                  WHERE {filter}
                    AND path IN ({})
@@ -178,11 +162,10 @@ impl SourceDatabase {
 
     /// Fetch only browser-search metadata ordered to match `list_search_entry_rows`.
     pub fn list_search_entry_metadata(&self) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
-        let filter = supported_audio_filter();
-        let normal_tags = normal_tags_select_sql("wav_files.path");
-        let last_curated_at = wav_file_last_curated_at_select_expr(self)?;
+        let filter = wav_file_supported_audio_filter(self)?;
+        let metadata_columns = wav_file_search_metadata_select_columns(self)?;
         let sql = format!(
-            "SELECT tag, locked, last_played_at, {last_curated_at}, tag_named, {normal_tags}
+            "SELECT {metadata_columns}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"

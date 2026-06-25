@@ -270,6 +270,8 @@ Wavecrate should not offer a read-only source mode in the current target. Adding
 
 If the operating system, permissions, file locks, or external tools prevent Wavecrate from writing to a source, Wavecrate should report that as a source/file write limitation rather than treating it as an intentional read-only library mode.
 
+Source database schema changes must be migratable through the real source database open path. Additive tables and columns should be repaired even when a database already carries the current schema stamp, because development and prerelease builds may leave current-stamped files with incomplete structure. Read-only source database opens must not mutate the database and must tolerate older schema shapes through safe default projections or feature-specific query avoidance.
+
 The source database should store information that belongs to that source and its files, such as:
 
 - stable Wavecrate Sample IDs for files in that source
@@ -1876,6 +1878,8 @@ The database and indexing system should support:
 * transactional or recovery-safe updates for user-trust surfaces
 * consistency between persisted state and UI projection
 * diagnostic information for failed writes, stale records, migration issues, metadata embedding failures, and indexing problems
+
+Schema ownership should include explicit base DDL, idempotent migrations, schema contract tests, read-only compatibility coverage where applicable, and versioned migration tests for non-additive changes. A database schema version stamp is an optimization hint, not the only source of truth for structural compatibility.
 
 Tag, rating, aging, naming, and metadata workflows should remain fast as the library grows. Filtering should feel interactive, and persistence should be treated as part of the product performance surface rather than a passive storage detail.
 

@@ -224,6 +224,25 @@ that validation did not leak fixture sources into the real startup profile.
    so the session writes to the dedicated `sandbox` profile instead of the live
    profile.
 
+### Database migration and compatibility
+
+Use this lane when changing `.wavecrate.db`, `library.db`, source metadata
+queries, schema DDL, schema version stamps, or migration code.
+
+- source DB contract and migration fixtures:
+  - `cargo test -p wavecrate-library source_db_migration_tests`
+- read-only source query compatibility:
+  - `cargo test -p wavecrate-library sample_sources::db::read`
+- global library DB contract and migrations:
+  - `cargo test -p wavecrate-library sample_sources::library`
+- compile check for the storage crate:
+  - `cargo check -p wavecrate-library`
+
+See `docs/DATABASE_MIGRATIONS.md` for the schema-change contract. Source DB
+additive repairs must run even when `PRAGMA user_version` already matches the
+current schema, and read-only source opens must tolerate pre-migration database
+shapes by projecting safe defaults or avoiding missing optional tables.
+
 ### Debug log workflow
 
 Use this when reproducing a release/manual bug that needs the richer

@@ -282,3 +282,69 @@ fn legacy_read_only_database_without_last_curated_at_preserves_saved_metadata() 
         None
     );
 }
+
+#[test]
+fn legacy_read_only_minimal_wav_files_schema_reads_with_defaults() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE wav_files (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL
+            );
+            INSERT INTO wav_files (path, file_size, modified_ns)
+            VALUES
+                ('nested/One.WAV', 2048, 99),
+                ('nested/._sidecar.wav', 1, 1),
+                ('notes.txt', 1, 1);",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let rows = db.list_files().unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row.relative_path, PathBuf::from("nested/One.WAV"));
+    assert_eq!(row.content_hash, None);
+    assert_eq!(row.tag, Rating::NEUTRAL);
+    assert!(!row.looped);
+    assert_eq!(row.sound_type, None);
+    assert!(!row.locked);
+    assert!(!row.missing);
+    assert_eq!(row.last_played_at, None);
+    assert_eq!(row.last_curated_at, None);
+    assert_eq!(row.user_tag, None);
+    assert!(!row.tag_named);
+    assert!(row.normal_tags.is_empty());
+    assert_eq!(db.count_files().unwrap(), 1);
+    assert_eq!(db.count_present_files().unwrap(), 1);
+    assert_eq!(db.list_files_page(10, 0).unwrap().len(), 1);
+    assert!(
+        db.entry_for_path(Path::new("nested/One.WAV"))
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        db.list_paths_with_content_hash("missing")
+            .unwrap()
+            .is_empty()
+    );
+
+    let search_rows = db.list_search_entry_rows().unwrap();
+    assert_eq!(search_rows.len(), 1);
+    assert_eq!(search_rows[0].metadata.tag, Rating::NEUTRAL);
+    assert_eq!(search_rows[0].metadata.last_played_at, None);
+    assert_eq!(search_rows[0].metadata.last_curated_at, None);
+    assert!(search_rows[0].metadata.normal_tags.is_empty());
+    assert!(!search_rows[0].metadata.tag_named);
+    assert_eq!(
+        db.list_search_entry_rows_for_paths(&[PathBuf::from("nested/One.WAV")])
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(db.list_search_entry_metadata().unwrap().len(), 1);
+}

@@ -67,28 +67,6 @@ pub(super) fn ensure_wav_files_optional_columns(
     Ok(())
 }
 
-pub(super) fn ensure_wav_files_collection_column(
-    connection: &Connection,
-) -> Result<(), SourceDbError> {
-    let columns = table_columns(connection, "wav_files")?;
-    add_column_if_missing(
-        connection,
-        &columns,
-        OptionalColumn::new("wav_files", "collection", "INTEGER"),
-    )
-}
-
-pub(super) fn ensure_wav_files_last_curated_at_column(
-    connection: &Connection,
-) -> Result<(), SourceDbError> {
-    let columns = table_columns(connection, "wav_files")?;
-    add_column_if_missing(
-        connection,
-        &columns,
-        OptionalColumn::new("wav_files", "last_curated_at", "INTEGER"),
-    )
-}
-
 pub(super) fn ensure_pending_rename_optional_columns(
     connection: &Connection,
 ) -> Result<(), SourceDbError> {
@@ -148,20 +126,6 @@ pub(super) fn ensure_file_ops_journal_optional_columns(
         OptionalColumn::new("file_ops_journal", "last_curated_at", "INTEGER"),
     )?;
     Ok(())
-}
-
-pub(super) fn ensure_file_ops_journal_last_curated_at_column(
-    connection: &Connection,
-) -> Result<(), SourceDbError> {
-    let columns = table_columns(connection, "file_ops_journal")?;
-    if columns.is_empty() {
-        return Ok(());
-    }
-    add_column_if_missing(
-        connection,
-        &columns,
-        OptionalColumn::new("file_ops_journal", "last_curated_at", "INTEGER"),
-    )
 }
 
 pub(super) fn ensure_samples_optional_columns(

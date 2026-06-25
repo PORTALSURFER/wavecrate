@@ -12,9 +12,9 @@ pub(crate) use migrations::table_columns;
 
 /// SQLite `user_version` value for the current source-db schema shape.
 ///
-/// A matching stamp means the base DDL, additive migrations, and indices have
-/// already been assured for this file, so steady-state opens can skip that
-/// one-time work.
+/// A matching stamp means the file has already passed the full schema-assurance
+/// path once. Current-stamped opens still run low-cost additive table/column
+/// repairs, but they skip index rebuilds and deferred cleanup work.
 pub(super) const SOURCE_DB_SCHEMA_VERSION: i64 = 5;
 
 /// Apply the full source-database schema, including deferred cleanup work.
@@ -40,7 +40,7 @@ enum SchemaApplyMode {
 pub(super) enum SchemaApplyOutcome {
     /// The connection performed schema assurance because the database was new or stale.
     Assured,
-    /// The database already carried the current schema stamp, so assurance was skipped.
+    /// The database already carried the current schema stamp, so only lightweight repairs ran.
     Current,
 }
 
@@ -49,6 +49,7 @@ fn apply_schema_with_mode(
     mode: SchemaApplyMode,
 ) -> Result<SchemaApplyOutcome, SourceDbError> {
     let outcome = if schema_is_current(connection)? {
+        ddl::apply_base_schema(connection)?;
         migrations::apply_current_stamp_repairs(connection)?;
         SchemaApplyOutcome::Current
     } else {
