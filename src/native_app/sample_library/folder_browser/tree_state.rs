@@ -347,13 +347,13 @@ impl FolderBrowserState {
         self.tree.show_empty_folders
             || self.selected_folder_is_source_root_id(&folder.id)
             || folder.contains_audio()
-            || self.folder_has_active_rename(&folder.id)
+            || self.folder_has_active_rename_descendant(folder)
     }
 
-    fn folder_has_active_rename(&self, folder_id: &str) -> bool {
-        self.rename
-            .folder
-            .as_ref()
-            .is_some_and(|edit| edit.folder_id == folder_id)
+    fn folder_has_active_rename_descendant(&self, folder: &FolderEntry) -> bool {
+        let Some(edit) = self.rename.folder.as_ref() else {
+            return false;
+        };
+        folder.id == edit.folder_id || folder.find(&edit.folder_id).is_some()
     }
 }

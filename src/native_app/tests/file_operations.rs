@@ -41,6 +41,16 @@ fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
         .expect("read samples")
 }
 
+fn assert_short_edge_faded_drag_extraction(path: &std::path::Path) {
+    let samples = read_test_wav_i16(path);
+    assert_eq!(samples.len(), 4);
+    assert_eq!(
+        samples,
+        vec![0, 200, 300, 0],
+        "drag extraction should preserve the selected interior and fade hard cut edges"
+    );
+}
+
 #[test]
 fn file_move_conflict_dialog_renders_resolution_choices() {
     let mut state = gui_state_for_span_tests();
@@ -259,7 +269,7 @@ fn waveform_selection_drag_extracts_only_after_sample_list_drop() {
     run_command_for_tests(&mut state, drop_context.into_command());
 
     assert!(extraction.is_file());
-    assert_eq!(read_test_wav_i16(&extraction), vec![100, 200, 300, 400]);
+    assert_short_edge_faded_drag_extraction(&extraction);
     assert_eq!(
         state.ui.status.sample,
         "Extracted sample-list-drop_extraction.wav"
@@ -313,10 +323,7 @@ fn waveform_selection_drag_extracts_into_dropped_folder() {
 
     assert!(!default_extraction.exists());
     assert!(dropped_extraction.is_file());
-    assert_eq!(
-        read_test_wav_i16(&dropped_extraction),
-        vec![100, 200, 300, 400]
-    );
+    assert_short_edge_faded_drag_extraction(&dropped_extraction);
     assert_eq!(
         state.ui.status.sample,
         "Extracted folder-drop_extraction.wav"
