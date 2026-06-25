@@ -296,10 +296,14 @@ impl NativeAppState {
                 .folder_browser
                 .refresh_file_path(&extracted.path);
         }
-        if before_selected_path == Some(applied.absolute_path.to_string_lossy().as_ref()) {
+        let edited_path_id = applied.absolute_path.to_string_lossy();
+        if before_selected_path.is_none() || before_selected_path == Some(edited_path_id.as_ref()) {
             self.library
                 .folder_browser
-                .select_file(applied.absolute_path.display().to_string());
+                .focus_file_across_sources_matching_tags(
+                    &applied.absolute_path,
+                    &self.metadata.tags_by_file,
+                );
         }
         self.reload_waveform_path_now_if_loaded(&applied.absolute_path)?;
         if let Some(marks) = preserved_marks

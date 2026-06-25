@@ -410,6 +410,70 @@ fn crop_request_rewrites_file_and_undo_restores_original_audio() {
 }
 
 #[test]
+fn crop_request_refocuses_rating_filtered_curation_sample_for_rerating() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("crop-rerate.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    state.ui.settings.persisted.controls.advance_after_rating = false;
+
+    let mut context = ui::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+    state.adjust_selected_rating(1, &mut context);
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .first()
+            .map(|file| file.rating),
+        Some(wavecrate::sample_sources::Rating::new(2))
+    );
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ToggleRatingFilter(1, true),
+    );
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::SetCurationScope(
+            crate::native_app::sample_library::folder_browser::model::BrowserCurationScope::All,
+            true,
+        ),
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        None,
+        "rating filter should hide and clear the K2 row before crop"
+    );
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    apply_message_and_run_command(&mut state, GuiMessage::RequestCropWaveformSelection);
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(selected_file.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        vec![path]
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.adjust_selected_rating(-1, &mut context);
+    let row = state
+        .library
+        .folder_browser
+        .selected_audio_files_matching_tags(&state.metadata.tags_by_file)
+        .into_iter()
+        .find(|file| file.id == selected_file)
+        .expect("cropped file should remain actionable after rerating");
+    assert_eq!(row.rating, wavecrate::sample_sources::Rating::KEEP_1);
+    assert!(state.ui.status.sample.contains("Rated 1 sample"));
+}
+
+#[test]
 fn crop_request_pads_virtual_silence_outside_source_bounds() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("crop-silence-margin.wav");
