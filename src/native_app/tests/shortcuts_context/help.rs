@@ -99,6 +99,12 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| item.keys == "R" && item.action == "Reverse selection")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "X" && item.action == "Zoom out")
     );
     assert!(

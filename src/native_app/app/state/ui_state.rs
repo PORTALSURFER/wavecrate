@@ -187,6 +187,7 @@ pub(in crate::native_app) struct PendingWaveformDestructiveEdit {
 pub(in crate::native_app) enum WaveformDestructiveEditKind {
     CropSelection,
     TrimSelection,
+    ReverseSelection,
     ExtractAndTrimSelection,
     ApplyEditSelectionEffects,
 }

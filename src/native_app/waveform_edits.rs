@@ -32,6 +32,16 @@ impl NativeAppState {
         self.request_waveform_destructive_edit(WaveformDestructiveEditKind::TrimSelection, context);
     }
 
+    pub(in crate::native_app) fn request_reverse_waveform_selection(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::ReverseSelection,
+            context,
+        );
+    }
+
     pub(in crate::native_app) fn request_extract_and_trim_waveform_selection(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -331,6 +341,9 @@ impl NativeAppState {
                     .current
                     .preserved_marks_after_crop(request.selection),
             ),
+            WaveformDestructiveEditKind::ReverseSelection => {
+                Some(self.waveform.current.preserved_marks_unchanged())
+            }
             WaveformDestructiveEditKind::ApplyEditSelectionEffects => None,
         }
     }
@@ -427,6 +440,7 @@ impl WaveformDestructiveEditKind {
         match self {
             Self::CropSelection => "Crop",
             Self::TrimSelection => "Trim",
+            Self::ReverseSelection => "Reverse",
             Self::ExtractAndTrimSelection => "Extract and trim",
             Self::ApplyEditSelectionEffects => "Apply edit mark edits",
         }
@@ -436,6 +450,7 @@ impl WaveformDestructiveEditKind {
         match self {
             Self::CropSelection => "cropping",
             Self::TrimSelection => "trimming",
+            Self::ReverseSelection => "reversing",
             Self::ExtractAndTrimSelection => "extracting and trimming",
             Self::ApplyEditSelectionEffects => "applying edit mark edits",
         }
@@ -445,6 +460,7 @@ impl WaveformDestructiveEditKind {
         match self {
             Self::CropSelection => "Cropped",
             Self::TrimSelection => "Trimmed",
+            Self::ReverseSelection => "Reversed",
             Self::ExtractAndTrimSelection => "Extracted and trimmed",
             Self::ApplyEditSelectionEffects => "Applied edit mark edits to",
         }
@@ -454,6 +470,7 @@ impl WaveformDestructiveEditKind {
         match self {
             Self::CropSelection => "Crop waveform selection",
             Self::TrimSelection => "Trim waveform selection",
+            Self::ReverseSelection => "Reverse waveform selection",
             Self::ExtractAndTrimSelection => "Extract and trim waveform selection",
             Self::ApplyEditSelectionEffects => "Apply edit mark edits",
         }
@@ -463,6 +480,7 @@ impl WaveformDestructiveEditKind {
         match self {
             Self::CropSelection => "Restore cropped audio",
             Self::TrimSelection => "Restore trimmed audio",
+            Self::ReverseSelection => "Restore reversed audio",
             Self::ExtractAndTrimSelection => "Restore extracted and trimmed audio",
             Self::ApplyEditSelectionEffects => "Restore edit mark edits",
         }
@@ -479,6 +497,9 @@ fn destructive_edit_prompt(
         }
         WaveformDestructiveEditKind::TrimSelection => {
             "This will remove the selected region and close the gap in the source file."
+        }
+        WaveformDestructiveEditKind::ReverseSelection => {
+            "This will reverse the selected region in place in the source file."
         }
         WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             "This will extract the selected region into a new sibling file, then remove that region and close the gap in the source file."

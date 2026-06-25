@@ -141,6 +141,7 @@ impl NativeAppState {
             | GuiMessage::DeleteSelectedItem
             | GuiMessage::RequestCropWaveformSelection
             | GuiMessage::RequestTrimWaveformSelection
+            | GuiMessage::RequestReverseWaveformSelection
             | GuiMessage::RequestExtractAndTrimWaveformSelection
             | GuiMessage::RequestApplyEditSelectionEffects
             | GuiMessage::ConfirmPendingWaveformDestructiveEdit

@@ -15,6 +15,10 @@ pub(in crate::native_app) struct WaveformPreservedMarks {
 }
 
 impl WaveformState {
+    pub(in crate::native_app) fn preserved_marks_unchanged(&self) -> WaveformPreservedMarks {
+        self.preserved_marks_with_transform(FrameRangeTransform::identity(self.file.frames))
+    }
+
     pub(in crate::native_app) fn preserved_marks_after_trim(
         &self,
         selection: SelectionRange,
@@ -95,6 +99,9 @@ impl WaveformState {
 
 #[derive(Clone, Copy, Debug)]
 enum FrameRangeTransform {
+    Identity {
+        total_frames: usize,
+    },
     Trim {
         old_total_frames: usize,
         new_total_frames: usize,
@@ -108,6 +115,10 @@ enum FrameRangeTransform {
 }
 
 impl FrameRangeTransform {
+    fn identity(total_frames: usize) -> Self {
+        Self::Identity { total_frames }
+    }
+
     fn trim(old_total_frames: usize, selection: SelectionRange) -> Self {
         let removed = selection.frame_bounds(old_total_frames);
         let removed_width = removed.end_frame.saturating_sub(removed.start_frame);
@@ -135,6 +146,7 @@ impl FrameRangeTransform {
         }
         let frame = ratio_frame(ratio, old_total_frames);
         let mapped = match self {
+            Self::Identity { .. } => frame,
             Self::Trim { removed, .. } => {
                 if frame < removed.start_frame {
                     frame
@@ -162,6 +174,7 @@ impl FrameRangeTransform {
         }
         let bounds = range.frame_bounds(old_total_frames);
         let (start_frame, end_frame) = match self {
+            Self::Identity { .. } => (bounds.start_frame, bounds.end_frame),
             Self::Trim { removed, .. } => map_trimmed_range(bounds, removed)?,
             Self::Crop { kept, .. } => map_cropped_range(bounds, kept)?,
         };
@@ -173,6 +186,7 @@ impl FrameRangeTransform {
 
     fn old_total_frames(self) -> usize {
         match self {
+            Self::Identity { total_frames } => total_frames,
             Self::Trim {
                 old_total_frames, ..
             }
@@ -184,6 +198,7 @@ impl FrameRangeTransform {
 
     fn new_total_frames(self) -> usize {
         match self {
+            Self::Identity { total_frames } => total_frames,
             Self::Trim {
                 new_total_frames, ..
             }

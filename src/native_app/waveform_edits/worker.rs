@@ -242,6 +242,9 @@ fn apply_destructive_edit_to_wav(
         | WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             wav.samples.drain(start..end);
         }
+        WaveformDestructiveEditKind::ReverseSelection => {
+            reverse_interleaved_frames(&mut wav.samples[start..end], wav.channels);
+        }
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
             apply_edit_selection_effects(
                 &mut wav.samples,
@@ -257,6 +260,20 @@ fn apply_destructive_edit_to_wav(
         return Err(format!("No audio data after {}", edit.gerund_label()));
     }
     Ok(())
+}
+
+fn reverse_interleaved_frames(samples: &mut [f32], channels: usize) {
+    let channels = channels.max(1);
+    let frame_count = samples.len() / channels;
+    for left_frame in 0..frame_count / 2 {
+        let right_frame = frame_count - 1 - left_frame;
+        for channel in 0..channels {
+            samples.swap(
+                left_frame * channels + channel,
+                right_frame * channels + channel,
+            );
+        }
+    }
 }
 
 fn load_editable_wav(path: &Path) -> Result<EditableWav, String> {
