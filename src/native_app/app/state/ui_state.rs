@@ -7,6 +7,7 @@ use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover};
 use crate::native_app::sample_library::context_menu_target::BrowserContextMenu;
+use crate::native_app::waveform::WaveformContextMenu;
 
 pub(in crate::native_app) const DEFAULT_BEAT_GUIDE_COUNT: u8 = 4;
 pub(in crate::native_app) const MIN_BEAT_GUIDE_COUNT: u8 = 1;
@@ -120,6 +121,7 @@ impl StatusState {
 #[derive(Default)]
 pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
+    pub(in crate::native_app) waveform_context_menu: Option<WaveformContextMenu>,
     pub(in crate::native_app) pending_folder_delete: Option<PendingFolderDelete>,
     pub(in crate::native_app) pending_waveform_destructive_edit:
         Option<PendingWaveformDestructiveEdit>,

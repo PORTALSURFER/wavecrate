@@ -9,6 +9,7 @@ use crate::native_app::app_chrome::sample_workspace;
 use crate::native_app::app_chrome::view_models::{
     library_sidebar::LibrarySidebarViewModel, sample_workspace::SampleWorkspaceViewModel,
 };
+use crate::native_app::app_chrome::waveform_context_menu;
 
 const LIBRARY_SIDEBAR_PADDING: f32 = 4.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
@@ -74,23 +75,28 @@ pub(in crate::native_app) fn sample_workspace_overlays(
     state: &NativeAppState,
 ) -> ui::Overlays<GuiMessage> {
     ui::overlays()
-        .dismissible_context_menu_opt(
-            browser_context_menu_overlay(state),
-            GuiMessage::CloseContextMenu,
-        )
+        .dismissible_context_menu_opt(context_menu_overlay(state), GuiMessage::CloseContextMenu)
         .blocking_modal_opt(folder_delete_confirmation_overlay(state))
         .blocking_modal_opt(waveform_destructive_edit_overlay(state))
         .blocking_modal_opt(file_move_conflict_overlay(state))
         .blocking_modal_opt(shortcut_help_overlay(state))
 }
 
-fn browser_context_menu_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+fn context_menu_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     state
         .ui
         .browser_interaction
         .context_menu
         .as_ref()
         .map(browser_context_menu::overlay)
+        .or_else(|| {
+            state
+                .ui
+                .browser_interaction
+                .waveform_context_menu
+                .as_ref()
+                .map(waveform_context_menu::overlay)
+        })
 }
 
 fn file_move_conflict_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {

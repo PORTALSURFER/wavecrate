@@ -34,6 +34,7 @@ impl WaveformState {
             } => {
                 self.zoom_out(expand_silence_margin);
             }
+            WaveformInteraction::OpenPlaySelectionContextMenu { .. } => {}
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }

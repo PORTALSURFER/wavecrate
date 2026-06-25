@@ -18,19 +18,44 @@ use worker::{AppliedWaveformEdit, WaveformDestructiveEditWorkerRequest};
 
 const WAVEFORM_DESTRUCTIVE_EDIT_TASK_NAME: &str = "gui-waveform-destructive-edit";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WaveformDestructiveEditTarget {
+    ActiveSelection,
+    PlaySelection,
+}
+
+impl WaveformDestructiveEditTarget {
+    fn missing_selection_message(self, kind: WaveformDestructiveEditKind) -> String {
+        match self {
+            Self::ActiveSelection => {
+                format!("Mark an edit or play range before {}", kind.gerund_label())
+            }
+            Self::PlaySelection => format!("Mark a play range before {}", kind.gerund_label()),
+        }
+    }
+}
+
 impl NativeAppState {
     pub(in crate::native_app) fn request_crop_waveform_selection(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.request_waveform_destructive_edit(WaveformDestructiveEditKind::CropSelection, context);
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::CropSelection,
+            WaveformDestructiveEditTarget::ActiveSelection,
+            context,
+        );
     }
 
     pub(in crate::native_app) fn request_trim_waveform_selection(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.request_waveform_destructive_edit(WaveformDestructiveEditKind::TrimSelection, context);
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::TrimSelection,
+            WaveformDestructiveEditTarget::ActiveSelection,
+            context,
+        );
     }
 
     pub(in crate::native_app) fn request_reverse_waveform_selection(
@@ -39,6 +64,7 @@ impl NativeAppState {
     ) {
         self.request_waveform_destructive_edit(
             WaveformDestructiveEditKind::ReverseSelection,
+            WaveformDestructiveEditTarget::ActiveSelection,
             context,
         );
     }
@@ -49,6 +75,51 @@ impl NativeAppState {
     ) {
         self.request_waveform_destructive_edit(
             WaveformDestructiveEditKind::ExtractAndTrimSelection,
+            WaveformDestructiveEditTarget::ActiveSelection,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn request_crop_playmark_selection(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::CropSelection,
+            WaveformDestructiveEditTarget::PlaySelection,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn request_trim_playmark_selection(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::TrimSelection,
+            WaveformDestructiveEditTarget::PlaySelection,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn request_reverse_playmark_selection(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::ReverseSelection,
+            WaveformDestructiveEditTarget::PlaySelection,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn request_extract_and_trim_playmark_selection(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::ExtractAndTrimSelection,
+            WaveformDestructiveEditTarget::PlaySelection,
             context,
         );
     }
@@ -59,6 +130,7 @@ impl NativeAppState {
     ) {
         self.request_waveform_destructive_edit(
             WaveformDestructiveEditKind::ApplyEditSelectionEffects,
+            WaveformDestructiveEditTarget::ActiveSelection,
             context,
         );
     }
@@ -66,9 +138,10 @@ impl NativeAppState {
     fn request_waveform_destructive_edit(
         &mut self,
         kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let request = match self.pending_destructive_edit_request(kind) {
+        let request = match self.pending_destructive_edit_request(kind, target) {
             Ok(request) => request,
             Err(error) => {
                 self.ui.status.sample = error;
@@ -119,8 +192,9 @@ impl NativeAppState {
     fn pending_destructive_edit_request(
         &self,
         kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
     ) -> Result<PendingWaveformDestructiveEdit, String> {
-        let (absolute_path, selection) = self.destructive_edit_target_for_kind(kind)?;
+        let (absolute_path, selection) = self.destructive_edit_target_for_kind(kind, target)?;
         let (source, relative_path) = self
             .library
             .folder_browser
@@ -353,27 +427,29 @@ impl NativeAppState {
     fn destructive_edit_target_for_kind(
         &self,
         kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
     ) -> Result<(PathBuf, SelectionRange), String> {
         let absolute_path = self.waveform.current.path();
         let has_loaded_waveform =
             self.waveform.current.has_loaded_sample() && !absolute_path.as_os_str().is_empty();
 
         if has_loaded_waveform {
-            if let Some(selection) = self.destructive_edit_selection_for_kind(kind)? {
+            if let Some(selection) = self.destructive_edit_selection_for_kind(kind, target)? {
                 return Ok((absolute_path, selection));
             }
-        } else if kind != WaveformDestructiveEditKind::ReverseSelection {
+        } else if kind != WaveformDestructiveEditKind::ReverseSelection
+            || target == WaveformDestructiveEditTarget::PlaySelection
+        {
             return Err(format!("Load a sample before {}", kind.gerund_label()));
         }
 
-        if kind == WaveformDestructiveEditKind::ReverseSelection {
+        if kind == WaveformDestructiveEditKind::ReverseSelection
+            && target == WaveformDestructiveEditTarget::ActiveSelection
+        {
             return self.selected_file_reverse_edit_target();
         }
 
-        Err(format!(
-            "Mark an edit or play range before {}",
-            kind.gerund_label()
-        ))
+        Err(target.missing_selection_message(kind))
     }
 
     fn selected_file_reverse_edit_target(&self) -> Result<(PathBuf, SelectionRange), String> {
@@ -391,7 +467,15 @@ impl NativeAppState {
     fn destructive_edit_selection_for_kind(
         &self,
         kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
     ) -> Result<Option<SelectionRange>, String> {
+        if target == WaveformDestructiveEditTarget::PlaySelection {
+            return Ok(self
+                .waveform
+                .current
+                .play_selection()
+                .filter(|selection| selection.width() > 0.0));
+        }
         if kind == WaveformDestructiveEditKind::ApplyEditSelectionEffects {
             let selection = self
                 .waveform

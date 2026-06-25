@@ -1,7 +1,7 @@
 use crate::native_app::{
     sample_library::context_menu_target::target_available,
     test_support::{
-        context_menu::{BrowserContextMenu, BrowserContextTargetKind},
+        context_menu::{BrowserContextMenu, BrowserContextTargetKind, WaveformContextMenu},
         state::{FolderBrowserMessage, GuiMessage, NativeAppState, default_gui_shortcuts},
     },
 };
@@ -33,6 +33,36 @@ fn context_menu_escape_shortcut_closes_context_menu() {
 
     assert_eq!(resolution.action, Some(GuiMessage::CloseContextMenu));
     assert!(resolution.handled);
+}
+
+#[test]
+fn waveform_context_menu_escape_shortcut_closes_context_menu() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("Playmark Selection"),
+    });
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(resolution.action, Some(GuiMessage::CloseContextMenu));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn close_context_menu_message_clears_waveform_context_menu() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("Playmark Selection"),
+    });
+
+    state.apply_message(
+        GuiMessage::CloseContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.ui.browser_interaction.waveform_context_menu, None);
 }
 
 #[test]

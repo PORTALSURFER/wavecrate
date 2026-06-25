@@ -605,6 +605,36 @@ fn primary_press_on_play_selection_export_handle_starts_export_drag() {
 }
 
 #[test]
+fn secondary_press_on_playmark_body_opens_context_menu() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(
+                Point::new(80.0, 40.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
+        )
+        .expect("playmark context menu interaction");
+    let interaction = output
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::OpenPlaySelectionContextMenu {
+            position: Point::new(80.0, 40.0)
+        }
+    );
+}
+
+#[test]
 fn secondary_press_on_edit_top_handle_starts_move() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

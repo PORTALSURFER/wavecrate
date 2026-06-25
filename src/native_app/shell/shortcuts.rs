@@ -32,7 +32,8 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             )),
         )
         .layer_when(
-            state.ui.browser_interaction.context_menu.is_some(),
+            state.ui.browser_interaction.context_menu.is_some()
+                || state.ui.browser_interaction.waveform_context_menu.is_some(),
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
         )
         .layer_when(

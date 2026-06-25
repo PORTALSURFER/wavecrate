@@ -13,7 +13,7 @@ mod waveform;
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, WaveformInteraction};
 
 impl NativeAppState {
     pub(in crate::native_app) fn handle_message(
@@ -29,6 +29,9 @@ impl NativeAppState {
         message: GuiMessage,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if closes_waveform_context_menu(&message) {
+            self.ui.browser_interaction.waveform_context_menu = None;
+        }
         match message {
             GuiMessage::ResizeFolder(_)
             | GuiMessage::AddSourceDialogFinished(_)
@@ -143,6 +146,10 @@ impl NativeAppState {
             | GuiMessage::RequestTrimWaveformSelection
             | GuiMessage::RequestReverseWaveformSelection
             | GuiMessage::RequestExtractAndTrimWaveformSelection
+            | GuiMessage::RequestCropPlaymarkSelection
+            | GuiMessage::RequestTrimPlaymarkSelection
+            | GuiMessage::RequestReversePlaymarkSelection
+            | GuiMessage::RequestExtractAndTrimPlaymarkSelection
             | GuiMessage::RequestApplyEditSelectionEffects
             | GuiMessage::ConfirmPendingWaveformDestructiveEdit
             | GuiMessage::CancelPendingWaveformDestructiveEdit
@@ -166,4 +173,18 @@ impl NativeAppState {
             GuiMessage::Frame => self.apply_frame_message(context),
         }
     }
+}
+
+fn closes_waveform_context_menu(message: &GuiMessage) -> bool {
+    matches!(
+        message,
+        GuiMessage::PlaySelectedSample
+            | GuiMessage::ExtractPlaymarkedRange
+            | GuiMessage::RequestCropPlaymarkSelection
+            | GuiMessage::RequestTrimPlaymarkSelection
+            | GuiMessage::RequestReversePlaymarkSelection
+            | GuiMessage::RequestExtractAndTrimPlaymarkSelection
+            | GuiMessage::ToggleSimilarSections
+            | GuiMessage::Waveform(WaveformInteraction::ZoomToPlaySelection)
+    )
 }

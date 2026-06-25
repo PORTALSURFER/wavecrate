@@ -19,8 +19,9 @@ const SYNTHETIC_SECONDS: usize = 1;
 
 mod types;
 pub(super) use types::{
-    WaveformActiveDragKind, WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle,
-    WaveformInteraction, WaveformSelectionEdge, WaveformSelectionKind,
+    WaveformActiveDragKind, WaveformContextMenu, WaveformEditFadeHandle,
+    WaveformEditFadeOuterGainHandle, WaveformInteraction, WaveformSelectionEdge,
+    WaveformSelectionKind,
 };
 
 mod interaction;

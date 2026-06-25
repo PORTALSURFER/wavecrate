@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::test_support::state::GuiMessage;
 
 #[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
@@ -83,6 +84,71 @@ fn folder_context_menu_outside_click_closes_menu() {
     assert!(
         !*runtime.bridge().state(),
         "clicking outside the context menu should route to the dismiss layer"
+    );
+}
+
+#[test]
+fn playmark_context_menu_paints_selection_actions() {
+    let menu = crate::native_app::test_support::context_menu::WaveformContextMenu {
+        anchor: Point::new(240.0, 180.0),
+        title: String::from("Playmark Selection"),
+    };
+    let frame = crate::native_app::test_support::context_menu::waveform_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    for label in [
+        "Play Selection",
+        "Extract Selection",
+        "Extract and Trim",
+        "Crop to Selection",
+        "Trim Selection",
+        "Reverse Selection",
+        "Zoom to Selection",
+        "Find Similar Sections",
+    ] {
+        assert!(
+            frame.paint_plan.contains_text(label),
+            "{label} should render in the playmark context menu"
+        );
+    }
+}
+
+#[test]
+fn waveform_interaction_opens_playmark_context_menu_and_clears_browser_menu() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.2, 0.6);
+    state.ui.browser_interaction.context_menu = Some(
+        crate::native_app::test_support::context_menu::BrowserContextMenu {
+            kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+            path: PathBuf::from("Documents"),
+            source_id: None,
+            source_removable: false,
+            folder_locked: false,
+            folder_lock_inherited: false,
+            metadata_tag: None,
+            collection: None,
+            sample_missing: false,
+            anchor: Point::new(72.0, 142.0),
+            title: String::from("Documents"),
+        },
+    );
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::OpenPlaySelectionContextMenu {
+            position: Point::new(240.0, 180.0),
+        }),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+    assert_eq!(
+        state.ui.browser_interaction.waveform_context_menu,
+        Some(
+            crate::native_app::test_support::context_menu::WaveformContextMenu {
+                anchor: Point::new(240.0, 180.0),
+                title: String::from("Playmark Selection"),
+            }
+        )
     );
 }
 

@@ -1,4 +1,4 @@
-use radiant::gui::types::Vector2;
+use radiant::gui::types::{Point, Vector2};
 use radiant::widgets::DragHandleMessage;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -12,6 +12,9 @@ pub(in crate::native_app) enum WaveformInteraction {
     ZoomFull,
     ZoomOut {
         expand_silence_margin: bool,
+    },
+    OpenPlaySelectionContextMenu {
+        position: Point,
     },
     ScrollTo {
         offset_fraction: f32,
@@ -70,6 +73,12 @@ pub(in crate::native_app) enum WaveformInteraction {
     DragPlaySelectionExport(DragHandleMessage),
     DragLoadedSample(DragHandleMessage),
     Frame,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct WaveformContextMenu {
+    pub(in crate::native_app) anchor: Point,
+    pub(in crate::native_app) title: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

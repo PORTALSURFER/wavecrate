@@ -43,7 +43,9 @@ fn contextual_shortcut_help_sections(state: &NativeAppState) -> Vec<ShortcutHelp
             [shortcut_help_item("Esc", "Cancel column drag")],
         ));
     }
-    if state.ui.browser_interaction.context_menu.is_some() {
+    if state.ui.browser_interaction.context_menu.is_some()
+        || state.ui.browser_interaction.waveform_context_menu.is_some()
+    {
         sections.push(shortcut_help_section(
             "Context Menu",
             [shortcut_help_item("Esc", "Close context menu")],

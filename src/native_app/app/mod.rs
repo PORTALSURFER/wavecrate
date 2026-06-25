@@ -57,6 +57,7 @@ pub(super) use crate::native_app::shell::shortcuts::{
 };
 pub(super) use crate::native_app::ui::display::format_sample_rate_label;
 pub(super) use crate::native_app::waveform::{
-    WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState,
+    WaveformActiveDragKind, WaveformContextMenu, WaveformInteraction, WaveformSelectionKind,
+    WaveformState,
 };
 pub(super) use wavecrate::logging;

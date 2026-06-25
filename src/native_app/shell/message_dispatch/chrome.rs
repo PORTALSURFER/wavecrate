@@ -77,6 +77,18 @@ impl NativeAppState {
             GuiMessage::RequestExtractAndTrimWaveformSelection => {
                 self.request_extract_and_trim_waveform_selection(context);
             }
+            GuiMessage::RequestCropPlaymarkSelection => {
+                self.request_crop_playmark_selection(context);
+            }
+            GuiMessage::RequestTrimPlaymarkSelection => {
+                self.request_trim_playmark_selection(context);
+            }
+            GuiMessage::RequestReversePlaymarkSelection => {
+                self.request_reverse_playmark_selection(context);
+            }
+            GuiMessage::RequestExtractAndTrimPlaymarkSelection => {
+                self.request_extract_and_trim_playmark_selection(context);
+            }
             GuiMessage::RequestApplyEditSelectionEffects => {
                 self.request_apply_edit_selection_effects(context);
             }

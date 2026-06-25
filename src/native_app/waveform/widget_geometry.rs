@@ -56,6 +56,17 @@ impl WaveformWidget {
             == Some(DragHandleRole::TrailingControl)
     }
 
+    pub(super) fn play_selection_context_target_at(&self, bounds: Rect, position: Point) -> bool {
+        self.play_selection_export_handle_at(bounds, position)
+            || self
+                .selection_resize_handle_at(bounds, position, WaveformSelectionKind::Play)
+                .is_some()
+            || self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Play)
+            || self
+                .selection_geometry(bounds, self.play_selection)
+                .is_some_and(|geometry| geometry.rect.contains(position))
+    }
+
     pub(super) fn edit_gain_handle_at(&self, bounds: Rect, position: Point) -> bool {
         self.edit_gain_handle_hit_rect(bounds)
             .is_some_and(|rect| rect.contains(position))

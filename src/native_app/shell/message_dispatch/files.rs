@@ -108,6 +108,7 @@ impl NativeAppState {
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
                 self.ui.browser_interaction.context_menu = None;
+                self.ui.browser_interaction.waveform_context_menu = None;
             }
             GuiMessage::ExternalWaveformFileDropFinished {
                 source,

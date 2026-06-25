@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::time::Instant;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformInteraction,
+    GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformContextMenu, WaveformInteraction,
     WaveformPlaySelectionSnapshot, WaveformSelectionKind, emit_gui_action,
 };
 
@@ -14,6 +14,10 @@ impl NativeAppState {
     ) {
         if let WaveformInteraction::DragLoadedSample(drag) = message {
             self.drag_loaded_waveform_sample(drag, context);
+            return;
+        }
+        if let WaveformInteraction::OpenPlaySelectionContextMenu { position } = message {
+            self.open_play_selection_context_menu(position);
             return;
         }
         let started_at = Instant::now();
@@ -84,6 +88,30 @@ impl NativeAppState {
             move |transaction| transaction.restore_play_selection(redo_snapshot.clone()),
         );
     }
+
+    fn open_play_selection_context_menu(&mut self, position: ui::Point) {
+        if !self
+            .waveform
+            .current
+            .play_selection()
+            .is_some_and(|selection| selection.width() > 0.0)
+        {
+            return;
+        }
+        self.ui.browser_interaction.context_menu = None;
+        self.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
+            anchor: position,
+            title: String::from("Playmark Selection"),
+        });
+        emit_gui_action(
+            "waveform.playmark_context_menu.open",
+            Some("waveform"),
+            None,
+            "opened",
+            Instant::now(),
+            None,
+        );
+    }
 }
 
 fn waveform_interaction_updates_play_selection(
@@ -132,6 +160,9 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::ZoomOut {
             expand_silence_margin: false,
         } => Some("waveform.zoom_out"),
+        WaveformInteraction::OpenPlaySelectionContextMenu { .. } => {
+            Some("waveform.playmark_context_menu.open")
+        }
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
         WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),
