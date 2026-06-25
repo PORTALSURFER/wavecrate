@@ -4084,6 +4084,7 @@ dependencies = [
  "arboard",
  "image",
  "kurbo",
+ "naga",
  "open",
  "pollster",
  "raw-window-handle",
