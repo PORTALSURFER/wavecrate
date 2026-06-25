@@ -71,6 +71,10 @@ impl WaveformState {
         self.viewport = super::WaveformViewport::full(self.file.frames);
     }
 
+    pub(in crate::native_app) fn zoom_out(&mut self, expand_silence_margin: bool) {
+        self.zoom_around_anchor(1.22, self.zoom_anchor_ratio, expand_silence_margin);
+    }
+
     pub(super) fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
         self.viewport = drag.viewport.pan_by_visible_ratio_drag(
             self.file.frames,

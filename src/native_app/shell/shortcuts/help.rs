@@ -141,6 +141,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                 shortcut_help_item("D", "Trim selection"),
                 shortcut_help_item("R", "Reverse selection"),
                 shortcut_help_item("X", "Zoom out"),
+                shortcut_help_item("Shift-X", "Zoom out with silence margin"),
                 shortcut_help_item("L", "Toggle loop playback"),
             ],
         ),

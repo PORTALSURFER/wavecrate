@@ -229,6 +229,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::Z),
             GuiMessage::Waveform(WaveformInteraction::ZoomToPlaySelection),
         )
+        .bind(
+            ui::KeyPress::with_shift(ui::KeyCode::X),
+            shifted_x_shortcut_action(state),
+        )
         .bind(ui::KeyPress::new(ui::KeyCode::X), x_shortcut_action(state))
         .bind(
             ui::KeyPress::new(ui::KeyCode::Backquote),
@@ -329,6 +333,16 @@ fn x_shortcut_action(state: &NativeAppState) -> GuiMessage {
         GuiMessage::Waveform(WaveformInteraction::ZoomFull)
     } else {
         GuiMessage::ToggleSelectedSampleAndAdvance
+    }
+}
+
+fn shifted_x_shortcut_action(state: &NativeAppState) -> GuiMessage {
+    if state.waveform.current.has_loaded_sample() {
+        GuiMessage::Waveform(WaveformInteraction::ZoomOut {
+            expand_silence_margin: true,
+        })
+    } else {
+        x_shortcut_action(state)
     }
 }
 

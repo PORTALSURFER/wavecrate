@@ -29,6 +29,11 @@ impl WaveformState {
             WaveformInteraction::ZoomFull => {
                 self.zoom_full();
             }
+            WaveformInteraction::ZoomOut {
+                expand_silence_margin,
+            } => {
+                self.zoom_out(expand_silence_margin);
+            }
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }

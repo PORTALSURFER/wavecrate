@@ -52,6 +52,19 @@ fn shift_zoom_out_extends_viewport_beyond_audio_bounds() {
 }
 
 #[test]
+fn keyboard_silence_margin_zoom_out_extends_full_viewport() {
+    let mut state = WaveformState::synthetic_for_tests();
+
+    state.apply_interaction(WaveformInteraction::ZoomOut {
+        expand_silence_margin: true,
+    });
+
+    assert!(state.viewport().start < 0);
+    assert!(state.viewport().end > state.frames() as i64);
+    assert!(!state.fully_zoomed_out());
+}
+
+#[test]
 fn plain_zoom_out_keeps_full_view_at_audio_bounds() {
     let mut state = WaveformState::synthetic_for_tests();
 
@@ -195,7 +208,10 @@ fn restoring_play_selection_range_zooms_only_when_region_cannot_fit_current_view
 fn zoom_full_restores_complete_waveform_view() {
     let mut state = WaveformState::synthetic_for_tests();
     state.set_play_selection_range(0.25, 0.50);
-    state.apply_interaction(WaveformInteraction::ZoomToPlaySelection);
+    state.apply_interaction(WaveformInteraction::ZoomOut {
+        expand_silence_margin: true,
+    });
+    assert!(!state.fully_zoomed_out());
 
     state.apply_interaction(WaveformInteraction::ZoomFull);
 

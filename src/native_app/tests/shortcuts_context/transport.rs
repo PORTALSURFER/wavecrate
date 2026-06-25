@@ -158,6 +158,45 @@ fn x_shortcut_routes_to_waveform_zoom_out_when_waveform_is_zoomed_in() {
 }
 
 #[test]
+fn shift_x_shortcut_routes_to_silence_margin_zoom_out_when_waveform_is_loaded() {
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::X));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(WaveformInteraction::ZoomOut {
+            expand_silence_margin: true,
+        }))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn x_shortcut_routes_to_waveform_zoom_full_from_silence_margin() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::ZoomOut {
+            expand_silence_margin: true,
+        });
+    assert!(!state.waveform.current.fully_zoomed_out());
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(WaveformInteraction::ZoomFull))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn command_x_shortcut_routes_to_cut_selected_files() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution =

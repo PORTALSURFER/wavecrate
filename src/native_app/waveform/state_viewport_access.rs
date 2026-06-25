@@ -11,6 +11,7 @@ impl WaveformState {
 
     pub(in crate::native_app) fn fully_zoomed_out(&self) -> bool {
         !self.viewport.is_zoomed_in(self.file.frames)
+            && !self.viewport.extends_beyond_audio(self.file.frames)
     }
 
     pub(in crate::native_app) fn offset_fraction(&self) -> f32 {

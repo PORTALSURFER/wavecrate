@@ -10,6 +10,9 @@ pub(in crate::native_app) enum WaveformInteraction {
     },
     ZoomToPlaySelection,
     ZoomFull,
+    ZoomOut {
+        expand_silence_margin: bool,
+    },
     ScrollTo {
         offset_fraction: f32,
     },
