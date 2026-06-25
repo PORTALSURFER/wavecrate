@@ -114,7 +114,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
             "Samples",
             [
                 shortcut_help_item("Space", space_help_label(state)),
-                shortcut_help_item("Shift-Space", "Play from current play start"),
+                shortcut_help_item("Shift-Space / Right", "Play from current play start"),
                 shortcut_help_item("Option-Space", "Play random sample section"),
                 shortcut_help_item(
                     "Command-Left / Command-Right",
@@ -152,7 +152,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                     "Command-Up / Command-Down",
                     "Move focus without changing marks",
                 ),
-                shortcut_help_item("Left / Right", "Collapse or expand selected folder"),
+                shortcut_help_item("Left", "Collapse selected folder"),
             ],
         ),
         shortcut_help_section(

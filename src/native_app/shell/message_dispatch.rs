@@ -157,7 +157,6 @@ impl NativeAppState {
             | GuiMessage::SampleBrowserWindowChanged(_)
             | GuiMessage::FolderTreeWindowChanged(_)
             | GuiMessage::CollapseSelectedFolder
-            | GuiMessage::ExpandSelectedFolder
             | GuiMessage::CancelBrowserDragOnSampleList
             | GuiMessage::DropWaveformSelectionOnSampleList => {
                 self.apply_navigation_dispatch(message, context);

@@ -38,9 +38,6 @@ impl NativeAppState {
             GuiMessage::CollapseSelectedFolder => {
                 self.collapse_selected_folder();
             }
-            GuiMessage::ExpandSelectedFolder => {
-                self.expand_selected_folder();
-            }
             GuiMessage::CancelBrowserDragOnSampleList => {
                 self.cancel_browser_drag_on_sample_list(context);
             }

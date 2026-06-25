@@ -55,6 +55,19 @@ fn shift_space_shortcut_routes_to_current_play_start() {
 }
 
 #[test]
+fn right_arrow_shortcut_routes_to_current_play_start() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowRight));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::PlayFromCurrentPlayStart)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn option_space_shortcut_routes_to_random_sample_range() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution =

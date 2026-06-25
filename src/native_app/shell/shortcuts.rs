@@ -198,8 +198,11 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::Space),
             space_playback_action(state),
         )
-        .bind(
-            ui::KeyPress::with_shift(ui::KeyCode::Space),
+        .bind_all(
+            [
+                ui::KeyPress::with_shift(ui::KeyCode::Space),
+                ui::KeyPress::new(ui::KeyCode::ArrowRight),
+            ],
             GuiMessage::PlayFromCurrentPlayStart,
         )
         .bind(
@@ -242,10 +245,6 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowLeft),
             GuiMessage::CollapseSelectedFolder,
-        )
-        .bind(
-            ui::KeyPress::new(ui::KeyCode::ArrowRight),
-            GuiMessage::ExpandSelectedFolder,
         );
     bind_undo_shortcuts(bind_collection_shortcuts(layer))
 }

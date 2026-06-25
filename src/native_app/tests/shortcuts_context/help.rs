@@ -64,6 +64,14 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| {
+                item.keys == "Shift-Space / Right" && item.action == "Play from current play start"
+            })
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "Option-Space" && item.action == "Play random sample section")
     );
     assert!(
@@ -74,6 +82,12 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
                 item.keys == "Command-Left / Command-Right"
                     && item.action == "Step through playback history"
             })
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "Left" && item.action == "Collapse selected folder")
     );
     assert!(
         sections

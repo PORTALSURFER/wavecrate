@@ -69,22 +69,4 @@ impl NativeAppState {
             None,
         );
     }
-
-    pub(in crate::native_app) fn expand_selected_folder(&mut self) {
-        let started_at = Instant::now();
-        self.library.folder_browser.expand_selected_folder();
-        self.library.folder_browser.sync_tree_view_to_selection(
-            FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
-            FOLDER_TREE_OVERSCAN_ROWS,
-            FOLDER_TREE_EDGE_CONTEXT_ROWS,
-        );
-        emit_gui_action(
-            "folder_browser.expand_selected",
-            Some("folder_browser"),
-            None,
-            "success",
-            started_at,
-            None,
-        );
-    }
 }

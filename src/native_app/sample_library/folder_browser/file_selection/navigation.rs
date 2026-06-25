@@ -63,6 +63,7 @@ impl FolderBrowserState {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn expand_selected_folder(&mut self) -> bool {
         if self.rename_active() || self.selection.selected_collection.is_some() {
             return false;
