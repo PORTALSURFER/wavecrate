@@ -324,6 +324,10 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
+        let previous_file_index = self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file);
         let previous_folder = self
             .library
             .folder_browser
@@ -382,13 +386,15 @@ impl NativeAppState {
             .folder_browser
             .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
         {
+            let reveal_direction =
+                file_navigation_reveal_direction(previous_file_index, index, delta);
             context.scroll_fixed_row_into_view(
                 SAMPLE_BROWSER_LIST_ID,
                 index,
                 SAMPLE_BROWSER_ROW_HEIGHT,
                 SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
                 SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
-                delta,
+                reveal_direction,
             );
         }
         emit_gui_action(
@@ -452,5 +458,35 @@ impl NativeAppState {
             started_at,
             None,
         );
+    }
+}
+
+fn file_navigation_reveal_direction(
+    previous_index: Option<usize>,
+    selected_index: usize,
+    fallback_direction: i32,
+) -> i32 {
+    let Some(previous_index) = previous_index else {
+        return fallback_direction;
+    };
+    if selected_index < previous_index {
+        -1
+    } else if selected_index > previous_index {
+        1
+    } else {
+        fallback_direction
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_navigation_reveal_direction;
+
+    #[test]
+    fn file_navigation_reveal_direction_follows_actual_row_movement() {
+        assert_eq!(file_navigation_reveal_direction(Some(80), 12, 1), -1);
+        assert_eq!(file_navigation_reveal_direction(Some(12), 80, -1), 1);
+        assert_eq!(file_navigation_reveal_direction(Some(12), 12, 1), 1);
+        assert_eq!(file_navigation_reveal_direction(None, 12, -1), -1);
     }
 }

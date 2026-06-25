@@ -47,6 +47,18 @@ impl FolderBrowserState {
         None
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn seed_random_navigation_for_tests(
+        &mut self,
+        result_ids: Vec<String>,
+        visited: std::collections::HashSet<String>,
+        history: Vec<String>,
+    ) {
+        self.sample_list
+            .random_navigation
+            .seed_for_tests(result_ids, visited, history);
+    }
+
     pub(in crate::native_app) fn collapse_selected_folder(&mut self) -> bool {
         if self.rename_active() || self.selection.selected_collection.is_some() {
             return false;

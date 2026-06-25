@@ -212,6 +212,19 @@ impl RandomNavigationState {
             self.history.push(selected.to_owned());
         }
     }
+
+    #[cfg(test)]
+    pub(super) fn seed_for_tests(
+        &mut self,
+        result_ids: Vec<String>,
+        visited: HashSet<String>,
+        history: Vec<String>,
+    ) {
+        self.enabled = true;
+        self.result_ids = result_ids;
+        self.visited = visited;
+        self.history = history;
+    }
 }
 
 #[derive(Clone, Debug, Default)]

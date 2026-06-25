@@ -325,6 +325,108 @@ fn full_gui_fast_sample_browser_scroll_keeps_rows_rendered() {
 }
 
 #[test]
+fn full_gui_random_navigation_to_row_above_keeps_recursive_rows_rendered() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    for index in 0..180 {
+        let folder = source_root.path().join(format!("group_{:02}", index / 12));
+        fs::create_dir_all(&folder).expect("create sample folder");
+        write_test_wav_i16(
+            &folder.join(format!("random_recursive_{index:03}.wav")),
+            &[0, 128, -128, 64],
+        );
+    }
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.toggle_folder_subtree_listing();
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let ids = runtime
+        .bridge()
+        .state()
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.id.clone())
+        .collect::<Vec<_>>();
+    let current_index = 150;
+    let target_index = 5;
+    let current_id = ids[current_index].clone();
+    let target_id = ids[target_index].clone();
+    let target_stem = PathBuf::from(&target_id)
+        .file_stem()
+        .expect("target file stem")
+        .to_string_lossy()
+        .to_string();
+
+    runtime.execute_command(Command::scroll_fixed_row_into_view(
+        crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID,
+        current_index,
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_ROW_HEIGHT,
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+        crate::native_app::test_support::sample_browser::SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+        0,
+    ));
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: current_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+    );
+    let visited = ids
+        .iter()
+        .filter(|id| *id != &target_id)
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    runtime
+        .bridge_mut()
+        .state_mut()
+        .library
+        .folder_browser
+        .seed_random_navigation_for_tests(ids, visited, vec![current_id]);
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+    );
+
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
+        Some(target_id.as_str())
+    );
+    let frame = runtime.frame_with_default_theme();
+    let rendered_target = frame.paint_plan.text_runs().any(|text| {
+        text.text.as_str() == target_stem
+            && list_rect.contains(Point::new(text.rect.center().x, text.rect.center().y))
+    });
+    assert!(
+        rendered_target,
+        "random navigation to an earlier recursive row should keep the target materialized; painted labels were {:?}",
+        frame.paint_plan.text_label_strings()
+    );
+
+    let _ = fs::remove_dir_all(source_root);
+}
+
+#[test]
 fn full_gui_bottom_keyboard_navigation_keeps_sample_window_stable() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");

@@ -4,9 +4,12 @@ use radiant::{
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
-use std::fs;
+use std::{fs, path::PathBuf};
 
-use super::{native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests};
+use super::{
+    native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
+    write_test_wav_i16,
+};
 
 fn sample_hit_target(
     selected: bool,
