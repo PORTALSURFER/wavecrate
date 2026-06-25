@@ -26,7 +26,11 @@ impl NativeAppState {
             return;
         }
         let path = self.waveform.current.path();
-        if self.library.folder_browser.focus_file_across_sources(&path) {
+        if self
+            .library
+            .folder_browser
+            .focus_file_across_sources_matching_tags(&path, &self.metadata.tags_by_file)
+        {
             if let Some(index) = self
                 .library
                 .folder_browser

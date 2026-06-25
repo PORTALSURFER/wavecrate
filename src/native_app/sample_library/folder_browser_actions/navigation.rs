@@ -158,7 +158,11 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
-        if !self.library.folder_browser.focus_file_across_sources(path) {
+        if !self
+            .library
+            .folder_browser
+            .focus_file_across_sources_matching_tags(path, &self.metadata.tags_by_file)
+        {
             return false;
         }
 

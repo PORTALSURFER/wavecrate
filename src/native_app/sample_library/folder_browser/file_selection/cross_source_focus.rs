@@ -1,11 +1,33 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use super::super::{FolderBrowserState, path_helpers::path_id, scanning::load_source_snapshot};
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn focus_file_across_sources(&mut self, path: &Path) -> bool {
+        self.focus_file_across_sources_with_visible_ids(path, None)
+    }
+
+    pub(in crate::native_app) fn focus_file_across_sources_matching_tags(
+        &mut self,
+        path: &Path,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        self.focus_file_across_sources_with_visible_ids(path, Some(tags_by_file))
+    }
+
+    fn focus_file_across_sources_with_visible_ids(
+        &mut self,
+        path: &Path,
+        tags_by_file: Option<&HashMap<String, Vec<String>>>,
+    ) -> bool {
         self.ensure_loaded_source_containing_path(path);
         let file_id = path_id(path);
+        if self.focus_file_in_current_visible_list(&file_id, tags_by_file) {
+            return true;
+        }
         let Some(parent) = path.parent() else {
             return false;
         };
@@ -33,6 +55,23 @@ impl FolderBrowserState {
         self.tree
             .expanded_folders
             .extend(folder_ancestor_ids(&source_root, parent));
+        true
+    }
+
+    fn focus_file_in_current_visible_list(
+        &mut self,
+        file_id: &str,
+        tags_by_file: Option<&HashMap<String, Vec<String>>>,
+    ) -> bool {
+        let visible_ids = tags_by_file.map_or_else(
+            || self.selected_audio_file_ids(),
+            |tags_by_file| self.selected_audio_file_ids_matching_tags(tags_by_file),
+        );
+        if !visible_ids.iter().any(|id| id == file_id) {
+            return false;
+        }
+        self.cancel_rename();
+        self.selection.set_focus_file_set(file_id.to_owned());
         true
     }
 
