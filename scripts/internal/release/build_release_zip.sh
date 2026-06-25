@@ -12,6 +12,7 @@ ARCH=""
 CHANNEL=""
 VERSION=""
 BUILD_NUMBER=""
+GIT_SHA=""
 
 is_truthy() {
   local value
@@ -24,7 +25,7 @@ is_truthy() {
 
 usage() {
   cat <<'EOF'
-Usage: build_release_zip.sh --target <triple> --platform <label> --arch <label> --channel <stable|nightly> [--version <x.y.z>] [--build-number <n>] [--out-dir <path>]
+Usage: build_release_zip.sh --target <triple> --platform <label> --arch <label> --channel <stable|nightly> [--version <x.y.z>] [--build-number <n>] [--git-sha <sha>] [--out-dir <path>]
 EOF
 }
 
@@ -52,6 +53,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --build-number)
       BUILD_NUMBER="$2"
+      shift 2
+      ;;
+    --git-sha)
+      GIT_SHA="$2"
       shift 2
       ;;
     --out-dir)
@@ -84,6 +89,13 @@ if [[ -n "$BUILD_NUMBER" ]]; then
   fi
   BUILD_LABEL="-b${BUILD_NUMBER}"
 fi
+if [[ -n "$GIT_SHA" ]]; then
+  GIT_SHA="$(printf '%s' "$GIT_SHA" | tr -d '[:space:]')"
+  if [[ -z "$GIT_SHA" || ! "$GIT_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+    echo "Git SHA must be a 7-40 character hexadecimal SHA." >&2
+    exit 1
+  fi
+fi
 
 case "$CHANNEL" in
   stable)
@@ -103,7 +115,14 @@ case "$CHANNEL" in
 esac
 
 if ! is_truthy "$SKIP_BUILD"; then
-  "$BUILD_CARGO_BIN" build --release -p "$APP_NAME" --bin "$APP_NAME" --target "$TARGET"
+  env_args=()
+  if [[ -n "$BUILD_NUMBER" ]]; then
+    env_args+=("WAVECRATE_BUILD_NUMBER=$BUILD_NUMBER")
+  fi
+  if [[ -n "$GIT_SHA" ]]; then
+    env_args+=("WAVECRATE_GIT_SHA=$GIT_SHA")
+  fi
+  env "${env_args[@]}" "$BUILD_CARGO_BIN" build --release -p "$APP_NAME" --bin "$APP_NAME" --target "$TARGET"
 fi
 
 BIN_NAME="$APP_NAME"

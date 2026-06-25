@@ -20,9 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       target_sha: ${{ steps.target.outputs.target_sha }}
+      build_number: ${{ steps.target.outputs.build_number }}
       previous_nightly_sha: ${{ steps.target.outputs.previous_nightly_sha }}
       released_at: ${{ steps.target.outputs.released_at }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
       - name: Resolve main commit
         id: target
         env:
@@ -32,9 +37,16 @@ jobs:
           set -euo pipefail
           target_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq '.sha')"
           previous_nightly_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/nightly" --jq '.object.sha' 2>/dev/null || true)"
+          build_number="$(git rev-list --count "$target_sha")"
           released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
+          if [[ -z "$build_number" || ! "$build_number" =~ ^[0-9]+$ ]]; then
+            echo "Could not resolve numeric build number for $target_sha: $build_number" >&2
+            exit 1
+          fi
+
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
           echo "previous_nightly_sha=$previous_nightly_sha" >> "$GITHUB_OUTPUT"
           echo "released_at=$released_at" >> "$GITHUB_OUTPUT"
 
@@ -55,6 +67,7 @@ jobs:
         shell: bash
         env:
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
+          BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
           PREVIOUS_NIGHTLY_SHA: ${{ needs.resolve-main.outputs.previous_nightly_sha }}
           RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
         run: |
@@ -76,7 +89,7 @@ jobs:
             cat > dist/release/release-log.md <<EOF
           # Wavecrate Nightly
 
-          - Build: ${GITHUB_RUN_NUMBER}
+          - Build: ${BUILD_NUMBER}
           - Commit: ${TARGET_SHA}
           - Previous nightly: ${previous}
           - Generated: ${RELEASED_AT}
@@ -113,7 +126,7 @@ jobs:
           {
             echo "# Wavecrate Nightly"
             echo
-            echo "- Build: ${GITHUB_RUN_NUMBER}"
+            echo "- Build: ${BUILD_NUMBER}"
             echo "- Commit: ${TARGET_SHA}"
             if [[ -n "$previous" ]]; then
               echo "- Previous nightly: ${previous}"
@@ -216,13 +229,17 @@ jobs:
           "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
       - name: Build nightly zip
         shell: bash
+        env:
+          BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
+          TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
         run: |
           scripts/internal/release/build_release_zip.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
             --channel nightly \
-            --build-number "${GITHUB_RUN_NUMBER}" \
+            --build-number "$BUILD_NUMBER" \
+            --git-sha "$TARGET_SHA" \
             --out-dir dist/release
       - name: Uniquify checksums entry
         shell: bash
@@ -384,6 +401,7 @@ jobs:
           UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
           UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
+          BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
           RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
         run: |
           set -euo pipefail
@@ -396,7 +414,7 @@ jobs:
 
           version="nightly"
           short_sha="${TARGET_SHA::8}"
-          build_id="wavecrate-nightly-b${GITHUB_RUN_NUMBER}-${short_sha}"
+          build_id="wavecrate-nightly-b${BUILD_NUMBER}-${short_sha}"
           released_at="${RELEASED_AT}"
 
           upload_base="${UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
@@ -423,22 +441,24 @@ jobs:
               --request PUT \
               --header "Authorization: Bearer $UPLOAD_TOKEN" \
               --header "Content-Type: application/zip" \
-              --header "X-Wavecrate-Build-Number: ${GITHUB_RUN_NUMBER}" \
+              --header "X-Wavecrate-Build-Number: ${BUILD_NUMBER}" \
               --header "X-Wavecrate-Release-Version: $version" \
               --header "X-Wavecrate-Released-At: $released_at" \
               --header "X-Wavecrate-Sha256: $sha256" \
               --data-binary "@$file" \
               "$upload_base/$build_id/files/$encoded_name" > "$response_file"
-            python3 - "$response_file" "$build_id" "$file_name" "$sha256" <<'PY'
+            python3 - "$response_file" "$build_id" "$BUILD_NUMBER" "$file_name" "$sha256" <<'PY'
           import json
           import sys
 
-          response_path, expected_build, expected_name, expected_sha = sys.argv[1:]
+          response_path, expected_build, expected_build_number, expected_name, expected_sha = sys.argv[1:]
           response = json.loads(open(response_path, encoding="utf-8").read())
           release = response.get("release") or {}
           file = response.get("file") or {}
           if release.get("build_id") != expected_build:
               raise SystemExit(f"Uploaded release id mismatch: {release.get('build_id')} != {expected_build}")
+          if release.get("build_number") != int(expected_build_number):
+              raise SystemExit(f"Uploaded release build number mismatch: {release.get('build_number')} != {expected_build_number}")
           if file.get("name") != expected_name:
               raise SystemExit(f"Uploaded file name mismatch: {file.get('name')} != {expected_name}")
           if file.get("sha256") != expected_sha:
@@ -454,21 +474,23 @@ jobs:
             --request PUT \
             --header "Authorization: Bearer $UPLOAD_TOKEN" \
             --header "Content-Type: text/markdown; charset=utf-8" \
-            --header "X-Wavecrate-Build-Number: ${GITHUB_RUN_NUMBER}" \
+            --header "X-Wavecrate-Build-Number: ${BUILD_NUMBER}" \
             --header "X-Wavecrate-Release-Version: $version" \
             --header "X-Wavecrate-Released-At: $released_at" \
             --data-binary "@$changelog_file" \
             "$upload_base/$build_id/changelog" > "$changelog_response_file"
-          python3 - "$changelog_response_file" "$build_id" <<'PY'
+          python3 - "$changelog_response_file" "$build_id" "$BUILD_NUMBER" <<'PY'
           import json
           import sys
 
-          response_path, expected_build = sys.argv[1:]
+          response_path, expected_build, expected_build_number = sys.argv[1:]
           response = json.loads(open(response_path, encoding="utf-8").read())
           release = response.get("release") or {}
           changelog = response.get("changelog") or {}
           if release.get("build_id") != expected_build:
               raise SystemExit(f"Uploaded changelog release id mismatch: {release.get('build_id')} != {expected_build}")
+          if release.get("build_number") != int(expected_build_number):
+              raise SystemExit(f"Uploaded changelog build number mismatch: {release.get('build_number')} != {expected_build_number}")
           if changelog.get("format") != "markdown":
               raise SystemExit("Uploaded changelog was not recorded as markdown")
           if not changelog.get("url"):
@@ -477,18 +499,21 @@ jobs:
 
           catalog_file="$response_dir/releases.json"
           curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
-          python3 - "$catalog_file" "$build_id" "${uploaded_names[@]}" <<'PY'
+          python3 - "$catalog_file" "$build_id" "$BUILD_NUMBER" "${uploaded_names[@]}" <<'PY'
           import json
           import sys
 
           catalog_path = sys.argv[1]
           expected_build = sys.argv[2]
-          expected_files = set(sys.argv[3:])
+          expected_build_number = int(sys.argv[3])
+          expected_files = set(sys.argv[4:])
           catalog = json.loads(open(catalog_path, encoding="utf-8").read())
           releases = catalog.get("releases") or []
           release = next((item for item in releases if item.get("build_id") == expected_build), None)
           if release is None:
               raise SystemExit(f"Release catalog does not list {expected_build}")
+          if release.get("build_number") != expected_build_number:
+              raise SystemExit(f"Release catalog build number mismatch: {release.get('build_number')} != {expected_build_number}")
           catalog_files = {item.get("name") for item in release.get("files") or []}
           missing = sorted(expected_files - catalog_files)
           if missing:
