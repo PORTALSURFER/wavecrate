@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::params;
+use rusqlite::{Connection, params};
 use tempfile::tempdir;
 
-use super::super::{Rating, SampleSoundType, SourceDatabase};
+use super::super::{DB_FILE_NAME, Rating, SampleSoundType, SourceDatabase};
 
 #[test]
 fn list_files_page_orders_supported_audio_and_applies_offsets() {
@@ -171,5 +171,114 @@ fn sound_type_round_trips_for_path_queries() {
     assert_eq!(
         db.sound_type_for_path(Path::new("drums/kick.wav")).unwrap(),
         Some(SampleSoundType::Kick)
+    );
+}
+
+#[test]
+fn legacy_read_only_database_without_last_curated_at_preserves_saved_metadata() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE wav_files (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL,
+                content_hash TEXT,
+                tag INTEGER NOT NULL DEFAULT 0,
+                looped INTEGER NOT NULL DEFAULT 0,
+                sound_type TEXT,
+                locked INTEGER NOT NULL DEFAULT 0,
+                missing INTEGER NOT NULL DEFAULT 0,
+                extension TEXT NOT NULL DEFAULT '',
+                last_played_at INTEGER,
+                user_tag TEXT,
+                tag_named INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE source_tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                normalized_text TEXT NOT NULL UNIQUE,
+                display_label TEXT NOT NULL
+            );
+            CREATE TABLE wav_file_tags (
+                path TEXT NOT NULL,
+                tag_id INTEGER NOT NULL,
+                PRIMARY KEY (path, tag_id)
+            ) WITHOUT ROWID;",
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO wav_files (
+                path, file_size, modified_ns, content_hash, tag, looped, sound_type,
+                locked, missing, extension, last_played_at, user_tag, tag_named
+             )
+             VALUES (?1, 2048, 99, ?2, ?3, 1, ?4, 1, 0, 'wav', 123, ?5, 1)",
+            params![
+                "drums/kick.wav",
+                "hash-kick",
+                Rating::KEEP_1.as_i64(),
+                SampleSoundType::Kick.token(),
+                "808",
+            ],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO source_tags (normalized_text, display_label) VALUES (?1, ?2)",
+            params!["warm", "Warm"],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO wav_file_tags (path, tag_id) VALUES (?1, ?2)",
+            params!["drums/kick.wav", connection.last_insert_rowid()],
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let rows = db.list_files().unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row.relative_path, PathBuf::from("drums/kick.wav"));
+    assert_eq!(row.content_hash.as_deref(), Some("hash-kick"));
+    assert_eq!(row.tag, Rating::KEEP_1);
+    assert!(row.looped);
+    assert_eq!(row.sound_type, Some(SampleSoundType::Kick));
+    assert!(row.locked);
+    assert_eq!(row.last_played_at, Some(123));
+    assert_eq!(row.last_curated_at, None);
+    assert_eq!(row.user_tag.as_deref(), Some("808"));
+    assert!(row.tag_named);
+    assert_eq!(row.normal_tags, vec![String::from("Warm")]);
+
+    let entry = db
+        .entry_for_path(Path::new("drums/kick.wav"))
+        .unwrap()
+        .expect("legacy row should hydrate");
+    assert_eq!(entry.tag, Rating::KEEP_1);
+
+    let search_rows = db.list_search_entry_rows().unwrap();
+    assert_eq!(search_rows.len(), 1);
+    assert_eq!(search_rows[0].metadata.tag, Rating::KEEP_1);
+    assert_eq!(search_rows[0].metadata.last_played_at, Some(123));
+    assert_eq!(search_rows[0].metadata.last_curated_at, None);
+    assert_eq!(
+        search_rows[0].metadata.normal_tags,
+        vec![String::from("Warm")]
+    );
+    assert!(search_rows[0].metadata.tag_named);
+
+    let search_metadata = db.list_search_entry_metadata().unwrap();
+    assert_eq!(search_metadata, vec![search_rows[0].metadata.clone()]);
+    assert_eq!(
+        db.last_curated_at_for_path(Path::new("drums/kick.wav"))
+            .unwrap(),
+        None
     );
 }

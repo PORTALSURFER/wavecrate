@@ -3,20 +3,41 @@ use std::path::PathBuf;
 use rusqlite::Row;
 
 use super::super::util::parse_relative_path_from_db;
-use super::super::{Rating, WavEntry};
+use super::super::{Rating, SourceDatabase, SourceDbError, WavEntry};
+
+const NORMAL_TAGS_SELECT_SQL: &str = "(
+    SELECT json_group_array(display_label)
+    FROM (
+        SELECT st.display_label
+        FROM source_tags st
+        JOIN wav_file_tags wft ON wft.tag_id = st.id
+        WHERE wft.path = wav_files.path
+        ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
+    )
+) AS normal_tags";
 
 /// Shared column list for wav-file queries that hydrate full `WavEntry` rows.
-pub(super) const WAV_FILE_SELECT_COLUMNS: &str = "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, last_curated_at, user_tag, tag_named,
-    (
-        SELECT json_group_array(display_label)
-        FROM (
-            SELECT st.display_label
-            FROM source_tags st
-            JOIN wav_file_tags wft ON wft.tag_id = st.id
-            WHERE wft.path = wav_files.path
-            ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
-        )
-    ) AS normal_tags";
+pub(super) fn wav_file_select_columns(db: &SourceDatabase) -> Result<String, SourceDbError> {
+    let last_curated_at = wav_file_last_curated_at_select_expr(db)?;
+    Ok(format!(
+        "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, {last_curated_at}, user_tag, tag_named, {NORMAL_TAGS_SELECT_SQL}",
+    ))
+}
+
+pub(super) fn wav_file_last_curated_at_select_expr(
+    db: &SourceDatabase,
+) -> Result<&'static str, SourceDbError> {
+    if wav_file_has_column(db, "last_curated_at")? {
+        Ok("last_curated_at")
+    } else {
+        Ok("NULL AS last_curated_at")
+    }
+}
+
+fn wav_file_has_column(db: &SourceDatabase, column: &str) -> Result<bool, SourceDbError> {
+    let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
+    Ok(columns.contains(column))
+}
 
 /// Decode a persisted relative path, skipping invalid rows without failing the whole query.
 pub(super) fn decode_relative_path(

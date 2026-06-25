@@ -140,4 +140,42 @@ mod tests {
             SOURCE_DB_SCHEMA_VERSION
         );
     }
+
+    #[test]
+    fn current_stamp_repairs_missing_curation_columns() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE wav_files (
+                    path TEXT PRIMARY KEY,
+                    file_size INTEGER NOT NULL,
+                    modified_ns INTEGER NOT NULL,
+                    tag INTEGER NOT NULL DEFAULT 0,
+                    looped INTEGER NOT NULL DEFAULT 0,
+                    locked INTEGER NOT NULL DEFAULT 0,
+                    missing INTEGER NOT NULL DEFAULT 0,
+                    extension TEXT NOT NULL DEFAULT ''
+                );
+                CREATE TABLE file_ops_journal (
+                    id TEXT PRIMARY KEY,
+                    op_type TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    target_relative TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                );",
+            )
+            .unwrap();
+        connection
+            .pragma_update(None, "user_version", SOURCE_DB_SCHEMA_VERSION)
+            .unwrap();
+
+        let outcome = apply_schema_fast(&connection).unwrap();
+
+        assert_eq!(outcome, SchemaApplyOutcome::Current);
+        let wav_columns = table_columns(&connection, "wav_files").unwrap();
+        assert!(wav_columns.contains("last_curated_at"));
+        assert!(wav_columns.contains("collection"));
+        let journal_columns = table_columns(&connection, "file_ops_journal").unwrap();
+        assert!(journal_columns.contains("last_curated_at"));
+    }
 }

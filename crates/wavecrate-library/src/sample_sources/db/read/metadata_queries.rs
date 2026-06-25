@@ -163,6 +163,9 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(None);
         };
+        if !schema_has_last_curated_at_column(self)? {
+            return Ok(None);
+        }
         let value: Option<i64> = self
             .connection
             .query_row(
@@ -263,6 +266,11 @@ impl SourceDatabase {
 fn schema_has_collection_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
     let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
     Ok(columns.contains("collection"))
+}
+
+fn schema_has_last_curated_at_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
+    let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
+    Ok(columns.contains("last_curated_at"))
 }
 
 fn schema_has_collection_membership_table(db: &SourceDatabase) -> Result<bool, SourceDbError> {

@@ -4,7 +4,7 @@ use rusqlite::{Params, params_from_iter};
 
 use super::super::super::util::map_sql_error;
 use super::super::super::{Rating, SourceDatabase, SourceDbError};
-use super::super::decode::decode_path_row;
+use super::super::decode::{decode_path_row, wav_file_last_curated_at_select_expr};
 use super::sql::supported_audio_filter;
 
 /// Search-worker metadata for one ordered wav row.
@@ -126,8 +126,9 @@ impl SourceDatabase {
     pub fn list_search_entry_rows(&self) -> Result<Vec<SearchEntryRow>, SourceDbError> {
         let filter = supported_audio_filter();
         let normal_tags = normal_tags_select_sql("wav_files.path");
+        let last_curated_at = wav_file_last_curated_at_select_expr(self)?;
         let sql = format!(
-            "SELECT path, tag, locked, last_played_at, last_curated_at, tag_named, {normal_tags}
+            "SELECT path, tag, locked, last_played_at, {last_curated_at}, tag_named, {normal_tags}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"
@@ -149,11 +150,12 @@ impl SourceDatabase {
             return Ok(Vec::new());
         }
         let filter = supported_audio_filter();
+        let last_curated_at = wav_file_last_curated_at_select_expr(self)?;
         let mut rows = Vec::new();
         for batch in paths.chunks(900) {
             let normal_tags = normal_tags_select_sql("wav_files.path");
             let sql = format!(
-                "SELECT path, tag, locked, last_played_at, last_curated_at, tag_named, {normal_tags}
+                "SELECT path, tag, locked, last_played_at, {last_curated_at}, tag_named, {normal_tags}
                  FROM wav_files
                  WHERE {filter}
                    AND path IN ({})
@@ -178,8 +180,9 @@ impl SourceDatabase {
     pub fn list_search_entry_metadata(&self) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
         let filter = supported_audio_filter();
         let normal_tags = normal_tags_select_sql("wav_files.path");
+        let last_curated_at = wav_file_last_curated_at_select_expr(self)?;
         let sql = format!(
-            "SELECT tag, locked, last_played_at, last_curated_at, tag_named, {normal_tags}
+            "SELECT tag, locked, last_played_at, {last_curated_at}, tag_named, {normal_tags}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"

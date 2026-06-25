@@ -18,9 +18,10 @@ use self::analysis_jobs::{
 };
 use self::aspect_descriptors::ensure_aspect_descriptor_tables;
 use self::columns::{
-    ensure_feature_metric_columns, ensure_file_ops_journal_optional_columns,
-    ensure_pending_rename_optional_columns, ensure_samples_optional_columns,
-    ensure_wav_files_collection_column, ensure_wav_files_optional_columns,
+    ensure_feature_metric_columns, ensure_file_ops_journal_last_curated_at_column,
+    ensure_file_ops_journal_optional_columns, ensure_pending_rename_optional_columns,
+    ensure_samples_optional_columns, ensure_wav_files_collection_column,
+    ensure_wav_files_last_curated_at_column, ensure_wav_files_optional_columns,
 };
 pub(super) use self::invalid_paths::remove_invalid_relative_paths;
 use self::tag_catalog::{backfill_tag_catalog, ensure_tag_catalog_schema};
@@ -45,6 +46,8 @@ pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), S
 /// Apply low-cost additive repairs that must not be skipped for current stamps.
 pub(super) fn apply_current_stamp_repairs(connection: &Connection) -> Result<(), SourceDbError> {
     ensure_wav_files_collection_column(connection)?;
+    ensure_wav_files_last_curated_at_column(connection)?;
+    ensure_file_ops_journal_last_curated_at_column(connection)?;
     ensure_collection_membership_schema(connection)?;
     ensure_pending_rename_optional_columns(connection)?;
     ensure_aspect_descriptor_tables(connection)?;

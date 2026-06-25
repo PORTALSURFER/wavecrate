@@ -4,7 +4,7 @@ use rusqlite::Params;
 
 use super::super::super::util::map_sql_error;
 use super::super::super::{Rating, SourceDatabase, SourceDbError, WavEntry};
-use super::super::decode::{WAV_FILE_SELECT_COLUMNS, decode_path_row, decode_wav_entry_row};
+use super::super::decode::{decode_path_row, decode_wav_entry_row, wav_file_select_columns};
 use super::sql::supported_audio_filter;
 
 fn collect_wav_entries(
@@ -51,8 +51,9 @@ impl SourceDatabase {
     /// Fetch all tracked wav files for this source.
     pub fn list_files(&self) -> Result<Vec<WavEntry>, SourceDbError> {
         let filter = supported_audio_filter();
+        let columns = wav_file_select_columns(self)?;
         let sql = format!(
-            "SELECT {WAV_FILE_SELECT_COLUMNS}
+            "SELECT {columns}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"
@@ -73,8 +74,9 @@ impl SourceDatabase {
         let path_str = super::super::super::normalize_relative_path(path)?;
         let prefix = format!("{path_str}/%");
         let filter = supported_audio_filter();
+        let columns = wav_file_select_columns(self)?;
         let sql = format!(
-            "SELECT {WAV_FILE_SELECT_COLUMNS}
+            "SELECT {columns}
              FROM wav_files
              WHERE {filter}
                AND (path = ?1 OR path LIKE ?2)
@@ -98,8 +100,9 @@ impl SourceDatabase {
         }
         let path_str = super::super::super::normalize_relative_path(path)?;
         let filter = supported_audio_filter();
+        let columns = wav_file_select_columns(self)?;
         let sql = format!(
-            "SELECT {WAV_FILE_SELECT_COLUMNS}
+            "SELECT {columns}
              FROM wav_files
              WHERE {filter} AND path = ?1"
         );
@@ -115,8 +118,9 @@ impl SourceDatabase {
     /// Fetch tracked wav files filtered by tag.
     pub fn list_files_by_tag(&self, tag: Rating) -> Result<Vec<WavEntry>, SourceDbError> {
         let filter = supported_audio_filter();
+        let columns = wav_file_select_columns(self)?;
         let sql = format!(
-            "SELECT {WAV_FILE_SELECT_COLUMNS}
+            "SELECT {columns}
              FROM wav_files
              WHERE {filter} AND tag = ?1
              ORDER BY path ASC"
@@ -201,8 +205,9 @@ impl SourceDatabase {
         offset: usize,
     ) -> Result<Vec<WavEntry>, SourceDbError> {
         let filter = supported_audio_filter();
+        let columns = wav_file_select_columns(self)?;
         let sql = format!(
-            "SELECT {WAV_FILE_SELECT_COLUMNS}
+            "SELECT {columns}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC
