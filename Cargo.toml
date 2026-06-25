@@ -91,6 +91,14 @@ crossbeam-queue = "0.3.12"
 reson = { path = "crates/reson" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.3"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+    "NSApplication",
+    "NSImage",
+] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+    "NSString",
+] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 

@@ -1,5 +1,7 @@
 mod args;
+mod icon;
 mod logging;
+mod macos_icon;
 mod options;
 mod radiant_runtime;
 
@@ -24,6 +26,7 @@ pub(crate) fn run() -> Result<(), String> {
     let startup_started_at = Instant::now();
 
     init_logging(&args);
+    macos_icon::install_macos_application_icon();
     let state = NativeAppState::load_default()?;
     let options = options::native_run_options(args.debug_layout());
 
