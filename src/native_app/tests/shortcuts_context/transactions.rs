@@ -19,6 +19,7 @@ fn command_undo_redo_shortcuts_route_to_transactions() {
     let redo_shift_z = default_gui_shortcuts(&state).resolve(ui::KeyPress {
         key: ui::KeyCode::Z,
         command: true,
+        control: false,
         shift: true,
         alt: false,
     });

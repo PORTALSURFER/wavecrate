@@ -214,6 +214,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::PlayRandomSampleRange,
         )
         .bind(
+            ui::KeyPress::with_control(ui::KeyCode::Space),
+            GuiMessage::PlayRandomSampleRange,
+        )
+        .bind(
             ui::KeyPress::with_command(ui::KeyCode::ArrowLeft),
             GuiMessage::PlayPreviousPlaybackHistory,
         )
@@ -271,6 +275,7 @@ fn bind_undo_shortcuts(layer: ui::ShortcutLayer<GuiMessage>) -> ui::ShortcutLaye
             ui::KeyPress {
                 key: ui::KeyCode::Z,
                 command: true,
+                control: false,
                 shift: true,
                 alt: false,
             },

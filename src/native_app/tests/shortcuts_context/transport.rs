@@ -78,6 +78,16 @@ fn option_space_shortcut_routes_to_random_sample_range() {
 }
 
 #[test]
+fn control_space_shortcut_routes_to_random_sample_range() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_control(ui::KeyCode::Space));
+
+    assert_eq!(resolution.action, Some(GuiMessage::PlayRandomSampleRange));
+    assert!(resolution.handled);
+}
+
+#[test]
 fn command_left_shortcut_routes_to_previous_playback_history() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution =

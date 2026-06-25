@@ -84,6 +84,7 @@ fn command_arrow_navigation_preserves_folder_selection() {
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress {
         key: ui::KeyCode::ArrowDown,
         command: true,
+        control: false,
         shift: false,
         alt: false,
     });

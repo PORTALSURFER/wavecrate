@@ -72,7 +72,10 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
-            .any(|item| item.keys == "Option-Space" && item.action == "Play random sample section")
+            .any(|item| {
+                item.keys == "Control-Space / Option-Space"
+                    && item.action == "Play random sample section"
+            })
     );
     assert!(
         sections
