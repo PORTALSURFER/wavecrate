@@ -225,7 +225,7 @@ fn submit_folder_browser_rename_for_tests(state: &mut NativeAppState, value: imp
                 super::sample_library::folder_browser::commands::execute_rename_commit_request(
                     request,
                 );
-            state.finish_folder_browser_rename(completion);
+            state.finish_folder_browser_rename(completion, &mut ui::UiUpdateContext::default());
         }
     }
 }

@@ -23,6 +23,7 @@ impl FolderBrowserState {
             self.tree.folders = vec![root_folder.clone()];
         }
         self.selection.rewrite_folder_prefix(old_path, new_path);
+        self.rewrite_similarity_path_prefix(old_path, new_path);
         if self.selection.selected_folder_id() == old_id {
             self.selection.set_folder_focus(new_id);
         }
@@ -49,6 +50,7 @@ impl FolderBrowserState {
             self.tree.folders = vec![root_folder.clone()];
         }
         self.selection.set_renamed_file(path_id(new_path));
+        self.rewrite_similarity_path_prefix(old_path, new_path);
         self.bump_file_content_revision();
     }
 

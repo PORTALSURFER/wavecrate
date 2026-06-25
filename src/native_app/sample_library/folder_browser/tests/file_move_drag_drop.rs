@@ -144,6 +144,42 @@ fn file_drag_drop_restores_single_source_folder_and_next_visible_sample() {
 }
 
 #[test]
+fn file_drag_drop_remaps_active_similarity_scores_to_moved_path() {
+    let root = temp_source_root("wavecrate-gui-file-drag-similarity-remap");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let anchor = drums.join("anchor.wav");
+    let near = drums.join("near.wav");
+    fs::write(&anchor, [0_u8; 8]).expect("write anchor");
+    fs::write(&near, [0_u8; 8]).expect("write near");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    let anchor_id = path_id(&anchor);
+    let near_id = path_id(&near);
+    let moved_near_id = path_id(&loops.join("near.wav"));
+    browser.set_similarity_scores_for_tests(
+        anchor_id.clone(),
+        [(near_id.clone(), 0.75)].into_iter().collect(),
+    );
+    browser.select_file(near_id.clone());
+
+    browser.begin_file_drag(near_id.clone(), Point::new(4.0, 8.0));
+    submit_folder_drop(&mut browser, &path_id(&loops)).expect("file drag/drop should move");
+
+    assert_eq!(browser.similarity_anchor_id(), Some(anchor_id.as_str()));
+    assert_eq!(browser.similarity_display_strength_for_file(&near_id), None);
+    assert!(
+        browser
+            .similarity_display_strength_for_file(&moved_near_id)
+            .is_some(),
+        "moved candidate should retain its similarity score under the new path"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn collection_file_drag_drop_moves_file_to_folder_and_preserves_collection_membership() {
     let root = temp_source_root("wavecrate-gui-collection-file-drag-drop");
     let drums = root.join("drums");

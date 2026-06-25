@@ -28,6 +28,7 @@ fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
         "analysis_features",
         "features",
         "embeddings",
+        "similarity_aspect_descriptors",
         "layout_umap",
         "hdbscan_clusters",
         "analysis_jobs",
@@ -36,6 +37,42 @@ fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
     }
     assert_eq!(job_relative_path(&db, new_sample_id), "renamed.wav");
     assert_eq!(analysis_version(&db, new_sample_id), "analysis_v1_test");
+}
+
+#[test]
+fn rename_identity_remap_replaces_stale_destination_analysis_artifacts() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let old = Path::new("old.wav");
+    let new = Path::new("renamed.wav");
+    let old_sample_id = "source::old.wav";
+    let new_sample_id = "source::renamed.wav";
+
+    insert_analysis_artifacts_with_version(&db, old_sample_id, "analysis_from_moved_file");
+    insert_analysis_artifacts_with_version(&db, new_sample_id, "stale_destination_analysis");
+
+    let mut batch = db.write_batch().unwrap();
+    batch.remap_analysis_sample_identity(old, new).unwrap();
+    batch.commit().unwrap();
+
+    for table in [
+        "samples",
+        "analysis_features",
+        "features",
+        "embeddings",
+        "similarity_aspect_descriptors",
+        "layout_umap",
+        "hdbscan_clusters",
+        "analysis_jobs",
+    ] {
+        assert_eq!(sample_id_count(&db, table, old_sample_id), 0, "{table}");
+        assert_eq!(sample_id_count(&db, table, new_sample_id), 1, "{table}");
+    }
+    assert_eq!(job_relative_path(&db, new_sample_id), "renamed.wav");
+    assert_eq!(
+        analysis_version(&db, new_sample_id),
+        "analysis_from_moved_file"
+    );
 }
 
 #[test]
@@ -70,13 +107,21 @@ fn wav_path_remap_preserves_user_metadata_and_collection_memberships() {
 }
 
 fn insert_analysis_artifacts(db: &SourceDatabase, sample_id: &str) {
+    insert_analysis_artifacts_with_version(db, sample_id, "analysis_v1_test");
+}
+
+fn insert_analysis_artifacts_with_version(
+    db: &SourceDatabase,
+    sample_id: &str,
+    analysis_version: &str,
+) {
     db.connection
         .execute(
             "INSERT INTO samples (
                  sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used,
                  analysis_version, bpm, long_sample_mark
-             ) VALUES (?1, 'hash-a', 10, 5, 1.25, 48000, 'analysis_v1_test', 123.0, 1)",
-            [sample_id],
+             ) VALUES (?1, 'hash-a', 10, 5, 1.25, 48000, ?2, 123.0, 1)",
+            rusqlite::params![sample_id, analysis_version],
         )
         .unwrap();
     db.connection
@@ -97,6 +142,14 @@ fn insert_analysis_artifacts(db: &SourceDatabase, sample_id: &str) {
         .execute(
             "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
              VALUES (?1, 'model', 1, 'f32', 1, x'04', 8)",
+            [sample_id],
+        )
+        .unwrap();
+    db.connection
+        .execute(
+            "INSERT INTO similarity_aspect_descriptors (
+                 sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at
+             ) VALUES (?1, 'aspect-model', 1, 'f32', 1, 1, x'07', 8)",
             [sample_id],
         )
         .unwrap();

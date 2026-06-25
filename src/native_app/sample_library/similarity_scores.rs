@@ -71,6 +71,22 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn queue_active_similarity_score_resolution(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> bool {
+        let Some(anchor_id) = self
+            .library
+            .folder_browser
+            .similarity_anchor_id()
+            .map(str::to_owned)
+        else {
+            return false;
+        };
+        self.queue_similarity_score_resolution(anchor_id, context);
+        true
+    }
+
     pub(in crate::native_app) fn finish_similarity_scores(
         &mut self,
         result: SimilarityScoresResult,
@@ -96,6 +112,15 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
+                if similarity_artifacts_missing_error(&error)
+                    && self.similarity_prep_active_for_anchor(result.anchor_id.as_str())
+                {
+                    self.ui.status.sample = format!(
+                        "Preparing similarity for {}",
+                        sample_path_label(result.anchor_id.as_str())
+                    );
+                    return;
+                }
                 self.ui.status.sample = format!("Similarity scores unavailable: {error}");
                 emit_gui_action(
                     "browser.similarity_scores.resolve",
@@ -114,11 +139,12 @@ impl NativeAppState {
         anchor_id: String,
     ) -> Option<SimilarityScoresRequest> {
         let anchor_path = PathBuf::from(&anchor_id);
-        let (source_root, anchor_relative_path) = self
+        let (source, anchor_relative_path) = self
             .library
             .folder_browser
-            .source_relative_file_path(&anchor_path)?;
-        let source_id = SourceId::from_string(self.library.folder_browser.selected_source_id());
+            .sample_source_for_file_path(&anchor_path)?;
+        let source_id = source.id;
+        let source_root = source.root;
         let candidates = self.active_similarity_score_candidates(&source_root);
         Some(SimilarityScoresRequest {
             source_id,
@@ -186,6 +212,31 @@ impl NativeAppState {
             .retain(|file_id, _| file_id == anchor_id || active_ids.contains(file_id));
         scores
     }
+
+    fn similarity_prep_active_for_anchor(&self, anchor_id: &str) -> bool {
+        let Some((source, _)) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(Path::new(anchor_id))
+        else {
+            return false;
+        };
+        self.library
+            .similarity_prep
+            .running_source_id
+            .as_deref()
+            .is_some_and(|running| running == source.id.as_str())
+            || self
+                .library
+                .similarity_prep
+                .pending_source_ids
+                .iter()
+                .any(|pending| pending == source.id.as_str())
+    }
+}
+
+fn similarity_artifacts_missing_error(error: &str) -> bool {
+    error.contains("embedding is missing") || error.contains("similarity artifact")
 }
 
 fn resolve_similarity_scores(request: SimilarityScoresRequest) -> SimilarityScoresResult {

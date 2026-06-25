@@ -62,7 +62,7 @@ impl NativeAppState {
                 self.focus_rename_input(input_id, context);
             }
             GuiMessage::FolderBrowserRenameFinished(completion) => {
-                self.finish_folder_browser_rename(completion);
+                self.finish_folder_browser_rename(completion, context);
             }
             GuiMessage::DeleteSelectedItem => self.delete_selected_item(context),
             GuiMessage::RequestCropWaveformSelection => {

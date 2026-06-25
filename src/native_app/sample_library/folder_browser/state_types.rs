@@ -1,8 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use wavecrate::sample_sources::{SampleCollection, config::SimilarityAspectSettings};
 
-use super::{FolderEntry, collections::MissingCollectionSnapshot};
+use super::{FolderEntry, collections::MissingCollectionSnapshot, path_helpers::rewrite_path_id};
 
 pub(in crate::native_app) type SimilarityAspectStrengths =
     [Option<f32>; wavecrate_analysis::aspects::ASPECT_COUNT];
@@ -281,6 +281,34 @@ impl SimilarityBrowserState {
         self.effective_score_bounds = bounds;
     }
 
+    pub(in crate::native_app) fn rewrite_path_prefix(
+        &mut self,
+        old_path: &Path,
+        new_path: &Path,
+    ) -> bool {
+        let old_anchor_id = self.anchor_id.clone();
+        self.anchor_id = rewrite_path_id(&self.anchor_id, old_path, new_path);
+        let scores_by_file = rewrite_similarity_score_map(&self.scores_by_file, old_path, new_path);
+        let aspect_scores_by_file =
+            rewrite_similarity_score_map(&self.aspect_scores_by_file, old_path, new_path);
+        let changed = old_anchor_id != self.anchor_id
+            || scores_by_file != self.scores_by_file
+            || aspect_scores_by_file != self.aspect_scores_by_file;
+        if changed {
+            self.scores_by_file = scores_by_file;
+            self.aspect_scores_by_file = aspect_scores_by_file;
+            self.aspect_score_bounds = aspect_score_bounds(self.aspect_scores_by_file.values());
+            let (scores, bounds) = effective_scores(
+                &self.controls,
+                &self.scores_by_file,
+                &self.aspect_scores_by_file,
+            );
+            self.effective_scores_by_file = scores;
+            self.effective_score_bounds = bounds;
+        }
+        changed
+    }
+
     pub(in crate::native_app) fn display_strength_for(&self, file_id: &str) -> Option<f32> {
         let score = self.effective_score_for(file_id)?.clamp(-1.0, 1.0);
         let (min_score, max_score) = self.effective_score_bounds?;
@@ -317,6 +345,17 @@ impl SimilarityBrowserState {
         }
         Some(((score - min_score) / range).clamp(0.0, 1.0))
     }
+}
+
+fn rewrite_similarity_score_map<T: Clone>(
+    scores: &std::collections::HashMap<String, T>,
+    old_path: &Path,
+    new_path: &Path,
+) -> std::collections::HashMap<String, T> {
+    scores
+        .iter()
+        .map(|(file_id, score)| (rewrite_path_id(file_id, old_path, new_path), score.clone()))
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

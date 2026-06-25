@@ -1,4 +1,7 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{
+    collections::VecDeque,
+    path::{Path, PathBuf},
+};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleSource, SourceId};
@@ -115,6 +118,28 @@ impl NativeAppState {
         self.queue_similarity_prep_for_source(source, trigger, context);
     }
 
+    pub(in crate::native_app) fn prepare_similarity_for_anchor_path(
+        &mut self,
+        file_id: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some((source, _)) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(Path::new(file_id))
+        else {
+            return;
+        };
+        self.queue_similarity_prep_for_source(
+            SimilarityPrepSource {
+                id: source.id,
+                root: source.root,
+            },
+            SimilarityPrepTrigger::Automatic,
+            context,
+        );
+    }
+
     fn queue_similarity_prep_for_source(
         &mut self,
         source: SimilarityPrepSource,
@@ -171,6 +196,8 @@ impl NativeAppState {
         let selected_source = result.source_id == self.library.folder_browser.selected_source_id();
         match result.result {
             Ok(summary) => {
+                let refresh_anchor_scores =
+                    selected_source && summary.should_refresh_anchor_scores();
                 if selected_source {
                     let has_work = summary.has_work();
                     let message = summary.message();
@@ -183,6 +210,9 @@ impl NativeAppState {
                         self.ui.status.sample = footer_message;
                     }
                     self.refresh_selected_similarity_prep_status(context);
+                }
+                if refresh_anchor_scores {
+                    self.queue_active_similarity_score_resolution(context);
                 }
             }
             Err(error) => {
@@ -328,6 +358,10 @@ impl SimilarityPrepEnqueueSummary {
             return None;
         }
         Some(self.message())
+    }
+
+    fn should_refresh_anchor_scores(&self) -> bool {
+        self.has_work() || self.status == NativeSimilarityPrepStatus::UpToDate
     }
 }
 

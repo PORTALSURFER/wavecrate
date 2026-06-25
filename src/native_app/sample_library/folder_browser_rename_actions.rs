@@ -185,12 +185,13 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_folder_browser_rename(
         &mut self,
         completion: RenameCommitCompletion,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let result = self
             .library
             .folder_browser
             .apply_rename_commit_completion(completion);
-        self.apply_folder_browser_rename_status(result);
+        self.apply_folder_browser_rename_status(result, context);
     }
 
     fn apply_folder_browser_rename_result(
@@ -199,7 +200,9 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
-            RenameInputResult::Status(result) => self.apply_folder_browser_rename_status(result),
+            RenameInputResult::Status(result) => {
+                self.apply_folder_browser_rename_status(result, context);
+            }
             RenameInputResult::Commit(request) => {
                 self.ui.status.sample = String::from("Applying rename");
                 context
@@ -213,9 +216,18 @@ impl NativeAppState {
         }
     }
 
-    fn apply_folder_browser_rename_status(&mut self, result: RenameCommitResult) {
+    fn apply_folder_browser_rename_status(
+        &mut self,
+        result: RenameCommitResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         if let Some(remap) = result.path_remap {
             self.apply_browser_rename_path_remap(&remap);
+            self.queue_selected_source_prep(
+                crate::native_app::sample_library::source_prep::SourcePrepTrigger::FilesystemChanged,
+                context,
+            );
+            self.queue_active_similarity_score_resolution(context);
         }
         self.ui.status.sample = result.status;
     }

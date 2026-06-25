@@ -51,6 +51,7 @@ impl FolderBrowserState {
         self.tree.folders = vec![root_folder.clone()];
 
         self.selection.rewrite_folder_prefix(old_path, new_path);
+        self.rewrite_similarity_path_prefix(old_path, new_path);
         self.tree.expanded_folders = self
             .tree
             .expanded_folders
@@ -139,6 +140,9 @@ impl FolderBrowserState {
             .iter()
             .map(|(old_path, new_path)| (path_id(old_path), path_id(new_path)))
             .collect::<Vec<_>>();
+        for (old_path, new_path) in moves {
+            self.rewrite_similarity_path_prefix(old_path, new_path);
+        }
         self.selection
             .select_moved_files(target_parent_id.clone(), &moved_file_ids);
         self.tree.expanded_folders.insert(target_parent_id);

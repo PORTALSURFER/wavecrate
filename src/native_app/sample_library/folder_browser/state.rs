@@ -214,6 +214,15 @@ impl FolderBrowserState {
         }
     }
 
+    pub(super) fn rewrite_similarity_path_prefix(&mut self, old_path: &Path, new_path: &Path) {
+        let Some(similarity) = self.sample_list.similarity.as_mut() else {
+            return;
+        };
+        if similarity.rewrite_path_prefix(old_path, new_path) {
+            self.bump_file_content_revision();
+        }
+    }
+
     pub(in crate::native_app) fn set_similarity_scores_with_aspects(
         &mut self,
         anchor_id: String,

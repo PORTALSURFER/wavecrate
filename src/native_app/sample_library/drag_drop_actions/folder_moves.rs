@@ -12,6 +12,7 @@ use crate::native_app::sample_library::folder_browser::commands::{
     execute_folder_move_request_with_progress, file_move_conflict_progress_label,
     file_move_conflict_progress_total, folder_move_progress_label, folder_move_progress_total,
 };
+use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
     pub(in crate::native_app) fn drop_browser_drag_on_folder(
@@ -310,6 +311,7 @@ impl NativeAppState {
                         "browser.drag_drop.move.cache_persist",
                         started_at,
                     );
+                    self.queue_selected_source_prep(SourcePrepTrigger::FilesystemChanged, context);
                 }
                 self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
                 emit_gui_action(
@@ -393,6 +395,7 @@ impl NativeAppState {
                         "browser.drag_drop.file_conflict.cache_persist",
                         started_at,
                     );
+                    self.queue_selected_source_prep(SourcePrepTrigger::FilesystemChanged, context);
                 }
                 self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
                 emit_gui_action(

@@ -161,6 +161,26 @@ pub(super) fn remap_analysis_sample_identity_statement(
         return Ok(());
     }
     let old_ids = sample_ids_for_relative_path(tx, &old_path)?;
+    let old_id_set = old_ids
+        .iter()
+        .cloned()
+        .collect::<std::collections::HashSet<_>>();
+    let mut destination_ids = sample_ids_for_relative_path(tx, &new_path)?
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    for old_sample_id in &old_ids {
+        let Some(source_prefix) = old_sample_id.strip_suffix(&old_path) else {
+            continue;
+        };
+        if source_prefix.ends_with("::") {
+            destination_ids.insert(format!("{source_prefix}{new_path}"));
+        }
+    }
+    for destination_id in destination_ids {
+        if !old_id_set.contains(&destination_id) {
+            delete_analysis_sample_identity(tx, &destination_id)?;
+        }
+    }
     for old_sample_id in old_ids {
         let Some(source_prefix) = old_sample_id.strip_suffix(&old_path) else {
             continue;
@@ -206,6 +226,7 @@ fn remap_one_analysis_sample_identity(
     new_sample_id: &str,
     new_relative_path: &str,
 ) -> Result<(), SourceDbError> {
+    delete_analysis_sample_identity(tx, new_sample_id)?;
     if sample_row_exists(tx, old_sample_id)? && !sample_row_exists(tx, new_sample_id)? {
         tx.prepare_cached(
             "INSERT INTO samples (
@@ -225,6 +246,12 @@ fn remap_one_analysis_sample_identity(
     update_sample_id(tx, "analysis_features", old_sample_id, new_sample_id)?;
     update_sample_id(tx, "features", old_sample_id, new_sample_id)?;
     update_sample_id(tx, "embeddings", old_sample_id, new_sample_id)?;
+    update_sample_id(
+        tx,
+        "similarity_aspect_descriptors",
+        old_sample_id,
+        new_sample_id,
+    )?;
     update_sample_id(tx, "layout_umap", old_sample_id, new_sample_id)?;
     update_sample_id(tx, "hdbscan_clusters", old_sample_id, new_sample_id)?;
     tx.prepare_cached(
@@ -242,6 +269,20 @@ fn remap_one_analysis_sample_identity(
     Ok(())
 }
 
+fn delete_analysis_sample_identity(
+    tx: &Transaction<'_>,
+    sample_id: &str,
+) -> Result<(), SourceDbError> {
+    delete_sample_id(tx, "analysis_jobs", sample_id)?;
+    delete_sample_id(tx, "analysis_features", sample_id)?;
+    delete_sample_id(tx, "features", sample_id)?;
+    delete_sample_id(tx, "embeddings", sample_id)?;
+    delete_sample_id(tx, "similarity_aspect_descriptors", sample_id)?;
+    delete_sample_id(tx, "layout_umap", sample_id)?;
+    delete_sample_id(tx, "hdbscan_clusters", sample_id)?;
+    delete_sample_id(tx, "samples", sample_id)
+}
+
 fn sample_row_exists(tx: &Transaction<'_>, sample_id: &str) -> Result<bool, SourceDbError> {
     let exists = tx
         .query_row(
@@ -253,6 +294,19 @@ fn sample_row_exists(tx: &Transaction<'_>, sample_id: &str) -> Result<bool, Sour
         .map_err(map_sql_error)?
         .is_some();
     Ok(exists)
+}
+
+fn delete_sample_id(
+    tx: &Transaction<'_>,
+    table: &str,
+    sample_id: &str,
+) -> Result<(), SourceDbError> {
+    let sql = format!("DELETE FROM {table} WHERE sample_id = ?1");
+    tx.prepare_cached(&sql)
+        .map_err(map_sql_error)?
+        .execute(params![sample_id])
+        .map_err(map_sql_error)?;
+    Ok(())
 }
 
 fn update_sample_id(

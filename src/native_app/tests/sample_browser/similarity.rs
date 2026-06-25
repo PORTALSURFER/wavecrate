@@ -392,6 +392,74 @@ fn sample_browser_similarity_anchor_resolves_production_scores() {
 }
 
 #[test]
+fn sample_browser_similarity_anchor_prepares_missing_artifacts_before_scoring() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let anchor = drums.join("anchor.wav");
+    let near = drums.join("near.wav");
+    write_similarity_test_wav(&anchor, 220.0);
+    write_similarity_test_wav(&near, 440.0);
+    seed_source_scan_row(source_root.path(), "drums/anchor.wav");
+    seed_source_scan_row(source_root.path(), "drums/near.wav");
+
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new_with_id(
+                wavecrate::sample_sources::SourceId::from_string(SIMILARITY_TEST_SOURCE_ID),
+                source_root.path().to_path_buf(),
+            ),
+        ]);
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ),
+    );
+    let anchor_id = anchor.display().to_string();
+    let near_id = near.display().to_string();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ToggleSimilarityAnchor(
+                anchor_id.clone(),
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.similarity_prep.running_source_id.as_deref(),
+        Some(SIMILARITY_TEST_SOURCE_ID)
+    );
+    super::super::run_command_for_tests(&mut state, context.into_command());
+
+    assert!(!state.library.similarity_prep.running);
+    assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 2);
+    assert_eq!(
+        source_artifact_rows(source_root.path(), "similarity_aspect_descriptors"),
+        2
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .similarity_display_strength_for_file(anchor_id.as_str()),
+        Some(1.0)
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .similarity_display_strength_for_file(near_id.as_str())
+            .is_some(),
+        "anchor activation should resolve similarity after preparing missing artifacts"
+    );
+}
+
+#[test]
 fn sample_browser_similarity_anchor_scores_only_active_folder_scope() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
