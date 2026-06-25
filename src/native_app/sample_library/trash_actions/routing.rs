@@ -29,8 +29,9 @@ impl NativeAppState {
                 );
             }
             BrowserContextTargetKind::Sample => {
+                let paths = self.context_sample_trash_paths(menu.path);
                 self.move_file_paths_to_trash(
-                    vec![menu.path],
+                    paths,
                     "browser.context_menu.sample.trash",
                     started_at,
                     context,
@@ -411,6 +412,15 @@ impl NativeAppState {
                 result,
             },
         );
+    }
+
+    fn context_sample_trash_paths(&self, path: PathBuf) -> Vec<PathBuf> {
+        let selected_paths = self.library.folder_browser.selected_file_paths();
+        if selected_paths.iter().any(|selected| selected == &path) {
+            selected_paths
+        } else {
+            vec![path]
+        }
     }
 }
 

@@ -1311,6 +1311,58 @@ fn delete_selected_file_moves_it_to_configured_trash_folder() {
 }
 
 #[test]
+fn context_trash_selected_sample_moves_full_selected_set() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let trash_root = tempfile::tempdir().expect("trash root");
+    let keep = source_root.path().join("keep.wav");
+    let kick = source_root.path().join("kick.wav");
+    let snare = source_root.path().join("snare.wav");
+    for file in [&keep, &kick, &snare] {
+        fs::write(file, []).expect("write sample");
+    }
+    state.ui.settings.persisted.trash_folder = Some(trash_root.path().to_path_buf());
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        snare.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..PointerModifiers::default()
+        },
+    );
+
+    state.open_sample_context_menu(kick.display().to_string(), Point::new(40.0, 120.0));
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        vec![kick.clone(), snare.clone()]
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::MoveContextTargetToTrash, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(!kick.exists());
+    assert!(!snare.exists());
+    assert!(keep.exists());
+    assert!(trash_root.path().join("kick.wav").exists());
+    assert!(trash_root.path().join("snare.wav").exists());
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+    let keep_id = keep.display().to_string();
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(keep_id.as_str())
+    );
+    assert!(state.ui.status.sample.contains("Moved 2 files to trash"));
+}
+
+#[test]
 fn third_negative_rating_does_not_auto_trash_selected_file() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
