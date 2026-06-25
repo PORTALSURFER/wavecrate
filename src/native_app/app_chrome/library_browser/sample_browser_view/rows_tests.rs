@@ -1,4 +1,5 @@
 use super::super::cells::{
+    LOCKED_KEEP_RATING_COLOR, LOCKED_KEEP_RATING_MARKER_SIDE, RATING_MARKER_SIDE,
     SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL, sample_collection_cell,
     sample_file_cell, sample_playback_type_cell, sample_rating_cell, sample_similarity_cell,
 };
@@ -40,16 +41,16 @@ fn rating_indicator_count_reflects_rating_strength() {
 }
 
 #[test]
-/// Verifies locked keep ratings use the keep badge affordance.
-fn locked_keep_rating_uses_keep_badge() {
-    assert!(RatingIndicator::new(Rating::KEEP_3, true).shows_keep_badge());
-    assert!(!RatingIndicator::new(Rating::KEEP_3, false).shows_keep_badge());
-    assert!(!RatingIndicator::new(Rating::TRASH_3, true).shows_keep_badge());
+/// Verifies locked keep ratings use the dedicated keep-marker affordance.
+fn locked_keep_rating_uses_locked_keep_marker() {
+    assert!(RatingIndicator::new(Rating::KEEP_3, true).shows_locked_keep_marker());
+    assert!(!RatingIndicator::new(Rating::KEEP_3, false).shows_locked_keep_marker());
+    assert!(!RatingIndicator::new(Rating::TRASH_3, true).shows_locked_keep_marker());
 }
 
 #[test]
-/// Verifies locked keep rows paint the keep badge label.
-fn locked_keep_rating_cell_paints_keep_badge_text() {
+/// Verifies locked keep rows paint a golden marker instead of a text label.
+fn locked_keep_rating_cell_paints_gold_marker_without_text() {
     let mut file = file_entry();
     file.rating = Rating::KEEP_3;
     file.rating_locked = true;
@@ -58,8 +59,21 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
         .view_frame_at_size(Vector2::new(64.0, 20.0), &theme);
 
     assert!(
-        frame.paint_plan.text_runs().any(|run| run.text == "KEEP"),
-        "locked keep ratings should paint the KEEP badge label"
+        !frame.paint_plan.text_runs().any(|run| run.text == "KEEP"),
+        "locked keep ratings should no longer paint the KEEP text label"
+    );
+
+    let marker = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| fill.color == LOCKED_KEEP_RATING_COLOR)
+        .expect("locked keep ratings should paint the golden marker");
+
+    assert_eq!(marker.rect.width(), LOCKED_KEEP_RATING_MARKER_SIDE as f32);
+    assert_eq!(marker.rect.height(), LOCKED_KEEP_RATING_MARKER_SIDE as f32);
+    assert!(
+        marker.rect.width() > RATING_MARKER_SIDE as f32,
+        "locked keep marker should be larger than normal rating markers"
     );
 }
 

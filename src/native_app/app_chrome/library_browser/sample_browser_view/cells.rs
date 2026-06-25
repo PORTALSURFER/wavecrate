@@ -24,6 +24,9 @@ pub(super) const SIMILARITY_SCORE_FILL: ui::Rgba8 = ui::Rgba8::new(255, 160, 82,
 const SIMILARITY_ASPECT_TRACK: ui::Rgba8 = ui::Rgba8::new(38, 42, 46, 190);
 pub(super) const SIMILARITY_ASPECT_DISABLED_TRACK: ui::Rgba8 = ui::Rgba8::new(24, 26, 28, 210);
 const SIMILARITY_ASPECT_WIDTH: f32 = 14.0;
+pub(super) const RATING_MARKER_SIDE: u8 = 5;
+pub(super) const LOCKED_KEEP_RATING_MARKER_SIDE: u8 = 7;
+pub(super) const LOCKED_KEEP_RATING_COLOR: ui::Rgba8 = ui::Rgba8::new(232, 188, 56, 245);
 const SIMILARITY_ANCHOR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
     ui::Rgba8::new(238, 238, 238, 220),
     ui::Rgba8::new(255, 160, 82, 255),
@@ -193,21 +196,20 @@ pub(super) fn sample_rating_cell(indicator: RatingIndicator, width: f32) -> ui::
 
 /// Render a projected passive rating cell.
 fn render_rating_cell(projection: RatingCellProjection, width: f32) -> ui::View<GuiMessage> {
-    if projection == RatingCellProjection::KeepBadge {
-        return ui::compact_details_anchored_cell(
-            ui::passive_badge("KEEP").style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning)),
-            ui::Vector2::new(38.0, 14.0),
-        )
-        .width(width)
-        .horizontal(ui::LayerHorizontalAnchor::End)
-        .vertical(ui::LayerVerticalAnchor::Start)
-        .inset(2.0, 3.0)
-        .view();
+    if projection == RatingCellProjection::LockedKeepMarker {
+        return ui::compact_details_cell(
+            ui::marker_run(Some(LOCKED_KEEP_RATING_COLOR), 1)
+                .side(LOCKED_KEEP_RATING_MARKER_SIDE)
+                .gap(4)
+                .inset(4)
+                .view(),
+            Some(width),
+        );
     }
 
     ui::compact_details_cell(
         ui::marker_run(projection.marker_color(), projection.marker_count())
-            .side(5)
+            .side(RATING_MARKER_SIDE)
             .gap(4)
             .inset(4)
             .view(),

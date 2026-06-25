@@ -25,7 +25,7 @@ pub(super) enum SampleCellContentProjection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum RatingCellProjection {
-    KeepBadge,
+    LockedKeepMarker,
     MarkerRun { color: Option<ui::Rgba8>, count: u8 },
 }
 
@@ -95,8 +95,8 @@ impl SampleCellProjection {
 
 impl RatingCellProjection {
     pub(super) fn from_indicator(indicator: RatingIndicator) -> Self {
-        if indicator.shows_keep_badge() {
-            Self::KeepBadge
+        if indicator.shows_locked_keep_marker() {
+            Self::LockedKeepMarker
         } else {
             Self::MarkerRun {
                 color: indicator.color(),
@@ -107,14 +107,14 @@ impl RatingCellProjection {
 
     pub(super) fn marker_color(&self) -> Option<ui::Rgba8> {
         match self {
-            Self::KeepBadge => None,
+            Self::LockedKeepMarker => None,
             Self::MarkerRun { color, .. } => *color,
         }
     }
 
     pub(super) fn marker_count(&self) -> u8 {
         match self {
-            Self::KeepBadge => 0,
+            Self::LockedKeepMarker => 0,
             Self::MarkerRun { count, .. } => *count,
         }
     }
@@ -170,10 +170,10 @@ mod tests {
     }
 
     #[test]
-    fn rating_projection_uses_keep_badge_only_for_locked_keep_three() {
+    fn rating_projection_uses_locked_keep_marker_only_for_locked_keep_three() {
         assert_eq!(
             RatingCellProjection::from_indicator(RatingIndicator::new(Rating::KEEP_3, true)),
-            RatingCellProjection::KeepBadge
+            RatingCellProjection::LockedKeepMarker
         );
         assert!(matches!(
             RatingCellProjection::from_indicator(RatingIndicator::new(Rating::KEEP_3, false)),

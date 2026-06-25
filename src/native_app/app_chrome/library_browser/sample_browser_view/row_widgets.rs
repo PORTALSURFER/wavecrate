@@ -39,7 +39,7 @@ impl RatingIndicator {
         }
     }
 
-    pub(super) fn shows_keep_badge(&self) -> bool {
+    pub(super) fn shows_locked_keep_marker(&self) -> bool {
         self.locked && self.rating == Rating::KEEP_3
     }
 }
