@@ -163,7 +163,14 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                 shortcut_help_item("1-6", "Toggle selected sample in collection"),
             ],
         ),
-        shortcut_help_section("Metadata", [shortcut_help_item("`", "Focus tag input")]),
+        shortcut_help_section(
+            "Metadata",
+            [
+                shortcut_help_item("`", "Focus tag input"),
+                shortcut_help_item("9", "Tag selected samples one-shot"),
+                shortcut_help_item("0", "Tag selected samples loop"),
+            ],
+        ),
         shortcut_help_section(
             "Transactions",
             [

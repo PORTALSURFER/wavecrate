@@ -115,6 +115,18 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
                 item.keys == "Command-V" && item.action == "Paste cut files into selected folder"
             })
     );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "9" && item.action == "Tag selected samples one-shot")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "0" && item.action == "Tag selected samples loop")
+    );
 }
 
 #[test]

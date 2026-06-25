@@ -227,6 +227,14 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::Metadata(MetadataMessage::FocusMetadataTagInput),
         )
         .bind(
+            ui::KeyPress::new(ui::KeyCode::Num9),
+            GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(String::from("one-shot"))),
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Num0),
+            GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(String::from("loop"))),
+        )
+        .bind(
             ui::KeyPress::with_command(ui::KeyCode::A),
             GuiMessage::SelectAllSamples,
         )
