@@ -114,6 +114,48 @@ impl FolderBrowserState {
         files
     }
 
+    pub(in crate::native_app) fn clear_curation_focus_override(&mut self) -> bool {
+        let cleared = self.sample_list.curation_focus_override.take().is_some();
+        if cleared {
+            self.sample_list.projection_cache.clear();
+        }
+        cleared
+    }
+
+    pub(in crate::native_app) fn reveal_selected_curation_focus_if_hidden(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        if !self.filters.curation.enabled {
+            self.clear_curation_focus_override();
+            return false;
+        }
+        let Some(selected) = self.selection.selected_file.clone() else {
+            self.clear_curation_focus_override();
+            return false;
+        };
+
+        self.clear_curation_focus_override();
+        if self
+            .selected_audio_file_index_matching_tags(tags_by_file)
+            .is_some()
+        {
+            return false;
+        }
+
+        self.sample_list.curation_focus_override = Some(selected);
+        self.sample_list.projection_cache.clear();
+        if self
+            .selected_audio_file_index_matching_tags(tags_by_file)
+            .is_some()
+        {
+            return true;
+        }
+
+        self.clear_curation_focus_override();
+        false
+    }
+
     pub(in crate::native_app) fn selected_audio_file_count_matching_tags(
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
@@ -431,6 +473,7 @@ impl FolderBrowserState {
     ) -> Ref<'_, Vec<usize>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
+        let curation_focus_override = self.active_curation_focus_override_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
             self.filters.curation.cache_key()
         } else {
@@ -445,6 +488,7 @@ impl FolderBrowserState {
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
         )
+        .with_curation_focus_override(curation_focus_override)
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list
             .projection_cache
@@ -461,15 +505,13 @@ impl FolderBrowserState {
                                 file,
                                 &self.filters.rating_filter,
                             )
-                            && (!self.filters.curation.enabled
-                                || sort_tags.is_none_or(|tags_by_file| {
-                                    curation::file_matches_curation(
-                                        file,
-                                        tags_by_file,
-                                        &self.filters.curation,
-                                        curation_now,
-                                    )
-                                }))
+                            && curation_filter_allows_file(
+                                file,
+                                sort_tags,
+                                &self.filters.curation,
+                                curation_now,
+                                curation_focus_override,
+                            )
                     })
                     .map(|(index, _)| index)
                     .collect::<Vec<_>>();
@@ -486,6 +528,20 @@ impl FolderBrowserState {
                 ordering::sort_file_indices_by_similarity(self, folder, &mut indices);
                 indices
             })
+    }
+
+    pub(super) fn active_curation_focus_override_id(
+        &self,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Option<&str> {
+        if sort_tags.is_none() || !self.filters.curation.enabled {
+            return None;
+        }
+        let focused = self.selection.selected_file.as_deref()?;
+        self.sample_list
+            .curation_focus_override
+            .as_deref()
+            .filter(|override_id| *override_id == focused)
     }
 
     pub(super) fn playback_type_tag_sort_enabled(
@@ -505,6 +561,23 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn selected_audio_projection_cache_len_for_tests(&self) -> usize {
         self.sample_list.projection_cache.len()
     }
+}
+
+pub(super) fn curation_filter_allows_file(
+    file: &FileEntry,
+    tags_by_file: Option<&HashMap<String, Vec<String>>>,
+    mode: &curation::BrowserCurationMode,
+    now: i64,
+    focus_override: Option<&str>,
+) -> bool {
+    if !mode.enabled {
+        return true;
+    }
+    let Some(tags_by_file) = tags_by_file else {
+        return true;
+    };
+    curation::file_matches_curation(file, tags_by_file, mode, now)
+        || focus_override == Some(file.id.as_str())
 }
 
 fn collect_local_cache_candidate_paths(

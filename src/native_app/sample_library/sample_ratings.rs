@@ -38,6 +38,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        self.library.folder_browser.clear_curation_focus_override();
         let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment();
         let advance_previous_index = advance_visible_ids.as_ref().and_then(|_| {
             self.library

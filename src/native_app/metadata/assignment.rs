@@ -221,10 +221,9 @@ impl NativeAppState {
         if requests.is_empty() {
             return;
         }
-        self.retain_visible_file_selection_after_metadata_tag_change();
+        self.finish_metadata_tag_curation_change(&changed_files);
         let status_tags = added_metadata_tag_status_tags(&requests, &tags);
         self.ui.status.sample = metadata_tag_added_status(&status_tags, changed_files.len());
-        self.mark_file_ids_curated(&changed_files);
         enqueue_metadata_tag_persist_requests(requests, context);
     }
 
@@ -333,9 +332,8 @@ impl NativeAppState {
         if self.metadata.selected_tag.as_deref() == Some(tag.as_str()) {
             self.metadata.selected_tag = None;
         }
-        self.retain_visible_file_selection_after_metadata_tag_change();
+        self.finish_metadata_tag_curation_change(&changed_files);
         self.ui.status.sample = metadata_tag_removed_status(&tag, changed_files.len());
-        self.mark_file_ids_curated(&changed_files);
         if requests.len() == 1 {
             let request = requests.remove(0);
             context
@@ -354,6 +352,12 @@ impl NativeAppState {
                     |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
                 );
         }
+    }
+
+    fn finish_metadata_tag_curation_change(&mut self, file_ids: &[String]) {
+        self.library.folder_browser.clear_curation_focus_override();
+        self.mark_file_ids_curated(file_ids);
+        self.retain_visible_file_selection_after_metadata_tag_change();
     }
 
     fn mark_file_ids_curated(&mut self, file_ids: &[String]) {

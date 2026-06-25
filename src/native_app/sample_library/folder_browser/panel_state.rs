@@ -122,6 +122,7 @@ impl FolderBrowserState {
             return;
         }
         self.filters.name_filter = value;
+        self.clear_curation_focus_override();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }
@@ -138,6 +139,7 @@ impl FolderBrowserState {
             return;
         }
         self.filters.tag_filter = value;
+        self.clear_curation_focus_override();
         self.reset_file_view();
     }
 
@@ -153,6 +155,7 @@ impl FolderBrowserState {
         if !changed {
             return;
         }
+        self.clear_curation_focus_override();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }
@@ -171,6 +174,7 @@ impl FolderBrowserState {
             self.filters.playback_type_filter.remove(&filter)
         };
         if changed {
+            self.clear_curation_focus_override();
             self.reset_file_view();
         }
     }
@@ -186,6 +190,7 @@ impl FolderBrowserState {
         }
         self.filters.curation.enabled = next_enabled;
         self.filters.curation.scope = scope;
+        self.clear_curation_focus_override();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }

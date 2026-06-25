@@ -175,6 +175,9 @@ impl NativeAppState {
             FOLDER_TREE_OVERSCAN_ROWS,
             FOLDER_TREE_EDGE_CONTEXT_ROWS,
         );
+        self.library
+            .folder_browser
+            .reveal_selected_curation_focus_if_hidden(&self.metadata.tags_by_file);
         if let Some(index) = self.library.folder_browser.selected_folder_visible_index() {
             context.scroll_fixed_row_into_view(
                 FOLDER_TREE_LIST_ID,

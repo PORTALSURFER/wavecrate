@@ -108,6 +108,61 @@ fn curation_mode_filters_recent_and_locked_keep_rows() {
 }
 
 #[test]
+fn curation_focus_override_reveals_selected_recent_row_temporarily() {
+    let root = temp_source_root("wavecrate-gui-curation-focus-override");
+    let empty = root.join("empty.wav");
+    let recent = root.join("recent.wav");
+    for file in [&empty, &recent] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let now = curation_test_now();
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.set_file_last_curated_at(&recent, now - 60));
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::All,
+        true,
+    ));
+    browser.select_file(path_id(&recent));
+    let tags_by_file = HashMap::new();
+
+    assert_eq!(
+        browser.selected_audio_file_index_matching_tags(&tags_by_file),
+        None,
+        "recent selected rows should normally be hidden by curation"
+    );
+    assert!(browser.reveal_selected_curation_focus_if_hidden(&tags_by_file));
+    assert!(
+        browser
+            .selected_audio_file_index_matching_tags(&tags_by_file)
+            .is_some(),
+        "history reveal should make the selected hidden curation row visible"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["empty.wav", "recent.wav"]
+    );
+
+    assert!(browser.clear_curation_focus_override());
+    assert_eq!(
+        browser.selected_audio_file_index_matching_tags(&tags_by_file),
+        None
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["empty.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn curation_scope_modes_filter_rating_and_tag_work_separately() {
     let root = temp_source_root("wavecrate-gui-curation-scope-filter");
     let complete_unrated = root.join("complete-unrated.wav");

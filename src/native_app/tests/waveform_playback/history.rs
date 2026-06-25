@@ -164,13 +164,22 @@ fn playback_history_completion_refocuses_hidden_curation_entry() {
     let mut context = ui::UiUpdateContext::default();
     state.play_previous_playback_history(&mut context);
     run_command_for_tests(&mut state, context.into_command());
-    assert_eq!(
+    assert!(
         state
             .library
             .folder_browser
-            .selected_audio_file_index_matching_tags(&state.metadata.tags_by_file),
-        None,
-        "the history target is hidden by the curation filter while it loads"
+            .selected_audio_file_index_matching_tags(&state.metadata.tags_by_file)
+            .is_some(),
+        "history navigation should reveal its selected curation target while it loads"
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files_matching_tags(&state.metadata.tags_by_file)
+            .iter()
+            .any(|file| file.id == kick_id),
+        "the history target should be visible even when curation would normally hide it"
     );
 
     state.library.folder_browser.select_file(loop_id.clone());
@@ -199,6 +208,14 @@ fn playback_history_completion_refocuses_hidden_curation_entry() {
     assert_eq!(
         state.library.folder_browser.selected_file_paths(),
         vec![kick]
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&state.metadata.tags_by_file)
+            .is_some(),
+        "history load completion should keep the selected curation target visible"
     );
     assert_eq!(
         state.waveform.current.play_selection(),

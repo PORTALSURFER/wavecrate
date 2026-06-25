@@ -7,7 +7,8 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::SampleCollection;
 
 use super::{
-    curation, filter_audio_files_by_rating, filters, playback_type_filter, rating_filter, traversal,
+    curation, curation_filter_allows_file, filter_audio_files_by_rating, filters,
+    playback_type_filter, rating_filter, traversal,
 };
 use crate::native_app::sample_library::folder_browser::{
     FileEntry, FolderBrowserState,
@@ -88,6 +89,7 @@ impl FolderBrowserState {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let collection_key = format!("collection:{}", collection.index());
+        let curation_focus_override = self.active_curation_focus_override_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
             self.filters.curation.cache_key()
         } else {
@@ -102,6 +104,7 @@ impl FolderBrowserState {
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
         )
+        .with_curation_focus_override(curation_focus_override)
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list.projection_cache.audio_ids(request, || {
             let curation_now = curation::now_epoch_seconds();
@@ -121,11 +124,12 @@ impl FolderBrowserState {
                 && let Some(tags_by_file) = sort_tags
             {
                 files.retain(|file| {
-                    curation::file_matches_curation(
+                    curation_filter_allows_file(
                         file,
-                        tags_by_file,
+                        Some(tags_by_file),
                         &self.filters.curation,
                         curation_now,
+                        curation_focus_override,
                     )
                 });
             }

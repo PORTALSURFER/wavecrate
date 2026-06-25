@@ -1,4 +1,6 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::model::BrowserCurationScope;
+use std::collections::HashMap;
 #[test]
 fn focus_file_across_sources_reselects_loaded_file_parent_folder() {
     let root = temp_source_root("wavecrate-gui-focus-loaded");
@@ -64,6 +66,57 @@ fn focus_file_across_sources_preserves_recursive_folder_when_file_is_already_vis
             .collect::<Vec<_>>(),
         vec!["kick.wav", "loop.wav"]
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn focus_file_across_sources_preserves_recursive_folder_for_curation_reveal() {
+    let root = temp_source_root("wavecrate-gui-focus-loaded-curation-recursive");
+    let kicks = root.join("drums").join("kicks");
+    let loops = root.join("loops");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    let loop_file = loops.join("loop.wav");
+    fs::write(&kick, []).expect("write kick");
+    fs::write(&loop_file, []).expect("write loop");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.toggle_folder_subtree_listing();
+    browser.select_file(path_id(&loop_file));
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::All,
+        true,
+    ));
+    assert!(browser.set_file_last_curated_at(
+        &kick,
+        crate::native_app::sample_library::folder_browser::curation::now_epoch_seconds()
+    ));
+    let tags_by_file = HashMap::from([(
+        path_id(&kick),
+        vec![String::from("kick"), String::from("one-shot")],
+    )]);
+
+    assert_eq!(browser.selection.selected_folder, path_id(&root));
+    assert!(browser.folder_subtree_listing_enabled());
+
+    assert!(browser.focus_file_across_sources_matching_tags(&kick, &tags_by_file));
+
+    assert_eq!(browser.selection.selected_folder, path_id(&root));
+    assert!(browser.folder_subtree_listing_enabled());
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
+    assert!(
+        browser
+            .selected_audio_file_index_matching_tags(&tags_by_file)
+            .is_some(),
+        "curation-hidden history targets should be revealed in the active recursive list"
+    );
+    let visible_names = browser
+        .selected_audio_files_matching_tags(&tags_by_file)
+        .iter()
+        .map(|file| file.name.as_str())
+        .collect::<Vec<_>>();
+    assert!(visible_names.contains(&"kick.wav"));
+    assert!(visible_names.contains(&"loop.wav"));
     let _ = fs::remove_dir_all(root);
 }
 

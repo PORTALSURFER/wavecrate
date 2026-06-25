@@ -28,6 +28,11 @@ impl FolderBrowserState {
         if self.focus_file_in_current_visible_list(&file_id, tags_by_file) {
             return true;
         }
+        if let Some(tags_by_file) = tags_by_file
+            && self.focus_file_in_current_curation_reveal_list(&file_id, tags_by_file)
+        {
+            return true;
+        }
         let Some(parent) = path.parent() else {
             return false;
         };
@@ -55,6 +60,9 @@ impl FolderBrowserState {
         self.tree
             .expanded_folders
             .extend(folder_ancestor_ids(&source_root, parent));
+        if let Some(tags_by_file) = tags_by_file {
+            self.reveal_selected_curation_focus_if_hidden(tags_by_file);
+        }
         true
     }
 
@@ -73,6 +81,36 @@ impl FolderBrowserState {
         self.cancel_rename();
         self.selection.set_focus_file_set(file_id.to_owned());
         true
+    }
+
+    fn focus_file_in_current_curation_reveal_list(
+        &mut self,
+        file_id: &str,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        if !self.filters.curation.enabled {
+            return false;
+        }
+
+        let snapshot = self.selection.snapshot();
+        let previous_override = self.sample_list.curation_focus_override.clone();
+        self.selection.set_focus_file_set(file_id.to_owned());
+        self.sample_list.curation_focus_override = Some(file_id.to_owned());
+        self.sample_list.projection_cache.clear();
+
+        let visible = self
+            .selected_audio_file_ids_matching_tags(tags_by_file)
+            .iter()
+            .any(|id| id == file_id);
+        if visible {
+            self.cancel_rename();
+            return true;
+        }
+
+        self.selection.restore_snapshot(snapshot);
+        self.sample_list.curation_focus_override = previous_override;
+        self.sample_list.projection_cache.clear();
+        false
     }
 
     fn find_loaded_source_containing_file(
