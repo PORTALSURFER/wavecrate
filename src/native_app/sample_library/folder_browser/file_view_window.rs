@@ -93,15 +93,39 @@ impl FolderBrowserState {
             ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
                 .with_context_row();
         let focus = ui::VirtualListFocusTarget::new(selected_file, selected_index);
-        let window = self
-            .sample_list
-            .view_controller
-            .configure_projection_and_focus_changed_unless_visible_optional(
-                &mut self.sample_list.follow_selection,
-                projection,
-                focus,
-            );
+        let window = if should_preserve_runtime_viewport_for_focus_change(
+            &self.sample_list.follow_selection,
+            &self.sample_list.view_controller,
+            &focus,
+        ) {
+            self.sample_list
+                .follow_selection
+                .remember_focus_key(focus.key);
+            self.sample_list
+                .view_controller
+                .configure_projection(projection);
+            self.sample_list.view_controller.clear_focus();
+            self.sample_list.view_controller.resolve()
+        } else {
+            self.sample_list
+                .view_controller
+                .configure_projection_and_focus_changed_unless_visible_optional(
+                    &mut self.sample_list.follow_selection,
+                    projection,
+                    focus,
+                )
+        };
         self.sample_list.prepared_window = window;
         window
     }
+}
+
+fn should_preserve_runtime_viewport_for_focus_change(
+    follow_state: &ui::VirtualListFollowState<String>,
+    controller: &ui::VirtualListController,
+    focus: &ui::VirtualListFocusTarget<String>,
+) -> bool {
+    controller.runtime_viewport_len().is_some()
+        && focus.index.is_some()
+        && follow_state.focus_key() != focus.key.as_ref()
 }

@@ -206,6 +206,60 @@ fn visible_pointer_selection_preserves_runtime_file_viewport() {
 }
 
 #[test]
+fn offscreen_navigation_waits_for_runtime_scroll_before_materializing_new_window() {
+    let root = temp_source_root("wavecrate-gui-file-scroll-offscreen-navigation");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..140)
+        .map(|index| drums.join(format!("sample_{index:03}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    browser.apply_file_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: ui::VirtualListWindow {
+            total_items: 140,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+    browser.select_file(path_id(&files[112]));
+
+    let pending_scroll_window =
+        browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+
+    assert_eq!(pending_scroll_window.viewport_start, 40);
+    assert_eq!(pending_scroll_window.window_start, 36);
+
+    browser.apply_file_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 103.0 * 22.0,
+        row_height: 22.0,
+        window: ui::VirtualListWindow {
+            total_items: 140,
+            viewport_start: 103,
+            viewport_end: 121,
+            window_start: 99,
+            window_end: 125,
+        },
+    });
+
+    let scrolled_window =
+        browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+
+    assert_eq!(scrolled_window.viewport_start, 103);
+    assert_eq!(scrolled_window.window_start, 99);
+    assert_eq!(browser.file_view_start(), 103);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn folder_tree_follow_window_tracks_selected_folder() {
     let root = temp_source_root("wavecrate-gui-folder-tree-follow-window");
     for index in 0..20 {
