@@ -100,6 +100,11 @@ impl NativeAppState {
                 self.navigate_browser(1, false, false, context);
             }
         }
+        if applied > 0 {
+            self.library
+                .folder_browser
+                .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+        }
     }
 
     fn rating_advance_visible_ids_before_adjustment(&self) -> Option<Vec<String>> {

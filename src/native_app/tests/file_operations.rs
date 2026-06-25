@@ -1363,6 +1363,132 @@ fn rating_advance_uses_pre_rating_sorted_order_when_rating_sort_changes() {
 }
 
 #[test]
+fn rating_advance_moves_to_next_recursive_root_sample() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let current = drums.join("a-current.wav");
+    let next = drums.join("b-next.wav");
+    write_test_wav_i16(&current, &[0, 256, -256, 512]);
+    write_test_wav_i16(&next, &[0, 1024, -2048, 4096]);
+    let current_id = current.display().to_string();
+    let next_id = next.display().to_string();
+    state.ui.settings.persisted.controls.advance_after_rating = true;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    state.library.folder_browser.select_file(current_id.clone());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(next_id.as_str())
+    );
+    assert_eq!(state.waveform.load.label.as_deref(), Some("b-next.wav"));
+    let rows = state.library.folder_browser.selected_audio_files();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].id, current_id);
+    assert_eq!(rows[0].rating, Rating::KEEP_1);
+}
+
+#[test]
+fn rating_advance_uses_pre_rating_recursive_unrated_filter_order() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let current = drums.join("a-current.wav");
+    let next = drums.join("b-next.wav");
+    write_test_wav_i16(&current, &[0, 256, -256, 512]);
+    write_test_wav_i16(&next, &[0, 1024, -2048, 4096]);
+    let next_id = next.display().to_string();
+    state.ui.settings.persisted.controls.advance_after_rating = true;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleRatingFilter(0, true));
+    state
+        .library
+        .folder_browser
+        .select_file(current.display().to_string());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(next_id.as_str())
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![next_id.as_str()]
+    );
+}
+
+#[test]
+fn rating_filter_hiding_last_recursive_sample_clears_selection() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let current = drums.join("only.wav");
+    write_test_wav_i16(&current, &[0, 256, -256, 512]);
+    state.ui.settings.persisted.controls.advance_after_rating = true;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleRatingFilter(0, true));
+    state
+        .library
+        .folder_browser
+        .select_file(current.display().to_string());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+
+    assert_eq!(state.library.folder_browser.selected_file_id(), None);
+    assert!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .is_empty()
+    );
+}
+
+#[test]
 fn rating_adjustment_survives_selected_file_rename() {
     let (mut state, source_root, selected_file) = native_app_state_with_temp_sample("kick.wav");
     state.ui.settings.persisted.controls.advance_after_rating = false;
