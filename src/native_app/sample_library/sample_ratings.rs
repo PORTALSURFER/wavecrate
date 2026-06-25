@@ -8,6 +8,7 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::{Rating, SourceDatabase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::folder_browser_actions::file_navigation_reveal_direction;
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
@@ -38,6 +39,11 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment();
+        let advance_previous_index = advance_visible_ids.as_ref().and_then(|_| {
+            self.library
+                .folder_browser
+                .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+        });
         let plan = self.rating_adjustment_plan_for_selected_files(delta);
         if plan.is_empty() {
             self.ui.status.sample = String::from("Select a sample to rate");
@@ -95,7 +101,11 @@ impl NativeAppState {
 
         if applied > 0 && self.ui.settings.persisted.controls.advance_after_rating {
             if let Some(visible_ids) = advance_visible_ids {
-                self.advance_after_rating_in_visible_order(&visible_ids, context);
+                self.advance_after_rating_in_visible_order(
+                    &visible_ids,
+                    advance_previous_index,
+                    context,
+                );
             } else {
                 self.navigate_browser(1, false, false, context);
             }
@@ -126,6 +136,7 @@ impl NativeAppState {
     fn advance_after_rating_in_visible_order(
         &mut self,
         visible_ids_before_rating: &[String],
+        previous_index: Option<usize>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let previous_selection = self
@@ -140,26 +151,76 @@ impl NativeAppState {
         ) else {
             return;
         };
+        let Some(path) =
+            self.rating_advance_visible_target(visible_ids_before_rating, previous_index, &path)
+        else {
+            return;
+        };
 
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
+        }
+        if self.library.folder_browser.selected_file_id() != Some(path.as_str()) {
+            self.library
+                .folder_browser
+                .focus_file_preserving_selection_matching_tags(
+                    path.clone(),
+                    &self.metadata.tags_by_file,
+                );
         }
         if let Some(index) = self
             .library
             .folder_browser
             .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
         {
+            let reveal_direction = file_navigation_reveal_direction(previous_index, index, 1);
             context.scroll_fixed_row_into_view(
                 SAMPLE_BROWSER_LIST_ID,
                 index,
                 SAMPLE_BROWSER_ROW_HEIGHT,
                 SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
                 SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
-                1,
+                reveal_direction,
             );
         }
         self.load_navigation_sample(path, context);
+    }
+
+    fn rating_advance_visible_target(
+        &self,
+        visible_ids_before_rating: &[String],
+        previous_index: Option<usize>,
+        candidate: &str,
+    ) -> Option<String> {
+        let visible_ids_after_rating = self
+            .library
+            .folder_browser
+            .selected_audio_files_matching_tags(&self.metadata.tags_by_file)
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        if visible_ids_after_rating.iter().any(|id| id == candidate) {
+            return Some(candidate.to_owned());
+        }
+        let visible_after = visible_ids_after_rating
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::HashSet<_>>();
+        let primary_index = previous_index.unwrap_or(0);
+        visible_ids_before_rating
+            .iter()
+            .skip(primary_index.saturating_add(1))
+            .find(|id| visible_after.contains(id.as_str()))
+            .or_else(|| {
+                visible_ids_before_rating
+                    .iter()
+                    .take(primary_index)
+                    .rev()
+                    .find(|id| visible_after.contains(id.as_str()))
+            })
+            .cloned()
+            .or_else(|| visible_ids_after_rating.first().cloned())
     }
 
     fn rating_adjustment_plan_for_selected_files(&self, delta: i8) -> RatingAdjustmentPlan {

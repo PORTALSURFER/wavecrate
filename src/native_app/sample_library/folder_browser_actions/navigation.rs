@@ -461,7 +461,7 @@ impl NativeAppState {
     }
 }
 
-fn file_navigation_reveal_direction(
+pub(in crate::native_app) fn file_navigation_reveal_direction(
     previous_index: Option<usize>,
     selected_index: usize,
     fallback_direction: i32,

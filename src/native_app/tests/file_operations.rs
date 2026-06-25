@@ -8,10 +8,29 @@ use crate::native_app::test_support::state::{
 use radiant::{
     gui::types::{Point, Vector2},
     prelude::{self as ui, IntoView},
+    runtime::Command,
     widgets::{DragHandleMessage, PointerModifiers},
 };
 use std::{fs, path::Path, sync::Arc};
 use wavecrate::sample_sources::{Rating, SourceDatabase};
+
+fn last_fixed_sample_browser_row_scroll(command: &Command<GuiMessage>) -> Option<(usize, i32)> {
+    match command {
+        Command::Batch(commands) => commands
+            .iter()
+            .filter_map(last_fixed_sample_browser_row_scroll)
+            .last(),
+        Command::ScrollFixedRowIntoView {
+            node_id,
+            row_index,
+            direction,
+            ..
+        } if *node_id == crate::native_app::sample_library::sample_list::SAMPLE_BROWSER_LIST_ID => {
+            Some((*row_index, *direction))
+        }
+        _ => None,
+    }
+}
 
 fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
     let mut reader = hound::WavReader::open(path).expect("open wav");
@@ -1485,6 +1504,80 @@ fn rating_filter_hiding_last_recursive_sample_clears_selection() {
             .folder_browser
             .selected_audio_files()
             .is_empty()
+    );
+}
+
+#[test]
+fn rating_advance_skips_hidden_multi_selected_target_and_reveals_final_focus() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let current = drums.join("a-current.wav");
+    let hidden_next = drums.join("b-hidden-next.wav");
+    let visible_next = drums.join("c-visible-next.wav");
+    let visible_next_id = visible_next.display().to_string();
+    for file in [&current, &hidden_next, &visible_next] {
+        write_test_wav_i16(file, &[0, 256, -256, 512]);
+    }
+    state.ui.settings.persisted.controls.advance_after_rating = true;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleRatingFilter(0, true));
+    state
+        .library
+        .folder_browser
+        .select_file(current.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        hidden_next.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    state
+        .library
+        .folder_browser
+        .focus_file_preserving_selection_matching_tags(
+            current.display().to_string(),
+            &state.metadata.tags_by_file,
+        );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(1, &mut context);
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(visible_next_id.as_str())
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files_matching_tags(&state.metadata.tags_by_file)
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![visible_next_id.as_str()]
+    );
+    assert_eq!(last_fixed_sample_browser_row_scroll(&command), Some((0, 1)));
+    run_command_for_tests(&mut state, command);
+    assert_eq!(
+        state.waveform.load.label.as_deref(),
+        Some("c-visible-next.wav")
     );
 }
 

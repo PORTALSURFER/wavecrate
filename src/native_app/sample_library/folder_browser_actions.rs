@@ -5,6 +5,8 @@ mod layout;
 mod navigation;
 mod source;
 
+pub(in crate::native_app) use navigation::file_navigation_reveal_direction;
+
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState};
