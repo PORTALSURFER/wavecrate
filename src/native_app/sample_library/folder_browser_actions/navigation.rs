@@ -202,6 +202,62 @@ impl NativeAppState {
         true
     }
 
+    pub(in crate::native_app) fn focus_visible_browser_file_after_filter_change(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let previous_selection = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
+        let target = if self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+            .is_some()
+        {
+            previous_selection.clone()
+        } else {
+            self.library
+                .folder_browser
+                .selected_audio_files_matching_tags(&self.metadata.tags_by_file)
+                .first()
+                .map(|file| file.id.clone())
+        };
+        let Some(target) = target else {
+            return;
+        };
+
+        if self.library.folder_browser.selected_file_id() != Some(target.as_str()) {
+            self.library
+                .folder_browser
+                .focus_file_preserving_selection_matching_tags(
+                    target.clone(),
+                    &self.metadata.tags_by_file,
+                );
+        }
+        if let Some(index) = self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+        {
+            context.scroll_fixed_row_into_view(
+                SAMPLE_BROWSER_LIST_ID,
+                index,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+                0,
+            );
+        }
+        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+            self.metadata.selected_tag = None;
+            self.load_navigation_sample(target, context);
+        }
+    }
+
     pub(in crate::native_app) fn toggle_selected_sample_and_advance(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,

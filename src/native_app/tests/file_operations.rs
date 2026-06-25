@@ -2,6 +2,7 @@ use super::{
     gui_state_for_span_tests, native_app_state_with_temp_sample, run_command_for_tests,
     write_test_wav_i16,
 };
+use crate::native_app::sample_library::folder_browser::model::BrowserCurationScope;
 use crate::native_app::test_support::state::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, view,
 };
@@ -1504,6 +1505,50 @@ fn rating_filter_hiding_last_recursive_sample_clears_selection() {
             .folder_browser
             .selected_audio_files()
             .is_empty()
+    );
+}
+
+#[test]
+fn enabling_curation_filter_focuses_first_visible_sample_immediately() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let hidden = source_root.path().join("a-hidden-locked.wav");
+    let visible = source_root.path().join("b-visible-curation.wav");
+    let visible_id = visible.display().to_string();
+    for file in [&hidden, &visible] {
+        write_test_wav_i16(file, &[0, 256, -256, 512]);
+    }
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&hidden, Rating::KEEP_3, true)
+    );
+    state
+        .library
+        .folder_browser
+        .select_file(hidden.display().to_string());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_folder_browser_message(
+        FolderBrowserMessage::SetCurationScope(BrowserCurationScope::All, true),
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(visible_id.as_str())
+    );
+    assert_eq!(last_fixed_sample_browser_row_scroll(&command), Some((0, 0)));
+    run_command_for_tests(&mut state, command);
+    assert_eq!(
+        state.waveform.load.label.as_deref(),
+        Some("b-visible-curation.wav")
     );
 }
 
