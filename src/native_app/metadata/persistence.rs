@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     time::SystemTime,
 };
-use wavecrate::sample_sources::{SourceDatabase, SourceDbError, db::SourceWriteBatch};
+use wavecrate::sample_sources::{Rating, SourceDatabase, SourceDbError, db::SourceWriteBatch};
 
 pub(super) fn persist_metadata_tag_assignment(
     request: MetadataTagPersistRequest,
@@ -86,6 +86,29 @@ fn persist_metadata_tag_assignment_inner(
         }
         .map_err(|err| err.to_string())?;
     }
+    batch.commit().map_err(|err| err.to_string())
+}
+
+pub(super) fn persist_file_rating_assignment(
+    absolute_path: &Path,
+    source_root: &Path,
+    relative_path: &Path,
+    rating: Rating,
+    locked: bool,
+) -> Result<(), String> {
+    let (file_size, modified_ns) = file_metadata(absolute_path)?;
+    let db =
+        SourceDatabase::open_for_user_metadata_write(source_root).map_err(|err| err.to_string())?;
+    let mut batch = db.write_batch().map_err(|err| err.to_string())?;
+    batch
+        .upsert_file(relative_path, file_size, modified_ns)
+        .map_err(|err| err.to_string())?;
+    batch
+        .set_tag(relative_path, rating)
+        .map_err(|err| err.to_string())?;
+    batch
+        .set_locked(relative_path, locked)
+        .map_err(|err| err.to_string())?;
     batch.commit().map_err(|err| err.to_string())
 }
 

@@ -500,7 +500,7 @@ fn playmark_selection_copy_uses_interactive_handoff_worker() {
 }
 
 #[test]
-fn playmark_extraction_tags_new_file_as_one_shot_by_default() {
+fn playmark_extraction_marks_new_file_one_shot_and_keep_1_by_default() {
     let mut scenario = WaveformPlaybackScenario::with_temp_wav(
         "playmark-extract-one-shot.wav",
         &[0, 1024, -1024, 512],
@@ -510,18 +510,11 @@ fn playmark_extraction_tags_new_file_as_one_shot_by_default() {
 
     let extracted = run_playmark_extraction(&mut scenario);
 
-    assert_eq!(
-        scenario
-            .state
-            .metadata
-            .tags_by_file
-            .get(&extracted.to_string_lossy().to_string()),
-        Some(&vec![String::from("one-shot")])
-    );
+    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
 }
 
 #[test]
-fn playmark_extraction_tags_new_file_as_loop_when_looping_at_request_time() {
+fn playmark_extraction_marks_new_file_loop_and_keep_1_when_looping_at_request_time() {
     let mut scenario = WaveformPlaybackScenario::with_temp_wav(
         "playmark-extract-loop.wav",
         &[0, 1024, -1024, 512],
@@ -539,14 +532,56 @@ fn playmark_extraction_tags_new_file_as_loop_when_looping_at_request_time() {
     let extracted = extraction_path_for_loaded_sample(&scenario);
     run_command_for_tests(&mut scenario.state, context.into_command());
 
+    assert_extracted_file_metadata(&scenario.state, &extracted, &["loop"]);
+}
+
+fn assert_extracted_file_metadata(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    extracted: &std::path::Path,
+    tags: &[&str],
+) {
+    let file_id = extracted.to_string_lossy().to_string();
+    let expected_tags = tags
+        .iter()
+        .map(|tag| (*tag).to_string())
+        .collect::<Vec<_>>();
     assert_eq!(
-        scenario
-            .state
-            .metadata
-            .tags_by_file
-            .get(&extracted.to_string_lossy().to_string()),
-        Some(&vec![String::from("loop")])
+        state.metadata.tags_by_file.get(&file_id),
+        Some(&expected_tags)
     );
+    assert_extracted_file_keep_1_rating(state, extracted);
+}
+
+fn assert_extracted_file_keep_1_rating(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    extracted: &std::path::Path,
+) {
+    let file_id = extracted.to_string_lossy().to_string();
+    let row = state
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.id == file_id)
+        .expect("extracted file should be visible in the browser");
+    assert_eq!(row.rating, wavecrate::sample_sources::Rating::KEEP_1);
+    assert!(!row.rating_locked);
+
+    let (source_root, relative_path) = state
+        .library
+        .folder_browser
+        .source_relative_file_path(extracted)
+        .expect("extracted file should belong to a source");
+    let db = wavecrate::sample_sources::SourceDatabase::open_read_only(source_root)
+        .expect("source database should open");
+    let persisted = db
+        .list_files()
+        .expect("source database files should list")
+        .into_iter()
+        .find(|entry| entry.relative_path == relative_path)
+        .expect("extracted file should be persisted in the source database");
+    assert_eq!(persisted.tag, wavecrate::sample_sources::Rating::KEEP_1);
+    assert!(!persisted.locked);
 }
 
 #[test]

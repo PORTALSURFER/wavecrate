@@ -1,4 +1,7 @@
-use super::persistence::{persist_metadata_tag_assignment, persist_metadata_tag_assignments};
+use super::persistence::{
+    persist_file_rating_assignment, persist_metadata_tag_assignment,
+    persist_metadata_tag_assignments,
+};
 use super::playback_type_tags::{
     playback_type_replacement_present, replace_other_playback_type_tags,
 };
@@ -7,6 +10,10 @@ use super::{GuiMessage, MetadataMessage, NativeAppState};
 use crate::native_app::app::ExtractedFilePlaybackType;
 use radiant::prelude as ui;
 use std::path::{Path, PathBuf};
+use wavecrate::sample_sources::Rating;
+
+const EXTRACTED_FILE_RATING: Rating = Rating::KEEP_1;
+const EXTRACTED_FILE_LOCKED: bool = false;
 
 struct MetadataTagTarget {
     file_id: String,
@@ -31,7 +38,7 @@ impl NativeAppState {
         self.add_metadata_tags_to_targets(tags, targets, context);
     }
 
-    pub(in crate::native_app) fn tag_extracted_file_playback_type(
+    pub(in crate::native_app) fn assign_extracted_file_metadata(
         &mut self,
         absolute_path: &Path,
         playback_type: ExtractedFilePlaybackType,
@@ -46,6 +53,40 @@ impl NativeAppState {
                 "extracted file is not inside a configured source",
             ));
         };
+        let rating_result = persist_file_rating_assignment(
+            absolute_path,
+            &source_root,
+            &relative_path,
+            EXTRACTED_FILE_RATING,
+            EXTRACTED_FILE_LOCKED,
+        );
+        if rating_result.is_ok() {
+            self.library.folder_browser.set_file_rating_state(
+                absolute_path,
+                EXTRACTED_FILE_RATING,
+                EXTRACTED_FILE_LOCKED,
+            );
+        }
+
+        self.assign_extracted_file_playback_type(
+            absolute_path,
+            source_root,
+            relative_path,
+            playback_type,
+            context,
+        );
+
+        rating_result.map_err(|error| format!("rating not saved: {error}"))
+    }
+
+    fn assign_extracted_file_playback_type(
+        &mut self,
+        absolute_path: &Path,
+        source_root: PathBuf,
+        relative_path: PathBuf,
+        playback_type: ExtractedFilePlaybackType,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let tag = playback_type.tag().to_string();
         let file_id = absolute_path.to_string_lossy().to_string();
         let mut file_tags = self
@@ -62,7 +103,7 @@ impl NativeAppState {
             push_unique(&mut added, tag);
         }
         if added.is_empty() && removed_conflicting.is_empty() {
-            return Ok(());
+            return;
         }
 
         self.metadata
@@ -93,7 +134,6 @@ impl NativeAppState {
             });
         }
         enqueue_metadata_tag_persist_requests(requests, context);
-        Ok(())
     }
 
     #[cfg(test)]

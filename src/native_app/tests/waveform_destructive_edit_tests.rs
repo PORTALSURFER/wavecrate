@@ -428,7 +428,7 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
         GuiMessage::RequestExtractAndTrimWaveformSelection,
     );
 
-    assert_samples_close(&read_test_wav_f32(&extracted), &[2_000.0, 3_000.0]);
+    assert_samples_close(&read_test_wav_f32(&extracted), &[0.0, 0.0]);
     assert_eq!(
         state
             .metadata
@@ -436,6 +436,7 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
             .get(&extracted.to_string_lossy().to_string()),
         Some(&vec![String::from("loop")])
     );
+    assert_extracted_file_keep_1_rating(&state, &extracted);
     assert_samples_close(
         &read_test_wav_f32(&path),
         &[0.0, 1_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0],
@@ -463,7 +464,7 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
         &mut ui::UiUpdateContext::default(),
     );
 
-    assert_samples_close(&read_test_wav_f32(&extracted), &[2_000.0, 3_000.0]);
+    assert_samples_close(&read_test_wav_f32(&extracted), &[0.0, 0.0]);
     assert_samples_close(
         &read_test_wav_f32(&path),
         &[0.0, 1_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0],
@@ -500,6 +501,38 @@ fn apply_message_and_run_command(
     let mut context = ui::UiUpdateContext::default();
     state.apply_message(message, &mut context);
     run_command_for_tests(state, context.into_command());
+}
+
+fn assert_extracted_file_keep_1_rating(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    extracted: &std::path::Path,
+) {
+    let file_id = extracted.to_string_lossy().to_string();
+    let row = state
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.id == file_id)
+        .expect("extracted file should be visible in the browser");
+    assert_eq!(row.rating, wavecrate::sample_sources::Rating::KEEP_1);
+    assert!(!row.rating_locked);
+
+    let (source_root, relative_path) = state
+        .library
+        .folder_browser
+        .source_relative_file_path(extracted)
+        .expect("extracted file should belong to a source");
+    let db = wavecrate::sample_sources::SourceDatabase::open_read_only(source_root)
+        .expect("source database should open");
+    let persisted = db
+        .list_files()
+        .expect("source database files should list")
+        .into_iter()
+        .find(|entry| entry.relative_path == relative_path)
+        .expect("extracted file should be persisted in the source database");
+    assert_eq!(persisted.tag, wavecrate::sample_sources::Rating::KEEP_1);
+    assert!(!persisted.locked);
 }
 
 fn assert_samples_close(actual: &[f32], expected_i16: &[f32]) {

@@ -242,11 +242,11 @@ impl NativeAppState {
             );
             return;
         }
-        let playback_type_tag_error = if let Some(extracted_path) = applied
+        let extracted_metadata_error = if let Some(extracted_path) = applied
             .extracted
             .as_ref()
             .map(|extracted| extracted.path.clone())
-            && let Err(error) = self.tag_extracted_file_playback_type(
+            && let Err(error) = self.assign_extracted_file_metadata(
                 &extracted_path,
                 active.extracted_playback_type,
                 context,
@@ -258,9 +258,9 @@ impl NativeAppState {
         self.register_destructive_edit_transaction(active.request.prompt.edit, applied);
 
         let label = sample_path_label(&active.request.absolute_path);
-        self.ui.status.sample = if let Some(error) = playback_type_tag_error {
+        self.ui.status.sample = if let Some(error) = extracted_metadata_error {
             format!(
-                "{} {label}; playback type tag not saved: {error}",
+                "{} {label}; extracted metadata incomplete: {error}",
                 active.request.prompt.edit.past_tense_label()
             )
         } else if active.playback_was_active {

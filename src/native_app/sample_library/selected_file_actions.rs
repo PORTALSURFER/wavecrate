@@ -193,8 +193,8 @@ impl NativeAppState {
                     .mark_extracted_play_selection(&completion.source_path, completion.selection);
                 self.waveform.current.flash_play_selection();
                 self.library.folder_browser.refresh_file_path(&path);
-                let playback_type_tag_error = self
-                    .tag_extracted_file_playback_type(&path, playback_type, context)
+                let metadata_error = self
+                    .assign_extracted_file_metadata(&path, playback_type, context)
                     .err();
                 if let Some(position) = drag_position {
                     self.library
@@ -202,9 +202,9 @@ impl NativeAppState {
                         .begin_extracted_file_drag(path.clone(), position);
                     self.arm_browser_drag(context);
                     let label = sample_path_label(&path);
-                    self.ui.status.sample = match playback_type_tag_error {
+                    self.ui.status.sample = match metadata_error {
                         Some(error) => {
-                            format!("Dragging {label}; playback type tag not saved: {error}")
+                            format!("Dragging {label}; extracted metadata incomplete: {error}")
                         }
                         None => format!("Dragging {label}"),
                     };
@@ -218,9 +218,9 @@ impl NativeAppState {
                     );
                 } else {
                     let label = sample_path_label(&path);
-                    self.ui.status.sample = match playback_type_tag_error {
+                    self.ui.status.sample = match metadata_error {
                         Some(error) => {
-                            format!("Extracted {label}; playback type tag not saved: {error}")
+                            format!("Extracted {label}; extracted metadata incomplete: {error}")
                         }
                         None => format!("Extracted {label}"),
                     };
