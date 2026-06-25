@@ -142,11 +142,30 @@ fn playback_history_completion_refocuses_hidden_curation_entry() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
+    assert!(state.library.folder_browser.set_file_rating_state(
+        &kick,
+        wavecrate::sample_sources::Rating::new(2),
+        false
+    ));
+    assert!(state.library.folder_browser.set_file_rating_state(
+        &loop_file,
+        wavecrate::sample_sources::Rating::KEEP_1,
+        false
+    ));
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_last_curated_at(&loop_file, now - 60 * 60 * 24 * 90)
+    );
     assert!(
         state
             .library
             .folder_browser
             .set_file_last_curated_at(&kick, now)
+    );
+    state.library.folder_browser.apply_message(
+        crate::native_app::test_support::state::FolderBrowserMessage::ToggleRatingFilter(1, true),
     );
     state.library.folder_browser.select_file(loop_id.clone());
     state.waveform.current =

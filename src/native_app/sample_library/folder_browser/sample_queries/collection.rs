@@ -7,8 +7,8 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::SampleCollection;
 
 use super::{
-    curation, curation_filter_allows_file, filter_audio_files_by_rating, filters,
-    playback_type_filter, rating_filter, traversal,
+    curation, curation_filter_allows_file, filters, playback_type_filter, rating_filter,
+    rating_filter_allows_file, traversal,
 };
 use crate::native_app::sample_library::folder_browser::{
     FileEntry, FolderBrowserState,
@@ -119,7 +119,13 @@ impl FolderBrowserState {
                     .filter(|file| file.belongs_to_collection(collection)),
             );
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
-            filter_audio_files_by_rating(&mut files, &self.filters.rating_filter);
+            files.retain(|file| {
+                rating_filter_allows_file(
+                    file,
+                    &self.filters.rating_filter,
+                    curation_focus_override,
+                )
+            });
             if self.filters.curation.enabled
                 && let Some(tags_by_file) = sort_tags
             {

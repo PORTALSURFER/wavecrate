@@ -38,7 +38,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        self.library.folder_browser.clear_curation_focus_override();
         let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment();
         let advance_previous_index = advance_visible_ids.as_ref().and_then(|_| {
             self.library
@@ -232,7 +231,7 @@ impl NativeAppState {
         for candidate in self
             .library
             .folder_browser
-            .selected_file_rating_candidates()
+            .selected_file_rating_candidates_matching_tags(&self.metadata.tags_by_file)
             .into_iter()
             .filter(|candidate| !candidate.locked)
         {

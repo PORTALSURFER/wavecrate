@@ -6,6 +6,7 @@ use std::{
 
 use radiant::prelude as ui;
 
+use super::rating_filter_allows_file;
 use super::{
     curation, curation_filter_allows_file, filters, playback_type_filter, rating_filter, traversal,
 };
@@ -147,14 +148,17 @@ impl FolderBrowserState {
             traversal::collect_audio_files(folder, &mut files);
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             files.retain(|file| {
-                rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
-                    && curation_filter_allows_file(
-                        file,
-                        sort_tags,
-                        &self.filters.curation,
-                        curation_now,
-                        curation_focus_override,
-                    )
+                rating_filter_allows_file(
+                    file,
+                    &self.filters.rating_filter,
+                    curation_focus_override,
+                ) && curation_filter_allows_file(
+                    file,
+                    sort_tags,
+                    &self.filters.curation,
+                    curation_now,
+                    curation_focus_override,
+                )
             });
             if let Some(tags_by_file) = sort_tags {
                 self.sort_files_matching_tags(&mut files, tags_by_file);

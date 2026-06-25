@@ -1522,6 +1522,98 @@ fn rating_advance_uses_pre_rating_recursive_unrated_filter_order() {
 }
 
 #[test]
+fn rating_adjustment_applies_to_history_revealed_rating_filtered_curation_sample() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let loops = drums.join("loops");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let visible = loops.join("visible-k1.wav");
+    let hidden = loops.join("history-k2.wav");
+    write_test_wav_i16(&visible, &[0, 256, -256, 512]);
+    write_test_wav_i16(&hidden, &[0, 512, -512, 1024]);
+    let hidden_id = hidden.display().to_string();
+    state.ui.settings.persisted.controls.advance_after_rating = false;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&visible, Rating::KEEP_1, false)
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&hidden, Rating::new(2), false)
+    );
+    let stale_curated_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+        - 60 * 60 * 24 * 90;
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_last_curated_at(&visible, stale_curated_at)
+    );
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ToggleRatingFilter(1, true));
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::SetCurationScope(
+            BrowserCurationScope::All,
+            true,
+        ));
+    let tags_by_file = std::collections::HashMap::new();
+    assert!(
+        state
+            .library
+            .folder_browser
+            .focus_file_across_sources_matching_tags(&hidden, &tags_by_file)
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(hidden_id.as_str())
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating(-1, &mut context);
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        vec![hidden.clone()]
+    );
+    let hidden_row = state
+        .library
+        .folder_browser
+        .selected_audio_files_matching_tags(&state.metadata.tags_by_file)
+        .into_iter()
+        .find(|file| file.id == hidden_id)
+        .expect("revealed hidden row should remain visible after re-rating");
+    assert_eq!(hidden_row.rating, Rating::KEEP_1);
+    assert!(state.ui.status.sample.contains("Rated 1 sample"));
+}
+
+#[test]
 fn rating_filter_hiding_last_recursive_sample_clears_selection() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");

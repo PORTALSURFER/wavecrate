@@ -2,16 +2,13 @@ use std::{collections::HashMap, path::PathBuf};
 
 use radiant::prelude as ui;
 
-use super::super::{FolderBrowserState, curation};
+use super::super::{FileEntry, FolderBrowserState, curation};
 use super::SelectedFileRatingCandidate;
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn selected_file_paths(&self) -> Vec<PathBuf> {
-        let selected = self.selection.active_file_ids();
-        self.selected_audio_files()
+        self.selected_existing_audio_files()
             .into_iter()
-            .filter(|file| selected.contains(&file.id))
-            .filter(|file| !file.is_missing())
             .map(|file| PathBuf::from(&file.id))
             .collect()
     }
@@ -74,11 +71,12 @@ impl FolderBrowserState {
             .or_else(|| random_candidate_from_ids(&listed_files, unit))
     }
 
-    pub(in crate::native_app) fn selected_file_rating_candidates(
+    pub(in crate::native_app) fn selected_file_rating_candidates_matching_tags(
         &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<SelectedFileRatingCandidate> {
         let selected = self.selection.active_file_ids();
-        self.selected_audio_files()
+        self.selected_audio_files_matching_tags(tags_by_file)
             .into_iter()
             .filter(|file| selected.contains(&file.id))
             .filter(|file| !file.is_missing())
@@ -91,11 +89,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn selected_audio_file_count(&self) -> usize {
-        let selected = self.selection.active_file_ids();
-        self.selected_audio_files()
-            .into_iter()
-            .filter(|file| selected.contains(&file.id))
-            .count()
+        self.selected_existing_audio_files().len()
     }
 
     pub(in crate::native_app::sample_library::folder_browser) fn selected_audio_file_ids(
@@ -142,6 +136,18 @@ impl FolderBrowserState {
                     == Some(best_priority)
             })
             .map(|file| file.id.clone())
+            .collect()
+    }
+
+    fn selected_existing_audio_files(&self) -> Vec<&FileEntry> {
+        let selected = self.selection.active_file_ids();
+        if selected.is_empty() {
+            return Vec::new();
+        }
+        self.loaded_source_audio_files()
+            .into_iter()
+            .filter(|file| selected.contains(&file.id))
+            .filter(|file| !file.is_missing())
             .collect()
     }
 }

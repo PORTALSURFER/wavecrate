@@ -163,6 +163,71 @@ fn curation_focus_override_reveals_selected_recent_row_temporarily() {
 }
 
 #[test]
+fn curation_focus_override_reveals_selected_rating_filtered_row_temporarily() {
+    let root = temp_source_root("wavecrate-gui-curation-rating-focus-override");
+    let drums = root.join("drums");
+    let loops = drums.join("loops");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let keep = loops.join("keep.wav");
+    let rated_out = loops.join("rated-out.wav");
+    for file in [&keep, &rated_out] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.set_file_rating_state(&keep, Rating::KEEP_1, false));
+    assert!(browser.set_file_rating_state(&rated_out, Rating::new(2), false));
+    let stale_curated_at = curation_test_now() - 60 * 60 * 24 * 90;
+    assert!(browser.set_file_last_curated_at(&keep, stale_curated_at));
+    browser.apply_message(FolderBrowserMessage::ActivateFolder(
+        path_id(&drums),
+        Default::default(),
+    ));
+    browser.apply_message(FolderBrowserMessage::ToggleFolderSubtreeListing);
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(1, true));
+    browser.apply_message(FolderBrowserMessage::SetCurationScope(
+        BrowserCurationScope::All,
+        true,
+    ));
+    let tags_by_file = HashMap::new();
+
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"],
+        "rows outside the active rating filter should normally be hidden"
+    );
+    assert!(browser.focus_file_across_sources_matching_tags(&rated_out, &tags_by_file));
+    assert!(
+        browser
+            .selected_audio_file_index_matching_tags(&tags_by_file)
+            .is_some(),
+        "history reveal should make the selected rating-filtered row visible"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav", "rated-out.wav"]
+    );
+
+    assert!(browser.clear_curation_focus_override());
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn curation_scope_modes_filter_rating_and_tag_work_separately() {
     let root = temp_source_root("wavecrate-gui-curation-scope-filter");
     let complete_unrated = root.join("complete-unrated.wav");

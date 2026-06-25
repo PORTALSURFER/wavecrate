@@ -501,9 +501,10 @@ impl FolderBrowserState {
                     .filter(|(_, file)| {
                         file.is_audio()
                             && filters::audio_file_matches_name_query(file, &name_filter)
-                            && rating_filter::rating_filter_matches(
+                            && rating_filter_allows_file(
                                 file,
                                 &self.filters.rating_filter,
+                                curation_focus_override,
                             )
                             && curation_filter_allows_file(
                                 file,
@@ -580,6 +581,15 @@ pub(super) fn curation_filter_allows_file(
         || focus_override == Some(file.id.as_str())
 }
 
+pub(super) fn rating_filter_allows_file(
+    file: &FileEntry,
+    rating_filter: &std::collections::BTreeSet<i8>,
+    focus_override: Option<&str>,
+) -> bool {
+    rating_filter::rating_filter_matches(file, rating_filter)
+        || focus_override == Some(file.id.as_str())
+}
+
 fn collect_local_cache_candidate_paths(
     folder: &FolderEntry,
     name_query: &str,
@@ -592,13 +602,6 @@ fn collect_local_cache_candidate_paths(
         .take(max_files)
         .map(|file| PathBuf::from(&file.id))
         .collect()
-}
-
-fn filter_audio_files_by_rating(
-    files: &mut Vec<&FileEntry>,
-    rating_filter: &std::collections::BTreeSet<i8>,
-) {
-    files.retain(|file| rating_filter::rating_filter_matches(file, rating_filter));
 }
 
 fn collect_collection_cache_candidate_paths(
