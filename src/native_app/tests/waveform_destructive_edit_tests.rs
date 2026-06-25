@@ -263,6 +263,39 @@ fn reverse_request_uses_edit_selection_before_play_selection() {
 }
 
 #[test]
+fn reverse_request_uses_selected_file_when_no_waveform_range_exists() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("reverse-file.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+
+    state.apply_message(
+        GuiMessage::RequestReverseWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .as_ref()
+        .expect("reverse request should prompt for the selected file");
+    assert_eq!(
+        pending.prompt.edit,
+        crate::native_app::app::WaveformDestructiveEditKind::ReverseSelection
+    );
+    assert_eq!(pending.absolute_path, path);
+    assert!(
+        pending
+            .prompt
+            .message
+            .contains("selected file when no region is marked")
+    );
+    assert_range_close(pending.selection, 0.0, 1.0);
+}
+
+#[test]
 fn extract_and_trim_request_uses_play_selection_when_no_edit_selection_exists() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("extract-trim.wav");
@@ -450,6 +483,47 @@ fn reverse_request_rewrites_selection_and_undo_restores_original_audio() {
         &[
             0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
         ],
+    );
+}
+
+#[test]
+fn reverse_request_rewrites_selected_file_and_undo_restores_original_audio() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("reverse-file.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000]);
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    apply_message_and_run_command(&mut state, GuiMessage::RequestReverseWaveformSelection);
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[5_000.0, 4_000.0, 3_000.0, 2_000.0, 1_000.0, 0.0],
+    );
+    assert!(state.ui.status.sample.contains("Reversed"));
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(selected_file.as_str())
+    );
+
+    state.apply_message(
+        GuiMessage::UndoTransaction,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0],
+    );
+
+    state.apply_message(
+        GuiMessage::RedoTransaction,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[5_000.0, 4_000.0, 3_000.0, 2_000.0, 1_000.0, 0.0],
     );
 }
 

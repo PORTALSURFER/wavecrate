@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::config::AudioWriteFormatConfig;
@@ -119,11 +119,7 @@ impl NativeAppState {
         &self,
         kind: WaveformDestructiveEditKind,
     ) -> Result<PendingWaveformDestructiveEdit, String> {
-        let absolute_path = self.waveform.current.path();
-        if !self.waveform.current.has_loaded_sample() || absolute_path.as_os_str().is_empty() {
-            return Err(format!("Load a sample before {}", kind.gerund_label()));
-        }
-        let selection = self.destructive_edit_selection_for_kind(kind)?;
+        let (absolute_path, selection) = self.destructive_edit_target_for_kind(kind)?;
         let (source, relative_path) = self
             .library
             .folder_browser
@@ -348,10 +344,48 @@ impl NativeAppState {
         }
     }
 
+    fn destructive_edit_target_for_kind(
+        &self,
+        kind: WaveformDestructiveEditKind,
+    ) -> Result<(PathBuf, SelectionRange), String> {
+        let absolute_path = self.waveform.current.path();
+        let has_loaded_waveform =
+            self.waveform.current.has_loaded_sample() && !absolute_path.as_os_str().is_empty();
+
+        if has_loaded_waveform {
+            if let Some(selection) = self.destructive_edit_selection_for_kind(kind)? {
+                return Ok((absolute_path, selection));
+            }
+        } else if kind != WaveformDestructiveEditKind::ReverseSelection {
+            return Err(format!("Load a sample before {}", kind.gerund_label()));
+        }
+
+        if kind == WaveformDestructiveEditKind::ReverseSelection {
+            return self.selected_file_reverse_edit_target();
+        }
+
+        Err(format!(
+            "Mark an edit or play range before {}",
+            kind.gerund_label()
+        ))
+    }
+
+    fn selected_file_reverse_edit_target(&self) -> Result<(PathBuf, SelectionRange), String> {
+        let absolute_path = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                String::from("Mark an edit or play range or select a sample before reversing")
+            })?;
+        Ok((absolute_path, SelectionRange::new(0.0, 1.0)))
+    }
+
     fn destructive_edit_selection_for_kind(
         &self,
         kind: WaveformDestructiveEditKind,
-    ) -> Result<SelectionRange, String> {
+    ) -> Result<Option<SelectionRange>, String> {
         if kind == WaveformDestructiveEditKind::ApplyEditSelectionEffects {
             let selection = self
                 .waveform
@@ -364,12 +398,9 @@ impl NativeAppState {
                     "Adjust an edit fade or gain before applying it",
                 ));
             }
-            return Ok(selection);
+            return Ok(Some(selection));
         }
-        self.waveform
-            .current
-            .destructive_edit_selection()
-            .ok_or_else(|| format!("Mark an edit or play range before {}", kind.gerund_label()))
+        Ok(self.waveform.current.destructive_edit_selection())
     }
 
     fn register_destructive_edit_transaction(
@@ -499,7 +530,7 @@ fn destructive_edit_prompt(
             "This will remove the selected region and close the gap in the source file."
         }
         WaveformDestructiveEditKind::ReverseSelection => {
-            "This will reverse the selected region in place in the source file."
+            "This will reverse the selected region in place, or the selected file when no region is marked."
         }
         WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             "This will extract the selected region into a new sibling file, then remove that region and close the gap in the source file."
