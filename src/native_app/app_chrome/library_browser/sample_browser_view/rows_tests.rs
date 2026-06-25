@@ -83,7 +83,8 @@ fn sample_text_uses_primary_theme_color() {
 /// Verifies the empty folder message starts where the item rows would start.
 fn empty_folder_message_paints_at_top_of_list_body() {
     let theme = ThemeTokens::default();
-    let frame = empty_sample_browser_rows().view_frame_at_size(Vector2::new(480.0, 240.0), &theme);
+    let frame =
+        empty_sample_browser_rows(false).view_frame_at_size(Vector2::new(480.0, 240.0), &theme);
 
     let message = frame
         .paint_plan
@@ -95,6 +96,22 @@ fn empty_folder_message_paints_at_top_of_list_body() {
         message.rect.max.y <= SAMPLE_BROWSER_ROW_HEIGHT + 1.0,
         "empty folder message should stay in the first list row, rect={:?}",
         message.rect
+    );
+}
+
+#[test]
+/// Verifies curation mode uses a completion-oriented empty list message.
+fn empty_curation_message_says_no_files_are_left_to_curate() {
+    let theme = ThemeTokens::default();
+    let frame =
+        empty_sample_browser_rows(true).view_frame_at_size(Vector2::new(480.0, 240.0), &theme);
+
+    assert!(
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text == "No files left to curate"),
+        "curation empty state should explain that the current curation scope is complete"
     );
 }
 

@@ -13,12 +13,13 @@ use crate::native_app::sample_library::sample_list::{
 pub(super) fn sample_browser_rows(
     visible_samples: &VisibleSampleList<'_>,
     name_view_mode: SampleNameViewMode,
+    curation_mode_enabled: bool,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
     cut_file_ids: Option<&[String]>,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     if visible_samples.total_count == 0 {
-        return empty_sample_browser_rows();
+        return empty_sample_browser_rows(curation_mode_enabled);
     }
 
     ui::virtual_list_materialized_windowed(
@@ -47,13 +48,14 @@ pub(super) fn sample_browser_rows(
     .fill()
 }
 
-fn empty_sample_browser_rows() -> ui::View<GuiMessage> {
+fn empty_sample_browser_rows(curation_mode_enabled: bool) -> ui::View<GuiMessage> {
+    let message = if curation_mode_enabled {
+        "No files left to curate"
+    } else {
+        "No audio files in selected folder"
+    };
     ui::column([
-        ui::text_line(
-            "No audio files in selected folder",
-            SAMPLE_BROWSER_ROW_HEIGHT,
-        )
-        .muted_text(),
+        ui::text_line(message, SAMPLE_BROWSER_ROW_HEIGHT).muted_text(),
         ui::spacer().fill_height(),
     ])
     .spacing(0.0)

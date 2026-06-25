@@ -13,6 +13,7 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) visible_samples: VisibleSampleList<'a>,
     pub(in crate::native_app) name_view_mode: SampleNameViewMode,
     pub(in crate::native_app) random_navigation_enabled: bool,
+    pub(in crate::native_app) curation_mode_enabled: bool,
     pub(in crate::native_app) metadata_tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) cut_file_ids: Option<&'a [String]>,
     pub(in crate::native_app) file_drag_active: bool,
@@ -26,6 +27,7 @@ pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     visible_samples: VisibleSampleList<'a>,
     name_view_mode: SampleNameViewMode,
     random_navigation_enabled: bool,
+    curation_mode_enabled: bool,
     metadata_tags_by_file: &'a HashMap<String, Vec<String>>,
     cut_file_ids: Option<&'a [String]>,
     file_drag_active: bool,
@@ -57,6 +59,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             visible_samples,
             name_view_mode: state.metadata.sample_name_view_mode,
             random_navigation_enabled: state.library.folder_browser.random_navigation_enabled(),
+            curation_mode_enabled: state.library.folder_browser.curation_mode_enabled(),
             metadata_tags_by_file: &state.metadata.tags_by_file,
             cut_file_ids: state
                 .ui
@@ -81,6 +84,7 @@ impl<'a> SampleBrowserViewModel<'a> {
             visible_samples: projection.visible_samples,
             name_view_mode: projection.name_view_mode,
             random_navigation_enabled: projection.random_navigation_enabled,
+            curation_mode_enabled: projection.curation_mode_enabled,
             metadata_tags_by_file: projection.metadata_tags_by_file,
             cut_file_ids: projection.cut_file_ids,
             file_drag_active: projection.file_drag_active,
