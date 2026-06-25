@@ -39,8 +39,8 @@ while (( $# > 0 )); do
   esac
 done
 
-echo "[ci_agent] ./scripts/internal/check/check_next_branch.sh"
-./scripts/internal/check/check_next_branch.sh
+echo "[ci_agent] ./scripts/internal/check/check_main_branch.sh"
+./scripts/internal/check/check_main_branch.sh
 
 echo "[ci_agent] ./scripts/ci.sh smoke"
 ./scripts/ci.sh smoke

@@ -225,7 +225,7 @@
         },
         {
           "name": "main-branch",
-          "target": "check_next_branch.ps1"
+          "target": "check_main_branch.ps1"
         },
         {
           "name": "private-docs",

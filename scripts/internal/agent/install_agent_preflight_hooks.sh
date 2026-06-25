@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 # Install local git hooks that keep wavecrate and the radiant submodule aligned
-# with their next-integration workflow and rerun lightweight preflight checks after
+# with their main-integration workflow and rerun lightweight preflight checks after
 # branch/source updates.
 #
 # Hooks installed for wavecrate:
 # - post-merge / post-checkout: rerun agent preflight
-# - pre-commit / pre-push: verify local `next` tracks `origin/next`; feature branches are allowed for PR work
+# - pre-commit / pre-push: verify local `main` tracks `origin/main`; feature branches are allowed for PR work
 #
 # Hooks installed for vendor/radiant:
 # - post-merge / post-checkout / pre-commit / pre-push: fail unless radiant uses
@@ -26,7 +26,7 @@ usage() {
 Usage: scripts/internal/agent/install_agent_preflight_hooks.sh [--force]
 
 Install local git hooks that keep wavecrate and vendor/radiant aligned with their
-next-integration workflow and rerun agent preflight checks after repo-level source
+main-integration workflow and rerun agent preflight checks after repo-level source
 updates.
 
 Options:
@@ -144,7 +144,7 @@ else
 fi
 EOF
 
-write_hook "$ROOT_HOOK_DIR" "pre-commit" "check_next_branch.sh" <<'EOF'
+write_hook "$ROOT_HOOK_DIR" "pre-commit" "check_main_branch.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -157,7 +157,7 @@ if [[ -z "$repo_root" ]]; then
   exit 0
 fi
 
-branch_guard="$repo_root/scripts/internal/check/check_next_branch.sh"
+branch_guard="$repo_root/scripts/internal/check/check_main_branch.sh"
 if [[ -x "$branch_guard" ]]; then
   "$branch_guard"
 else
@@ -166,7 +166,7 @@ else
 fi
 EOF
 
-write_hook "$ROOT_HOOK_DIR" "pre-push" "check_next_branch.sh" <<'EOF'
+write_hook "$ROOT_HOOK_DIR" "pre-push" "check_main_branch.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -179,7 +179,7 @@ if [[ -z "$repo_root" ]]; then
   exit 0
 fi
 
-branch_guard="$repo_root/scripts/internal/check/check_next_branch.sh"
+branch_guard="$repo_root/scripts/internal/check/check_main_branch.sh"
 if [[ -x "$branch_guard" ]]; then
   "$branch_guard"
 else

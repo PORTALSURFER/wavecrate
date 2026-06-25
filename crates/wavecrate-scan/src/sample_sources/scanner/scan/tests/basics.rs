@@ -60,6 +60,32 @@ fn scan_skips_analysis_when_hash_unchanged() {
 }
 
 #[test]
+fn scan_adds_duplicate_content_when_original_path_still_exists() {
+    let dir = tempdir().unwrap();
+    let first_path = dir.path().join("one.wav");
+    let duplicate_path = dir.path().join("two.wav");
+    std::fs::write(&first_path, b"same-content").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let first = scan_once(&db).unwrap();
+    assert_eq!(first.added, 1);
+
+    std::fs::write(&duplicate_path, b"same-content").unwrap();
+    let second = scan_once(&db).unwrap();
+
+    assert_eq!(second.added, 1);
+    assert_eq!(second.renames_reconciled, 0);
+    let mut paths = db
+        .list_files()
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.relative_path.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    paths.sort();
+    assert_eq!(paths, vec!["one.wav", "two.wav"]);
+}
+
+#[test]
 fn scan_ignores_non_wav_and_counts_nested() {
     let dir = tempdir().unwrap();
     let nested = dir.path().join("nested");

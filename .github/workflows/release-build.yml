@@ -2,7 +2,7 @@ name: Build release assets
 
 on:
   schedule:
-    # GitHub cron is UTC. This runs once per night and only publishes if `next`
+    # GitHub cron is UTC. This runs once per night and only publishes if `main`
     # is ahead of the current rolling `nightly` tag.
     - cron: "30 3 * * *"
   release:
@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-build-${{ github.event_name == 'schedule' && 'next-nightly' || github.event.release.tag_name || inputs.tag || github.run_id }}
+  group: release-build-${{ github.event_name == 'schedule' && 'main-nightly' || github.event.release.tag_name || inputs.tag || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 jobs:
@@ -54,26 +54,26 @@ jobs:
             exit 0
           fi
 
-          next_sha="$(gh api "repos/$REPOSITORY/commits/next" --jq '.sha')"
+          main_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq '.sha')"
           if [[ "$EVENT_NAME" != "schedule" ]]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
-            echo "target_sha=$next_sha" >> "$GITHUB_OUTPUT"
+            echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if ahead_by="$(gh api "repos/$REPOSITORY/compare/nightly...next" --jq '.ahead_by' 2>/dev/null)"; then
+          if ahead_by="$(gh api "repos/$REPOSITORY/compare/nightly...main" --jq '.ahead_by' 2>/dev/null)"; then
             if [[ "$ahead_by" == "0" ]]; then
-              echo "next is already covered by the current nightly tag; skipping."
+              echo "main is already covered by the current nightly tag; skipping."
               echo "should_build=false" >> "$GITHUB_OUTPUT"
-              echo "target_sha=$next_sha" >> "$GITHUB_OUTPUT"
+              echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "next is $ahead_by commit(s) ahead of nightly; building nightly."
+            echo "main is $ahead_by commit(s) ahead of nightly; building nightly."
           else
             echo "No comparable nightly tag exists yet; building nightly."
           fi
           echo "should_build=true" >> "$GITHUB_OUTPUT"
-          echo "target_sha=$next_sha" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} asset

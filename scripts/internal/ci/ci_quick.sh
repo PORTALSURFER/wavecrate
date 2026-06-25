@@ -50,7 +50,7 @@ while (( $# > 0 )); do
 done
 
 echo "[ci_quick] branch policy"
-./scripts/internal/check/check_next_branch.sh
+./scripts/internal/check/check_main_branch.sh
 
 if (( WORKSPACE == 1 )); then
   echo "[ci_quick] cargo nextest run --workspace --profile quick --all-targets"

@@ -70,7 +70,7 @@ function Invoke-Check {
 
 Push-Location $rootDir
 try {
-  Invoke-Check -Label "development branch policy" -ScriptPath (Join-Path $checkDir "check_next_branch.ps1")
+  Invoke-Check -Label "development branch policy" -ScriptPath (Join-Path $checkDir "check_main_branch.ps1")
   Invoke-Check -Label "migration boundary guardrails" -ScriptPath (Join-Path $checkDir "check_migration_boundary.ps1")
   Invoke-Check -Label "script guardrails" -ScriptPath (Join-Path $checkDir "check_script_guardrails.ps1")
   Invoke-Check -Label "workflow toolchain pinning" -ScriptPath (Join-Path $checkDir "check_workflow_toolchain_pinning.ps1")

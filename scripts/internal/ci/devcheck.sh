@@ -57,7 +57,7 @@ if (( APP_ONLY == 1 && WORKSPACE == 1 )); then
 fi
 
 echo "[devcheck] branch policy"
-./scripts/internal/check/check_next_branch.sh
+./scripts/internal/check/check_main_branch.sh
 
 echo "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml"
 cargo check --manifest-path vendor/radiant/Cargo.toml

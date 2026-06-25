@@ -46,8 +46,8 @@ API. GitHub Actions does not need SSH access or write access to the PortalSurfer
 frontend repository.
 
 The rolling `nightly` release is scheduled at `03:30 UTC`. It resolves the
-current `next` branch and skips the build when `next` is not ahead of the
-current `nightly` tag, so ordinary pushes to `next` do not publish release
+current `main` branch and skips the build when `main` is not ahead of the
+current `nightly` tag, so ordinary pushes to `main` do not publish release
 assets on every commit.
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`

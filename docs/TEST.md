@@ -44,7 +44,7 @@ GitHub CI and local wrappers share this contract:
 | Dead dependency sweep and env-var nudge | `Advisory: repository hygiene` | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
 | GUI semantic contracts | none in required GitHub CI | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none in required GitHub CI | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Release build/sync | `Create release on main` after successful `CI`; scheduled `nightly` from `next` only when `next` is ahead of the `nightly` tag | release workflow dispatch | Release-only, after required CI is green; nightly-only for rolling `next` builds |
+| Release build/sync | `Create release on main` after successful `CI`; scheduled `nightly` from `main` only when `main` is ahead of the `nightly` tag | release workflow dispatch | Release-only, after required CI is green; nightly-only for rolling `main` builds |
 
 The nextest policy is:
 

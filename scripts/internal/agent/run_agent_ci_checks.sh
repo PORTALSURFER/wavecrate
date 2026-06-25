@@ -41,7 +41,7 @@ run_check() {
   "$@"
 }
 
-run_check "development branch policy" ./scripts/internal/check/check_next_branch.sh
+run_check "development branch policy" ./scripts/internal/check/check_main_branch.sh
 run_check "migration boundary guardrails" ./scripts/internal/check/check_migration_boundary.sh
 run_check "script guardrails" ./scripts/internal/check/check_script_guardrails.sh
 run_check "workflow toolchain pinning" ./scripts/internal/check/check_workflow_toolchain_pinning.sh
