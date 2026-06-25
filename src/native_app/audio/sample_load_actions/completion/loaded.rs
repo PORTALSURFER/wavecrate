@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState, emit_gui_action},
@@ -34,7 +34,7 @@ impl NativeAppState {
         if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
-        if self.start_pending_sample_playback(&file_name, started_at, context) {
+        if self.start_pending_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
         if !autoplay {
@@ -126,6 +126,7 @@ impl NativeAppState {
 
     pub(in crate::native_app::audio) fn start_pending_sample_playback(
         &mut self,
+        path: &str,
         file_name: &str,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
@@ -200,6 +201,7 @@ impl NativeAppState {
                 true
             }
             PendingSamplePlayback::ReplayHistory { start, end } => {
+                self.focus_browser_file_for_playback_navigation(Path::new(path), context);
                 match self.start_playback_fixed_span_without_history(start, end) {
                     Ok(()) => {
                         self.waveform

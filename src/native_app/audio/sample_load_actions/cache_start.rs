@@ -86,7 +86,7 @@ impl NativeAppState {
             replace_started_at.elapsed(),
             false,
         );
-        if self.start_pending_sample_playback(&file_name, started_at, context) {
+        if self.start_pending_sample_playback(path, &file_name, started_at, context) {
             log_sample_load_timing(
                 "browser.sample_load.memory_cache.total",
                 &file_name,
