@@ -41,6 +41,74 @@ fn random_audition_span_plays_whole_tiny_or_invalid_sample() {
 }
 
 #[test]
+fn random_audition_pans_selected_region_into_view_when_it_fits() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.0, 0.25);
+    state.waveform.current.zoom_to_play_selection();
+
+    let viewport = state.waveform.current.viewport();
+    let original_width = viewport.end - viewport.start;
+    let mut context = ui::UiUpdateContext::default();
+    state.play_random_sample_range_with_units(
+        crate::native_app::audio::playback::RandomAuditionUnits::new(1.0, 0.0),
+        &mut context,
+    );
+
+    let viewport = state.waveform.current.viewport();
+    assert_eq!(viewport.end - viewport.start, original_width);
+    assert_eq!(viewport.start, 36_000);
+    assert_eq!(viewport.end, 48_000);
+    assert!(
+        state
+            .waveform
+            .current
+            .visible_ratio_for_absolute(0.75)
+            .is_some()
+    );
+    assert!(
+        state
+            .waveform
+            .current
+            .visible_ratio_for_absolute(1.0)
+            .is_some()
+    );
+}
+
+#[test]
+fn random_audition_zooms_selected_region_only_when_current_view_would_clip_it() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.0, 0.25);
+    state.waveform.current.zoom_to_play_selection();
+    let viewport = state.waveform.current.viewport();
+    let original_width = viewport.end - viewport.start;
+
+    let mut context = ui::UiUpdateContext::default();
+    state.play_random_sample_range_with_units(
+        crate::native_app::audio::playback::RandomAuditionUnits::new(0.25, 0.5),
+        &mut context,
+    );
+
+    let viewport = state.waveform.current.viewport();
+    assert!(viewport.end - viewport.start > original_width);
+    assert_eq!(viewport.start, 9_000);
+    assert_eq!(viewport.end, 34_500);
+    assert!(
+        state
+            .waveform
+            .current
+            .visible_ratio_for_absolute(0.1875)
+            .is_some()
+    );
+    assert!(
+        state
+            .waveform
+            .current
+            .visible_ratio_for_absolute(0.71875)
+            .is_some()
+    );
+}
+
+#[test]
 fn random_audition_ignores_marked_play_ranges_and_samples_entire_waveform() {
     let mut scenario = WaveformPlaybackScenario::synthetic();
 

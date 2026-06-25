@@ -296,7 +296,7 @@ impl NativeAppState {
     ) -> Result<(), String> {
         self.waveform
             .current
-            .set_play_selection_range(span.start, span.end);
+            .restore_play_selection_range_in_focus(span.start, span.end);
         self.start_playback_intent(PlaybackIntent::random_region(span.start, span.end))
     }
 
