@@ -8,6 +8,7 @@ use crate::native_app::app::{
     ExtractedFilePlaybackType, GuiMessage, NativeAppState, PendingWaveformDestructiveEdit,
     WaveformDestructiveEditKind, WaveformDestructiveEditUiContext, sample_path_label,
 };
+use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
 use crate::native_app::transaction_history::TransactionContext;
 use crate::native_app::waveform::{WaveformPreservedMarks, WaveformState};
 
@@ -300,9 +301,10 @@ impl NativeAppState {
         if before_selected_path.is_none() || before_selected_path == Some(edited_path_id.as_ref()) {
             self.library
                 .folder_browser
-                .focus_file_across_sources_matching_tags(
+                .focus_file_across_sources_matching_tags_for_reason(
                     &applied.absolute_path,
                     &self.metadata.tags_by_file,
+                    BrowserListingRevealReason::DestructiveEditReload,
                 );
         }
         self.reload_waveform_path_now_if_loaded(&applied.absolute_path)?;

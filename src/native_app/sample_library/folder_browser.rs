@@ -36,6 +36,8 @@ mod delete_workflow;
 mod file_selection;
 mod file_selection_model;
 mod folder_selection_model;
+mod listing;
+pub(in crate::native_app) use listing::BrowserListingRevealReason;
 
 mod selection_state;
 use selection_state::BrowserSelectionState;

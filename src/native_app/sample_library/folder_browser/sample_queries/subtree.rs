@@ -125,7 +125,7 @@ impl FolderBrowserState {
     ) -> Ref<'_, Vec<String>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
-        let curation_focus_override = self.active_curation_focus_override_id(sort_tags);
+        let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
             self.filters.curation.cache_key()
         } else {
@@ -140,7 +140,7 @@ impl FolderBrowserState {
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
         )
-        .with_curation_focus_override(curation_focus_override)
+        .with_listing_reveal(listing_reveal_id)
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list.projection_cache.audio_ids(request, || {
             let curation_now = curation::now_epoch_seconds();
@@ -148,17 +148,14 @@ impl FolderBrowserState {
             traversal::collect_audio_files(folder, &mut files);
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             files.retain(|file| {
-                rating_filter_allows_file(
-                    file,
-                    &self.filters.rating_filter,
-                    curation_focus_override,
-                ) && curation_filter_allows_file(
-                    file,
-                    sort_tags,
-                    &self.filters.curation,
-                    curation_now,
-                    curation_focus_override,
-                )
+                rating_filter_allows_file(file, &self.filters.rating_filter, listing_reveal_id)
+                    && curation_filter_allows_file(
+                        file,
+                        sort_tags,
+                        &self.filters.curation,
+                        curation_now,
+                        listing_reveal_id,
+                    )
             });
             if let Some(tags_by_file) = sort_tags {
                 self.sort_files_matching_tags(&mut files, tags_by_file);

@@ -3,6 +3,7 @@ use std::{cell::Ref, collections::HashMap, path::PathBuf};
 use super::{
     FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, curation,
     file_columns::sort_kind_for_details_sort,
+    listing::{BrowserListingRevealReason, BrowserListingSnapshot},
     playback_type_filter, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
@@ -102,64 +103,151 @@ impl FolderBrowserState {
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<&FileEntry> {
-        let mut files = self.selected_audio_files_with_sort_tags(Some(tags_by_file));
-        filters::filter_audio_files_by_tags(&mut files, tags_by_file, &self.filters.tag_filter);
+        self.browser_listing_snapshot(tags_by_file).rows().to_vec()
+    }
+
+    pub(in crate::native_app) fn browser_listing_snapshot<'a>(
+        &'a self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> BrowserListingSnapshot<'a> {
+        let reveal_id = self.active_listing_reveal_id(Some(tags_by_file));
+        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
+        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let curation_now = curation::now_epoch_seconds();
+        let mut files = self.scoped_audio_files_for_listing();
         files.retain(|file| {
-            playback_type_filter::playback_type_filter_matches(
-                file,
-                tags_by_file,
-                &self.filters.playback_type_filter,
-            )
+            if reveal_id == Some(file.id.as_str()) {
+                return true;
+            }
+            filters::audio_file_matches_name_query(file, &name_query)
+                && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                && playback_type_filter::playback_type_filter_matches(
+                    file,
+                    tags_by_file,
+                    &self.filters.playback_type_filter,
+                )
+                && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
+                && curation_filter_allows_file(
+                    file,
+                    Some(tags_by_file),
+                    &self.filters.curation,
+                    curation_now,
+                    None,
+                )
         });
+        self.sort_files_matching_tags(&mut files, tags_by_file);
+        BrowserListingSnapshot::new(files)
+    }
+
+    fn window_from_browser_listing_snapshot(
+        &self,
+        window: radiant::prelude::VirtualListWindow,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> VisibleSampleWindowFiles<'_> {
+        let snapshot = self.browser_listing_snapshot(tags_by_file);
+        let total_count = snapshot.len();
+        VisibleSampleWindowFiles {
+            total_count,
+            rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
+                .filter_map(|index| snapshot.rows().get(index).copied())
+                .collect(),
+        }
+    }
+
+    fn scoped_audio_files_for_listing(&self) -> Vec<&FileEntry> {
+        if let Some(collection) = self.selection.selected_collection {
+            self.scoped_collection_audio_files_for_listing(collection)
+        } else if let Some(folder) = self.selected_folder() {
+            if self.folder_subtree_listing_enabled() {
+                scoped_recursive_audio_files(folder)
+            } else {
+                folder.files.iter().filter(|file| file.is_audio()).collect()
+            }
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn scoped_collection_audio_files_for_listing(
+        &self,
+        collection: wavecrate::sample_sources::SampleCollection,
+    ) -> Vec<&FileEntry> {
+        let mut files = Vec::new();
+        for folder in self.loaded_source_root_folders() {
+            traversal::collect_collection_audio_files(folder, collection, &mut files);
+        }
+        files.extend(
+            self.sample_list
+                .missing_collection_files
+                .iter()
+                .filter(|file| file.belongs_to_collection(collection)),
+        );
         files
     }
 
-    pub(in crate::native_app) fn clear_curation_focus_override(&mut self) -> bool {
-        let cleared = self.sample_list.curation_focus_override.take().is_some();
+    pub(in crate::native_app) fn clear_listing_reveals(&mut self) -> bool {
+        let cleared = self.sample_list.listing_reveals.clear();
         if cleared {
             self.sample_list.projection_cache.clear();
         }
         cleared
     }
 
-    pub(in crate::native_app) fn reveal_selected_curation_focus_if_hidden(
+    pub(in crate::native_app) fn clear_curation_focus_override(&mut self) -> bool {
+        self.clear_listing_reveals()
+    }
+
+    pub(in crate::native_app) fn reveal_selected_file_if_hidden(
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
+        reason: BrowserListingRevealReason,
     ) -> bool {
-        if !self.filters.curation.enabled {
-            self.clear_curation_focus_override();
-            return false;
-        }
         let Some(selected) = self.selection.selected_file.clone() else {
-            self.clear_curation_focus_override();
+            self.clear_listing_reveals();
             return false;
         };
 
-        self.clear_curation_focus_override();
+        self.clear_listing_reveals();
         if self
-            .selected_audio_file_index_matching_tags(tags_by_file)
-            .is_some()
+            .browser_listing_snapshot(tags_by_file)
+            .contains(&selected)
         {
             return false;
         }
 
-        self.sample_list.curation_focus_override = Some(selected);
+        self.sample_list
+            .listing_reveals
+            .set(selected.clone(), reason);
         self.sample_list.projection_cache.clear();
         if self
-            .selected_audio_file_index_matching_tags(tags_by_file)
-            .is_some()
+            .browser_listing_snapshot(tags_by_file)
+            .contains(&selected)
         {
             return true;
         }
 
-        self.clear_curation_focus_override();
+        self.clear_listing_reveals();
         false
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn reveal_selected_curation_focus_if_hidden(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        self.reveal_selected_file_if_hidden(
+            tags_by_file,
+            BrowserListingRevealReason::LoadedFileFocus,
+        )
     }
 
     pub(in crate::native_app) fn selected_audio_file_count_matching_tags(
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> usize {
+        if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
+            return self.browser_listing_snapshot(tags_by_file).len();
+        }
         let name_query = filters::normalized_name_filter(&self.filters.name_filter);
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let playback_type_filter = &self.filters.playback_type_filter;
@@ -237,6 +325,9 @@ impl FolderBrowserState {
         window: radiant::prelude::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
+        if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
+            return self.window_from_browser_listing_snapshot(window, tags_by_file);
+        }
         if let Some(collection) = self.selection.selected_collection {
             return self.selected_collection_audio_file_window_matching_tags(
                 collection,
@@ -308,47 +399,7 @@ impl FolderBrowserState {
         window: radiant::prelude::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
-        let files = self.uncached_selected_audio_files_matching_tags(tags_by_file);
-        let total_count = files.len();
-        VisibleSampleWindowFiles {
-            total_count,
-            rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
-                .filter_map(|index| files.get(index).copied())
-                .collect(),
-        }
-    }
-
-    fn uncached_selected_audio_files_matching_tags(
-        &self,
-        tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Vec<&FileEntry> {
-        if self.selection.selected_collection.is_some() || self.folder_subtree_listing_enabled() {
-            return self.selected_audio_files_matching_tags(tags_by_file);
-        }
-
-        let Some(folder) = self.selected_folder() else {
-            return Vec::new();
-        };
-        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filter = &self.filters.playback_type_filter;
-        let mut files = folder
-            .files
-            .iter()
-            .filter(|file| {
-                file.is_audio()
-                    && filters::audio_file_matches_name_query(file, &name_query)
-                    && filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
-                    && playback_type_filter::playback_type_filter_matches(
-                        file,
-                        tags_by_file,
-                        playback_type_filter,
-                    )
-                    && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
-            })
-            .collect::<Vec<_>>();
-        self.sort_files_matching_tags(&mut files, tags_by_file);
-        files
+        self.window_from_browser_listing_snapshot(window, tags_by_file)
     }
 
     pub(in crate::native_app) fn selected_audio_file_index_matching_tags(
@@ -356,6 +407,11 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<usize> {
         let selected = self.selection.selected_file.as_deref()?;
+        if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
+            return self
+                .browser_listing_snapshot(tags_by_file)
+                .index_of(selected);
+        }
         let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
         let playback_type_filter = &self.filters.playback_type_filter;
         if let Some(collection) = self.selection.selected_collection {
@@ -473,7 +529,7 @@ impl FolderBrowserState {
     ) -> Ref<'_, Vec<usize>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
-        let curation_focus_override = self.active_curation_focus_override_id(sort_tags);
+        let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
             self.filters.curation.cache_key()
         } else {
@@ -488,7 +544,7 @@ impl FolderBrowserState {
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
         )
-        .with_curation_focus_override(curation_focus_override)
+        .with_listing_reveal(listing_reveal_id)
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list
             .projection_cache
@@ -504,14 +560,14 @@ impl FolderBrowserState {
                             && rating_filter_allows_file(
                                 file,
                                 &self.filters.rating_filter,
-                                curation_focus_override,
+                                listing_reveal_id,
                             )
                             && curation_filter_allows_file(
                                 file,
                                 sort_tags,
                                 &self.filters.curation,
                                 curation_now,
-                                curation_focus_override,
+                                listing_reveal_id,
                             )
                     })
                     .map(|(index, _)| index)
@@ -531,18 +587,17 @@ impl FolderBrowserState {
             })
     }
 
-    pub(super) fn active_curation_focus_override_id(
+    pub(super) fn active_listing_reveal_id(
         &self,
         sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Option<&str> {
-        if sort_tags.is_none() || !self.filters.curation.enabled {
+        if sort_tags.is_none() {
             return None;
         }
         let focused = self.selection.selected_file.as_deref()?;
         self.sample_list
-            .curation_focus_override
-            .as_deref()
-            .filter(|override_id| *override_id == focused)
+            .listing_reveals
+            .active_file_id_for_focus(Some(focused))
     }
 
     pub(super) fn playback_type_tag_sort_enabled(
@@ -569,7 +624,7 @@ pub(super) fn curation_filter_allows_file(
     tags_by_file: Option<&HashMap<String, Vec<String>>>,
     mode: &curation::BrowserCurationMode,
     now: i64,
-    focus_override: Option<&str>,
+    listing_reveal_id: Option<&str>,
 ) -> bool {
     if !mode.enabled {
         return true;
@@ -578,16 +633,22 @@ pub(super) fn curation_filter_allows_file(
         return true;
     };
     curation::file_matches_curation(file, tags_by_file, mode, now)
-        || focus_override == Some(file.id.as_str())
+        || listing_reveal_id == Some(file.id.as_str())
 }
 
 pub(super) fn rating_filter_allows_file(
     file: &FileEntry,
     rating_filter: &std::collections::BTreeSet<i8>,
-    focus_override: Option<&str>,
+    listing_reveal_id: Option<&str>,
 ) -> bool {
     rating_filter::rating_filter_matches(file, rating_filter)
-        || focus_override == Some(file.id.as_str())
+        || listing_reveal_id == Some(file.id.as_str())
+}
+
+fn scoped_recursive_audio_files(folder: &FolderEntry) -> Vec<&FileEntry> {
+    let mut files = Vec::new();
+    traversal::collect_audio_files(folder, &mut files);
+    files
 }
 
 fn collect_local_cache_candidate_paths(

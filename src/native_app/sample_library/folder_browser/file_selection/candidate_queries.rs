@@ -105,10 +105,7 @@ impl FolderBrowserState {
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<String> {
-        self.selected_audio_files_matching_tags(tags_by_file)
-            .into_iter()
-            .map(|file| file.id.clone())
-            .collect()
+        self.browser_listing_snapshot(tags_by_file).ids().to_vec()
     }
 
     pub(in crate::native_app::sample_library::folder_browser) fn selected_curation_bucket_file_ids_matching_tags(

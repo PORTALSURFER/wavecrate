@@ -228,6 +228,104 @@ fn curation_focus_override_reveals_selected_rating_filtered_row_temporarily() {
 }
 
 #[test]
+fn listing_reveal_includes_rating_filtered_row_without_curation_mode() {
+    let root = temp_source_root("wavecrate-gui-rating-listing-reveal");
+    let keep = root.join("keep.wav");
+    let rated_out = root.join("rated-out.wav");
+    for file in [&keep, &rated_out] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.set_file_rating_state(&keep, Rating::KEEP_1, false));
+    assert!(browser.set_file_rating_state(&rated_out, Rating::new(2), false));
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(1, true));
+    let tags_by_file = HashMap::new();
+
+    assert_eq!(
+        browser
+            .browser_listing_snapshot(&tags_by_file)
+            .rows()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"]
+    );
+    assert!(browser.focus_file_across_sources_matching_tags(&rated_out, &tags_by_file));
+    assert_eq!(
+        browser
+            .browser_listing_snapshot(&tags_by_file)
+            .rows()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav", "rated-out.wav"]
+    );
+
+    let window_files = browser.selected_audio_file_window_matching_tags(
+        radiant::prelude::VirtualListWindow {
+            total_items: 2,
+            viewport_start: 0,
+            viewport_end: 2,
+            window_start: 0,
+            window_end: 2,
+        },
+        &tags_by_file,
+    );
+    assert_eq!(window_files.total_count, 2);
+    assert_eq!(
+        window_files
+            .rows
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav", "rated-out.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn listing_reveal_includes_tag_filtered_row_without_curation_mode() {
+    let root = temp_source_root("wavecrate-gui-tag-listing-reveal");
+    let kick = root.join("kick.wav");
+    let snare = root.join("snare.wav");
+    for file in [&kick, &snare] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::TagFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("kick"),
+        },
+    ));
+    let tags_by_file = HashMap::from([(path_id(&kick), vec![String::from("kick")])]);
+
+    assert_eq!(
+        browser
+            .browser_listing_snapshot(&tags_by_file)
+            .rows()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav"]
+    );
+    assert!(browser.focus_file_across_sources_matching_tags(&snare, &tags_by_file));
+    assert_eq!(
+        browser.selected_audio_file_index_matching_tags(&tags_by_file),
+        Some(1)
+    );
+    assert_eq!(
+        browser
+            .browser_listing_snapshot(&tags_by_file)
+            .rows()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav", "snare.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn curation_scope_modes_filter_rating_and_tag_work_separately() {
     let root = temp_source_root("wavecrate-gui-curation-scope-filter");
     let complete_unrated = root.join("complete-unrated.wav");

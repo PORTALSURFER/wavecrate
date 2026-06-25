@@ -3,7 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::super::{FolderBrowserState, path_helpers::path_id, scanning::load_source_snapshot};
+use super::super::{
+    FolderBrowserState, listing::BrowserListingRevealReason, path_helpers::path_id,
+    scanning::load_source_snapshot,
+};
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn focus_file_across_sources(&mut self, path: &Path) -> bool {
@@ -15,21 +18,34 @@ impl FolderBrowserState {
         path: &Path,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> bool {
-        self.focus_file_across_sources_with_visible_ids(path, Some(tags_by_file))
+        self.focus_file_across_sources_matching_tags_for_reason(
+            path,
+            tags_by_file,
+            BrowserListingRevealReason::LoadedFileFocus,
+        )
+    }
+
+    pub(in crate::native_app) fn focus_file_across_sources_matching_tags_for_reason(
+        &mut self,
+        path: &Path,
+        tags_by_file: &HashMap<String, Vec<String>>,
+        reason: BrowserListingRevealReason,
+    ) -> bool {
+        self.focus_file_across_sources_with_visible_ids(path, Some((tags_by_file, reason)))
     }
 
     fn focus_file_across_sources_with_visible_ids(
         &mut self,
         path: &Path,
-        tags_by_file: Option<&HashMap<String, Vec<String>>>,
+        tags_by_file: Option<(&HashMap<String, Vec<String>>, BrowserListingRevealReason)>,
     ) -> bool {
         self.ensure_loaded_source_containing_path(path);
         let file_id = path_id(path);
-        if self.focus_file_in_current_visible_list(&file_id, tags_by_file) {
+        if self.focus_file_in_current_visible_list(&file_id, tags_by_file.map(|(tags, _)| tags)) {
             return true;
         }
-        if let Some(tags_by_file) = tags_by_file
-            && self.focus_file_in_current_curation_reveal_list(&file_id, tags_by_file)
+        if let Some((tags_by_file, reason)) = tags_by_file
+            && self.focus_file_in_current_reveal_list(&file_id, tags_by_file, reason)
         {
             return true;
         }
@@ -60,8 +76,8 @@ impl FolderBrowserState {
         self.tree
             .expanded_folders
             .extend(folder_ancestor_ids(&source_root, parent));
-        if let Some(tags_by_file) = tags_by_file {
-            self.reveal_selected_curation_focus_if_hidden(tags_by_file);
+        if let Some((tags_by_file, reason)) = tags_by_file {
+            self.reveal_selected_file_if_hidden(tags_by_file, reason);
         }
         true
     }
@@ -83,19 +99,18 @@ impl FolderBrowserState {
         true
     }
 
-    fn focus_file_in_current_curation_reveal_list(
+    fn focus_file_in_current_reveal_list(
         &mut self,
         file_id: &str,
         tags_by_file: &HashMap<String, Vec<String>>,
+        reason: BrowserListingRevealReason,
     ) -> bool {
-        if !self.filters.curation.enabled {
-            return false;
-        }
-
         let snapshot = self.selection.snapshot();
-        let previous_override = self.sample_list.curation_focus_override.clone();
+        let previous_reveals = self.sample_list.listing_reveals.clone();
         self.selection.set_focus_file_set(file_id.to_owned());
-        self.sample_list.curation_focus_override = Some(file_id.to_owned());
+        self.sample_list
+            .listing_reveals
+            .set(file_id.to_owned(), reason);
         self.sample_list.projection_cache.clear();
 
         let visible = self
@@ -108,7 +123,7 @@ impl FolderBrowserState {
         }
 
         self.selection.restore_snapshot(snapshot);
-        self.sample_list.curation_focus_override = previous_override;
+        self.sample_list.listing_reveals = previous_reveals;
         self.sample_list.projection_cache.clear();
         false
     }

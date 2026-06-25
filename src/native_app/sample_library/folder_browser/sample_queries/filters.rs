@@ -7,15 +7,6 @@ pub(super) fn filter_audio_files_by_name(files: &mut Vec<&FileEntry>, name_filte
     files.retain(|file| audio_file_matches_name_query(file, &query));
 }
 
-pub(super) fn filter_audio_files_by_tags(
-    files: &mut Vec<&FileEntry>,
-    tags_by_file: &HashMap<String, Vec<String>>,
-    tag_filter: &str,
-) {
-    let required_tags = parsed_tag_filter(tag_filter);
-    files.retain(|file| audio_file_matches_parsed_tags(file, tags_by_file, &required_tags));
-}
-
 pub(super) fn audio_file_matches_name_query(file: &FileEntry, query: &str) -> bool {
     query.is_empty()
         || file.name.to_ascii_lowercase().contains(query)

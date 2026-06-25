@@ -3,12 +3,14 @@ use std::{path::Path, time::Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::file_actions::sample_path_label;
-use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTIONS_LIST_SCROLL_NODE_ID, FOLDER_TREE_EDGE_CONTEXT_ROWS,
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
     FOLDER_TREE_SELECTION_CONTEXT_ROWS, TREE_ROW_HEIGHT,
+};
+use crate::native_app::sample_library::folder_browser::{
+    BrowserListingRevealReason, commands::FolderBrowserMessage,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -162,7 +164,11 @@ impl NativeAppState {
         if !self
             .library
             .folder_browser
-            .focus_file_across_sources_matching_tags(path, &self.metadata.tags_by_file)
+            .focus_file_across_sources_matching_tags_for_reason(
+                path,
+                &self.metadata.tags_by_file,
+                BrowserListingRevealReason::HistoryNavigation,
+            )
         {
             return false;
         }
@@ -176,9 +182,10 @@ impl NativeAppState {
             FOLDER_TREE_OVERSCAN_ROWS,
             FOLDER_TREE_EDGE_CONTEXT_ROWS,
         );
-        self.library
-            .folder_browser
-            .reveal_selected_curation_focus_if_hidden(&self.metadata.tags_by_file);
+        self.library.folder_browser.reveal_selected_file_if_hidden(
+            &self.metadata.tags_by_file,
+            BrowserListingRevealReason::HistoryNavigation,
+        );
         if let Some(index) = self.library.folder_browser.selected_folder_visible_index() {
             context.scroll_fixed_row_into_view(
                 FOLDER_TREE_LIST_ID,

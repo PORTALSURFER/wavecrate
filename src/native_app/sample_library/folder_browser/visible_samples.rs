@@ -8,7 +8,7 @@ use std::{
 
 use super::{
     FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityAspectStrengths,
-    SimilarityBrowserState, default_file_columns,
+    SimilarityBrowserState, default_file_columns, listing::BrowserListingRevealState,
 };
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
@@ -78,7 +78,7 @@ pub(super) struct SampleListState {
     pub(super) missing_collection_files: Vec<FileEntry>,
     pub(super) missing_collection_counts: BTreeMap<u8, usize>,
     pub(super) projection_cache: VisibleSampleProjectionCache,
-    pub(super) curation_focus_override: Option<String>,
+    pub(super) listing_reveals: BrowserListingRevealState,
     copy_flash_file_ids: HashSet<String>,
     copy_flash_frames: u8,
 }
@@ -101,7 +101,7 @@ impl SampleListState {
             missing_collection_files: Vec::new(),
             missing_collection_counts: BTreeMap::new(),
             projection_cache: VisibleSampleProjectionCache::default(),
-            curation_focus_override: None,
+            listing_reveals: BrowserListingRevealState::default(),
             copy_flash_file_ids: HashSet::new(),
             copy_flash_frames: 0,
         }
@@ -293,7 +293,7 @@ pub(super) struct VisibleSampleProjectionRequest<'a> {
     name_filter: &'a str,
     rating_filter: &'a str,
     curation_filter: &'a str,
-    curation_focus_override: Option<&'a str>,
+    listing_reveal_id: Option<&'a str>,
     sort: &'a ui::DetailsSort,
     similarity_anchor_id: Option<&'a str>,
     content_revision: u64,
@@ -315,7 +315,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
             name_filter,
             rating_filter,
             curation_filter,
-            curation_focus_override: None,
+            listing_reveal_id: None,
             sort,
             similarity_anchor_id,
             content_revision,
@@ -328,8 +328,8 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
         self
     }
 
-    pub(super) fn with_curation_focus_override(mut self, file_id: Option<&'a str>) -> Self {
-        self.curation_focus_override = file_id;
+    pub(super) fn with_listing_reveal(mut self, file_id: Option<&'a str>) -> Self {
+        self.listing_reveal_id = file_id;
         self
     }
 
@@ -339,7 +339,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
             self.name_filter.to_owned(),
             self.rating_filter.to_owned(),
             self.curation_filter.to_owned(),
-            self.curation_focus_override.map(str::to_owned),
+            self.listing_reveal_id.map(str::to_owned),
             self.sort.column_id.clone(),
             self.sort.direction == ui::SortDirection::Descending,
             self.similarity_anchor_id.map(str::to_owned),
@@ -355,7 +355,7 @@ struct VisibleSampleProjectionKey {
     name_filter: String,
     rating_filter: String,
     curation_filter: String,
-    curation_focus_override: Option<String>,
+    listing_reveal_id: Option<String>,
     sort_column_id: String,
     sort_descending: bool,
     similarity_anchor_id: Option<String>,
@@ -369,7 +369,7 @@ impl VisibleSampleProjectionKey {
         name_filter: String,
         rating_filter: String,
         curation_filter: String,
-        curation_focus_override: Option<String>,
+        listing_reveal_id: Option<String>,
         sort_column_id: String,
         sort_descending: bool,
         similarity_anchor_id: Option<String>,
@@ -381,7 +381,7 @@ impl VisibleSampleProjectionKey {
             name_filter,
             rating_filter,
             curation_filter,
-            curation_focus_override,
+            listing_reveal_id,
             sort_column_id,
             sort_descending,
             similarity_anchor_id,
@@ -397,7 +397,7 @@ impl Hash for VisibleSampleProjectionKey {
         self.name_filter.hash(state);
         self.rating_filter.hash(state);
         self.curation_filter.hash(state);
-        self.curation_focus_override.hash(state);
+        self.listing_reveal_id.hash(state);
         self.sort_column_id.hash(state);
         self.sort_descending.hash(state);
         self.similarity_anchor_id.hash(state);

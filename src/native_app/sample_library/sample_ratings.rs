@@ -147,11 +147,7 @@ impl NativeAppState {
         let candidate = previous_index
             .and_then(|index| visible_ids_before_rating.get(index.saturating_add(1)))
             .map(String::as_str);
-        let Some(path) = self.rating_advance_visible_target(
-            visible_ids_before_rating,
-            previous_index,
-            candidate,
-        ) else {
+        let Some(path) = self.rating_advance_visible_target(previous_index, candidate) else {
             return;
         };
 
@@ -187,39 +183,21 @@ impl NativeAppState {
 
     fn rating_advance_visible_target(
         &self,
-        visible_ids_before_rating: &[String],
         previous_index: Option<usize>,
         candidate: Option<&str>,
     ) -> Option<String> {
-        let visible_ids_after_rating = self
+        let listing = self
             .library
             .folder_browser
-            .selected_audio_files_matching_tags(&self.metadata.tags_by_file)
-            .into_iter()
-            .map(|file| file.id.clone())
-            .collect::<Vec<_>>();
+            .browser_listing_snapshot(&self.metadata.tags_by_file);
         if let Some(candidate) = candidate
-            && visible_ids_after_rating.iter().any(|id| id == candidate)
+            && listing.contains(candidate)
         {
             return Some(candidate.to_owned());
         }
-        let visible_after = visible_ids_after_rating
-            .iter()
-            .map(String::as_str)
-            .collect::<std::collections::HashSet<_>>();
-        let primary_index = previous_index.unwrap_or(0);
-        visible_ids_before_rating
-            .iter()
-            .skip(primary_index.saturating_add(1))
-            .find(|id| visible_after.contains(id.as_str()))
-            .or_else(|| {
-                visible_ids_before_rating
-                    .iter()
-                    .take(primary_index)
-                    .find(|id| visible_after.contains(id.as_str()))
-            })
-            .cloned()
-            .or_else(|| visible_ids_after_rating.first().cloned())
+        listing
+            .target_after_removed_or_hidden(previous_index.unwrap_or(0))
+            .map(str::to_owned)
     }
 
     fn rating_adjustment_plan_for_selected_files(&self, delta: i8) -> RatingAdjustmentPlan {
