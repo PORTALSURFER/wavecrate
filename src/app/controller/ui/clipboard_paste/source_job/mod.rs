@@ -152,6 +152,7 @@ mod tests {
             false,
             false,
             None,
+            None,
         )
         .unwrap();
         file_ops_journal::insert_entry(&db, &entry).unwrap();
@@ -193,6 +194,7 @@ mod tests {
             Rating::NEUTRAL,
             false,
             false,
+            None,
             None,
         )
         .unwrap();

@@ -3,8 +3,9 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 mod projection;
 
 use self::projection::{
-    PlaybackTypeFilterRowProjection, PlaybackTypeFilterToggleProjection, RatingFilterRowProjection,
-    RatingFilterToggleProjection, TextFilterField, TextFilterRowProjection, filter_rows_projection,
+    CurationFilterRowProjection, PlaybackTypeFilterRowProjection,
+    PlaybackTypeFilterToggleProjection, RatingFilterRowProjection, RatingFilterToggleProjection,
+    TextFilterField, TextFilterRowProjection, filter_rows_projection,
 };
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
@@ -46,11 +47,12 @@ const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 =
 const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_RATING_FILTER_TOGGLE_SCOPE;
 
-pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 4] {
+pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 5] {
     let projection = filter_rows_projection(model);
     [
         text_filter_row(projection.name_filter),
         text_filter_row(projection.tag_filter),
+        curation_filter_row(projection.curation),
         playback_type_filter_row(projection.playback_type),
         rating_filter_row(projection.rating),
     ]
@@ -131,6 +133,29 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
         .fill_width()
         .height(FILTER_CLEAR_BUTTON_SIZE),
         "filter-type-row",
+    )
+}
+
+fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage> {
+    let active = row.active;
+    filter_labeled_control_row(
+        filter_row_label(row.label),
+        ui::row([
+            ui::selectable("Source", active)
+                .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+                .message(|enabled| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleCurationMode(enabled))
+                })
+                .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE),
+            ui::text(row.status)
+                .muted_text()
+                .height(FILTER_CLEAR_BUTTON_SIZE)
+                .width(34.0),
+        ])
+        .spacing(4.0)
+        .fill_width()
+        .height(FILTER_CLEAR_BUTTON_SIZE),
+        "filter-curation-row",
     )
 }
 

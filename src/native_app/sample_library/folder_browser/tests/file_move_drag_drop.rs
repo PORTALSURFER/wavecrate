@@ -235,6 +235,7 @@ fn collection_multi_file_move_replaces_stale_missing_rows_with_new_paths() {
             false,
             vec![collection],
             None,
+            None,
         ));
     browser.source.sources[0]
         .missing_collection_snapshot
@@ -243,6 +244,7 @@ fn collection_multi_file_move_replaces_stale_missing_rows_with_new_paths() {
             Rating::NEUTRAL,
             false,
             vec![collection],
+            None,
             None,
         ));
     browser.refresh_missing_collection_state();

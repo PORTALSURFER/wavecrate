@@ -121,6 +121,24 @@ impl SourceDatabase {
         })
     }
 
+    /// Record the most recent explicit curation timestamp for a wav file.
+    pub fn set_last_curated_at(
+        &self,
+        relative_path: &Path,
+        curated_at: i64,
+    ) -> Result<(), SourceDbError> {
+        self.mutate_with_batch("source_db.set_last_curated_at", |batch| {
+            batch.set_last_curated_at(relative_path, curated_at)
+        })
+    }
+
+    /// Clear the recorded curation timestamp for a wav file.
+    pub fn clear_last_curated_at(&self, relative_path: &Path) -> Result<(), SourceDbError> {
+        self.mutate_with_batch("source_db.clear_last_curated_at", |batch| {
+            batch.clear_last_curated_at(relative_path)
+        })
+    }
+
     /// Remove a wav file row by relative path.
     pub fn remove_file(&self, relative_path: &Path) -> Result<(), SourceDbError> {
         self.mutate_with_batch("source_db.remove_file", |batch| {

@@ -61,9 +61,10 @@ pub(crate) fn insert_entry(
             "INSERT INTO file_ops_journal (
                  id, op_type, stage, source_root, source_relative, target_relative,
                  staged_relative, file_size, modified_ns, tag, looped, locked, last_played_at,
+                 last_curated_at,
                  created_at
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 entry.id,
                 entry.kind.as_str(),
@@ -81,6 +82,7 @@ pub(crate) fn insert_entry(
                 entry.looped.map(|looped| if looped { 1i64 } else { 0i64 }),
                 entry.locked.map(|locked| if locked { 1i64 } else { 0i64 }),
                 entry.last_played_at,
+                entry.last_curated_at,
                 entry.created_at,
             ],
         )
@@ -129,7 +131,7 @@ pub(crate) fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, 
         .prepare(
             "SELECT id, op_type, stage, source_root, source_relative, target_relative,
                     staged_relative, file_size, modified_ns, tag, looped, locked, last_played_at,
-                    created_at
+                    last_curated_at, created_at
              FROM file_ops_journal",
         )
         .map_err(map_sql_error)?;
@@ -216,8 +218,11 @@ fn decode_journal_row(
     let last_played_at: Option<i64> = row
         .get(12)
         .map_err(|err| malformed_column_error(Some(id.as_str()), "last_played_at", err))?;
-    let created_at: i64 = row
+    let last_curated_at: Option<i64> = row
         .get(13)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "last_curated_at", err))?;
+    let created_at: i64 = row
+        .get(14)
         .map_err(|err| malformed_column_error(Some(id.as_str()), "created_at", err))?;
     let source_relative =
         parse_optional_relative_path_column(id.as_str(), "source_relative", source_relative_raw)?;
@@ -239,6 +244,7 @@ fn decode_journal_row(
         looped,
         locked,
         last_played_at,
+        last_curated_at,
         created_at,
     })
 }

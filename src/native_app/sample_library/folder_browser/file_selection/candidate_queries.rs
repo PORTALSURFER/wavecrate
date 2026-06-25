@@ -1,8 +1,8 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use radiant::prelude as ui;
 
-use super::super::FolderBrowserState;
+use super::super::{FolderBrowserState, curation};
 use super::SelectedFileRatingCandidate;
 
 impl FolderBrowserState {
@@ -66,7 +66,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn random_listed_playback_candidate(
         &self,
         unit: f32,
-        tags_by_file: &std::collections::HashMap<String, Vec<String>>,
+        tags_by_file: &HashMap<String, Vec<String>>,
         avoid_file_id: Option<&str>,
     ) -> Option<String> {
         let listed_files = self.selected_audio_file_ids_matching_tags(tags_by_file);
@@ -109,10 +109,38 @@ impl FolderBrowserState {
 
     pub(in crate::native_app::sample_library::folder_browser) fn selected_audio_file_ids_matching_tags(
         &self,
-        tags_by_file: &std::collections::HashMap<String, Vec<String>>,
+        tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<String> {
         self.selected_audio_files_matching_tags(tags_by_file)
             .into_iter()
+            .map(|file| file.id.clone())
+            .collect()
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_curation_bucket_file_ids_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        if !self.curation_mode_enabled() {
+            return self.selected_audio_file_ids_matching_tags(tags_by_file);
+        }
+        let now = curation::now_epoch_seconds();
+        let files = self.selected_audio_files_matching_tags(tags_by_file);
+        let Some(best_priority) = files
+            .iter()
+            .filter_map(|file| {
+                curation::curation_priority_for_file(file, tags_by_file, self.curation_mode(), now)
+            })
+            .min()
+        else {
+            return Vec::new();
+        };
+        files
+            .into_iter()
+            .filter(|file| {
+                curation::curation_priority_for_file(file, tags_by_file, self.curation_mode(), now)
+                    == Some(best_priority)
+            })
             .map(|file| file.id.clone())
             .collect()
     }

@@ -56,6 +56,7 @@ fn reconcile_same_source_move_from_staged_file() {
             looped: true,
             locked: true,
             last_played_at: Some(123),
+            last_curated_at: Some(456),
         },
     )
     .unwrap();

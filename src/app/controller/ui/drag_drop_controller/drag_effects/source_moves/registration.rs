@@ -102,6 +102,7 @@ impl AppController {
                 locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
+                last_curated_at: entry.last_curated_at,
                 user_tag: entry.user_tag.clone(),
                 tag_named: false,
                 normal_tags: entry.normal_tags.clone(),

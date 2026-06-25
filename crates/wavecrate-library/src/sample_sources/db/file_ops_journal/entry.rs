@@ -101,6 +101,8 @@ pub struct FileOpJournalEntry {
     pub locked: Option<bool>,
     /// Stored playback timestamp that should survive reconciliation.
     pub last_played_at: Option<i64>,
+    /// Stored curation timestamp that should survive reconciliation.
+    pub last_curated_at: Option<i64>,
     /// Journal creation time in epoch seconds.
     pub created_at: i64,
 }
@@ -124,6 +126,8 @@ pub struct MoveJournalEntryInit {
     pub locked: bool,
     /// Stored playback timestamp that should survive reconciliation.
     pub last_played_at: Option<i64>,
+    /// Stored curation timestamp that should survive reconciliation.
+    pub last_curated_at: Option<i64>,
 }
 
 impl FileOpJournalEntry {
@@ -143,6 +147,7 @@ impl FileOpJournalEntry {
             looped: Some(init.looped),
             locked: Some(init.locked),
             last_played_at: init.last_played_at,
+            last_curated_at: init.last_curated_at,
             created_at: now_epoch_seconds()?,
         })
     }
@@ -156,6 +161,7 @@ impl FileOpJournalEntry {
         looped: bool,
         locked: bool,
         last_played_at: Option<i64>,
+        last_curated_at: Option<i64>,
     ) -> Result<Self, SourceDbError> {
         Ok(Self {
             id,
@@ -171,6 +177,7 @@ impl FileOpJournalEntry {
             looped: Some(looped),
             locked: Some(locked),
             last_played_at,
+            last_curated_at,
             created_at: now_epoch_seconds()?,
         })
     }

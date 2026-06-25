@@ -33,6 +33,10 @@ pub(super) struct SampleColumnDisplay {
 }
 
 pub(super) enum SampleColumnContent {
+    Name {
+        text: String,
+        badges: Vec<String>,
+    },
     Text(String),
     Rename(FileRenameView),
     Rating(RatingIndicator),
@@ -127,12 +131,9 @@ fn sample_column_display<'a>(
 ) -> SampleColumnDisplay {
     let content = match column.kind() {
         FileColumnKind::Name => row.rename.clone().map_or_else(
-            || {
-                SampleColumnContent::Text(sample_name_cell_value(
-                    file,
-                    name_view_mode,
-                    metadata_tags_by_file,
-                ))
+            || SampleColumnContent::Name {
+                text: sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
+                badges: row.curation_badges.clone(),
             },
             SampleColumnContent::Rename,
         ),

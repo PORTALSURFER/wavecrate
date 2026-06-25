@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::{FolderEntry, SourceEntry, collections::MissingCollectionSnapshot};
 
 const SOURCE_SCAN_CACHE_FILE_NAME: &str = "source-scan-cache.json";
-const SOURCE_SCAN_CACHE_VERSION: u32 = 1;
+const SOURCE_SCAN_CACHE_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(super) struct SourceScanCache {
@@ -215,6 +215,7 @@ mod tests {
                     modified_rank: 1,
                     rating: Rating::KEEP_1,
                     rating_locked: true,
+                    last_curated_at: None,
                     collection: SampleCollection::new(0),
                     collections: SampleCollection::new(0).into_iter().collect(),
                 }],
@@ -317,6 +318,7 @@ mod tests {
             modified_rank: 1,
             rating: Rating::NEUTRAL,
             rating_locked: false,
+            last_curated_at: None,
             collection: None,
             collections: Vec::new(),
         }

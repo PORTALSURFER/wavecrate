@@ -66,6 +66,7 @@ impl<'conn> SourceWriteBatch<'conn> {
             .map_err(map_sql_error)?
             .execute(params![path, tag.id])
             .map_err(map_sql_error)?;
+        self.touch_last_curated_at(relative_path)?;
         Ok(tag)
     }
 
@@ -91,6 +92,9 @@ impl<'conn> SourceWriteBatch<'conn> {
             .execute(params![path, identity.normalized_text])
             .map_err(map_sql_error)?
             > 0;
+        if removed {
+            self.touch_last_curated_at(relative_path)?;
+        }
         Ok(removed)
     }
 
@@ -132,6 +136,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         for label in labels {
             self.assign_tag_to_path(relative_path, label)?;
         }
+        self.touch_last_curated_at(relative_path)?;
         Ok(())
     }
 

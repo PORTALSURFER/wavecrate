@@ -22,6 +22,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         missing INTEGER NOT NULL DEFAULT 0,
         extension TEXT NOT NULL DEFAULT '',
         last_played_at INTEGER,
+        last_curated_at INTEGER,
         collection INTEGER
     );
     CREATE TABLE IF NOT EXISTS source_tags (
@@ -200,6 +201,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         looped INTEGER,
         locked INTEGER,
         last_played_at INTEGER,
+        last_curated_at INTEGER,
         created_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS pending_wav_renames (
@@ -212,6 +214,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         sound_type TEXT,
         locked INTEGER NOT NULL,
         last_played_at INTEGER,
+        last_curated_at INTEGER,
         user_tag TEXT,
         normal_tags TEXT,
         collection INTEGER,

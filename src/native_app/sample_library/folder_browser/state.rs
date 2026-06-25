@@ -303,6 +303,9 @@ impl FolderBrowserState {
             FolderBrowserMessage::ToggleRatingFilter(level, enabled) => {
                 self.set_rating_filter(level, enabled);
             }
+            FolderBrowserMessage::ToggleCurationMode(enabled) => {
+                self.set_curation_mode_enabled(enabled);
+            }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);
             }

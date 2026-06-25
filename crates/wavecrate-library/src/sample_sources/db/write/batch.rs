@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use rusqlite::{OptionalExtension, params};
 
@@ -24,6 +27,10 @@ const UPDATE_TAG_NAMED_SQL: &str = "UPDATE wav_files SET tag_named = ?1 WHERE pa
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
 const CLEAR_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = NULL WHERE path = ?1";
+const UPDATE_LAST_CURATED_AT_SQL: &str =
+    "UPDATE wav_files SET last_curated_at = ?1 WHERE path = ?2";
+const CLEAR_LAST_CURATED_AT_SQL: &str =
+    "UPDATE wav_files SET last_curated_at = NULL WHERE path = ?1";
 const UPDATE_COLLECTION_SQL: &str = "UPDATE wav_files SET collection = ?1 WHERE path = ?2";
 const CLEAR_COLLECTION_SQL: &str = "UPDATE wav_files SET collection = NULL WHERE path = ?1";
 
@@ -139,17 +146,20 @@ impl<'conn> SourceWriteBatch<'conn> {
 
     /// Update the tag for a wav row within the batch.
     pub fn set_tag(&mut self, relative_path: &Path, tag: Rating) -> Result<(), SourceDbError> {
-        update_path_i64_statement(&self.tx, UPDATE_TAG_SQL, relative_path, tag.as_i64())
+        update_path_i64_statement(&self.tx, UPDATE_TAG_SQL, relative_path, tag.as_i64())?;
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Update the loop marker for a wav row within the batch.
     pub fn set_looped(&mut self, relative_path: &Path, looped: bool) -> Result<(), SourceDbError> {
-        update_flag_statement(&self.tx, UPDATE_LOOPED_SQL, relative_path, looped)
+        update_flag_statement(&self.tx, UPDATE_LOOPED_SQL, relative_path, looped)?;
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Update the keep-lock marker for a wav row within the batch.
     pub fn set_locked(&mut self, relative_path: &Path, locked: bool) -> Result<(), SourceDbError> {
-        update_flag_statement(&self.tx, UPDATE_LOCKED_SQL, relative_path, locked)
+        update_flag_statement(&self.tx, UPDATE_LOCKED_SQL, relative_path, locked)?;
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Update the sound classification for a wav row within the batch.
@@ -166,7 +176,8 @@ impl<'conn> SourceWriteBatch<'conn> {
                 sound_type.token(),
             ),
             None => update_path_null_statement(&self.tx, CLEAR_SOUND_TYPE_SQL, relative_path),
-        }
+        }?;
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Update the custom user tag for a wav row within the batch.
@@ -180,7 +191,8 @@ impl<'conn> SourceWriteBatch<'conn> {
                 update_path_text_statement(&self.tx, UPDATE_USER_TAG_SQL, relative_path, user_tag)
             }
             None => update_path_null_statement(&self.tx, CLEAR_USER_TAG_SQL, relative_path),
-        }
+        }?;
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Update the tag-derived filename marker for a wav row within the batch.
@@ -189,7 +201,8 @@ impl<'conn> SourceWriteBatch<'conn> {
         relative_path: &Path,
         tag_named: bool,
     ) -> Result<(), SourceDbError> {
-        update_flag_statement(&self.tx, UPDATE_TAG_NAMED_SQL, relative_path, tag_named)
+        update_flag_statement(&self.tx, UPDATE_TAG_NAMED_SQL, relative_path, tag_named)?;
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Update the missing flag for a wav row within the batch.
@@ -220,6 +233,25 @@ impl<'conn> SourceWriteBatch<'conn> {
         update_path_null_statement(&self.tx, CLEAR_LAST_PLAYED_AT_SQL, relative_path)
     }
 
+    /// Update the last curation timestamp for a wav row within the batch.
+    pub fn set_last_curated_at(
+        &mut self,
+        relative_path: &Path,
+        curated_at: i64,
+    ) -> Result<(), SourceDbError> {
+        update_path_i64_statement(
+            &self.tx,
+            UPDATE_LAST_CURATED_AT_SQL,
+            relative_path,
+            curated_at,
+        )
+    }
+
+    /// Clear the last curation timestamp for a wav row within the batch.
+    pub fn clear_last_curated_at(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
+        update_path_null_statement(&self.tx, CLEAR_LAST_CURATED_AT_SQL, relative_path)
+    }
+
     /// Update the fixed collection slot for a wav row within the batch.
     pub fn set_collection(
         &mut self,
@@ -241,9 +273,13 @@ impl<'conn> SourceWriteBatch<'conn> {
                     UPDATE_COLLECTION_SQL,
                     relative_path,
                     collection.as_i64(),
-                )
+                )?;
+                self.touch_last_curated_at(relative_path)
             }
-            None => update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path),
+            None => {
+                update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path)?;
+                self.touch_last_curated_at(relative_path)
+            }
         }
     }
 
@@ -263,7 +299,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 params![collection.as_i64(), path_str.as_str()],
             )
             .map_err(map_sql_error)?;
-        Ok(())
+        self.touch_last_curated_at(relative_path)
     }
 
     /// Remove one fixed collection slot for a wav row without clearing other slots.
@@ -294,14 +330,27 @@ impl<'conn> SourceWriteBatch<'conn> {
             .optional()
             .map_err(map_sql_error)?;
         match first_remaining.and_then(SampleCollection::from_i64) {
-            Some(collection) => update_path_i64_statement(
-                &self.tx,
-                UPDATE_COLLECTION_SQL,
-                relative_path,
-                collection.as_i64(),
-            ),
-            None => update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path),
+            Some(collection) => {
+                update_path_i64_statement(
+                    &self.tx,
+                    UPDATE_COLLECTION_SQL,
+                    relative_path,
+                    collection.as_i64(),
+                )?;
+                self.touch_last_curated_at(relative_path)
+            }
+            None => {
+                update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path)?;
+                self.touch_last_curated_at(relative_path)
+            }
         }
+    }
+
+    pub(crate) fn touch_last_curated_at(
+        &mut self,
+        relative_path: &Path,
+    ) -> Result<(), SourceDbError> {
+        self.set_last_curated_at(relative_path, epoch_seconds())
     }
 
     fn insert_collection_membership(
@@ -360,4 +409,11 @@ impl<'conn> SourceWriteBatch<'conn> {
         );
         Ok(())
     }
+}
+
+fn epoch_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_secs() as i64
 }

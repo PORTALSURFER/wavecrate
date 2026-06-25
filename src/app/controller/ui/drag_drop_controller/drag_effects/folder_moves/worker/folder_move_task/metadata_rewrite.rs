@@ -72,6 +72,7 @@ fn rewrite_entry(
         looped: entry.looped,
         locked: entry.locked,
         last_played_at: entry.last_played_at,
+        last_curated_at: entry.last_curated_at,
         sound_type: entry.sound_type,
         user_tag: entry.user_tag.clone(),
         normal_tags: entry.normal_tags.clone(),

@@ -1,5 +1,6 @@
 use crate::native_app::app_chrome::view_models::library_sidebar::{
-    FilterSectionViewModel, PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
+    CurationFilterViewModel, FilterSectionViewModel, PlaybackTypeFilterToggleViewModel,
+    RatingFilterToggleViewModel,
 };
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 
@@ -7,6 +8,7 @@ use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter
 pub(super) struct FilterRowsProjection {
     pub(super) name_filter: TextFilterRowProjection,
     pub(super) tag_filter: TextFilterRowProjection,
+    pub(super) curation: CurationFilterRowProjection,
     pub(super) playback_type: PlaybackTypeFilterRowProjection,
     pub(super) rating: RatingFilterRowProjection,
 }
@@ -29,6 +31,13 @@ pub(super) struct TextFilterRowProjection {
 pub(super) struct PlaybackTypeFilterRowProjection {
     pub(super) label: &'static str,
     pub(super) toggles: Vec<PlaybackTypeFilterToggleProjection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CurationFilterRowProjection {
+    pub(super) label: &'static str,
+    pub(super) active: bool,
+    pub(super) status: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,6 +74,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             value: model.tag_filter.clone(),
             placeholder: "Any",
         },
+        curation: CurationFilterRowProjection::from_view_model(&model.curation),
         playback_type: PlaybackTypeFilterRowProjection {
             label: "Type",
             toggles: model
@@ -81,6 +91,16 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
                 .map(RatingFilterToggleProjection::from_view_model)
                 .collect(),
         },
+    }
+}
+
+impl CurationFilterRowProjection {
+    fn from_view_model(model: &CurationFilterViewModel) -> Self {
+        Self {
+            label: "Curate",
+            active: model.active,
+            status: model.status.clone(),
+        }
     }
 }
 
@@ -165,6 +185,10 @@ mod tests {
         FilterSectionViewModel {
             name_filter: "kick".to_string(),
             tag_filter: "drum".to_string(),
+            curation: CurationFilterViewModel {
+                active: true,
+                status: "14d".to_string(),
+            },
             playback_type_filters: vec![
                 PlaybackTypeFilterToggleViewModel {
                     filter: PlaybackTypeFilter::OneShot,

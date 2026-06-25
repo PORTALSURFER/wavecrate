@@ -10,6 +10,7 @@ use super::{GuiMessage, MetadataMessage, NativeAppState};
 use crate::native_app::app::ExtractedFilePlaybackType;
 use radiant::prelude as ui;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use wavecrate::sample_sources::Rating;
 
 const EXTRACTED_FILE_RATING: Rating = Rating::KEEP_1;
@@ -109,6 +110,9 @@ impl NativeAppState {
         self.metadata
             .tags_by_file
             .insert(file_id.clone(), file_tags);
+        self.library
+            .folder_browser
+            .set_file_last_curated_at(absolute_path, epoch_seconds());
         self.library
             .folder_browser
             .invalidate_visible_sample_projection_cache();
@@ -220,6 +224,7 @@ impl NativeAppState {
         self.retain_visible_file_selection_after_metadata_tag_change();
         let status_tags = added_metadata_tag_status_tags(&requests, &tags);
         self.ui.status.sample = metadata_tag_added_status(&status_tags, changed_files.len());
+        self.mark_file_ids_curated(&changed_files);
         enqueue_metadata_tag_persist_requests(requests, context);
     }
 
@@ -330,6 +335,7 @@ impl NativeAppState {
         }
         self.retain_visible_file_selection_after_metadata_tag_change();
         self.ui.status.sample = metadata_tag_removed_status(&tag, changed_files.len());
+        self.mark_file_ids_curated(&changed_files);
         if requests.len() == 1 {
             let request = requests.remove(0);
             context
@@ -348,6 +354,13 @@ impl NativeAppState {
                     |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsPersisted(result)),
                 );
         }
+    }
+
+    fn mark_file_ids_curated(&mut self, file_ids: &[String]) {
+        let curated_at = epoch_seconds();
+        self.library
+            .folder_browser
+            .set_file_ids_last_curated_at(file_ids, curated_at);
     }
 
     pub(in crate::native_app) fn finish_metadata_tag_persist(
@@ -411,6 +424,13 @@ impl NativeAppState {
                 .is_some_and(|tags| playback_type_replacement_present(tags, incoming))
         })
     }
+}
+
+fn epoch_seconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_secs() as i64
 }
 
 fn push_unique(tags: &mut Vec<String>, tag: String) {

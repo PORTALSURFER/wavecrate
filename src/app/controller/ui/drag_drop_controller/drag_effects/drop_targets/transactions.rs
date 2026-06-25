@@ -13,6 +13,7 @@ pub(super) fn sample_move_metadata(metadata: &DroppedSampleMetadata) -> SampleMo
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        last_curated_at: metadata.last_curated_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
         normal_tags: metadata.normal_tags.clone(),
@@ -47,6 +48,11 @@ pub(super) fn register_drop_target_target_entry(
         batch
             .set_last_played_at(relative_path, last_played_at)
             .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+    }
+    if let Some(last_curated_at) = metadata.last_curated_at {
+        batch
+            .set_last_curated_at(relative_path, last_curated_at)
+            .map_err(|err| format!("Failed to copy curation timestamp: {err}"))?;
     }
     if let Some(sound_type) = metadata.sound_type {
         batch

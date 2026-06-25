@@ -21,6 +21,8 @@ pub(in crate::native_app) struct FileEntry {
     pub(in crate::native_app) modified_rank: u64,
     pub(in crate::native_app) rating: Rating,
     pub(in crate::native_app) rating_locked: bool,
+    #[serde(default)]
+    pub(in crate::native_app) last_curated_at: Option<i64>,
     pub(in crate::native_app) collection: Option<SampleCollection>,
     #[serde(default)]
     pub(in crate::native_app) collections: Vec<SampleCollection>,
@@ -45,6 +47,7 @@ impl FileEntry {
         rating_locked: bool,
         collections: Vec<SampleCollection>,
         last_played_at: Option<i64>,
+        last_curated_at: Option<i64>,
     ) -> Self {
         Self {
             id: path.to_string_lossy().to_string(),
@@ -68,6 +71,7 @@ impl FileEntry {
             modified_rank: last_played_rank(last_played_at),
             rating,
             rating_locked,
+            last_curated_at,
             collection: collections.first().copied(),
             collections,
         }
@@ -89,6 +93,7 @@ impl FileEntry {
             modified_rank: file.modified_rank,
             rating: file.rating,
             rating_locked: file.rating_locked,
+            last_curated_at: file.last_curated_at,
             collection: file.collection,
             collections: file.collection_memberships(),
         }
@@ -146,6 +151,10 @@ impl FileEntry {
     pub(in crate::native_app) fn set_last_played_at(&mut self, last_played_at: Option<i64>) {
         self.modified = last_played_label(last_played_at);
         self.modified_rank = last_played_rank(last_played_at);
+    }
+
+    pub(in crate::native_app) fn set_last_curated_at(&mut self, last_curated_at: Option<i64>) {
+        self.last_curated_at = last_curated_at;
     }
 }
 

@@ -133,6 +133,7 @@ fn applying_recovery_report_tracks_retained_delete_entries() {
         locked: true,
         missing: false,
         last_played_at: Some(12),
+        last_curated_at: None,
         user_tag: None,
         tag_named: false,
         normal_tags: Vec::new(),

@@ -6,7 +6,7 @@ use std::{
 
 use radiant::prelude as ui;
 
-use super::{filters, playback_type_filter, rating_filter, traversal};
+use super::{curation, filters, playback_type_filter, rating_filter, traversal};
 use crate::native_app::sample_library::folder_browser::{
     FileEntry, FolderBrowserState, FolderEntry,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
@@ -35,7 +35,10 @@ impl FolderBrowserState {
             folder,
             Some(tags_by_file),
         );
-        if required_tags.is_empty() && playback_type_filters.is_empty() {
+        if required_tags.is_empty()
+            && playback_type_filters.is_empty()
+            && !self.filters.curation.enabled
+        {
             let total_count = ids.len();
             let window_start = window.window_start.min(total_count);
             let window_end = window.window_end.min(total_count);
@@ -84,7 +87,10 @@ impl FolderBrowserState {
             folder,
             Some(tags_by_file),
         );
-        if required_tags.is_empty() && playback_type_filters.is_empty() {
+        if required_tags.is_empty()
+            && playback_type_filters.is_empty()
+            && !self.filters.curation.enabled
+        {
             return ids.iter().position(|id| id == selected);
         }
 
@@ -116,21 +122,37 @@ impl FolderBrowserState {
     ) -> Ref<'_, Vec<String>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
+        let curation_key = if sort_tags.is_some() {
+            self.filters.curation.cache_key()
+        } else {
+            String::new()
+        };
         let request = VisibleSampleProjectionRequest::new(
             folder.id.as_str(),
             name_filter.as_str(),
             rating_filter_key.as_str(),
+            curation_key.as_str(),
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
         )
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list.projection_cache.audio_ids(request, || {
+            let curation_now = curation::now_epoch_seconds();
             let mut files = Vec::new();
             traversal::collect_audio_files(folder, &mut files);
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             files.retain(|file| {
                 rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
+                    && (!self.filters.curation.enabled
+                        || sort_tags.is_none_or(|tags_by_file| {
+                            curation::file_matches_curation(
+                                file,
+                                tags_by_file,
+                                &self.filters.curation,
+                                curation_now,
+                            )
+                        }))
             });
             if let Some(tags_by_file) = sort_tags {
                 self.sort_files_matching_tags(&mut files, tags_by_file);

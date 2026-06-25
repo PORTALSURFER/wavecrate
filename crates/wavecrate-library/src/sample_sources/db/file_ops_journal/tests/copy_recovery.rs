@@ -18,6 +18,7 @@ fn reconcile_copy_from_staged_file() {
         true,
         true,
         Some(123),
+        Some(456),
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();
@@ -82,6 +83,7 @@ fn reconcile_copy_clears_stale_target_metadata_when_journal_defaults_are_empty()
         false,
         false,
         None,
+        None,
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();
@@ -127,6 +129,7 @@ fn reconcile_copy_preserves_staged_file_when_target_path_was_reused() {
         true,
         true,
         Some(123),
+        Some(456),
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();
@@ -203,6 +206,7 @@ fn reconcile_copy_defers_when_target_exists_and_journal_identity_is_incomplete()
         true,
         true,
         Some(123),
+        Some(456),
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();

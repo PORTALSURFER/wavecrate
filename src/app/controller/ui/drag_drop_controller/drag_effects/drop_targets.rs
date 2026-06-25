@@ -30,6 +30,7 @@ pub(super) struct DroppedSampleMetadata {
     looped: bool,
     locked: bool,
     last_played_at: Option<i64>,
+    last_curated_at: Option<i64>,
     sound_type: Option<crate::sample_sources::SampleSoundType>,
     user_tag: Option<String>,
     normal_tags: Vec<String>,

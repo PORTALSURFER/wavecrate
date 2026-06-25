@@ -161,6 +161,9 @@ fn persist_sample_rename_once(
     let last_played_at = db
         .last_played_at_for_path(old_relative)
         .map_err(|err| format!("Failed to load playback age: {err}"))?;
+    let last_curated_at = db
+        .last_curated_at_for_path(old_relative)
+        .map_err(|err| format!("Failed to load curation timestamp: {err}"))?;
     let db_looped = db
         .looped_for_path(old_relative)
         .map_err(|err| format!("Failed to load loop marker: {err}"))?;
@@ -215,6 +218,7 @@ fn persist_sample_rename_once(
         locked,
         missing: false,
         last_played_at: last_played_at.or(fallback_last_played_at),
+        last_curated_at,
         user_tag,
         normal_tags: db
             .tags_for_path(new_relative)

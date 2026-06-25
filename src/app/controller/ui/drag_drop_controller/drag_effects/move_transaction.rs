@@ -16,6 +16,8 @@ pub(super) struct SampleMoveMetadata {
     pub(super) locked: bool,
     /// Last played timestamp, if any.
     pub(super) last_played_at: Option<i64>,
+    /// Last explicit curation timestamp, if any.
+    pub(super) last_curated_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(super) sound_type: Option<SampleSoundType>,
     /// Operator-authored custom tag, if any.
@@ -81,6 +83,9 @@ pub(super) fn load_sample_move_metadata(
     let last_played_at = db
         .last_played_at_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
+    let last_curated_at = db
+        .last_curated_at_for_path(relative_path)
+        .map_err(|err| format!("Failed to read database: {err}"))?;
     let sound_type = db
         .sound_type_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
@@ -98,6 +103,7 @@ pub(super) fn load_sample_move_metadata(
         looped,
         locked,
         last_played_at,
+        last_curated_at,
         sound_type,
         user_tag,
         normal_tags,
@@ -124,6 +130,7 @@ pub(super) fn prepare_staged_copy(
         metadata.looped,
         metadata.locked,
         metadata.last_played_at,
+        metadata.last_curated_at,
     )
     .map_err(|err| format!("Failed to stage copy journal: {err}"))?;
     file_ops_journal::insert_entry(journal_db, &journal_entry)
@@ -193,6 +200,7 @@ pub(super) fn prepare_staged_move(
             looped: metadata.looped,
             locked: metadata.locked,
             last_played_at: metadata.last_played_at,
+            last_curated_at: metadata.last_curated_at,
         },
     )
     .map_err(|err| format!("Failed to stage move journal: {err}"))?;

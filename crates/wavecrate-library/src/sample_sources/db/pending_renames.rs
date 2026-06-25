@@ -32,6 +32,8 @@ pub struct PendingRenameEntry {
     pub locked: bool,
     /// Epoch seconds of the most recent playback, if available.
     pub last_played_at: Option<i64>,
+    /// Epoch seconds of the most recent explicit curation decision, if available.
+    pub last_curated_at: Option<i64>,
     /// Last known user-authored custom tag, if present.
     pub user_tag: Option<String>,
     /// Last known normal library tag labels assigned to this sample.
@@ -56,6 +58,7 @@ impl PendingRenameEntry {
             locked: self.locked,
             missing: false,
             last_played_at: self.last_played_at,
+            last_curated_at: self.last_curated_at,
             user_tag: self.user_tag,
             normal_tags: self.normal_tags,
             tag_named: self.tag_named,
@@ -101,12 +104,13 @@ impl SourceDatabase {
                         .and_then(SampleSoundType::from_token),
                     locked: row.get::<_, i64>(7)? != 0,
                     last_played_at: row.get(8)?,
-                    user_tag: row.get(9)?,
-                    normal_tags: decode_normal_tags(row.get(10)?),
+                    last_curated_at: row.get(9)?,
+                    user_tag: row.get(10)?,
+                    normal_tags: decode_normal_tags(row.get(11)?),
                     collection: row
-                        .get::<_, Option<i64>>(11)?
+                        .get::<_, Option<i64>>(12)?
                         .and_then(SampleCollection::from_i64),
-                    tag_named: row.get::<_, i64>(12)? != 0,
+                    tag_named: row.get::<_, i64>(13)? != 0,
                 }))
             })
             .map_err(map_sql_error)?
@@ -138,8 +142,8 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.tx
             .prepare_cached(
                 "INSERT INTO pending_wav_renames (
-                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, user_tag, normal_tags, collection, tag_named
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                  ON CONFLICT(path) DO UPDATE SET
                      file_size = excluded.file_size,
                      modified_ns = excluded.modified_ns,
@@ -149,6 +153,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                      sound_type = excluded.sound_type,
                      locked = excluded.locked,
                      last_played_at = excluded.last_played_at,
+                     last_curated_at = excluded.last_curated_at,
                      user_tag = excluded.user_tag,
                      normal_tags = excluded.normal_tags,
                      collection = excluded.collection,
@@ -165,6 +170,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 entry.sound_type.map(SampleSoundType::token),
                 entry.locked as i64,
                 entry.last_played_at,
+                entry.last_curated_at,
                 entry.user_tag.as_deref(),
                 normal_tags.as_deref(),
                 collection.map(SampleCollection::as_i64),
@@ -266,12 +272,13 @@ impl<'conn> SourceWriteBatch<'conn> {
                         .and_then(SampleSoundType::from_token),
                     locked: row.get::<_, i64>(7)? != 0,
                     last_played_at: row.get(8)?,
-                    user_tag: row.get(9)?,
-                    normal_tags: decode_normal_tags(row.get(10)?),
+                    last_curated_at: row.get(9)?,
+                    user_tag: row.get(10)?,
+                    normal_tags: decode_normal_tags(row.get(11)?),
                     collection: row
-                        .get::<_, Option<i64>>(11)?
+                        .get::<_, Option<i64>>(12)?
                         .and_then(SampleCollection::from_i64),
-                    tag_named: row.get::<_, i64>(12)? != 0,
+                    tag_named: row.get::<_, i64>(13)? != 0,
                 })
             })
             .map_err(map_sql_error)?
@@ -306,6 +313,11 @@ fn pending_rename_select_with_where(
     } else {
         "NULL AS user_tag".to_string()
     };
+    let last_curated_at_column = if columns.contains("last_curated_at") {
+        "last_curated_at".to_string()
+    } else {
+        "NULL AS last_curated_at".to_string()
+    };
     let normal_tags_column = if columns.contains("normal_tags") {
         "normal_tags".to_string()
     } else {
@@ -322,7 +334,7 @@ fn pending_rename_select_with_where(
         "NULL AS collection".to_string()
     };
     Ok(format!(
-        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {user_tag_column}, {normal_tags_column}, {collection_column}, {tag_named_column}
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {last_curated_at_column}, {user_tag_column}, {normal_tags_column}, {collection_column}, {tag_named_column}
          FROM pending_wav_renames
          WHERE {predicate_sql}"
     ))

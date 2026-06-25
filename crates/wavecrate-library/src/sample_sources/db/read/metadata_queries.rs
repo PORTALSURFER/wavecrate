@@ -158,6 +158,24 @@ impl SourceDatabase {
         Ok(value)
     }
 
+    /// Fetch the last curation timestamp for a specific wav path.
+    pub fn last_curated_at_for_path(&self, path: &Path) -> Result<Option<i64>, SourceDbError> {
+        let Some(path_str) = normalize_supported_audio_path(path)? else {
+            return Ok(None);
+        };
+        let value: Option<i64> = self
+            .connection
+            .query_row(
+                "SELECT last_curated_at FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten();
+        Ok(value)
+    }
+
     /// Fetch the fixed collection slot for a specific wav path.
     pub fn collection_for_path(
         &self,

@@ -16,6 +16,7 @@ fn file_entry() -> FileEntry {
         modified_rank: 1,
         rating: Rating::NEUTRAL,
         rating_locked: false,
+        last_curated_at: None,
         collection: None,
         collections: Vec::new(),
     }
@@ -36,6 +37,7 @@ fn visible_row(file: &FileEntry) -> VisibleSampleRow<'_> {
         similarity_aspect_strengths: EMPTY_SIMILARITY_ASPECT_STRENGTHS,
         collection_colors: Vec::new(),
         source_folder_path: String::from("drums/kicks"),
+        curation_badges: Vec::new(),
     }
 }
 
@@ -99,6 +101,23 @@ fn metadata_label_view_falls_back_to_file_stem_without_file_tags() {
         ),
         "portal_SS_kick_003"
     );
+}
+
+#[test]
+fn name_column_carries_curation_badges() {
+    let file = file_entry();
+    let mut row = visible_row(&file);
+    row.curation_badges = vec![String::from("new"), String::from("untagged")];
+    let column = FileColumn::for_tests("name", "Name", 160.0);
+
+    let display = column_display(&file, &row, &column, &HashMap::new());
+
+    assert!(matches!(
+        display.content,
+        SampleColumnContent::Name { text, badges }
+            if text == "portal_SS_kick_003"
+                && badges == vec![String::from("new"), String::from("untagged")]
+    ));
 }
 
 #[test]

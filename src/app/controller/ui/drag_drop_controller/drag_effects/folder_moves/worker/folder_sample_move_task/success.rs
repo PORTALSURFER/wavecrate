@@ -16,6 +16,7 @@ impl FolderSampleMoveTransaction<'_> {
             looped: self.metadata.looped,
             locked: self.metadata.locked,
             last_played_at: self.metadata.last_played_at,
+            last_curated_at: self.metadata.last_curated_at,
             sound_type: self.metadata.sound_type,
             user_tag: self.metadata.user_tag,
             normal_tags: self.metadata.normal_tags,

@@ -59,9 +59,15 @@ pub(in crate::native_app) struct CollectionRowViewModel {
 pub(in crate::native_app) struct FilterSectionViewModel {
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) tag_filter: String,
+    pub(in crate::native_app) curation: CurationFilterViewModel,
     pub(in crate::native_app) playback_type_filters: Vec<PlaybackTypeFilterToggleViewModel>,
     pub(in crate::native_app) rating_filters: Vec<RatingFilterToggleViewModel>,
     pub(in crate::native_app) panel_height: f32,
+}
+
+pub(in crate::native_app) struct CurationFilterViewModel {
+    pub(in crate::native_app) active: bool,
+    pub(in crate::native_app) status: String,
 }
 
 pub(in crate::native_app) struct PlaybackTypeFilterToggleViewModel {
@@ -179,6 +185,10 @@ impl FilterSectionViewModel {
         Self {
             name_filter: folder_browser.name_filter().to_owned(),
             tag_filter: folder_browser.tag_filter().to_owned(),
+            curation: CurationFilterViewModel {
+                active: folder_browser.curation_mode_enabled(),
+                status: format!("{}d", folder_browser.curation_mode().recent_ignore_days),
+            },
             playback_type_filters: PLAYBACK_TYPE_FILTERS
                 .into_iter()
                 .map(|filter| PlaybackTypeFilterToggleViewModel {

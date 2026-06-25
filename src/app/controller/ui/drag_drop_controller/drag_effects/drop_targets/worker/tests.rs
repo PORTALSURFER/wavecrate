@@ -62,6 +62,7 @@ impl DropTargetRecoveryFixture {
             looped: true,
             locked: true,
             last_played_at: Some(42),
+            last_curated_at: Some(99),
             sound_type: None,
             user_tag: Some("Vintage FX".into()),
             normal_tags: Vec::new(),

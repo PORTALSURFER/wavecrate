@@ -126,6 +126,17 @@ impl SourceMoveTransaction<'_> {
             );
             return false;
         }
+        if let Some(last_curated_at) = self.metadata.last_curated_at
+            && let Err(err) = batch.set_last_curated_at(&self.target_relative, last_curated_at)
+        {
+            report_staged_move_failure(
+                errors,
+                self.target_db,
+                &self.prepared,
+                format!("Failed to copy curation timestamp: {err}"),
+            );
+            return false;
+        }
         if let Some(sound_type) = self.metadata.sound_type
             && let Err(err) = batch.set_sound_type(&self.target_relative, Some(sound_type))
         {
@@ -234,6 +245,7 @@ impl SourceMoveTransaction<'_> {
             looped: self.metadata.looped,
             locked: self.metadata.locked,
             last_played_at: self.metadata.last_played_at,
+            last_curated_at: self.metadata.last_curated_at,
             sound_type: self.metadata.sound_type,
             user_tag: self.metadata.user_tag,
             normal_tags: self.metadata.normal_tags,

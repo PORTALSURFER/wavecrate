@@ -57,6 +57,11 @@ pub(super) fn ensure_wav_files_optional_columns(
     add_column_if_missing(
         connection,
         &columns,
+        OptionalColumn::new("wav_files", "last_curated_at", "INTEGER"),
+    )?;
+    add_column_if_missing(
+        connection,
+        &columns,
         OptionalColumn::new("wav_files", "collection", "INTEGER"),
     )?;
     Ok(())
@@ -93,6 +98,11 @@ pub(super) fn ensure_pending_rename_optional_columns(
     add_column_if_missing(
         connection,
         &columns,
+        OptionalColumn::new("pending_wav_renames", "last_curated_at", "INTEGER"),
+    )?;
+    add_column_if_missing(
+        connection,
+        &columns,
         OptionalColumn::new("pending_wav_renames", "normal_tags", "TEXT"),
     )?;
     add_column_if_missing(
@@ -120,6 +130,11 @@ pub(super) fn ensure_file_ops_journal_optional_columns(
         connection,
         &columns,
         OptionalColumn::new("file_ops_journal", "locked", "INTEGER"),
+    )?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("file_ops_journal", "last_curated_at", "INTEGER"),
     )?;
     Ok(())
 }

@@ -37,6 +37,9 @@ pub(super) fn sample_column_cell(column: SampleColumnDisplay) -> ui::View<GuiMes
 
 fn render_sample_cell(projection: SampleCellProjection) -> ui::View<GuiMessage> {
     match projection.content {
+        SampleCellContentProjection::Name { text, badges } => {
+            sample_name_cell(text, badges, projection.width)
+        }
         SampleCellContentProjection::Text(value) => sample_file_cell(value, projection.width),
         SampleCellContentProjection::Rename(rename) => sample_rename_cell(rename, projection.width),
         SampleCellContentProjection::Rating(rating) => render_rating_cell(rating, projection.width),
@@ -215,6 +218,20 @@ fn render_rating_cell(projection: RatingCellProjection, width: f32) -> ui::View<
 /// Render a passive text cell for a sample file column.
 pub(super) fn sample_file_cell(value: String, width: f32) -> ui::View<GuiMessage> {
     ui::compact_details_cell(ui::text(value), Some(width))
+}
+
+fn sample_name_cell(text: String, badges: Vec<String>, width: f32) -> ui::View<GuiMessage> {
+    if badges.is_empty() {
+        return sample_file_cell(text, width);
+    }
+    let mut cells = Vec::with_capacity(badges.len() + 1);
+    cells.push(ui::text(text).height(18.0).fill_width());
+    cells.extend(badges.into_iter().take(3).map(|badge| {
+        ui::passive_badge(badge)
+            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+            .height(14.0)
+    }));
+    ui::compact_details_cell(ui::row(cells).spacing(4.0).fill_width(), Some(width))
 }
 
 static SIMILARITY_ANCHOR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(

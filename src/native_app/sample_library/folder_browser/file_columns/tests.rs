@@ -41,6 +41,7 @@ impl TestFileEntry<'_> {
             modified_rank,
             rating,
             rating_locked: false,
+            last_curated_at: None,
             collection,
             collections: collection.into_iter().collect(),
         }

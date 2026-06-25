@@ -52,6 +52,7 @@ impl MoveRecoveryFixture {
                 looped: true,
                 locked: true,
                 last_played_at: Some(123),
+                last_curated_at: Some(456),
             },
         )
         .unwrap();

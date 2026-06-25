@@ -152,7 +152,9 @@ impl MissingCollectionSnapshot {
         collect_present_relative_paths(root, root_folder, &mut present_relative_paths);
 
         let mut snapshot = Self::default();
-        for (relative_path, (rating, locked, collections, last_played_at)) in metadata {
+        for (relative_path, (rating, locked, collections, last_played_at, last_curated_at)) in
+            metadata
+        {
             if collections.is_empty() || present_relative_paths.contains(relative_path) {
                 continue;
             }
@@ -162,6 +164,7 @@ impl MissingCollectionSnapshot {
                 *locked,
                 collections.clone(),
                 *last_played_at,
+                *last_curated_at,
             ));
         }
         snapshot.sort_files();

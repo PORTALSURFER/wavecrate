@@ -1,8 +1,8 @@
 use radiant::prelude as ui;
 use std::collections::HashMap;
 
-use super::super::SimilarityBrowserState;
 use super::super::file_columns::{sort_file_indices_by_column_kind, sort_kind_for_details_sort};
+use super::super::{SimilarityBrowserState, curation};
 use super::{FolderBrowserState, FolderEntry};
 
 pub(super) fn sort_file_indices(
@@ -37,6 +37,17 @@ fn sort_file_indices_with_tag_metadata(
     if state.sample_list.file_sort.direction == ui::SortDirection::Descending {
         indices.reverse();
     }
+    if state.filters.curation.enabled
+        && let Some(tags_by_file) = tags_by_file
+    {
+        curation::sort_file_indices_for_curation(
+            folder,
+            indices,
+            tags_by_file,
+            &state.filters.curation,
+            curation::now_epoch_seconds(),
+        );
+    }
 }
 
 pub(super) fn sort_file_indices_by_similarity(
@@ -47,6 +58,9 @@ pub(super) fn sort_file_indices_by_similarity(
     let Some(similarity) = state.sample_list.similarity.as_ref() else {
         return;
     };
+    if state.filters.curation.enabled {
+        return;
+    }
     let base_order = indices
         .iter()
         .enumerate()

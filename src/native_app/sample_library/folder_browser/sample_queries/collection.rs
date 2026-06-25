@@ -7,7 +7,7 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::SampleCollection;
 
 use super::{
-    filter_audio_files_by_rating, filters, playback_type_filter, rating_filter, traversal,
+    curation, filter_audio_files_by_rating, filters, playback_type_filter, rating_filter, traversal,
 };
 use crate::native_app::sample_library::folder_browser::{
     FileEntry, FolderBrowserState,
@@ -34,7 +34,10 @@ impl FolderBrowserState {
         let playback_type_filters = &self.filters.playback_type_filter;
         let ids = self
             .selected_collection_audio_file_ids_ref_with_sort_tags(collection, Some(tags_by_file));
-        if required_tags.is_empty() && playback_type_filters.is_empty() {
+        if required_tags.is_empty()
+            && playback_type_filters.is_empty()
+            && !self.filters.curation.enabled
+        {
             let total_count = ids.len();
             let window_start = window.window_start.min(total_count);
             let window_end = window.window_end.min(total_count);
@@ -85,16 +88,23 @@ impl FolderBrowserState {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
         let collection_key = format!("collection:{}", collection.index());
+        let curation_key = if sort_tags.is_some() {
+            self.filters.curation.cache_key()
+        } else {
+            String::new()
+        };
         let request = VisibleSampleProjectionRequest::new(
             collection_key.as_str(),
             name_filter.as_str(),
             rating_filter_key.as_str(),
+            curation_key.as_str(),
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
         )
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
         self.sample_list.projection_cache.audio_ids(request, || {
+            let curation_now = curation::now_epoch_seconds();
             let mut files = Vec::new();
             for folder in self.loaded_source_root_folders() {
                 traversal::collect_collection_audio_files(folder, collection, &mut files);
@@ -107,6 +117,18 @@ impl FolderBrowserState {
             );
             filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
             filter_audio_files_by_rating(&mut files, &self.filters.rating_filter);
+            if self.filters.curation.enabled
+                && let Some(tags_by_file) = sort_tags
+            {
+                files.retain(|file| {
+                    curation::file_matches_curation(
+                        file,
+                        tags_by_file,
+                        &self.filters.curation,
+                        curation_now,
+                    )
+                });
+            }
             if let Some(tags_by_file) = sort_tags {
                 self.sort_files_matching_tags(&mut files, tags_by_file);
             } else {

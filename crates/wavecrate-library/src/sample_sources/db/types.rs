@@ -251,6 +251,9 @@ pub struct WavEntry {
     /// Epoch seconds of the most recent playback, if any.
     #[serde(default)]
     pub last_played_at: Option<i64>,
+    /// Epoch seconds of the most recent explicit library curation decision, if any.
+    #[serde(default)]
+    pub last_curated_at: Option<i64>,
     /// Optional single custom tag authored by the user.
     #[serde(default)]
     pub user_tag: Option<String>,

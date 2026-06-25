@@ -155,7 +155,11 @@ impl FolderBrowserState {
         delta: i32,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<String> {
-        let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        let file_ids = if self.curation_mode_enabled() {
+            self.selected_curation_bucket_file_ids_matching_tags(tags_by_file)
+        } else {
+            self.selected_audio_file_ids_matching_tags(tags_by_file)
+        };
         if delta < 0 {
             self.sample_list
                 .random_navigation
@@ -177,6 +181,7 @@ impl FolderBrowserState {
         if extend
             || tag_filter_has_requirements(&self.filters.tag_filter)
             || !self.filters.playback_type_filter.is_empty()
+            || self.filters.curation.enabled
             || sort_kind_for_details_sort(&self.sample_list.file_sort)
                 == FileColumnKind::PlaybackType
         {

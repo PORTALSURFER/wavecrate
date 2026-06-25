@@ -21,6 +21,7 @@ fn label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded() {
         locked: false,
         missing: false,
         last_played_at: None,
+        last_curated_at: None,
         user_tag: None,
         tag_named: false,
         normal_tags: Vec::new(),

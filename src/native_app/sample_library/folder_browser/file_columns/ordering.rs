@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use super::super::{
-    FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, SimilarityBrowserState,
+    FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, SimilarityBrowserState, curation,
     playback_type_filter,
 };
 
@@ -46,6 +46,17 @@ impl FolderBrowserState {
         }
         if self.sample_list.file_sort.direction == ui::SortDirection::Descending {
             files.reverse();
+        }
+        if self.filters.curation.enabled
+            && let Some(tags_by_file) = tags_by_file
+        {
+            curation::sort_files_for_curation(
+                files,
+                tags_by_file,
+                &self.filters.curation,
+                curation::now_epoch_seconds(),
+            );
+            return;
         }
         if kind != FileColumnKind::Similarity {
             self.sort_files_by_similarity(files);

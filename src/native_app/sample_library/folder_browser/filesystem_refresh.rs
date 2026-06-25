@@ -388,6 +388,12 @@ impl FolderBrowserState {
             return false;
         }
         self.update_visible_tree_file_rating(&file_id, source_index, rating, locked);
+        let curated_at = super::curation::now_epoch_seconds();
+        let _ = self.source.sources[source_index]
+            .root_folder
+            .as_mut()
+            .is_some_and(|root| root.set_file_last_curated_at(&file_id, curated_at));
+        self.update_visible_tree_file_last_curated_at(&file_id, source_index, curated_at);
         self.bump_file_content_revision();
         true
     }
@@ -409,6 +415,58 @@ impl FolderBrowserState {
             return false;
         }
         self.update_visible_tree_file_last_played_at(&file_id, source_index, last_played_at);
+        self.bump_file_content_revision();
+        true
+    }
+
+    pub(in crate::native_app) fn set_file_last_curated_at(
+        &mut self,
+        path: &Path,
+        last_curated_at: i64,
+    ) -> bool {
+        let Some(source_index) = self.source_index_for_path(path) else {
+            return false;
+        };
+        let file_id = path_id(path);
+        let changed = self.source.sources[source_index]
+            .root_folder
+            .as_mut()
+            .is_some_and(|root| root.set_file_last_curated_at(&file_id, last_curated_at));
+        if !changed {
+            return false;
+        }
+        self.update_visible_tree_file_last_curated_at(&file_id, source_index, last_curated_at);
+        self.bump_file_content_revision();
+        true
+    }
+
+    pub(in crate::native_app) fn set_file_ids_last_curated_at(
+        &mut self,
+        file_ids: &[String],
+        last_curated_at: i64,
+    ) -> bool {
+        if file_ids.is_empty() {
+            return false;
+        }
+        let target_ids = file_ids.iter().cloned().collect::<HashSet<_>>();
+        let mut changed = false;
+        let mut visible_changed = false;
+        for source_index in 0..self.source.sources.len() {
+            let source_changed = self.source.sources[source_index]
+                .root_folder
+                .as_mut()
+                .is_some_and(|root| root.set_files_last_curated_at(&target_ids, last_curated_at));
+            changed |= source_changed;
+            visible_changed |= source_changed && self.source_is_visible(source_index);
+        }
+        if !changed {
+            return false;
+        }
+        if visible_changed {
+            for root in &mut self.tree.folders {
+                root.set_files_last_curated_at(&target_ids, last_curated_at);
+            }
+        }
         self.bump_file_content_revision();
         true
     }
@@ -458,6 +516,22 @@ impl FolderBrowserState {
         }
         for root in &mut self.tree.folders {
             if root.set_file_last_played_at(file_id, last_played_at) {
+                break;
+            }
+        }
+    }
+
+    fn update_visible_tree_file_last_curated_at(
+        &mut self,
+        file_id: &str,
+        source_index: usize,
+        last_curated_at: i64,
+    ) {
+        if !self.source_is_visible(source_index) {
+            return;
+        }
+        for root in &mut self.tree.folders {
+            if root.set_file_last_curated_at(file_id, last_curated_at) {
                 break;
             }
         }

@@ -40,6 +40,14 @@ impl NativeAppState {
             FolderBrowserMessage::TogglePlaybackTypeFilter(filter, enabled) => {
                 self.toggle_folder_browser_playback_type_filter(filter, enabled);
             }
+            FolderBrowserMessage::ToggleCurationMode(enabled) => {
+                self.library
+                    .folder_browser
+                    .set_curation_mode_enabled(enabled);
+                self.library
+                    .folder_browser
+                    .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+            }
             FolderBrowserMessage::DropOnFolder(folder_id) => {
                 self.drop_on_folder_browser_folder(folder_id, context);
             }

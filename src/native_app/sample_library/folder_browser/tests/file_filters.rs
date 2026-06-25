@@ -2,6 +2,7 @@ use super::*;
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[test]
 fn tagged_file_window_materializes_requested_range_without_holes() {
@@ -44,6 +45,95 @@ fn tagged_file_window_materializes_requested_range_without_holes() {
     assert_eq!(window_files.rows[0].name, "sample_056.wav");
     assert_eq!(window_files.rows[13].name, "sample_082.wav");
     let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn curation_mode_filters_recent_and_locked_keep_rows() {
+    let root = temp_source_root("wavecrate-gui-curation-filter");
+    let empty = root.join("empty.wav");
+    let tagged = root.join("tagged.wav");
+    let recent = root.join("recent.wav");
+    let locked = root.join("locked.wav");
+    for file in [&empty, &tagged, &recent, &locked] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let now = curation_test_now();
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    assert!(browser.set_file_rating_state(&recent, Rating::KEEP_1, false));
+    assert!(browser.set_file_last_curated_at(&recent, now - 60));
+    assert!(browser.set_file_rating_state(&locked, Rating::KEEP_3, true));
+    assert!(browser.set_file_last_curated_at(&locked, now - 60 * 60 * 24 * 90));
+    browser.apply_message(FolderBrowserMessage::ToggleCurationMode(true));
+    let tags_by_file = HashMap::from([
+        (
+            path_id(&tagged),
+            vec![String::from("kick"), String::from("one-shot")],
+        ),
+        (
+            path_id(&recent),
+            vec![String::from("kick"), String::from("one-shot")],
+        ),
+        (
+            path_id(&locked),
+            vec![String::from("kick"), String::from("one-shot")],
+        ),
+    ]);
+
+    let window_files = browser.selected_audio_file_window_matching_tags(
+        radiant::prelude::VirtualListWindow {
+            total_items: 4,
+            viewport_start: 0,
+            viewport_end: 4,
+            window_start: 0,
+            window_end: 4,
+        },
+        &tags_by_file,
+    );
+
+    assert_eq!(window_files.total_count, 2);
+    assert_eq!(
+        window_files
+            .rows
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["empty.wav", "tagged.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn curation_random_navigation_draws_from_current_priority_bucket() {
+    let root = temp_source_root("wavecrate-gui-curation-random");
+    let empty_a = root.join("empty-a.wav");
+    let empty_b = root.join("empty-b.wav");
+    let tagged = root.join("tagged.wav");
+    for file in [&empty_a, &empty_b, &tagged] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let tags_by_file = HashMap::from([(
+        path_id(&tagged),
+        vec![String::from("kick"), String::from("one-shot")],
+    )]);
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.apply_message(FolderBrowserMessage::ToggleCurationMode(true));
+    browser.select_file(path_id(&empty_a));
+    browser.toggle_random_navigation();
+
+    for _ in 0..6 {
+        let selected = browser
+            .navigate_vertical_matching_tags(1, false, false, &tags_by_file)
+            .expect("random curation navigation target");
+        assert_ne!(selected, path_id(&tagged));
+    }
+    let _ = fs::remove_dir_all(root);
+}
+
+fn curation_test_now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_secs() as i64
 }
 
 #[test]

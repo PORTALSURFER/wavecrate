@@ -36,6 +36,7 @@ fn sample_entry(relative_path: &str) -> crate::sample_sources::WavEntry {
         locked: true,
         missing: false,
         last_played_at: Some(456),
+        last_curated_at: None,
         user_tag: None,
         tag_named: false,
         normal_tags: Vec::new(),

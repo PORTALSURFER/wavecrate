@@ -30,6 +30,8 @@ pub(crate) struct FolderEntryMove {
     pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
+    /// Last explicit curation timestamp, if any.
+    pub(crate) last_curated_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
     /// Operator-authored custom tag, if any.

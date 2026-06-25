@@ -23,6 +23,7 @@ fn file_entry() -> FileEntry {
         modified_rank: 1,
         rating: Rating::NEUTRAL,
         rating_locked: false,
+        last_curated_at: None,
         collection: None,
         collections: Vec::new(),
     }

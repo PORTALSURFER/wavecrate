@@ -239,6 +239,36 @@ impl FolderEntry {
             .any(|child| child.set_file_last_played_at(file_id, last_played_at))
     }
 
+    pub(super) fn set_file_last_curated_at(&mut self, file_id: &str, last_curated_at: i64) -> bool {
+        for file in &mut self.files {
+            if file.id == file_id {
+                file.set_last_curated_at(Some(last_curated_at));
+                return true;
+            }
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.set_file_last_curated_at(file_id, last_curated_at))
+    }
+
+    pub(super) fn set_files_last_curated_at(
+        &mut self,
+        target_ids: &HashSet<String>,
+        last_curated_at: i64,
+    ) -> bool {
+        let mut changed = false;
+        for file in &mut self.files {
+            if target_ids.contains(&file.id) {
+                file.set_last_curated_at(Some(last_curated_at));
+                changed = true;
+            }
+        }
+        for child in &mut self.children {
+            changed |= child.set_files_last_curated_at(target_ids, last_curated_at);
+        }
+        changed
+    }
+
     pub(super) fn set_file_collection(
         &mut self,
         file_id: &str,

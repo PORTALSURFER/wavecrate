@@ -80,6 +80,9 @@ impl BrowserController<'_> {
         let last_played_at = entry_index
             .and_then(|idx| self.wav_entries.entry(idx))
             .and_then(|entry| entry.last_played_at);
+        let last_curated_at = entry_index
+            .and_then(|idx| self.wav_entries.entry(idx))
+            .and_then(|entry| entry.last_curated_at);
         let updated = WavEntry {
             relative_path: ctx.entry.relative_path.clone(),
             file_size,
@@ -96,6 +99,7 @@ impl BrowserController<'_> {
                 .unwrap_or(false),
             missing: false,
             last_played_at,
+            last_curated_at,
             user_tag: entry_index
                 .and_then(|idx| self.wav_entries.entry(idx))
                 .and_then(|entry| entry.user_tag.clone()),

@@ -27,6 +27,26 @@ fn metadata_only_mutations_do_not_bump_wav_paths_revision() {
 }
 
 #[test]
+fn curation_timestamp_tracks_user_metadata_decisions_not_playback() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let path = Path::new("one.wav");
+    db.upsert_file(path, 10, 5).unwrap();
+
+    db.set_last_played_at(path, 42).unwrap();
+    assert_eq!(db.last_curated_at_for_path(path).unwrap(), None);
+
+    db.set_tag(path, Rating::KEEP_1).unwrap();
+    assert!(db.last_curated_at_for_path(path).unwrap().is_some());
+
+    db.clear_last_curated_at(path).unwrap();
+    assert_eq!(db.last_curated_at_for_path(path).unwrap(), None);
+
+    db.assign_tag_to_path(path, "Kick").unwrap();
+    assert!(db.last_curated_at_for_path(path).unwrap().is_some());
+}
+
+#[test]
 fn single_write_wrappers_match_batch_results_and_revision_behavior() {
     let single_dir = tempdir().unwrap();
     let single = SourceDatabase::open(single_dir.path()).unwrap();

@@ -145,6 +145,7 @@ fn drop_target_transfer_success(
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        last_curated_at: metadata.last_curated_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
         normal_tags: metadata.normal_tags.clone(),

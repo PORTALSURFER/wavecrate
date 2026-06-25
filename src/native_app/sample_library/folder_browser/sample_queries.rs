@@ -1,7 +1,7 @@
 use std::{cell::Ref, collections::HashMap, path::PathBuf};
 
 use super::{
-    FileColumnKind, FileEntry, FolderBrowserState, FolderEntry,
+    FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, curation,
     file_columns::sort_kind_for_details_sort,
     playback_type_filter, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
@@ -124,15 +124,22 @@ impl FolderBrowserState {
         if required_tags.is_empty()
             && playback_type_filter.is_empty()
             && self.selection.selected_collection.is_none()
+            && !self.filters.curation.enabled
         {
             return self.selected_folder_audio_file_count();
         }
         if let Some(collection) = self.selection.selected_collection {
-            if required_tags.is_empty() && playback_type_filter.is_empty() {
+            if required_tags.is_empty()
+                && playback_type_filter.is_empty()
+                && !self.filters.curation.enabled
+            {
                 return self
                     .selected_collection_audio_file_ids_ref(collection)
                     .len();
             }
+            return self.selected_audio_files_matching_tags(tags_by_file).len();
+        }
+        if self.filters.curation.enabled {
             return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
         if self.folder_subtree_listing_enabled() {
@@ -214,7 +221,10 @@ impl FolderBrowserState {
         let playback_type_filter = &self.filters.playback_type_filter;
         let indices =
             self.selected_folder_audio_file_indices_ref_with_sort_tags(folder, Some(tags_by_file));
-        if required_tags.is_empty() && playback_type_filter.is_empty() {
+        if required_tags.is_empty()
+            && playback_type_filter.is_empty()
+            && !self.filters.curation.enabled
+        {
             let total_count = indices.len();
             return VisibleSampleWindowFiles {
                 total_count,
@@ -421,10 +431,16 @@ impl FolderBrowserState {
     ) -> Ref<'_, Vec<usize>> {
         let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
         let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
+        let curation_key = if sort_tags.is_some() {
+            self.filters.curation.cache_key()
+        } else {
+            String::new()
+        };
         let request = VisibleSampleProjectionRequest::new(
             folder.id.as_str(),
             name_filter.as_str(),
             rating_filter_key.as_str(),
+            curation_key.as_str(),
             &self.sample_list.file_sort,
             self.similarity_anchor_id(),
             self.sample_list.content_revision,
@@ -433,6 +449,7 @@ impl FolderBrowserState {
         self.sample_list
             .projection_cache
             .audio_indices(request, || {
+                let curation_now = curation::now_epoch_seconds();
                 let mut indices = folder
                     .files
                     .iter()
@@ -444,6 +461,15 @@ impl FolderBrowserState {
                                 file,
                                 &self.filters.rating_filter,
                             )
+                            && (!self.filters.curation.enabled
+                                || sort_tags.is_none_or(|tags_by_file| {
+                                    curation::file_matches_curation(
+                                        file,
+                                        tags_by_file,
+                                        &self.filters.curation,
+                                        curation_now,
+                                    )
+                                }))
                     })
                     .map(|(index, _)| index)
                     .collect::<Vec<_>>();

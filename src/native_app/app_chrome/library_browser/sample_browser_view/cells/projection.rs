@@ -14,6 +14,7 @@ pub(super) struct SampleCellProjection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum SampleCellContentProjection {
+    Name { text: String, badges: Vec<String> },
     Text(String),
     Rename(FileRenameView),
     Rating(RatingCellProjection),
@@ -52,6 +53,9 @@ pub(super) fn sample_cell_projection(column: SampleColumnDisplay) -> SampleCellP
     SampleCellProjection {
         width: column.width,
         content: match column.content {
+            SampleColumnContent::Name { text, badges } => {
+                SampleCellContentProjection::Name { text, badges }
+            }
             SampleColumnContent::Text(value) => SampleCellContentProjection::Text(value),
             SampleColumnContent::Rename(rename) => SampleCellContentProjection::Rename(rename),
             SampleColumnContent::Rating(indicator) => {

@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::{
     DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
+    curation::BrowserCurationMode,
     playback_type_filter::{PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter},
     rating_filter::RATING_FILTER_LEVELS,
 };
@@ -14,7 +15,7 @@ const MAX_FILTER_PANEL_HEIGHT: f32 = 180.0;
 pub(in crate::native_app) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
     filter_panel_geometry().header_only_height();
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 117.0;
+pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 142.0;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -45,6 +46,7 @@ pub(super) struct BrowserFilterState {
     pub(super) tag_filter: String,
     pub(super) playback_type_filter: BTreeSet<PlaybackTypeFilter>,
     pub(super) rating_filter: BTreeSet<i8>,
+    pub(super) curation: BrowserCurationMode,
 }
 
 #[derive(Clone, Debug)]
@@ -94,6 +96,14 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn playback_type_filter(&self) -> &BTreeSet<PlaybackTypeFilter> {
         &self.filters.playback_type_filter
+    }
+
+    pub(in crate::native_app) fn curation_mode(&self) -> &BrowserCurationMode {
+        &self.filters.curation
+    }
+
+    pub(in crate::native_app) fn curation_mode_enabled(&self) -> bool {
+        self.filters.curation.enabled
     }
 
     pub(in crate::native_app) fn apply_name_filter_input(
@@ -159,6 +169,15 @@ impl FolderBrowserState {
         if changed {
             self.reset_file_view();
         }
+    }
+
+    pub(in crate::native_app) fn set_curation_mode_enabled(&mut self, enabled: bool) {
+        if self.filters.curation.enabled == enabled {
+            return;
+        }
+        self.filters.curation.enabled = enabled;
+        self.retain_visible_file_selection_after_filter();
+        self.reset_file_view();
     }
 
     pub(in crate::native_app) fn retain_visible_file_selection_after_tag_filter(

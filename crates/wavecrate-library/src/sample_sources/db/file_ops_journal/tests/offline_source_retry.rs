@@ -38,6 +38,7 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
             looped: true,
             locked: true,
             last_played_at: Some(123),
+            last_curated_at: Some(456),
         },
     )
     .unwrap();

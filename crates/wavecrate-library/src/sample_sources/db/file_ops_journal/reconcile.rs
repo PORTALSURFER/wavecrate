@@ -226,6 +226,15 @@ fn reconcile_target_entry(
                 .clear_last_played_at(&entry.target_relative)
                 .map_err(|err| err.to_string())?;
         }
+        if let Some(last_curated_at) = entry.last_curated_at {
+            batch
+                .set_last_curated_at(&entry.target_relative, last_curated_at)
+                .map_err(|err| err.to_string())?;
+        } else {
+            batch
+                .clear_last_curated_at(&entry.target_relative)
+                .map_err(|err| err.to_string())?;
+        }
         batch.commit().map_err(|err| err.to_string())?;
         Ok(true)
     } else {

@@ -23,6 +23,7 @@ pub(super) fn stage_source_copy(
         false,
         false,
         None,
+        None,
     ) {
         Ok(entry) => entry,
         Err(err) => return Err(vec![format!("Failed to stage copy journal: {err}")]),

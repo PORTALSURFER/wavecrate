@@ -85,6 +85,7 @@ impl AppController {
             locked: existing.map(|entry| entry.locked).unwrap_or(false),
             missing: false,
             last_played_at: existing.and_then(|entry| entry.last_played_at),
+            last_curated_at: None,
             user_tag: existing.and_then(|entry| entry.user_tag.clone()),
             tag_named: false,
             normal_tags: self.normalized_entry_normal_tags(source_id, relative_path),

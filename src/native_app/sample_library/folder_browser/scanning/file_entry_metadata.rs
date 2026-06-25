@@ -13,7 +13,7 @@ use wavecrate::sample_sources::{Rating, SampleCollection};
 pub(in crate::native_app::sample_library::folder_browser) fn file_entry(
     path: &PathBuf,
 ) -> FileEntry {
-    file_entry_with_metadata(path, Rating::NEUTRAL, false, Vec::new(), None)
+    file_entry_with_metadata(path, Rating::NEUTRAL, false, Vec::new(), None, None)
 }
 
 pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_metadata(
@@ -22,6 +22,7 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_met
     rating_locked: bool,
     collections: Vec<SampleCollection>,
     last_played_at: Option<i64>,
+    last_curated_at: Option<i64>,
 ) -> FileEntry {
     let metadata = fs::metadata(path).ok();
     let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
@@ -37,6 +38,7 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_met
         modified_rank: last_played_rank(last_played_at),
         rating,
         rating_locked,
+        last_curated_at,
         collection: collections.first().copied(),
         collections,
     }
