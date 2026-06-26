@@ -189,7 +189,16 @@ fn waveform_interaction_updates_play_selection(
     ) {
         return false;
     }
-    play_selection_drag_active(active_drag)
+    match active_drag {
+        Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play)) => {
+            matches!(interaction, WaveformInteraction::FinishSelection { .. })
+        }
+        Some(
+            WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)
+            | WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play),
+        ) => true,
+        _ => false,
+    }
 }
 
 fn waveform_interaction_can_finish_mark_change(interaction: &WaveformInteraction) -> bool {
@@ -278,7 +287,7 @@ mod tests {
     use radiant::gui::types::Point;
 
     use super::*;
-    use crate::native_app::waveform::WaveformEditFadeHandle;
+    use crate::native_app::waveform::{WaveformEditFadeHandle, WaveformSelectionEdge};
 
     #[test]
     fn live_selection_updates_do_not_finish_harvest_mark_changes() {
@@ -329,5 +338,51 @@ mod tests {
                 vertical_ratio: 0.4,
             }
         ));
+    }
+
+    #[test]
+    fn freshly_painted_playmark_retargets_playback_only_on_release() {
+        let active_drag = Some(WaveformActiveDragKind::Selection(
+            WaveformSelectionKind::Play,
+        ));
+
+        assert!(!waveform_interaction_updates_play_selection(
+            &WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.21
+            },
+            active_drag,
+        ));
+        assert!(waveform_interaction_updates_play_selection(
+            &WaveformInteraction::FinishSelection {
+                visible_ratio: 0.40
+            },
+            active_drag,
+        ));
+    }
+
+    #[test]
+    fn existing_playmark_edits_keep_live_playback_retargeting() {
+        for active_drag in [
+            Some(WaveformActiveDragKind::SelectionResize(
+                WaveformSelectionKind::Play,
+                WaveformSelectionEdge::End,
+            )),
+            Some(WaveformActiveDragKind::SelectionMove(
+                WaveformSelectionKind::Play,
+            )),
+        ] {
+            assert!(waveform_interaction_updates_play_selection(
+                &WaveformInteraction::UpdateSelection {
+                    visible_ratio: 0.35
+                },
+                active_drag,
+            ));
+            assert!(waveform_interaction_updates_play_selection(
+                &WaveformInteraction::FinishSelection {
+                    visible_ratio: 0.45
+                },
+                active_drag,
+            ));
+        }
     }
 }
