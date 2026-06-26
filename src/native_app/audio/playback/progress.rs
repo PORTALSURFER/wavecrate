@@ -35,7 +35,7 @@ const AUDIO_OUTPUT_UNAVAILABLE_ERROR: &str = "Audio output stream is unavailable
 pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     playing: bool,
     play_selection_flash_active: bool,
-    copy_flash_active: bool,
+    copy_flash_frames: u8,
     drag_hover_auto_expand_pending: bool,
     folder_progress_active: bool,
     normalization_progress_active: bool,
@@ -419,7 +419,7 @@ impl FrameRepaintScopeSnapshot {
         Self {
             playing: state.waveform.current.is_playing(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
-            copy_flash_active: state.library.folder_browser.copy_flash_active(),
+            copy_flash_frames: state.library.folder_browser.copy_flash_frames(),
             drag_hover_auto_expand_pending: state
                 .library
                 .folder_browser
@@ -449,7 +449,7 @@ impl FrameRepaintScopeSnapshot {
 
     fn requires_surface_frame(self) -> bool {
         self.play_selection_flash_active
-            || self.copy_flash_active
+            || self.copy_flash_frames > 0
             || self.folder_progress_active
             || self.file_move_progress_active
             || self.source_cache_progress_active
@@ -463,7 +463,7 @@ impl FrameRepaintScopeSnapshot {
     fn same_transient_frame_state(self, after: Self) -> bool {
         self.playing == after.playing
             && self.play_selection_flash_active == after.play_selection_flash_active
-            && self.copy_flash_active == after.copy_flash_active
+            && self.copy_flash_frames == after.copy_flash_frames
             && self.drag_hover_auto_expand_pending == after.drag_hover_auto_expand_pending
             && self.folder_progress_active == after.folder_progress_active
             && self.normalization_progress_active == after.normalization_progress_active

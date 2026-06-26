@@ -133,6 +133,37 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
 }
 
 #[test]
+fn copied_sample_browser_row_paints_copy_flash_fill() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("flash.wav");
+    fs::write(&sample_path, []).expect("sample file");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path.display().to_string());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.copy_selected_files(&mut context);
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == Rgba8::new(71, 220, 255, 118)),
+        "copied sample rows should paint the transient copy flash fill"
+    );
+}
+
+#[test]
 fn sample_browser_row_hover_paints_bright_background_without_marker() {
     let bounds = Rect::from_size(180.0, 22.0);
     let mut hit_target = sample_hit_target(false, false, false, false);

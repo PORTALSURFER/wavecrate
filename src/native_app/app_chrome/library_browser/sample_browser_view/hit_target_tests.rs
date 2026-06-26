@@ -209,6 +209,22 @@ fn copied_rows_paint_flash_fill_without_selection_marker() {
 }
 
 #[test]
+/// Verifies retained rows repaint when copy flash begins after an ordinary frame.
+fn retained_rows_repaint_copy_flash_after_refresh() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let previous = sample_hit_target(false, false, false, true);
+    let mut refreshed = sample_hit_target_with_copy_flash(false, true);
+
+    synchronize_widget_from_previous(&mut refreshed, &previous);
+    let plan = sample_widget_plan(&refreshed, bounds);
+
+    assert!(
+        plan.fill_rects().any(|fill| fill.color == COPY_FLASH_FILL),
+        "copy flash should survive retained row synchronization"
+    );
+}
+
+#[test]
 /// Verifies cut rows keep a persistent move-pending treatment until paste completes.
 fn cut_pending_rows_paint_move_pending_fill_and_marker() {
     let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);

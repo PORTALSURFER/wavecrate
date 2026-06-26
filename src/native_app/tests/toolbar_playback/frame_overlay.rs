@@ -78,6 +78,24 @@ fn source_cache_progress_frame_repaints_surface_for_status_bar_animation() {
 }
 
 #[test]
+fn copy_flash_frame_repaints_surface_while_countdown_changes() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("copy-flash.wav");
+    state
+        .library
+        .folder_browser
+        .flash_copied_file_paths([selected_file]);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        !state.frame_can_use_paint_only(before),
+        "copy flash changes sample-row chrome and must force full list repaint while it decays"
+    );
+}
+
+#[test]
 fn normalization_progress_frame_uses_paint_only_when_progress_is_stable() {
     let mut state = gui_state_for_span_tests();
     state.background.normalization_progress = Some(

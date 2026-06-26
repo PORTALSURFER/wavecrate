@@ -432,6 +432,10 @@ impl FolderBrowserState {
         self.sample_list.copy_flash_frames > 0
     }
 
+    pub(in crate::native_app) fn copy_flash_frames(&self) -> u8 {
+        self.sample_list.copy_flash_frames
+    }
+
     pub(in crate::native_app) fn advance_copy_flash_frame(&mut self) {
         if self.sample_list.copy_flash_frames == 0 {
             return;
