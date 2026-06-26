@@ -74,6 +74,7 @@ pub(in crate::native_app) fn sample_browser(
             model.visible_samples.similarity_controls,
             model.map_status,
             model.map_prep_running,
+            model.curation_mode_enabled,
             model.map_audition_drag,
         )
         .fill(),
@@ -429,6 +430,7 @@ mod tests {
             &similarity_controls,
             Default::default(),
             false,
+            false,
             None,
         )
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
@@ -444,6 +446,51 @@ mod tests {
             radiant::runtime::PaintPrimitive::FillRect(fill)
                 if fill.color == similarity_aspect_color(SimilarityAspect::Spectrum)
         )));
+    }
+
+    #[test]
+    fn sample_map_mode_empty_state_matches_curation_context() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+
+        let frame = sample_browser(SampleBrowserViewModel {
+            visible_samples: VisibleSampleList {
+                total_count: 0,
+                includes_subfolders: false,
+                window: ui::VirtualListWindow::default(),
+                rows: Vec::new(),
+                columns: Vec::new(),
+                sort: &sort,
+                similarity_mode_active: false,
+                similarity_controls: &similarity_controls,
+            },
+            map_items: Vec::new(),
+            map_status: Default::default(),
+            map_prep_running: false,
+            map_audition_drag: None,
+            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            name_filter: String::new(),
+            display_mode: SampleBrowserDisplayMode::Map,
+            name_view_mode: SampleNameViewMode::DiskFilename,
+            random_navigation_enabled: false,
+            curation_mode_enabled: true,
+            metadata_tags_by_file: &metadata_tags_by_file,
+            cut_file_ids: None,
+            file_drag_active: false,
+            extracted_file_drag_active: false,
+            hovered_folder_drop_target: false,
+            drag_feedback: None,
+            help_tooltips_enabled: false,
+        })
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
+
+        assert!(frame.paint_plan.contains_text("No files left to curate"));
+        assert!(
+            !frame
+                .paint_plan
+                .contains_text("No audio files in selected folder")
+        );
     }
 
     #[test]

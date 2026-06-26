@@ -73,11 +73,12 @@ pub(super) fn sample_map_view(
     similarity_controls: &SimilarityAspectSettings,
     status: SampleMapStatus,
     prep_running: bool,
+    curation_mode_enabled: bool,
     active_drag: Option<SampleMapAuditionDragState>,
 ) -> ui::View<GuiMessage> {
     let map = if items.is_empty() {
         ui::column([
-            ui::text_line("No audio files in selected folder", 23.0).muted_text(),
+            ui::text_line(sample_map_empty_message(curation_mode_enabled), 23.0).muted_text(),
             ui::spacer().fill_height(),
         ])
         .spacing(0.0)
@@ -97,6 +98,14 @@ pub(super) fn sample_map_view(
     ])
     .fill()
     .height(MAP_MIN_HEIGHT)
+}
+
+fn sample_map_empty_message(curation_mode_enabled: bool) -> &'static str {
+    if curation_mode_enabled {
+        "No files left to curate"
+    } else {
+        "No audio files in selected folder"
+    }
 }
 
 fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
