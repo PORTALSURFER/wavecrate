@@ -38,6 +38,9 @@ impl NativeAppState {
                     String::from("Sticky random playback off: Space plays selected samples")
                 };
             }
+            GuiMessage::ToggleHarvestFamilyPanel => {
+                self.ui.chrome.harvest_family_open = !self.ui.chrome.harvest_family_open;
+            }
             GuiMessage::ToggleZeroCrossingSnap => {
                 let enabled = self.waveform.current.toggle_zero_crossing_snap();
                 self.ui.status.sample = if enabled {

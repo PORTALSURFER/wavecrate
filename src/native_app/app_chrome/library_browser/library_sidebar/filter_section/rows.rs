@@ -19,6 +19,7 @@ pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 const FILTER_LABEL_WIDTH: f32 = 38.0;
 const CURATION_FILTER_TOGGLE_WIDTH: f32 = 44.0;
+const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
 const HARVEST_FILTER_TOGGLE_WIDTH: f32 = 30.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
@@ -180,19 +181,46 @@ pub(super) fn automation_curation_filter_toggle_id(label: &str) -> u64 {
 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
+    let mut controls = Vec::with_capacity(row.toggles.len() + 1);
+    controls.push(harvest_family_toggle(
+        row.family_available,
+        row.family_open,
+        help_tooltips_enabled,
+    ));
+    controls.extend(
+        row.toggles
+            .iter()
+            .map(|toggle| harvest_filter_toggle(toggle, help_tooltips_enabled)),
+    );
     filter_labeled_control_row(
         filter_row_label(row.label),
-        ui::row(
-            row.toggles
-                .iter()
-                .map(|toggle| harvest_filter_toggle(toggle, help_tooltips_enabled))
-                .collect::<Vec<_>>(),
-        )
-        .spacing(2.0)
-        .fill_width()
-        .height(FILTER_CLEAR_BUTTON_SIZE),
+        ui::row(controls)
+            .spacing(2.0)
+            .fill_width()
+            .height(FILTER_CLEAR_BUTTON_SIZE),
         "filter-harvest-row",
     )
+}
+
+fn harvest_family_toggle(
+    available: bool,
+    open: bool,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
+    ui::disclosure_button(open)
+        .enabled(available)
+        .active(open)
+        .message(GuiMessage::ToggleHarvestFamilyPanel)
+        .id(widget_ids::HARVEST_FAMILY_TOGGLE_ID)
+        .size(HARVEST_FAMILY_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+        .tooltip_if(
+            help_tooltips_enabled,
+            if available {
+                "Show harvest family details for the selected sample."
+            } else {
+                "Select a harvest-tracked sample to show harvest family details."
+            },
+        )
 }
 
 fn harvest_filter_toggle(
@@ -375,6 +403,8 @@ mod tests {
                     label: "Need",
                     active: false,
                 }],
+                family_available: false,
+                family_open: false,
                 help_tooltips_enabled,
             },
             playback_type_filters: vec![PlaybackTypeFilterToggleViewModel {

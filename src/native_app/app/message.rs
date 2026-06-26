@@ -235,6 +235,7 @@ pub(in crate::native_app) enum GuiMessage {
     OpenReleaseDownloadPage,
     ToggleShortcutHelp,
     CloseShortcutHelp,
+    ToggleHarvestFamilyPanel,
     ToggleZeroCrossingSnap,
     ToggleBeatGuides,
     AdjustBeatGuideCount(i8),

@@ -42,7 +42,9 @@ fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessag
     sections.push(folder_tree_section(model.folder_tree));
     sections.push(collections_section(&model.collections));
     sections.push(filter_section(&model.filter));
-    if let Some(harvest_family) = model.harvest_family.as_ref() {
+    if model.filter.harvest.family_open
+        && let Some(harvest_family) = model.harvest_family.as_ref()
+    {
         sections.push(harvest_family_section(harvest_family));
     }
     sections.push(tag_editor_section(

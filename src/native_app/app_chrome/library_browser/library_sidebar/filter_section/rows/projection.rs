@@ -54,6 +54,8 @@ pub(super) struct CurationFilterToggleProjection {
 pub(super) struct HarvestFilterRowProjection {
     pub(super) label: &'static str,
     pub(super) toggles: Vec<HarvestFilterToggleProjection>,
+    pub(super) family_available: bool,
+    pub(super) family_open: bool,
     pub(super) help_tooltips_enabled: bool,
 }
 
@@ -152,6 +154,8 @@ impl HarvestFilterRowProjection {
                 .iter()
                 .map(HarvestFilterToggleProjection::from_view_model)
                 .collect(),
+            family_available: model.family_available,
+            family_open: model.family_open && model.family_available,
             help_tooltips_enabled: model.help_tooltips_enabled,
         }
     }
@@ -408,6 +412,8 @@ mod tests {
                         active: false,
                     },
                 ],
+                family_available: true,
+                family_open: false,
                 help_tooltips_enabled: true,
             },
             playback_type_filters: vec![

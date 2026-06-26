@@ -105,6 +105,21 @@ fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
 }
 
 #[test]
+fn filter_section_projects_harvest_family_toggle_button() {
+    let state = FolderBrowserState::load_default();
+    let mut model = FilterSectionViewModel::from_folder_browser(&state, false);
+    model.harvest.family_available = true;
+    model.harvest.family_open = true;
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            HARVEST_FAMILY_TOGGLE_ID,
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(GuiMessage::ToggleHarvestFamilyPanel)
+    );
+}
+
+#[test]
 fn filter_section_hides_clear_buttons_when_filters_are_empty() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel::from_folder_browser(&state, false);

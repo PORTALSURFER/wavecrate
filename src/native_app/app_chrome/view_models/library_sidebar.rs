@@ -97,6 +97,8 @@ pub(in crate::native_app) struct CurationFilterToggleViewModel {
 
 pub(in crate::native_app) struct HarvestFilterViewModel {
     pub(in crate::native_app) toggles: Vec<HarvestFilterToggleViewModel>,
+    pub(in crate::native_app) family_available: bool,
+    pub(in crate::native_app) family_open: bool,
     pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
@@ -134,6 +136,15 @@ pub(in crate::native_app) struct TagEditorViewModel {
 impl LibrarySidebarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         let folder_browser = &state.library.folder_browser;
+        let harvest_family = state
+            .selected_harvest_family_summary()
+            .map(HarvestFamilyViewModel::from_summary);
+        let mut filter = FilterSectionViewModel::from_folder_browser(
+            folder_browser,
+            state.ui.chrome.help_tooltips_enabled,
+        );
+        filter.harvest.family_available = harvest_family.is_some();
+        filter.harvest.family_open = state.ui.chrome.harvest_family_open;
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
@@ -143,13 +154,8 @@ impl LibrarySidebarViewModel {
                 state.ui.chrome.help_tooltips_enabled,
             ),
             collections: CollectionsSectionViewModel::from_folder_browser(folder_browser),
-            filter: FilterSectionViewModel::from_folder_browser(
-                folder_browser,
-                state.ui.chrome.help_tooltips_enabled,
-            ),
-            harvest_family: state
-                .selected_harvest_family_summary()
-                .map(HarvestFamilyViewModel::from_summary),
+            filter,
+            harvest_family,
             tag_editor: TagEditorViewModel::from_app_state(state),
         }
     }
@@ -258,6 +264,8 @@ impl FilterSectionViewModel {
                         active: folder_browser.harvest_filter() == Some(filter),
                     })
                     .collect(),
+                family_available: false,
+                family_open: false,
                 help_tooltips_enabled,
             },
             playback_type_filters: PLAYBACK_TYPE_FILTERS
