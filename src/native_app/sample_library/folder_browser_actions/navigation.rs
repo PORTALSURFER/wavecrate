@@ -1,9 +1,12 @@
 use radiant::prelude as ui;
 use std::{path::Path, time::Instant};
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::app::{
+    GuiMessage, NativeAppState, SampleBrowserDisplayMode, SampleMapViewportChange, emit_gui_action,
+};
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
+use crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTIONS_LIST_SCROLL_NODE_ID, FOLDER_TREE_EDGE_CONTEXT_ROWS,
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
@@ -318,6 +321,7 @@ impl NativeAppState {
                 1,
             );
         }
+        self.focus_selected_sample_map_node_after_browser_navigation();
 
         let action = if result.toggled_selected {
             "Marked"
@@ -464,6 +468,7 @@ impl NativeAppState {
                 reveal_direction,
             );
         }
+        self.focus_selected_sample_map_node_after_browser_navigation();
         emit_gui_action(
             "folder_browser.navigate",
             Some("browser"),
@@ -477,6 +482,28 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.load_navigation_sample(path, context);
+    }
+
+    fn focus_selected_sample_map_node_after_browser_navigation(&mut self) {
+        if self.ui.chrome.sample_browser_display != SampleBrowserDisplayMode::Map {
+            return;
+        }
+        self.library
+            .folder_browser
+            .prepare_sample_map_layout(&self.metadata.tags_by_file);
+        let Some((x, y)) =
+            self.library
+                .folder_browser
+                .selected_sample_map_position(SampleMapProjection {
+                    tags_by_file: &self.metadata.tags_by_file,
+                })
+        else {
+            return;
+        };
+        self.ui
+            .chrome
+            .sample_map_viewport
+            .apply_change(SampleMapViewportChange::Center { x, y });
     }
 
     fn toggle_focused_folder_selection(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {

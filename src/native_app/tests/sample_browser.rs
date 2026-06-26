@@ -206,6 +206,58 @@ fn selecting_missing_sample_prunes_row_without_queueing_load() {
 }
 
 #[test]
+fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id);
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.ui.chrome.sample_map_viewport.zoom = 4.0;
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str())
+    );
+    let expected = state
+        .library
+        .folder_browser
+        .selected_sample_map_position(
+            crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
+                tags_by_file: &state.metadata.tags_by_file,
+            },
+        )
+        .expect("selected sample should have a map position");
+    assert!(
+        (state.ui.chrome.sample_map_viewport.center_x - expected.0).abs() < 0.001,
+        "map viewport should center selected x position"
+    );
+    assert!(
+        (state.ui.chrome.sample_map_viewport.center_y - expected.1).abs() < 0.001,
+        "map viewport should center selected y position"
+    );
+}
+
+#[test]
 fn rapid_last_played_records_only_latest_delayed_persist() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("first.wav");
