@@ -29,6 +29,8 @@ const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
 const MAP_ANCHOR_SIZE: f32 = 12.0;
 const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
+const MAP_GROUP_MIN_ITEMS: usize = 3;
+const MAP_GROUP_REGION_PADDING: f32 = 18.0;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
 const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
@@ -443,6 +445,13 @@ impl Widget for SampleMapWidget {
             bounds,
             ui::Rgba8::new(8, 9, 10, 255),
         );
+        paint_group_regions(
+            primitives,
+            self.common.id,
+            bounds,
+            &self.items,
+            self.viewport,
+        );
         paint_items(
             primitives,
             self.common.id,
@@ -451,6 +460,91 @@ impl Widget for SampleMapWidget {
             self.viewport,
         );
     }
+}
+
+fn paint_group_regions(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    items: &[SampleMapItem],
+    viewport: SampleMapViewport,
+) {
+    let mut regions = BTreeMap::<ColorHueKey, SampleMapGroupRegion>::new();
+    for item in items {
+        if item.missing {
+            continue;
+        }
+        let center = item_center(bounds, item, viewport);
+        if !paint_bounds(bounds).contains(center) {
+            continue;
+        }
+        regions
+            .entry(ColorHueKey::from(item.color))
+            .or_insert_with(|| SampleMapGroupRegion::new(center, item.color))
+            .include(center);
+    }
+    for region in regions.values() {
+        if region.count < MAP_GROUP_MIN_ITEMS {
+            continue;
+        }
+        let rect = region.rect().expanded(MAP_GROUP_REGION_PADDING);
+        push_fill_rect(
+            primitives,
+            widget_id,
+            rect,
+            region
+                .color
+                .with_alpha(group_region_fill_alpha(region.count)),
+        );
+        push_stroke_rect(
+            primitives,
+            widget_id,
+            rect,
+            region
+                .color
+                .with_alpha(group_region_stroke_alpha(region.count)),
+            1.0,
+        );
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SampleMapGroupRegion {
+    min: Point,
+    max: Point,
+    color: ui::Rgba8,
+    count: usize,
+}
+
+impl SampleMapGroupRegion {
+    fn new(center: Point, color: ui::Rgba8) -> Self {
+        Self {
+            min: center,
+            max: center,
+            color,
+            count: 0,
+        }
+    }
+
+    fn include(&mut self, center: Point) {
+        self.min.x = self.min.x.min(center.x);
+        self.min.y = self.min.y.min(center.y);
+        self.max.x = self.max.x.max(center.x);
+        self.max.y = self.max.y.max(center.y);
+        self.count += 1;
+    }
+
+    fn rect(self) -> Rect {
+        Rect::from_min_max(self.min, self.max)
+    }
+}
+
+fn group_region_fill_alpha(count: usize) -> u8 {
+    (12 + count.min(12) as u8 * 2).min(34)
+}
+
+fn group_region_stroke_alpha(count: usize) -> u8 {
+    (24 + count.min(12) as u8 * 3).min(60)
 }
 
 fn paint_items(
@@ -578,6 +672,19 @@ fn centered_rect(center: Point, side: f32) -> Rect {
     Rect::from_xy_size(center.x - side * 0.5, center.y - side * 0.5, side, side)
 }
 
+trait SampleMapRectExt {
+    fn expanded(self, padding: f32) -> Rect;
+}
+
+impl SampleMapRectExt for Rect {
+    fn expanded(self, padding: f32) -> Rect {
+        Rect::from_min_max(
+            Point::new(self.min.x - padding, self.min.y - padding),
+            Point::new(self.max.x + padding, self.max.y + padding),
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct ColorKey {
     r: u8,
@@ -599,6 +706,23 @@ impl From<ui::Rgba8> for ColorKey {
             g: color.g,
             b: color.b,
             a: color.a,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct ColorHueKey {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+impl From<ui::Rgba8> for ColorHueKey {
+    fn from(color: ui::Rgba8) -> Self {
+        Self {
+            r: color.r,
+            g: color.g,
+            b: color.b,
         }
     }
 }
@@ -676,6 +800,51 @@ mod tests {
         assert_eq!(batches[0].color, color);
         assert_eq!(batches[0].rects.len(), 3);
         assert!((batches[0].rects[0].width() - MAP_NODE_SIZE).abs() < 0.001);
+    }
+
+    #[test]
+    fn similarity_color_groups_paint_subtle_backdrop_regions() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let widget = SampleMapWidget::new(
+            vec![
+                sample_map_item("/samples/kick.wav", 0.25, 0.25, color.with_alpha(190)),
+                sample_map_item("/samples/snare.wav", 0.50, 0.50, color.with_alpha(220)),
+                sample_map_item("/samples/hat.wav", 0.75, 0.75, color.with_alpha(240)),
+                sample_map_item(
+                    "/samples/lone.wav",
+                    0.90,
+                    0.12,
+                    ui::Rgba8::new(57, 187, 245, 220),
+                ),
+            ],
+            SampleMapViewport::default(),
+            None,
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == color.with_alpha(group_region_fill_alpha(3))
+                    && fill.rect.width() > 100.0
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.color == color.with_alpha(group_region_stroke_alpha(3))
+        )));
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == ui::Rgba8::new(57, 187, 245, group_region_fill_alpha(1))
+        )));
     }
 
     #[test]
