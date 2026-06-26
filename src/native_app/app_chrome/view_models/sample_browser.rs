@@ -7,7 +7,7 @@ use crate::native_app::sample_library::folder_browser::projection::{
     FileColumnDragFeedback, VisibleSampleList, VisibleSampleQuery, VisibleSampleWindowPolicy,
 };
 use crate::native_app::sample_library::folder_browser::sample_map::{
-    SampleMapItem, SampleMapProjection,
+    SampleMapItem, SampleMapProjection, SampleMapStatus,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
@@ -17,6 +17,8 @@ use crate::native_app::sample_library::sample_list::{
 pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) visible_samples: VisibleSampleList<'a>,
     pub(in crate::native_app) map_items: Vec<SampleMapItem>,
+    pub(in crate::native_app) map_status: SampleMapStatus,
+    pub(in crate::native_app) map_prep_running: bool,
     pub(in crate::native_app) map_viewport: SampleMapViewport,
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) display_mode: SampleBrowserDisplayMode,
@@ -35,6 +37,8 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
 pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     visible_samples: VisibleSampleList<'a>,
     map_items: Vec<SampleMapItem>,
+    map_status: SampleMapStatus,
+    map_prep_running: bool,
     map_viewport: SampleMapViewport,
     name_filter: String,
     display_mode: SampleBrowserDisplayMode,
@@ -77,6 +81,8 @@ impl<'a> SampleBrowserViewProjection<'a> {
         Self {
             visible_samples,
             map_items,
+            map_status: state.library.folder_browser.sample_map_status(),
+            map_prep_running: state.library.similarity_prep.running,
             map_viewport: state.ui.chrome.sample_map_viewport,
             name_filter: state.library.folder_browser.name_filter().to_owned(),
             display_mode: state.ui.chrome.sample_browser_display,
@@ -106,6 +112,8 @@ impl<'a> SampleBrowserViewModel<'a> {
         Self {
             visible_samples: projection.visible_samples,
             map_items: projection.map_items,
+            map_status: projection.map_status,
+            map_prep_running: projection.map_prep_running,
             map_viewport: projection.map_viewport,
             name_filter: projection.name_filter,
             display_mode: projection.display_mode,

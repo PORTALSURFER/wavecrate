@@ -13,7 +13,9 @@ use std::collections::BTreeMap;
 
 use crate::native_app::app::{GuiMessage, SampleMapViewport, SampleMapViewportChange};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::sample_map::SampleMapItem;
+use crate::native_app::sample_library::folder_browser::sample_map::{
+    SampleMapItem, SampleMapStatus,
+};
 use crate::native_app::ui::ids as widget_ids;
 
 const MAP_MIN_HEIGHT: f32 = 240.0;
@@ -32,6 +34,8 @@ pub(super) fn sample_map_view(
     items: Vec<SampleMapItem>,
     viewport: SampleMapViewport,
     name_filter: String,
+    status: SampleMapStatus,
+    prep_running: bool,
 ) -> ui::View<GuiMessage> {
     let map = if items.is_empty() {
         ui::column([
@@ -46,9 +50,13 @@ pub(super) fn sample_map_view(
             .height(MAP_MIN_HEIGHT)
             .fill()
     };
-    ui::stack([map, sample_map_search_overlay(name_filter)])
-        .fill()
-        .height(MAP_MIN_HEIGHT)
+    ui::stack([
+        map,
+        sample_map_search_overlay(name_filter),
+        sample_map_status_overlay(status, prep_running),
+    ])
+    .fill()
+    .height(MAP_MIN_HEIGHT)
 }
 
 fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
@@ -73,6 +81,25 @@ fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
         .padding_y(4.0)
         .fill_width(),
         ui::spacer().fill_height(),
+    ])
+    .fill()
+}
+
+fn sample_map_status_overlay(status: SampleMapStatus, prep_running: bool) -> ui::View<GuiMessage> {
+    let Some(label) = status.label(prep_running) else {
+        return ui::spacer().fill();
+    };
+    ui::column([
+        ui::spacer().fill_height(),
+        ui::row([
+            ui::passive_badge(label)
+                .style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning))
+                .height(20.0),
+            ui::spacer().fill_width().height(20.0),
+        ])
+        .padding(8.0)
+        .height(36.0)
+        .fill_width(),
     ])
     .fill()
 }

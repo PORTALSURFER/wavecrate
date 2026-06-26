@@ -25,6 +25,34 @@ pub(in crate::native_app) struct SampleMapProjection<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) struct SampleMapStatus {
+    pub(in crate::native_app) listed_count: usize,
+    pub(in crate::native_app) layout_count: usize,
+}
+
+impl SampleMapStatus {
+    pub(in crate::native_app) fn incomplete(self) -> bool {
+        self.listed_count > 0 && self.layout_count < self.listed_count
+    }
+
+    pub(in crate::native_app) fn label(self, prep_running: bool) -> Option<String> {
+        if !self.incomplete() {
+            return None;
+        }
+        if prep_running {
+            return Some(format!(
+                "Preparing similarity map {} / {}",
+                self.layout_count, self.listed_count
+            ));
+        }
+        Some(format!(
+            "Similarity map {} / {}",
+            self.layout_count, self.listed_count
+        ))
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct SampleMapLayoutCache {
     signature: Option<u64>,
@@ -165,6 +193,13 @@ impl FolderBrowserState {
                 }
             })
             .collect()
+    }
+
+    pub(in crate::native_app) fn sample_map_status(&self) -> SampleMapStatus {
+        SampleMapStatus {
+            listed_count: self.sample_list.sample_map_layout.listed_count,
+            layout_count: self.sample_list.sample_map_layout.points_by_file.len(),
+        }
     }
 }
 
@@ -535,6 +570,35 @@ mod tests {
 
         assert_ne!(cluster_color, aspect_color);
         assert_eq!(cluster_color, ui::Rgba8::new(57, 187, 245, 210));
+    }
+
+    #[test]
+    fn sample_map_status_reports_incomplete_layout_coverage() {
+        let status = SampleMapStatus {
+            listed_count: 12,
+            layout_count: 5,
+        };
+
+        assert!(status.incomplete());
+        assert_eq!(
+            status.label(true),
+            Some(String::from("Preparing similarity map 5 / 12"))
+        );
+        assert_eq!(
+            status.label(false),
+            Some(String::from("Similarity map 5 / 12"))
+        );
+    }
+
+    #[test]
+    fn complete_sample_map_status_stays_silent() {
+        let status = SampleMapStatus {
+            listed_count: 12,
+            layout_count: 12,
+        };
+
+        assert!(!status.incomplete());
+        assert_eq!(status.label(true), None);
     }
 
     #[test]

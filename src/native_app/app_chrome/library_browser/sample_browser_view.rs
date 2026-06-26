@@ -67,9 +67,14 @@ pub(in crate::native_app) fn sample_browser(
             model.help_tooltips_enabled,
         )
         .fill(),
-        SampleBrowserDisplayMode::Map => {
-            sample_map_view(model.map_items, model.map_viewport, model.name_filter).fill()
-        }
+        SampleBrowserDisplayMode::Map => sample_map_view(
+            model.map_items,
+            model.map_viewport,
+            model.name_filter,
+            model.map_status,
+            model.map_prep_running,
+        )
+        .fill(),
     });
     sections.push(sample_browser_status(
         model.visible_samples.total_count,
@@ -162,7 +167,7 @@ mod tests {
         layout::Vector2,
         prelude::IntoView,
         runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime},
-        widgets::WidgetInput,
+        widgets::{PointerModifiers, WidgetInput},
     };
     use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
@@ -196,6 +201,8 @@ mod tests {
                         similarity_controls: &similarity_controls,
                     },
                     map_items: Vec::new(),
+                    map_status: Default::default(),
+                    map_prep_running: false,
                     map_viewport: crate::native_app::app::SampleMapViewport::default(),
                     name_filter: String::new(),
                     display_mode: SampleBrowserDisplayMode::List,
@@ -258,6 +265,8 @@ mod tests {
                 similarity_anchor: false,
                 missing: false,
             }],
+            map_status: Default::default(),
+            map_prep_running: false,
             map_viewport: crate::native_app::app::SampleMapViewport::default(),
             name_filter: String::from("kick"),
             display_mode: SampleBrowserDisplayMode::Map,
@@ -280,5 +289,133 @@ mod tests {
             .find(|input| input.widget_id == widget_ids::SAMPLE_BROWSER_MAP_SEARCH_INPUT_ID)
             .expect("map search input should paint");
         assert_eq!(input.state.value, "kick");
+    }
+
+    #[test]
+    fn sample_map_mode_paints_incomplete_similarity_status() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+
+        let frame = sample_browser(SampleBrowserViewModel {
+            visible_samples: VisibleSampleList {
+                total_count: 2,
+                includes_subfolders: false,
+                window: ui::VirtualListWindow::default(),
+                rows: Vec::new(),
+                columns: Vec::new(),
+                sort: &sort,
+                similarity_mode_active: false,
+                similarity_controls: &similarity_controls,
+            },
+            map_items: vec![SampleMapItem {
+                file_id: String::from("/samples/kick.wav"),
+                label: String::from("kick"),
+                x: 0.5,
+                y: 0.5,
+                color: ui::Rgba8::new(255, 160, 82, 220),
+                selected: false,
+                similarity_anchor: false,
+                missing: false,
+            }],
+            map_status:
+                crate::native_app::sample_library::folder_browser::sample_map::SampleMapStatus {
+                    listed_count: 2,
+                    layout_count: 1,
+                },
+            map_prep_running: true,
+            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            name_filter: String::new(),
+            display_mode: SampleBrowserDisplayMode::Map,
+            name_view_mode: SampleNameViewMode::DiskFilename,
+            random_navigation_enabled: false,
+            curation_mode_enabled: false,
+            metadata_tags_by_file: &metadata_tags_by_file,
+            cut_file_ids: None,
+            file_drag_active: false,
+            extracted_file_drag_active: false,
+            hovered_folder_drop_target: false,
+            drag_feedback: None,
+            help_tooltips_enabled: false,
+        })
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
+
+        assert!(
+            frame
+                .paint_plan
+                .contains_text("Preparing similarity map 1 / 2")
+        );
+    }
+
+    #[test]
+    fn sample_map_status_overlay_does_not_block_node_selection() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+        let sample_path = String::from("/samples/kick.wav");
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<GuiMessage>::new(),
+            {
+                let sample_path = sample_path.clone();
+                move |_| {
+                    sample_browser(SampleBrowserViewModel {
+                        visible_samples: VisibleSampleList {
+                            total_count: 2,
+                            includes_subfolders: false,
+                            window: ui::VirtualListWindow::default(),
+                            rows: Vec::new(),
+                            columns: Vec::new(),
+                            sort: &sort,
+                            similarity_mode_active: false,
+                            similarity_controls: &similarity_controls,
+                        },
+                        map_items: vec![SampleMapItem {
+                            file_id: sample_path.clone(),
+                            label: String::from("kick"),
+                            x: 0.5,
+                            y: 0.5,
+                            color: ui::Rgba8::new(255, 160, 82, 220),
+                            selected: false,
+                            similarity_anchor: false,
+                            missing: false,
+                        }],
+                        map_status: crate::native_app::sample_library::folder_browser::sample_map::SampleMapStatus {
+                            listed_count: 2,
+                            layout_count: 1,
+                        },
+                        map_prep_running: true,
+                        map_viewport: crate::native_app::app::SampleMapViewport::default(),
+                        name_filter: String::new(),
+                        display_mode: SampleBrowserDisplayMode::Map,
+                        name_view_mode: SampleNameViewMode::DiskFilename,
+                        random_navigation_enabled: false,
+                        curation_mode_enabled: false,
+                        metadata_tags_by_file: &metadata_tags_by_file,
+                        cut_file_ids: None,
+                        file_drag_active: false,
+                        extracted_file_drag_active: false,
+                        hovered_folder_drop_target: false,
+                        drag_feedback: None,
+                        help_tooltips_enabled: false,
+                    })
+                    .into_surface()
+                }
+            },
+            |messages, message| messages.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 320.0));
+
+        runtime.dispatch_input_at(
+            ui::Point::new(260.0, 160.0),
+            WidgetInput::primary_press(ui::Point::new(260.0, 160.0)),
+        );
+
+        assert_eq!(
+            runtime.bridge().state(),
+            &[GuiMessage::SelectSampleWithModifiers {
+                path: sample_path,
+                modifiers: PointerModifiers::default(),
+            }]
+        );
     }
 }
