@@ -181,6 +181,7 @@ impl NativeAppState {
             | GuiMessage::SelectAllSamples
             | GuiMessage::ToggleRandomNavigationMode
             | GuiMessage::ToggleSampleBrowserMapView
+            | GuiMessage::ChangeSampleMapViewport(_)
             | GuiMessage::SampleBrowserWindowChanged(_)
             | GuiMessage::FolderTreeWindowChanged(_)
             | GuiMessage::CollapseSelectedFolder

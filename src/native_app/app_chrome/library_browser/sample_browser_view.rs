@@ -67,7 +67,9 @@ pub(in crate::native_app) fn sample_browser(
             model.help_tooltips_enabled,
         )
         .fill(),
-        SampleBrowserDisplayMode::Map => sample_map_view(model.map_items).fill(),
+        SampleBrowserDisplayMode::Map => {
+            sample_map_view(model.map_items, model.map_viewport).fill()
+        }
     });
     sections.push(sample_browser_status(
         model.visible_samples.total_count,
@@ -192,6 +194,7 @@ mod tests {
                         similarity_controls: &similarity_controls,
                     },
                     map_items: Vec::new(),
+                    map_viewport: crate::native_app::app::SampleMapViewport::default(),
                     display_mode: SampleBrowserDisplayMode::List,
                     name_view_mode: SampleNameViewMode::DiskFilename,
                     random_navigation_enabled: false,

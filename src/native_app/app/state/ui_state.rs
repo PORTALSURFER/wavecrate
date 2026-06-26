@@ -48,6 +48,7 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) help_tooltips_enabled: bool,
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) sample_browser_display: SampleBrowserDisplayMode,
+    pub(in crate::native_app) sample_map_viewport: SampleMapViewport,
     pub(in crate::native_app) harvest_family_open: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
@@ -57,6 +58,69 @@ pub(in crate::native_app) struct ChromeUiState {
 pub(in crate::native_app) enum SampleBrowserDisplayMode {
     List,
     Map,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) struct SampleMapViewport {
+    pub(in crate::native_app) center_x: f32,
+    pub(in crate::native_app) center_y: f32,
+    pub(in crate::native_app) zoom: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) enum SampleMapViewportChange {
+    Pan { delta: ui::Vector2 },
+    Zoom { anchor: ui::Vector2, factor: f32 },
+    Reset,
+}
+
+impl Default for SampleMapViewport {
+    fn default() -> Self {
+        Self {
+            center_x: 0.5,
+            center_y: 0.5,
+            zoom: 1.0,
+        }
+    }
+}
+
+impl SampleMapViewport {
+    const MIN_ZOOM: f32 = 1.0;
+    const MAX_ZOOM: f32 = 8.0;
+
+    pub(in crate::native_app) fn apply_change(&mut self, change: SampleMapViewportChange) {
+        match change {
+            SampleMapViewportChange::Pan { delta } => {
+                self.center_x -= delta.x / self.zoom;
+                self.center_y -= delta.y / self.zoom;
+                self.clamp_center();
+            }
+            SampleMapViewportChange::Zoom { anchor, factor } => {
+                self.zoom_at(anchor, factor);
+            }
+            SampleMapViewportChange::Reset => *self = Self::default(),
+        }
+    }
+
+    fn zoom_at(&mut self, anchor: ui::Vector2, factor: f32) {
+        let previous_zoom = self.zoom;
+        let next_zoom = (self.zoom * factor).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
+        if (next_zoom - previous_zoom).abs() <= f32::EPSILON {
+            return;
+        }
+        let world_x = self.center_x + (anchor.x - 0.5) / previous_zoom;
+        let world_y = self.center_y + (anchor.y - 0.5) / previous_zoom;
+        self.zoom = next_zoom;
+        self.center_x = world_x - (anchor.x - 0.5) / next_zoom;
+        self.center_y = world_y - (anchor.y - 0.5) / next_zoom;
+        self.clamp_center();
+    }
+
+    fn clamp_center(&mut self) {
+        let half_span = 0.5 / self.zoom;
+        self.center_x = self.center_x.clamp(half_span, 1.0 - half_span);
+        self.center_y = self.center_y.clamp(half_span, 1.0 - half_span);
+    }
 }
 
 impl ChromeUiState {
@@ -69,6 +133,7 @@ impl ChromeUiState {
             help_tooltips_enabled: false,
             sticky_random_sample_range_playback: false,
             sample_browser_display: SampleBrowserDisplayMode::List,
+            sample_map_viewport: SampleMapViewport::default(),
             harvest_family_open: false,
             beat_guides_enabled: false,
             beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,
@@ -294,5 +359,55 @@ impl StartupState {
             app_icon_install_pending: true,
             release_update_check_pending: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_map_viewport_zoom_keeps_anchor_world_position_stable() {
+        let mut viewport = SampleMapViewport::default();
+        let anchor = ui::Vector2::new(0.25, 0.75);
+        let before = (
+            viewport.center_x + (anchor.x - 0.5) / viewport.zoom,
+            viewport.center_y + (anchor.y - 0.5) / viewport.zoom,
+        );
+
+        viewport.apply_change(SampleMapViewportChange::Zoom {
+            anchor,
+            factor: 2.0,
+        });
+
+        let after = (
+            viewport.center_x + (anchor.x - 0.5) / viewport.zoom,
+            viewport.center_y + (anchor.y - 0.5) / viewport.zoom,
+        );
+        assert!((before.0 - after.0).abs() < 0.0001);
+        assert!((before.1 - after.1).abs() < 0.0001);
+        assert_eq!(viewport.zoom, 2.0);
+    }
+
+    #[test]
+    fn sample_map_viewport_pan_is_scaled_by_zoom_and_clamped() {
+        let mut viewport = SampleMapViewport {
+            center_x: 0.5,
+            center_y: 0.5,
+            zoom: 2.0,
+        };
+
+        viewport.apply_change(SampleMapViewportChange::Pan {
+            delta: ui::Vector2::new(0.2, -0.1),
+        });
+
+        assert!((viewport.center_x - 0.4).abs() < 0.0001);
+        assert!((viewport.center_y - 0.55).abs() < 0.0001);
+
+        viewport.apply_change(SampleMapViewportChange::Pan {
+            delta: ui::Vector2::new(100.0, 100.0),
+        });
+        assert_eq!(viewport.center_x, 0.25);
+        assert_eq!(viewport.center_y, 0.25);
     }
 }

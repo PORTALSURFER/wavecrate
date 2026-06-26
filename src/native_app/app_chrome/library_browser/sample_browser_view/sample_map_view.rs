@@ -10,7 +10,7 @@ use radiant::{
     },
 };
 
-use crate::native_app::app::GuiMessage;
+use crate::native_app::app::{GuiMessage, SampleMapViewport, SampleMapViewportChange};
 use crate::native_app::sample_library::folder_browser::sample_map::SampleMapItem;
 use crate::native_app::ui::ids as widget_ids;
 
@@ -20,7 +20,10 @@ const MAP_SELECTED_SIZE: f32 = 8.0;
 const MAP_ANCHOR_SIZE: f32 = 10.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 
-pub(super) fn sample_map_view(items: Vec<SampleMapItem>) -> ui::View<GuiMessage> {
+pub(super) fn sample_map_view(
+    items: Vec<SampleMapItem>,
+    viewport: SampleMapViewport,
+) -> ui::View<GuiMessage> {
     if items.is_empty() {
         return ui::column([
             ui::text_line("No audio files in selected folder", 23.0).muted_text(),
@@ -30,7 +33,7 @@ pub(super) fn sample_map_view(items: Vec<SampleMapItem>) -> ui::View<GuiMessage>
         .fill();
     }
 
-    ui::custom_widget_direct(SampleMapWidget::new(items))
+    ui::custom_widget_direct(SampleMapWidget::new(items, viewport))
         .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
         .height(MAP_MIN_HEIGHT)
         .fill()
@@ -41,11 +44,13 @@ struct SampleMapWidget {
     common: WidgetCommon,
     gesture: CanvasGestureState,
     items: Vec<SampleMapItem>,
+    viewport: SampleMapViewport,
     last_hit_file_id: Option<String>,
+    last_pan_position: Option<Point>,
 }
 
 impl SampleMapWidget {
-    fn new(items: Vec<SampleMapItem>) -> Self {
+    fn new(items: Vec<SampleMapItem>, viewport: SampleMapViewport) -> Self {
         let common = WidgetCommon::new(
             widget_ids::SAMPLE_BROWSER_MAP_ID,
             WidgetSizing::new(
@@ -59,7 +64,9 @@ impl SampleMapWidget {
             common,
             gesture: CanvasGestureState::new(),
             items,
+            viewport,
             last_hit_file_id: None,
+            last_pan_position: None,
         }
     }
 
@@ -83,7 +90,7 @@ impl SampleMapWidget {
     fn hit_test(&self, bounds: Rect, point: Point) -> Option<&SampleMapItem> {
         let mut best: Option<(&SampleMapItem, f32)> = None;
         for item in &self.items {
-            let center = item_center(bounds, item);
+            let center = item_center(bounds, item, self.viewport);
             let distance_sq = distance_squared(center, point);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
@@ -119,8 +126,44 @@ impl Widget for SampleMapWidget {
                 modifiers,
                 ..
             } => self.message_for_hit(bounds, pointer.position, modifiers),
+            CanvasGestureEvent::Press {
+                pointer,
+                button: PointerButton::Secondary,
+                ..
+            } => {
+                self.last_pan_position = Some(pointer.position);
+                None
+            }
+            CanvasGestureEvent::Drag {
+                pointer,
+                button: PointerButton::Secondary,
+                ..
+            } => {
+                let previous = self.last_pan_position.replace(pointer.position)?;
+                Some(WidgetOutput::typed(GuiMessage::ChangeSampleMapViewport(
+                    SampleMapViewportChange::Pan {
+                        delta: Vector2::new(
+                            (pointer.position.x - previous.x) / bounds.width().max(1.0),
+                            (pointer.position.y - previous.y) / bounds.height().max(1.0),
+                        ),
+                    },
+                )))
+            }
+            CanvasGestureEvent::Wheel { pointer, delta } => {
+                let factor = if delta.y < 0.0 { 1.15 } else { 1.0 / 1.15 };
+                Some(WidgetOutput::typed(GuiMessage::ChangeSampleMapViewport(
+                    SampleMapViewportChange::Zoom {
+                        anchor: pointer.normalized,
+                        factor,
+                    },
+                )))
+            }
+            CanvasGestureEvent::DoubleClick { .. } => Some(WidgetOutput::typed(
+                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Reset),
+            )),
             CanvasGestureEvent::Release { .. } | CanvasGestureEvent::Drop { .. } => {
                 self.last_hit_file_id = None;
+                self.last_pan_position = None;
                 None
             }
             _ => None,
@@ -149,7 +192,7 @@ impl Widget for SampleMapWidget {
             ui::Rgba8::new(8, 9, 10, 255),
         );
         for item in &self.items {
-            paint_item(primitives, self.common.id, bounds, item);
+            paint_item(primitives, self.common.id, bounds, item, self.viewport);
         }
     }
 }
@@ -159,8 +202,12 @@ fn paint_item(
     widget_id: u64,
     bounds: Rect,
     item: &SampleMapItem,
+    viewport: SampleMapViewport,
 ) {
-    let center = item_center(bounds, item);
+    let center = item_center(bounds, item, viewport);
+    if !paint_bounds(bounds).contains(center) {
+        return;
+    }
     let size = if item.similarity_anchor {
         MAP_ANCHOR_SIZE
     } else if item.selected {
@@ -186,8 +233,24 @@ fn paint_item(
     }
 }
 
-fn item_center(bounds: Rect, item: &SampleMapItem) -> Point {
-    Point::new(bounds.x_for_ratio(item.x), bounds.y_for_ratio(item.y))
+fn item_center(bounds: Rect, item: &SampleMapItem, viewport: SampleMapViewport) -> Point {
+    Point::new(
+        bounds.x_for_ratio_unclamped((item.x - viewport.center_x) * viewport.zoom + 0.5),
+        bounds.y_for_ratio_unclamped((item.y - viewport.center_y) * viewport.zoom + 0.5),
+    )
+}
+
+fn paint_bounds(bounds: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(
+            bounds.min.x - MAP_ANCHOR_SIZE,
+            bounds.min.y - MAP_ANCHOR_SIZE,
+        ),
+        Point::new(
+            bounds.max.x + MAP_ANCHOR_SIZE,
+            bounds.max.y + MAP_ANCHOR_SIZE,
+        ),
+    )
 }
 
 fn centered_rect(center: Point, side: f32) -> Rect {

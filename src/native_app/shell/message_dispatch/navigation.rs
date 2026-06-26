@@ -42,6 +42,9 @@ impl NativeAppState {
                     SampleBrowserDisplayMode::Map => SampleBrowserDisplayMode::List,
                 };
             }
+            GuiMessage::ChangeSampleMapViewport(change) => {
+                self.ui.chrome.sample_map_viewport.apply_change(change);
+            }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library
                     .folder_browser

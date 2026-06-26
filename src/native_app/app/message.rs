@@ -14,7 +14,7 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
-    SampleLoadPathValidation, SampleLoadResult, SamplePlaybackReady,
+    SampleLoadPathValidation, SampleLoadResult, SampleMapViewportChange, SamplePlaybackReady,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
@@ -281,6 +281,7 @@ pub(in crate::native_app) enum GuiMessage {
     SelectAllSamples,
     ToggleRandomNavigationMode,
     ToggleSampleBrowserMapView,
+    ChangeSampleMapViewport(SampleMapViewportChange),
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),
     FolderTreeWindowChanged(ui::VirtualListWindowChange),
     CollapseSelectedFolder,
