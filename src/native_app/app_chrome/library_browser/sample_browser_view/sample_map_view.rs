@@ -180,7 +180,7 @@ fn sample_map_legend_overlay(
     status: SampleMapStatus,
 ) -> ui::View<GuiMessage> {
     let entries = if status.clustered_count > 0 {
-        sample_map_cluster_legend_entries(status.clustered_count)
+        sample_map_cluster_legend_entries(status.cluster_color_count)
     } else {
         SimilarityAspect::ORDER
             .into_iter()
@@ -208,8 +208,8 @@ fn sample_map_legend_overlay(
     .fill()
 }
 
-fn sample_map_cluster_legend_entries(clustered_count: usize) -> Vec<ui::View<GuiMessage>> {
-    let swatch_count = clustered_count.clamp(1, 6);
+fn sample_map_cluster_legend_entries(cluster_color_count: usize) -> Vec<ui::View<GuiMessage>> {
+    let swatch_count = cluster_color_count.clamp(1, 6);
     std::iter::once(sample_map_text_legend_entry("Similarity clusters", 120.0))
         .chain((0..swatch_count).map(sample_map_cluster_legend_swatch))
         .collect()

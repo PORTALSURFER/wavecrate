@@ -331,6 +331,7 @@ mod tests {
                 listed_count: 2,
                 layout_count: 1,
                 clustered_count: 0,
+                cluster_color_count: 0,
             },
             map_prep_running: true,
             map_audition_drag: None,
@@ -472,7 +473,8 @@ mod tests {
             SampleMapStatus {
                 listed_count: 1,
                 layout_count: 1,
-                clustered_count: 1,
+                clustered_count: 8,
+                cluster_color_count: 1,
             },
             false,
             false,
@@ -491,6 +493,15 @@ mod tests {
                 if fill.color
                     == sample_map_cluster_palette_color(0)
         )));
+        assert_eq!(
+            frame
+                .paint_plan
+                .fill_rects()
+                .filter(|fill| fill.color == sample_map_cluster_palette_color(0))
+                .count(),
+            1,
+            "legend should reflect distinct cluster colors, not clustered sample count"
+        );
     }
 
     #[test]
@@ -575,6 +586,7 @@ mod tests {
                             listed_count: 2,
                             layout_count: 1,
                             clustered_count: 0,
+                            cluster_color_count: 0,
                         },
                         map_prep_running: true,
                         map_audition_drag: None,

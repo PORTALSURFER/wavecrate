@@ -30,6 +30,7 @@ pub(in crate::native_app) struct SampleMapStatus {
     pub(in crate::native_app) listed_count: usize,
     pub(in crate::native_app) layout_count: usize,
     pub(in crate::native_app) clustered_count: usize,
+    pub(in crate::native_app) cluster_color_count: usize,
 }
 
 impl SampleMapStatus {
@@ -211,6 +212,15 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn sample_map_status(&self) -> SampleMapStatus {
+        let cluster_color_count = self
+            .sample_list
+            .sample_map_layout
+            .points_by_file
+            .values()
+            .filter_map(|point| point.cluster_id)
+            .map(sample_map_cluster_palette_index)
+            .collect::<HashSet<_>>()
+            .len();
         SampleMapStatus {
             listed_count: self.sample_list.sample_map_layout.listed_count,
             layout_count: self.sample_list.sample_map_layout.points_by_file.len(),
@@ -221,6 +231,7 @@ impl FolderBrowserState {
                 .values()
                 .filter(|point| point.cluster_id.is_some())
                 .count(),
+            cluster_color_count,
         }
     }
 }
@@ -487,14 +498,15 @@ fn sample_map_color(
 
 fn sample_map_cluster_color(cluster_id: i32, strength: Option<f32>) -> ui::Rgba8 {
     let alpha = (180.0 + strength.unwrap_or(0.45).clamp(0.0, 1.0) * 60.0) as u8;
-    sample_map_cluster_palette_color(
-        cluster_id.rem_euclid(SAMPLE_MAP_CLUSTER_PALETTE.len() as i32) as usize,
-    )
-    .with_alpha(alpha)
+    sample_map_cluster_palette_color(sample_map_cluster_palette_index(cluster_id)).with_alpha(alpha)
 }
 
 pub(in crate::native_app) fn sample_map_cluster_palette_color(index: usize) -> ui::Rgba8 {
     SAMPLE_MAP_CLUSTER_PALETTE[index % SAMPLE_MAP_CLUSTER_PALETTE.len()]
+}
+
+fn sample_map_cluster_palette_index(cluster_id: i32) -> usize {
+    cluster_id.rem_euclid(SAMPLE_MAP_CLUSTER_PALETTE.len() as i32) as usize
 }
 
 const SAMPLE_MAP_CLUSTER_PALETTE: [ui::Rgba8; 12] = [
@@ -838,6 +850,7 @@ mod tests {
             listed_count: 12,
             layout_count: 5,
             clustered_count: 2,
+            cluster_color_count: 2,
         };
 
         assert!(status.incomplete());
@@ -857,6 +870,7 @@ mod tests {
             listed_count: 12,
             layout_count: 12,
             clustered_count: 8,
+            cluster_color_count: 4,
         };
 
         assert!(!status.incomplete());
