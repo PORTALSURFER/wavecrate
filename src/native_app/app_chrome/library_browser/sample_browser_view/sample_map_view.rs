@@ -751,6 +751,10 @@ impl Widget for SampleMapWidget {
         true
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        true
+    }
+
     fn prefers_pointer_move_paint_only(&self) -> bool {
         true
     }
@@ -1799,6 +1803,98 @@ mod tests {
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
             Some(GuiMessage::FinishSampleMapAuditionDrag)
+        );
+    }
+
+    #[test]
+    fn sample_map_accepts_wheel_input_for_cursor_zoom() {
+        let widget = SampleMapWidget::new(
+            vec![sample_map_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            SampleMapViewport::default(),
+            None,
+        );
+
+        assert!(
+            widget.accepts_wheel_input(),
+            "map widgets must opt into wheel routing before scroll fallback"
+        );
+    }
+
+    #[test]
+    fn sample_map_wheel_zooms_at_pointer_position() {
+        let mut widget = SampleMapWidget::new(
+            vec![sample_map_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            SampleMapViewport::default(),
+            None,
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::plain_wheel(Point::new(50.0, 75.0), Vector2::new(0.0, -120.0)),
+            )
+            .expect("wheel over the map should emit a viewport zoom");
+
+        assert_eq!(
+            output.typed_cloned::<GuiMessage>(),
+            Some(GuiMessage::ChangeSampleMapViewport(
+                SampleMapViewportChange::Zoom {
+                    anchor: Vector2::new(0.25, 0.75),
+                    factor: 1.15,
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn secondary_drag_pans_sample_map() {
+        let mut widget = SampleMapWidget::new(
+            vec![sample_map_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            SampleMapViewport::default(),
+            None,
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        assert!(
+            widget
+                .handle_input(
+                    bounds,
+                    WidgetInput::pointer_press(
+                        Point::new(50.0, 40.0),
+                        PointerButton::Secondary,
+                        PointerModifiers::default(),
+                    ),
+                )
+                .is_none(),
+            "secondary press should only arm panning"
+        );
+        let output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(70.0, 25.0)))
+            .expect("secondary drag should pan the map viewport");
+
+        assert_eq!(
+            output.typed_cloned::<GuiMessage>(),
+            Some(GuiMessage::ChangeSampleMapViewport(
+                SampleMapViewportChange::Pan {
+                    delta: Vector2::new(0.1, -0.15),
+                }
+            ))
         );
     }
 
