@@ -6,6 +6,7 @@ use wavecrate::sample_sources::{SampleSource, SourceId};
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
 mod worker;
+pub(in crate::native_app) use worker::NATIVE_SIMILARITY_UMAP_VERSION;
 use worker::{
     drain_similarity_prep_jobs, enqueue_similarity_prep_inner, finalize_similarity_prep_if_ready,
     resolve_similarity_prep_status, source_has_active_similarity_prep_jobs,

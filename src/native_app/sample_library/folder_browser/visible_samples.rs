@@ -9,6 +9,7 @@ use std::{
 use super::{
     FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityAspectStrengths,
     SimilarityBrowserState, default_file_columns, listing::BrowserListingRevealState,
+    sample_map::SampleMapLayoutCache,
 };
 use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
 
@@ -80,6 +81,7 @@ pub(super) struct SampleListState {
     pub(super) missing_collection_files: Vec<FileEntry>,
     pub(super) missing_collection_counts: BTreeMap<u8, usize>,
     pub(super) projection_cache: VisibleSampleProjectionCache,
+    pub(super) sample_map_layout: SampleMapLayoutCache,
     pub(super) listing_reveals: BrowserListingRevealState,
     copy_flash_file_ids: HashSet<String>,
     copy_flash_frames: u8,
@@ -103,6 +105,7 @@ impl SampleListState {
             missing_collection_files: Vec::new(),
             missing_collection_counts: BTreeMap::new(),
             projection_cache: VisibleSampleProjectionCache::default(),
+            sample_map_layout: SampleMapLayoutCache::default(),
             listing_reveals: BrowserListingRevealState::default(),
             copy_flash_file_ids: HashSet::new(),
             copy_flash_frames: 0,

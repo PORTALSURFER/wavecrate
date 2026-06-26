@@ -133,4 +133,10 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
             overscan_rows: SAMPLE_BROWSER_OVERSCAN_ROWS,
             guard_rows: SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
         });
+    if state.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
+        state
+            .library
+            .folder_browser
+            .prepare_sample_map_layout(&state.metadata.tags_by_file);
+    }
 }
