@@ -242,9 +242,7 @@ impl WaveformWidget {
                 EDIT_SELECTION_COLOR.with_alpha(230),
             );
         }
-        if !self.playing
-            && let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio)
-        {
+        if let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio) {
             paint.push_horizontal_value_cursor_fill(bounds, playhead_ratio, 2.0, PLAYHEAD_COLOR);
         }
     }

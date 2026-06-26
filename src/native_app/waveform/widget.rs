@@ -102,7 +102,6 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     edit_selection_denied_flash_frames: u8,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
-    playing: bool,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -134,7 +133,6 @@ impl WaveformWidgetProps {
             edit_selection_denied_flash_frames: state.edit_selection_denied_flash_frames(),
             beat_guides_enabled,
             beat_guide_count,
-            playing: state.is_playing(),
             active_drag_kind: state.active_drag_kind(),
         }
     }
@@ -165,7 +163,6 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) edit_selection_denied_flash_frames: u8,
     pub(super) beat_guides_enabled: bool,
     pub(super) beat_guide_count: u8,
-    pub(super) playing: bool,
     pub(super) edit_preview: TimelineEditPreview,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
@@ -194,7 +191,6 @@ impl WaveformWidget {
             edit_selection_denied_flash_frames,
             beat_guides_enabled,
             beat_guide_count,
-            playing,
             active_drag_kind,
         } = props;
         let common = WidgetCommon::fixed(0, WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
@@ -224,7 +220,6 @@ impl WaveformWidget {
             edit_selection_denied_flash_frames,
             beat_guides_enabled,
             beat_guide_count,
-            playing,
             edit_preview: edit_preview_for_selection(edit_selection),
             active_drag_kind,
         }

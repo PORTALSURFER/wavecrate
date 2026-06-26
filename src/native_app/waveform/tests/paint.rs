@@ -69,6 +69,25 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
 }
 
 #[test]
+fn playhead_cursor_paints_while_playing_small_playmark_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.500, 0.505));
+    state.start_playback(0.500);
+    state.set_playhead_ratio(0.503);
+
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+
+    let playhead = fill_rects(&plan)
+        .into_iter()
+        .find(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
+        })
+        .expect("playhead fill paints during playback");
+    assert!((playhead.rect.center().x / 400.0 - 0.503).abs() < 0.01);
+}
+
+#[test]
 fn hover_cursor_paints_thin_white_overlay_line() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
