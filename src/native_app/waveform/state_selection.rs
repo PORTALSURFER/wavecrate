@@ -116,7 +116,7 @@ impl WaveformState {
     ) {
         match kind {
             WaveformSelectionKind::Play => {
-                if self.play_selection != Some(selection) {
+                if self.play_selection != Some(selection) && self.active_drag.is_none() {
                     self.clear_similar_sections();
                 }
                 self.play_mark_ratio = Some(mark_ratio);

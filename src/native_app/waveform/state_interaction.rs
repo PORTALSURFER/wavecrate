@@ -1,12 +1,14 @@
 use super::{
-    MIN_VISIBLE_FRAMES, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionKind,
-    WaveformState,
+    MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformEditFadeHandle, WaveformInteraction,
+    WaveformSelectionKind, WaveformState,
     interaction::{
         WaveformDrag, WaveformEditFadeDrag, WaveformEditFadeOuterGainDrag, WaveformEditGainDrag,
         WaveformPanDrag, WaveformSelectionDrag, WaveformSelectionMoveDrag,
         WaveformSelectionResizeDrag,
     },
 };
+
+const LIVE_SELECTION_PREVIEW_STEPS_PER_PIXEL: f32 = 2.0;
 
 impl WaveformState {
     pub(in crate::native_app) fn apply_interaction(&mut self, interaction: WaveformInteraction) {
@@ -156,7 +158,7 @@ impl WaveformState {
                 )));
             }
             WaveformInteraction::UpdateSelection { visible_ratio } => {
-                self.update_active_drag(visible_ratio);
+                self.update_active_drag(quantized_live_selection_visible_ratio(visible_ratio));
             }
             WaveformInteraction::FinishSelection { visible_ratio } => {
                 self.finish_active_drag(visible_ratio);
@@ -221,6 +223,7 @@ impl WaveformState {
                     let kind = drag.kind;
                     self.set_selection_for_drag(drag);
                     if kind == WaveformSelectionKind::Play {
+                        self.clear_similar_sections();
                         self.record_current_play_selection_mark();
                     }
                     return;
@@ -253,6 +256,7 @@ impl WaveformState {
                 self.update_active_selection_resize(ratio);
                 self.active_drag = None;
                 if drag.kind == WaveformSelectionKind::Play {
+                    self.clear_similar_sections();
                     self.record_current_play_selection_mark();
                 }
             }
@@ -261,6 +265,7 @@ impl WaveformState {
                 self.update_active_selection_move(ratio);
                 self.active_drag = None;
                 if drag.kind == WaveformSelectionKind::Play {
+                    self.clear_similar_sections();
                     self.record_current_play_selection_mark();
                 }
             }
@@ -351,4 +356,12 @@ impl WaveformState {
             self.edit_selection = Some(next);
         }
     }
+}
+
+fn quantized_live_selection_visible_ratio(visible_ratio: f32) -> f32 {
+    if !visible_ratio.is_finite() {
+        return visible_ratio;
+    }
+    let steps = WAVEFORM_WIDTH as f32 * LIVE_SELECTION_PREVIEW_STEPS_PER_PIXEL;
+    (visible_ratio * steps).round() / steps
 }
