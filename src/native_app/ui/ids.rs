@@ -50,6 +50,7 @@ pub(in crate::native_app) const RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE: u64 = FOLD
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
 pub(in crate::native_app) const SAMPLE_BROWSER_MAP_ID: u64 = SAMPLE_BROWSER.id(2);
+pub(in crate::native_app) const SAMPLE_BROWSER_MAP_SEARCH_INPUT_ID: u64 = SAMPLE_BROWSER.id(3);
 /// Scope for retained sample-row input identity.
 pub(in crate::native_app) const RETAINED_SAMPLE_ROW_INPUT_SCOPE: u64 = SAMPLE_BROWSER.id(1);
 /// Scope for retained sample header-cell identity.

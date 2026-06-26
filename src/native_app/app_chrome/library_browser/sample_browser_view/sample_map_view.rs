@@ -5,12 +5,13 @@ use radiant::{
     runtime::{PaintPrimitive, push_fill_rect, push_stroke_rect},
     theme::ThemeTokens,
     widgets::{
-        CanvasGestureEvent, CanvasGestureState, PointerButton, PointerModifiers, Widget,
-        WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        CanvasGestureEvent, CanvasGestureState, PointerButton, PointerModifiers, TextInputMessage,
+        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 
 use crate::native_app::app::{GuiMessage, SampleMapViewport, SampleMapViewportChange};
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::sample_map::SampleMapItem;
 use crate::native_app::ui::ids as widget_ids;
 
@@ -23,20 +24,50 @@ const MAP_HIT_RADIUS: f32 = 8.0;
 pub(super) fn sample_map_view(
     items: Vec<SampleMapItem>,
     viewport: SampleMapViewport,
+    name_filter: String,
 ) -> ui::View<GuiMessage> {
-    if items.is_empty() {
-        return ui::column([
+    let map = if items.is_empty() {
+        ui::column([
             ui::text_line("No audio files in selected folder", 23.0).muted_text(),
             ui::spacer().fill_height(),
         ])
         .spacing(0.0)
-        .fill();
-    }
-
-    ui::custom_widget_direct(SampleMapWidget::new(items, viewport))
-        .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
-        .height(MAP_MIN_HEIGHT)
         .fill()
+    } else {
+        ui::custom_widget_direct(SampleMapWidget::new(items, viewport))
+            .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
+            .height(MAP_MIN_HEIGHT)
+            .fill()
+    };
+    ui::stack([map, sample_map_search_overlay(name_filter)])
+        .fill()
+        .height(MAP_MIN_HEIGHT)
+}
+
+fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
+    ui::column([
+        ui::row([
+            ui::spacer().fill_width().height(26.0),
+            ui::text_input(name_filter)
+                .placeholder("Search")
+                .clear_button(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::NameFilterInput(TextInputMessage::Changed {
+                        value: String::new(),
+                    }),
+                ))
+                .id(widget_ids::SAMPLE_BROWSER_MAP_SEARCH_INPUT_ID)
+                .message_event(|message| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::NameFilterInput(message))
+                })
+                .size(320.0, 24.0),
+            ui::spacer().fill_width().height(26.0),
+        ])
+        .height(30.0)
+        .padding_y(4.0)
+        .fill_width(),
+        ui::spacer().fill_height(),
+    ])
+    .fill()
 }
 
 #[derive(Clone, Debug)]

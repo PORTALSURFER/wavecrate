@@ -68,7 +68,7 @@ pub(in crate::native_app) fn sample_browser(
         )
         .fill(),
         SampleBrowserDisplayMode::Map => {
-            sample_map_view(model.map_items, model.map_viewport).fill()
+            sample_map_view(model.map_items, model.map_viewport, model.name_filter).fill()
         }
     });
     sections.push(sample_browser_status(
@@ -170,6 +170,8 @@ mod tests {
     use crate::native_app::app::SampleNameViewMode;
     use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
     use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
+    use crate::native_app::sample_library::folder_browser::sample_map::SampleMapItem;
+    use crate::native_app::ui::ids as widget_ids;
 
     #[test]
     fn sample_list_stacked_pointer_targets_route_each_event_to_matching_domain_action() {
@@ -195,6 +197,7 @@ mod tests {
                     },
                     map_items: Vec::new(),
                     map_viewport: crate::native_app::app::SampleMapViewport::default(),
+                    name_filter: String::new(),
                     display_mode: SampleBrowserDisplayMode::List,
                     name_view_mode: SampleNameViewMode::DiskFilename,
                     random_navigation_enabled: false,
@@ -225,5 +228,57 @@ mod tests {
                 GuiMessage::DropWaveformSelectionOnSampleList,
             ]
         );
+    }
+
+    #[test]
+    fn sample_map_mode_paints_search_input_bound_to_name_filter() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+        let columns = Vec::new();
+
+        let frame = sample_browser(SampleBrowserViewModel {
+            visible_samples: VisibleSampleList {
+                total_count: 1,
+                includes_subfolders: false,
+                window: ui::VirtualListWindow::default(),
+                rows: Vec::new(),
+                columns,
+                sort: &sort,
+                similarity_mode_active: false,
+                similarity_controls: &similarity_controls,
+            },
+            map_items: vec![SampleMapItem {
+                file_id: String::from("/samples/kick.wav"),
+                label: String::from("kick"),
+                x: 0.5,
+                y: 0.5,
+                color: ui::Rgba8::new(255, 160, 82, 220),
+                selected: false,
+                similarity_anchor: false,
+                missing: false,
+            }],
+            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            name_filter: String::from("kick"),
+            display_mode: SampleBrowserDisplayMode::Map,
+            name_view_mode: SampleNameViewMode::DiskFilename,
+            random_navigation_enabled: false,
+            curation_mode_enabled: false,
+            metadata_tags_by_file: &metadata_tags_by_file,
+            cut_file_ids: None,
+            file_drag_active: false,
+            extracted_file_drag_active: false,
+            hovered_folder_drop_target: false,
+            drag_feedback: None,
+            help_tooltips_enabled: false,
+        })
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
+
+        let input = frame
+            .paint_plan
+            .text_inputs()
+            .find(|input| input.widget_id == widget_ids::SAMPLE_BROWSER_MAP_SEARCH_INPUT_ID)
+            .expect("map search input should paint");
+        assert_eq!(input.state.value, "kick");
     }
 }
