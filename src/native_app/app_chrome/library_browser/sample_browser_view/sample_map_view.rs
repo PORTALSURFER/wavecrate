@@ -31,9 +31,9 @@ use wavecrate_analysis::aspects::SimilarityAspect;
 use super::similarity_aspect_color;
 
 const MAP_MIN_HEIGHT: f32 = 240.0;
-const MAP_NODE_SIZE: f32 = 3.4;
-const MAP_NODE_SIZE_DENSE: f32 = 2.2;
-const MAP_NODE_SIZE_VERY_DENSE: f32 = 1.6;
+const MAP_NODE_SIZE: f32 = 6.8;
+const MAP_NODE_SIZE_DENSE: f32 = 4.4;
+const MAP_NODE_SIZE_VERY_DENSE: f32 = 3.2;
 const MAP_SELECTED_SIZE: f32 = 9.0;
 const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
 const MAP_ANCHOR_SIZE: f32 = 12.0;
