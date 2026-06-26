@@ -103,6 +103,13 @@ impl WaveformPlaybackScenario {
         self.apply_waveform(WaveformInteraction::FinishSelection { visible_ratio: to });
     }
 
+    pub(super) fn apply_frame(&mut self) {
+        self.state.apply_message(
+            crate::native_app::test_support::state::GuiMessage::Frame,
+            &mut self.context,
+        );
+    }
+
     pub(super) fn play_random_range_with_units(&mut self, start_unit: f32, length_unit: f32) {
         self.state.play_random_sample_range_with_units(
             crate::native_app::audio::playback::RandomAuditionUnits::new(start_unit, length_unit),

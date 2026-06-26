@@ -18,6 +18,7 @@ pub(in crate::native_app) struct WaveformAppState {
     pub(in crate::native_app) cache: WaveformCacheState,
     pub(in crate::native_app) pending_play_selection_transaction:
         Option<WaveformPlaySelectionSnapshot>,
+    pub(in crate::native_app) pending_play_selection_retarget: bool,
 }
 
 impl WaveformAppState {
@@ -27,6 +28,7 @@ impl WaveformAppState {
             load: WaveformLoadState::default(),
             cache: WaveformCacheState::default(),
             pending_play_selection_transaction: None,
+            pending_play_selection_retarget: false,
         }
     }
 }

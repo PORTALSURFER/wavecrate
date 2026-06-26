@@ -43,7 +43,11 @@ impl NativeAppState {
         }
         self.sync_edit_fade_audio_state();
         if waveform_interaction_updates_play_selection(&message, active_drag) {
-            self.retarget_playback_to_play_selection();
+            if waveform_interaction_finishes_play_selection_update(&message) {
+                self.retarget_playback_to_play_selection_now();
+            } else {
+                self.schedule_play_selection_playback_retarget();
+            }
         }
         if play_selection_transaction_finishes(&message, active_drag) {
             self.register_finished_play_selection_transaction();
@@ -201,6 +205,10 @@ fn waveform_interaction_updates_play_selection(
         ) => true,
         _ => false,
     }
+}
+
+fn waveform_interaction_finishes_play_selection_update(interaction: &WaveformInteraction) -> bool {
+    matches!(interaction, WaveformInteraction::FinishSelection { .. })
 }
 
 fn waveform_interaction_can_finish_mark_change(interaction: &WaveformInteraction) -> bool {

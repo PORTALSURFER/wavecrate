@@ -139,6 +139,25 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn schedule_play_selection_playback_retarget(&mut self) {
+        if self.waveform.current.is_playing() {
+            self.waveform.pending_play_selection_retarget = true;
+        }
+    }
+
+    pub(in crate::native_app) fn retarget_playback_to_play_selection_now(&mut self) {
+        self.waveform.pending_play_selection_retarget = false;
+        self.retarget_playback_to_play_selection();
+    }
+
+    pub(in crate::native_app) fn flush_pending_play_selection_playback_retarget(&mut self) {
+        if !self.waveform.pending_play_selection_retarget {
+            return;
+        }
+        self.waveform.pending_play_selection_retarget = false;
+        self.retarget_playback_to_play_selection();
+    }
+
     fn retarget_active_playback_span(
         &mut self,
         start: f32,
