@@ -9,7 +9,7 @@ use radiant::{
         Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::native_app::app::{
     GuiMessage, SampleMapAuditionDragState, SampleMapViewport, SampleMapViewportChange,
@@ -29,6 +29,7 @@ const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
 const MAP_ANCHOR_SIZE: f32 = 12.0;
 const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
+const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
 const MAP_GROUP_MIN_ITEMS: usize = 3;
 const MAP_GROUP_REGION_PADDING: f32 = 18.0;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
@@ -190,6 +191,7 @@ struct SampleMapWidget {
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
     active_drag: Option<SampleMapAuditionDragState>,
+    hit_index: SampleMapHitIndex,
 }
 
 impl SampleMapWidget {
@@ -216,10 +218,11 @@ impl SampleMapWidget {
             last_primary_position: None,
             last_pan_position: None,
             active_drag,
+            hit_index: SampleMapHitIndex::default(),
         }
     }
 
-    fn hit_file_id(&self, bounds: Rect, point: Point) -> Option<String> {
+    fn hit_file_id(&mut self, bounds: Rect, point: Point) -> Option<String> {
         self.hit_test(bounds, point)
             .map(|item| item.file_id.clone())
     }
@@ -258,9 +261,10 @@ impl SampleMapWidget {
             .active_drag
             .as_ref()
             .and_then(|drag| drag.last_hit_file_id.as_deref())
-            .or(self.last_hit_file_id.as_deref());
+            .or(self.last_hit_file_id.as_deref())
+            .map(str::to_owned);
         let mut hit_file_ids = self.hit_file_ids_between(bounds, previous, point);
-        hit_file_ids.retain(|hit| Some(hit.as_str()) != last_hit_file_id);
+        hit_file_ids.retain(|hit| Some(hit) != last_hit_file_id.as_ref());
         self.last_primary_position = Some(point);
         if hit_file_ids.is_empty() {
             return None;
@@ -277,9 +281,11 @@ impl SampleMapWidget {
         ))
     }
 
-    fn hit_test(&self, bounds: Rect, point: Point) -> Option<&SampleMapItem> {
+    fn hit_test(&mut self, bounds: Rect, point: Point) -> Option<&SampleMapItem> {
+        self.ensure_hit_index(bounds);
         let mut best: Option<(&SampleMapItem, f32)> = None;
-        for item in &self.items {
+        for index in self.hit_index.item_indices_near_point(point) {
+            let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = distance_squared(center, point);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
@@ -292,9 +298,11 @@ impl SampleMapWidget {
         best.map(|(item, _)| item)
     }
 
-    fn hit_file_ids_between(&self, bounds: Rect, from: Point, to: Point) -> Vec<String> {
+    fn hit_file_ids_between(&mut self, bounds: Rect, from: Point, to: Point) -> Vec<String> {
+        self.ensure_hit_index(bounds);
         let mut hits = Vec::new();
-        for item in &self.items {
+        for index in self.hit_index.item_indices_near_segment(from, to) {
+            let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = point_segment_distance_squared(center, from, to);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
@@ -316,6 +324,16 @@ impl SampleMapWidget {
             .filter_map(|hit| seen.insert(hit.file_id.clone()).then_some(hit.file_id))
             .collect()
     }
+
+    fn ensure_hit_index(&mut self, bounds: Rect) {
+        if self
+            .hit_index
+            .matches(bounds, self.viewport, self.items.len())
+        {
+            return;
+        }
+        self.hit_index = SampleMapHitIndex::build(bounds, self.viewport, &self.items);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -323,6 +341,97 @@ struct SampleMapSegmentHit {
     file_id: String,
     segment_t: f32,
     distance_sq: f32,
+}
+
+#[derive(Clone, Debug, Default)]
+struct SampleMapHitIndex {
+    bounds: Option<Rect>,
+    viewport: Option<SampleMapViewport>,
+    item_count: usize,
+    cells: HashMap<SampleMapGridCell, Vec<usize>>,
+}
+
+impl SampleMapHitIndex {
+    fn build(bounds: Rect, viewport: SampleMapViewport, items: &[SampleMapItem]) -> Self {
+        let mut cells = HashMap::<SampleMapGridCell, Vec<usize>>::new();
+        let indexed_bounds = paint_bounds(bounds).expanded(MAP_HIT_RADIUS);
+        for (index, item) in items.iter().enumerate() {
+            let center = item_center(bounds, item, viewport);
+            if !indexed_bounds.contains(center) {
+                continue;
+            }
+            cells
+                .entry(SampleMapGridCell::from_point(center))
+                .or_default()
+                .push(index);
+        }
+        Self {
+            bounds: Some(bounds),
+            viewport: Some(viewport),
+            item_count: items.len(),
+            cells,
+        }
+    }
+
+    fn matches(&self, bounds: Rect, viewport: SampleMapViewport, item_count: usize) -> bool {
+        self.bounds == Some(bounds)
+            && self.viewport == Some(viewport)
+            && self.item_count == item_count
+    }
+
+    fn item_indices_near_point(&self, point: Point) -> Vec<usize> {
+        self.item_indices_for_rect(centered_rect(point, MAP_HIT_RADIUS * 2.0))
+    }
+
+    fn item_indices_near_segment(&self, from: Point, to: Point) -> Vec<usize> {
+        self.item_indices_for_rect(segment_bounds(from, to).expanded(MAP_HIT_RADIUS))
+    }
+
+    fn item_indices_for_rect(&self, rect: Rect) -> Vec<usize> {
+        let min = SampleMapGridCell::from_point(rect.min);
+        let max = SampleMapGridCell::from_point(rect.max);
+        let mut indices = Vec::new();
+        let mut seen = HashSet::new();
+        for y in min.y..=max.y {
+            for x in min.x..=max.x {
+                let Some(cell_indices) = self.cells.get(&SampleMapGridCell { x, y }) else {
+                    continue;
+                };
+                for &index in cell_indices {
+                    if seen.insert(index) {
+                        indices.push(index);
+                    }
+                }
+            }
+        }
+        indices
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct SampleMapGridCell {
+    x: i32,
+    y: i32,
+}
+
+impl SampleMapGridCell {
+    fn from_point(point: Point) -> Self {
+        Self {
+            x: grid_coordinate(point.x),
+            y: grid_coordinate(point.y),
+        }
+    }
+}
+
+fn grid_coordinate(value: f32) -> i32 {
+    (value / MAP_HIT_GRID_CELL_SIZE).floor() as i32
+}
+
+fn segment_bounds(from: Point, to: Point) -> Rect {
+    Rect::from_min_max(
+        Point::new(from.x.min(to.x), from.y.min(to.y)),
+        Point::new(from.x.max(to.x), from.y.max(to.y)),
+    )
 }
 
 fn point_segment_t(point: Point, start: Point, end: Point) -> f32 {
@@ -993,6 +1102,33 @@ mod tests {
             ),
             0.0
         );
+    }
+
+    #[test]
+    fn sample_map_hit_index_limits_segment_candidates_to_nearby_cells() {
+        let bounds = Rect::from_size(1_000.0, 1_000.0);
+        let viewport = SampleMapViewport::default();
+        let mut items = Vec::new();
+        for index in 0..2_000 {
+            items.push(sample_map_item(
+                &format!("/samples/far-{index}.wav"),
+                0.05 + (index % 20) as f32 * 0.001,
+                0.05 + (index / 20) as f32 * 0.001,
+                ui::Rgba8::new(255, 160, 80, 220),
+            ));
+        }
+        items.push(sample_map_item(
+            "/samples/crossed.wav",
+            0.75,
+            0.75,
+            ui::Rgba8::new(57, 187, 245, 220),
+        ));
+
+        let index = SampleMapHitIndex::build(bounds, viewport, &items);
+        let candidates =
+            index.item_indices_near_segment(Point::new(720.0, 750.0), Point::new(780.0, 750.0));
+
+        assert_eq!(candidates, vec![2_000]);
     }
 
     fn sample_map_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> SampleMapItem {
