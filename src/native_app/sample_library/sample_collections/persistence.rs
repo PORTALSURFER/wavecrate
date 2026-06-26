@@ -11,11 +11,11 @@ use super::command::{CollectionOperation, CollectionUpdate};
 
 pub(super) fn group_updates_by_source(
     updates: &[CollectionUpdate],
-) -> BTreeMap<PathBuf, Vec<CollectionUpdate>> {
-    let mut by_source: BTreeMap<PathBuf, Vec<CollectionUpdate>> = BTreeMap::new();
+) -> BTreeMap<(PathBuf, PathBuf), Vec<CollectionUpdate>> {
+    let mut by_source: BTreeMap<(PathBuf, PathBuf), Vec<CollectionUpdate>> = BTreeMap::new();
     for update in updates {
         by_source
-            .entry(update.root.clone())
+            .entry((update.root.clone(), update.database_root.clone()))
             .or_default()
             .push(update.clone());
     }
@@ -24,9 +24,11 @@ pub(super) fn group_updates_by_source(
 
 pub(super) fn persist_collection_updates(
     root: &Path,
+    database_root: &Path,
     updates: &[CollectionUpdate],
 ) -> Result<(), String> {
-    let db = SourceDatabase::open_for_user_metadata_write(root).map_err(|err| err.to_string())?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(root, database_root)
+        .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     for update in updates {
         let (file_size, modified_ns) = file_metadata(&update.absolute_path)?;
@@ -47,11 +49,11 @@ pub(super) fn persist_collection_updates(
 
 pub(super) fn group_missing_collection_files_by_source(
     files: &[MissingCollectionFile],
-) -> BTreeMap<PathBuf, Vec<MissingCollectionFile>> {
-    let mut by_source: BTreeMap<PathBuf, Vec<MissingCollectionFile>> = BTreeMap::new();
+) -> BTreeMap<(PathBuf, PathBuf), Vec<MissingCollectionFile>> {
+    let mut by_source: BTreeMap<(PathBuf, PathBuf), Vec<MissingCollectionFile>> = BTreeMap::new();
     for file in files {
         by_source
-            .entry(file.root.clone())
+            .entry((file.root.clone(), file.database_root.clone()))
             .or_default()
             .push(file.clone());
     }
@@ -60,9 +62,11 @@ pub(super) fn group_missing_collection_files_by_source(
 
 pub(super) fn persist_missing_collection_cleanup(
     root: &Path,
+    database_root: &Path,
     files: &[MissingCollectionFile],
 ) -> Result<(), String> {
-    let db = SourceDatabase::open_for_user_metadata_write(root).map_err(|err| err.to_string())?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(root, database_root)
+        .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     for file in files {
         batch
@@ -92,6 +96,7 @@ mod tests {
     fn update(root: &str, relative_path: &str) -> CollectionUpdate {
         CollectionUpdate {
             root: PathBuf::from(root),
+            database_root: PathBuf::from(root),
             relative_path: PathBuf::from(relative_path),
             absolute_path: PathBuf::from(root).join(relative_path),
             collection: SampleCollection::new(0).expect("collection"),
@@ -111,7 +116,7 @@ mod tests {
 
         assert_eq!(
             grouped
-                .get(&PathBuf::from("C:/one"))
+                .get(&(PathBuf::from("C:/one"), PathBuf::from("C:/one")))
                 .expect("first source")
                 .iter()
                 .map(|update| update.relative_path.as_path())
@@ -120,7 +125,7 @@ mod tests {
         );
         assert_eq!(
             grouped
-                .get(&PathBuf::from("C:/two"))
+                .get(&(PathBuf::from("C:/two"), PathBuf::from("C:/two")))
                 .expect("second source")
                 .iter()
                 .map(|update| update.relative_path.as_path())

@@ -2,11 +2,16 @@ use std::{path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
 use radiant::prelude::PlatformResultExt as _;
+use wavecrate::sample_sources::HarvestDerivationOperation;
 use wavecrate::selection::SelectionRange;
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
-
-mod clipboard_clip;
+use crate::native_app::app::{
+    ClipboardHandoffTarget, ExtractedFilePlaybackType, GuiMessage, NativeAppState, emit_gui_action,
+    sample_path_label,
+};
+use crate::native_app::waveform::{
+    WaveformExtractionCompletion, WaveformSelectionKind, execute_waveform_extraction,
+};
 
 const WAVEFORM_CLIPBOARD_HANDOFF_TASK_NAME: &str = "gui-copy-waveform-selection";
 
@@ -16,7 +21,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.copy_waveform_play_selection_if_marked(started_at, context) {
+        if self.copy_waveform_play_selection_if_requested(started_at, context) {
             return;
         }
 
@@ -83,18 +88,65 @@ impl NativeAppState {
         }
     }
 
-    fn copy_waveform_play_selection_if_marked(
+    fn copy_waveform_play_selection_if_requested(
         &mut self,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> bool {
+        if self.ui.browser_interaction.clipboard_handoff_target
+            != ClipboardHandoffTarget::WaveformSelection
+        {
+            return false;
+        }
         if self.waveform.current.play_selection().is_none() {
             return false;
+        }
+        let target_folder = match self.library.folder_browser.selected_folder_path() {
+            Some(target_folder) => target_folder,
+            None => {
+                let error = String::from("Select a folder before copying a range");
+                self.flash_denied_waveform_selection_for_error(
+                    &error,
+                    self.waveform.current.play_selection(),
+                    WaveformSelectionKind::Play,
+                );
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "waveform.copy_playmarked_range",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+                return true;
+            }
+        };
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_target_lock_error(&target_folder, "Extraction")
+        {
+            self.flash_denied_waveform_selection_for_error(
+                &error,
+                self.waveform.current.play_selection(),
+                WaveformSelectionKind::Play,
+            );
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                "waveform.copy_playmarked_range",
+                Some("waveform"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return true;
         }
         let request = match self
             .waveform
             .current
-            .play_selection_extraction_request(None)
+            .play_selection_extraction_request(Some(target_folder))
         {
             Ok(request) => request,
             Err(error) => {
@@ -110,39 +162,89 @@ impl NativeAppState {
                 return true;
             }
         };
-        let source_path = request.source_path().to_path_buf();
         let selection = request.selection();
+        let request = match self.route_harvest_extraction_request(request) {
+            Ok(request) => request,
+            Err(error) => {
+                self.flash_denied_waveform_selection_for_error(
+                    &error,
+                    Some(selection),
+                    WaveformSelectionKind::Play,
+                );
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "waveform.copy_playmarked_range",
+                    Some("waveform"),
+                    None,
+                    "blocked",
+                    started_at,
+                    Some(&error),
+                );
+                return true;
+            }
+        };
+        let playback_type = ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
         self.waveform.current.flash_play_selection();
         self.yield_sample_cache_warm_for_user_handoff(context);
-        self.ui.status.sample = String::from("Copying play range");
+        self.ui.status.sample = String::from("Extracting play range for copy");
         context
             .business()
             .interactive(WAVEFORM_CLIPBOARD_HANDOFF_TASK_NAME)
             .run(
-                move |worker_context| {
-                    clipboard_clip::stage_waveform_selection_clip(worker_context, request)
-                },
-                move |result| GuiMessage::WaveformSelectionClipStaged {
-                    source_path,
-                    selection,
+                move |_| execute_waveform_extraction(request),
+                move |completion| GuiMessage::WaveformSelectionCopyExtracted {
+                    completion,
+                    playback_type,
                     started_at,
-                    result,
                 },
             );
         true
     }
 
-    pub(in crate::native_app) fn finish_waveform_selection_clip_staged(
+    pub(in crate::native_app) fn finish_waveform_selection_copy_extracted(
         &mut self,
-        source_path: PathBuf,
-        selection: SelectionRange,
+        completion: WaveformExtractionCompletion,
+        playback_type: ExtractedFilePlaybackType,
         started_at: Instant,
-        result: Result<PathBuf, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        match result {
+        let source_path = completion.source_path;
+        let selection = completion.selection;
+        match completion.result {
             Ok(path) => {
+                self.waveform
+                    .current
+                    .mark_extracted_play_selection(&source_path, selection);
+                self.waveform.current.flash_play_selection();
+                if self
+                    .library
+                    .folder_browser
+                    .path_is_in_protected_source(&source_path)
+                {
+                    self.library
+                        .folder_browser
+                        .refresh_file_path_across_sources(&path);
+                } else {
+                    self.library.folder_browser.refresh_file_path(&path);
+                }
+                let metadata_error = self
+                    .assign_extracted_file_metadata(&path, playback_type, context)
+                    .err();
+                self.record_harvest_selection_derivation_with_source_duration(
+                    &source_path,
+                    selection,
+                    &path,
+                    self.waveform.current.duration_seconds() as f64,
+                    HarvestDerivationOperation::Export,
+                );
                 let copied_path = path.clone();
+                let label = sample_path_label(&path);
+                self.ui.status.sample = match metadata_error {
+                    Some(error) => {
+                        format!("Copying extracted {label}; extracted metadata incomplete: {error}")
+                    }
+                    None => format!("Copying extracted {label}"),
+                };
                 context.copy_file_paths(vec![path], move |result| {
                     GuiMessage::WaveformSelectionCopyFinished {
                         source_path,

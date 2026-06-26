@@ -1,7 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use radiant::prelude as ui;
-use wavecrate::sample_sources::config::AudioWriteFormatConfig;
+use wavecrate::sample_sources::{HarvestDerivationOperation, config::AudioWriteFormatConfig};
 use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
@@ -10,7 +13,9 @@ use crate::native_app::app::{
 };
 use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
 use crate::native_app::transaction_history::TransactionContext;
-use crate::native_app::waveform::{WaveformPreservedMarks, WaveformState};
+use crate::native_app::waveform::{
+    WaveformPreservedMarks, WaveformSelectionKind, WaveformState, execute_waveform_extraction,
+};
 
 mod worker;
 pub(in crate::native_app) use worker::WaveformDestructiveEditResult;
@@ -24,6 +29,13 @@ enum WaveformDestructiveEditTarget {
     PlaySelection,
 }
 
+#[derive(Default)]
+struct WaveformDestructiveEditQueueOptions {
+    copy_source_path: Option<PathBuf>,
+    output_focus_path: Option<PathBuf>,
+    harvest_whole_file_derivation: Option<(PathBuf, HarvestDerivationOperation)>,
+}
+
 impl WaveformDestructiveEditTarget {
     fn missing_selection_message(self, kind: WaveformDestructiveEditKind) -> String {
         match self {
@@ -32,6 +44,47 @@ impl WaveformDestructiveEditTarget {
             }
             Self::PlaySelection => format!("Mark a play range before {}", kind.gerund_label()),
         }
+    }
+
+    fn fallback_selection_kind(self) -> WaveformSelectionKind {
+        match self {
+            Self::ActiveSelection => WaveformSelectionKind::Edit,
+            Self::PlaySelection => WaveformSelectionKind::Play,
+        }
+    }
+}
+
+fn waveform_action_denied_error(error: &str) -> bool {
+    error.contains("This source is protected") || error.contains("blocked by locked folder")
+}
+
+fn harvest_region_copy_operation(
+    kind: WaveformDestructiveEditKind,
+) -> Option<HarvestDerivationOperation> {
+    match kind {
+        WaveformDestructiveEditKind::CropSelection => Some(HarvestDerivationOperation::CropCopy),
+        WaveformDestructiveEditKind::ExtractAndTrimSelection => {
+            Some(HarvestDerivationOperation::Extract)
+        }
+        WaveformDestructiveEditKind::TrimSelection
+        | WaveformDestructiveEditKind::ReverseSelection
+        | WaveformDestructiveEditKind::ApplyEditSelectionEffects => None,
+    }
+}
+
+fn harvest_whole_file_copy_operation(
+    kind: WaveformDestructiveEditKind,
+) -> Option<HarvestDerivationOperation> {
+    match kind {
+        WaveformDestructiveEditKind::TrimSelection => Some(HarvestDerivationOperation::TrimCopy),
+        WaveformDestructiveEditKind::ReverseSelection => {
+            Some(HarvestDerivationOperation::ReverseCopy)
+        }
+        WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
+            Some(HarvestDerivationOperation::EditCopy)
+        }
+        WaveformDestructiveEditKind::CropSelection
+        | WaveformDestructiveEditKind::ExtractAndTrimSelection => None,
     }
 }
 
@@ -141,9 +194,45 @@ impl NativeAppState {
         target: WaveformDestructiveEditTarget,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let started_at = Instant::now();
+        if let Some(harvest_operation) = harvest_whole_file_copy_operation(kind) {
+            match self.queue_harvest_whole_file_copy_edit_request(
+                kind,
+                target,
+                harvest_operation,
+                context,
+            ) {
+                Ok(true) => return,
+                Ok(false) => {}
+                Err(error) => {
+                    self.flash_denied_destructive_selection_for_error(&error, kind, target);
+                    self.ui.status.sample = error;
+                    return;
+                }
+            }
+        }
+        if let Some(harvest_operation) = harvest_region_copy_operation(kind) {
+            match self.queue_harvest_region_copy_request(
+                kind,
+                target,
+                harvest_operation,
+                started_at,
+                context,
+            ) {
+                Ok(true) => return,
+                Ok(false) => {}
+                Err(error) => {
+                    self.flash_denied_destructive_selection_for_error(&error, kind, target);
+                    self.ui.status.sample = error;
+                    return;
+                }
+            }
+        }
+
         let request = match self.pending_destructive_edit_request(kind, target) {
             Ok(request) => request,
             Err(error) => {
+                self.flash_denied_destructive_selection_for_error(&error, kind, target);
                 self.ui.status.sample = error;
                 return;
             }
@@ -164,6 +253,96 @@ impl NativeAppState {
             .pending_waveform_destructive_edit = Some(request);
     }
 
+    fn queue_harvest_region_copy_request(
+        &mut self,
+        kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
+        harvest_operation: HarvestDerivationOperation,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Result<bool, String> {
+        let (absolute_path, selection) = self.destructive_edit_target_for_kind(kind, target)?;
+        if !self.harvest_copy_edits_enabled_for_path(&absolute_path) {
+            return Ok(false);
+        }
+        let request = self
+            .waveform
+            .current
+            .selection_extraction_request(None, selection)?;
+        let request = self.route_harvest_destination_extraction_request(request)?;
+        self.validate_waveform_extraction_target(&request)?;
+        let playback_type = ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
+        self.ui.status.sample = String::from("Extracting selection to harvest destination");
+        context.business().background("gui-waveform-extract").run(
+            move |_| execute_waveform_extraction(request),
+            move |completion| GuiMessage::PlaySelectionExtractionFinished {
+                completion,
+                drag_position: None,
+                playback_type,
+                harvest_operation,
+                started_at,
+            },
+        );
+        Ok(true)
+    }
+
+    fn queue_harvest_whole_file_copy_edit_request(
+        &mut self,
+        kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
+        harvest_operation: HarvestDerivationOperation,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Result<bool, String> {
+        let (source_path, selection) = self.destructive_edit_target_for_kind(kind, target)?;
+        if !self.harvest_copy_edits_enabled_for_path(&source_path) {
+            return Ok(false);
+        }
+        let target_folder = self.harvest_destination_for_origin(&source_path)?;
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_target_lock_error(&target_folder, kind.action_label())
+        {
+            return Err(error);
+        }
+        let Some(primary_source) = self.library.folder_browser.primary_sample_source() else {
+            return Err(String::from(
+                "Set a Primary source before editing to a harvest destination",
+            ));
+        };
+        let child_path = next_copy_edit_path(&source_path, &target_folder, kind)?;
+        let relative_path = child_path
+            .strip_prefix(&primary_source.root)
+            .map(Path::to_path_buf)
+            .map_err(|_| String::from("Harvest edit copy is outside the Primary source"))?;
+        let request = PendingWaveformDestructiveEdit {
+            prompt: destructive_edit_prompt(kind, &self.ui.settings.persisted.audio_write_format),
+            source: primary_source,
+            relative_path,
+            absolute_path: child_path.clone(),
+            selection,
+        };
+        self.queue_destructive_edit_request_with_options(
+            request,
+            WaveformDestructiveEditQueueOptions {
+                copy_source_path: Some(source_path.clone()),
+                output_focus_path: Some(child_path),
+                harvest_whole_file_derivation: Some((source_path, harvest_operation)),
+            },
+            context,
+        )?;
+        Ok(true)
+    }
+
+    fn harvest_copy_edits_enabled_for_path(&self, source_path: &Path) -> bool {
+        self.library
+            .folder_browser
+            .sample_source_for_file_path(source_path)
+            .is_some_and(|(source, _)| {
+                source.is_protected() || self.library.folder_browser.harvest_filter().is_some()
+            })
+    }
+
     pub(in crate::native_app) fn confirm_pending_waveform_destructive_edit(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -177,8 +356,14 @@ impl NativeAppState {
             return;
         };
 
+        let denied_selection = request.selection;
         let result = self.queue_destructive_edit_request(request, context);
         if let Err(error) = result {
+            self.flash_denied_waveform_selection_for_error(
+                &error,
+                Some(denied_selection),
+                WaveformSelectionKind::Edit,
+            );
             self.ui.status.sample = format!("Edit failed: {error}");
         }
     }
@@ -221,6 +406,19 @@ impl NativeAppState {
         request: PendingWaveformDestructiveEdit,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> Result<(), String> {
+        self.queue_destructive_edit_request_with_options(
+            request,
+            WaveformDestructiveEditQueueOptions::default(),
+            context,
+        )
+    }
+
+    fn queue_destructive_edit_request_with_options(
+        &mut self,
+        request: PendingWaveformDestructiveEdit,
+        options: WaveformDestructiveEditQueueOptions,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Result<(), String> {
         if let Some(error) = self
             .library
             .folder_browser
@@ -243,6 +441,8 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
+        let source_duration_seconds = (self.waveform.current.path() == request.absolute_path)
+            .then(|| self.waveform.current.duration_seconds() as f64);
         let playback_was_active = self.waveform.current.is_playing();
         let extracted_playback_type =
             ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
@@ -254,15 +454,21 @@ impl NativeAppState {
         self.audio.pending_runtime_start = None;
 
         let preserved_marks = self.preserved_marks_after_destructive_edit(&request);
-        let worker_request =
+        let mut worker_request =
             WaveformDestructiveEditWorkerRequest::new(request.clone(), extraction_request);
+        if let Some(copy_source_path) = options.copy_source_path.clone() {
+            worker_request = worker_request.with_copy_source(copy_source_path);
+        }
         self.background.waveform_destructive_edit_context =
             Some(WaveformDestructiveEditUiContext {
                 request: request.clone(),
                 before_selected_path,
                 playback_was_active,
+                source_duration_seconds,
                 extracted_playback_type,
                 preserved_marks,
+                output_focus_path: options.output_focus_path,
+                harvest_whole_file_derivation: options.harvest_whole_file_derivation,
             });
         self.ui.status.sample = format!(
             "{} {}",
@@ -278,6 +484,41 @@ impl NativeAppState {
                 GuiMessage::WaveformDestructiveEditFinished,
             );
         Ok(())
+    }
+
+    fn flash_denied_destructive_selection_for_error(
+        &mut self,
+        error: &str,
+        kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
+    ) {
+        let selection = self
+            .destructive_edit_target_for_kind(kind, target)
+            .ok()
+            .map(|(_, selection)| selection);
+        self.flash_denied_waveform_selection_for_error(
+            error,
+            selection,
+            target.fallback_selection_kind(),
+        );
+    }
+
+    pub(in crate::native_app) fn flash_denied_waveform_selection_for_error(
+        &mut self,
+        error: &str,
+        selection: Option<SelectionRange>,
+        fallback_kind: WaveformSelectionKind,
+    ) {
+        if !waveform_action_denied_error(error) {
+            return;
+        }
+        if let Some(selection) = selection {
+            self.waveform
+                .current
+                .flash_denied_selection_matching(selection, fallback_kind);
+        } else {
+            self.waveform.current.flash_denied_selection(fallback_kind);
+        }
     }
 
     pub(in crate::native_app) fn finish_waveform_destructive_edit(
@@ -323,6 +564,15 @@ impl NativeAppState {
             );
             return;
         }
+        if let Some((source_path, operation)) = active.harvest_whole_file_derivation.as_ref() {
+            self.record_harvest_whole_file_derivation(
+                source_path,
+                &applied.absolute_path,
+                operation.clone(),
+            );
+        } else {
+            self.mark_harvest_touched_for_path(&active.request.absolute_path);
+        }
         let extracted_metadata_error = if let Some(extracted_path) = applied
             .extracted
             .as_ref()
@@ -336,6 +586,31 @@ impl NativeAppState {
         } else {
             None
         };
+        if let Some(extracted) = applied.extracted.as_ref() {
+            self.record_harvest_extraction_with_source_duration(
+                &active.request.absolute_path,
+                active.request.selection,
+                &extracted.path,
+                active.source_duration_seconds.unwrap_or_default(),
+            );
+        }
+        if let Some(output_path) = active.output_focus_path.as_ref() {
+            self.library
+                .folder_browser
+                .refresh_file_path_across_sources(output_path);
+            self.library
+                .folder_browser
+                .focus_file_across_sources_matching_tags_for_reason(
+                    output_path,
+                    &self.metadata.tags_by_file,
+                    BrowserListingRevealReason::DestructiveEditReload,
+                );
+            self.load_navigation_sample_validated(
+                output_path.to_string_lossy().to_string(),
+                context,
+                Instant::now(),
+            );
+        }
         self.register_destructive_edit_transaction(active.request.prompt.edit, applied);
 
         let label = sample_path_label(&active.request.absolute_path);
@@ -637,6 +912,28 @@ fn destructive_edit_prompt(
             write_format.summary_label()
         ),
     }
+}
+
+fn next_copy_edit_path(
+    source_path: &Path,
+    target_folder: &Path,
+    kind: WaveformDestructiveEditKind,
+) -> Result<PathBuf, String> {
+    let base_suffix = match kind {
+        WaveformDestructiveEditKind::TrimSelection => "_trim",
+        WaveformDestructiveEditKind::ReverseSelection => "_reverse",
+        WaveformDestructiveEditKind::ApplyEditSelectionEffects => "_edit",
+        WaveformDestructiveEditKind::CropSelection
+        | WaveformDestructiveEditKind::ExtractAndTrimSelection => {
+            return Err(String::from("Unsupported protected copy edit"));
+        }
+    };
+    wavecrate::sample_sources::harvest_file_ops::next_available_wav_copy_path(
+        source_path,
+        target_folder,
+        base_suffix,
+        "Could not find an available edit copy file name",
+    )
 }
 
 fn destructive_edit_title(edit: WaveformDestructiveEditKind) -> String {

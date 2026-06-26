@@ -106,10 +106,7 @@ impl AppController {
             .sources
             .iter()
             .find(|source| source.id.as_str() == source_id)
-            .map(|source| SampleSource {
-                id: source.id.clone(),
-                root: source.root.clone(),
-            })
+            .cloned()
             .ok_or_else(|| format!("Unknown source for sample_id: {sample_id}"))?;
         if self.selection_state.ctx.selected_source.as_ref() != Some(&source.id) {
             self.select_source(Some(source.id.clone()));

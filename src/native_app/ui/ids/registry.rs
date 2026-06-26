@@ -23,6 +23,7 @@ enum WidgetIdOwner {
     Collections,
     Sources,
     MetadataTags,
+    HarvestFamily,
 }
 
 impl WidgetIdOwner {
@@ -39,6 +40,7 @@ impl WidgetIdOwner {
             Self::Collections => COLLECTIONS,
             Self::Sources => SOURCES,
             Self::MetadataTags => METADATA_TAGS,
+            Self::HarvestFamily => HARVEST_FAMILY,
         }
     }
 }
@@ -117,6 +119,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         AudioSettings,
         GENERAL_SETTINGS_BUTTON_ID,
         "audio_settings.general_settings_button"
+    ),
+    registered_widget_id!(
+        AudioSettings,
+        RELEASE_UPDATE_BUTTON_ID,
+        "audio_settings.release_update_button"
     ),
     registered_widget_id!(
         TransactionHistory,
@@ -220,5 +227,25 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         MetadataTags,
         METADATA_RESIZE_HEADER_ID,
         "metadata_tags.resize_header"
+    ),
+    registered_widget_id!(
+        HarvestFamily,
+        HARVEST_FAMILY_SECTION_ID,
+        "harvest_family.section"
+    ),
+    registered_widget_id!(
+        HarvestFamily,
+        HARVEST_FAMILY_ORIGIN_BUTTON_ID,
+        "harvest_family.origin_button"
+    ),
+    registered_widget_id!(
+        HarvestFamily,
+        HARVEST_FAMILY_DERIVATIVES_BUTTON_ID,
+        "harvest_family.derivatives_button"
+    ),
+    registered_widget_id!(
+        HarvestFamily,
+        HARVEST_FAMILY_DESTINATION_BUTTON_ID,
+        "harvest_family.destination_button"
     ),
 ];

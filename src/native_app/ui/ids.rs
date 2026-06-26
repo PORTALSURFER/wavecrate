@@ -35,6 +35,7 @@ const SAMPLE_BROWSER_HEADER: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0
 const COLLECTIONS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4c00);
 const SOURCES: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5300);
 const METADATA_TAGS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5440);
+const HARVEST_FAMILY: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5800);
 
 pub(in crate::native_app) const WAVEFORM_VIEWPORT_STACK_ID: u64 = WAVEFORM.id(10);
 pub(in crate::native_app) const WAVEFORM_SIGNAL_WIDGET_ID: u64 = WAVEFORM.id(11);
@@ -69,6 +70,7 @@ pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = AUDIO_SETTINGS.id(0);
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = AUDIO_SETTINGS.id(90);
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = AUDIO_SETTINGS.id(100);
 pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = AUDIO_SETTINGS.id(110);
+pub(in crate::native_app) const RELEASE_UPDATE_BUTTON_ID: u64 = AUDIO_SETTINGS.id(120);
 
 pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = TRANSACTION_HISTORY.id(0);
 
@@ -99,6 +101,8 @@ pub(in crate::native_app) const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u6
 /// Scope for automation-facing curation filter toggle ids.
 pub(in crate::native_app) const AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE: u64 =
     FOLDER_FILTERS.id(22);
+/// Scope for automation-facing harvest filter toggle ids.
+pub(in crate::native_app) const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(23);
 
 pub(in crate::native_app) const COLLECTIONS_SECTION_NODE_ID: u64 = COLLECTIONS.id(2);
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = COLLECTIONS.id(3);
@@ -120,3 +124,9 @@ pub(in crate::native_app) const METADATA_SIDEBAR_PANEL_ID: u64 = METADATA_TAGS.i
 pub(in crate::native_app) const METADATA_TAG_LIBRARY_TOGGLE_ID: u64 = METADATA_TAGS.id(9);
 pub(in crate::native_app) const METADATA_RESIZE_HEADER_ID: u64 = METADATA_TAGS.id(10);
 pub(in crate::native_app) const METADATA_CATEGORY_ROW_INPUT_SCOPE: u64 = METADATA_TAGS.id(11);
+
+#[cfg(test)]
+pub(in crate::native_app) const HARVEST_FAMILY_SECTION_ID: u64 = HARVEST_FAMILY.id(0);
+pub(in crate::native_app) const HARVEST_FAMILY_ORIGIN_BUTTON_ID: u64 = HARVEST_FAMILY.id(1);
+pub(in crate::native_app) const HARVEST_FAMILY_DERIVATIVES_BUTTON_ID: u64 = HARVEST_FAMILY.id(2);
+pub(in crate::native_app) const HARVEST_FAMILY_DESTINATION_BUTTON_ID: u64 = HARVEST_FAMILY.id(3);

@@ -3,7 +3,8 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 mod projection;
 
 use self::projection::{
-    CurationFilterRowProjection, CurationFilterToggleProjection, PlaybackTypeFilterRowProjection,
+    CurationFilterRowProjection, CurationFilterToggleProjection, HarvestFilterRowProjection,
+    HarvestFilterToggleProjection, PlaybackTypeFilterRowProjection,
     PlaybackTypeFilterToggleProjection, RatingFilterRowProjection, RatingFilterToggleProjection,
     TextFilterField, TextFilterRowProjection, filter_rows_projection,
 };
@@ -18,6 +19,7 @@ pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 const FILTER_LABEL_WIDTH: f32 = 38.0;
 const CURATION_FILTER_TOGGLE_WIDTH: f32 = 44.0;
+const HARVEST_FILTER_TOGGLE_WIDTH: f32 = 30.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
 pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
@@ -47,16 +49,20 @@ const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 =
 /// Scope for automation-facing curation filter toggle ids.
 const AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE;
+/// Scope for automation-facing harvest filter toggle ids.
+const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 =
+    widget_ids::AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE;
 /// Scope for automation-facing rating filter toggle ids.
 const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_RATING_FILTER_TOGGLE_SCOPE;
 
-pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 5] {
+pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 6] {
     let projection = filter_rows_projection(model);
     [
         text_filter_row(projection.name_filter),
         text_filter_row(projection.tag_filter),
         curation_filter_row(projection.curation),
+        harvest_filter_row(projection.harvest),
         playback_type_filter_row(projection.playback_type),
         rating_filter_row(projection.rating),
     ]
@@ -170,6 +176,43 @@ fn curation_filter_toggle(toggle: &CurationFilterToggleProjection) -> ui::View<G
 /// Automation-facing id for a curation filter toggle.
 pub(super) fn automation_curation_filter_toggle_id(label: &str) -> u64 {
     ui::stable_widget_id(AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE, label)
+}
+
+fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
+    let help_tooltips_enabled = row.help_tooltips_enabled;
+    filter_labeled_control_row(
+        filter_row_label(row.label),
+        ui::row(
+            row.toggles
+                .iter()
+                .map(|toggle| harvest_filter_toggle(toggle, help_tooltips_enabled))
+                .collect::<Vec<_>>(),
+        )
+        .spacing(2.0)
+        .fill_width()
+        .height(FILTER_CLEAR_BUTTON_SIZE),
+        "filter-harvest-row",
+    )
+}
+
+fn harvest_filter_toggle(
+    toggle: &HarvestFilterToggleProjection,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
+    let filter = toggle.filter;
+    ui::selectable(toggle.label, toggle.active)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .message(move |enabled| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::SetHarvestFilter(filter, enabled))
+        })
+        .id(automation_harvest_filter_toggle_id(toggle.label))
+        .size(HARVEST_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+        .tooltip_if(help_tooltips_enabled, toggle.tooltip)
+}
+
+/// Automation-facing id for a harvest filter toggle.
+pub(super) fn automation_harvest_filter_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE, label)
 }
 
 fn playback_type_filter_toggle(
@@ -286,5 +329,65 @@ fn filter_labeled_control_row(
 pub(super) fn empty_filter_message() -> TextInputMessage {
     TextInputMessage::Changed {
         value: String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::app_chrome::view_models::library_sidebar::{
+        CurationFilterToggleViewModel, CurationFilterViewModel, FilterSectionViewModel,
+        HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
+        RatingFilterToggleViewModel,
+    };
+    use crate::native_app::sample_library::folder_browser::model::{
+        BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
+    };
+    use radiant::prelude::IntoView;
+
+    #[test]
+    fn harvest_filter_toggles_expose_full_help_tooltips() {
+        let surface = ui::column(filter_rows(&filter_model(true))).into_surface();
+        let tooltip = surface
+            .find_widget(automation_harvest_filter_toggle_id("Need"))
+            .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+        assert_eq!(
+            tooltip,
+            Some("Files not done or ignored that do not have derivatives yet.")
+        );
+    }
+
+    fn filter_model(help_tooltips_enabled: bool) -> FilterSectionViewModel {
+        FilterSectionViewModel {
+            name_filter: String::new(),
+            tag_filter: String::new(),
+            curation: CurationFilterViewModel {
+                toggles: vec![CurationFilterToggleViewModel {
+                    scope: BrowserCurationScope::All,
+                    label: "All",
+                    active: false,
+                }],
+            },
+            harvest: HarvestFilterViewModel {
+                toggles: vec![HarvestFilterToggleViewModel {
+                    filter: HarvestFilter::NeedsReview,
+                    label: "Need",
+                    active: false,
+                }],
+                help_tooltips_enabled,
+            },
+            playback_type_filters: vec![PlaybackTypeFilterToggleViewModel {
+                filter: PlaybackTypeFilter::OneShot,
+                label: "1-Shot",
+                active: false,
+            }],
+            rating_filters: vec![RatingFilterToggleViewModel {
+                level: 0,
+                label: "U",
+                active: false,
+            }],
+            panel_height: 120.0,
+        }
     }
 }

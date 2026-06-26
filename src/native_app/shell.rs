@@ -2,6 +2,7 @@
 
 mod launch;
 pub(in crate::native_app) mod lifecycle;
+mod macos_app_icon;
 pub(in crate::native_app) mod message_dispatch;
 pub(in crate::native_app) mod shortcuts;
 

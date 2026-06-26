@@ -9,9 +9,11 @@ pub(in crate::native_app) use playback_load::{
 };
 #[cfg(test)]
 pub(in crate::native_app) use read::cached_waveform_file_playback_ready_exists;
+#[cfg(test)]
+pub(in crate::native_app) use read::cached_waveform_file_source_ready_exists;
 use read::read_cached_waveform_file;
 pub(in crate::native_app) use read::{
-    cached_waveform_file_exists, cached_waveform_file_source_ready_exists,
+    cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
 };
 pub(in crate::native_app) use remap::remap_persisted_waveform_cache_after_move;
 pub(in crate::native_app) use store_queue::flush_background_waveform_cache_stores_for_shutdown;

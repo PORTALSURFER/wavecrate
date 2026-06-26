@@ -98,9 +98,11 @@ impl FolderBrowserState {
         collection: SampleCollection,
     ) -> Option<MissingCollectionFile> {
         let absolute_path = Path::new(&file.id);
-        let (root, relative_path) = self.source_relative_file_path(absolute_path)?;
+        let (root, database_root, relative_path) =
+            self.source_database_relative_file_path(absolute_path)?;
         Some(MissingCollectionFile {
             root,
+            database_root,
             relative_path,
             absolute_path: absolute_path.to_path_buf(),
             collection,

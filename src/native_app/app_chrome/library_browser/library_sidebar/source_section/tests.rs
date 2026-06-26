@@ -1,8 +1,9 @@
 use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_LABEL_PADDING_X,
-    source_add_button, source_row,
+    source_add_button, source_missing_color_for_tests, source_row,
 };
+use super::source_selector;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::{
     sidebar_row_hover_fill_for_tests, sidebar_row_palette_for_tests,
@@ -159,5 +160,66 @@ fn source_rows_use_shared_grey_sidebar_hover_fill() {
     assert_eq!(
         sidebar_row_palette_for_tests().hovered,
         Some(sidebar_row_hover_fill_for_tests())
+    );
+}
+
+#[test]
+fn missing_source_row_paints_missing_badge_and_marker() {
+    let mut source = test_source("source-missing");
+    source.mark_missing_for_tests();
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let row = model.rows.first().expect("source row");
+    let frame =
+        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+
+    assert!(
+        frame.paint_plan.contains_text("MISSING"),
+        "missing sources should get an explicit source-list badge"
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("Source"),
+        Some(source_missing_color_for_tests()),
+        "missing source labels should use warning text"
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("MISSING"),
+        Some(source_missing_color_for_tests()),
+        "missing source badges should use warning text"
+    );
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == source_missing_color_for_tests()),
+        "missing sources should get a danger-colored source marker"
+    );
+}
+
+#[test]
+fn source_selector_header_reports_missing_sources() {
+    let mut missing = test_source("source-missing");
+    missing.mark_missing_for_tests();
+    let present = SourceEntry::new(
+        "source-present",
+        "Present",
+        std::path::PathBuf::from("C:/present"),
+    );
+    let state = FolderBrowserState::from_sources_deferred(
+        vec![missing.clone(), present],
+        missing.id.clone(),
+    );
+    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let frame = source_selector(&model)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, 76.0));
+
+    assert!(
+        frame.paint_plan.contains_text("Sources (1 missing)"),
+        "source header should expose missing source count"
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("Sources (1 missing)"),
+        Some(source_missing_color_for_tests()),
+        "source header should use warning text when any source is missing"
     );
 }

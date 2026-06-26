@@ -36,8 +36,16 @@ pub(super) enum SampleColumnContent {
     Name {
         text: String,
         badges: Vec<String>,
+        muted: bool,
     },
-    Text(String),
+    Harvest {
+        badges: Vec<String>,
+        muted: bool,
+    },
+    Text {
+        value: String,
+        muted: bool,
+    },
     Rename(FileRenameView),
     Rating(RatingIndicator),
     PlaybackType(Option<&'static str>),
@@ -134,9 +142,14 @@ fn sample_column_display<'a>(
             || SampleColumnContent::Name {
                 text: sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
                 badges: row.curation_badges.clone(),
+                muted: row.harvest_completed,
             },
             SampleColumnContent::Rename,
         ),
+        FileColumnKind::Harvest => SampleColumnContent::Harvest {
+            badges: row.harvest_badges.clone(),
+            muted: row.harvest_completed,
+        },
         FileColumnKind::Rating => {
             SampleColumnContent::Rating(RatingIndicator::new(file.rating, file.rating_locked))
         }
@@ -147,8 +160,14 @@ fn sample_column_display<'a>(
         FileColumnKind::Collection => {
             SampleColumnContent::Collection(row.collection_colors.clone())
         }
-        FileColumnKind::SourceFolder => SampleColumnContent::Text(row.source_folder_path.clone()),
-        kind => SampleColumnContent::Text(sample_file_column_value(file, kind)),
+        FileColumnKind::SourceFolder => SampleColumnContent::Text {
+            value: row.source_folder_path.clone(),
+            muted: row.harvest_completed,
+        },
+        kind => SampleColumnContent::Text {
+            value: sample_file_column_value(file, kind),
+            muted: row.harvest_completed,
+        },
     };
     SampleColumnDisplay {
         width: column.width,
@@ -199,6 +218,7 @@ fn sample_file_column_value(file: &FileEntry, kind: FileColumnKind) -> String {
             .join(","),
         FileColumnKind::Path => file.id.clone(),
         FileColumnKind::Name
+        | FileColumnKind::Harvest
         | FileColumnKind::Rating
         | FileColumnKind::PlaybackType
         | FileColumnKind::SourceFolder

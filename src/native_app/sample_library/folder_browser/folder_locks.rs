@@ -2,6 +2,9 @@ use std::path::{Path, PathBuf};
 
 use super::{FolderBrowserState, path_helpers::path_id};
 
+const PROTECTED_SOURCE_WRITE_PROMPT: &str =
+    "This source is protected. Copy to Primary and continue?";
+
 impl FolderBrowserState {
     pub(in crate::native_app) fn set_locked_folder_paths(&mut self, paths: &[PathBuf]) {
         self.tree.locked_folders = paths
@@ -66,6 +69,9 @@ impl FolderBrowserState {
         path: &Path,
         action: &str,
     ) -> Option<String> {
+        if self.path_is_in_protected_source(path) {
+            return Some(PROTECTED_SOURCE_WRITE_PROMPT.to_string());
+        }
         self.lock_covering_path(path)
             .map(|lock| format!("{action} blocked by locked folder {}", lock_label(lock)))
     }
@@ -75,6 +81,9 @@ impl FolderBrowserState {
         path: &Path,
         action: &str,
     ) -> Option<String> {
+        if self.path_is_in_protected_source(path) {
+            return Some(PROTECTED_SOURCE_WRITE_PROMPT.to_string());
+        }
         if let Some(lock) = self.lock_covering_path(path) {
             return Some(format!(
                 "{action} blocked by locked folder {}",
@@ -97,6 +106,15 @@ impl FolderBrowserState {
     ) -> Option<String> {
         self.lock_covering_path(path)
             .map(|lock| format!("{action} blocked by locked folder {}", lock_label(lock)))
+    }
+
+    pub(in crate::native_app) fn path_is_in_protected_source(&self, path: &Path) -> bool {
+        self.source
+            .sources
+            .iter()
+            .filter(|source| path.starts_with(&source.root))
+            .max_by_key(|source| source.root.components().count())
+            .is_some_and(|source| source.is_protected())
     }
 
     fn path_is_in_configured_source(&self, path: &Path) -> bool {

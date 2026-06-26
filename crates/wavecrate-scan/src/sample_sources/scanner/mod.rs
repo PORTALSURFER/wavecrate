@@ -10,5 +10,6 @@ mod scan_walk;
 pub use scan::{
     ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample, hard_rescan,
     scan_in_background, scan_once, scan_with_progress, schedule_deep_hash_scan,
+    schedule_deep_hash_scan_with_database_root,
 };
 pub use scan_paths::{sync_paths, sync_paths_with_progress};

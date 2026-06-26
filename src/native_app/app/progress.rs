@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::native_app::sample_library::folder_browser::RefreshedFileEntry;
+use wavecrate::sample_sources::HarvestDerivationOperation;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct NormalizationProgress {
@@ -17,6 +18,17 @@ pub(in crate::native_app) struct NormalizationProgress {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct NormalizationQueueItem {
     pub(in crate::native_app) paths: Vec<PathBuf>,
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) source_database_root: PathBuf,
+    pub(in crate::native_app) harvest_derivations: Vec<NormalizationHarvestDerivation>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct NormalizationHarvestDerivation {
+    pub(in crate::native_app) source_path: PathBuf,
+    pub(in crate::native_app) child_path: PathBuf,
+    pub(in crate::native_app) operation: HarvestDerivationOperation,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -47,4 +59,5 @@ pub(in crate::native_app) struct NormalizationResult {
     pub(in crate::native_app) refreshed_files: Vec<RefreshedFileEntry>,
     pub(in crate::native_app) skipped: Vec<PathBuf>,
     pub(in crate::native_app) failed: Vec<NormalizationFailure>,
+    pub(in crate::native_app) harvest_derivations: Vec<NormalizationHarvestDerivation>,
 }

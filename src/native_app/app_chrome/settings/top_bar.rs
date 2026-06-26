@@ -9,7 +9,8 @@ use crate::native_app::ui::ids as widget_ids;
 
 use self::projection::{
     AudioEnginePillProjection, GeneralSettingsButtonProjection, HelpTooltipsButtonProjection,
-    SettingsControlsProjection, TopControlBarProjection, VolumeSliderProjection,
+    ReleaseUpdateButtonProjection, SettingsControlsProjection, TopControlBarProjection,
+    VolumeSliderProjection,
 };
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
@@ -31,6 +32,12 @@ pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 =
     widget_ids::GENERAL_SETTINGS_BUTTON_ID;
 const GENERAL_SETTINGS_BUTTON_SIZE: ControlSize = ControlSize {
     width: 28.0,
+    height: 24.0,
+};
+pub(in crate::native_app) const RELEASE_UPDATE_BUTTON_ID: u64 =
+    widget_ids::RELEASE_UPDATE_BUTTON_ID;
+const RELEASE_UPDATE_BUTTON_SIZE: ControlSize = ControlSize {
+    width: 24.0,
     height: 24.0,
 };
 const SETTINGS_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
@@ -59,15 +66,20 @@ pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View
 
 fn settings_controls(model: SettingsControlsProjection) -> ui::View<GuiMessage> {
     let audio_engine_tooltip = model.audio_engine.tooltip;
-    ui::row([
+    let mut controls = vec![
         audio_engine_pill(model.audio_engine)
             .tooltip_if(model.help_tooltips_enabled, audio_engine_tooltip),
         general_settings_button(model.general_settings)
             .tooltip_if(model.help_tooltips_enabled, model.general_settings.tooltip),
-        help_tooltips_button(model.help_tooltips),
-    ])
-    .spacing(4.0)
-    .height(24.0)
+    ];
+    if model.release_update.visible {
+        controls.push(
+            release_update_button(model.release_update)
+                .tooltip_if(model.help_tooltips_enabled, model.release_update.tooltip),
+        );
+    }
+    controls.push(help_tooltips_button(model.help_tooltips));
+    ui::row(controls).spacing(4.0).height(24.0)
 }
 
 fn help_tooltips_button(projection: HelpTooltipsButtonProjection) -> ui::View<GuiMessage> {
@@ -103,6 +115,18 @@ fn general_settings_button(projection: GeneralSettingsButtonProjection) -> ui::V
         )
 }
 
+fn release_update_button(projection: ReleaseUpdateButtonProjection) -> ui::View<GuiMessage> {
+    ui::icon_button(release_update_icon(projection.active))
+        .active(projection.active)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .message(GuiMessage::OpenReleaseDownloadPage)
+        .id(RELEASE_UPDATE_BUTTON_ID)
+        .size(
+            RELEASE_UPDATE_BUTTON_SIZE.width,
+            RELEASE_UPDATE_BUTTON_SIZE.height,
+        )
+}
+
 pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
     volume_slider_from_projection(VolumeSliderProjection::new(volume))
 }
@@ -124,6 +148,10 @@ fn help_tooltips_icon(active: bool) -> ui::SvgIcon {
     HELP_TOOLTIPS_ICON.icon_for_state(SETTINGS_ICON_TINTS, true, active)
 }
 
+fn release_update_icon(active: bool) -> ui::SvgIcon {
+    RELEASE_UPDATE_ICON.icon_for_state(SETTINGS_ICON_TINTS, true, active)
+}
+
 static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path d="M6.3 5.6c.1-1.2.9-1.9 2.1-1.9 1.3 0 2.1.8 2.1 1.9 0 .8-.4 1.3-1.2 1.8-.6.4-.8.8-.8 1.5v.3H7.3v-.5c0-.9.4-1.5 1.1-1.9.6-.4.8-.7.8-1.1 0-.5-.4-.8-1-.8s-.9.3-1 1z" fill="currentColor"/>
@@ -135,5 +163,13 @@ static SETTINGS_GEAR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path d="M7.2 1.5h1.6l.4 1.8c.4.1.8.3 1.2.5l1.6-1 1.1 1.1-1 1.6c.2.4.4.8.5 1.2l1.8.4v1.6l-1.8.4c-.1.4-.3.8-.5 1.2l1 1.6-1.1 1.1-1.6-1c-.4.2-.8.4-1.2.5l-.4 1.8H7.2l-.4-1.8c-.4-.1-.8-.3-1.2-.5l-1.6 1-1.1-1.1 1-1.6c-.2-.4-.4-.8-.5-1.2l-1.8-.4V7.2l1.8-.4c.1-.4.3-.8.5-1.2l-1-1.6L4 2.9l1.6 1c.4-.2.8-.4 1.2-.5z"/>
   <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.4"/>
+</svg>"#,
+);
+
+static RELEASE_UPDATE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M7.25 2h1.5v6.2l2.1-2.1 1.05 1.05L8 11.05 4.1 7.15 5.15 6.1l2.1 2.1z"/>
+  <path d="M3 12.3h10V14H3z"/>
+  <circle cx="12.2" cy="3.8" r="2.1"/>
 </svg>"#,
 );

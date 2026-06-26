@@ -90,10 +90,15 @@ impl NativeAppState {
     }
 
     pub(super) fn refresh_persisted_metadata_tags_for_source(&mut self, source_id: &str) {
-        let Some(root) = self.library.folder_browser.source_root_path(source_id) else {
+        let Some((root, database_root)) = self.library.folder_browser.source_roots(source_id)
+        else {
             return;
         };
-        match load_persisted_metadata_tags_for_source(&root, &mut self.metadata.tags_by_file) {
+        match load_persisted_metadata_tags_for_source(
+            &root,
+            &database_root,
+            &mut self.metadata.tags_by_file,
+        ) {
             Ok(()) => self
                 .library
                 .folder_browser

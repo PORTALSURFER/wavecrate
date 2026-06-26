@@ -26,11 +26,13 @@ pub(in crate::native_app) use source_scan_workflow::{
     SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
 };
 pub(in crate::native_app) use transactions::TransactionState;
+#[cfg(test)]
+pub(in crate::native_app) use ui_state::ReleaseUpdateStatus;
 pub(in crate::native_app) use ui_state::{
-    ChromeUiState, CutFileClipboard, ExtractedFilePlaybackType, MAX_BEAT_GUIDE_COUNT,
-    MIN_BEAT_GUIDE_COUNT, PendingFolderDelete, PendingWaveformDestructiveEdit, SettingsAppState,
-    StartupState, StatusState, UiAppState, WaveformDestructiveEditKind,
-    WaveformDestructiveEditPrompt,
+    ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, ExtractedFilePlaybackType,
+    MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT, PendingFolderDelete,
+    PendingWaveformDestructiveEdit, SettingsAppState, StartupState, StatusState, UiAppState,
+    WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
 };
 pub(in crate::native_app) use waveform::{WaveformAppState, WaveformPlaySelectionSnapshot};
 

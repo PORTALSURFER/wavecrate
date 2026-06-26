@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use wavecrate::sample_sources::{SampleSource, SourceDatabase};
+use wavecrate::sample_sources::SampleSource;
 
 use super::{
-    ANALYZE_SAMPLE_JOB_TYPE, active_jobs_exist, build_sample_id, now_epoch_seconds, open_source_db,
-    upsert_analysis_job,
+    ANALYZE_SAMPLE_JOB_TYPE, active_jobs_exist, build_sample_id, now_epoch_seconds,
+    open_fast_source_db, open_source_db, upsert_analysis_job,
 };
 
 pub(super) fn enqueue_analysis_backfill(source: &SampleSource) -> Result<usize, String> {
@@ -12,7 +12,7 @@ pub(super) fn enqueue_analysis_backfill(source: &SampleSource) -> Result<usize, 
     if samples.is_empty() {
         return Ok(0);
     }
-    let mut conn = open_source_db(&source.root)?;
+    let mut conn = open_source_db(source)?;
     if active_jobs_exist(&conn, source.id.as_str(), ANALYZE_SAMPLE_JOB_TYPE)? {
         return Ok(0);
     }
@@ -252,7 +252,7 @@ fn invalidate_native_analysis_artifacts(
 }
 
 fn current_present_samples(source: &SampleSource) -> Result<Vec<NativeAnalysisSample>, String> {
-    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let db = open_fast_source_db(source).map_err(|err| err.to_string())?;
     let entries = db.list_files().map_err(|err| err.to_string())?;
     Ok(entries
         .into_iter()

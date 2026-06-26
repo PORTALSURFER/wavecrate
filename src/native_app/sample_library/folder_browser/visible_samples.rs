@@ -10,7 +10,7 @@ use super::{
     FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityAspectStrengths,
     SimilarityBrowserState, default_file_columns, listing::BrowserListingRevealState,
 };
-use wavecrate::sample_sources::config::SimilarityAspectSettings;
+use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
 
 const COPY_FLASH_FRAMES: u8 = 12;
 
@@ -58,6 +58,8 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) similarity_aspect_strengths: SimilarityAspectStrengths,
     pub(in crate::native_app) collection_colors: Vec<ui::Rgba8>,
     pub(in crate::native_app) source_folder_path: String,
+    pub(in crate::native_app) harvest_badges: Vec<String>,
+    pub(in crate::native_app) harvest_completed: bool,
     pub(in crate::native_app) curation_badges: Vec<String>,
 }
 
@@ -476,10 +478,20 @@ impl FolderBrowserState {
                     .uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
             }
         }
+        let harvest_lookup =
+            super::harvest_filter::HarvestFileFactsLookup::load(self, &window_files.rows);
+        let show_new_harvest_badges = self.filters.harvest.is_some();
         let rows = window_files
             .rows
             .into_iter()
-            .map(|file| self.visible_sample_row_for_file(file, query))
+            .map(|file| {
+                self.visible_sample_row_for_file(
+                    file,
+                    query,
+                    &harvest_lookup,
+                    show_new_harvest_badges,
+                )
+            })
             .collect();
 
         VisibleSampleList {
@@ -498,7 +510,10 @@ impl FolderBrowserState {
         &'a self,
         file: &'a FileEntry,
         query: VisibleSampleQuery<'a>,
+        harvest_lookup: &super::harvest_filter::HarvestFileFactsLookup,
+        show_new_harvest_badges: bool,
     ) -> VisibleSampleRow<'a> {
+        let harvest_facts = harvest_lookup.facts_for_file(self, file);
         VisibleSampleRow {
             file,
             selected: self.is_file_selected(&file.id),
@@ -518,6 +533,13 @@ impl FolderBrowserState {
                 .filter_map(|collection| self.collection_color(collection))
                 .collect(),
             source_folder_path: self.visible_source_folder_path_for_file(file),
+            harvest_badges: super::harvest_filter::harvest_badges_for_facts(
+                harvest_facts,
+                show_new_harvest_badges,
+            ),
+            harvest_completed: harvest_facts.is_some_and(|facts| {
+                matches!(facts.state, HarvestState::Done | HarvestState::Ignored)
+            }),
             curation_badges: super::curation::curation_badges_for_file(
                 file,
                 query.tags_by_file.get(&file.id).map(Vec::as_slice),

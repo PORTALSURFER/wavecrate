@@ -17,6 +17,7 @@ use crate::native_app::transaction_history::TransactionContext;
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RatingUpdate {
     root: PathBuf,
+    database_root: PathBuf,
     relative_path: PathBuf,
     absolute_path: PathBuf,
     previous_rating: Rating,
@@ -91,6 +92,12 @@ impl NativeAppState {
         );
 
         if applied > 0 {
+            let touched_paths = plan
+                .updates
+                .iter()
+                .map(|update| update.absolute_path.clone())
+                .collect::<Vec<_>>();
+            self.mark_harvest_touched_for_paths(&touched_paths);
             self.register_rating_transaction(delta, plan.updates);
         }
 
@@ -216,10 +223,10 @@ impl NativeAppState {
                 plan.auto_trash_paths.push(candidate.path);
                 continue;
             }
-            let Some((root, relative_path)) = self
+            let Some((root, database_root, relative_path)) = self
                 .library
                 .folder_browser
-                .source_relative_file_path(&candidate.path)
+                .source_database_relative_file_path(&candidate.path)
             else {
                 continue;
             };
@@ -228,6 +235,7 @@ impl NativeAppState {
             };
             plan.updates.push(RatingUpdate {
                 root,
+                database_root,
                 relative_path,
                 absolute_path: candidate.path,
                 previous_rating: candidate.rating,
@@ -266,14 +274,14 @@ impl NativeAppState {
         mode: RatingUpdateMode,
     ) -> Result<usize, String> {
         let mut applied = 0usize;
-        for (root, source_updates) in group_updates_by_source(
+        for ((root, database_root), source_updates) in group_updates_by_source(
             updates
                 .iter()
                 .cloned()
                 .map(|update| update.for_mode(mode))
                 .collect(),
         ) {
-            persist_rating_updates(&root, &source_updates)?;
+            persist_rating_updates(&root, &database_root, &source_updates)?;
             for update in source_updates {
                 if self.library.folder_browser.set_file_rating_state(
                     &update.absolute_path,
@@ -340,19 +348,26 @@ impl RatingAdjustmentPlan {
     }
 }
 
-fn group_updates_by_source(updates: Vec<RatingUpdate>) -> BTreeMap<PathBuf, Vec<RatingUpdate>> {
-    let mut by_source: BTreeMap<PathBuf, Vec<RatingUpdate>> = BTreeMap::new();
+fn group_updates_by_source(
+    updates: Vec<RatingUpdate>,
+) -> BTreeMap<(PathBuf, PathBuf), Vec<RatingUpdate>> {
+    let mut by_source: BTreeMap<(PathBuf, PathBuf), Vec<RatingUpdate>> = BTreeMap::new();
     for update in updates {
         by_source
-            .entry(update.root.clone())
+            .entry((update.root.clone(), update.database_root.clone()))
             .or_default()
             .push(update);
     }
     by_source
 }
 
-fn persist_rating_updates(root: &Path, updates: &[RatingUpdate]) -> Result<(), String> {
-    let db = SourceDatabase::open_for_user_metadata_write(root).map_err(|err| err.to_string())?;
+fn persist_rating_updates(
+    root: &Path,
+    database_root: &Path,
+    updates: &[RatingUpdate],
+) -> Result<(), String> {
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(root, database_root)
+        .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     for update in updates {
         let (file_size, modified_ns) = file_metadata(&update.absolute_path)?;

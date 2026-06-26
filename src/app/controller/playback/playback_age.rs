@@ -105,10 +105,7 @@ impl AppController {
 
     /// Persist one playback-age update payload and refresh browser lists when needed.
     fn commit_pending_age_update_value(&mut self, update: PendingAgeUpdate) {
-        let source = SampleSource {
-            id: update.source_id.clone(),
-            root: update.root,
-        };
+        let source = SampleSource::new_with_id(update.source_id.clone(), update.root);
         let before_last_played_at = self
             .wav_index_for_path(&update.relative_path)
             .and_then(|index| self.wav_entries.entry(index))

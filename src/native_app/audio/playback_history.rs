@@ -44,10 +44,10 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let absolute_path = PathBuf::from(&file_id);
-        let Some((source_root, relative_path)) = self
+        let Some((source_root, source_database_root, relative_path)) = self
             .library
             .folder_browser
-            .source_relative_file_path(&absolute_path)
+            .source_database_relative_file_path(&absolute_path)
         else {
             return;
         };
@@ -58,6 +58,7 @@ impl NativeAppState {
         let request = LastPlayedPersistRequest {
             file_id,
             source_root,
+            source_database_root,
             relative_path,
             played_at,
         };
@@ -79,7 +80,7 @@ impl NativeAppState {
         }
         context
             .business()
-            .blocking_io("gui-last-played-persist")
+            .priority("gui-last-played-persist", ui::TaskPriority::Idle)
             .run(
                 move |_| persist_last_played(request),
                 GuiMessage::LastPlayedPersisted,
@@ -91,6 +92,17 @@ impl NativeAppState {
         result: LastPlayedPersistResult,
     ) {
         if let Err(error) = result.result {
+            if last_played_persist_skip_is_expected(error.as_str()) {
+                emit_gui_action(
+                    "playback.last_played.persist",
+                    Some("browser"),
+                    Some(result.file_id.as_str()),
+                    "skipped",
+                    std::time::Instant::now(),
+                    Some(&error),
+                );
+                return;
+            }
             self.ui.status.sample = format!("Last played not saved: {error}");
             emit_gui_action(
                 "playback.last_played.persist",
@@ -110,4 +122,8 @@ fn now_unix_secs() -> i64 {
         .unwrap_or(Duration::ZERO)
         .as_secs();
     i64::try_from(secs).unwrap_or(i64::MAX)
+}
+
+fn last_played_persist_skip_is_expected(error: &str) -> bool {
+    error.contains("Database is busy")
 }

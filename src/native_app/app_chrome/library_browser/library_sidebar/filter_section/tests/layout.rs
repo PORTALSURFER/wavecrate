@@ -5,7 +5,7 @@ fn filter_section_layout_uses_configured_height() {
     let mut state = FolderBrowserState::load_default();
     state.resize_filter_panel(ui::DragHandleMessage::started(ui::Point::new(0.0, 200.0)));
     state.resize_filter_panel(ui::DragHandleMessage::moved(ui::Point::new(0.0, 120.0)));
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
 
     let layout = ui::column([
         filter_section(&model),
@@ -23,7 +23,7 @@ fn filter_section_layout_uses_configured_height() {
 #[test]
 fn filter_resize_header_uses_full_width_hit_target() {
     let state = FolderBrowserState::load_default();
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
     let layout = filter_section(&model).view_layout_at_size(ui::Vector2::new(240.0, 120.0));
     let section = layout
         .rects
@@ -53,7 +53,7 @@ fn filter_section_controls_scroll_when_panel_is_cramped() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel {
         panel_height: FILTER_PANEL_HEADER_HEIGHT + FILTER_PANEL_PADDING * 2.0 + 18.0,
-        ..FilterSectionViewModel::from_folder_browser(&state)
+        ..FilterSectionViewModel::from_folder_browser(&state, false)
     };
 
     let layout = ui::column([

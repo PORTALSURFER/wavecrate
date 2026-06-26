@@ -25,8 +25,9 @@ pub(in crate::native_app::sample_library::folder_browser) struct LoadedSourceSna
 
 pub(in crate::native_app::sample_library::folder_browser) fn load_source_snapshot(
     root: PathBuf,
+    database_root: PathBuf,
 ) -> LoadedSourceSnapshot {
-    let ratings = source_rating_map(&root);
+    let ratings = source_rating_map(&root, &database_root);
     let folder = load_folder(&root, &root, &ratings).unwrap_or_else(|| placeholder_folder(&root));
     let missing_collection_snapshot =
         MissingCollectionSnapshot::from_source_metadata(&root, &folder, &ratings);
@@ -58,14 +59,16 @@ pub(in crate::native_app) fn refresh_folder_tree_only(
         label: request.label,
         folder,
         folder_count,
+        source_root_available: request.root.is_dir(),
     }
 }
 
 pub(in crate::native_app::sample_library::folder_browser) fn load_folder_at_path(
     path: &Path,
     source_root: &Path,
+    source_database_root: &Path,
 ) -> Option<FolderEntry> {
-    let ratings = source_rating_map(source_root);
+    let ratings = source_rating_map(source_root, source_database_root);
     load_folder(path, source_root, &ratings)
 }
 

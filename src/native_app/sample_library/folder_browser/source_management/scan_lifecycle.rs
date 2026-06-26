@@ -30,6 +30,7 @@ impl FolderBrowserState {
         let label = folder_label(&root);
         let mut source = SourceEntry::new(id.clone(), label.clone(), root.clone());
         source.loading_task = Some(task_id);
+        let database_root = source.database_root.clone();
         self.source.sources.push(source);
         self.select_pending_source(id.clone(), placeholder_folder(&root));
         Some(FolderScanRequest {
@@ -37,6 +38,7 @@ impl FolderBrowserState {
             source_id: id,
             label,
             root,
+            database_root,
         })
     }
 
@@ -50,6 +52,13 @@ impl FolderBrowserState {
             .sources
             .iter()
             .position(|source| source.id == id)?;
+        if self.source.sources[index]
+            .refresh_availability_from_disk()
+            .is_missing()
+        {
+            self.select_cached_or_placeholder_source(index);
+            return None;
+        }
         if self.source.selected_source == id && self.source.sources[index].root_folder.is_some() {
             return None;
         }
@@ -70,6 +79,7 @@ impl FolderBrowserState {
             source_id: source.id,
             label: source.label,
             root: source.root,
+            database_root: source.database_root,
         })
     }
 
@@ -90,6 +100,13 @@ impl FolderBrowserState {
             .sources
             .iter()
             .position(|source| source.id == id)?;
+        if self.source.sources[index]
+            .refresh_availability_from_disk()
+            .is_missing()
+        {
+            self.refresh_selected_source_from_cache_or_placeholder(index);
+            return None;
+        }
         if self.source.sources[index].loading_task.is_some() {
             return None;
         }
@@ -100,6 +117,7 @@ impl FolderBrowserState {
             source_id: source.id,
             label: source.label,
             root: source.root,
+            database_root: source.database_root,
         })
     }
 
@@ -128,6 +146,12 @@ impl FolderBrowserState {
         let refreshing_selected_loaded_source =
             should_select && self.source.sources[source_index].root_folder.is_some();
         self.source.sources[source_index].loading_task = None;
+        if !result.source_root_available {
+            self.source.sources[source_index].mark_missing();
+            self.refresh_selected_source_from_cache_or_placeholder(source_index);
+            return true;
+        }
+        self.source.sources[source_index].mark_available();
         self.source.sources[source_index].missing_collection_snapshot =
             result.missing_collection_snapshot.clone();
         self.source.sources[source_index].root_folder = Some(result.folder.clone());
@@ -160,6 +184,12 @@ impl FolderBrowserState {
         else {
             return false;
         };
+        if !result.source_root_available {
+            self.source.sources[source_index].mark_missing();
+            self.refresh_selected_source_from_cache_or_placeholder(source_index);
+            return true;
+        }
+        self.source.sources[source_index].mark_available();
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
@@ -221,6 +251,27 @@ impl FolderBrowserState {
 }
 
 impl FolderBrowserState {
+    fn select_cached_or_placeholder_source(&mut self, source_index: usize) {
+        let source = self.source.sources[source_index].clone();
+        if let Some(root_folder) = source.root_folder {
+            self.select_loaded_source(source.id, root_folder);
+        } else {
+            self.select_pending_source(source.id, placeholder_folder(&source.root));
+        }
+    }
+
+    fn refresh_selected_source_from_cache_or_placeholder(&mut self, source_index: usize) {
+        let source = &self.source.sources[source_index];
+        if self.source.selected_source != source.id {
+            return;
+        }
+        let root_folder = source
+            .root_folder
+            .clone()
+            .unwrap_or_else(|| placeholder_folder(&source.root));
+        self.refresh_selected_source_tree(source.id.clone(), root_folder);
+    }
+
     fn refresh_selected_source_tree(&mut self, source_id: String, root_folder: FolderEntry) {
         self.source.selected_source = source_id;
         self.tree.folders = vec![root_folder];

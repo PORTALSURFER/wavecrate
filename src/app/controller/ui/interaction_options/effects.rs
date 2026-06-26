@@ -142,10 +142,10 @@ impl AppController {
             was_playing,
             start_override,
             looped,
-            source: crate::sample_sources::SampleSource {
-                id: loaded.source_id.clone(),
-                root: loaded.root.clone(),
-            },
+            source: crate::sample_sources::SampleSource::new_with_id(
+                loaded.source_id.clone(),
+                loaded.root.clone(),
+            ),
             relative_path: loaded.relative_path.clone(),
         })
     }

@@ -96,56 +96,82 @@ jobs:
 
           No code changes since the previous nightly. This run refreshed the nightly artifacts from the current main commit.
           EOF
-            exit 0
-          fi
-
-          range=""
-          if [[ -n "$previous" ]]; then
-            range="${previous}..${TARGET_SHA}"
           else
-            first_in_window="$(git rev-list --max-count=80 "$TARGET_SHA" | tail -n 1)"
-            if parent="$(git rev-parse "${first_in_window}^" 2>/dev/null)"; then
-              range="${parent}..${TARGET_SHA}"
-            else
-              range="$TARGET_SHA"
-            fi
-          fi
-
-          args=(--config cliff.toml --tag nightly)
-          if [[ -n "$range" ]]; then
-            args+=("$range")
-          fi
-          git cliff "${args[@]}" > /tmp/wavecrate-release-log-body.md
-          if ! grep -Eq '^[[:space:]]*-' /tmp/wavecrate-release-log-body.md; then
-            git log --no-merges --pretty=format:'- %s' "$range" > /tmp/wavecrate-release-log-body.md
-          fi
-          if [[ ! -s /tmp/wavecrate-release-log-body.md ]]; then
-            echo "- No commit messages were found for this nightly window." > /tmp/wavecrate-release-log-body.md
-          fi
-
-          {
-            echo "# Wavecrate Nightly"
-            echo
-            echo "- Build: ${BUILD_NUMBER}"
-            echo "- Commit: ${TARGET_SHA}"
+            range=""
             if [[ -n "$previous" ]]; then
-              echo "- Previous nightly: ${previous}"
+              range="${previous}..${TARGET_SHA}"
             else
-              echo "- Previous nightly: unavailable"
+              first_in_window="$(git rev-list --max-count=80 "$TARGET_SHA" | tail -n 1)"
+              if parent="$(git rev-parse "${first_in_window}^" 2>/dev/null)"; then
+                range="${parent}..${TARGET_SHA}"
+              else
+                range="$TARGET_SHA"
+              fi
             fi
-            echo "- Generated: ${RELEASED_AT}"
-            echo
-            cat /tmp/wavecrate-release-log-body.md
-          } > dist/release/release-log.md
+
+            args=(--config cliff.toml --tag nightly)
+            if [[ -n "$range" ]]; then
+              args+=("$range")
+            fi
+            git cliff "${args[@]}" > /tmp/wavecrate-release-log-body.md
+            if ! grep -Eq '^[[:space:]]*-' /tmp/wavecrate-release-log-body.md; then
+              git log --no-merges --pretty=format:'- %s' "$range" > /tmp/wavecrate-release-log-body.md
+            fi
+            if [[ ! -s /tmp/wavecrate-release-log-body.md ]]; then
+              echo "- No commit messages were found for this nightly window." > /tmp/wavecrate-release-log-body.md
+            fi
+
+            {
+              echo "# Wavecrate Nightly"
+              echo
+              echo "- Build: ${BUILD_NUMBER}"
+              echo "- Commit: ${TARGET_SHA}"
+              if [[ -n "$previous" ]]; then
+                echo "- Previous nightly: ${previous}"
+              else
+                echo "- Previous nightly: unavailable"
+              fi
+              echo "- Generated: ${RELEASED_AT}"
+              echo
+              cat /tmp/wavecrate-release-log-body.md
+            } > dist/release/release-log.md
+          fi
 
           if [[ ! -s dist/release/release-log.md ]]; then
             echo "Generated release log is empty." >&2
             exit 1
           fi
+
+          if ! git cliff --config cliff.toml > /tmp/wavecrate-full-changelog-body.md; then
+            git log --no-merges --reverse --pretty=format:'- %s' "$TARGET_SHA" > /tmp/wavecrate-full-changelog-body.md
+          fi
+          if ! grep -Eq '^[[:space:]]*-' /tmp/wavecrate-full-changelog-body.md; then
+            git log --no-merges --reverse --pretty=format:'- %s' "$TARGET_SHA" > /tmp/wavecrate-full-changelog-body.md
+          fi
+          if [[ ! -s /tmp/wavecrate-full-changelog-body.md ]]; then
+            echo "- No commit messages were found for this repository." > /tmp/wavecrate-full-changelog-body.md
+          fi
+
+          {
+            echo "# Wavecrate Changelog"
+            echo
+            echo "- Latest build: ${BUILD_NUMBER}"
+            echo "- Latest commit: ${TARGET_SHA}"
+            echo "- Generated: ${RELEASED_AT}"
+            echo
+            cat /tmp/wavecrate-full-changelog-body.md
+          } > dist/release/changelog.md
+
+          if [[ ! -s dist/release/changelog.md ]]; then
+            echo "Generated full changelog is empty." >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: release-log
-          path: dist/release/release-log.md
+          path: |
+            dist/release/release-log.md
+            dist/release/changelog.md
           if-no-files-found: error
 
   build:
@@ -423,9 +449,12 @@ jobs:
             echo "PORTALSURFER_RELEASE_UPLOAD_URL must end with /release-uploads." >&2
             exit 1
           fi
-          catalog_url="${upload_base%/release-uploads}/releases"
+          api_base="${upload_base%/release-uploads}"
+          catalog_url="$api_base/releases"
+          full_changelog_url="$api_base/changelog"
           response_dir="$(mktemp -d)"
           changelog_file="dist/release/release-log.md"
+          full_changelog_file="dist/release/changelog.md"
           uploaded_names=()
 
           for file in "${files[@]}"; do
@@ -497,6 +526,26 @@ jobs:
               raise SystemExit("Uploaded changelog did not expose a public URL")
           PY
 
+          full_changelog_response_file="$response_dir/full-changelog-upload.json"
+          curl --fail-with-body --retry 3 --retry-delay 2 \
+            --request PUT \
+            --header "Authorization: Bearer $UPLOAD_TOKEN" \
+            --header "Content-Type: text/markdown; charset=utf-8" \
+            --header "X-Wavecrate-Changelog-Title: Wavecrate changelog" \
+            --data-binary "@$full_changelog_file" \
+            "$upload_base/changelog" > "$full_changelog_response_file"
+          python3 - "$full_changelog_response_file" <<'PY'
+          import json
+          import sys
+
+          response = json.loads(open(sys.argv[1], encoding="utf-8").read())
+          changelog = response.get("changelog") or {}
+          if changelog.get("format") != "markdown":
+              raise SystemExit("Uploaded full changelog was not recorded as markdown")
+          if not changelog.get("url"):
+              raise SystemExit("Uploaded full changelog did not expose a public URL")
+          PY
+
           catalog_file="$response_dir/releases.json"
           curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
           python3 - "$catalog_file" "$build_id" "$BUILD_NUMBER" "${uploaded_names[@]}" <<'PY'
@@ -521,6 +570,9 @@ jobs:
           changelog = release.get("changelog") or {}
           if changelog.get("format") != "markdown" or not changelog.get("url"):
               raise SystemExit("Release catalog is missing the markdown changelog link")
+          full_changelog = catalog.get("changelog") or {}
+          if full_changelog.get("format") != "markdown" or not full_changelog.get("url"):
+              raise SystemExit("Release catalog is missing the full changelog link")
           print(f"Uploaded {len(expected_files)} Wavecrate release file(s) to {expected_build}")
           PY
 
@@ -540,4 +592,20 @@ jobs:
           if body != expected_body:
               raise SystemExit("Fetched changelog body does not match generated release log")
           print(f"Uploaded Wavecrate release log to {expected_build}")
+          PY
+
+          full_changelog_catalog_file="$response_dir/full-changelog-catalog.json"
+          curl --fail-with-body --retry 3 --retry-delay 2 \
+            "$full_changelog_url" > "$full_changelog_catalog_file"
+          python3 - "$full_changelog_catalog_file" "$full_changelog_file" <<'PY'
+          import json
+          import sys
+
+          catalog_path, changelog_path = sys.argv[1:]
+          response = json.loads(open(catalog_path, encoding="utf-8").read())
+          body = (response.get("changelog") or {}).get("body", "").strip()
+          expected_body = open(changelog_path, encoding="utf-8").read().strip()
+          if body != expected_body:
+              raise SystemExit("Fetched full changelog body does not match generated changelog")
+          print("Uploaded Wavecrate full changelog")
           PY

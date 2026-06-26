@@ -3,9 +3,35 @@ use crate::native_app::app::{emit_gui_action, sample_path_label};
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
-use crate::native_app::waveform::{WaveformExtractionCompletion, execute_waveform_extraction};
+use crate::native_app::waveform::{
+    WaveformExtractionCompletion, WaveformExtractionRequest, WaveformSelectionKind,
+    execute_waveform_extraction,
+};
 use radiant::gui::types::Point;
 use std::time::Instant;
+use wavecrate::sample_sources::HarvestDerivationOperation;
+
+#[derive(Clone, Copy)]
+enum PlaymarkedExtractionTarget {
+    Default,
+    HarvestDestination,
+}
+
+impl PlaymarkedExtractionTarget {
+    fn action_name(self) -> &'static str {
+        match self {
+            Self::Default => "waveform.extract_playmarked_range",
+            Self::HarvestDestination => "waveform.extract_playmarked_range.harvest_destination",
+        }
+    }
+
+    fn status_text(self) -> &'static str {
+        match self {
+            Self::Default => "Extracting play range",
+            Self::HarvestDestination => "Extracting play range to harvest destination",
+        }
+    }
+}
 
 impl NativeAppState {
     pub(in crate::native_app) fn focus_loaded_file(
@@ -132,23 +158,64 @@ impl NativeAppState {
         &mut self,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
+        self.extract_playmarked_range_to_target(context, PlaymarkedExtractionTarget::Default);
+    }
+
+    pub(in crate::native_app) fn extract_playmarked_range_to_harvest_destination(
+        &mut self,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        self.extract_playmarked_range_to_target(
+            context,
+            PlaymarkedExtractionTarget::HarvestDestination,
+        );
+    }
+
+    fn extract_playmarked_range_to_target(
+        &mut self,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+        target: PlaymarkedExtractionTarget,
+    ) {
         let started_at = Instant::now();
+        let action = target.action_name();
         match self
             .waveform
             .current
             .play_selection_extraction_request(None)
         {
             Ok(request) => {
+                let selection = request.selection();
+                let request = match self.route_playmarked_extraction_request(request, target) {
+                    Ok(request) => request,
+                    Err(error) => {
+                        self.flash_denied_waveform_selection_for_error(
+                            &error,
+                            Some(selection),
+                            WaveformSelectionKind::Play,
+                        );
+                        self.ui.status.sample = error.clone();
+                        emit_gui_action(
+                            action,
+                            Some("waveform"),
+                            None,
+                            "blocked",
+                            started_at,
+                            Some(&error),
+                        );
+                        return;
+                    }
+                };
                 let playback_type =
                     ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
-                if let Some(error) = self
-                    .library
-                    .folder_browser
-                    .file_change_lock_error(request.source_path(), "Extraction")
-                {
+                if let Err(error) = self.validate_waveform_extraction_target(&request) {
+                    self.flash_denied_waveform_selection_for_error(
+                        &error,
+                        Some(request.selection()),
+                        WaveformSelectionKind::Play,
+                    );
                     self.ui.status.sample = error.clone();
                     emit_gui_action(
-                        "waveform.extract_playmarked_range",
+                        action,
                         Some("waveform"),
                         None,
                         "blocked",
@@ -157,13 +224,14 @@ impl NativeAppState {
                     );
                     return;
                 }
-                self.ui.status.sample = String::from("Extracting play range");
+                self.ui.status.sample = String::from(target.status_text());
                 context.business().background("gui-waveform-extract").run(
                     move |_| execute_waveform_extraction(request),
                     move |completion| GuiMessage::PlaySelectionExtractionFinished {
                         completion,
                         drag_position: None,
                         playback_type,
+                        harvest_operation: HarvestDerivationOperation::Extract,
                         started_at,
                     },
                 );
@@ -171,7 +239,7 @@ impl NativeAppState {
             Err(error) => {
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
-                    "waveform.extract_playmarked_range",
+                    action,
                     Some("waveform"),
                     None,
                     "error",
@@ -182,11 +250,71 @@ impl NativeAppState {
         }
     }
 
+    fn route_playmarked_extraction_request(
+        &self,
+        request: WaveformExtractionRequest,
+        target: PlaymarkedExtractionTarget,
+    ) -> Result<WaveformExtractionRequest, String> {
+        match target {
+            PlaymarkedExtractionTarget::Default => self.route_harvest_extraction_request(request),
+            PlaymarkedExtractionTarget::HarvestDestination => {
+                self.route_harvest_destination_extraction_request(request)
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn route_harvest_extraction_request(
+        &self,
+        request: WaveformExtractionRequest,
+    ) -> Result<WaveformExtractionRequest, String> {
+        if request.has_explicit_target_folder() {
+            return Ok(request);
+        }
+        let Some(target_folder) =
+            self.optional_harvest_destination_for_protected_origin(request.source_path())
+        else {
+            return Ok(request);
+        };
+        wavecrate::sample_sources::harvest_file_ops::ensure_dir(
+            &target_folder,
+            "Could not create harvest destination",
+        )?;
+        Ok(request.with_target_folder(target_folder))
+    }
+
+    pub(in crate::native_app) fn route_harvest_destination_extraction_request(
+        &self,
+        request: WaveformExtractionRequest,
+    ) -> Result<WaveformExtractionRequest, String> {
+        let target_folder = self.harvest_destination_for_origin(request.source_path())?;
+        wavecrate::sample_sources::harvest_file_ops::ensure_dir(
+            &target_folder,
+            "Could not create harvest destination",
+        )?;
+        Ok(request.with_target_folder(target_folder))
+    }
+
+    pub(in crate::native_app) fn validate_waveform_extraction_target(
+        &self,
+        request: &WaveformExtractionRequest,
+    ) -> Result<(), String> {
+        let target_folder = request.target_folder()?;
+        if let Some(error) = self
+            .library
+            .folder_browser
+            .folder_target_lock_error(target_folder, "Extraction")
+        {
+            return Err(error);
+        }
+        Ok(())
+    }
+
     pub(in crate::native_app) fn finish_play_selection_extraction(
         &mut self,
         completion: WaveformExtractionCompletion,
         drag_position: Option<Point>,
         playback_type: ExtractedFilePlaybackType,
+        harvest_operation: HarvestDerivationOperation,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
@@ -196,10 +324,30 @@ impl NativeAppState {
                     .current
                     .mark_extracted_play_selection(&completion.source_path, completion.selection);
                 self.waveform.current.flash_play_selection();
-                self.library.folder_browser.refresh_file_path(&path);
+                let protected_origin = self
+                    .library
+                    .folder_browser
+                    .path_is_in_protected_source(&completion.source_path);
+                let cross_source_derivative =
+                    self.extraction_derivative_crosses_sources(&completion.source_path, &path);
+                let focus_derivative = protected_origin || cross_source_derivative;
+                if focus_derivative {
+                    self.library
+                        .folder_browser
+                        .refresh_file_path_across_sources(&path);
+                } else {
+                    self.library.folder_browser.refresh_file_path(&path);
+                }
                 let metadata_error = self
                     .assign_extracted_file_metadata(&path, playback_type, context)
                     .err();
+                self.record_harvest_selection_derivation_with_source_duration(
+                    &completion.source_path,
+                    completion.selection,
+                    &path,
+                    self.waveform.current.duration_seconds() as f64,
+                    harvest_operation,
+                );
                 if let Some(position) = drag_position {
                     self.library
                         .folder_browser
@@ -221,6 +369,19 @@ impl NativeAppState {
                         None,
                     );
                 } else {
+                    if focus_derivative {
+                        self.library
+                            .folder_browser
+                            .focus_file_across_sources_matching_tags(
+                                &path,
+                                &self.metadata.tags_by_file,
+                            );
+                        self.load_navigation_sample_validated(
+                            path.to_string_lossy().to_string(),
+                            context,
+                            started_at,
+                        );
+                    }
                     let label = sample_path_label(&path);
                     self.ui.status.sample = match metadata_error {
                         Some(error) => {
@@ -255,5 +416,23 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    fn extraction_derivative_crosses_sources(
+        &self,
+        source_path: &std::path::Path,
+        child_path: &std::path::Path,
+    ) -> bool {
+        let source_id = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(source_path)
+            .map(|(source, _)| source.id);
+        let child_id = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(child_path)
+            .map(|(source, _)| source.id);
+        source_id.is_some() && child_id.is_some() && source_id != child_id
     }
 }

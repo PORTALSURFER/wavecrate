@@ -8,7 +8,7 @@ use radiant::{
 };
 
 use super::{
-    WaveformWidget,
+    DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WaveformWidget,
     widget_geometry::{
         SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, edit_selection_resize_edge_bounds,
         edit_selection_resize_edge_visible, selection_export_handle_style,
@@ -34,6 +34,7 @@ const SIMILAR_SECTION_HOVER_FILL: Rgba8 = Rgba8::new(156, 255, 218, 92);
 const SIMILAR_SECTION_HOVER_RAIL: Rgba8 = Rgba8::new(219, 255, 240, 255);
 const PLAY_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 142, 92, 255);
 const EDIT_SELECTION_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
+const DENIED_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 72, 82, 255);
 const BEAT_GUIDE_COLOR: Rgba8 = Rgba8::new(255, 214, 188, 170);
 const PLAY_START_MARKER_COLOR: Rgba8 = Rgba8::new(204, 255, 255, 245);
 const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
@@ -122,8 +123,14 @@ impl WaveformWidget {
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
+        let denied_flash_active =
+            denied_selection_flash_visible(self.play_selection_denied_flash_frames);
         let flash_active = self.play_selection_flash_frames > 0;
-        let style = play_selection_paint_style(flash_active);
+        let style = if denied_flash_active {
+            denied_selection_paint_style()
+        } else {
+            play_selection_paint_style(flash_active)
+        };
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
@@ -175,8 +182,14 @@ impl WaveformWidget {
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
+        let denied_flash_active =
+            denied_selection_flash_visible(self.edit_selection_denied_flash_frames);
         let flash_active = self.edit_selection_flash_frames > 0;
-        let style = edit_selection_paint_style(flash_active);
+        let style = if denied_flash_active {
+            denied_selection_paint_style()
+        } else {
+            edit_selection_paint_style(flash_active)
+        };
         paint.push_horizontal_value_range_fill(
             bounds,
             geometry.start_fraction,
@@ -196,11 +209,13 @@ impl WaveformWidget {
         self.append_edit_gain_handle_paint(
             paint,
             bounds,
-            EDIT_SELECTION_COLOR.with_alpha(if flash_active {
-                HANDLE_HOVER_ALPHA
-            } else {
-                EDIT_GAIN_HANDLE_ALPHA
-            }),
+            edit_selection_handle_color(denied_flash_active).with_alpha(
+                if flash_active || denied_flash_active {
+                    HANDLE_HOVER_ALPHA
+                } else {
+                    EDIT_GAIN_HANDLE_ALPHA
+                },
+            ),
         );
     }
 
@@ -481,6 +496,31 @@ const fn edit_selection_paint_style(flash_active: bool) -> CanvasSelectionPaintS
         .fill_alpha(if flash_active { 118 } else { 46 })
         .cursor_alpha(if flash_active { 255 } else { 230 })
         .body_alpha(if flash_active { 245 } else { 180 })
+}
+
+const fn denied_selection_paint_style() -> CanvasSelectionPaintStyle {
+    CanvasSelectionPaintStyle::new(DENIED_SELECTION_COLOR)
+        .fill_alpha(130)
+        .cursor_alpha(255)
+        .edge_alpha(255)
+        .body_alpha(255)
+        .trailing_control_alpha(255)
+}
+
+const fn edit_selection_handle_color(denied_flash_active: bool) -> Rgba8 {
+    if denied_flash_active {
+        DENIED_SELECTION_COLOR
+    } else {
+        EDIT_SELECTION_COLOR
+    }
+}
+
+const fn denied_selection_flash_visible(frames: u8) -> bool {
+    if frames == 0 {
+        return false;
+    }
+    let elapsed = DENIED_SELECTION_FLASH_FRAMES.saturating_sub(frames);
+    ((elapsed / DENIED_SELECTION_FLASH_PULSE_FRAMES) % 2) == 0
 }
 
 const fn play_selection_handle_hover_color(role: DragHandleRole) -> Rgba8 {

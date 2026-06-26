@@ -3,7 +3,9 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{path::PathBuf, time::Instant};
-use wavecrate::sample_sources::{SampleCollection, config::AppSettingsCore};
+use wavecrate::sample_sources::{
+    HarvestDerivationOperation, SampleCollection, config::AppSettingsCore,
+};
 use wavecrate::selection::SelectionRange;
 use wavecrate_analysis::aspects::SimilarityAspect;
 
@@ -157,6 +159,15 @@ pub(in crate::native_app) enum GuiMessage {
     RemoveContextSampleFromCollection,
     CleanMissingContextSampleFromCollection,
     CleanMissingFilesFromActiveCollection,
+    MarkContextSampleHarvestDone,
+    MarkContextSampleHarvestIgnored,
+    ResetContextSampleHarvest,
+    ShowContextSampleHarvestOrigin,
+    ShowContextSampleHarvestDerivatives,
+    OpenContextSampleHarvestDestination,
+    ShowSelectedSampleHarvestOrigin,
+    ShowSelectedSampleHarvestDerivatives,
+    OpenSelectedSampleHarvestDestination,
     NormalizeSelectedSamples,
     CopySelectedFiles,
     CutSelectedFiles,
@@ -166,11 +177,10 @@ pub(in crate::native_app) enum GuiMessage {
         started_at: Instant,
         result: Result<(), String>,
     },
-    WaveformSelectionClipStaged {
-        source_path: PathBuf,
-        selection: SelectionRange,
+    WaveformSelectionCopyExtracted {
+        completion: WaveformExtractionCompletion,
+        playback_type: ExtractedFilePlaybackType,
         started_at: Instant,
-        result: Result<PathBuf, String>,
     },
     WaveformSelectionCopyFinished {
         source_path: PathBuf,
@@ -212,10 +222,17 @@ pub(in crate::native_app) enum GuiMessage {
     },
     RefreshContextSource,
     ProcessContextSource,
+    ToggleContextSourceProtection,
+    SetContextSourcePrimary,
+    ClearContextSourcePrimary,
     RemoveContextSource,
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
+    ReleaseUpdateCheckFinished(
+        ui::TaskCompletion<Result<Option<wavecrate::updater::PublicReleaseInfo>, String>>,
+    ),
+    OpenReleaseDownloadPage,
     ToggleShortcutHelp,
     CloseShortcutHelp,
     ToggleZeroCrossingSnap,
@@ -244,10 +261,12 @@ pub(in crate::native_app) enum GuiMessage {
     CancelPendingWaveformDestructiveEdit,
     WaveformDestructiveEditFinished(ui::TaskCompletion<WaveformDestructiveEditResult>),
     ExtractPlaymarkedRange,
+    ExtractPlaymarkedRangeToHarvestDestination,
     PlaySelectionExtractionFinished {
         completion: WaveformExtractionCompletion,
         drag_position: Option<Point>,
         playback_type: ExtractedFilePlaybackType,
+        harvest_operation: HarvestDerivationOperation,
         started_at: Instant,
     },
     NavigateBrowser {

@@ -98,6 +98,63 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn sample_load_marks_new_harvest_file_seen() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("harvest-seen.wav");
+    write_test_wav_i16(&sample, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path = sample.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let (source, relative_path) = state
+        .library
+        .folder_browser
+        .sample_source_for_file_path(&sample)
+        .expect("sample should belong to the active source");
+    let harvest_key = wavecrate::sample_sources::HarvestFileKey::new(
+        wavecrate::sample_sources::SourceId::from_string(source.id.as_str().to_owned()),
+        relative_path,
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    let ticket = active_sample_load_ticket(&state).expect("sample load queued");
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                sample_path,
+                crate::native_app::test_support::state::WaveformState::load_path(sample),
+                false,
+            ),
+        ),
+        &mut context,
+    );
+
+    let harvest_record = wavecrate::sample_sources::library::harvest_file(&harvest_key)
+        .expect("load harvest file")
+        .expect("harvest file should be persisted after load");
+    assert_eq!(
+        harvest_record.state,
+        wavecrate::sample_sources::HarvestState::Seen
+    );
+    assert!(harvest_record.seen_at.is_some());
+    assert!(harvest_record.touched_at.is_none());
+}
+
+#[test]
 fn failed_sample_load_status_names_and_focuses_sample() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a-selected.wav");

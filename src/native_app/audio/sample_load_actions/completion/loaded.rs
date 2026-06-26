@@ -31,6 +31,7 @@ impl NativeAppState {
             &file_name,
             replace_started_at,
         );
+        self.mark_harvest_seen_for_path(Path::new(&path));
         if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
             return;
         }

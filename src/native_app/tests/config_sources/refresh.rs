@@ -24,6 +24,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
             kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Source,
             path: source_root.path().to_path_buf(),
             source_id: Some(source_id.clone()),
+            source_role: wavecrate::sample_sources::SourceRole::Normal,
             source_removable: true,
             folder_locked: false,
             folder_lock_inherited: false,
@@ -58,6 +59,78 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         "refresh should keep the current cached tree visible while the scan runs"
     );
     assert!(state.ui.status.sample.contains("Scanning source"));
+}
+
+#[test]
+fn selecting_missing_source_reports_missing_status_without_scan() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let missing_root = temp.path().join("missing-source");
+    let source = wavecrate::sample_sources::SampleSource::new(missing_root.clone());
+    let source_id = source.id.as_str().to_string();
+    let folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources_deferred(
+            &[source],
+        );
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .with_sample_status("Ready")
+        .build();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.select_source(source_id.clone(), &mut context);
+
+    assert_eq!(state.library.folder_browser.selected_source_id(), source_id);
+    assert!(state.library.folder_browser.source_is_missing(&source_id));
+    assert!(state.library.folder_progress().is_none());
+    assert_eq!(
+        state.ui.status.sample,
+        format!("Source missing: {}", missing_root.display())
+    );
+}
+
+#[test]
+fn source_scan_records_discovered_audio_as_new_harvest_files() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let nested = source_root.path().join("drums");
+    fs::create_dir_all(&nested).expect("create nested folder");
+    let sample = nested.join("harvest-new.wav");
+    write_test_wav_i16(&sample, &[0, 1024, -1024, 0]);
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 100)
+        .expect("new source requests scan");
+    let result = crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
+
+    state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
+
+    let (source, relative_path) = state
+        .library
+        .folder_browser
+        .sample_source_for_file_path(&sample)
+        .expect("sample should belong to scanned source");
+    let harvest_key = wavecrate::sample_sources::HarvestFileKey::new(source.id, relative_path);
+    let harvest_record = wavecrate::sample_sources::library::harvest_file(&harvest_key)
+        .expect("load harvest file")
+        .expect("scanned audio should have a harvest row");
+    assert_eq!(
+        harvest_record.state,
+        wavecrate::sample_sources::HarvestState::New
+    );
+    assert!(harvest_record.discovered_at > 0);
+    assert_eq!(
+        harvest_record.file_size,
+        Some(fs::metadata(&sample).unwrap().len())
+    );
+    assert!(harvest_record.seen_at.is_none());
+    assert!(harvest_record.touched_at.is_none());
 }
 
 #[test]

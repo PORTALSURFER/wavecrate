@@ -75,7 +75,7 @@ impl FolderBrowserState {
     fn install_default_assets_source(&mut self) {
         let root = default_root_path();
         let mut source = SourceEntry::new("assets", "Assets", root.clone());
-        let snapshot = load_source_snapshot(root);
+        let snapshot = load_source_snapshot(root, source.database_root.clone());
         source.root_folder = Some(snapshot.folder);
         source.missing_collection_snapshot = snapshot.missing_collection_snapshot;
         self.source.sources.push(source);

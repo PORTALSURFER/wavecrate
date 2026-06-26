@@ -89,6 +89,40 @@ fn help_tooltips_button_toggles_help_mode() {
 }
 
 #[test]
+fn release_update_button_opens_download_page() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state
+        .ui
+        .release_update
+        .finish(Ok(Some(wavecrate::updater::PublicReleaseInfo {
+            build_id: String::from("wavecrate-nightly-b999"),
+            build_number: 999,
+            version: String::from("nightly"),
+            released_at: String::from("2026-06-25T20:13:25.000Z"),
+            download_page_url: String::from("https://portalsurfer.org/wavecrate/"),
+        })));
+    let surface = crate::native_app::test_support::settings::top_control_bar(&state).into_surface();
+    let button = surface
+        .find_widget(crate::native_app::test_support::settings::RELEASE_UPDATE_BUTTON_ID)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<IconButtonWidget>()
+        })
+        .expect("release update button should use a Radiant icon button");
+
+    assert!(button.common.is_active());
+    assert_eq!(
+        surface.dispatch_widget_output(
+            crate::native_app::test_support::settings::RELEASE_UPDATE_BUTTON_ID,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(crate::native_app::test_support::state::GuiMessage::OpenReleaseDownloadPage)
+    );
+}
+
+#[test]
 fn settings_top_bar_actions_open_expected_tabs() {
     let mut state = gui_state_for_span_tests();
     let mut context = radiant::prelude::UiUpdateContext::default();

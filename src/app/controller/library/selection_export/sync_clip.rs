@@ -64,10 +64,7 @@ impl AppController {
                 .audio_write_format
                 .wav_spec_for_source(spec.channels, spec.sample_rate),
         )?;
-        let source = SampleSource {
-            id: SourceId::new(),
-            root: clip_root.to_path_buf(),
-        };
+        let source = SampleSource::new_with_id(SourceId::new(), clip_root.to_path_buf());
         // Clips saved outside sources are not inserted into browser or source DB.
         let (looped, bpm) = self.selection_export_metadata();
         self.record_selection_entry(SelectionEntryRecordRequest {

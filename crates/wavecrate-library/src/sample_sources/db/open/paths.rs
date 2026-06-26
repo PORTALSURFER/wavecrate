@@ -6,12 +6,12 @@ use std::{
 
 use super::super::{DB_FILE_NAME, LEGACY_DB_FILE_NAME, SourceDbError};
 
-pub(super) fn read_only_db_path(root: &Path) -> PathBuf {
-    let db_path = root.join(DB_FILE_NAME);
+pub(super) fn read_only_db_path(database_root: &Path) -> PathBuf {
+    let db_path = database_root.join(DB_FILE_NAME);
     if db_path.is_file() {
         return db_path;
     }
-    let legacy_path = root.join(LEGACY_DB_FILE_NAME);
+    let legacy_path = database_root.join(LEGACY_DB_FILE_NAME);
     if legacy_path.is_file() {
         legacy_path
     } else {
@@ -19,12 +19,12 @@ pub(super) fn read_only_db_path(root: &Path) -> PathBuf {
     }
 }
 
-pub(super) fn prepare_writable_db_path(root: &Path) -> Result<PathBuf, SourceDbError> {
-    let db_path = root.join(DB_FILE_NAME);
+pub(super) fn prepare_writable_db_path(database_root: &Path) -> Result<PathBuf, SourceDbError> {
+    let db_path = database_root.join(DB_FILE_NAME);
     if db_path.exists() {
         return Ok(db_path);
     }
-    let legacy_path = root.join(LEGACY_DB_FILE_NAME);
+    let legacy_path = database_root.join(LEGACY_DB_FILE_NAME);
     if legacy_path.exists() {
         migrate_legacy_source_db(&legacy_path, &db_path)?;
     }

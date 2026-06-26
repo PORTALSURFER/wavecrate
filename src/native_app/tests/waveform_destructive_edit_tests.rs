@@ -154,6 +154,596 @@ fn destructive_edit_request_blocks_locked_folder() {
 }
 
 #[test]
+fn protected_extract_and_trim_extracts_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-extract-trim.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let extracted = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-extract-trim_extraction.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+    state.audio.loop_playback = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::RequestExtractAndTrimWaveformSelection,
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_waveform_destructive_edit
+            .is_none()
+    );
+    assert_eq!(
+        read_test_wav_f32(&path).len(),
+        4,
+        "protected origin should not be trimmed"
+    );
+    assert_samples_close(&read_test_wav_f32(&path), &[0.0, 1_000.0, 2_000.0, 3_000.0]);
+    assert_samples_close(&read_test_wav_f32(&extracted), &[1_000.0]);
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(extracted.to_string_lossy().as_ref())
+    );
+    assert_eq!(
+        state
+            .metadata
+            .tags_by_file
+            .get(&extracted.to_string_lossy().to_string()),
+        Some(&vec![String::from("loop")])
+    );
+    assert_extracted_file_keep_1_rating(&state, &extracted);
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-extract-trim.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-extract-trim_extraction.wav")
+    );
+}
+
+#[test]
+fn protected_crop_selection_renders_crop_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-crop.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let crop_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-crop_extraction.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestCropWaveformSelection, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(&read_test_wav_f32(&path), &[0.0, 1_000.0, 2_000.0, 3_000.0]);
+    assert_samples_close(&read_test_wav_f32(&crop_copy), &[1_000.0]);
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(crop_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-crop.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::CropCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-crop_extraction.wav")
+    );
+}
+
+#[test]
+fn normal_harvest_mode_crop_selection_renders_crop_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("normal-harvest-crop.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let origin_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            origin_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    state.library.folder_browser.set_harvest_filter(
+        crate::native_app::sample_library::folder_browser::model::HarvestFilter::NeedsReview,
+        true,
+    );
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let crop_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("normal-harvest-crop_extraction.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestCropWaveformSelection, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(&read_test_wav_f32(&path), &[0.0, 1_000.0, 2_000.0, 3_000.0]);
+    assert_samples_close(&read_test_wav_f32(&crop_copy), &[1_000.0]);
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(crop_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        origin_source.id.clone(),
+        PathBuf::from("normal-harvest-crop.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::CropCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("normal-harvest-crop_extraction.wav")
+    );
+}
+
+#[test]
+fn protected_reverse_selection_renders_reverse_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-reverse.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let reverse_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-reverse_reverse.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.75);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestReverseWaveformSelection, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_samples_close(
+        &read_test_wav_f32(&reverse_copy),
+        &[
+            0.0, 1_000.0, 5_000.0, 4_000.0, 3_000.0, 2_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(reverse_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-reverse.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::ReverseCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-reverse_reverse.wav")
+    );
+}
+
+#[test]
+fn normal_harvest_mode_reverse_selection_renders_reverse_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("normal-harvest-reverse.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let origin_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            origin_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    state.library.folder_browser.set_harvest_filter(
+        crate::native_app::sample_library::folder_browser::model::HarvestFilter::NeedsReview,
+        true,
+    );
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let reverse_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("normal-harvest-reverse_reverse.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.75);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestReverseWaveformSelection, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_samples_close(
+        &read_test_wav_f32(&reverse_copy),
+        &[
+            0.0, 1_000.0, 5_000.0, 4_000.0, 3_000.0, 2_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(reverse_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        origin_source.id.clone(),
+        PathBuf::from("normal-harvest-reverse.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::ReverseCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("normal-harvest-reverse_reverse.wav")
+    );
+}
+
+#[test]
+fn protected_trim_selection_renders_trim_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-trim.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let trim_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-trim_trim.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.75);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestTrimWaveformSelection, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_samples_close(
+        &read_test_wav_f32(&trim_copy),
+        &[0.0, 1_000.0, 6_000.0, 7_000.0],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(trim_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-trim.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::TrimCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-trim_trim.wav")
+    );
+}
+
+#[test]
+fn protected_apply_edit_effects_renders_edit_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-edit.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let edit_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-edit_edit.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    state.waveform.current.set_edit_selection_range(
+        wavecrate::selection::SelectionRange::new(0.25, 0.75).with_gain(0.5),
+    );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestApplyEditSelectionEffects, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_samples_close(
+        &read_test_wav_f32(&edit_copy),
+        &[
+            0.0, 1_000.0, 1_000.0, 1_500.0, 2_000.0, 2_500.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(edit_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-edit.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::EditCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-edit_edit.wav")
+    );
+}
+
+#[test]
 fn playmark_context_crop_uses_play_selection_even_when_edit_selection_exists() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("crop-playmark-menu.wav");
@@ -441,6 +1031,47 @@ fn crop_request_rewrites_file_and_undo_restores_original_audio() {
         &[
             0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
         ],
+    );
+}
+
+#[test]
+fn crop_request_marks_harvest_origin_touched_without_derivative() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("crop-harvest.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+
+    apply_message_and_run_command(&mut state, GuiMessage::RequestCropWaveformSelection);
+
+    let (source, relative_path) = state
+        .library
+        .folder_browser
+        .sample_source_for_file_path(&path)
+        .expect("source file should stay in source");
+    let harvest_key = wavecrate::sample_sources::HarvestFileKey::new(
+        wavecrate::sample_sources::SourceId::from_string(source.id.as_str().to_owned()),
+        relative_path,
+    );
+    let harvest_parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
+        .expect("load harvest source")
+        .expect("harvest parent");
+    assert_eq!(
+        harvest_parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    assert!(
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&harvest_key)
+            .expect("load harvest derivations")
+            .is_empty(),
+        "in-place crop should touch the origin without inventing a derivative"
     );
 }
 
@@ -738,6 +1369,44 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
         Some(&vec![String::from("loop")])
     );
     assert_extracted_file_keep_1_rating(&state, &extracted);
+    let (source, relative_path) = state
+        .library
+        .folder_browser
+        .sample_source_for_file_path(&path)
+        .expect("source file should stay in source");
+    let harvest_key = wavecrate::sample_sources::HarvestFileKey::new(
+        wavecrate::sample_sources::SourceId::from_string(source.id.as_str().to_owned()),
+        relative_path,
+    );
+    let harvest_parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
+        .expect("load harvest source")
+        .expect("harvest parent");
+    assert_eq!(
+        harvest_parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&harvest_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract
+    );
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("extract-trim_extraction.wav")
+    );
+    let source_range = edges[0]
+        .source_range
+        .expect("extract-and-trim should record the source range");
+    assert!(
+        (source_range.start_seconds - (2.0 / 48_000.0)).abs() < 0.000_001,
+        "source range start should use the original pre-trim duration"
+    );
+    assert!(
+        (source_range.end_seconds - (4.0 / 48_000.0)).abs() < 0.000_001,
+        "source range end should use the original pre-trim duration"
+    );
     assert_samples_close(
         &read_test_wav_f32(&path),
         &[0.0, 1_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0],
@@ -819,13 +1488,16 @@ fn assert_extracted_file_keep_1_rating(
     assert_eq!(row.rating, wavecrate::sample_sources::Rating::KEEP_1);
     assert!(!row.rating_locked);
 
-    let (source_root, relative_path) = state
+    let (source_root, source_database_root, relative_path) = state
         .library
         .folder_browser
-        .source_relative_file_path(extracted)
+        .source_database_relative_file_path(extracted)
         .expect("extracted file should belong to a source");
-    let db = wavecrate::sample_sources::SourceDatabase::open_read_only(source_root)
-        .expect("source database should open");
+    let db = wavecrate::sample_sources::SourceDatabase::open_read_only_with_database_root(
+        source_root,
+        &source_database_root,
+    )
+    .expect("source database should open");
     let persisted = db
         .list_files()
         .expect("source database files should list")

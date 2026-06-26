@@ -18,8 +18,8 @@ pub(in crate::native_app::sample_library::folder_browser) type SourceMetadataMap
     ),
 >;
 
-pub(super) fn source_rating_map(root: &Path) -> SourceMetadataMap {
-    let Ok(db) = SourceDatabase::open_read_only(root) else {
+pub(super) fn source_rating_map(root: &Path, database_root: &Path) -> SourceMetadataMap {
+    let Ok(db) = SourceDatabase::open_read_only_with_database_root(root, database_root) else {
         return HashMap::new();
     };
     let Ok(entries) = db.list_files() else {
@@ -48,8 +48,9 @@ pub(super) fn source_rating_map(root: &Path) -> SourceMetadataMap {
 pub(in crate::native_app::sample_library::folder_browser) fn file_entry_for_source_path(
     path: &PathBuf,
     source_root: &Path,
+    source_database_root: &Path,
 ) -> FileEntry {
-    let metadata = source_file_metadata(source_root, path).unwrap_or((
+    let metadata = source_file_metadata(source_root, source_database_root, path).unwrap_or((
         Rating::NEUTRAL,
         false,
         Vec::new(),
@@ -64,8 +65,9 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_for_sour
 pub(in crate::native_app::sample_library::folder_browser) fn refreshed_file_entries_for_paths(
     paths: &[PathBuf],
     source_root: &Path,
+    source_database_root: &Path,
 ) -> Vec<FileEntry> {
-    let ratings = source_rating_map(source_root);
+    let ratings = source_rating_map(source_root, source_database_root);
     paths
         .iter()
         .map(|path| rated_file_entry(path, source_root, &ratings))
@@ -94,6 +96,7 @@ pub(super) fn rated_file_entry(
 
 fn source_file_metadata(
     source_root: &Path,
+    source_database_root: &Path,
     path: &Path,
 ) -> Option<(
     Rating,
@@ -103,7 +106,8 @@ fn source_file_metadata(
     Option<i64>,
 )> {
     let relative = path.strip_prefix(source_root).ok()?;
-    let db = SourceDatabase::open_read_only(source_root).ok()?;
+    let db = SourceDatabase::open_read_only_with_database_root(source_root, source_database_root)
+        .ok()?;
     let entry = db.entry_for_path(relative).ok()??;
     let collections = db.collections_for_path(relative).unwrap_or_default();
     Some((

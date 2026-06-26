@@ -20,6 +20,7 @@ struct MetadataTagTarget {
     file_id: String,
     absolute_path: PathBuf,
     source_root: PathBuf,
+    source_database_root: PathBuf,
     relative_path: PathBuf,
 }
 
@@ -45,10 +46,10 @@ impl NativeAppState {
         playback_type: ExtractedFilePlaybackType,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> Result<(), String> {
-        let Some((source_root, relative_path)) = self
+        let Some((source_root, source_database_root, relative_path)) = self
             .library
             .folder_browser
-            .source_relative_file_path(absolute_path)
+            .source_database_relative_file_path(absolute_path)
         else {
             return Err(String::from(
                 "extracted file is not inside a configured source",
@@ -57,6 +58,7 @@ impl NativeAppState {
         let rating_result = persist_file_rating_assignment(
             absolute_path,
             &source_root,
+            &source_database_root,
             &relative_path,
             EXTRACTED_FILE_RATING,
             EXTRACTED_FILE_LOCKED,
@@ -72,6 +74,7 @@ impl NativeAppState {
         self.assign_extracted_file_playback_type(
             absolute_path,
             source_root,
+            source_database_root,
             relative_path,
             playback_type,
             context,
@@ -84,6 +87,7 @@ impl NativeAppState {
         &mut self,
         absolute_path: &Path,
         source_root: PathBuf,
+        source_database_root: PathBuf,
         relative_path: PathBuf,
         playback_type: ExtractedFilePlaybackType,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -123,6 +127,7 @@ impl NativeAppState {
             requests.push(MetadataTagPersistRequest {
                 absolute_path: absolute_path.to_path_buf(),
                 source_root: source_root.clone(),
+                source_database_root: source_database_root.clone(),
                 relative_path: relative_path.clone(),
                 tags: removed_conflicting,
                 assigned: false,
@@ -132,6 +137,7 @@ impl NativeAppState {
             requests.push(MetadataTagPersistRequest {
                 absolute_path: absolute_path.to_path_buf(),
                 source_root,
+                source_database_root,
                 relative_path,
                 tags: added,
                 assigned: true,
@@ -203,6 +209,7 @@ impl NativeAppState {
                 requests.push(MetadataTagPersistRequest {
                     absolute_path: target.absolute_path.clone(),
                     source_root: target.source_root.clone(),
+                    source_database_root: target.source_database_root.clone(),
                     relative_path: target.relative_path.clone(),
                     tags: removed_conflicting,
                     assigned: false,
@@ -212,6 +219,7 @@ impl NativeAppState {
                 requests.push(MetadataTagPersistRequest {
                     absolute_path: target.absolute_path,
                     source_root: target.source_root,
+                    source_database_root: target.source_database_root,
                     relative_path: target.relative_path,
                     tags: added,
                     assigned: true,
@@ -221,6 +229,8 @@ impl NativeAppState {
         if requests.is_empty() {
             return;
         }
+        let touched_paths = changed_files.iter().map(PathBuf::from).collect::<Vec<_>>();
+        self.mark_harvest_touched_for_paths(&touched_paths);
         self.finish_metadata_tag_curation_change(&changed_files);
         let status_tags = added_metadata_tag_status_tags(&requests, &tags);
         self.ui.status.sample = metadata_tag_added_status(&status_tags, changed_files.len());
@@ -321,6 +331,7 @@ impl NativeAppState {
             requests.push(MetadataTagPersistRequest {
                 absolute_path: target.absolute_path,
                 source_root: target.source_root,
+                source_database_root: target.source_database_root,
                 relative_path: target.relative_path,
                 tags: vec![tag.clone()],
                 assigned: false,
@@ -332,6 +343,8 @@ impl NativeAppState {
         if self.metadata.selected_tag.as_deref() == Some(tag.as_str()) {
             self.metadata.selected_tag = None;
         }
+        let touched_paths = changed_files.iter().map(PathBuf::from).collect::<Vec<_>>();
+        self.mark_harvest_touched_for_paths(&touched_paths);
         self.finish_metadata_tag_curation_change(&changed_files);
         self.ui.status.sample = metadata_tag_removed_status(&tag, changed_files.len());
         if requests.len() == 1 {
@@ -401,10 +414,10 @@ impl NativeAppState {
         paths
             .into_iter()
             .map(|absolute_path| {
-                let Some((source_root, relative_path)) = self
+                let Some((source_root, source_database_root, relative_path)) = self
                     .library
                     .folder_browser
-                    .source_relative_file_path(&absolute_path)
+                    .source_database_relative_file_path(&absolute_path)
                 else {
                     return Err(String::from(
                         "Selected sample is not inside a configured source",
@@ -414,6 +427,7 @@ impl NativeAppState {
                     file_id: absolute_path.to_string_lossy().to_string(),
                     absolute_path,
                     source_root,
+                    source_database_root,
                     relative_path,
                 })
             })

@@ -19,6 +19,7 @@ impl AppController {
             source_root: audio.root.clone(),
             relative_path: audio.relative_path.clone(),
             bounds,
+            source_duration_seconds: audio.duration_seconds,
             audio: build_selection_export_audio_payload(
                 self.sample_view.waveform.decoded.as_ref(),
                 Arc::clone(&audio.bytes),

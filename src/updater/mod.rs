@@ -10,6 +10,7 @@ mod check;
 mod fs_ops;
 mod github;
 mod path_guard;
+mod public_catalog;
 
 use std::path::PathBuf;
 
@@ -23,6 +24,10 @@ pub(super) use path_guard::ValidatedInstallRoot;
 pub use apply::{ApplyPlan, StaleRemovalFailure, UpdateManifest};
 pub use check::{UpdateCheckOutcome, UpdateCheckRequest};
 pub use github::ReleaseSummary;
+pub use public_catalog::{
+    PUBLIC_RELEASE_CATALOG_URL, PUBLIC_RELEASE_PAGE_URL, PublicReleaseCheckRequest,
+    PublicReleaseInfo, check_public_release_catalog,
+};
 
 /// Canonical app name used by the release contract.
 pub const APP_NAME: &str = "wavecrate";

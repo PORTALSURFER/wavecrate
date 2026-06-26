@@ -11,8 +11,8 @@ mod window;
 pub(in crate::native_app) use top_bar::top_control_bar;
 #[cfg(test)]
 pub(in crate::native_app) use top_bar::{
-    AUDIO_ENGINE_PILL_ID, GENERAL_SETTINGS_BUTTON_ID, HELP_TOOLTIPS_BUTTON_ID, VOLUME_SLIDER_ID,
-    volume_slider,
+    AUDIO_ENGINE_PILL_ID, GENERAL_SETTINGS_BUTTON_ID, HELP_TOOLTIPS_BUTTON_ID,
+    RELEASE_UPDATE_BUTTON_ID, VOLUME_SLIDER_ID, volume_slider,
 };
 #[cfg(test)]
 pub(in crate::native_app) use window::audio_settings_popover;

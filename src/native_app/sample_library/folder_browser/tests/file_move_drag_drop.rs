@@ -795,6 +795,179 @@ fn cut_paste_moves_files_between_sources_and_preserves_metadata() {
 }
 
 #[test]
+fn cut_paste_from_protected_source_copies_to_writable_target_and_keeps_source_metadata() {
+    let source_root = temp_source_root("wavecrate-gui-protected-cut-paste-source");
+    let target_root = temp_source_root("wavecrate-gui-protected-cut-paste-target");
+    let drums = source_root.join("drums");
+    let inbox = target_root.join("_Wavecrate Inbox");
+    fs::create_dir_all(&drums).expect("create protected source folder");
+    fs::create_dir_all(&inbox).expect("create primary inbox");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+
+    let protected_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::new(),
+        source_root.clone(),
+    )
+    .protected();
+    let primary_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::new(),
+        target_root.clone(),
+    )
+    .primary();
+    let protected_db_root = protected_source
+        .database_root()
+        .expect("protected metadata root");
+    let protected_db = SourceDatabase::open_for_user_metadata_write_with_database_root(
+        &protected_source.root,
+        &protected_db_root,
+    )
+    .expect("open protected external db");
+    let source_relative = Path::new("drums/kick.wav");
+    let mut protected_batch = protected_db
+        .write_batch()
+        .expect("protected metadata batch");
+    protected_batch
+        .upsert_file_with_hash(source_relative, 8, 1, "protected-kick-hash")
+        .expect("upsert protected metadata");
+    protected_batch
+        .set_tag(source_relative, Rating::new(3))
+        .expect("set protected rating");
+    protected_batch
+        .add_collection(
+            source_relative,
+            SampleCollection::new(0).expect("collection"),
+        )
+        .expect("set protected collection");
+    protected_batch.commit().expect("commit protected metadata");
+
+    let sources = vec![protected_source.clone(), primary_source.clone()];
+    let mut browser = FolderBrowserState::from_sample_sources(&sources);
+    load_source_for_test(&mut browser, primary_source.id.as_str(), 21);
+    let inbox_id = path_id(&inbox);
+    browser.activate_folder(inbox_id.clone());
+
+    let copied = inbox.join("kick.wav");
+    let copied_id = path_id(&copied);
+    let result = submit_cut_paste(&mut browser, &[kick.display().to_string()], &inbox_id)
+        .expect("protected cut paste should copy into writable target");
+
+    assert_eq!(result.moved_paths, vec![(kick.clone(), copied.clone())]);
+    assert!(kick.is_file(), "protected source file should remain");
+    assert!(copied.is_file(), "copy should be written into target");
+    assert_eq!(browser.selected_file_id(), Some(copied_id.as_str()));
+    assert_eq!(
+        protected_db
+            .tag_for_path(source_relative)
+            .expect("protected metadata remains"),
+        Some(Rating::new(3))
+    );
+
+    let target_db = SourceDatabase::open(&target_root).expect("open target db");
+    let target_relative = Path::new("_Wavecrate Inbox/kick.wav");
+    let target_entry = target_db
+        .entry_for_path(target_relative)
+        .expect("read target metadata")
+        .expect("target metadata row");
+    assert_eq!(
+        target_entry.content_hash.as_deref(),
+        Some("protected-kick-hash")
+    );
+    assert_eq!(target_entry.tag, Rating::new(3));
+    assert_eq!(
+        target_db
+            .collections_for_path(target_relative)
+            .expect("target collection copied"),
+        vec![SampleCollection::new(0).expect("collection")]
+    );
+
+    load_source_for_test(&mut browser, protected_source.id.as_str(), 22);
+    browser.activate_folder(path_id(&drums));
+    let original_id = path_id(&kick);
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![original_id.as_str()]
+    );
+    let _ = fs::remove_dir_all(source_root);
+    let _ = fs::remove_dir_all(target_root);
+    let _ = fs::remove_dir_all(protected_db_root);
+}
+
+#[test]
+fn cut_paste_into_protected_source_adds_new_files_but_blocks_overwrite() {
+    let source_root = temp_source_root("wavecrate-gui-protected-target-source");
+    let protected_root = temp_source_root("wavecrate-gui-protected-target");
+    let drums = source_root.join("drums");
+    let inbox = protected_root.join("incoming");
+    fs::create_dir_all(&drums).expect("create source folder");
+    fs::create_dir_all(&inbox).expect("create protected inbox");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let protected_snare = inbox.join("snare.wav");
+    fs::write(&kick, b"kick").expect("write kick");
+    fs::write(&snare, b"snare").expect("write snare");
+    fs::write(&protected_snare, b"protected snare").expect("write existing protected file");
+
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("normal-source"),
+        source_root.clone(),
+    );
+    let protected = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("protected-target"),
+        protected_root.clone(),
+    )
+    .protected();
+    let protected_db_root = protected.database_root().expect("protected metadata root");
+    let sources = vec![source, protected.clone()];
+    let mut browser = FolderBrowserState::from_sample_sources(&sources);
+    load_source_for_test(&mut browser, protected.id.as_str(), 23);
+    let inbox_id = path_id(&inbox);
+    browser.activate_folder(inbox_id.clone());
+
+    let moved_kick = inbox.join("kick.wav");
+    let result = submit_cut_paste(
+        &mut browser,
+        &[kick.display().to_string(), snare.display().to_string()],
+        &inbox_id,
+    )
+    .expect("new file should move into protected source");
+
+    assert_eq!(result.moved_paths, vec![(kick.clone(), moved_kick.clone())]);
+    assert!(!kick.exists());
+    assert_eq!(fs::read(&moved_kick).expect("read moved kick"), b"kick");
+    assert!(
+        snare.is_file(),
+        "conflicting source should remain unresolved"
+    );
+    assert_eq!(
+        fs::read(&protected_snare).expect("read protected destination"),
+        b"protected snare"
+    );
+    assert_eq!(browser.pending_file_move_conflict_count(), 1);
+
+    let overwrite_error =
+        submit_file_move_conflict(&mut browser, FileMoveConflictResolution::Overwrite)
+            .expect_err("protected destination overwrite should be blocked");
+    assert_eq!(
+        overwrite_error,
+        "This source is protected. Copy to Primary and continue?"
+    );
+    assert_eq!(browser.pending_file_move_conflict_count(), 1);
+    assert_eq!(fs::read(&snare).expect("read source snare"), b"snare");
+    assert_eq!(
+        fs::read(&protected_snare).expect("read protected destination"),
+        b"protected snare"
+    );
+    let _ = fs::remove_dir_all(source_root);
+    let _ = fs::remove_dir_all(protected_root);
+    let _ = fs::remove_dir_all(protected_db_root);
+}
+
+#[test]
 fn file_drag_drop_defers_destination_name_conflicts() {
     let root = temp_source_root("wavecrate-gui-file-drag-conflict");
     let drums = root.join("drums");

@@ -32,6 +32,24 @@ fn bottom_status_bar_reports_selected_sample_count() {
 }
 
 #[test]
+fn status_bar_reports_selected_missing_source() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let missing_root = temp.path().join("missing-source");
+    let folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources_deferred(
+            &[wavecrate::sample_sources::SampleSource::new(missing_root)],
+        );
+    let state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .with_sample_status("Ready")
+        .build();
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert_eq!(model.status_text, "Source missing | Ready");
+}
+
+#[test]
 fn bottom_status_progress_bar_paints_without_text_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.set_folder_progress_for_tests(

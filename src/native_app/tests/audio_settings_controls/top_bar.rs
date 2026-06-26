@@ -52,6 +52,46 @@ fn top_control_bar_places_help_button_after_settings_gear() {
 }
 
 #[test]
+fn top_control_bar_places_release_indicator_between_settings_and_help_when_available() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.release_update.finish(Ok(Some(release_info(999))));
+    let frame = crate::native_app::test_support::settings::top_control_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(360.0, 30.0));
+    let release = frame
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::settings::RELEASE_UPDATE_BUTTON_ID)
+        .expect("release update button should lay out");
+    let help = frame
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::settings::HELP_TOOLTIPS_BUTTON_ID)
+        .expect("help button should lay out");
+    let settings = frame
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::settings::GENERAL_SETTINGS_BUTTON_ID)
+        .expect("settings button should lay out");
+
+    assert!(settings.max.x <= release.min.x);
+    assert!(release.max.x <= help.min.x);
+}
+
+#[test]
+fn top_control_bar_hides_release_indicator_without_available_release() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let frame = crate::native_app::test_support::settings::top_control_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+
+    assert!(
+        !frame
+            .layout
+            .rects
+            .contains_key(&crate::native_app::test_support::settings::RELEASE_UPDATE_BUTTON_ID)
+    );
+}
+
+#[test]
 fn top_help_tooltips_button_paints_as_bare_question_mark() {
     let state = NativeAppState::load_default().expect("default state loads");
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)
@@ -69,6 +109,16 @@ fn top_help_tooltips_button_paints_as_bare_question_mark() {
             .contains_visible_fill_polygon_for_widget(help_id),
         "help button should not paint resting button fill"
     );
+}
+
+fn release_info(build_number: u64) -> wavecrate::updater::PublicReleaseInfo {
+    wavecrate::updater::PublicReleaseInfo {
+        build_id: format!("wavecrate-nightly-b{build_number}"),
+        build_number,
+        version: String::from("nightly"),
+        released_at: String::from("2026-06-25T20:13:25.000Z"),
+        download_page_url: String::from("https://portalsurfer.org/wavecrate/"),
+    }
 }
 
 #[test]

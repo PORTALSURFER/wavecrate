@@ -12,7 +12,7 @@ use crate::native_app::sample_library::folder_browser::model::{
 use radiant::prelude::IntoView;
 use radiant::widgets::{ButtonMessage, SelectableMessage};
 
-const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 140.0;
+const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 190.0;
 
 mod layout;
 mod row_projection;

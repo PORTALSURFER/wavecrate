@@ -56,6 +56,7 @@ impl Drop for OverwriteBackup {
 pub(super) struct AppliedWaveformEdit {
     pub(super) source_id: String,
     pub(super) source_root: PathBuf,
+    pub(super) source_database_root: PathBuf,
     pub(super) relative_path: PathBuf,
     pub(super) absolute_path: PathBuf,
     pub(super) backup: OverwriteBackup,
@@ -84,6 +85,7 @@ pub(super) struct WaveformExtractionMark {
 pub(super) struct WaveformDestructiveEditWorkerRequest {
     edit: PendingWaveformDestructiveEdit,
     extraction: Option<WaveformExtractionRequest>,
+    copy_source: Option<PathBuf>,
 }
 
 impl WaveformDestructiveEditWorkerRequest {
@@ -91,7 +93,16 @@ impl WaveformDestructiveEditWorkerRequest {
         edit: PendingWaveformDestructiveEdit,
         extraction: Option<WaveformExtractionRequest>,
     ) -> Self {
-        Self { edit, extraction }
+        Self {
+            edit,
+            extraction,
+            copy_source: None,
+        }
+    }
+
+    pub(super) fn with_copy_source(mut self, source_path: PathBuf) -> Self {
+        self.copy_source = Some(source_path);
+        self
     }
 }
 
@@ -105,6 +116,14 @@ struct EditableWav {
 pub(super) fn execute_destructive_edit(
     worker_request: WaveformDestructiveEditWorkerRequest,
 ) -> WaveformDestructiveEditResult {
+    if let Some(source_path) = worker_request.copy_source.as_ref()
+        && let Err(error) = prepare_destructive_edit_copy(source_path, &worker_request.edit)
+    {
+        return WaveformDestructiveEditResult {
+            result: Err(error),
+            extracted_mark: None,
+        };
+    }
     let mut extracted_mark = None;
     let extracted_path = match worker_request.extraction {
         Some(extraction) => {
@@ -132,7 +151,12 @@ pub(super) fn execute_destructive_edit(
         Ok(applied) => Ok(applied),
         Err(error) => {
             if let Some(path) = extracted_path {
-                cleanup_failed_destructive_extraction(&worker_request.edit.source.root, &path);
+                cleanup_failed_destructive_extraction(&worker_request.edit.source, &path);
+            } else if worker_request.copy_source.is_some() {
+                cleanup_failed_destructive_extraction(
+                    &worker_request.edit.source,
+                    &worker_request.edit.absolute_path,
+                );
             }
             Err(error)
         }
@@ -141,6 +165,28 @@ pub(super) fn execute_destructive_edit(
         result,
         extracted_mark,
     }
+}
+
+fn prepare_destructive_edit_copy(
+    source_path: &Path,
+    request: &PendingWaveformDestructiveEdit,
+) -> Result<(), String> {
+    if let Some(parent) = request.absolute_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Failed to create edit copy folder: {err}"))?;
+    }
+    fs::copy(source_path, &request.absolute_path).map_err(|err| {
+        format!(
+            "Failed to copy protected source {} to {}: {err}",
+            source_path.display(),
+            request.absolute_path.display()
+        )
+    })?;
+    sync_source_entry(
+        &request.source,
+        &request.relative_path,
+        &request.absolute_path,
+    )
 }
 
 pub(super) fn validate_destructive_edit_target(path: &Path) -> Result<(), String> {
@@ -166,12 +212,16 @@ fn execute_destructive_edit_write(
     extracted_path: Option<PathBuf>,
 ) -> Result<AppliedWaveformEdit, String> {
     validate_destructive_edit_target(&request.absolute_path)?;
+    let source_database_root = request
+        .source
+        .database_root()
+        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
     let backup = OverwriteBackup::capture_before(&request.absolute_path)?;
     let extracted = extracted_path
         .map(|path| {
             let relative_path = source_relative_path(&request.source.root, &path)?;
             let backup_path = backup.capture_extracted(&path)?;
-            sync_source_entry(&request.source.root, &relative_path, &path)?;
+            sync_source_entry(&request.source, &relative_path, &path)?;
             Ok::<_, String>(AppliedExtractedFile {
                 path,
                 relative_path,
@@ -189,7 +239,7 @@ fn execute_destructive_edit_write(
     }
     write_edited_wav(&request.absolute_path, &wav)?;
     sync_source_entry(
-        &request.source.root,
+        &request.source,
         &request.relative_path,
         &request.absolute_path,
     )?;
@@ -197,6 +247,7 @@ fn execute_destructive_edit_write(
     Ok(AppliedWaveformEdit {
         source_id: request.source.id.as_str().to_string(),
         source_root: request.source.root.clone(),
+        source_database_root,
         relative_path: request.relative_path.clone(),
         absolute_path: request.absolute_path.clone(),
         backup,
@@ -210,16 +261,17 @@ pub(super) fn restore_edited_waveform(
 ) -> Result<(), String> {
     fs::copy(backup_path, &applied.absolute_path)
         .map_err(|err| format!("Failed to restore waveform file: {err}"))?;
-    sync_source_entry(
+    sync_source_entry_at(
         &applied.source_root,
+        &applied.source_database_root,
         &applied.relative_path,
         &applied.absolute_path,
     )?;
     if let Some(extracted) = applied.extracted.as_ref() {
         if backup_path == applied.backup.before.as_path() {
-            remove_extracted_file_for_undo(&applied.source_root, extracted)?;
+            remove_extracted_file_for_undo(applied, extracted)?;
         } else {
-            restore_extracted_file_for_redo(&applied.source_root, extracted)?;
+            restore_extracted_file_for_redo(applied, extracted)?;
         }
     }
     Ok(())
@@ -377,12 +429,24 @@ fn selection_existing_frame_bounds(
 }
 
 fn sync_source_entry(
-    source_root: &Path,
+    source: &wavecrate::sample_sources::SampleSource,
     relative_path: &Path,
     absolute_path: &Path,
 ) -> Result<(), String> {
-    let db =
-        SourceDatabase::open(source_root).map_err(|err| format!("Database unavailable: {err}"))?;
+    let database_root = source
+        .database_root()
+        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+    sync_source_entry_at(&source.root, &database_root, relative_path, absolute_path)
+}
+
+fn sync_source_entry_at(
+    source_root: &Path,
+    database_root: &Path,
+    relative_path: &Path,
+    absolute_path: &Path,
+) -> Result<(), String> {
+    let db = SourceDatabase::open_with_database_root(source_root, database_root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
     let metadata =
         fs::metadata(absolute_path).map_err(|err| format!("Failed to stat file: {err}"))?;
     let file_size = metadata.len();
@@ -411,7 +475,7 @@ fn source_relative_path(source_root: &Path, absolute_path: &Path) -> Result<Path
 }
 
 fn remove_extracted_file_for_undo(
-    source_root: &Path,
+    applied: &AppliedWaveformEdit,
     extracted: &AppliedExtractedFile,
 ) -> Result<(), String> {
     match fs::remove_file(&extracted.path) {
@@ -419,32 +483,57 @@ fn remove_extracted_file_for_undo(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("Failed to remove extracted audio file: {error}")),
     }
-    mark_source_entry_missing(source_root, &extracted.relative_path, true)
+    mark_source_entry_missing(applied, &extracted.relative_path, true)
 }
 
-fn cleanup_failed_destructive_extraction(source_root: &Path, extracted_path: &Path) {
+fn cleanup_failed_destructive_extraction(
+    source: &wavecrate::sample_sources::SampleSource,
+    extracted_path: &Path,
+) {
     let _ = fs::remove_file(extracted_path);
-    let Ok(relative_path) = source_relative_path(source_root, extracted_path) else {
+    let Ok(relative_path) = source_relative_path(&source.root, extracted_path) else {
         return;
     };
-    let _ = mark_source_entry_missing(source_root, &relative_path, true);
+    let Ok(database_root) = source.database_root() else {
+        return;
+    };
+    let _ = mark_source_entry_missing_at(&source.root, &database_root, &relative_path, true);
 }
 
 fn restore_extracted_file_for_redo(
-    source_root: &Path,
+    applied: &AppliedWaveformEdit,
     extracted: &AppliedExtractedFile,
 ) -> Result<(), String> {
     fs::copy(&extracted.backup_path, &extracted.path)
         .map_err(|err| format!("Failed to restore extracted audio file: {err}"))?;
-    sync_source_entry(source_root, &extracted.relative_path, &extracted.path)
+    sync_source_entry_at(
+        &applied.source_root,
+        &applied.source_database_root,
+        &extracted.relative_path,
+        &extracted.path,
+    )
 }
 
 fn mark_source_entry_missing(
-    source_root: &Path,
+    applied: &AppliedWaveformEdit,
     relative_path: &Path,
     missing: bool,
 ) -> Result<(), String> {
-    SourceDatabase::open(source_root)
+    mark_source_entry_missing_at(
+        &applied.source_root,
+        &applied.source_database_root,
+        relative_path,
+        missing,
+    )
+}
+
+fn mark_source_entry_missing_at(
+    source_root: &Path,
+    database_root: &Path,
+    relative_path: &Path,
+    missing: bool,
+) -> Result<(), String> {
+    SourceDatabase::open_with_database_root(source_root, database_root)
         .map_err(|err| format!("Database unavailable: {err}"))?
         .set_missing(relative_path, missing)
         .map_err(|err| format!("Failed to sync database entry: {err}"))

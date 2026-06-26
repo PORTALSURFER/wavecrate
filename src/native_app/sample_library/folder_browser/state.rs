@@ -37,7 +37,10 @@ impl FolderBrowserState {
     pub(super) fn from_sources(sources: Vec<SourceEntry>, selected_source: String) -> Self {
         let mut sources = sources;
         let source_index = selected_source_index(&sources, &selected_source);
-        let snapshot = super::load_source_snapshot(sources[source_index].root.clone());
+        let snapshot = super::load_source_snapshot(
+            sources[source_index].root.clone(),
+            sources[source_index].database_root.clone(),
+        );
         sources[source_index].root_folder = Some(snapshot.folder.clone());
         sources[source_index].missing_collection_snapshot = snapshot.missing_collection_snapshot;
         Self::new(sources, source_index, snapshot.folder)
@@ -314,6 +317,9 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::SetCurationScope(scope, enabled) => {
                 self.set_curation_scope(scope, enabled);
+            }
+            FolderBrowserMessage::SetHarvestFilter(filter, enabled) => {
+                self.set_harvest_filter(filter, enabled);
             }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);

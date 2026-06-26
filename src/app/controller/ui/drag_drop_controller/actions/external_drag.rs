@@ -297,6 +297,11 @@ mod tests {
                 tag_named: false,
                 normal_tags: Vec::new(),
                         },
+                        origin_source_id: source.id.clone(),
+                        origin_source_root: source.root.clone(),
+                        origin_relative_path: PathBuf::from("one.wav"),
+                        origin_bounds: SelectionRange::new(0.2, 0.8),
+                        origin_duration_seconds: 1.0,
                         absolute_path: export_absolute,
                         backup,
                         destination:

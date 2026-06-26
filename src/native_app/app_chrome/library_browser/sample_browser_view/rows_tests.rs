@@ -1,7 +1,8 @@
 use super::super::cells::{
     LOCKED_KEEP_RATING_COLOR, LOCKED_KEEP_RATING_MARKER_SIDE, RATING_MARKER_SIDE,
-    SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL, sample_collection_cell,
-    sample_file_cell, sample_playback_type_cell, sample_rating_cell, sample_similarity_cell,
+    SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL, muted_sample_file_cell,
+    sample_collection_cell, sample_file_cell, sample_playback_type_cell, sample_rating_cell,
+    sample_similarity_cell,
 };
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
@@ -90,6 +91,22 @@ fn sample_text_uses_primary_theme_color() {
             .text_runs()
             .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
         "sample rows should not express loaded/cache state through text color"
+    );
+}
+
+#[test]
+/// Verifies finished harvest rows can demote passive text without heavy row coloring.
+fn muted_sample_file_cell_uses_muted_theme_color() {
+    let theme = ThemeTokens::default();
+    let frame = muted_sample_file_cell(String::from("done_kick"), 120.0)
+        .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
+
+    assert!(
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text == "done_kick" && run.color == theme.text_muted),
+        "done/ignored harvest rows should be able to use subtle muted text styling"
     );
 }
 

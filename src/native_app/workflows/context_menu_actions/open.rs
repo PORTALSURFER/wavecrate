@@ -10,6 +10,7 @@ use crate::native_app::sample_library::context_menu_target::{
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey;
 use wavecrate::sample_sources::SampleCollection;
+use wavecrate::sample_sources::SourceRole;
 
 impl NativeAppState {
     pub(in crate::native_app) fn open_source_context_menu(
@@ -32,10 +33,16 @@ impl NativeAppState {
         };
         let title = context_menu_title(&path);
         let source_removable = self.library.folder_browser.source_is_removable(&source_id);
+        let source_role = self
+            .library
+            .folder_browser
+            .source_role(&source_id)
+            .unwrap_or(SourceRole::Normal);
         self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Source,
             path,
             source_id: Some(source_id),
+            source_role,
             source_removable,
             folder_locked: false,
             folder_lock_inherited: false,
@@ -90,6 +97,7 @@ impl NativeAppState {
                 .folder_lock_inherited(&folder_id),
             path,
             source_id: None,
+            source_role: SourceRole::Normal,
             source_removable: false,
             metadata_tag: None,
             collection: None,
@@ -115,6 +123,7 @@ impl NativeAppState {
             kind: BrowserContextTargetKind::Collection,
             path: Path::new("").to_path_buf(),
             source_id: None,
+            source_role: SourceRole::Normal,
             source_removable: false,
             folder_locked: false,
             folder_lock_inherited: false,
@@ -169,6 +178,7 @@ impl NativeAppState {
             title: sample_path_label(&path),
             path,
             source_id: None,
+            source_role: SourceRole::Normal,
             source_removable: false,
             folder_locked: false,
             folder_lock_inherited: false,
@@ -188,6 +198,7 @@ impl NativeAppState {
             kind: BrowserContextTargetKind::MetadataTag,
             path: Path::new("").to_path_buf(),
             source_id: None,
+            source_role: SourceRole::Normal,
             source_removable: false,
             folder_locked: false,
             folder_lock_inherited: false,

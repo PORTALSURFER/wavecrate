@@ -22,22 +22,24 @@ pub(in crate::native_app) use message::{
     SourceFilesystemSyncResult, TrashMoveTarget, VolumeSettingsPersistResult,
 };
 pub(in crate::native_app) use progress::{
-    FileMoveProgress, NormalizationFailure, NormalizationProgress, NormalizationQueueItem,
-    NormalizationResult,
+    FileMoveProgress, NormalizationFailure, NormalizationHarvestDerivation, NormalizationProgress,
+    NormalizationQueueItem, NormalizationResult,
 };
 pub(in crate::native_app) use settings::{
     AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,
 };
 #[cfg(test)]
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
+#[cfg(test)]
+pub(in crate::native_app) use state::ReleaseUpdateStatus;
 pub(in crate::native_app) use state::{
     AudioAppState, AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,
-    ChromeUiState, CutFileClipboard, ExtractedFilePlaybackType, FolderScanWorkerEvent,
-    LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT, MetadataAppState, NativeAppState,
-    PendingFolderDelete, PendingPlaybackStart, PendingRuntimePlaybackStart,
-    PendingWaveformDestructiveEdit, SettingsAppState, SourceFilesystemChangePlan,
-    SourceRefreshRequest, SourceScanFinish, StartupState, StatusState, UiAppState,
-    WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, ExtractedFilePlaybackType,
+    FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
+    MetadataAppState, NativeAppState, PendingFolderDelete, PendingPlaybackStart,
+    PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit, SettingsAppState,
+    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, StartupState, StatusState,
+    UiAppState, WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
     WaveformDestructiveEditUiContext, WaveformPlaySelectionSnapshot, run_folder_scan_worker,
 };
 

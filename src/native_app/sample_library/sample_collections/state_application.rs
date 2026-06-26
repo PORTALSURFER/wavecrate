@@ -10,8 +10,8 @@ pub(super) fn apply_collection_update_states(
     updates: &[CollectionUpdate],
 ) -> Result<CollectionUpdateCounts, String> {
     let mut counts = CollectionUpdateCounts::default();
-    for (root, source_updates) in group_updates_by_source(updates) {
-        persist_collection_updates(&root, &source_updates)?;
+    for ((root, database_root), source_updates) in group_updates_by_source(updates) {
+        persist_collection_updates(&root, &database_root, &source_updates)?;
         for update in source_updates {
             match update.operation {
                 CollectionOperation::Add => {

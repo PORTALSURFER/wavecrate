@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::native_app::app::{GuiMessage, NativeAppState, WaveformState, emit_gui_action};
 use crate::native_app::sample_library::context_menu_target as context_menu;
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
+use wavecrate::sample_sources::SourceRole;
 
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_context_folder_lock(&mut self) {
@@ -131,6 +132,131 @@ impl NativeAppState {
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.context_menu.source.remove",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn toggle_context_source_protection(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Source {
+            self.ui.status.sample = String::from("Context target is not a source");
+            return;
+        }
+        let Some(source_id) = menu.source_id else {
+            self.ui.status.sample = String::from("Source is unavailable");
+            return;
+        };
+        let protect = menu.source_role != SourceRole::Protected;
+        match self
+            .library
+            .folder_browser
+            .set_source_protected(&source_id, protect)
+        {
+            Ok(status) => {
+                self.ui.status.sample = status.to_string();
+                self.persist_user_configuration("folder_browser.source.role.persist", started_at);
+                emit_gui_action(
+                    "browser.context_menu.source.protection",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    if protect { "protected" } else { "unprotected" },
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.context_menu.source.protection",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn set_context_source_primary(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Source {
+            self.ui.status.sample = String::from("Context target is not a source");
+            return;
+        }
+        let Some(source_id) = menu.source_id else {
+            self.ui.status.sample = String::from("Source is unavailable");
+            return;
+        };
+        match self.library.folder_browser.set_primary_source(&source_id) {
+            Ok(status) => {
+                self.ui.status.sample = status.to_string();
+                self.persist_user_configuration("folder_browser.source.role.persist", started_at);
+                emit_gui_action(
+                    "browser.context_menu.source.primary",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "primary",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.context_menu.source.primary",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn clear_context_source_primary(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Source {
+            self.ui.status.sample = String::from("Context target is not a source");
+            return;
+        }
+        let Some(source_id) = menu.source_id else {
+            self.ui.status.sample = String::from("Source is unavailable");
+            return;
+        };
+        match self.library.folder_browser.clear_primary_source(&source_id) {
+            Ok(status) => {
+                self.ui.status.sample = status.to_string();
+                self.persist_user_configuration("folder_browser.source.role.persist", started_at);
+                emit_gui_action(
+                    "browser.context_menu.source.primary",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "cleared",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.context_menu.source.primary",
                     Some("sources"),
                     Some(context_menu::target_label(&menu.path).as_str()),
                     "error",

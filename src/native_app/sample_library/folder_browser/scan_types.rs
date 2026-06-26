@@ -8,6 +8,7 @@ pub(in crate::native_app) struct FolderScanRequest {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) root: PathBuf,
+    pub(in crate::native_app) database_root: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,6 +55,18 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) file_count: usize,
     pub(in crate::native_app) folder_count: usize,
     pub(in crate::native_app) source_db_error: Option<String>,
+    pub(in crate::native_app) source_root_available: bool,
+}
+
+impl FolderScanResult {
+    pub(in crate::native_app) fn audio_file_paths(&self) -> Vec<PathBuf> {
+        self.folder
+            .all_files()
+            .into_iter()
+            .filter(|file| file.is_audio() && !file.is_missing())
+            .map(|file| PathBuf::from(&file.id))
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,6 +74,7 @@ pub(in crate::native_app) struct FolderTreeRefreshRequest {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) root: PathBuf,
+    pub(in crate::native_app) database_root: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +83,7 @@ pub(in crate::native_app) struct FolderTreeRefreshResult {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) folder: FolderEntry,
     pub(in crate::native_app) folder_count: usize,
+    pub(in crate::native_app) source_root_available: bool,
 }
 
 /// Request for verifying that a selected folder still matches its cached child state.

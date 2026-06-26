@@ -86,9 +86,14 @@ pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats,
 /// This keeps incremental scans responsive by moving full hashing and rename
 /// reconciliation for large files to a best-effort background worker.
 pub fn schedule_deep_hash_scan(root: PathBuf) {
+    schedule_deep_hash_scan_with_database_root(root.clone(), root);
+}
+
+/// Spawn a detached deep-hash pass using a separate database root.
+pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: PathBuf) {
     thread::spawn(move || {
         let result = (|| -> Result<(), ScanError> {
-            let db = SourceDatabase::open_fast(root)?;
+            let db = SourceDatabase::open_fast_with_database_root(root, database_root)?;
             let _ = super::super::scan_hash::deep_hash_scan(&db, None)?;
             Ok(())
         })();

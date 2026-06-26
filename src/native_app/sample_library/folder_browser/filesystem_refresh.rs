@@ -28,12 +28,13 @@ impl FolderBrowserState {
         let Some(root_folder) = &mut source.root_folder else {
             return false;
         };
+        let source_database_root = source.database_root.clone();
         let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
             return false;
         };
         upsert_file(
             &mut parent_folder.files,
-            file_entry_for_source_path(&path.to_path_buf(), &source.root),
+            file_entry_for_source_path(&path.to_path_buf(), &source.root, &source_database_root),
         );
         self.tree.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
@@ -58,6 +59,7 @@ impl FolderBrowserState {
         };
         let source_id = self.source.sources[source_index].id.clone();
         let source_root = self.source.sources[source_index].root.clone();
+        let source_database_root = self.source.sources[source_index].database_root.clone();
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
@@ -66,7 +68,7 @@ impl FolderBrowserState {
         };
         let changed = upsert_file(
             &mut parent_folder.files,
-            file_entry_for_source_path(&path.to_path_buf(), &source_root),
+            file_entry_for_source_path(&path.to_path_buf(), &source_root, &source_database_root),
         );
         if !changed {
             return false;
@@ -90,6 +92,7 @@ impl FolderBrowserState {
             return false;
         };
         let source_root = self.source.sources[source_index].root.clone();
+        let source_database_root = self.source.sources[source_index].database_root.clone();
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
@@ -104,7 +107,7 @@ impl FolderBrowserState {
             };
             changed |= upsert_file(
                 &mut parent_folder.files,
-                file_entry_for_source_path(path, &source_root),
+                file_entry_for_source_path(path, &source_root, &source_database_root),
             );
         }
         if !changed {
@@ -177,9 +180,15 @@ impl FolderBrowserState {
             return false;
         };
         let root = self.source.sources[source_index].root.clone();
+        let database_root = self.source.sources[source_index].database_root.clone();
         let mut changed = false;
         for relative_path in relative_paths {
-            changed |= self.refresh_one_source_relative_path(source_index, &root, relative_path);
+            changed |= self.refresh_one_source_relative_path(
+                source_index,
+                &root,
+                &database_root,
+                relative_path,
+            );
         }
         if changed {
             self.after_source_tree_changed(source_id);
@@ -241,19 +250,34 @@ impl FolderBrowserState {
         &mut self,
         source_index: usize,
         source_root: &Path,
+        source_database_root: &Path,
         relative_path: &Path,
     ) -> bool {
         let absolute_path = source_root.join(relative_path);
         if absolute_path.is_dir() {
-            return self.refresh_existing_folder_path(source_index, source_root, &absolute_path);
+            return self.refresh_existing_folder_path(
+                source_index,
+                source_root,
+                source_database_root,
+                &absolute_path,
+            );
         }
         if absolute_path.is_file() {
-            return self.refresh_existing_file_path(source_index, &absolute_path);
+            return self.refresh_existing_file_path(
+                source_index,
+                source_database_root,
+                &absolute_path,
+            );
         }
         self.remove_missing_path_from_source(source_index, &absolute_path)
     }
 
-    fn refresh_existing_file_path(&mut self, source_index: usize, path: &Path) -> bool {
+    fn refresh_existing_file_path(
+        &mut self,
+        source_index: usize,
+        source_database_root: &Path,
+        path: &Path,
+    ) -> bool {
         let Some(parent) = path.parent() else {
             return false;
         };
@@ -265,14 +289,19 @@ impl FolderBrowserState {
             };
             if root_folder.find(&parent_id).is_none() {
                 let source_root = self.source.sources[source_index].root.clone();
-                return self.refresh_existing_folder_path(source_index, &source_root, parent);
+                return self.refresh_existing_folder_path(
+                    source_index,
+                    &source_root,
+                    source_database_root,
+                    parent,
+                );
             }
             let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
                 return false;
             };
             upsert_file(
                 &mut parent_folder.files,
-                file_entry_for_source_path(&path.to_path_buf(), &source_root),
+                file_entry_for_source_path(&path.to_path_buf(), &source_root, source_database_root),
             )
         };
         if changed {
@@ -287,9 +316,10 @@ impl FolderBrowserState {
         &mut self,
         source_index: usize,
         source_root: &Path,
+        source_database_root: &Path,
         path: &Path,
     ) -> bool {
-        let Some(folder) = load_folder_at_path(path, source_root) else {
+        let Some(folder) = load_folder_at_path(path, source_root, source_database_root) else {
             return false;
         };
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {

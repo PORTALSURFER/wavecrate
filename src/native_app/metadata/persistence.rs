@@ -66,8 +66,11 @@ fn persist_metadata_tag_assignment_inner(
     request: &MetadataTagPersistRequest,
 ) -> Result<(), String> {
     let (file_size, modified_ns) = file_metadata(&request.absolute_path)?;
-    let db = SourceDatabase::open_for_user_metadata_write(&request.source_root)
-        .map_err(|err| err.to_string())?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(
+        &request.source_root,
+        &request.source_database_root,
+    )
+    .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     batch
         .upsert_file(&request.relative_path, file_size, modified_ns)
@@ -92,13 +95,17 @@ fn persist_metadata_tag_assignment_inner(
 pub(super) fn persist_file_rating_assignment(
     absolute_path: &Path,
     source_root: &Path,
+    source_database_root: &Path,
     relative_path: &Path,
     rating: Rating,
     locked: bool,
 ) -> Result<(), String> {
     let (file_size, modified_ns) = file_metadata(absolute_path)?;
-    let db =
-        SourceDatabase::open_for_user_metadata_write(source_root).map_err(|err| err.to_string())?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(
+        source_root,
+        source_database_root,
+    )
+    .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     batch
         .upsert_file(relative_path, file_size, modified_ns)
@@ -140,6 +147,7 @@ pub(in crate::native_app) fn persist_metadata_tag_additions_for_tests(
 ) -> Result<(), String> {
     persist_metadata_tag_assignment_inner(&MetadataTagPersistRequest {
         absolute_path,
+        source_database_root: source_root.clone(),
         source_root,
         relative_path,
         tags,
@@ -156,6 +164,7 @@ pub(in crate::native_app) fn persist_metadata_tag_removals_for_tests(
 ) -> Result<(), String> {
     persist_metadata_tag_assignment_inner(&MetadataTagPersistRequest {
         absolute_path,
+        source_database_root: source_root.clone(),
         source_root,
         relative_path,
         tags,
@@ -165,9 +174,13 @@ pub(in crate::native_app) fn persist_metadata_tag_removals_for_tests(
 
 pub(super) fn load_persisted_metadata_tags_for_source(
     source_root: &Path,
+    source_database_root: &Path,
     tags_by_file: &mut HashMap<String, Vec<String>>,
 ) -> Result<(), String> {
-    let db = match SourceDatabase::open_read_only(source_root) {
+    let db = match SourceDatabase::open_read_only_with_database_root(
+        source_root,
+        source_database_root,
+    ) {
         Ok(db) => db,
         Err(SourceDbError::ReadOnlyDatabaseMissing(_)) => return Ok(()),
         Err(err) => return Err(err.to_string()),
@@ -187,7 +200,9 @@ pub(super) fn load_persisted_metadata_tags_for_source(
         let absolute_path = source_root.join(entry.relative_path);
         tags_by_file.insert(absolute_path.to_string_lossy().to_string(), normal_tags);
     }
-    if let Err(err) = repair_persisted_metadata_tag_conflicts(source_root, repairs) {
+    if let Err(err) =
+        repair_persisted_metadata_tag_conflicts(source_root, source_database_root, repairs)
+    {
         tracing::warn!(
             "Failed to repair persisted playback-type tag conflicts for {}: {err}",
             source_root.display()
@@ -203,13 +218,17 @@ struct PersistedMetadataTagRepair {
 
 fn repair_persisted_metadata_tag_conflicts(
     source_root: &Path,
+    source_database_root: &Path,
     repairs: Vec<PersistedMetadataTagRepair>,
 ) -> Result<(), String> {
     if repairs.is_empty() {
         return Ok(());
     }
-    let db =
-        SourceDatabase::open_for_user_metadata_write(source_root).map_err(|err| err.to_string())?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(
+        source_root,
+        source_database_root,
+    )
+    .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     for repair in repairs {
         batch

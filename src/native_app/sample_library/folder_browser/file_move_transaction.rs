@@ -8,8 +8,33 @@ use super::{FileMoveConflict, FileMoveItem};
 
 #[derive(Debug, Default)]
 pub(super) struct FileMovePlan {
-    pub(super) ready: Vec<(PathBuf, PathBuf)>,
+    pub(super) ready: Vec<FileTransfer>,
     pub(super) conflicts: Vec<FileMoveConflict>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FileTransfer {
+    pub(super) source_path: PathBuf,
+    pub(super) destination_path: PathBuf,
+    pub(super) copy_only: bool,
+}
+
+impl FileTransfer {
+    fn move_file(source_path: PathBuf, destination_path: PathBuf) -> Self {
+        Self {
+            source_path,
+            destination_path,
+            copy_only: false,
+        }
+    }
+
+    fn copy_file(source_path: PathBuf, destination_path: PathBuf) -> Self {
+        Self {
+            source_path,
+            destination_path,
+            copy_only: true,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -20,22 +45,27 @@ pub(super) struct OverwriteBackup {
 
 pub(super) fn file_move_plan_to_folder(
     source_root: &Path,
+    source_database_root: &Path,
     file_ids: &[String],
     target_path: &Path,
+    target_protected: bool,
 ) -> Result<FileMovePlan, String> {
     let file_moves = file_ids
         .iter()
         .map(|file_id| FileMoveItem {
             source_root: source_root.to_path_buf(),
+            source_database_root: source_database_root.to_path_buf(),
             file_id: file_id.clone(),
+            copy_only: false,
         })
         .collect::<Vec<_>>();
-    file_move_items_plan_to_folder(&file_moves, target_path)
+    file_move_items_plan_to_folder(&file_moves, target_path, target_protected)
 }
 
 pub(super) fn file_move_items_plan_to_folder(
     file_moves: &[FileMoveItem],
     target_path: &Path,
+    target_protected: bool,
 ) -> Result<FileMovePlan, String> {
     let mut plan = FileMovePlan::default();
     let mut seen = HashSet::new();
@@ -60,15 +90,20 @@ pub(super) fn file_move_items_plan_to_folder(
         let Some(file_name) = old_path.file_name() else {
             return Err(String::from("File move failed: source file has no name"));
         };
-        let new_path = target_path.join(file_name);
-        if new_path.exists() || !planned_destinations.insert(new_path.clone()) {
+        let mut new_path = target_path.join(file_name);
+        if item.copy_only {
+            new_path = unique_planned_destination(new_path, &mut planned_destinations);
+            plan.ready.push(FileTransfer::copy_file(old_path, new_path));
+        } else if new_path.exists() || !planned_destinations.insert(new_path.clone()) {
             plan.conflicts.push(FileMoveConflict {
                 source_root: item.source_root.clone(),
+                source_database_root: item.source_database_root.clone(),
                 source_path: old_path,
                 destination_path: new_path,
+                destination_protected: target_protected,
             });
         } else {
-            plan.ready.push((old_path, new_path));
+            plan.ready.push(FileTransfer::move_file(old_path, new_path));
         }
     }
     Ok(plan)
@@ -83,18 +118,39 @@ pub(super) fn rename_files_with_rollback(
 
 pub(super) fn rename_files_with_rollback_and_progress(
     moves: &[(PathBuf, PathBuf)],
+    progress: impl FnMut(usize, &Path),
+) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    let transfers = moves
+        .iter()
+        .map(|(source_path, destination_path)| {
+            FileTransfer::move_file(source_path.clone(), destination_path.clone())
+        })
+        .collect::<Vec<_>>();
+    transfer_files_with_rollback_and_progress(&transfers, progress)
+}
+
+pub(super) fn transfer_files_with_rollback_and_progress(
+    transfers: &[FileTransfer],
     mut progress: impl FnMut(usize, &Path),
 ) -> Result<Vec<(PathBuf, PathBuf)>, String> {
     let mut completed = Vec::new();
-    for (old_path, new_path) in moves {
-        if let Err(error) = move_file(old_path, new_path) {
-            rollback_completed_file_moves(&completed);
+    for transfer in transfers {
+        let result = if transfer.copy_only {
+            copy_file(&transfer.source_path, &transfer.destination_path)
+        } else {
+            move_file(&transfer.source_path, &transfer.destination_path)
+        };
+        if let Err(error) = result {
+            rollback_completed_file_transfers(&completed);
             return Err(error);
         }
-        completed.push((old_path.clone(), new_path.clone()));
-        progress(completed.len(), new_path);
+        completed.push(transfer.clone());
+        progress(completed.len(), &transfer.destination_path);
     }
-    Ok(completed)
+    Ok(completed
+        .into_iter()
+        .map(|transfer| (transfer.source_path, transfer.destination_path))
+        .collect())
 }
 
 pub(super) fn move_file_to_unique_destination(
@@ -110,14 +166,24 @@ pub(super) fn move_file_to_unique_destination(
     Ok((source_path.to_path_buf(), destination))
 }
 
-pub(super) fn rollback_completed_file_moves(completed: &[(PathBuf, PathBuf)]) {
-    for (moved_old, moved_new) in completed.iter().rev() {
-        let _ = move_file(moved_new, moved_old);
+fn rollback_completed_file_transfers(completed: &[FileTransfer]) {
+    for transfer in completed.iter().rev() {
+        if transfer.copy_only {
+            let _ = fs::remove_file(&transfer.destination_path);
+        } else {
+            let _ = move_file(&transfer.destination_path, &transfer.source_path);
+        }
     }
 }
 
 pub(super) fn move_file(source: &Path, destination: &Path) -> Result<(), String> {
     move_file_with_prefix(source, destination, "File move failed")
+}
+
+fn copy_file(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::copy(source, destination)
+        .map(|_| ())
+        .map_err(|err| format!("File copy failed: {err}"))
 }
 
 fn move_file_with_prefix(
@@ -163,6 +229,34 @@ pub(super) fn unique_destination(first_candidate: &Path) -> PathBuf {
         };
         let candidate = parent.join(file_name);
         if !candidate.exists() {
+            return candidate;
+        }
+    }
+    unreachable!("unbounded copy suffix search should find a destination")
+}
+
+fn unique_planned_destination(
+    first_candidate: PathBuf,
+    planned_destinations: &mut HashSet<PathBuf>,
+) -> PathBuf {
+    if !first_candidate.exists() && planned_destinations.insert(first_candidate.clone()) {
+        return first_candidate;
+    }
+    let parent = first_candidate.parent().unwrap_or_else(|| Path::new(""));
+    let stem = first_candidate
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("sample"));
+    let extension = first_candidate
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_string());
+    for count in 1.. {
+        let file_name = match &extension {
+            Some(extension) => format!("{stem}_copy{count:03}.{extension}"),
+            None => format!("{stem}_copy{count:03}"),
+        };
+        let candidate = parent.join(file_name);
+        if !candidate.exists() && planned_destinations.insert(candidate.clone()) {
             return candidate;
         }
     }
@@ -243,22 +337,32 @@ mod tests {
 
         let plan = file_move_plan_to_folder(
             &root,
+            &root,
             &[
                 ready.display().to_string(),
                 ready.display().to_string(),
                 conflict.display().to_string(),
             ],
             &target,
+            true,
         )
         .expect("plan file moves");
 
-        assert_eq!(plan.ready, vec![(ready.clone(), target.join("ready.wav"))]);
+        assert_eq!(
+            plan.ready,
+            vec![FileTransfer::move_file(
+                ready.clone(),
+                target.join("ready.wav")
+            )]
+        );
         assert_eq!(
             plan.conflicts,
             vec![FileMoveConflict {
                 source_root: root.clone(),
+                source_database_root: root.clone(),
                 source_path: conflict,
                 destination_path: existing,
+                destination_protected: true,
             }]
         );
         let _ = fs::remove_dir_all(root);

@@ -12,6 +12,8 @@ const BAND_COUNT: usize = 4;
 // Click-vs-drag intent is pixel-based in widget_input; do not add viewport-scaled delay here.
 const SELECTION_DRAG_EPSILON: f32 = 0.0;
 const SELECTION_FLASH_FRAMES: u8 = 12;
+const DENIED_SELECTION_FLASH_FRAMES: u8 = 24;
+const DENIED_SELECTION_FLASH_PULSE_FRAMES: u8 = 6;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
 #[cfg(test)]
@@ -59,7 +61,7 @@ pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::test_waveform_file_from_mono_samples;
 pub(in crate::native_app) use audio_file::{
-    WaveformPlaybackReady, cached_waveform_file_exists, cached_waveform_file_source_ready_exists,
+    WaveformPlaybackReady, cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
     flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };

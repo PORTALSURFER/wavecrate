@@ -223,10 +223,23 @@ fn native_app_ui_update_paths_do_not_call_blocking_business_apis() {
 #[test]
 fn waveform_clipboard_staging_worker_does_not_touch_platform_clipboard() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source_path = manifest_dir
-        .join("src/native_app/sample_library/drag_drop_actions/external/clipboard_clip.rs");
+    let source_path =
+        manifest_dir.join("src/native_app/sample_library/drag_drop_actions/external.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("{} should be readable: {err}", source_path.display()));
+    let worker_start = source
+        .find(".interactive(WAVEFORM_CLIPBOARD_HANDOFF_TASK_NAME)")
+        .unwrap_or_else(|| {
+            panic!(
+                "{} should contain waveform clipboard handoff task",
+                source_path.display()
+            )
+        });
+    let worker_end = source[worker_start..]
+        .find(";\n        true")
+        .map(|offset| worker_start + offset)
+        .unwrap_or(source.len());
+    let worker_source = &source[worker_start..worker_end];
 
     for forbidden in [
         "external_clipboard::",
@@ -234,7 +247,7 @@ fn waveform_clipboard_staging_worker_does_not_touch_platform_clipboard() {
         "read_file_paths(",
     ] {
         assert!(
-            !source.contains(forbidden),
+            !worker_source.contains(forbidden),
             "waveform clip staging may prepare the file on a worker, but platform clipboard handoff must stay on Radiant's typed platform service: found `{forbidden}`"
         );
     }

@@ -52,18 +52,6 @@ impl WaveformExtractionRequest {
         &self.source_path
     }
 
-    pub(in crate::native_app) fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    pub(in crate::native_app) fn channels(&self) -> usize {
-        self.channels
-    }
-
-    pub(in crate::native_app) fn loaded_frames(&self) -> usize {
-        self.loaded_frames
-    }
-
     pub(in crate::native_app) fn selection(&self) -> SelectionRange {
         self.selection
     }
@@ -73,11 +61,15 @@ impl WaveformExtractionRequest {
         self
     }
 
-    fn target_folder(&self) -> Result<&Path, String> {
+    pub(in crate::native_app) fn target_folder(&self) -> Result<&Path, String> {
         self.target_folder
             .as_deref()
             .or_else(|| self.source_path.parent())
             .ok_or_else(|| String::from("Source sample has no parent folder"))
+    }
+
+    pub(in crate::native_app) fn has_explicit_target_folder(&self) -> bool {
+        self.target_folder.is_some()
     }
 
     fn execute(&self) -> Result<PathBuf, String> {

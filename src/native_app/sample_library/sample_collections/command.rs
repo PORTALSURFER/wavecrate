@@ -7,6 +7,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::SelectedFi
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CollectionUpdate {
     pub(super) root: PathBuf,
+    pub(super) database_root: PathBuf,
     pub(super) relative_path: PathBuf,
     pub(super) absolute_path: PathBuf,
     pub(super) collection: SampleCollection,
@@ -50,6 +51,7 @@ impl CollectionUpdateCounts {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CollectionSourcePath {
     pub(super) root: PathBuf,
+    pub(super) database_root: PathBuf,
     pub(super) relative_path: PathBuf,
 }
 
@@ -99,6 +101,7 @@ pub(super) fn plan_collection_update(
     };
     Some(CollectionUpdate {
         root: source_path.root,
+        database_root: source_path.database_root,
         relative_path: source_path.relative_path,
         absolute_path: candidate.path,
         collection,
@@ -124,6 +127,7 @@ mod tests {
     fn source_path() -> CollectionSourcePath {
         CollectionSourcePath {
             root: PathBuf::from("C:/samples"),
+            database_root: PathBuf::from("C:/samples"),
             relative_path: PathBuf::from("kick.wav"),
         }
     }

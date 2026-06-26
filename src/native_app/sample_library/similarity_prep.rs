@@ -1,7 +1,4 @@
-use std::{
-    collections::VecDeque,
-    path::{Path, PathBuf},
-};
+use std::{collections::VecDeque, path::Path};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleSource, SourceId};
@@ -69,13 +66,16 @@ pub(in crate::native_app) struct SimilarityPrepEnqueueSummary {
 
 #[derive(Clone, Debug)]
 struct SimilarityPrepSource {
-    id: SourceId,
-    root: PathBuf,
+    source: SampleSource,
 }
 
 impl SimilarityPrepSource {
+    fn id(&self) -> &SourceId {
+        &self.source.id
+    }
+
     fn sample_source(&self) -> SampleSource {
-        SampleSource::new_with_id(self.id.clone(), self.root.clone())
+        self.source.clone()
     }
 }
 
@@ -131,10 +131,7 @@ impl NativeAppState {
             return;
         };
         self.queue_similarity_prep_for_source(
-            SimilarityPrepSource {
-                id: source.id,
-                root: source.root,
-            },
+            SimilarityPrepSource { source },
             SimilarityPrepTrigger::Automatic,
             context,
         );
@@ -150,10 +147,10 @@ impl NativeAppState {
             if trigger == SimilarityPrepTrigger::UserRequested {
                 self.ui.status.sample = String::from("Similarity prep already running");
             }
-            self.queue_pending_similarity_prep_source(source.id.as_str());
+            self.queue_pending_similarity_prep_source(source.id().as_str());
             return;
         }
-        let source_id = source.id.as_str().to_string();
+        let source_id = source.id().as_str().to_string();
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
         self.library.similarity_prep.running = true;
         self.library.similarity_prep.running_source_id = Some(source_id);
@@ -291,11 +288,14 @@ impl NativeAppState {
     }
 
     fn similarity_prep_source_for_id(&self, source_id: &str) -> Option<SimilarityPrepSource> {
-        let root = self.library.folder_browser.source_root_path(source_id)?;
-        Some(SimilarityPrepSource {
-            id: SourceId::from_string(source_id.to_string()),
-            root,
-        })
+        let source = self
+            .library
+            .folder_browser
+            .sources()
+            .iter()
+            .find(|source| source.id == source_id)?
+            .as_sample_source();
+        Some(SimilarityPrepSource { source })
     }
 }
 
@@ -366,7 +366,7 @@ impl SimilarityPrepEnqueueSummary {
 }
 
 fn resolve_status_result(source: SimilarityPrepSource) -> SimilarityPrepStatusResult {
-    let source_id = source.id.as_str().to_string();
+    let source_id = source.id().as_str().to_string();
     SimilarityPrepStatusResult {
         source_id,
         status: resolve_similarity_prep_status(&source.sample_source()),
@@ -377,7 +377,7 @@ fn enqueue_similarity_prep(
     source: SimilarityPrepSource,
     trigger: SimilarityPrepTrigger,
 ) -> SimilarityPrepEnqueueResult {
-    let source_id = source.id.as_str().to_string();
+    let source_id = source.id().as_str().to_string();
     let sample_source = source.sample_source();
     SimilarityPrepEnqueueResult {
         source_id,

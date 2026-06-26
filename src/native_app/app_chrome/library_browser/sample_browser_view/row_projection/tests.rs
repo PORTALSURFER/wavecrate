@@ -37,6 +37,8 @@ fn visible_row(file: &FileEntry) -> VisibleSampleRow<'_> {
         similarity_aspect_strengths: EMPTY_SIMILARITY_ASPECT_STRENGTHS,
         collection_colors: Vec::new(),
         source_folder_path: String::from("drums/kicks"),
+        harvest_badges: Vec::new(),
+        harvest_completed: false,
         curation_badges: Vec::new(),
     }
 }
@@ -114,9 +116,44 @@ fn name_column_carries_curation_badges() {
 
     assert!(matches!(
         display.content,
-        SampleColumnContent::Name { text, badges }
+        SampleColumnContent::Name { text, badges, muted: false }
             if text == "portal_SS_kick_003"
                 && badges == vec![String::from("new"), String::from("untagged")]
+    ));
+}
+
+#[test]
+fn name_column_keeps_harvest_badges_out_of_label_cell() {
+    let file = file_entry();
+    let mut row = visible_row(&file);
+    row.harvest_badges = vec![String::from("touch"), String::from("D3")];
+    row.curation_badges = vec![String::from("untagged")];
+    let column = FileColumn::for_tests("name", "Name", 160.0);
+
+    let display = column_display(&file, &row, &column, &HashMap::new());
+
+    assert!(matches!(
+        display.content,
+        SampleColumnContent::Name { text, badges, muted: false }
+            if text == "portal_SS_kick_003"
+                && badges == vec![String::from("untagged")]
+    ));
+}
+
+#[test]
+fn harvest_column_carries_harvest_badges() {
+    let file = file_entry();
+    let mut row = visible_row(&file);
+    row.harvest_badges = vec![String::from("touch"), String::from("D3")];
+    row.curation_badges = vec![String::from("untagged")];
+    let column = FileColumn::for_tests("harvest", "Harvest", 74.0);
+
+    let display = column_display(&file, &row, &column, &HashMap::new());
+
+    assert!(matches!(
+        display.content,
+        SampleColumnContent::Harvest { badges, muted: false }
+            if badges == vec![String::from("touch"), String::from("D3")]
     ));
 }
 
@@ -167,7 +204,10 @@ fn sample_source_folder_projection_uses_row_folder_path_without_cache_state() {
         None,
     );
 
-    assert!(matches!(display.content, SampleColumnContent::Text(value) if value == "drums/kicks"));
+    assert!(matches!(
+        display.content,
+        SampleColumnContent::Text { value, muted: false } if value == "drums/kicks"
+    ));
     assert!(
         row_display.cached,
         "loaded/cache state belongs to the row hit-target projection, not text cells"
@@ -223,5 +263,26 @@ fn sample_playback_type_projection_handles_unknown_tags() {
     assert!(matches!(
         display.content,
         SampleColumnContent::PlaybackType(None)
+    ));
+}
+
+#[test]
+fn harvest_completed_rows_mute_passive_text_cells() {
+    let file = file_entry();
+    let mut row = visible_row(&file);
+    row.harvest_badges = vec![String::from("done")];
+    row.harvest_completed = true;
+    let name_column = FileColumn::for_tests("name", "Name", 160.0);
+    let folder_column = FileColumn::for_tests("source_folder", "Folder", 160.0);
+
+    let name_display = column_display(&file, &row, &name_column, &HashMap::new());
+    let folder_display = column_display(&file, &row, &folder_column, &HashMap::new());
+    assert!(matches!(
+        name_display.content,
+        SampleColumnContent::Name { muted: true, .. }
+    ));
+    assert!(matches!(
+        folder_display.content,
+        SampleColumnContent::Text { muted: true, .. }
     ));
 }

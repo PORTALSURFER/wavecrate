@@ -270,12 +270,17 @@ impl NativeAppState {
             .selected_file_id()
             .map(str::to_owned);
         let result = completion.result.and_then(|success| {
-            self.remap_metadata_tags_for_moved_files(&success.moved_paths);
-            self.library.folder_browser.apply_folder_move_completion(
+            let moved_paths = success.moved_paths.clone();
+            self.remap_metadata_tags_for_moved_files(&moved_paths);
+            let result = self.library.folder_browser.apply_folder_move_completion(
                 &request,
                 success,
                 &self.metadata.tags_by_file,
-            )
+            );
+            if result.is_ok() {
+                self.reconcile_harvest_graph_after_folder_move(&request, &moved_paths);
+            }
+            result
         });
         let cut_paste_succeeded = self
             .ui

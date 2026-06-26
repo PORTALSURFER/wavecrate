@@ -101,6 +101,7 @@ fn default_gui_removes_context_source_from_app_config() {
             kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Source,
             path: source_root.path().to_path_buf(),
             source_id: Some(source_root.path().to_string_lossy().to_string()),
+            source_role: wavecrate::sample_sources::SourceRole::Normal,
             source_removable: true,
             folder_locked: false,
             folder_lock_inherited: false,

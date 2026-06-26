@@ -80,10 +80,8 @@ impl AppController {
                 Some(Instant::now() + LOADED_DURATION_METADATA_DEBOUNCE);
             return;
         }
-        let source = SampleSource {
-            id: pending.source_id.clone(),
-            root: pending.source_root.clone(),
-        };
+        let source =
+            SampleSource::new_with_id(pending.source_id.clone(), pending.source_root.clone());
         self.queue_metadata_mutation(
             &source,
             Vec::new(),

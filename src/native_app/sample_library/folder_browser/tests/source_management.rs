@@ -120,3 +120,43 @@ fn deferred_sample_sources_reuse_persisted_scan_cache() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn deferred_missing_source_keeps_cached_tree_and_blocks_refresh() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let root = temp_source_root("wavecrate-gui-deferred-missing-source-cache");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
+    let source_id = root.to_string_lossy().to_string();
+    let sources = vec![wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(source_id.clone()),
+        root.clone(),
+    )];
+    let browser = FolderBrowserState::from_sample_sources(&sources);
+    browser
+        .save_source_scan_cache()
+        .expect("persist source scan cache");
+    fs::remove_dir_all(&root).expect("remove source root");
+
+    let mut reloaded = FolderBrowserState::from_sample_sources_deferred(&sources);
+
+    assert!(reloaded.source_is_missing(&source_id));
+    assert!(reloaded.selected_source_loaded());
+    assert!(reloaded.begin_selected_source_scan(7).is_none());
+    assert!(
+        reloaded
+            .selected_source_folder_tree_refresh_request()
+            .is_none()
+    );
+    reloaded.activate_folder(path_id(&drums));
+    assert_eq!(
+        reloaded
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav"]
+    );
+}

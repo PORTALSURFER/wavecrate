@@ -995,7 +995,7 @@ fn active_folder_cache_warm_builds_summary_cache_for_large_uncached_source_files
 }
 
 #[test]
-fn active_folder_cache_plan_treats_large_summary_cache_as_processed() {
+fn active_folder_cache_plan_treats_large_file_backed_summary_cache_as_processed() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -1034,7 +1034,7 @@ fn active_folder_cache_plan_treats_large_summary_cache_as_processed() {
     assert_eq!(
         plan.playback_ready,
         vec![sample_path],
-        "large summary caches are source-prep ready even without playback sidecars"
+        "large summary caches are audition-ready through file-backed playback"
     );
     assert!(
         plan.pending.is_empty(),
@@ -1405,6 +1405,7 @@ fn normalize_finish_keeps_changed_file_in_active_folder_cache_warm_queue() {
             refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: Vec::new(),
+            harvest_derivations: Vec::new(),
         },
         &mut context,
     );
@@ -1475,7 +1476,7 @@ fn normalize_finish_keeps_changed_file_in_active_folder_cache_warm_queue() {
 }
 
 #[test]
-fn source_warm_marker_keeps_summary_cache_out_of_background_warm_queue() {
+fn source_warm_marker_does_not_make_summary_only_cache_visually_ready() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -1500,17 +1501,17 @@ fn source_warm_marker_keeps_summary_cache_out_of_background_warm_queue() {
     state.refresh_persisted_waveform_cache_indicators();
 
     assert!(
-        state
+        !state
             .waveform
             .cache
             .cached_sample_paths
             .contains(&sample_path_string),
-        "source-warm markers should keep prepared rows visually cache-ready"
+        "summary-only source-warm markers must not use the playback-ready row marker"
     );
     assert_eq!(
         state.waveform.cache.warm_pending.iter().collect::<Vec<_>>(),
-        Vec::<&PathBuf>::new(),
-        "source-warm markers should not be queued for repeated background warming"
+        vec![&sample_path],
+        "summary-only caches should be queued to build playback-ready cache data"
     );
 }
 

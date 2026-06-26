@@ -95,6 +95,7 @@ fn run_slice_batch_export(
     let prepare = prepare_started.elapsed();
     let mut counter = 1usize;
     let mut entries = Vec::with_capacity(snapshot.slices.len());
+    let mut exported_slices = Vec::with_capacity(snapshot.slices.len());
     let mut errors = Vec::new();
     let mut write = Duration::default();
     let mut register = Duration::default();
@@ -139,7 +140,10 @@ fn run_slice_batch_export(
 
         let register_started = Instant::now();
         match record_slice_batch_entry(&snapshot, target_relative) {
-            Ok(entry) => entries.push(entry),
+            Ok(entry) => {
+                entries.push(entry);
+                exported_slices.push(slice);
+            }
             Err(err) => {
                 errors.push(cleanup_written_export_after_registration_failure(
                     &absolute_path,
@@ -164,6 +168,8 @@ fn run_slice_batch_export(
         source_id: snapshot.source_id,
         source_root: snapshot.source_root,
         source_relative_path: snapshot.relative_path,
+        source_slices: exported_slices,
+        source_duration_seconds: snapshot.source_duration_seconds,
         entries,
         errors,
         timings: SelectionExportTimings {

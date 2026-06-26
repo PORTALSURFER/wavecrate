@@ -2,10 +2,7 @@ use super::super::super::*;
 
 impl AppController {
     pub(crate) fn handle_audio_load_error(&mut self, pending: PendingAudio, error: AudioLoadError) {
-        let source = SampleSource {
-            id: pending.source_id.clone(),
-            root: pending.root.clone(),
-        };
+        let source = SampleSource::new_with_id(pending.source_id.clone(), pending.root.clone());
         self.clear_failed_audio_handoff(&pending);
         match error {
             AudioLoadError::Missing(msg) => {

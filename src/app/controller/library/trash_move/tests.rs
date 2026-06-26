@@ -19,10 +19,7 @@ fn rollback_on_failure() {
     let source_root = dir.path().to_path_buf();
     let db = make_test_db(&source_root, "fail.wav");
 
-    let source = SampleSource {
-        id: SourceId::new(),
-        root: source_root.clone(),
-    };
+    let source = SampleSource::new_with_id(SourceId::new(), source_root.clone());
 
     let trash_root = dir.path().join("trash");
     let cancel = Arc::new(AtomicBool::new(false));
@@ -51,10 +48,7 @@ fn success_removes_from_db() {
     let source_root = dir.path().to_path_buf();
     let db = make_test_db(&source_root, "success.wav");
 
-    let source = SampleSource {
-        id: SourceId::new(),
-        root: source_root.clone(),
-    };
+    let source = SampleSource::new_with_id(SourceId::new(), source_root.clone());
 
     let trash_root = dir.path().join("trash");
     let cancel = Arc::new(AtomicBool::new(false));
@@ -80,10 +74,7 @@ fn post_move_remove_failure_refreshes_source_and_keeps_missing_row() {
     let db = make_test_db(&source_root, "locked.wav");
     fs::write(source_root.join("locked.wav"), b"wav").unwrap();
 
-    let source = SampleSource {
-        id: SourceId::new(),
-        root: source_root.clone(),
-    };
+    let source = SampleSource::new_with_id(SourceId::new(), source_root.clone());
     let source_id = source.id.clone();
 
     let trash_root = dir.path().join("trash");

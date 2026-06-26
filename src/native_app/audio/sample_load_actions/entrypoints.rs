@@ -172,7 +172,7 @@ impl NativeAppState {
         self.start_foreground_sample_load(path.as_str(), autoplay, context, started_at);
     }
 
-    fn load_navigation_sample_validated(
+    pub(in crate::native_app) fn load_navigation_sample_validated(
         &mut self,
         path: String,
         context: &mut ui::UiUpdateContext<GuiMessage>,

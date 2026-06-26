@@ -129,7 +129,7 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
     if !source_has_embeddings(source)? || !source_has_aspect_descriptors(source)? {
         return Ok(false);
     }
-    let mut conn = open_source_db(&source.root)?;
+    let mut conn = open_source_db(source)?;
     analysis::build_map_layout(
         &mut conn,
         SIMILARITY_MODEL_ID,
@@ -175,7 +175,7 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
 pub(super) fn drain_similarity_prep_jobs(
     source: &SampleSource,
 ) -> Result<SimilarityPrepJobDrainSummary, String> {
-    let mut conn = open_source_db(&source.root)?;
+    let mut conn = open_source_db(source)?;
     wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)?;
     let settings = load_analysis_settings();
     let runtime = SimilarityPrepJobRuntime::from_settings(&settings);
@@ -213,7 +213,7 @@ pub(super) fn drain_similarity_prep_jobs(
 pub(super) fn source_has_active_similarity_prep_jobs(
     source: &SampleSource,
 ) -> Result<bool, String> {
-    let conn = open_source_db(&source.root)?;
+    let conn = open_source_db(source)?;
     let active: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM analysis_jobs
@@ -272,7 +272,7 @@ fn load_analysis_settings() -> AnalysisSettings {
 }
 
 fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
-    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let db = open_fast_source_db(source).map_err(|err| err.to_string())?;
     let has_scan_timestamp = db
         .get_metadata(META_LAST_SCAN_COMPLETED_AT)
         .map_err(|err| err.to_string())?
@@ -283,7 +283,10 @@ fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
     let stats = scanner::scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {})
         .map_err(|err| format!("Sync source index failed: {err}"))?;
     if stats.hashes_pending > 0 {
-        scanner::schedule_deep_hash_scan(source.root.clone());
+        let database_root = source
+            .database_root()
+            .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+        scanner::schedule_deep_hash_scan_with_database_root(source.root.clone(), database_root);
     }
     Ok(())
 }
@@ -373,7 +376,7 @@ fn read_source_prep_timestamp(source: &SampleSource) -> Result<Option<i64>, Stri
 }
 
 fn read_source_timestamp(source: &SampleSource, key: &str) -> Result<Option<i64>, String> {
-    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let db = open_fast_source_db(source).map_err(|err| err.to_string())?;
     db.get_metadata(key)
         .map_err(|err| err.to_string())?
         .map(|value| {
@@ -385,8 +388,7 @@ fn read_source_timestamp(source: &SampleSource, key: &str) -> Result<Option<i64>
 }
 
 fn set_source_prep_timestamp(source: &SampleSource, value: i64) -> Result<(), String> {
-    let db = SourceDatabase::open_for_user_metadata_write(&source.root)
-        .map_err(|err| err.to_string())?;
+    let db = open_user_metadata_source_db(source).map_err(|err| err.to_string())?;
     db.set_metadata(META_LAST_SIMILARITY_PREP_SCAN_AT, &value.to_string())
         .map_err(|err| err.to_string())
 }
@@ -396,7 +398,7 @@ fn source_has_embeddings(source: &SampleSource) -> Result<bool, String> {
     if sample_ids.is_empty() {
         return Ok(true);
     }
-    let conn = open_source_db(&source.root)?;
+    let conn = open_source_db(source)?;
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     sample_ids_covered(
         &conn,
@@ -411,7 +413,7 @@ fn source_has_layout(source: &SampleSource) -> Result<bool, String> {
     if sample_ids.is_empty() {
         return Ok(true);
     }
-    let conn = open_source_db(&source.root)?;
+    let conn = open_source_db(source)?;
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     sample_ids_covered(
         &conn,
@@ -431,7 +433,7 @@ fn source_has_aspect_descriptors(source: &SampleSource) -> Result<bool, String> 
     if sample_ids.is_empty() {
         return Ok(true);
     }
-    let conn = open_source_db(&source.root)?;
+    let conn = open_source_db(source)?;
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     sample_ids_covered(
         &conn,
@@ -452,7 +454,7 @@ fn source_has_aspect_descriptors(source: &SampleSource) -> Result<bool, String> 
 }
 
 fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, String> {
-    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let db = open_fast_source_db(source).map_err(|err| err.to_string())?;
     let entries = db.list_files().map_err(|err| err.to_string())?;
     Ok(entries
         .into_iter()
@@ -484,7 +486,7 @@ where
 }
 
 fn enqueue_embedding_backfill(source: &SampleSource) -> Result<usize, String> {
-    let mut conn = open_source_db(&source.root)?;
+    let mut conn = open_source_db(source)?;
     if active_jobs_exist(&conn, source.id.as_str(), EMBEDDING_BACKFILL_JOB_TYPE)? {
         return Ok(0);
     }
@@ -621,7 +623,7 @@ where
 }
 
 fn unsupported_sample_ids_for_source(source: &SampleSource) -> Result<HashSet<String>, String> {
-    let conn = open_source_db(&source.root)?;
+    let conn = open_source_db(source)?;
     let mut stmt = conn
         .prepare(
             "SELECT aj.sample_id
@@ -654,7 +656,7 @@ fn unsupported_sample_ids_for_source(source: &SampleSource) -> Result<HashSet<St
 fn failed_samples_for_source(
     source: &SampleSource,
 ) -> Result<std::collections::HashMap<PathBuf, String>, String> {
-    let conn = open_source_db(&source.root)?;
+    let conn = open_source_db(source)?;
     let mut stmt = conn
         .prepare(
             "SELECT aj.relative_path, aj.last_error
@@ -747,9 +749,32 @@ fn now_epoch_seconds() -> i64 {
         .as_secs() as i64
 }
 
-fn open_source_db(source_root: &std::path::Path) -> Result<rusqlite::Connection, String> {
-    SourceDatabase::open_connection_with_role(source_root, SourceDatabaseConnectionRole::JobWorker)
+pub(super) fn open_fast_source_db(source: &SampleSource) -> Result<SourceDatabase, String> {
+    let database_root = source
+        .database_root()
+        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+    SourceDatabase::open_fast_with_database_root(&source.root, database_root)
         .map_err(|err| format!("Open source DB failed: {err}"))
+}
+
+fn open_user_metadata_source_db(source: &SampleSource) -> Result<SourceDatabase, String> {
+    let database_root = source
+        .database_root()
+        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+    SourceDatabase::open_for_user_metadata_write_with_database_root(&source.root, database_root)
+        .map_err(|err| format!("Open source DB failed: {err}"))
+}
+
+pub(super) fn open_source_db(source: &SampleSource) -> Result<rusqlite::Connection, String> {
+    let database_root = source
+        .database_root()
+        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+    SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .map_err(|err| format!("Open source DB failed: {err}"))
 }
 
 #[cfg(test)]

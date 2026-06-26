@@ -40,6 +40,8 @@ pub(crate) struct SelectionExportSnapshot {
     pub(crate) relative_path: PathBuf,
     /// Selection bounds to export.
     pub(crate) bounds: SelectionRange,
+    /// Duration of the loaded source sample when the export was queued.
+    pub(crate) source_duration_seconds: f32,
     /// Captured audio payload.
     pub(crate) audio: SelectionExportAudioPayload,
     /// Whether short edge fades should be applied to the new file.
@@ -67,6 +69,8 @@ pub(crate) struct SelectionSliceBatchExportSnapshot {
     pub(crate) relative_path: PathBuf,
     /// Slice bounds to export as individual clips.
     pub(crate) slices: Vec<SelectionRange>,
+    /// Duration of the loaded source sample when the slice export was queued.
+    pub(crate) source_duration_seconds: f32,
     /// Naming profile for the generated clips.
     pub(crate) profile: crate::app::state::WaveformSliceBatchProfile,
     /// Tag to assign to each exported clip.
@@ -182,6 +186,16 @@ pub(crate) struct SelectionClipExportSuccess {
     pub(crate) source_root: PathBuf,
     /// Newly created browser/source entry.
     pub(crate) entry: WavEntry,
+    /// Source id of the origin sample.
+    pub(crate) origin_source_id: SourceId,
+    /// Source root of the origin sample.
+    pub(crate) origin_source_root: PathBuf,
+    /// Source-relative path of the origin sample.
+    pub(crate) origin_relative_path: PathBuf,
+    /// Selection bounds used to create the exported clip.
+    pub(crate) origin_bounds: SelectionRange,
+    /// Duration of the origin sample at export time.
+    pub(crate) origin_duration_seconds: f32,
     /// Absolute file path of the created clip.
     pub(crate) absolute_path: PathBuf,
     /// Deferred undo backup captured off the UI thread for the new clip.
@@ -203,6 +217,10 @@ pub(crate) struct SelectionCropExportSuccess {
     pub(crate) source_root: PathBuf,
     /// Original source-relative path that was cropped.
     pub(crate) source_relative_path: PathBuf,
+    /// Selection bounds used to create the cropped sample.
+    pub(crate) source_bounds: SelectionRange,
+    /// Duration of the source sample at export time.
+    pub(crate) source_duration_seconds: f32,
     /// Newly created browser/source entry.
     pub(crate) entry: WavEntry,
     /// Absolute file path of the created clip.
@@ -228,6 +246,10 @@ pub(crate) struct SelectionSliceBatchExportSuccess {
     pub(crate) source_root: PathBuf,
     /// Original source-relative path that was sliced.
     pub(crate) source_relative_path: PathBuf,
+    /// Source slices used to create each successfully exported entry.
+    pub(crate) source_slices: Vec<SelectionRange>,
+    /// Duration of the source sample at export time.
+    pub(crate) source_duration_seconds: f32,
     /// Newly created browser/source entries.
     pub(crate) entries: Vec<WavEntry>,
     /// Per-slice errors encountered during the batch, if any.

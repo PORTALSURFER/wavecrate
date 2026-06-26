@@ -9,6 +9,7 @@ use crate::sample_sources::db::{
 
 pub(super) fn open_read_only_source_database(
     root: &Path,
+    database_root: &Path,
     role: SourceDatabaseConnectionRole,
 ) -> Result<SourceDatabase, SourceDbError> {
     let open_started = std::time::Instant::now();
@@ -16,7 +17,7 @@ pub(super) fn open_read_only_source_database(
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
     }
 
-    let db_path = paths::read_only_db_path(root);
+    let db_path = paths::read_only_db_path(database_root);
     if !db_path.is_file() {
         return Err(SourceDbError::ReadOnlyDatabaseMissing(db_path));
     }

@@ -37,6 +37,14 @@ pub enum SourceDbError {
     /// Read-only mode requires an existing database file.
     #[error("Read-only source DB mode requires an existing database file: {0}")]
     ReadOnlyDatabaseMissing(PathBuf),
+    /// Failed to resolve the app-owned metadata folder for a protected source.
+    #[error("Could not resolve external metadata storage for {path}: {source}")]
+    ExternalMetadataRoot {
+        /// Source root whose external metadata folder was requested.
+        path: PathBuf,
+        /// Underlying application directory error.
+        source: crate::app_dirs::AppDirError,
+    },
     /// Failed to move a source DB from its legacy filename to the current filename.
     #[error("Could not migrate source database from {from} to {to}: {source}")]
     RenameLegacyDatabase {

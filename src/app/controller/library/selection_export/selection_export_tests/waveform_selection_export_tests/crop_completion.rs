@@ -2,6 +2,8 @@ use super::super::*;
 
 #[test]
 fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() {
+    let config_base = tempdir().unwrap();
+    let _base_guard = crate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source");
     std::fs::create_dir_all(&source_root).unwrap();
@@ -47,6 +49,8 @@ fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() 
         source_id: source.id.clone(),
         source_root: source.root.clone(),
         source_relative_path: PathBuf::from("clip.wav"),
+        source_bounds: SelectionRange::new(0.25, 0.75),
+        source_duration_seconds: 4.0 / 44_100.0,
         entry: entry.clone(),
         absolute_path: cropped_absolute,
         backup,

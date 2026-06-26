@@ -58,6 +58,7 @@ fn native_file_open_adds_parent_source_before_loading_external_audio_file() {
             source_id: progress.source_id,
             label: progress.label,
             root: external_root.path().to_path_buf(),
+            database_root: external_root.path().to_path_buf(),
         },
         |_| {},
         |_| {},
