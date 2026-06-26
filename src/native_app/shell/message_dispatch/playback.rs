@@ -28,6 +28,7 @@ impl NativeAppState {
                 self.start_last_played_persist(ticket, request, context);
             }
             GuiMessage::LastPlayedPersisted(result) => self.finish_last_played_persist(result),
+            GuiMessage::HarvestSeenPersisted(result) => self.finish_harvest_seen_persist(result),
             GuiMessage::VolumeSettingsPersisted(result) => {
                 self.finish_volume_settings_persist(result)
             }

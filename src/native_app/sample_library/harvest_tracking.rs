@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use wavecrate::{
     sample_sources::{
         HarvestDerivationOperation, HarvestFileIdentity, HarvestFileKey, HarvestMetadataSnapshot,
-        HarvestSourceRange, HarvestState, NewHarvestDerivation, SampleSource, WavEntry,
+        HarvestSourceRange, HarvestState, NewHarvestDerivation, SampleSource, SourceDatabase,
+        SourceId, WavEntry,
     },
     selection::SelectionRange,
 };
@@ -32,6 +33,21 @@ pub(in crate::native_app) struct HarvestFamilySummary {
     pub(in crate::native_app) missing_derivative_count: usize,
     pub(in crate::native_app) first_origin_label: Option<String>,
     pub(in crate::native_app) first_derivative_label: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct HarvestSeenPersistResult {
+    pub(in crate::native_app) file_id: String,
+    pub(in crate::native_app) result: Result<(), String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct HarvestSeenPersistRequest {
+    file_id: String,
+    source_id: SourceId,
+    source_root: PathBuf,
+    source_database_root: PathBuf,
+    relative_path: PathBuf,
 }
 
 impl NativeAppState {
@@ -110,13 +126,45 @@ impl NativeAppState {
         })
     }
 
-    pub(in crate::native_app) fn mark_harvest_seen_for_path(&self, path: &Path) {
-        let Some(identity) = self.harvest_identity_for_path(path) else {
+    pub(in crate::native_app) fn schedule_harvest_seen_for_path(
+        &self,
+        path: &Path,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(request) = self.harvest_seen_persist_request_for_path(path) else {
             return;
         };
-        if let Err(error) = wavecrate::sample_sources::library::mark_harvest_seen(&identity) {
-            tracing::warn!(path = %path.display(), "failed to mark harvest file as seen: {error}");
+        context
+            .business()
+            .priority(
+                "gui-harvest-seen-persist",
+                radiant::prelude::TaskPriority::Idle,
+            )
+            .run(
+                move |_| persist_harvest_seen(request),
+                GuiMessage::HarvestSeenPersisted,
+            );
+    }
+
+    pub(in crate::native_app) fn finish_harvest_seen_persist(
+        &mut self,
+        result: HarvestSeenPersistResult,
+    ) {
+        if let Err(error) = result.result {
+            tracing::warn!(
+                file_id = %result.file_id,
+                "failed to mark harvest file as seen in background: {error}"
+            );
         }
+    }
+
+    pub(in crate::native_app) fn selected_harvest_family_available(&self) -> bool {
+        self.library
+            .folder_browser
+            .selected_file_id()
+            .map(PathBuf::from)
+            .and_then(|path| self.harvest_key_for_path(&path))
+            .is_some()
     }
 
     pub(in crate::native_app) fn mark_harvest_touched_for_path(&self, path: &Path) {
@@ -646,6 +694,24 @@ impl NativeAppState {
         Some(HarvestFileKey::new(source.id, relative_path))
     }
 
+    fn harvest_seen_persist_request_for_path(
+        &self,
+        path: &Path,
+    ) -> Option<HarvestSeenPersistRequest> {
+        let (source, relative_path) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(path)?;
+        let source_database_root = source.database_root().ok()?;
+        Some(HarvestSeenPersistRequest {
+            file_id: path.display().to_string(),
+            source_id: source.id,
+            source_root: source.root,
+            source_database_root,
+            relative_path,
+        })
+    }
+
     fn record_harvest_discovered_for_path(&self, path: &Path) {
         let Some(identity) = self.harvest_identity_for_path(path) else {
             return;
@@ -1091,6 +1157,34 @@ fn source_db_entry_for_path(source: &SampleSource, relative_path: &Path) -> Opti
         .open_db()
         .ok()
         .and_then(|db| db.entry_for_path(relative_path).ok().flatten())
+}
+
+fn persist_harvest_seen(request: HarvestSeenPersistRequest) -> HarvestSeenPersistResult {
+    let result = persist_harvest_seen_inner(&request);
+    HarvestSeenPersistResult {
+        file_id: request.file_id,
+        result,
+    }
+}
+
+fn persist_harvest_seen_inner(request: &HarvestSeenPersistRequest) -> Result<(), String> {
+    let path = request.source_root.join(&request.relative_path);
+    let (file_size, modified_ns) = file_identity_metadata(&path);
+    let entry = SourceDatabase::open_read_only_with_database_root(
+        &request.source_root,
+        &request.source_database_root,
+    )
+    .ok()
+    .and_then(|db| db.entry_for_path(&request.relative_path).ok().flatten());
+    let identity = HarvestFileIdentity {
+        key: HarvestFileKey::new(request.source_id.clone(), request.relative_path.clone()),
+        file_size: file_size.or_else(|| entry.as_ref().map(|entry| entry.file_size)),
+        modified_ns: modified_ns.or_else(|| entry.as_ref().map(|entry| entry.modified_ns)),
+        content_hash: entry.and_then(|entry| entry.content_hash),
+    };
+    wavecrate::sample_sources::library::mark_harvest_seen(&identity)
+        .map(|_| ())
+        .map_err(|err| err.to_string())
 }
 
 fn file_identity_metadata(path: &Path) -> (Option<u64>, Option<i64>) {

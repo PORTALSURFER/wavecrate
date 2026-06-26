@@ -137,13 +137,21 @@ impl LibrarySidebarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
         let folder_browser = &state.library.folder_browser;
         let harvest_family = state
-            .selected_harvest_family_summary()
-            .map(HarvestFamilyViewModel::from_summary);
+            .ui
+            .chrome
+            .harvest_family_open
+            .then(|| {
+                state
+                    .selected_harvest_family_summary()
+                    .map(HarvestFamilyViewModel::from_summary)
+            })
+            .flatten();
         let mut filter = FilterSectionViewModel::from_folder_browser(
             folder_browser,
             state.ui.chrome.help_tooltips_enabled,
         );
-        filter.harvest.family_available = harvest_family.is_some();
+        filter.harvest.family_available =
+            harvest_family.is_some() || state.selected_harvest_family_available();
         filter.harvest.family_open = state.ui.chrome.harvest_family_open;
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
@@ -342,5 +350,35 @@ fn related_detail(label: Option<String>, missing_count: usize) -> Option<String>
         (None, 0) => None,
         (None, 1) => Some(String::from("1 missing")),
         (None, count) => Some(format!("{count} missing")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::LibrarySidebarViewModel;
+    use crate::native_app::test_support::state::{FolderBrowserState, NativeAppStateFixture};
+
+    #[test]
+    fn closed_harvest_family_drawer_keeps_sidebar_projection_cheap() {
+        let source_root = tempfile::tempdir().expect("source root");
+        let sample_path = source_root.path().join("kick.wav");
+        fs::write(&sample_path, []).expect("sample file");
+        let mut state = NativeAppStateFixture::default()
+            .with_folder_browser(FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]))
+            .build();
+        state
+            .library
+            .folder_browser
+            .select_file(sample_path.display().to_string());
+        state.ui.chrome.harvest_family_open = false;
+
+        let model = LibrarySidebarViewModel::from_app_state(&state);
+
+        assert!(model.harvest_family.is_none());
+        assert!(model.filter.harvest.family_available);
     }
 }

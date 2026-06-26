@@ -79,6 +79,7 @@ impl NativeAppState {
             | GuiMessage::PlayNextPlaybackHistory
             | GuiMessage::LastPlayedPersistReady { .. }
             | GuiMessage::LastPlayedPersisted(_)
+            | GuiMessage::HarvestSeenPersisted(_)
             | GuiMessage::VolumeSettingsPersisted(_)
             | GuiMessage::StopPlayback
             | GuiMessage::ToggleLoopPlayback
