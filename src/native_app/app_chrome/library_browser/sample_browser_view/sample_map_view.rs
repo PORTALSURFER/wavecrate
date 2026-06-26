@@ -673,12 +673,31 @@ impl Widget for SampleMapWidget {
             CanvasGestureEvent::DoubleClick { .. } => Some(WidgetOutput::typed(
                 GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Reset),
             )),
-            CanvasGestureEvent::Release { .. } | CanvasGestureEvent::Drop { .. } => {
+            CanvasGestureEvent::Release {
+                button: PointerButton::Primary,
+                ..
+            }
+            | CanvasGestureEvent::Drop {
+                button: PointerButton::Primary,
+                ..
+            } => {
                 self.last_hit_file_id = None;
                 self.last_primary_position = None;
                 self.last_pan_position = None;
                 Some(WidgetOutput::typed(GuiMessage::FinishSampleMapAuditionDrag))
             }
+            CanvasGestureEvent::Release {
+                button: PointerButton::Secondary,
+                ..
+            }
+            | CanvasGestureEvent::Drop {
+                button: PointerButton::Secondary,
+                ..
+            } => {
+                self.last_pan_position = None;
+                None
+            }
+            CanvasGestureEvent::Release { .. } | CanvasGestureEvent::Drop { .. } => None,
             _ => None,
         }
     }
@@ -1675,6 +1694,125 @@ mod tests {
                 position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })
+        );
+    }
+
+    #[test]
+    fn primary_release_finishes_sample_map_audition_drag() {
+        let mut widget = SampleMapWidget::new(
+            vec![sample_map_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            SampleMapViewport::default(),
+            None,
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        widget
+            .handle_input(bounds, WidgetInput::primary_press(Point::new(50.0, 50.0)))
+            .expect("primary press starts audition drag");
+        let output = widget
+            .handle_input(bounds, WidgetInput::primary_release(Point::new(50.0, 50.0)))
+            .expect("primary release finishes audition drag");
+
+        assert_eq!(
+            output.typed_cloned::<GuiMessage>(),
+            Some(GuiMessage::FinishSampleMapAuditionDrag)
+        );
+    }
+
+    #[test]
+    fn secondary_release_does_not_finish_sample_map_audition_drag() {
+        let mut widget = SampleMapWidget::new(
+            vec![sample_map_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            SampleMapViewport::default(),
+            Some(SampleMapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/kick.wav")),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        assert!(
+            widget
+                .handle_input(
+                    bounds,
+                    WidgetInput::pointer_press(
+                        Point::new(90.0, 50.0),
+                        PointerButton::Secondary,
+                        PointerModifiers::default(),
+                    ),
+                )
+                .is_none(),
+            "secondary press only arms map panning"
+        );
+        assert!(
+            widget
+                .handle_input(
+                    bounds,
+                    WidgetInput::pointer_release(
+                        Point::new(90.0, 50.0),
+                        PointerButton::Secondary,
+                        PointerModifiers::default(),
+                    ),
+                )
+                .is_none(),
+            "secondary release must not finish the primary audition drag"
+        );
+    }
+
+    #[test]
+    fn secondary_drop_does_not_finish_sample_map_audition_drag() {
+        let mut widget = SampleMapWidget::new(
+            vec![sample_map_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            SampleMapViewport::default(),
+            Some(SampleMapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/kick.wav")),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        assert!(
+            widget
+                .handle_input(
+                    bounds,
+                    WidgetInput::pointer_press(
+                        Point::new(90.0, 50.0),
+                        PointerButton::Secondary,
+                        PointerModifiers::default(),
+                    ),
+                )
+                .is_none(),
+            "secondary press should not emit a message"
+        );
+        assert!(
+            widget
+                .handle_input(
+                    bounds,
+                    WidgetInput::pointer_drop(
+                        Point::new(90.0, 50.0),
+                        PointerButton::Secondary,
+                        PointerModifiers::default(),
+                    ),
+                )
+                .is_none(),
+            "secondary drop must not finish the primary audition drag"
         );
     }
 
