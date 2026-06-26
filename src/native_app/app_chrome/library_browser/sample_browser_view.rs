@@ -178,7 +178,9 @@ mod tests {
     use crate::native_app::app::SampleNameViewMode;
     use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
     use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
-    use crate::native_app::sample_library::folder_browser::sample_map::SampleMapItem;
+    use crate::native_app::sample_library::folder_browser::sample_map::{
+        SampleMapItem, SampleMapStatus, sample_map_cluster_palette_color,
+    };
     use crate::native_app::ui::ids as widget_ids;
 
     #[test]
@@ -325,11 +327,11 @@ mod tests {
                 similarity_anchor: false,
                 missing: false,
             }],
-            map_status:
-                crate::native_app::sample_library::folder_browser::sample_map::SampleMapStatus {
-                    listed_count: 2,
-                    layout_count: 1,
-                },
+            map_status: SampleMapStatus {
+                listed_count: 2,
+                layout_count: 1,
+                clustered_count: 0,
+            },
             map_prep_running: true,
             map_audition_drag: None,
             map_viewport: crate::native_app::app::SampleMapViewport::default(),
@@ -449,6 +451,49 @@ mod tests {
     }
 
     #[test]
+    fn sample_map_mode_uses_cluster_legend_when_cluster_colors_are_active() {
+        let similarity_controls = SimilarityAspectSettings::default();
+
+        let frame = sample_map_view(
+            vec![SampleMapItem {
+                file_id: String::from("/samples/kick.wav"),
+                label: String::from("kick"),
+                x: 0.5,
+                y: 0.5,
+                color: sample_map_cluster_palette_color(0),
+                selected: false,
+                focused: false,
+                similarity_anchor: false,
+                missing: false,
+            }],
+            crate::native_app::app::SampleMapViewport::default(),
+            String::new(),
+            &similarity_controls,
+            SampleMapStatus {
+                listed_count: 1,
+                layout_count: 1,
+                clustered_count: 1,
+            },
+            false,
+            false,
+            None,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
+
+        assert!(frame.paint_plan.contains_text("Similarity clusters"));
+        assert!(
+            !frame.paint_plan.contains_text("Spectrum"),
+            "cluster-colored maps should not label points as aspect colors"
+        );
+        assert!(frame.paint_plan.primitives.iter().any(|primitive| matches!(
+            primitive,
+            radiant::runtime::PaintPrimitive::FillRect(fill)
+                if fill.color
+                    == sample_map_cluster_palette_color(0)
+        )));
+    }
+
+    #[test]
     fn sample_map_mode_empty_state_matches_curation_context() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
@@ -526,9 +571,10 @@ mod tests {
                             similarity_anchor: false,
                             missing: false,
                         }],
-                        map_status: crate::native_app::sample_library::folder_browser::sample_map::SampleMapStatus {
+                        map_status: SampleMapStatus {
                             listed_count: 2,
                             layout_count: 1,
+                            clustered_count: 0,
                         },
                         map_prep_running: true,
                         map_audition_drag: None,

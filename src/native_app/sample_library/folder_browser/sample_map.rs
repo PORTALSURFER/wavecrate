@@ -29,6 +29,7 @@ pub(in crate::native_app) struct SampleMapProjection<'a> {
 pub(in crate::native_app) struct SampleMapStatus {
     pub(in crate::native_app) listed_count: usize,
     pub(in crate::native_app) layout_count: usize,
+    pub(in crate::native_app) clustered_count: usize,
 }
 
 impl SampleMapStatus {
@@ -213,6 +214,13 @@ impl FolderBrowserState {
         SampleMapStatus {
             listed_count: self.sample_list.sample_map_layout.listed_count,
             layout_count: self.sample_list.sample_map_layout.points_by_file.len(),
+            clustered_count: self
+                .sample_list
+                .sample_map_layout
+                .points_by_file
+                .values()
+                .filter(|point| point.cluster_id.is_some())
+                .count(),
         }
     }
 }
@@ -478,24 +486,31 @@ fn sample_map_color(
 }
 
 fn sample_map_cluster_color(cluster_id: i32, strength: Option<f32>) -> ui::Rgba8 {
-    const PALETTE: [ui::Rgba8; 12] = [
-        ui::Rgba8::new(255, 55, 96, 230),
-        ui::Rgba8::new(57, 187, 245, 230),
-        ui::Rgba8::new(239, 216, 66, 230),
-        ui::Rgba8::new(114, 235, 184, 230),
-        ui::Rgba8::new(255, 142, 56, 230),
-        ui::Rgba8::new(186, 91, 255, 230),
-        ui::Rgba8::new(255, 119, 210, 230),
-        ui::Rgba8::new(142, 255, 90, 230),
-        ui::Rgba8::new(255, 179, 92, 230),
-        ui::Rgba8::new(92, 255, 230, 230),
-        ui::Rgba8::new(255, 92, 92, 230),
-        ui::Rgba8::new(168, 190, 255, 230),
-    ];
-    let index = cluster_id.rem_euclid(PALETTE.len() as i32) as usize;
     let alpha = (180.0 + strength.unwrap_or(0.45).clamp(0.0, 1.0) * 60.0) as u8;
-    PALETTE[index].with_alpha(alpha)
+    sample_map_cluster_palette_color(
+        cluster_id.rem_euclid(SAMPLE_MAP_CLUSTER_PALETTE.len() as i32) as usize,
+    )
+    .with_alpha(alpha)
 }
+
+pub(in crate::native_app) fn sample_map_cluster_palette_color(index: usize) -> ui::Rgba8 {
+    SAMPLE_MAP_CLUSTER_PALETTE[index % SAMPLE_MAP_CLUSTER_PALETTE.len()]
+}
+
+const SAMPLE_MAP_CLUSTER_PALETTE: [ui::Rgba8; 12] = [
+    ui::Rgba8::new(255, 55, 96, 230),
+    ui::Rgba8::new(57, 187, 245, 230),
+    ui::Rgba8::new(239, 216, 66, 230),
+    ui::Rgba8::new(114, 235, 184, 230),
+    ui::Rgba8::new(255, 142, 56, 230),
+    ui::Rgba8::new(186, 91, 255, 230),
+    ui::Rgba8::new(255, 119, 210, 230),
+    ui::Rgba8::new(142, 255, 90, 230),
+    ui::Rgba8::new(255, 179, 92, 230),
+    ui::Rgba8::new(92, 255, 230, 230),
+    ui::Rgba8::new(255, 92, 92, 230),
+    ui::Rgba8::new(168, 190, 255, 230),
+];
 
 #[cfg(test)]
 mod tests {
@@ -822,6 +837,7 @@ mod tests {
         let status = SampleMapStatus {
             listed_count: 12,
             layout_count: 5,
+            clustered_count: 2,
         };
 
         assert!(status.incomplete());
@@ -840,6 +856,7 @@ mod tests {
         let status = SampleMapStatus {
             listed_count: 12,
             layout_count: 12,
+            clustered_count: 8,
         };
 
         assert!(!status.incomplete());

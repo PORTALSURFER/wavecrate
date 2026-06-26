@@ -22,7 +22,7 @@ use crate::native_app::app::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::sample_map::{
-    SampleMapItem, SampleMapStatus,
+    SampleMapItem, SampleMapStatus, sample_map_cluster_palette_color,
 };
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -93,7 +93,7 @@ pub(super) fn sample_map_view(
         map,
         sample_map_search_overlay(name_filter),
         sample_map_controls_overlay(),
-        sample_map_legend_overlay(similarity_controls),
+        sample_map_legend_overlay(similarity_controls, status),
         sample_map_status_overlay(status, prep_running),
     ])
     .fill()
@@ -175,12 +175,19 @@ fn sample_map_controls_overlay() -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_map_legend_overlay(controls: &SimilarityAspectSettings) -> ui::View<GuiMessage> {
-    let entries = SimilarityAspect::ORDER
-        .into_iter()
-        .filter(|aspect| controls.aspect_enabled(*aspect))
-        .map(sample_map_legend_entry)
-        .collect::<Vec<_>>();
+fn sample_map_legend_overlay(
+    controls: &SimilarityAspectSettings,
+    status: SampleMapStatus,
+) -> ui::View<GuiMessage> {
+    let entries = if status.clustered_count > 0 {
+        sample_map_cluster_legend_entries(status.clustered_count)
+    } else {
+        SimilarityAspect::ORDER
+            .into_iter()
+            .filter(|aspect| controls.aspect_enabled(*aspect))
+            .map(sample_map_aspect_legend_entry)
+            .collect::<Vec<_>>()
+    };
     if entries.is_empty() {
         return ui::spacer().fill();
     }
@@ -201,7 +208,23 @@ fn sample_map_legend_overlay(controls: &SimilarityAspectSettings) -> ui::View<Gu
     .fill()
 }
 
-fn sample_map_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessage> {
+fn sample_map_cluster_legend_entries(clustered_count: usize) -> Vec<ui::View<GuiMessage>> {
+    let swatch_count = clustered_count.clamp(1, 6);
+    std::iter::once(sample_map_text_legend_entry("Similarity clusters", 120.0))
+        .chain((0..swatch_count).map(sample_map_cluster_legend_swatch))
+        .collect()
+}
+
+fn sample_map_cluster_legend_swatch(index: usize) -> ui::View<GuiMessage> {
+    ui::color_marker(Some(sample_map_cluster_palette_color(index)))
+        .side(MAP_LEGEND_SWATCH_SIZE)
+        .inset(0)
+        .view()
+        .width(f32::from(MAP_LEGEND_SWATCH_SIZE) + 1.0)
+        .height(16.0)
+}
+
+fn sample_map_aspect_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessage> {
     ui::row([
         ui::color_marker(Some(similarity_aspect_color(aspect)))
             .side(MAP_LEGEND_SWATCH_SIZE)
@@ -216,6 +239,10 @@ fn sample_map_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessage> {
     ])
     .spacing(3.0)
     .height(16.0)
+}
+
+fn sample_map_text_legend_entry(label: &'static str, width: f32) -> ui::View<GuiMessage> {
+    ui::text(label).muted_text().height(16.0).width(width)
 }
 
 fn sample_map_aspect_label(aspect: SimilarityAspect) -> &'static str {
