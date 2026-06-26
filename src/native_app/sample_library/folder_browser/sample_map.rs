@@ -660,6 +660,59 @@ mod tests {
     }
 
     #[test]
+    fn sample_map_projection_uses_full_filtered_listing_not_virtual_list_window() {
+        let root = tempfile::tempdir().expect("source root");
+        let files = (0..32)
+            .map(|index| root.path().join(format!("drum_{index:02}.wav")))
+            .collect::<Vec<_>>();
+        for file in &files {
+            std::fs::write(file, []).expect("write sample");
+        }
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        browser.apply_file_view_window_change(radiant::prelude::VirtualListWindowChange {
+            offset_y: 0.0,
+            row_height: 22.0,
+            window: radiant::prelude::VirtualListWindow {
+                total_items: 32,
+                viewport_start: 0,
+                viewport_end: 8,
+                window_start: 0,
+                window_end: 8,
+            },
+        });
+        let tags_by_file = HashMap::new();
+        let cached_sample_paths = HashSet::new();
+
+        let visible = browser.visible_samples(
+            crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery {
+                tags_by_file: &tags_by_file,
+                cached_sample_paths: &cached_sample_paths,
+            },
+        );
+        let map_ids = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+            })
+            .into_iter()
+            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+        let listing_ids = browser
+            .browser_listing_snapshot(&tags_by_file)
+            .ids()
+            .to_vec();
+
+        assert!(visible.rows.len() < visible.total_count);
+        assert_eq!(visible.rows.len(), 8);
+        assert_eq!(visible.total_count, 32);
+        assert_eq!(
+            map_ids, listing_ids,
+            "sample map must include the full filtered listing, not only virtualized list rows"
+        );
+    }
+
+    #[test]
     fn sample_map_projection_marks_all_selected_list_items() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("kick.wav");
