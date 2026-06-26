@@ -182,6 +182,28 @@ impl WaveformWidget {
         }
     }
 
+    pub(super) fn append_live_selection_preview_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
+        let Some(preview) = self.live_selection_preview else {
+            return;
+        };
+        let Some(geometry) = self.selection_geometry(bounds, Some(preview.selection)) else {
+            return;
+        };
+        let mut paint = WidgetPaint::new(primitives, self.common.id);
+        match preview.kind {
+            super::WaveformSelectionKind::Play => {
+                self.append_play_selection_paint(&mut paint, bounds, geometry);
+            }
+            super::WaveformSelectionKind::Edit => {
+                self.append_edit_selection_paint(&mut paint, bounds, geometry);
+            }
+        }
+    }
+
     fn append_edit_selection_paint(
         &self,
         paint: &mut WidgetPaint<'_>,

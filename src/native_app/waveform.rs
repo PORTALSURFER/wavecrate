@@ -75,6 +75,8 @@ pub(in crate::native_app) use similar_sections::{
 
 mod widget;
 #[cfg(test)]
+pub(in crate::native_app::waveform) use widget::LiveSelectionPreview;
+#[cfg(test)]
 pub(super) use widget::WaveformWidgetProps;
 #[cfg(test)]
 pub(in crate::native_app::waveform) use widget::waveform_signal_surface_view;

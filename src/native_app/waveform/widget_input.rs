@@ -8,7 +8,7 @@ use radiant::{
 
 use super::{
     WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionKind,
-    WaveformWidget,
+    WaveformWidget, widget::LiveSelectionPreview,
 };
 
 const SELECTION_CLICK_SLOP_PX: f32 = 2.0;
@@ -120,6 +120,7 @@ impl WaveformWidget {
         }
         if let Some(pointer) = event.release_pointer(PointerButton::Primary) {
             self.last_live_selection_update_visible_ratio = None;
+            self.clear_live_selection_preview();
             if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
                 return Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::ended(
@@ -152,6 +153,7 @@ impl WaveformWidget {
             && self.active_drag_kind == Some(WaveformActiveDragKind::EditGain)
         {
             self.last_live_selection_update_visible_ratio = None;
+            self.clear_live_selection_preview();
             return Some(WidgetOutput::typed(WaveformInteraction::FinishEditGain {
                 pointer_y: pointer.position.y,
             }));
@@ -163,6 +165,7 @@ impl WaveformWidget {
             )
         {
             self.last_live_selection_update_visible_ratio = None;
+            self.clear_live_selection_preview();
             return Some(WidgetOutput::typed(
                 WaveformInteraction::FinishEditFadeOuterGain {
                     vertical_ratio: pointer.normalized_y(),
@@ -173,6 +176,7 @@ impl WaveformWidget {
             && self.secondary_release_finishes_drag()
         {
             self.last_live_selection_update_visible_ratio = None;
+            self.clear_live_selection_preview();
             return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                 visible_ratio: self.finish_selection_visible_ratio(&event, pointer),
             }));
@@ -181,6 +185,7 @@ impl WaveformWidget {
             && self.active_drag_kind == Some(WaveformActiveDragKind::Pan)
         {
             self.last_live_selection_update_visible_ratio = None;
+            self.clear_live_selection_preview();
             return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                 visible_ratio: pointer.normalized_x(),
             }));
@@ -235,6 +240,7 @@ impl WaveformWidget {
             ));
         }
         if self.selection_drag_is_inside_click_slop(event) {
+            self.live_selection_preview = None;
             return None;
         }
         let visible_ratio = quantized_live_selection_visible_ratio(bounds, pointer.normalized_x());
@@ -242,6 +248,9 @@ impl WaveformWidget {
             return None;
         }
         self.last_live_selection_update_visible_ratio = Some(visible_ratio);
+        if self.update_live_selection_preview_for_creation_drag(visible_ratio) {
+            return None;
+        }
         Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
             visible_ratio,
         }))
@@ -255,6 +264,7 @@ impl WaveformWidget {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
         self.last_live_selection_update_visible_ratio = None;
+        self.clear_live_selection_preview();
         self.clear_waveform_hover();
         if self.play_selection_export_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
@@ -323,6 +333,7 @@ impl WaveformWidget {
                 WaveformInteraction::SelectSimilarSection { selection },
             ));
         }
+        self.begin_live_selection_preview(WaveformSelectionKind::Play, visible_ratio);
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
             visible_ratio,
@@ -354,6 +365,7 @@ impl WaveformWidget {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
         self.last_live_selection_update_visible_ratio = None;
+        self.clear_live_selection_preview();
         self.clear_waveform_hover();
         if let Some(handle) = self.edit_fade_outer_gain_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
@@ -398,6 +410,7 @@ impl WaveformWidget {
                 WaveformInteraction::SelectSimilarSection { selection },
             ));
         }
+        self.begin_live_selection_preview(WaveformSelectionKind::Edit, visible_ratio);
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Edit,
             visible_ratio,
@@ -472,6 +485,40 @@ impl WaveformWidget {
                     | WaveformActiveDragKind::SelectionMove(_)
             )
         )
+    }
+
+    fn begin_live_selection_preview(&mut self, kind: WaveformSelectionKind, visible_ratio: f32) {
+        self.live_selection_preview_anchor = Some((kind, visible_ratio));
+        self.live_selection_preview = None;
+    }
+
+    fn clear_live_selection_preview(&mut self) {
+        self.live_selection_preview_anchor = None;
+        self.live_selection_preview = None;
+    }
+
+    fn update_live_selection_preview_for_creation_drag(&mut self, visible_ratio: f32) -> bool {
+        let Some(WaveformActiveDragKind::Selection(active_kind)) = self.active_drag_kind else {
+            return false;
+        };
+        let Some((anchor_kind, anchor_visible_ratio)) = self.live_selection_preview_anchor else {
+            return false;
+        };
+        if anchor_kind != active_kind {
+            self.clear_live_selection_preview();
+            return false;
+        }
+        let Some(anchor_ratio) = self.absolute_ratio_for_visible(anchor_visible_ratio) else {
+            return false;
+        };
+        let Some(current_ratio) = self.absolute_ratio_for_visible(visible_ratio) else {
+            return false;
+        };
+        self.live_selection_preview = Some(LiveSelectionPreview {
+            kind: active_kind,
+            selection: wavecrate::selection::SelectionRange::new(anchor_ratio, current_ratio),
+        });
+        true
     }
 }
 

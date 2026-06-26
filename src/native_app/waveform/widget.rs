@@ -15,10 +15,16 @@ use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID}
 
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformEditFadeHandle,
-    WaveformEditFadeOuterGainHandle, WaveformFile, WaveformInteraction, WaveformState,
-    WaveformViewport, audio_file::gain_preview_for_selection, edit_preview_for_selection,
-    widget_geometry::WaveformSelectionHandleHover,
+    WaveformEditFadeOuterGainHandle, WaveformFile, WaveformInteraction, WaveformSelectionKind,
+    WaveformState, WaveformViewport, audio_file::gain_preview_for_selection,
+    edit_preview_for_selection, widget_geometry::WaveformSelectionHandleHover,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app::waveform) struct LiveSelectionPreview {
+    pub(super) kind: WaveformSelectionKind,
+    pub(super) selection: wavecrate::selection::SelectionRange,
+}
 
 pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     state: &WaveformState,
@@ -183,6 +189,8 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) beat_guide_count: u8,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
+    pub(super) live_selection_preview_anchor: Option<(WaveformSelectionKind, f32)>,
+    pub(super) live_selection_preview: Option<LiveSelectionPreview>,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -241,6 +249,8 @@ impl WaveformWidget {
             beat_guide_count,
             edit_preview: edit_preview_for_selection(edit_selection),
             last_live_selection_update_visible_ratio: None,
+            live_selection_preview_anchor: None,
+            live_selection_preview: None,
             active_drag_kind,
         }
     }
@@ -272,6 +282,8 @@ impl Widget for WaveformWidget {
         if self.active_drag_kind == previous.active_drag_kind {
             self.last_live_selection_update_visible_ratio =
                 previous.last_live_selection_update_visible_ratio;
+            self.live_selection_preview_anchor = previous.live_selection_preview_anchor;
+            self.live_selection_preview = previous.live_selection_preview;
         }
     }
 
@@ -305,6 +317,7 @@ impl Widget for WaveformWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        self.append_live_selection_preview_paint(primitives, bounds);
         self.append_hover_edit_fade_handle_paint(primitives, bounds);
         self.append_hover_edit_fade_outer_gain_handle_paint(primitives, bounds);
         self.append_hover_selection_handle_paint(primitives, bounds);

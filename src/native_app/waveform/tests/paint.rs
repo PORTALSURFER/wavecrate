@@ -669,6 +669,29 @@ fn active_drag_widget_props_do_not_clone_static_range_overlays() {
 }
 
 #[test]
+fn live_selection_preview_paints_in_runtime_overlay() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
+    });
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+    }));
+}
+
+#[test]
 fn similar_sections_paint_as_green_waveform_overlays() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
