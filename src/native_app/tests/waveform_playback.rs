@@ -516,6 +516,14 @@ fn playmark_selection_copy_extracts_into_current_folder_before_clipboard_handoff
     load_selected_sample_into_waveform(&mut scenario);
     let harvest_key = harvest_key_for_selected_sample(&scenario.state);
     scenario.select_play_range(0.25, 0.60);
+    let source_path = scenario.state.waveform.current.path();
+    let selection = scenario
+        .state
+        .waveform
+        .current
+        .play_selection()
+        .expect("play selection");
+    let source_duration_seconds = scenario.state.waveform.current.duration_seconds() as f64;
     let extracted = extraction_path_for_loaded_sample(&scenario);
 
     let mut context = ui::UiUpdateContext::default();
@@ -523,6 +531,26 @@ fn playmark_selection_copy_extracts_into_current_folder_before_clipboard_handoff
     run_command_for_tests(&mut scenario.state, context.into_command());
 
     assert!(extracted.is_file());
+    assert!(
+        scenario
+            .state
+            .metadata
+            .tags_by_file
+            .get(&extracted.to_string_lossy().to_string())
+            .is_none(),
+        "clipboard handoff should be queued before extracted-file metadata bookkeeping"
+    );
+    let mut copy_finished_context = ui::UiUpdateContext::default();
+    scenario.state.finish_waveform_selection_copy(
+        source_path,
+        selection,
+        extracted.clone(),
+        crate::native_app::app::ExtractedFilePlaybackType::OneShot,
+        source_duration_seconds,
+        std::time::Instant::now(),
+        Ok(()),
+        &mut copy_finished_context,
+    );
     assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
     let parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
         .expect("load harvest parent")
@@ -1140,11 +1168,16 @@ fn playmark_selection_copy_flashes_on_submit_and_ready() {
         .current
         .play_selection()
         .expect("play selection");
+    let mut context = ui::UiUpdateContext::default();
     scenario.state.finish_waveform_selection_copy(
         source_path,
         selection,
+        PathBuf::from("/tmp/wavecrate-staged-clip.wav"),
+        crate::native_app::app::ExtractedFilePlaybackType::OneShot,
+        scenario.state.waveform.current.duration_seconds() as f64,
         std::time::Instant::now(),
-        Ok(PathBuf::from("/tmp/wavecrate-staged-clip.wav")),
+        Ok(()),
+        &mut context,
     );
 
     assert!(
@@ -1176,11 +1209,16 @@ fn playmark_selection_copy_ready_flash_ignores_stale_range() {
         .waveform
         .current
         .set_play_selection_range(0.10, 0.20);
+    let mut context = ui::UiUpdateContext::default();
     scenario.state.finish_waveform_selection_copy(
         source_path,
         copied_selection,
+        PathBuf::from("/tmp/wavecrate-staged-clip.wav"),
+        crate::native_app::app::ExtractedFilePlaybackType::OneShot,
+        scenario.state.waveform.current.duration_seconds() as f64,
         std::time::Instant::now(),
-        Ok(PathBuf::from("/tmp/wavecrate-staged-clip.wav")),
+        Ok(()),
+        &mut context,
     );
 
     assert!(
@@ -1226,7 +1264,15 @@ fn playmark_selection_copy_extracted_queues_platform_clipboard_handoff() {
         Some(vec![extracted_path.clone()]),
         "copied waveform ranges should put the durable extracted file on the clipboard"
     );
-    assert_extracted_file_metadata(&scenario.state, &extracted_path, &["one-shot"]);
+    assert!(
+        scenario
+            .state
+            .metadata
+            .tags_by_file
+            .get(&extracted_path.to_string_lossy().to_string())
+            .is_none(),
+        "clipboard handoff should be queued before extracted-file metadata bookkeeping"
+    );
 }
 
 #[test]

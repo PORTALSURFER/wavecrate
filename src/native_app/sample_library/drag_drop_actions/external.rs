@@ -1,4 +1,7 @@
-use std::{path::PathBuf, time::Instant};
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use radiant::prelude as ui;
 use radiant::prelude::PlatformResultExt as _;
@@ -216,46 +219,33 @@ impl NativeAppState {
                     .current
                     .mark_extracted_play_selection(&source_path, selection);
                 self.waveform.current.flash_play_selection();
-                if self
-                    .library
-                    .folder_browser
-                    .path_is_in_protected_source(&source_path)
-                {
-                    self.library
-                        .folder_browser
-                        .refresh_file_path_across_sources(&path);
-                } else {
-                    self.library.folder_browser.refresh_file_path(&path);
-                }
-                let metadata_error = self
-                    .assign_extracted_file_metadata(&path, playback_type, context)
-                    .err();
-                self.record_harvest_selection_derivation_with_source_duration(
-                    &source_path,
-                    selection,
-                    &path,
-                    self.waveform.current.duration_seconds() as f64,
-                    HarvestDerivationOperation::Export,
-                );
+                let source_duration_seconds = self.waveform.current.duration_seconds() as f64;
                 let copied_path = path.clone();
                 let label = sample_path_label(&path);
-                self.ui.status.sample = match metadata_error {
-                    Some(error) => {
-                        format!("Copying extracted {label}; extracted metadata incomplete: {error}")
-                    }
-                    None => format!("Copying extracted {label}"),
-                };
+                self.ui.status.sample = format!("Copying extracted {label}");
                 context.copy_file_paths(vec![path], move |result| {
                     GuiMessage::WaveformSelectionCopyFinished {
                         source_path,
                         selection,
+                        copied_path,
+                        playback_type,
+                        source_duration_seconds,
                         started_at,
-                        result: result.into_completed().map(|()| copied_path),
+                        result: result.into_completed(),
                     }
                 });
             }
             Err(error) => {
-                self.finish_waveform_selection_copy(source_path, selection, started_at, Err(error));
+                self.finish_waveform_selection_copy(
+                    source_path,
+                    selection,
+                    PathBuf::new(),
+                    playback_type,
+                    self.waveform.current.duration_seconds() as f64,
+                    started_at,
+                    Err(error),
+                    context,
+                );
             }
         }
     }
@@ -264,16 +254,33 @@ impl NativeAppState {
         &mut self,
         source_path: PathBuf,
         selection: SelectionRange,
+        copied_path: PathBuf,
+        playback_type: ExtractedFilePlaybackType,
+        source_duration_seconds: f64,
         started_at: Instant,
-        result: Result<PathBuf, String>,
+        result: Result<(), String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
-            Ok(path) => {
-                let label = sample_path_label(&path);
+            Ok(()) => {
+                let metadata_error = self.finish_waveform_selection_copy_bookkeeping(
+                    &source_path,
+                    selection,
+                    &copied_path,
+                    playback_type,
+                    source_duration_seconds,
+                    context,
+                );
+                let label = sample_path_label(&copied_path);
                 self.waveform
                     .current
                     .flash_play_selection_if_current(&source_path, selection);
-                self.ui.status.sample = format!("Copied {label} to clipboard");
+                self.ui.status.sample = match metadata_error {
+                    Some(error) => {
+                        format!("Copied {label}; extracted metadata incomplete: {error}")
+                    }
+                    None => format!("Copied {label} to clipboard"),
+                };
                 emit_gui_action(
                     "waveform.copy_playmarked_range",
                     Some("waveform"),
@@ -300,6 +307,39 @@ impl NativeAppState {
                 );
             }
         }
+    }
+
+    fn finish_waveform_selection_copy_bookkeeping(
+        &mut self,
+        source_path: &Path,
+        selection: SelectionRange,
+        copied_path: &Path,
+        playback_type: ExtractedFilePlaybackType,
+        source_duration_seconds: f64,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Option<String> {
+        if self
+            .library
+            .folder_browser
+            .path_is_in_protected_source(source_path)
+        {
+            self.library
+                .folder_browser
+                .refresh_file_path_across_sources(copied_path);
+        } else {
+            self.library.folder_browser.refresh_file_path(copied_path);
+        }
+        let metadata_error = self
+            .assign_extracted_file_metadata(copied_path, playback_type, context)
+            .err();
+        self.record_harvest_selection_derivation_with_source_duration(
+            source_path,
+            selection,
+            copied_path,
+            source_duration_seconds,
+            HarvestDerivationOperation::Export,
+        );
+        metadata_error
     }
 
     pub(in crate::native_app) fn external_drag_completed(

@@ -69,9 +69,21 @@ impl NativeAppState {
             GuiMessage::WaveformSelectionCopyFinished {
                 source_path,
                 selection,
+                copied_path,
+                playback_type,
+                source_duration_seconds,
                 started_at,
                 result,
-            } => self.finish_waveform_selection_copy(source_path, selection, started_at, result),
+            } => self.finish_waveform_selection_copy(
+                source_path,
+                selection,
+                copied_path,
+                playback_type,
+                source_duration_seconds,
+                started_at,
+                result,
+                context,
+            ),
             GuiMessage::FileMoveProgress(progress) => self.apply_file_move_progress(progress),
             GuiMessage::SetFileMoveConflictApplyToRemaining(apply_to_remaining) => {
                 self.ui

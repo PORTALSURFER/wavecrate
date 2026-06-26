@@ -188,8 +188,11 @@ pub(in crate::native_app) enum GuiMessage {
     WaveformSelectionCopyFinished {
         source_path: PathBuf,
         selection: SelectionRange,
+        copied_path: PathBuf,
+        playback_type: ExtractedFilePlaybackType,
+        source_duration_seconds: f64,
         started_at: Instant,
-        result: Result<PathBuf, String>,
+        result: Result<(), String>,
     },
     FileMoveProgress(FileMoveProgress),
     SetFileMoveConflictApplyToRemaining(bool),
