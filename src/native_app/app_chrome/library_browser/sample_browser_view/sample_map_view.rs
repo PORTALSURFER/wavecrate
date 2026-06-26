@@ -35,7 +35,7 @@ const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
-const MAP_GROUP_MIN_ITEMS: usize = 3;
+const MAP_GROUP_MIN_ITEMS: usize = 8;
 const MAP_GROUP_REGION_PADDING: f32 = 18.0;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
@@ -1026,17 +1026,58 @@ mod tests {
     #[test]
     fn similarity_color_groups_paint_subtle_backdrop_regions() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
+        let items = (0..MAP_GROUP_MIN_ITEMS)
+            .map(|index| {
+                sample_map_item(
+                    &format!("/samples/group-{index}.wav"),
+                    0.25 + index as f32 * 0.04,
+                    0.25 + index as f32 * 0.04,
+                    color.with_alpha(190 + index.min(4) as u8 * 10),
+                )
+            })
+            .chain(std::iter::once(sample_map_item(
+                "/samples/lone.wav",
+                0.90,
+                0.12,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )))
+            .collect::<Vec<_>>();
+        let widget = SampleMapWidget::new(items, SampleMapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == color.with_alpha(group_region_fill_alpha(MAP_GROUP_MIN_ITEMS))
+                    && fill.rect.width() > 40.0
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.color == color.with_alpha(group_region_stroke_alpha(MAP_GROUP_MIN_ITEMS))
+        )));
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == ui::Rgba8::new(57, 187, 245, group_region_fill_alpha(1))
+        )));
+    }
+
+    #[test]
+    fn small_same_color_runs_do_not_paint_group_backdrops() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
         let widget = SampleMapWidget::new(
             vec![
                 sample_map_item("/samples/kick.wav", 0.25, 0.25, color.with_alpha(190)),
                 sample_map_item("/samples/snare.wav", 0.50, 0.50, color.with_alpha(220)),
                 sample_map_item("/samples/hat.wav", 0.75, 0.75, color.with_alpha(240)),
-                sample_map_item(
-                    "/samples/lone.wav",
-                    0.90,
-                    0.12,
-                    ui::Rgba8::new(57, 187, 245, 220),
-                ),
             ],
             SampleMapViewport::default(),
             None,
@@ -1050,21 +1091,10 @@ mod tests {
             &ThemeTokens::default(),
         );
 
-        assert!(primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::FillRect(fill)
-                if fill.color == color.with_alpha(group_region_fill_alpha(3))
-                    && fill.rect.width() > 100.0
-        )));
-        assert!(primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::StrokeRect(stroke)
-                if stroke.color == color.with_alpha(group_region_stroke_alpha(3))
-        )));
         assert!(!primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == ui::Rgba8::new(57, 187, 245, group_region_fill_alpha(1))
+                if fill.color == color.with_alpha(group_region_fill_alpha(3))
         )));
     }
 
