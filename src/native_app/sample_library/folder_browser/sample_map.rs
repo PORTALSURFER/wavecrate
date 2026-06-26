@@ -28,7 +28,14 @@ pub(in crate::native_app) struct SampleMapProjection<'a> {
 #[derive(Clone, Debug, Default)]
 pub(super) struct SampleMapLayoutCache {
     signature: Option<u64>,
-    pub(super) positions_by_file: HashMap<String, (f32, f32)>,
+    pub(super) points_by_file: HashMap<String, SampleMapLayoutPoint>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SampleMapLayoutPoint {
+    pub(super) x: f32,
+    pub(super) y: f32,
+    pub(super) cluster_id: Option<i32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -62,7 +69,7 @@ impl FolderBrowserState {
         };
         self.sample_list.sample_map_layout = SampleMapLayoutCache {
             signature: Some(signature),
-            positions_by_file: positions,
+            points_by_file: positions,
         };
     }
 
@@ -78,19 +85,28 @@ impl FolderBrowserState {
                 let aspects = self.similarity_aspect_display_strengths_for_file(&file.id);
                 let strength = self.similarity_display_strength_for_file(&file.id);
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
-                let layout_position = self
+                let layout_point = self
                     .sample_list
                     .sample_map_layout
-                    .positions_by_file
+                    .points_by_file
                     .get(&file.id)
                     .copied();
-                let (x, y) = sample_map_position(&file.id, group, strength, layout_position);
+                let (x, y) = sample_map_position(
+                    &file.id,
+                    group,
+                    strength,
+                    layout_point.map(|point| (point.x, point.y)),
+                );
                 SampleMapItem {
                     file_id: file.id.clone(),
                     label: file.stem.clone(),
                     x,
                     y,
-                    color: sample_map_color(group, strength),
+                    color: sample_map_color(
+                        group,
+                        strength,
+                        layout_point.and_then(|point| point.cluster_id),
+                    ),
                     selected: self.is_file_selected(&file.id),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
                     missing: file.is_missing(),
@@ -103,7 +119,7 @@ impl FolderBrowserState {
 fn load_sample_map_layout_positions(
     browser: &FolderBrowserState,
     files: &[&FileEntry],
-) -> Result<HashMap<String, (f32, f32)>, String> {
+) -> Result<HashMap<String, SampleMapLayoutPoint>, String> {
     let mut by_source: HashMap<String, SourceLayoutRequest> = HashMap::new();
     for file in files {
         let path = Path::new(&file.id);
@@ -124,11 +140,11 @@ fn load_sample_map_layout_positions(
             });
     }
 
-    let mut raw_positions = HashMap::new();
+    let mut raw_points = HashMap::new();
     for request in by_source.values() {
-        load_source_layout_positions(request, &mut raw_positions)?;
+        load_source_layout_positions(request, &mut raw_points)?;
     }
-    Ok(normalized_layout_positions(raw_positions))
+    Ok(normalized_layout_points(raw_points))
 }
 
 #[derive(Clone, Debug)]
@@ -145,7 +161,7 @@ struct FileLayoutSample {
 
 fn load_source_layout_positions(
     request: &SourceLayoutRequest,
-    positions: &mut HashMap<String, (f32, f32)>,
+    positions: &mut HashMap<String, RawSampleMapLayoutPoint>,
 ) -> Result<(), String> {
     let database_root = request
         .source
@@ -164,8 +180,14 @@ fn load_source_layout_positions(
         .collect::<HashMap<_, _>>();
     for chunk in request.samples.chunks(256) {
         let mut query = String::from(
-            "SELECT sample_id, x, y FROM layout_umap \
-             WHERE model_id = ?1 AND umap_version = ?2 AND sample_id IN (",
+            "SELECT layout_umap.sample_id, layout_umap.x, layout_umap.y, hdbscan_clusters.cluster_id \
+             FROM layout_umap \
+             LEFT JOIN hdbscan_clusters \
+                ON layout_umap.sample_id = hdbscan_clusters.sample_id \
+               AND hdbscan_clusters.model_id = ?1 \
+               AND hdbscan_clusters.method = ?3 \
+               AND hdbscan_clusters.umap_version = ?2 \
+             WHERE layout_umap.model_id = ?1 AND layout_umap.umap_version = ?2 AND layout_umap.sample_id IN (",
         );
         query.push_str(
             &std::iter::repeat_n("?", chunk.len())
@@ -174,9 +196,10 @@ fn load_source_layout_positions(
         );
         query.push(')');
 
-        let mut params = Vec::with_capacity(chunk.len() + 2);
+        let mut params = Vec::with_capacity(chunk.len() + 3);
         params.push(SIMILARITY_MODEL_ID.to_string());
         params.push(NATIVE_SIMILARITY_UMAP_VERSION.to_string());
+        params.push(String::from("umap"));
         params.extend(chunk.iter().map(|sample| sample.sample_id.clone()));
 
         let mut statement = conn
@@ -188,19 +211,30 @@ fn load_source_layout_positions(
                     row.get::<_, String>(0)?,
                     row.get::<_, f32>(1)?,
                     row.get::<_, f32>(2)?,
+                    row.get::<_, Option<i32>>(3)?,
                 ))
             })
             .map_err(|err| format!("Query map layout failed: {err}"))?;
         for row in rows {
-            let (sample_id, x, y) =
+            let (sample_id, x, y, cluster_id) =
                 row.map_err(|err| format!("Decode map layout row failed: {err}"))?;
             let Some(file_id) = file_by_sample_id.get(sample_id.as_str()) else {
                 continue;
             };
-            positions.insert((*file_id).to_string(), (x, y));
+            positions.insert(
+                (*file_id).to_string(),
+                RawSampleMapLayoutPoint { x, y, cluster_id },
+            );
         }
     }
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct RawSampleMapLayoutPoint {
+    x: f32,
+    y: f32,
+    cluster_id: Option<i32>,
 }
 
 fn build_sample_id(source_id: &str, relative_path: &Path) -> String {
@@ -222,29 +256,30 @@ fn sample_map_layout_signature(source_id: &str, files: &[&FileEntry]) -> u64 {
     hasher.finish()
 }
 
-fn normalized_layout_positions(
-    raw_positions: HashMap<String, (f32, f32)>,
-) -> HashMap<String, (f32, f32)> {
-    if raw_positions.is_empty() {
+fn normalized_layout_points(
+    raw_points: HashMap<String, RawSampleMapLayoutPoint>,
+) -> HashMap<String, SampleMapLayoutPoint> {
+    if raw_points.is_empty() {
         return HashMap::new();
     }
     let (mut min_x, mut max_x) = (f32::INFINITY, f32::NEG_INFINITY);
     let (mut min_y, mut max_y) = (f32::INFINITY, f32::NEG_INFINITY);
-    for (x, y) in raw_positions.values().copied() {
-        min_x = min_x.min(x);
-        max_x = max_x.max(x);
-        min_y = min_y.min(y);
-        max_y = max_y.max(y);
+    for point in raw_points.values().copied() {
+        min_x = min_x.min(point.x);
+        max_x = max_x.max(point.x);
+        min_y = min_y.min(point.y);
+        max_y = max_y.max(point.y);
     }
-    raw_positions
+    raw_points
         .into_iter()
-        .map(|(file_id, (x, y))| {
+        .map(|(file_id, point)| {
             (
                 file_id,
-                (
-                    normalize_layout_axis(x, min_x, max_x, 0.04, 0.96),
-                    normalize_layout_axis(y, min_y, max_y, 0.06, 0.94),
-                ),
+                SampleMapLayoutPoint {
+                    x: normalize_layout_axis(point.x, min_x, max_x, 0.04, 0.96),
+                    y: normalize_layout_axis(point.y, min_y, max_y, 0.06, 0.94),
+                    cluster_id: point.cluster_id,
+                },
             )
         })
         .collect()
@@ -323,7 +358,14 @@ fn unit_from_hash(hash: u64) -> f32 {
     (hash as f64 / u64::MAX as f64) as f32
 }
 
-fn sample_map_color(group: SimilarityAspect, strength: Option<f32>) -> ui::Rgba8 {
+fn sample_map_color(
+    group: SimilarityAspect,
+    strength: Option<f32>,
+    cluster_id: Option<i32>,
+) -> ui::Rgba8 {
+    if let Some(cluster_id) = cluster_id {
+        return sample_map_cluster_color(cluster_id, strength);
+    }
     let alpha = (150.0 + strength.unwrap_or(0.35).clamp(0.0, 1.0) * 90.0) as u8;
     match group {
         SimilarityAspect::Overall => ui::Rgba8::new(122, 226, 96, alpha),
@@ -332,6 +374,26 @@ fn sample_map_color(group: SimilarityAspect, strength: Option<f32>) -> ui::Rgba8
         SimilarityAspect::Pitch => ui::Rgba8::new(255, 55, 96, alpha),
         SimilarityAspect::Amplitude => ui::Rgba8::new(57, 187, 245, alpha),
     }
+}
+
+fn sample_map_cluster_color(cluster_id: i32, strength: Option<f32>) -> ui::Rgba8 {
+    const PALETTE: [ui::Rgba8; 12] = [
+        ui::Rgba8::new(255, 55, 96, 230),
+        ui::Rgba8::new(57, 187, 245, 230),
+        ui::Rgba8::new(239, 216, 66, 230),
+        ui::Rgba8::new(114, 235, 184, 230),
+        ui::Rgba8::new(255, 142, 56, 230),
+        ui::Rgba8::new(186, 91, 255, 230),
+        ui::Rgba8::new(255, 119, 210, 230),
+        ui::Rgba8::new(142, 255, 90, 230),
+        ui::Rgba8::new(255, 179, 92, 230),
+        ui::Rgba8::new(92, 255, 230, 230),
+        ui::Rgba8::new(255, 92, 92, 230),
+        ui::Rgba8::new(168, 190, 255, 230),
+    ];
+    let index = cluster_id.rem_euclid(PALETTE.len() as i32) as usize;
+    let alpha = (180.0 + strength.unwrap_or(0.45).clamp(0.0, 1.0) * 60.0) as u8;
+    PALETTE[index].with_alpha(alpha)
 }
 
 #[cfg(test)]
@@ -377,13 +439,50 @@ mod tests {
 
     #[test]
     fn normalized_layout_positions_fill_map_domain() {
-        let positions = normalized_layout_positions(HashMap::from([
-            (String::from("a.wav"), (-1.0, 2.0)),
-            (String::from("b.wav"), (1.0, 6.0)),
+        let positions = normalized_layout_points(HashMap::from([
+            (
+                String::from("a.wav"),
+                RawSampleMapLayoutPoint {
+                    x: -1.0,
+                    y: 2.0,
+                    cluster_id: Some(3),
+                },
+            ),
+            (
+                String::from("b.wav"),
+                RawSampleMapLayoutPoint {
+                    x: 1.0,
+                    y: 6.0,
+                    cluster_id: Some(7),
+                },
+            ),
         ]));
 
-        assert_eq!(positions.get("a.wav"), Some(&(0.04, 0.06)));
-        assert_eq!(positions.get("b.wav"), Some(&(0.96, 0.94)));
+        assert_eq!(
+            positions.get("a.wav"),
+            Some(&SampleMapLayoutPoint {
+                x: 0.04,
+                y: 0.06,
+                cluster_id: Some(3),
+            })
+        );
+        assert_eq!(
+            positions.get("b.wav"),
+            Some(&SampleMapLayoutPoint {
+                x: 0.96,
+                y: 0.94,
+                cluster_id: Some(7),
+            })
+        );
+    }
+
+    #[test]
+    fn sample_map_color_prefers_similarity_cluster_color() {
+        let cluster_color = sample_map_color(SimilarityAspect::Spectrum, Some(0.5), Some(1));
+        let aspect_color = sample_map_color(SimilarityAspect::Spectrum, Some(0.5), None);
+
+        assert_ne!(cluster_color, aspect_color);
+        assert_eq!(cluster_color, ui::Rgba8::new(57, 187, 245, 210));
     }
 
     #[test]
