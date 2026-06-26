@@ -47,9 +47,16 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) shortcut_help_open: bool,
     pub(in crate::native_app) help_tooltips_enabled: bool,
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
+    pub(in crate::native_app) sample_browser_display: SampleBrowserDisplayMode,
     pub(in crate::native_app) harvest_family_open: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum SampleBrowserDisplayMode {
+    List,
+    Map,
 }
 
 impl ChromeUiState {
@@ -61,6 +68,7 @@ impl ChromeUiState {
             shortcut_help_open: false,
             help_tooltips_enabled: false,
             sticky_random_sample_range_playback: false,
+            sample_browser_display: SampleBrowserDisplayMode::List,
             harvest_family_open: false,
             beat_guides_enabled: false,
             beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,

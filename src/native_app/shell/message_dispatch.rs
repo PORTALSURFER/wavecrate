@@ -180,6 +180,7 @@ impl NativeAppState {
             | GuiMessage::ToggleSelectedSampleAndAdvance
             | GuiMessage::SelectAllSamples
             | GuiMessage::ToggleRandomNavigationMode
+            | GuiMessage::ToggleSampleBrowserMapView
             | GuiMessage::SampleBrowserWindowChanged(_)
             | GuiMessage::FolderTreeWindowChanged(_)
             | GuiMessage::CollapseSelectedFolder

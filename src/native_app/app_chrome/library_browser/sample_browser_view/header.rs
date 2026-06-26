@@ -12,8 +12,9 @@ use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
 use self::projection::{
     HeaderColumnProjection, RandomNavigationButtonProjection, SampleBrowserHeaderProjection,
-    SampleNameViewModeButtonProjection, SampleSimilarityAspectControlProjection,
-    SampleSimilarityControlsProjection, SampleSimilarityHeaderProjection,
+    SampleMapViewButtonProjection, SampleNameViewModeButtonProjection,
+    SampleSimilarityAspectControlProjection, SampleSimilarityControlsProjection,
+    SampleSimilarityHeaderProjection,
 };
 use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, identity, similarity_aspect_color};
 
@@ -33,6 +34,7 @@ pub(super) struct SampleBrowserHeaderBar<'a> {
     pub(super) drag_feedback: Option<&'a FileColumnDragFeedback>,
     pub(super) mode: SampleNameViewMode,
     pub(super) random_navigation_enabled: bool,
+    pub(super) map_view_active: bool,
     pub(super) similarity_mode_active: bool,
     pub(super) similarity_controls: &'a SimilarityAspectSettings,
     pub(super) help_tooltips_enabled: bool,
@@ -51,6 +53,10 @@ pub(super) fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui
         random_navigation_button(projection.random_navigation).tooltip_if(
             projection.help_tooltips_enabled,
             projection.random_navigation.tooltip,
+        ),
+        sample_map_view_button(projection.map_view).tooltip_if(
+            projection.help_tooltips_enabled,
+            projection.map_view.tooltip,
         ),
         sample_name_view_mode_button(projection.name_view_mode).tooltip_if(
             projection.help_tooltips_enabled,
@@ -101,6 +107,18 @@ fn random_navigation_icon(active: bool) -> ui::SvgIcon {
     DICE_ICON.icon_for_state(SAMPLE_BROWSER_ICON_TINTS, true, active)
 }
 
+fn sample_map_view_button(projection: SampleMapViewButtonProjection) -> ui::View<GuiMessage> {
+    ui::icon_button(sample_map_view_icon(projection.active))
+        .active(projection.active)
+        .message(GuiMessage::ToggleSampleBrowserMapView)
+        .id(identity::automation_sample_map_view_toggle_id())
+        .size(28.0, 22.0)
+}
+
+fn sample_map_view_icon(active: bool) -> ui::SvgIcon {
+    MAP_ICON.icon_for_state(SAMPLE_BROWSER_ICON_TINTS, true, active)
+}
+
 fn sample_name_view_mode_button(
     projection: SampleNameViewModeButtonProjection,
 ) -> ui::View<GuiMessage> {
@@ -119,6 +137,17 @@ static DICE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
   <circle cx="8" cy="8" r="1.15" fill="currentColor"/>
   <circle cx="5.4" cy="10.6" r="1.15" fill="currentColor"/>
   <circle cx="10.6" cy="10.6" r="1.15" fill="currentColor"/>
+</svg>"#,
+);
+
+static MAP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="4" cy="5" r="1.35" fill="currentColor"/>
+  <circle cx="8.2" cy="3.8" r="1.1" fill="currentColor"/>
+  <circle cx="12" cy="6" r="1.35" fill="currentColor"/>
+  <circle cx="6.2" cy="10.6" r="1.25" fill="currentColor"/>
+  <circle cx="11" cy="11.4" r="1.1" fill="currentColor"/>
+  <path d="M4 5 8.2 3.8 12 6M4 5l2.2 5.6M12 6l-1 5.4M6.2 10.6l4.8.8" fill="none" stroke="currentColor" stroke-width="1" opacity=".7"/>
 </svg>"#,
 );
 

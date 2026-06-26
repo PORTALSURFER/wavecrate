@@ -1,6 +1,8 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{ClipboardHandoffTarget, GuiMessage, NativeAppState};
+use crate::native_app::app::{
+    ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
+};
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -32,6 +34,13 @@ impl NativeAppState {
                 self.ui.browser_interaction.clipboard_handoff_target =
                     ClipboardHandoffTarget::BrowserFiles;
                 self.toggle_random_navigation_mode();
+            }
+            GuiMessage::ToggleSampleBrowserMapView => {
+                self.ui.chrome.sample_browser_display = match self.ui.chrome.sample_browser_display
+                {
+                    SampleBrowserDisplayMode::List => SampleBrowserDisplayMode::Map,
+                    SampleBrowserDisplayMode::Map => SampleBrowserDisplayMode::List,
+                };
             }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library

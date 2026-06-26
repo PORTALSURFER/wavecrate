@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use crate::native_app::app::{NativeAppState, SampleNameViewMode};
+use crate::native_app::app::{NativeAppState, SampleBrowserDisplayMode, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::projection::{
     FileColumnDragFeedback, VisibleSampleList, VisibleSampleQuery, VisibleSampleWindowPolicy,
+};
+use crate::native_app::sample_library::folder_browser::sample_map::{
+    SampleMapItem, SampleMapProjection,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
@@ -11,6 +14,8 @@ use crate::native_app::sample_library::sample_list::{
 
 pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) visible_samples: VisibleSampleList<'a>,
+    pub(in crate::native_app) map_items: Vec<SampleMapItem>,
+    pub(in crate::native_app) display_mode: SampleBrowserDisplayMode,
     pub(in crate::native_app) name_view_mode: SampleNameViewMode,
     pub(in crate::native_app) random_navigation_enabled: bool,
     pub(in crate::native_app) curation_mode_enabled: bool,
@@ -25,6 +30,8 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
 
 pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     visible_samples: VisibleSampleList<'a>,
+    map_items: Vec<SampleMapItem>,
+    display_mode: SampleBrowserDisplayMode,
     name_view_mode: SampleNameViewMode,
     random_navigation_enabled: bool,
     curation_mode_enabled: bool,
@@ -54,9 +61,17 @@ impl<'a> SampleBrowserViewProjection<'a> {
                 tags_by_file: &state.metadata.tags_by_file,
                 cached_sample_paths: &state.waveform.cache.cached_sample_paths,
             });
+        let map_items = state
+            .library
+            .folder_browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &state.metadata.tags_by_file,
+            });
 
         Self {
             visible_samples,
+            map_items,
+            display_mode: state.ui.chrome.sample_browser_display,
             name_view_mode: state.metadata.sample_name_view_mode,
             random_navigation_enabled: state.library.folder_browser.random_navigation_enabled(),
             curation_mode_enabled: state.library.folder_browser.curation_mode_enabled(),
@@ -82,6 +97,8 @@ impl<'a> SampleBrowserViewModel<'a> {
     ) -> Self {
         Self {
             visible_samples: projection.visible_samples,
+            map_items: projection.map_items,
+            display_mode: projection.display_mode,
             name_view_mode: projection.name_view_mode,
             random_navigation_enabled: projection.random_navigation_enabled,
             curation_mode_enabled: projection.curation_mode_enabled,

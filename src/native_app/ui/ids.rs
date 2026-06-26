@@ -49,6 +49,7 @@ pub(in crate::native_app) const FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID: u64 = 
 pub(in crate::native_app) const RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE: u64 = FOLDER_TREE.id(3);
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
+pub(in crate::native_app) const SAMPLE_BROWSER_MAP_ID: u64 = SAMPLE_BROWSER.id(2);
 /// Scope for retained sample-row input identity.
 pub(in crate::native_app) const RETAINED_SAMPLE_ROW_INPUT_SCOPE: u64 = SAMPLE_BROWSER.id(1);
 /// Scope for retained sample header-cell identity.
@@ -59,6 +60,8 @@ pub(in crate::native_app) const AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID: u
 /// Automation-facing id for the similarity-weighting toggle.
 pub(in crate::native_app) const AUTOMATION_SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID: u64 =
     SAMPLE_BROWSER_HEADER.id(4);
+pub(in crate::native_app) const AUTOMATION_SAMPLE_MAP_VIEW_TOGGLE_ID: u64 =
+    SAMPLE_BROWSER_HEADER.id(5);
 /// Scope for automation-facing similarity-aspect toggle ids.
 pub(in crate::native_app) const AUTOMATION_SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE: u64 =
     SAMPLE_BROWSER_HEADER.id(20);

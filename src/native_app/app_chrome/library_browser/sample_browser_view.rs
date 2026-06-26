@@ -3,6 +3,7 @@ use radiant::prelude as ui;
 use crate::native_app::app::GuiMessage;
 #[cfg(test)]
 use crate::native_app::app::NativeAppState;
+use crate::native_app::app::SampleBrowserDisplayMode;
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewProjection;
@@ -20,8 +21,10 @@ mod identity;
 mod row_projection;
 mod row_widgets;
 mod rows;
+mod sample_map_view;
 use header::{SampleBrowserHeaderBar, sample_browser_header_bar, sample_similarity_controls_bar};
 use rows::sample_browser_rows;
+use sample_map_view::sample_map_view;
 
 pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 190.0;
 
@@ -44,6 +47,7 @@ pub(in crate::native_app) fn sample_browser(
         drag_feedback: model.drag_feedback.as_ref(),
         mode: model.name_view_mode,
         random_navigation_enabled: model.random_navigation_enabled,
+        map_view_active: model.display_mode == SampleBrowserDisplayMode::Map,
         similarity_mode_active: model.visible_samples.similarity_mode_active,
         similarity_controls: model.visible_samples.similarity_controls,
         help_tooltips_enabled: model.help_tooltips_enabled,
@@ -53,8 +57,8 @@ pub(in crate::native_app) fn sample_browser(
             model.visible_samples.similarity_controls,
         ));
     }
-    sections.push(
-        sample_browser_rows(
+    sections.push(match model.display_mode {
+        SampleBrowserDisplayMode::List => sample_browser_rows(
             &model.visible_samples,
             model.name_view_mode,
             model.curation_mode_enabled,
@@ -63,7 +67,8 @@ pub(in crate::native_app) fn sample_browser(
             model.help_tooltips_enabled,
         )
         .fill(),
-    );
+        SampleBrowserDisplayMode::Map => sample_map_view(model.map_items).fill(),
+    });
     sections.push(sample_browser_status(
         model.visible_samples.total_count,
         model.visible_samples.includes_subfolders,
@@ -186,6 +191,8 @@ mod tests {
                         similarity_mode_active: false,
                         similarity_controls: &similarity_controls,
                     },
+                    map_items: Vec::new(),
+                    display_mode: SampleBrowserDisplayMode::List,
                     name_view_mode: SampleNameViewMode::DiskFilename,
                     random_navigation_enabled: false,
                     curation_mode_enabled: false,
