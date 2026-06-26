@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        PaintPrimitive, PaintTextAlign, PaintTextMetrics, push_fill_rect, push_fill_rect_batch,
-        push_stroke_rect, push_text_run_with_metrics,
+        PaintPrimitive, PaintTextAlign, PaintTextMetrics, push_fill_polygon, push_fill_rect,
+        push_fill_rect_batch, push_stroke_polyline, push_stroke_rect, push_text_run_with_metrics,
     },
     theme::ThemeTokens,
     widgets::{
@@ -954,18 +954,19 @@ fn paint_highlight_item(
     } else {
         MAP_SELECTED_GLOW_SIZE
     };
-    push_fill_rect(
+    paint_diamond(
         primitives,
         widget_id,
-        centered_rect(center, glow_size),
+        center,
+        glow_size,
         color.with_alpha(42),
     );
-    let rect = centered_rect(center, size);
-    push_fill_rect(primitives, widget_id, rect, color);
-    push_stroke_rect(
+    paint_diamond(primitives, widget_id, center, size, color);
+    stroke_diamond(
         primitives,
         widget_id,
-        centered_rect(center, size + 4.0),
+        center,
+        size + 4.0,
         ui::Rgba8::new(245, 245, 245, 220),
         1.0,
     );
@@ -977,16 +978,18 @@ fn paint_hover_item(
     center: Point,
     color: ui::Rgba8,
 ) {
-    push_fill_rect(
+    paint_diamond(
         primitives,
         widget_id,
-        centered_rect(center, MAP_HOVER_GLOW_SIZE),
+        center,
+        MAP_HOVER_GLOW_SIZE,
         color.with_alpha(50),
     );
-    push_stroke_rect(
+    stroke_diamond(
         primitives,
         widget_id,
-        centered_rect(center, MAP_HOVER_SIZE),
+        center,
+        MAP_HOVER_SIZE,
         ui::Rgba8::new(248, 248, 248, 230),
         1.0,
     );
@@ -998,24 +1001,54 @@ fn paint_active_audition_item(
     center: Point,
     color: ui::Rgba8,
 ) {
-    push_fill_rect(
+    paint_diamond(
         primitives,
         widget_id,
-        centered_rect(center, MAP_ACTIVE_AUDITION_GLOW_SIZE),
+        center,
+        MAP_ACTIVE_AUDITION_GLOW_SIZE,
         color.with_alpha(70),
     );
-    push_fill_rect(
+    paint_diamond(
         primitives,
         widget_id,
-        centered_rect(center, MAP_ACTIVE_AUDITION_SIZE),
+        center,
+        MAP_ACTIVE_AUDITION_SIZE,
         color.with_alpha(245),
     );
-    push_stroke_rect(
+    stroke_diamond(
         primitives,
         widget_id,
-        centered_rect(center, MAP_ACTIVE_AUDITION_SIZE + 5.0),
+        center,
+        MAP_ACTIVE_AUDITION_SIZE + 5.0,
         ui::Rgba8::new(255, 250, 224, 245),
         1.25,
+    );
+}
+
+fn paint_diamond(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    side: f32,
+    color: ui::Rgba8,
+) {
+    push_fill_polygon(primitives, widget_id, diamond_points(center, side), color);
+}
+
+fn stroke_diamond(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    side: f32,
+    color: ui::Rgba8,
+    width: f32,
+) {
+    push_stroke_polyline(
+        primitives,
+        widget_id,
+        diamond_outline_points(center, side),
+        color,
+        width,
     );
 }
 
@@ -1139,6 +1172,21 @@ fn paint_bounds(bounds: Rect) -> Rect {
 
 fn centered_rect(center: Point, side: f32) -> Rect {
     Rect::from_xy_size(center.x - side * 0.5, center.y - side * 0.5, side, side)
+}
+
+fn diamond_points(center: Point, side: f32) -> [Point; 4] {
+    let radius = side * 0.5;
+    [
+        Point::new(center.x, center.y - radius),
+        Point::new(center.x + radius, center.y),
+        Point::new(center.x, center.y + radius),
+        Point::new(center.x - radius, center.y),
+    ]
+}
+
+fn diamond_outline_points(center: Point, side: f32) -> [Point; 5] {
+    let [top, right, bottom, left] = diamond_points(center, side);
+    [top, right, bottom, left, top]
 }
 
 trait SampleMapRectExt {
@@ -1367,20 +1415,21 @@ mod tests {
         let fills = primitives
             .iter()
             .filter_map(|primitive| match primitive {
-                PaintPrimitive::FillRect(fill) => Some(fill),
+                PaintPrimitive::FillPolygon(fill) => Some(fill),
                 _ => None,
             })
             .collect::<Vec<_>>();
         assert!(fills.iter().any(|fill| fill.color == color.with_alpha(42)
-            && fill.rect.width() == MAP_SELECTED_GLOW_SIZE));
-        assert!(
-            fills.iter().any(|fill| fill.color == color.with_alpha(42)
-                && fill.rect.width() == MAP_ANCHOR_GLOW_SIZE)
-        );
+            && fill.points.len() == 4
+            && fill.points[0] == Point::new(50.0, 50.0 - MAP_SELECTED_GLOW_SIZE * 0.5)));
+        assert!(fills.iter().any(|fill| fill.color == color.with_alpha(42)
+            && fill.points.len() == 4
+            && fill.points[0] == Point::new(150.0, 50.0 - MAP_ANCHOR_GLOW_SIZE * 0.5)));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::StrokeRect(stroke)
+            PaintPrimitive::StrokePolyline(stroke)
                 if stroke.color == ui::Rgba8::new(245, 245, 245, 220)
+                    && stroke.points.len() == 5
         )));
     }
 
@@ -1408,15 +1457,16 @@ mod tests {
         assert_eq!(widget.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::FillRect(fill)
+            PaintPrimitive::FillPolygon(fill)
                 if fill.color == color.with_alpha(50)
-                    && (fill.rect.width() - MAP_HOVER_GLOW_SIZE).abs() < 0.001
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(50.0, 50.0 - MAP_HOVER_GLOW_SIZE * 0.5)
         )));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::StrokeRect(stroke)
+            PaintPrimitive::StrokePolyline(stroke)
                 if stroke.color == ui::Rgba8::new(248, 248, 248, 230)
-                    && (stroke.rect.width() - MAP_HOVER_SIZE).abs() < 0.001
+                    && stroke.points.len() == 5
         )));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
@@ -1516,15 +1566,16 @@ mod tests {
 
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::FillRect(fill)
+            PaintPrimitive::FillPolygon(fill)
                 if fill.color == color.with_alpha(70)
-                    && (fill.rect.width() - MAP_ACTIVE_AUDITION_GLOW_SIZE).abs() < 0.001
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(50.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
         )));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::StrokeRect(stroke)
+            PaintPrimitive::StrokePolyline(stroke)
                 if stroke.color == ui::Rgba8::new(255, 250, 224, 245)
-                    && (stroke.rect.width() - (MAP_ACTIVE_AUDITION_SIZE + 5.0)).abs() < 0.001
+                    && stroke.points.len() == 5
         )));
         assert!(
             !primitives.iter().any(|primitive| matches!(
