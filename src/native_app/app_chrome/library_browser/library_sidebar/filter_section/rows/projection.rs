@@ -1,9 +1,10 @@
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     CurationFilterToggleViewModel, CurationFilterViewModel, FilterSectionViewModel,
-    PlaybackTypeFilterToggleViewModel, RatingFilterToggleViewModel,
+    HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
+    RatingFilterToggleViewModel,
 };
 use crate::native_app::sample_library::folder_browser::model::{
-    BrowserCurationScope, PlaybackTypeFilter,
+    BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -11,6 +12,7 @@ pub(super) struct FilterRowsProjection {
     pub(super) name_filter: TextFilterRowProjection,
     pub(super) tag_filter: TextFilterRowProjection,
     pub(super) curation: CurationFilterRowProjection,
+    pub(super) harvest: HarvestFilterRowProjection,
     pub(super) playback_type: PlaybackTypeFilterRowProjection,
     pub(super) rating: RatingFilterRowProjection,
 }
@@ -45,6 +47,21 @@ pub(super) struct CurationFilterRowProjection {
 pub(super) struct CurationFilterToggleProjection {
     pub(super) scope: BrowserCurationScope,
     pub(super) label: &'static str,
+    pub(super) active: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct HarvestFilterRowProjection {
+    pub(super) label: &'static str,
+    pub(super) toggles: Vec<HarvestFilterToggleProjection>,
+    pub(super) help_tooltips_enabled: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct HarvestFilterToggleProjection {
+    pub(super) filter: HarvestFilter,
+    pub(super) label: &'static str,
+    pub(super) tooltip: &'static str,
     pub(super) active: bool,
 }
 
@@ -83,6 +100,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             placeholder: "Any",
         },
         curation: CurationFilterRowProjection::from_view_model(&model.curation),
+        harvest: HarvestFilterRowProjection::from_view_model(&model.harvest),
         playback_type: PlaybackTypeFilterRowProjection {
             label: "Type",
             toggles: model
@@ -122,6 +140,49 @@ impl CurationFilterToggleProjection {
             label: model.label,
             active: model.active,
         }
+    }
+}
+
+impl HarvestFilterRowProjection {
+    fn from_view_model(model: &HarvestFilterViewModel) -> Self {
+        Self {
+            label: "Harvest",
+            toggles: model
+                .toggles
+                .iter()
+                .map(HarvestFilterToggleProjection::from_view_model)
+                .collect(),
+            help_tooltips_enabled: model.help_tooltips_enabled,
+        }
+    }
+}
+
+impl HarvestFilterToggleProjection {
+    fn from_view_model(model: &HarvestFilterToggleViewModel) -> Self {
+        Self {
+            filter: model.filter,
+            label: model.label,
+            tooltip: harvest_filter_tooltip(model.filter),
+            active: model.active,
+        }
+    }
+}
+
+fn harvest_filter_tooltip(filter: HarvestFilter) -> &'static str {
+    match filter {
+        HarvestFilter::New => "New or seen files that have not been acted on.",
+        HarvestFilter::NewAndTouched => "New, seen, and touched files still in the active queue.",
+        HarvestFilter::NeedsReview => "Files not done or ignored that do not have derivatives yet.",
+        HarvestFilter::Touched => {
+            "Files you have rated, tagged, marked, edited, copied, or processed."
+        }
+        HarvestFilter::HasDerivatives => {
+            "Files with one or more derived files recorded in the harvest graph."
+        }
+        HarvestFilter::NoDerivatives => "Files without any derived files recorded yet.",
+        HarvestFilter::Done => "Files you marked done.",
+        HarvestFilter::Ignored => "Files you intentionally hid from harvest queues.",
+        HarvestFilter::All => "All harvest-tracked files, including done and ignored files.",
     }
 }
 
@@ -191,6 +252,66 @@ mod tests {
                 (BrowserCurationScope::Tags, "Tags", false),
             ]
         );
+        assert_eq!(projection.harvest.label, "Harvest");
+        assert_eq!(
+            projection
+                .harvest
+                .toggles
+                .iter()
+                .map(|toggle| (toggle.filter, toggle.label, toggle.tooltip, toggle.active))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    HarvestFilter::New,
+                    "New",
+                    "New or seen files that have not been acted on.",
+                    false
+                ),
+                (
+                    HarvestFilter::NewAndTouched,
+                    "N+T",
+                    "New, seen, and touched files still in the active queue.",
+                    false
+                ),
+                (
+                    HarvestFilter::NeedsReview,
+                    "Need",
+                    "Files not done or ignored that do not have derivatives yet.",
+                    false
+                ),
+                (
+                    HarvestFilter::Touched,
+                    "Tch",
+                    "Files you have rated, tagged, marked, edited, copied, or processed.",
+                    true
+                ),
+                (
+                    HarvestFilter::HasDerivatives,
+                    "Der",
+                    "Files with one or more derived files recorded in the harvest graph.",
+                    false
+                ),
+                (
+                    HarvestFilter::NoDerivatives,
+                    "NoD",
+                    "Files without any derived files recorded yet.",
+                    false
+                ),
+                (HarvestFilter::Done, "Done", "Files you marked done.", false),
+                (
+                    HarvestFilter::Ignored,
+                    "Ign",
+                    "Files you intentionally hid from harvest queues.",
+                    false
+                ),
+                (
+                    HarvestFilter::All,
+                    "All",
+                    "All harvest-tracked files, including done and ignored files.",
+                    false
+                ),
+            ]
+        );
         assert_eq!(projection.playback_type.label, "Type");
         assert_eq!(
             projection
@@ -238,6 +359,56 @@ mod tests {
                         active: false,
                     },
                 ],
+            },
+            harvest: HarvestFilterViewModel {
+                toggles: vec![
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::New,
+                        label: "New",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::NewAndTouched,
+                        label: "N+T",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::NeedsReview,
+                        label: "Need",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::Touched,
+                        label: "Tch",
+                        active: true,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::HasDerivatives,
+                        label: "Der",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::NoDerivatives,
+                        label: "NoD",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::Done,
+                        label: "Done",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::Ignored,
+                        label: "Ign",
+                        active: false,
+                    },
+                    HarvestFilterToggleViewModel {
+                        filter: HarvestFilter::All,
+                        label: "All",
+                        active: false,
+                    },
+                ],
+                help_tooltips_enabled: true,
             },
             playback_type_filters: vec![
                 PlaybackTypeFilterToggleViewModel {

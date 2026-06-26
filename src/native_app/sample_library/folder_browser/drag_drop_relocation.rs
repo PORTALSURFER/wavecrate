@@ -71,12 +71,12 @@ impl FolderBrowserState {
         moves: &[(PathBuf, PathBuf)],
         target_parent: &Path,
     ) -> Result<(), String> {
-        let Some(source_root) = self
+        let Some((source_root, source_database_root)) = self
             .source
             .sources
             .iter()
             .find(|source| source.id == self.source.selected_source)
-            .map(|source| source.root.clone())
+            .map(|source| (source.root.clone(), source.database_root.clone()))
         else {
             return Err(String::from(
                 "File move failed: selected source is unavailable",
@@ -117,7 +117,8 @@ impl FolderBrowserState {
             ));
         };
         for (old_path, new_path) in moves {
-            let mut moved_file = file_entry_for_source_path(new_path, &source_root);
+            let mut moved_file =
+                file_entry_for_source_path(new_path, &source_root, &source_database_root);
             let old_id = path_id(old_path);
             if let Some(previous) = previous_files.get(&old_id)
                 && moved_file.rating.is_neutral()
@@ -156,12 +157,13 @@ impl FolderBrowserState {
 
 pub(super) fn persist_moved_folders_metadata(
     source_root: &Path,
+    source_database_root: &Path,
     moves: &[(PathBuf, PathBuf)],
 ) -> Result<(), String> {
     let errors = moves
         .iter()
         .filter_map(|(old_path, new_path)| {
-            persist_moved_folder_metadata(source_root, old_path, new_path)
+            persist_moved_folder_metadata(source_root, source_database_root, old_path, new_path)
                 .err()
                 .map(|error| format!("{}: {error}", old_path.display()))
         })
@@ -175,6 +177,7 @@ pub(super) fn persist_moved_folders_metadata(
 
 fn persist_moved_folder_metadata(
     source_root: &Path,
+    source_database_root: &Path,
     old_path: &Path,
     new_path: &Path,
 ) -> Result<(), String> {
@@ -186,8 +189,11 @@ fn persist_moved_folder_metadata(
     let new_relative = new_path
         .strip_prefix(source_root)
         .map_err(|_| String::from("Folder move metadata update failed: target folder mismatch"))?;
-    let db = SourceDatabase::open_for_user_metadata_write(source_root)
-        .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(
+        source_root,
+        source_database_root,
+    )
+    .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
     let entries = db
         .list_files_under_path(old_relative)
         .map_err(|err| format!("Folder move metadata update failed: {err}"))?;
@@ -218,6 +224,7 @@ fn persist_moved_folder_metadata(
 
 pub(super) fn persist_moved_file_metadata(
     source_root: &Path,
+    source_database_root: &Path,
     moves: &[(PathBuf, PathBuf)],
     remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
 ) -> Result<(), String> {
@@ -235,8 +242,11 @@ pub(super) fn persist_moved_file_metadata(
         return Ok(());
     }
 
-    let db = SourceDatabase::open_for_user_metadata_write(source_root)
-        .map_err(|err| format!("File move metadata update failed: {err}"))?;
+    let db = SourceDatabase::open_for_user_metadata_write_with_database_root(
+        source_root,
+        source_database_root,
+    )
+    .map_err(|err| format!("File move metadata update failed: {err}"))?;
     let mut batch = db
         .write_batch()
         .map_err(|err| format!("File move metadata update failed: {err}"))?;

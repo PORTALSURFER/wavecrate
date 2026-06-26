@@ -162,14 +162,15 @@ impl NativeAppState {
                 self.metadata.tags_by_file.remove(&file_id);
             }
             let absolute_path = PathBuf::from(&file_id);
-            if let Some((source_root, relative_path)) = self
+            if let Some((source_root, source_database_root, relative_path)) = self
                 .library
                 .folder_browser
-                .source_relative_file_path(&absolute_path)
+                .source_database_relative_file_path(&absolute_path)
             {
                 requests.push(MetadataTagPersistRequest {
                     absolute_path,
                     source_root,
+                    source_database_root,
                     relative_path,
                     tags: vec![tag.clone()],
                     assigned: false,

@@ -17,6 +17,12 @@ impl NativeAppState {
             GuiMessage::CloseJobDetails => {
                 self.ui.chrome.job_details_open = false;
             }
+            GuiMessage::ReleaseUpdateCheckFinished(completion) => {
+                self.finish_release_update_check(completion);
+            }
+            GuiMessage::OpenReleaseDownloadPage => {
+                self.open_release_download_page();
+            }
             GuiMessage::ToggleShortcutHelp => {
                 self.ui.chrome.shortcut_help_open = !self.ui.chrome.shortcut_help_open;
             }
@@ -102,15 +108,20 @@ impl NativeAppState {
                 self.finish_waveform_destructive_edit(completion, context);
             }
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(context),
+            GuiMessage::ExtractPlaymarkedRangeToHarvestDestination => {
+                self.extract_playmarked_range_to_harvest_destination(context);
+            }
             GuiMessage::PlaySelectionExtractionFinished {
                 completion,
                 drag_position,
                 playback_type,
+                harvest_operation,
                 started_at,
             } => self.finish_play_selection_extraction(
                 completion,
                 drag_position,
                 playback_type,
+                harvest_operation,
                 started_at,
                 context,
             ),

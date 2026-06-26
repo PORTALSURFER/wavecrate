@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use wavecrate::sample_sources::{SampleCollection, config::SimilarityAspectSettings};
+use wavecrate::sample_sources::{
+    SampleCollection, SourceMetadataStorage, SourceRole, config::SimilarityAspectSettings,
+};
 
 use super::{FolderEntry, collections::MissingCollectionSnapshot, path_helpers::rewrite_path_id};
 
@@ -10,11 +12,36 @@ pub(in crate::native_app) type SimilarityAspectStrengths =
 pub(in crate::native_app) const EMPTY_SIMILARITY_ASPECT_STRENGTHS: SimilarityAspectStrengths =
     [None; wavecrate_analysis::aspects::ASPECT_COUNT];
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum SourceAvailability {
+    Available,
+    Missing,
+}
+
+impl SourceAvailability {
+    fn from_root_path(path: &Path) -> Self {
+        if wavecrate::sample_sources::harvest_file_ops::source_root_available(path) {
+            Self::Available
+        } else {
+            Self::Missing
+        }
+    }
+
+    pub(in crate::native_app) fn is_missing(self) -> bool {
+        self == Self::Missing
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct SourceEntry {
     pub(in crate::native_app) id: String,
     pub(in crate::native_app) label: String,
     pub(super) root: PathBuf,
+    pub(super) database_root: PathBuf,
+    pub(in crate::native_app) role: SourceRole,
+    pub(in crate::native_app) availability: SourceAvailability,
+    pub(in crate::native_app) metadata_storage: SourceMetadataStorage,
+    pub(in crate::native_app) primary_import_folder: PathBuf,
     pub(super) root_folder: Option<FolderEntry>,
     pub(super) missing_collection_snapshot: MissingCollectionSnapshot,
     pub(in crate::native_app) loading_task: Option<u64>,
@@ -29,7 +56,38 @@ impl SourceEntry {
         Self {
             id: id.into(),
             label: label.into(),
+            database_root: root.clone(),
             root,
+            role: SourceRole::Normal,
+            availability: SourceAvailability::Available,
+            metadata_storage: SourceMetadataStorage::SourceFolder,
+            primary_import_folder: wavecrate::sample_sources::default_primary_import_folder(),
+            root_folder: None,
+            missing_collection_snapshot: MissingCollectionSnapshot::default(),
+            loading_task: None,
+        }
+    }
+
+    pub(in crate::native_app) fn from_sample_source(
+        source: &wavecrate::sample_sources::SampleSource,
+    ) -> Self {
+        let database_root = source.database_root().unwrap_or_else(|error| {
+            tracing::warn!(
+                source_id = source.id.as_str(),
+                root = %source.root.display(),
+                "failed to resolve source metadata root: {error}"
+            );
+            source.root.clone()
+        });
+        Self {
+            id: source.id.as_str().to_string(),
+            label: super::path_helpers::folder_label(&source.root),
+            root: source.root.clone(),
+            database_root,
+            role: source.role,
+            availability: SourceAvailability::from_root_path(&source.root),
+            metadata_storage: source.metadata_storage,
+            primary_import_folder: source.primary_import_folder.clone(),
             root_folder: None,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
@@ -38,6 +96,63 @@ impl SourceEntry {
 
     pub(super) fn is_default_assets_source(&self) -> bool {
         self.id == "assets" && self.root.ends_with("assets")
+    }
+
+    pub(super) fn is_protected(&self) -> bool {
+        self.role.protects_files()
+    }
+
+    pub(super) fn is_primary(&self) -> bool {
+        self.role == SourceRole::Primary
+    }
+
+    pub(in crate::native_app) fn is_missing(&self) -> bool {
+        self.availability.is_missing()
+    }
+
+    pub(super) fn refresh_availability_from_disk(&mut self) -> SourceAvailability {
+        self.availability = SourceAvailability::from_root_path(&self.root);
+        self.availability
+    }
+
+    pub(super) fn mark_available(&mut self) {
+        self.availability = SourceAvailability::Available;
+    }
+
+    pub(super) fn mark_missing(&mut self) {
+        self.availability = SourceAvailability::Missing;
+        self.loading_task = None;
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn mark_missing_for_tests(&mut self) {
+        self.mark_missing();
+    }
+
+    pub(super) fn apply_role(&mut self, role: SourceRole) -> Result<(), String> {
+        let mut source = self.as_sample_source();
+        source.role = role;
+        source.metadata_storage = match role {
+            SourceRole::Protected => SourceMetadataStorage::AppData,
+            SourceRole::Primary | SourceRole::Normal => SourceMetadataStorage::SourceFolder,
+        };
+        let database_root = source
+            .database_root()
+            .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+        self.role = source.role;
+        self.metadata_storage = source.metadata_storage;
+        self.database_root = database_root;
+        Ok(())
+    }
+
+    pub(crate) fn as_sample_source(&self) -> wavecrate::sample_sources::SampleSource {
+        wavecrate::sample_sources::SampleSource {
+            id: wavecrate::sample_sources::SourceId::from_string(self.id.clone()),
+            root: self.root.clone(),
+            role: self.role,
+            metadata_storage: self.metadata_storage,
+            primary_import_folder: self.primary_import_folder.clone(),
+        }
     }
 }
 
@@ -90,6 +205,7 @@ impl FileColumn {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FileColumnKind {
     Name,
+    Harvest,
     Rating,
     PlaybackType,
     Collection,
@@ -103,8 +219,9 @@ pub(in crate::native_app) enum FileColumnKind {
 }
 
 impl FileColumnKind {
-    pub(super) const DEFAULT_VISIBLE: [Self; 8] = [
+    pub(super) const DEFAULT_VISIBLE: [Self; 9] = [
         Self::Name,
+        Self::Harvest,
         Self::SourceFolder,
         Self::Rating,
         Self::PlaybackType,
@@ -117,6 +234,7 @@ impl FileColumnKind {
     pub(super) fn from_id(id: &str) -> Option<Self> {
         match id {
             "name" => Some(Self::Name),
+            "harvest" => Some(Self::Harvest),
             "rating" => Some(Self::Rating),
             "playback_type" => Some(Self::PlaybackType),
             "collection" => Some(Self::Collection),
@@ -134,6 +252,7 @@ impl FileColumnKind {
     pub(super) fn id(self) -> &'static str {
         match self {
             Self::Name => "name",
+            Self::Harvest => "harvest",
             Self::Rating => "rating",
             Self::PlaybackType => "playback_type",
             Self::Collection => "collection",
@@ -150,6 +269,7 @@ impl FileColumnKind {
     fn default_label(self) -> &'static str {
         match self {
             Self::Name => "Name",
+            Self::Harvest => "Harvest",
             Self::Rating => "Rating",
             Self::PlaybackType => "Type",
             Self::Collection => "Col",
@@ -166,6 +286,7 @@ impl FileColumnKind {
     fn default_width(self) -> f32 {
         match self {
             Self::Name => 240.0,
+            Self::Harvest => 74.0,
             Self::Rating => 68.0,
             Self::PlaybackType => 76.0,
             Self::Collection => 58.0,

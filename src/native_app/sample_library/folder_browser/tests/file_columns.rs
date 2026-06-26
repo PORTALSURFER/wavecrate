@@ -139,6 +139,7 @@ fn collection_view_shows_source_folder_column() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "harvest",
             "rating",
             "playback_type",
             "collection",
@@ -158,6 +159,7 @@ fn collection_view_shows_source_folder_column() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "harvest",
             "source_folder",
             "rating",
             "playback_type",
@@ -442,6 +444,7 @@ fn sample_file_column_drag_reorders_columns() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "harvest",
             "rating",
             "playback_type",
             "collection",
@@ -456,7 +459,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 534.0);
+    assert_eq!(feedback.marker_x, 618.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -472,6 +475,7 @@ fn sample_file_column_drag_reorders_columns() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "harvest",
             "playback_type",
             "collection",
             "extension",
@@ -506,6 +510,7 @@ fn sample_file_column_drag_cancel_clears_feedback_without_reorder() {
             .collect::<Vec<_>>(),
         vec![
             "name",
+            "harvest",
             "rating",
             "playback_type",
             "collection",

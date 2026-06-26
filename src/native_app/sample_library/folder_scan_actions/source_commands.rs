@@ -41,6 +41,17 @@ impl NativeAppState {
                 "folder_browser.select_source.folder_tree_refresh",
                 "gui-source-switch-folder-tree-refresh",
             );
+        } else if self.library.folder_browser.source_is_missing(&requested_id) {
+            self.ui.status.sample =
+                missing_source_status(self.library.folder_browser.source_root_path(&requested_id));
+            emit_gui_action(
+                "folder_browser.select_source",
+                Some("folder_browser"),
+                Some(&requested_id),
+                "missing",
+                started_at,
+                Some("source_root_missing"),
+            );
         } else {
             emit_gui_action(
                 "folder_browser.select_source",
@@ -60,6 +71,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
+        let source_id = id.clone();
         if let Some(request) = self.library.begin_source_scan(id, task_id) {
             let label = request.label.clone();
             self.ui.browser_interaction.context_menu = None;
@@ -72,6 +84,17 @@ impl NativeAppState {
                 None,
             );
             self.launch_folder_scan(request, context);
+        } else if self.library.folder_browser.source_is_missing(&source_id) {
+            self.ui.browser_interaction.context_menu = None;
+            self.ui.status.sample = String::from("Source missing");
+            emit_gui_action(
+                "folder_browser.source.refresh",
+                Some("sources"),
+                Some(&source_id),
+                "missing",
+                started_at,
+                Some("source_root_missing"),
+            );
         } else {
             self.ui.browser_interaction.context_menu = None;
             self.ui.status.sample = String::from("Source refresh is already running");
@@ -132,6 +155,23 @@ impl NativeAppState {
             );
             return;
         }
+        if self
+            .library
+            .folder_browser
+            .refresh_source_availability_from_disk(&source_id)
+            .unwrap_or(true)
+        {
+            self.ui.status.sample = String::from("Source missing");
+            emit_gui_action(
+                "folder_browser.source.process",
+                Some("sources"),
+                Some(&source_id),
+                "missing",
+                started_at,
+                Some("source_root_missing"),
+            );
+            return;
+        }
         self.queue_source_prep(source_id.clone(), SourcePrepTrigger::UserRequested, context);
         emit_gui_action(
             "folder_browser.source.process",
@@ -176,4 +216,11 @@ impl NativeAppState {
             );
         }
     }
+}
+
+fn missing_source_status(root: Option<std::path::PathBuf>) -> String {
+    root.map_or_else(
+        || String::from("Source missing"),
+        |root| format!("Source missing: {}", root.display()),
+    )
 }

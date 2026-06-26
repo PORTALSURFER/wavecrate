@@ -23,6 +23,29 @@ impl NativeAppState {
             GuiMessage::CleanMissingFilesFromActiveCollection => {
                 self.clean_missing_files_from_active_collection()
             }
+            GuiMessage::MarkContextSampleHarvestDone => self.mark_context_sample_harvest_done(),
+            GuiMessage::MarkContextSampleHarvestIgnored => {
+                self.mark_context_sample_harvest_ignored()
+            }
+            GuiMessage::ResetContextSampleHarvest => self.reset_context_sample_harvest(),
+            GuiMessage::ShowContextSampleHarvestOrigin => {
+                self.show_context_sample_harvest_origin(context)
+            }
+            GuiMessage::ShowContextSampleHarvestDerivatives => {
+                self.show_context_sample_harvest_derivatives(context)
+            }
+            GuiMessage::OpenContextSampleHarvestDestination => {
+                self.open_context_sample_harvest_destination(context)
+            }
+            GuiMessage::ShowSelectedSampleHarvestOrigin => {
+                self.show_selected_sample_harvest_origin(context)
+            }
+            GuiMessage::ShowSelectedSampleHarvestDerivatives => {
+                self.show_selected_sample_harvest_derivatives(context)
+            }
+            GuiMessage::OpenSelectedSampleHarvestDestination => {
+                self.open_selected_sample_harvest_destination(context)
+            }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(context),
             GuiMessage::CutSelectedFiles => self.cut_selected_files(),
@@ -32,16 +55,14 @@ impl NativeAppState {
                 started_at,
                 result,
             } => self.finish_copy_selected_files(count, started_at, result),
-            GuiMessage::WaveformSelectionClipStaged {
-                source_path,
-                selection,
+            GuiMessage::WaveformSelectionCopyExtracted {
+                completion,
+                playback_type,
                 started_at,
-                result,
-            } => self.finish_waveform_selection_clip_staged(
-                source_path,
-                selection,
+            } => self.finish_waveform_selection_copy_extracted(
+                completion,
+                playback_type,
                 started_at,
-                result,
                 context,
             ),
             GuiMessage::WaveformSelectionCopyFinished {
@@ -105,6 +126,9 @@ impl NativeAppState {
             }
             GuiMessage::RefreshContextSource => self.refresh_context_source(context),
             GuiMessage::ProcessContextSource => self.process_context_source(context),
+            GuiMessage::ToggleContextSourceProtection => self.toggle_context_source_protection(),
+            GuiMessage::SetContextSourcePrimary => self.set_context_source_primary(),
+            GuiMessage::ClearContextSourcePrimary => self.clear_context_source_primary(),
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
                 self.ui.browser_interaction.context_menu = None;

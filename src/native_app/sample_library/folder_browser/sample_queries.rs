@@ -31,6 +31,11 @@ impl FolderBrowserState {
         &self,
         sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Vec<&FileEntry> {
+        if self.filters.harvest.is_some() {
+            let empty_tags = HashMap::new();
+            let tags_by_file = sort_tags.unwrap_or(&empty_tags);
+            return self.browser_listing_snapshot(tags_by_file).rows().to_vec();
+        }
         if let Some(collection) = self.selection.selected_collection {
             return self.selected_collection_audio_files_with_sort_tags(collection, sort_tags);
         }
@@ -135,6 +140,7 @@ impl FolderBrowserState {
                     None,
                 )
         });
+        self.retain_harvest_filter_matches(&mut files, reveal_id);
         self.sort_files_matching_tags(&mut files, tags_by_file);
         BrowserListingSnapshot::new(files)
     }
@@ -255,6 +261,7 @@ impl FolderBrowserState {
             && playback_type_filter.is_empty()
             && self.selection.selected_collection.is_none()
             && !self.filters.curation.enabled
+            && self.filters.harvest.is_none()
         {
             return self.selected_folder_audio_file_count();
         }
@@ -262,6 +269,7 @@ impl FolderBrowserState {
             if required_tags.is_empty()
                 && playback_type_filter.is_empty()
                 && !self.filters.curation.enabled
+                && self.filters.harvest.is_none()
             {
                 return self
                     .selected_collection_audio_file_ids_ref(collection)
@@ -269,7 +277,7 @@ impl FolderBrowserState {
             }
             return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
-        if self.filters.curation.enabled {
+        if self.filters.curation.enabled || self.filters.harvest.is_some() {
             return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
         if self.folder_subtree_listing_enabled() {
@@ -326,6 +334,9 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
         if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
+            return self.window_from_browser_listing_snapshot(window, tags_by_file);
+        }
+        if self.filters.harvest.is_some() {
             return self.window_from_browser_listing_snapshot(window, tags_by_file);
         }
         if let Some(collection) = self.selection.selected_collection {
@@ -408,6 +419,11 @@ impl FolderBrowserState {
     ) -> Option<usize> {
         let selected = self.selection.selected_file.as_deref()?;
         if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
+            return self
+                .browser_listing_snapshot(tags_by_file)
+                .index_of(selected);
+        }
+        if self.filters.harvest.is_some() {
             return self
                 .browser_listing_snapshot(tags_by_file)
                 .index_of(selected);

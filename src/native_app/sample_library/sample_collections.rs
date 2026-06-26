@@ -140,14 +140,15 @@ impl NativeAppState {
         collection: SampleCollection,
         command: CollectionCommand,
     ) -> Option<CollectionUpdate> {
-        let (root, relative_path) = self
+        let (root, database_root, relative_path) = self
             .library
             .folder_browser
-            .source_relative_file_path(&candidate.path)?;
+            .source_database_relative_file_path(&candidate.path)?;
         command::plan_collection_update(
             candidate,
             CollectionSourcePath {
                 root,
+                database_root,
                 relative_path,
             },
             collection,
@@ -226,10 +227,14 @@ impl NativeAppState {
             return;
         }
 
-        for (root, source_files) in persistence::group_missing_collection_files_by_source(&files) {
-            if let Err(error) =
-                persistence::persist_missing_collection_cleanup(&root, &source_files)
-            {
+        for ((root, database_root), source_files) in
+            persistence::group_missing_collection_files_by_source(&files)
+        {
+            if let Err(error) = persistence::persist_missing_collection_cleanup(
+                &root,
+                &database_root,
+                &source_files,
+            ) {
                 self.library
                     .folder_browser
                     .refresh_missing_collection_state();

@@ -4,7 +4,7 @@ use super::super::{
     FolderBrowserState, SourceEntry, scan::FolderTreeRefreshRequest,
     source_scan_cache::save_source_scan_cache,
 };
-use wavecrate::sample_sources::{SampleSource, SourceId};
+use wavecrate::sample_sources::{SampleSource, SourceRole};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app::sample_library::folder_browser) struct BrowserSourceState {
@@ -38,12 +38,7 @@ impl FolderBrowserState {
             .sources
             .iter()
             .filter(|source| !source.is_default_assets_source())
-            .map(|source| {
-                SampleSource::new_with_id(
-                    SourceId::from_string(source.id.clone()),
-                    source.root.clone(),
-                )
-            })
+            .map(SourceEntry::as_sample_source)
             .collect()
     }
 
@@ -70,6 +65,29 @@ impl FolderBrowserState {
             .map(|source| source.root.clone())
     }
 
+    pub(in crate::native_app) fn refresh_source_availability_from_disk(
+        &mut self,
+        source_id: &str,
+    ) -> Option<bool> {
+        let source = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == source_id)?;
+        Some(source.refresh_availability_from_disk().is_missing())
+    }
+
+    pub(in crate::native_app) fn source_roots(
+        &self,
+        source_id: &str,
+    ) -> Option<(PathBuf, PathBuf)> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .map(|source| (source.root.clone(), source.database_root.clone()))
+    }
+
     pub(in crate::native_app) fn selected_source_folder_tree_refresh_request(
         &self,
     ) -> Option<FolderTreeRefreshRequest> {
@@ -78,11 +96,15 @@ impl FolderBrowserState {
             .sources
             .iter()
             .find(|source| source.id == self.source.selected_source)?;
+        if source.is_missing() {
+            return None;
+        }
         source.root_folder.as_ref()?;
         Some(FolderTreeRefreshRequest {
             source_id: source.id.clone(),
             label: source.label.clone(),
             root: source.root.clone(),
+            database_root: source.database_root.clone(),
         })
     }
 
@@ -102,6 +124,25 @@ impl FolderBrowserState {
             .max_by_key(|(root, _)| root.components().count())
     }
 
+    pub(in crate::native_app) fn source_database_relative_file_path(
+        &self,
+        file_path: &std::path::Path,
+    ) -> Option<(PathBuf, PathBuf, PathBuf)> {
+        self.source
+            .sources
+            .iter()
+            .filter_map(|source| {
+                file_path.strip_prefix(&source.root).ok().map(|relative| {
+                    (
+                        source.root.clone(),
+                        source.database_root.clone(),
+                        relative.to_path_buf(),
+                    )
+                })
+            })
+            .max_by_key(|(root, _, _)| root.components().count())
+    }
+
     pub(in crate::native_app) fn sample_source_for_file_path(
         &self,
         file_path: &std::path::Path,
@@ -110,17 +151,20 @@ impl FolderBrowserState {
             .sources
             .iter()
             .filter_map(|source| {
-                file_path.strip_prefix(&source.root).ok().map(|relative| {
-                    (
-                        SampleSource::new_with_id(
-                            SourceId::from_string(source.id.clone()),
-                            source.root.clone(),
-                        ),
-                        relative.to_path_buf(),
-                    )
-                })
+                file_path
+                    .strip_prefix(&source.root)
+                    .ok()
+                    .map(|relative| (source.as_sample_source(), relative.to_path_buf()))
             })
             .max_by_key(|(source, _)| source.root.components().count())
+    }
+
+    pub(in crate::native_app) fn primary_sample_source(&self) -> Option<SampleSource> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.is_primary())
+            .map(SourceEntry::as_sample_source)
     }
 
     pub(in crate::native_app) fn source_is_removable(&self, source_id: &str) -> bool {
@@ -129,5 +173,117 @@ impl FolderBrowserState {
             .iter()
             .find(|source| source.id == source_id)
             .is_some_and(|source| !source.is_default_assets_source())
+    }
+
+    pub(in crate::native_app) fn source_role(&self, source_id: &str) -> Option<SourceRole> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .map(|source| source.role)
+    }
+
+    pub(in crate::native_app) fn source_is_missing(&self, source_id: &str) -> bool {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .is_some_and(SourceEntry::is_missing)
+    }
+
+    pub(in crate::native_app) fn selected_source_status_label(&self) -> Option<String> {
+        let source = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == self.source.selected_source)?;
+        let mut labels = Vec::new();
+        if source.is_missing() {
+            labels.push("Source missing");
+        }
+        if let Some(role) = source_role_status_label(source.role) {
+            labels.push(role);
+        }
+        if labels.is_empty() {
+            None
+        } else {
+            Some(labels.join(" | "))
+        }
+    }
+
+    pub(in crate::native_app) fn set_source_protected(
+        &mut self,
+        source_id: &str,
+        protected: bool,
+    ) -> Result<&'static str, String> {
+        let Some(source) = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == source_id)
+        else {
+            return Err(String::from("Source is unavailable"));
+        };
+        let role = if protected {
+            SourceRole::Protected
+        } else {
+            SourceRole::Normal
+        };
+        source.apply_role(role)?;
+        Ok(if protected {
+            "Protected source"
+        } else {
+            "Unprotected source"
+        })
+    }
+
+    pub(in crate::native_app) fn set_primary_source(
+        &mut self,
+        source_id: &str,
+    ) -> Result<&'static str, String> {
+        let Some(source_index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == source_id)
+        else {
+            return Err(String::from("Source is unavailable"));
+        };
+        if self.source.sources[source_index].is_protected() {
+            return Err(String::from("Primary sources must be writable."));
+        }
+        for source in &mut self.source.sources {
+            if source.role == SourceRole::Primary {
+                source.apply_role(SourceRole::Normal)?;
+            }
+        }
+        self.source.sources[source_index].apply_role(SourceRole::Primary)?;
+        Ok("Primary library")
+    }
+
+    pub(in crate::native_app) fn clear_primary_source(
+        &mut self,
+        source_id: &str,
+    ) -> Result<&'static str, String> {
+        let Some(source) = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == source_id)
+        else {
+            return Err(String::from("Source is unavailable"));
+        };
+        if source.is_primary() {
+            source.apply_role(SourceRole::Normal)?;
+        }
+        Ok("Cleared primary library")
+    }
+}
+
+fn source_role_status_label(role: SourceRole) -> Option<&'static str> {
+    match role {
+        SourceRole::Protected => Some("Protected source"),
+        SourceRole::Primary => Some("Primary library"),
+        SourceRole::Normal => None,
     }
 }

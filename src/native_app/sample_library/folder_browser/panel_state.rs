@@ -4,6 +4,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use super::{
     DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
     curation::{BrowserCurationMode, BrowserCurationScope},
+    harvest_filter::{HARVEST_FILTERS, HarvestFilter},
     playback_type_filter::{PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter},
     rating_filter::RATING_FILTER_LEVELS,
 };
@@ -11,11 +12,11 @@ use super::{
 const FILTER_PANEL_PADDING: f32 = 6.0;
 const FILTER_PANEL_HEADER_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
 const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
-const MAX_FILTER_PANEL_HEIGHT: f32 = 180.0;
+const MAX_FILTER_PANEL_HEIGHT: f32 = 210.0;
 pub(in crate::native_app) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
     filter_panel_geometry().header_only_height();
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 142.0;
+pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 166.0;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -47,6 +48,7 @@ pub(super) struct BrowserFilterState {
     pub(super) playback_type_filter: BTreeSet<PlaybackTypeFilter>,
     pub(super) rating_filter: BTreeSet<i8>,
     pub(super) curation: BrowserCurationMode,
+    pub(super) harvest: Option<HarvestFilter>,
 }
 
 #[derive(Clone, Debug)]
@@ -108,6 +110,10 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn curation_scope(&self) -> BrowserCurationScope {
         self.filters.curation.scope
+    }
+
+    pub(in crate::native_app) fn harvest_filter(&self) -> Option<HarvestFilter> {
+        self.filters.harvest
     }
 
     pub(in crate::native_app) fn apply_name_filter_input(
@@ -193,6 +199,31 @@ impl FolderBrowserState {
         self.clear_listing_reveals();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
+    }
+
+    pub(in crate::native_app) fn set_harvest_filter(
+        &mut self,
+        filter: HarvestFilter,
+        enabled: bool,
+    ) {
+        if !HARVEST_FILTERS.contains(&filter) {
+            return;
+        }
+        let next = enabled.then_some(filter);
+        if self.filters.harvest == next {
+            return;
+        }
+        self.filters.harvest = next;
+        self.clear_listing_reveals();
+        self.retain_visible_file_selection_after_filter();
+        self.reset_file_view();
+    }
+
+    pub(in crate::native_app) fn refresh_after_harvest_state_change(&mut self) {
+        self.clear_listing_reveals();
+        self.retain_visible_file_selection_after_filter();
+        self.reset_file_view();
+        self.bump_file_content_revision();
     }
 
     pub(in crate::native_app) fn retain_visible_file_selection_after_tag_filter(

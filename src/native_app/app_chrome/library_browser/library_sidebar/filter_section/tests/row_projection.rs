@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn filter_section_projects_name_text_input() {
     let state = FolderBrowserState::load_default();
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
 
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
@@ -31,7 +31,7 @@ fn filter_section_projects_name_text_input() {
 #[test]
 fn filter_section_projects_tag_text_input_with_row_labels() {
     let state = FolderBrowserState::load_default();
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
 
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
@@ -57,7 +57,7 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
 fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
     let mut state = FolderBrowserState::load_default();
     state.set_curation_scope(BrowserCurationScope::Ratings, true);
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
@@ -107,7 +107,7 @@ fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
 #[test]
 fn filter_section_hides_clear_buttons_when_filters_are_empty() {
     let state = FolderBrowserState::load_default();
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
 
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
@@ -140,7 +140,7 @@ fn filter_section_projects_name_clear_button_for_active_name_filter() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel {
         name_filter: String::from("kick"),
-        ..FilterSectionViewModel::from_folder_browser(&state)
+        ..FilterSectionViewModel::from_folder_browser(&state, false)
     };
 
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
@@ -176,7 +176,7 @@ fn filter_section_projects_tag_clear_button_for_active_tag_filter() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel {
         tag_filter: String::from("drum"),
-        ..FilterSectionViewModel::from_folder_browser(&state)
+        ..FilterSectionViewModel::from_folder_browser(&state, false)
     };
 
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
@@ -211,7 +211,7 @@ fn filter_section_projects_tag_clear_button_for_active_tag_filter() {
 fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
     let mut state = FolderBrowserState::load_default();
     state.set_playback_type_filter(PlaybackTypeFilter::Loop, true);
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
@@ -256,7 +256,7 @@ fn filter_section_projects_rating_toggles_and_dispatches_changes() {
     let mut state = FolderBrowserState::load_default();
     state.set_rating_filter(-3, true);
     state.set_rating_filter(0, true);
-    let model = FilterSectionViewModel::from_folder_browser(&state);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,

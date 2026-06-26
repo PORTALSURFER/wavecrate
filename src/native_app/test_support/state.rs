@@ -57,12 +57,15 @@ impl NativeAppStateFixture {
     pub(in crate::native_app) fn build(mut self) -> NativeAppState {
         self.folder_browser
             .apply_collection_names(&self.persisted_settings.collection_names);
+        let mut startup = StartupState::new(false, false, false);
+        startup.app_icon_install_pending = false;
+        startup.release_update_check_pending = false;
         NativeAppState {
             ui: UiAppState::new(
                 ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
                 StatusState::new(self.sample_status),
                 SettingsAppState::new(self.persisted_settings.clone()),
-                StartupState::new(false, false, false),
+                startup,
             ),
             library: LibraryAppState::new(self.folder_browser, None),
             waveform: WaveformAppState::new(

@@ -11,6 +11,7 @@ fn decoded_clip_snapshot(
         source_root: source.root.clone(),
         relative_path: relative_path.into(),
         bounds,
+        source_duration_seconds: samples.len() as f32 / 44_100.0,
         audio: SelectionExportAudioPayload::Decoded {
             samples: Arc::from(samples),
             channels: 1,

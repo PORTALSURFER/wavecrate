@@ -79,6 +79,7 @@ pub(in crate::native_app) enum WaveformInteraction {
 pub(in crate::native_app) struct WaveformContextMenu {
     pub(in crate::native_app) anchor: Point,
     pub(in crate::native_app) title: String,
+    pub(in crate::native_app) extract_to_harvest_destination: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

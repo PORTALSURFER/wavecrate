@@ -1,6 +1,40 @@
 use super::{LibraryDatabase, LibraryError, map_sql_error};
 
 impl LibraryDatabase {
+    pub(super) fn migrate_source_roles(&mut self) -> Result<(), LibraryError> {
+        let columns = self.table_columns("sources")?;
+        if columns.contains("role")
+            && columns.contains("metadata_storage")
+            && columns.contains("primary_import_folder")
+        {
+            return Ok(());
+        }
+        let tx = self.connection.transaction().map_err(map_sql_error)?;
+        if !columns.contains("role") {
+            tx.execute(
+                "ALTER TABLE sources ADD COLUMN role TEXT NOT NULL DEFAULT 'normal'",
+                [],
+            )
+            .map_err(map_sql_error)?;
+        }
+        if !columns.contains("metadata_storage") {
+            tx.execute(
+                "ALTER TABLE sources ADD COLUMN metadata_storage TEXT NOT NULL DEFAULT 'source_folder'",
+                [],
+            )
+            .map_err(map_sql_error)?;
+        }
+        if !columns.contains("primary_import_folder") {
+            tx.execute(
+                "ALTER TABLE sources ADD COLUMN primary_import_folder TEXT NOT NULL DEFAULT '_Wavecrate Inbox'",
+                [],
+            )
+            .map_err(map_sql_error)?;
+        }
+        tx.commit().map_err(map_sql_error)?;
+        Ok(())
+    }
+
     pub(super) fn migrate_analysis_jobs_content_hash(&mut self) -> Result<(), LibraryError> {
         let columns = self.table_columns("analysis_jobs")?;
         if columns.contains("content_hash") {
@@ -220,5 +254,12 @@ impl LibraryDatabase {
             )
             .map_err(map_sql_error)?;
         Ok(())
+    }
+
+    pub(super) fn migrate_harvest_tables(&mut self) -> Result<(), LibraryError> {
+        if self.table_exists("harvest_files")? && self.table_exists("harvest_derivations")? {
+            return Ok(());
+        }
+        self.apply_schema()
     }
 }

@@ -183,6 +183,84 @@ fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
 }
 
 #[test]
+fn protected_normalize_copies_to_primary_and_records_harvest_derivation() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-normalize.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    let before = fs::read(&path).expect("read protected source before normalize");
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let normalized_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-normalize_normalized.wav");
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NormalizeSelectedSamples,
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        fs::read(&path).expect("read protected source after normalize"),
+        before,
+        "protected source must not be normalized in place"
+    );
+    assert!(normalized_copy.is_file());
+    let peak = read_test_wav_f32(&normalized_copy)
+        .into_iter()
+        .map(f32::abs)
+        .fold(0.0_f32, f32::max);
+    assert!(peak > 0.9, "normalized copy peak should be near full scale");
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-normalize.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::NormalizeCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-normalize_normalized.wav")
+    );
+}
+
+#[test]
 fn normalize_selected_samples_does_not_enqueue_duplicate_active_file() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("queued.wav");
     let path = PathBuf::from(&selected_file);
@@ -473,6 +551,7 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: Vec::new(),
+            harvest_derivations: Vec::new(),
         },
         &mut context,
     );
@@ -509,6 +588,69 @@ fn normalize_finish_evicts_stale_memory_cache_before_reselect() {
             .active()
             .is_none(),
         "direct reselect should not use the deferred navigation load path"
+    );
+}
+
+#[test]
+fn normalize_finish_marks_normalized_samples_harvest_touched() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("normalize-harvest.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 0,
+            detail: selected_file.clone(),
+        },
+    );
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    let (source, relative_path) = state
+        .library
+        .folder_browser
+        .sample_source_for_file_path(&path)
+        .expect("sample should belong to the active source");
+    let harvest_key = wavecrate::sample_sources::HarvestFileKey::new(
+        wavecrate::sample_sources::SourceId::from_string(source.id.as_str().to_owned()),
+        relative_path,
+    );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            source_id,
+            loaded_path: path,
+            normalizing_loaded: false,
+            was_playing: false,
+            restart_ratio: 0.0,
+            restart_span: None,
+            normalized: vec![PathBuf::from(&selected_file)],
+            refreshed_files: Vec::new(),
+            skipped: Vec::new(),
+            failed: Vec::new(),
+            harvest_derivations: Vec::new(),
+        },
+        &mut context,
+    );
+
+    let harvest_parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
+        .expect("load harvest source")
+        .expect("harvest parent");
+    assert_eq!(
+        harvest_parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
     );
 }
 
@@ -583,17 +725,26 @@ fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalizati
             detail: selected_file.clone(),
         },
     );
-    state.background.normalization_queue.push_back(
-        crate::native_app::app::NormalizationQueueItem {
-            paths: vec![path.clone()],
-        },
-    );
-
     let source_id = state
         .library
         .folder_browser
         .selected_source_id()
         .to_string();
+    let (source_root, source_database_root) = state
+        .library
+        .folder_browser
+        .source_roots(&source_id)
+        .expect("source roots");
+    state.background.normalization_queue.push_back(
+        crate::native_app::app::NormalizationQueueItem {
+            paths: vec![path.clone()],
+            source_id: source_id.clone(),
+            source_root,
+            source_database_root,
+            harvest_derivations: Vec::new(),
+        },
+    );
+
     let mut context = ui::UiUpdateContext::default();
     state.finish_normalization(
         NormalizationResult {
@@ -608,6 +759,7 @@ fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalizati
             refreshed_files: Vec::new(),
             skipped: Vec::new(),
             failed: Vec::new(),
+            harvest_derivations: Vec::new(),
         },
         &mut context,
     );
@@ -684,6 +836,7 @@ fn normalize_finish_resumes_loaded_playback_when_current_sample_is_skipped() {
             refreshed_files: Vec::new(),
             skipped: vec![path],
             failed: Vec::new(),
+            harvest_derivations: Vec::new(),
         },
         &mut context,
     );
@@ -756,6 +909,7 @@ fn normalize_finish_resumes_loaded_playback_when_current_sample_fails_before_wri
                 path,
                 error: String::from("Invalid WAV: Failed to read enough bytes."),
             }],
+            harvest_derivations: Vec::new(),
         },
         &mut context,
     );
@@ -811,6 +965,7 @@ fn normalize_finish_reports_failed_file_without_success_count() {
                 path,
                 error: String::from("Invalid WAV: Failed to read enough bytes."),
             }],
+            harvest_derivations: Vec::new(),
         },
         &mut context,
     );

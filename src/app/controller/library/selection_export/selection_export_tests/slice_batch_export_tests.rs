@@ -60,12 +60,86 @@ fn save_waveform_slices_to_browser_runs_in_background_and_clears_on_success() {
 
     assert_eq!(controller.ui.status.text, "Saved 3 slices");
     assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
-    assert!(!controller.ui.progress.visible);
+    assert!(
+        !controller
+            .ui
+            .progress
+            .has_task(ProgressTaskKind::SelectionExport)
+    );
     assert!(controller.ui.waveform.slices.is_empty());
     assert!(controller.ui.waveform.selected_slices.is_empty());
     assert_eq!(
         controller.ui.waveform.slice_batch_profile,
         WaveformSliceBatchProfile::Manual
+    );
+}
+
+#[test]
+fn save_waveform_slices_to_browser_records_harvest_export_derivations() {
+    let config_base = tempdir().unwrap();
+    let _base_guard = crate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("slice_harvest.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("slice_harvest.wav"))
+        .unwrap();
+    controller.ui.waveform.slices =
+        vec![SelectionRange::new(0.0, 0.5), SelectionRange::new(0.5, 1.0)];
+    controller.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
+
+    controller
+        .save_waveform_selection_or_slices_to_browser(true)
+        .expect("slice batch should queue");
+
+    pump_background_jobs_until(&mut controller, |controller| {
+        source_root.join("slice_harvest_slice002.wav").is_file()
+            && controller.ui.status.text.contains("Saved 2 slices")
+    });
+
+    let parent_key = crate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("slice_harvest.wav"),
+    );
+    let parent = crate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("slice export should touch the harvest origin");
+    assert_eq!(parent.state, crate::sample_sources::HarvestState::Touched);
+    let edges = crate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 2);
+    assert_eq!(
+        edges
+            .iter()
+            .map(|edge| (
+                edge.operation.clone(),
+                edge.child.key.relative_path.clone(),
+                edge.source_range
+                    .map(|range| (range.start_seconds, range.end_seconds))
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                crate::sample_sources::HarvestDerivationOperation::Export,
+                PathBuf::from("slice_harvest_slice001.wav"),
+                Some((0.0, 0.25)),
+            ),
+            (
+                crate::sample_sources::HarvestDerivationOperation::Export,
+                PathBuf::from("slice_harvest_slice002.wav"),
+                Some((0.25, 0.5)),
+            ),
+        ]
     );
 }
 

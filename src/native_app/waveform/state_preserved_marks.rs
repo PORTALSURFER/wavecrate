@@ -45,6 +45,8 @@ impl WaveformState {
         self.similar_sections = marks.similar_sections;
         self.play_selection_flash_frames = marks.play_selection_flash_frames;
         self.edit_selection_flash_frames = marks.edit_selection_flash_frames;
+        self.play_selection_denied_flash_frames = 0;
+        self.edit_selection_denied_flash_frames = 0;
         self.active_drag = None;
         self.pending_playback_start = None;
     }

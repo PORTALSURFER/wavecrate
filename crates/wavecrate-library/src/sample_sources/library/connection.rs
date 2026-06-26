@@ -18,6 +18,7 @@ impl LibraryDatabase {
         let mut db = Self { connection };
         db.apply_pragmas()?;
         db.apply_schema()?;
+        db.migrate_source_roles()?;
         db.migrate_analysis_jobs_content_hash()?;
         db.migrate_samples_analysis_metadata()?;
         db.migrate_features_table()?;
@@ -25,6 +26,7 @@ impl LibraryDatabase {
         db.migrate_hdbscan_clusters_table()?;
         db.migrate_embeddings_table()?;
         db.migrate_ann_index_meta_table()?;
+        db.migrate_harvest_tables()?;
         Ok(db)
     }
 

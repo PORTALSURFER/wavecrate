@@ -7,6 +7,7 @@ pub(super) const AUDIO_ENGINE_TOOLTIP: &str = "Audio engine status and output se
 pub(super) const GENERAL_SETTINGS_TOOLTIP: &str = "Open Wavecrate settings.";
 pub(super) const HELP_TOOLTIPS_ACTIVE_TOOLTIP: &str =
     "Help tips: hover controls to see what they do.";
+pub(super) const RELEASE_UPDATE_TOOLTIP: &str = "New Wavecrate release available.";
 
 #[derive(Clone, Debug)]
 pub(super) struct TopControlBarProjection {
@@ -35,6 +36,11 @@ impl TopControlBarProjection {
                 general_settings: GeneralSettingsButtonProjection {
                     active: active_settings_tab == Some(AppSettingsTab::General),
                     tooltip: GENERAL_SETTINGS_TOOLTIP,
+                },
+                release_update: ReleaseUpdateButtonProjection {
+                    visible: state.ui.release_update.available(),
+                    active: state.ui.release_update.available(),
+                    tooltip: RELEASE_UPDATE_TOOLTIP,
                 },
                 help_tooltips: HelpTooltipsButtonProjection {
                     active: state.ui.chrome.help_tooltips_enabled,
@@ -65,6 +71,7 @@ pub(super) struct SettingsControlsProjection {
     pub(super) help_tooltips_enabled: bool,
     pub(super) audio_engine: AudioEnginePillProjection,
     pub(super) general_settings: GeneralSettingsButtonProjection,
+    pub(super) release_update: ReleaseUpdateButtonProjection,
     pub(super) help_tooltips: HelpTooltipsButtonProjection,
 }
 
@@ -78,6 +85,13 @@ pub(super) struct AudioEnginePillProjection {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct GeneralSettingsButtonProjection {
+    pub(super) active: bool,
+    pub(super) tooltip: &'static str,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ReleaseUpdateButtonProjection {
+    pub(super) visible: bool,
     pub(super) active: bool,
     pub(super) tooltip: &'static str,
 }

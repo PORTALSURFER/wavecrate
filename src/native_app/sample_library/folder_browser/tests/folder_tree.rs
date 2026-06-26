@@ -253,6 +253,7 @@ fn folder_tree_refresh_prunes_deleted_multi_selected_folders() {
         source_id: browser.source.selected_source.clone(),
         label: String::from("test"),
         root: root.clone(),
+        database_root: root.clone(),
     });
     assert!(browser.apply_folder_tree_refresh_result(result));
 

@@ -9,7 +9,9 @@ use super::error::map_sql_error;
 use super::telemetry::record_library_db_event;
 use super::{KNOWN_SOURCES_KEY, LibraryError, LibraryState};
 use crate::sample_sources::normalize_path;
-use crate::sample_sources::{SampleSource, SourceId};
+use crate::sample_sources::{
+    SampleSource, SourceId, SourceMetadataStorage, SourceRole, default_primary_import_folder,
+};
 
 impl LibraryDatabase {
     pub(super) fn load_state(&self) -> Result<LibraryState, LibraryError> {
@@ -36,7 +38,7 @@ impl LibraryDatabase {
         let mut stmt = self
             .connection
             .prepare(
-                "SELECT id, root
+                "SELECT id, root, role, metadata_storage, primary_import_folder
                  FROM sources
                  ORDER BY sort_order ASC, id ASC",
             )
@@ -45,10 +47,16 @@ impl LibraryDatabase {
             .query_map([], |row| {
                 let id: String = row.get(0)?;
                 let root: String = row.get(1)?;
-                Ok(SampleSource {
+                let role: String = row.get(2)?;
+                let metadata_storage: String = row.get(3)?;
+                let primary_import_folder: String = row.get(4)?;
+                Ok(normalized_source(SampleSource {
                     id: SourceId::from_string(id),
                     root: PathBuf::from(root),
-                })
+                    role: SourceRole::from_stored(&role),
+                    metadata_storage: SourceMetadataStorage::from_stored(&metadata_storage),
+                    primary_import_folder: primary_import_folder_path(primary_import_folder),
+                }))
             })
             .map_err(map_sql_error)?
             .collect::<Result<Vec<_>, _>>()
@@ -81,13 +89,21 @@ impl LibraryDatabase {
         }
 
         let mut stmt = tx
-            .prepare("INSERT INTO sources (id, root, sort_order) VALUES (?1, ?2, ?3)")
+            .prepare(
+                "INSERT INTO sources (
+                    id, root, sort_order, role, metadata_storage, primary_import_folder
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )
             .map_err(map_sql_error)?;
         for (idx, source) in sources.iter().enumerate() {
+            let source = normalized_source(source.clone());
             stmt.execute(params![
                 source.id.as_str(),
                 source.root.to_string_lossy(),
-                idx as i64
+                idx as i64,
+                source.role.as_str(),
+                source.metadata_storage.as_str(),
+                source.primary_import_folder.to_string_lossy(),
             ])
             .map_err(map_sql_error)?;
         }
@@ -152,6 +168,31 @@ impl LibraryDatabase {
         .map_err(map_sql_error)?;
         Ok(())
     }
+}
+
+fn normalized_source(mut source: SampleSource) -> SampleSource {
+    if source.role == SourceRole::Protected {
+        source.metadata_storage = SourceMetadataStorage::AppData;
+    }
+    if source.role == SourceRole::Primary {
+        source.metadata_storage = SourceMetadataStorage::SourceFolder;
+    }
+    source.primary_import_folder =
+        primary_import_folder_path(source.primary_import_folder.to_string_lossy().to_string());
+    source
+}
+
+fn primary_import_folder_path(value: String) -> PathBuf {
+    let path = PathBuf::from(value.trim());
+    if path.as_os_str().is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return default_primary_import_folder();
+    }
+    path
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

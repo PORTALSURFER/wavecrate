@@ -28,6 +28,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) audio_open: AudioOpenTaskOwner,
     pub(in crate::native_app) folder_tree_refresh_task: ui::LatestTask,
     pub(in crate::native_app) folder_verify_task: ui::LatestTask,
+    pub(in crate::native_app) release_update_check_task: ui::LatestTask,
     pub(in crate::native_app) waveform_destructive_edit_task: ui::LatestTask,
     pub(in crate::native_app) waveform_destructive_edit_context:
         Option<WaveformDestructiveEditUiContext>,
@@ -56,6 +57,7 @@ impl BackgroundTaskState {
             audio_open: AudioOpenTaskOwner::new(),
             folder_tree_refresh_task: ui::LatestTask::new(),
             folder_verify_task: ui::LatestTask::new(),
+            release_update_check_task: ui::LatestTask::new(),
             waveform_destructive_edit_task: ui::LatestTask::new(),
             waveform_destructive_edit_context: None,
             normalization_progress: None,
@@ -84,8 +86,14 @@ pub(in crate::native_app) struct WaveformDestructiveEditUiContext {
     pub(in crate::native_app) request: PendingWaveformDestructiveEdit,
     pub(in crate::native_app) before_selected_path: Option<String>,
     pub(in crate::native_app) playback_was_active: bool,
+    pub(in crate::native_app) source_duration_seconds: Option<f64>,
     pub(in crate::native_app) extracted_playback_type: ExtractedFilePlaybackType,
     pub(in crate::native_app) preserved_marks: Option<WaveformPreservedMarks>,
+    pub(in crate::native_app) output_focus_path: Option<std::path::PathBuf>,
+    pub(in crate::native_app) harvest_whole_file_derivation: Option<(
+        std::path::PathBuf,
+        wavecrate::sample_sources::HarvestDerivationOperation,
+    )>,
 }
 
 /// Owns audio-output open task identity and stale-completion policy.

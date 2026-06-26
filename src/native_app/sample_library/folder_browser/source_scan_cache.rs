@@ -188,6 +188,7 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_app::sample_library::folder_browser::state_types::SourceAvailability;
     use crate::native_app::sample_library::folder_browser::{FolderEntry, model::FileEntry};
     use wavecrate::sample_sources::{Rating, SampleCollection};
 
@@ -199,6 +200,11 @@ mod tests {
             id: String::from("source-id"),
             label: String::from("Source"),
             root: root.clone(),
+            database_root: root.clone(),
+            role: wavecrate::sample_sources::SourceRole::Normal,
+            availability: SourceAvailability::Available,
+            metadata_storage: wavecrate::sample_sources::SourceMetadataStorage::SourceFolder,
+            primary_import_folder: wavecrate::sample_sources::default_primary_import_folder(),
             root_folder: Some(FolderEntry {
                 id: root.display().to_string(),
                 name: String::from("source"),

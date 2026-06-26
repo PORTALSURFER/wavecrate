@@ -6,6 +6,7 @@ use crate::native_app::app::{GuiMessage, MetadataMessage};
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
+use wavecrate::sample_sources::SourceRole;
 
 pub(in crate::native_app) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
     ui::message_context_menu_overlay_auto_width(
@@ -66,11 +67,50 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         ));
     }
     if menu.kind == BrowserContextTargetKind::Sample {
+        actions.push(ui::MenuCommand::new(
+            "Mark Harvest Done",
+            GuiMessage::MarkContextSampleHarvestDone,
+        ));
+        actions.push(ui::MenuCommand::new(
+            "Ignore in Harvest",
+            GuiMessage::MarkContextSampleHarvestIgnored,
+        ));
+        actions.push(ui::MenuCommand::new(
+            "Reset Harvest",
+            GuiMessage::ResetContextSampleHarvest,
+        ));
+        actions.push(ui::MenuCommand::new(
+            "Show Harvest Origin",
+            GuiMessage::ShowContextSampleHarvestOrigin,
+        ));
+        actions.push(ui::MenuCommand::new(
+            "Show Harvest Derivatives",
+            GuiMessage::ShowContextSampleHarvestDerivatives,
+        ));
+        actions.push(ui::MenuCommand::new(
+            "Open Harvest Destination",
+            GuiMessage::OpenContextSampleHarvestDestination,
+        ));
         actions.push(
             ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash).danger(),
         );
     }
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
+        actions.push(ui::MenuCommand::new(
+            source_protection_label(menu.source_role),
+            GuiMessage::ToggleContextSourceProtection,
+        ));
+        if menu.source_role == SourceRole::Primary {
+            actions.push(ui::MenuCommand::new(
+                "Clear Primary",
+                GuiMessage::ClearContextSourcePrimary,
+            ));
+        } else {
+            actions.push(ui::MenuCommand::new(
+                "Set as Primary",
+                GuiMessage::SetContextSourcePrimary,
+            ));
+        }
         actions.push(ui::MenuCommand::new(
             "Refresh Source",
             GuiMessage::RefreshContextSource,
@@ -95,6 +135,14 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
         );
     }
     actions
+}
+
+fn source_protection_label(role: SourceRole) -> &'static str {
+    if role == SourceRole::Protected {
+        "Unprotect Source"
+    } else {
+        "Protect Source"
+    }
 }
 
 fn missing_sample_context_menu_commands(

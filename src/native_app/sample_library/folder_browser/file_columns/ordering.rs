@@ -125,7 +125,7 @@ pub(in crate::native_app) fn sort_file_indices_by_column_kind(
         FileColumnKind::Path => {
             indices.sort_by(|a, b| folder.files[*a].id.cmp(&folder.files[*b].id))
         }
-        FileColumnKind::Name | FileColumnKind::Similarity => {
+        FileColumnKind::Name | FileColumnKind::Harvest | FileColumnKind::Similarity => {
             indices.sort_by_cached_key(|index| folder.files[*index].name_sort_key());
         }
     }
@@ -176,7 +176,7 @@ fn sort_file_refs_by_column_kind(
             });
         }
         FileColumnKind::Path => files.sort_by(|a, b| a.id.cmp(&b.id)),
-        FileColumnKind::Name | FileColumnKind::Similarity => {
+        FileColumnKind::Name | FileColumnKind::Harvest | FileColumnKind::Similarity => {
             files.sort_by_cached_key(|file| file.name_sort_key());
         }
     }

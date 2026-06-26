@@ -1,7 +1,4 @@
-use super::super::{
-    FolderBrowserState, SourceEntry, path_helpers::folder_label,
-    source_scan_cache::load_source_scan_cache,
-};
+use super::super::{FolderBrowserState, SourceEntry, source_scan_cache::load_source_scan_cache};
 use wavecrate::sample_sources::SampleSource;
 
 impl FolderBrowserState {
@@ -12,13 +9,7 @@ impl FolderBrowserState {
         }
         let entries = sources
             .iter()
-            .map(|source| {
-                SourceEntry::new(
-                    source.id.as_str().to_string(),
-                    folder_label(&source.root),
-                    source.root.clone(),
-                )
-            })
+            .map(SourceEntry::from_sample_source)
             .collect::<Vec<_>>();
         Self::from_sources(entries, sources[0].id.as_str().to_string())
     }
@@ -34,11 +25,7 @@ impl FolderBrowserState {
         let entries = sources
             .iter()
             .map(|source| {
-                let mut entry = SourceEntry::new(
-                    source.id.as_str().to_string(),
-                    folder_label(&source.root),
-                    source.root.clone(),
-                );
+                let mut entry = SourceEntry::from_sample_source(source);
                 if let Some(snapshot) =
                     scan_cache.source_snapshot_for_source(source.id.as_str(), &source.root)
                 {

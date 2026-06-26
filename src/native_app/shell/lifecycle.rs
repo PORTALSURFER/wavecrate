@@ -40,16 +40,24 @@ impl NativeAppState {
         });
         let background = BackgroundTaskState::new(worker_sender, Some(worker_receiver));
         let audio = AudioAppState::from_settings(&config.core);
+        let startup = StartupState::new(
+            startup_source_scan_pending,
+            startup_folder_verify_pending,
+            has_configured_sources,
+        );
+        #[cfg(test)]
+        let startup = {
+            let mut startup = startup;
+            startup.app_icon_install_pending = false;
+            startup.release_update_check_pending = false;
+            startup
+        };
         let state = Self {
             ui: UiAppState::new(
                 ChromeUiState::new(DEFAULT_FOLDER_WIDTH),
                 StatusState::new("Select a sample to load"),
                 SettingsAppState::new(config.core.clone()),
-                StartupState::new(
-                    startup_source_scan_pending,
-                    startup_folder_verify_pending,
-                    has_configured_sources,
-                ),
+                startup,
             ),
             library: LibraryAppState::new(folder_browser, source_watcher),
             waveform: WaveformAppState::new(WaveformState::load_default()?),

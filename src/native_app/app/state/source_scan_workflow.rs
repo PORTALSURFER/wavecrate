@@ -44,6 +44,7 @@ pub(in crate::native_app) enum SourceScanFinish {
         file_count: usize,
         folder_count: usize,
         source_db_error: Option<String>,
+        source_root_available: bool,
     },
     Stale {
         label: String,
@@ -140,7 +141,11 @@ impl SourceScanWorkflow {
         paths: &[PathBuf],
         overflowed: bool,
     ) -> SourceFilesystemChangePlan {
-        if browser.source_root_path(&source_id).is_none() {
+        let Some(source_missing) = browser.refresh_source_availability_from_disk(&source_id) else {
+            self.pending_refreshes.remove(&source_id);
+            return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
+        };
+        if source_missing {
             self.pending_refreshes.remove(&source_id);
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         }
@@ -191,6 +196,7 @@ impl SourceScanWorkflow {
         let file_count = result.file_count;
         let folder_count = result.folder_count;
         let source_db_error = result.source_db_error.clone();
+        let source_root_available = result.source_root_available;
         if browser.apply_scan_finished(result) {
             self.progress = None;
             SourceScanFinish::Applied {
@@ -199,6 +205,7 @@ impl SourceScanWorkflow {
                 file_count,
                 folder_count,
                 source_db_error,
+                source_root_available,
             }
         } else {
             SourceScanFinish::Stale { label }

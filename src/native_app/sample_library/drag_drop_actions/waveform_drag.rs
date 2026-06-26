@@ -4,11 +4,14 @@ use radiant::{
     prelude as ui,
     widgets::{DragHandleMessage, DragHandlePhase},
 };
+use wavecrate::sample_sources::HarvestDerivationOperation;
 
 use crate::native_app::app::{
     ExtractedFilePlaybackType, GuiMessage, NativeAppState, emit_gui_action, sample_path_label,
 };
-use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
+use crate::native_app::waveform::{
+    WaveformExtractionRequest, WaveformSelectionKind, execute_waveform_extraction,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn drag_loaded_waveform_sample(
@@ -152,6 +155,11 @@ impl NativeAppState {
             .folder_browser
             .folder_target_lock_error(&target_folder, "Extraction")
         {
+            self.flash_denied_waveform_selection_for_error(
+                &error,
+                self.waveform.current.play_selection(),
+                WaveformSelectionKind::Play,
+            );
             self.ui.status.sample = error.clone();
             emit_gui_action(
                 "waveform.selection_drag.start",
@@ -169,6 +177,27 @@ impl NativeAppState {
             .play_selection_extraction_request(Some(target_folder))
         {
             Ok(request) => {
+                let selection = request.selection();
+                let request = match self.route_harvest_extraction_request(request) {
+                    Ok(request) => request,
+                    Err(error) => {
+                        self.flash_denied_waveform_selection_for_error(
+                            &error,
+                            Some(selection),
+                            WaveformSelectionKind::Play,
+                        );
+                        self.ui.status.sample = error.clone();
+                        emit_gui_action(
+                            "waveform.selection_drag.start",
+                            Some("waveform"),
+                            None,
+                            "blocked",
+                            started_at,
+                            Some(&error),
+                        );
+                        return false;
+                    }
+                };
                 let label = format!("{} extraction", sample_path_label(request.source_path()));
                 let position = drag.position();
                 self.library
@@ -228,11 +257,22 @@ impl NativeAppState {
         folder_id: &str,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> Result<bool, String> {
-        let Some(request) = self
+        let request = match self
             .library
             .folder_browser
-            .take_waveform_extraction_drag_for_folder(folder_id)?
-        else {
+            .take_waveform_extraction_drag_for_folder(folder_id)
+        {
+            Ok(request) => request,
+            Err(error) => {
+                self.flash_denied_waveform_selection_for_error(
+                    &error,
+                    self.waveform.current.play_selection(),
+                    WaveformSelectionKind::Play,
+                );
+                return Err(error);
+            }
+        };
+        let Some(request) = request else {
             return Ok(false);
         };
         self.commit_waveform_extraction_drag(request, context);
@@ -258,6 +298,7 @@ impl NativeAppState {
                     completion,
                     drag_position: None,
                     playback_type,
+                    harvest_operation: HarvestDerivationOperation::Extract,
                     started_at,
                 },
             );

@@ -13,6 +13,7 @@ fn sample_context_menu(path: impl Into<PathBuf>) -> BrowserContextMenu {
         kind: BrowserContextTargetKind::Sample,
         path: path.into(),
         source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
         source_removable: false,
         folder_locked: false,
         folder_lock_inherited: false,
@@ -41,6 +42,7 @@ fn waveform_context_menu_escape_shortcut_closes_context_menu() {
     state.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
         anchor: Point::new(12.0, 24.0),
         title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
     });
 
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
@@ -55,6 +57,7 @@ fn close_context_menu_message_clears_waveform_context_menu() {
     state.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
         anchor: Point::new(12.0, 24.0),
         title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
     });
 
     state.apply_message(

@@ -81,6 +81,22 @@ impl SourceDatabase {
         )
     }
 
+    /// Open (or create) a source database stored outside the source root.
+    ///
+    /// `root` remains the audio root used for relative paths and scans, while
+    /// `database_root` owns the `.wavecrate.db` file.
+    pub fn open_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        open::open_source_database_with_database_root(
+            root.as_ref(),
+            database_root.as_ref(),
+            open::should_open_source_db_read_only(),
+            open::SourceDatabaseOpenMode::Full,
+        )
+    }
+
     /// Open (or create) the database using startup-friendly schema work only.
     ///
     /// This preserves required table/index compatibility while deferring expensive
@@ -90,9 +106,33 @@ impl SourceDatabase {
         Self::open_with_role(root, SourceDatabaseConnectionRole::JobWorker)
     }
 
+    /// Open a startup-friendly source database stored outside the source root.
+    pub fn open_fast_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_with_role_and_database_root(
+            root,
+            database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+    }
+
     /// Open an existing database in read-only mode without applying schema migrations.
     pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         Self::open_with_role(root, SourceDatabaseConnectionRole::UiRead)
+    }
+
+    /// Open an external source database in read-only mode.
+    pub fn open_read_only_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_with_role_and_database_root(
+            root,
+            database_root,
+            SourceDatabaseConnectionRole::UiRead,
+        )
     }
 
     /// Open a source database using one explicit runtime role profile.
@@ -107,6 +147,19 @@ impl SourceDatabase {
         open::open_source_database_for_role(root.as_ref(), role)
     }
 
+    /// Open a source database using an explicit role and database root.
+    pub fn open_with_role_and_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<Self, SourceDbError> {
+        open::open_source_database_for_role_with_database_root(
+            root.as_ref(),
+            database_root.as_ref(),
+            role,
+        )
+    }
+
     /// Open a writable source database for an explicit user metadata edit.
     ///
     /// This makes direct user edits visible at the call site without requiring
@@ -115,6 +168,34 @@ impl SourceDatabase {
         open::open_source_database_for_role(
             root.as_ref(),
             SourceDatabaseConnectionRole::UserMetadataWrite,
+        )
+    }
+
+    /// Open a writable external source database for an explicit user metadata edit.
+    pub fn open_for_user_metadata_write_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        open::open_source_database_for_role_with_database_root(
+            root.as_ref(),
+            database_root.as_ref(),
+            SourceDatabaseConnectionRole::UserMetadataWrite,
+        )
+    }
+
+    /// Open a writable external source database for opportunistic playback-history updates.
+    ///
+    /// This profile uses a short busy timeout so low-value last-played metadata
+    /// cannot sit behind source scans or analysis work and delay interactive
+    /// sample auditioning.
+    pub fn open_for_playback_history_write_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        open::open_source_database_for_role_with_database_root(
+            root.as_ref(),
+            database_root.as_ref(),
+            SourceDatabaseConnectionRole::PlaybackHistoryWrite,
         )
     }
 
@@ -130,6 +211,16 @@ impl SourceDatabase {
         role: SourceDatabaseConnectionRole,
     ) -> Result<Connection, SourceDbError> {
         let db = Self::open_with_role(root, role)?;
+        Ok(db.into_connection())
+    }
+
+    /// Open a raw SQLite connection using one explicit role and database root.
+    pub fn open_connection_with_role_and_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<Connection, SourceDbError> {
+        let db = Self::open_with_role_and_database_root(root, database_root, role)?;
         Ok(db.into_connection())
     }
 
@@ -155,16 +246,18 @@ impl SourceDatabase {
         );
     }
 
-    fn apply_pragmas(&self) -> Result<(), SourceDbError> {
-        let pragmas = "PRAGMA journal_mode=WAL;
+    fn apply_pragmas(&self, busy_timeout_ms: u64) -> Result<(), SourceDbError> {
+        let pragmas = format!(
+            "PRAGMA journal_mode=WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys=ON;
-             PRAGMA busy_timeout=5000;
+             PRAGMA busy_timeout={busy_timeout_ms};
              PRAGMA temp_store=MEMORY;
              PRAGMA cache_size=-32000;
-             PRAGMA mmap_size=134217728;";
+             PRAGMA mmap_size=134217728;"
+        );
         self.connection
-            .execute_batch(pragmas)
+            .execute_batch(&pragmas)
             .map_err(util::map_sql_error)?;
         crate::sqlite_wal::apply_workload_wal_pragmas(&self.connection)
             .map_err(util::map_sql_error)?;

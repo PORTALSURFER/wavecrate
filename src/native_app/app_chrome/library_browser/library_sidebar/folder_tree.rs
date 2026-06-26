@@ -21,6 +21,7 @@ pub(super) fn folder_tree_section(model: FolderTreeViewModel) -> ui::View<GuiMes
         folder_tree_view(model.visible_folders, model.window),
         selected_folder_status(
             model.selected_folder_status_label,
+            model.selected_source_missing,
             model.include_subfolders_available,
             model.include_subfolders,
             model.show_empty_folders,

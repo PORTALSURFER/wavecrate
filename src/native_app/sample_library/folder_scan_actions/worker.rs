@@ -49,6 +49,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        let discovered_audio_paths = result.audio_file_paths();
         match self.library.finish_folder_scan(result) {
             SourceScanFinish::Applied {
                 source_id,
@@ -56,17 +57,24 @@ impl NativeAppState {
                 file_count,
                 folder_count,
                 source_db_error,
-            } => self.apply_finished_folder_scan(
-                AppliedFolderScan {
-                    source_id,
-                    label,
-                    file_count,
-                    folder_count,
-                    source_db_error,
-                },
-                started_at,
-                context,
-            ),
+                source_root_available,
+            } => {
+                if source_root_available {
+                    self.record_harvest_discovered_for_paths(&discovered_audio_paths);
+                }
+                self.apply_finished_folder_scan(
+                    AppliedFolderScan {
+                        source_id,
+                        label,
+                        file_count,
+                        folder_count,
+                        source_db_error,
+                        source_root_available,
+                    },
+                    started_at,
+                    context,
+                );
+            }
             SourceScanFinish::Stale { label } => {
                 emit_gui_action(
                     "folder_browser.scan.finish",
@@ -88,6 +96,20 @@ impl NativeAppState {
     ) {
         self.ui.chrome.job_details_open = false;
         self.background.progress_tick = 0.0;
+        if !scan.source_root_available {
+            self.ui.status.sample = format!("Source missing: {}", scan.label);
+            emit_gui_action(
+                "folder_browser.scan.finish",
+                Some("folder_browser"),
+                Some(&scan.label),
+                "missing",
+                started_at,
+                Some("source_root_missing"),
+            );
+            self.persist_user_configuration("folder_browser.sources.persist", started_at);
+            self.sync_source_watcher();
+            return;
+        }
         if let Some(error) = scan.source_db_error {
             self.ui.status.sample = format!(
                 "Loaded source {}: {} files in {} folders, but indexing failed: {error}",
@@ -138,6 +160,7 @@ struct AppliedFolderScan {
     file_count: usize,
     folder_count: usize,
     source_db_error: Option<String>,
+    source_root_available: bool,
 }
 
 fn folder_scan_worker_event_message(event: FolderScanWorkerEvent) -> GuiMessage {

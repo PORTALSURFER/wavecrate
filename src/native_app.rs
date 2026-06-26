@@ -4,6 +4,7 @@ mod app;
 mod app_chrome;
 mod audio;
 mod metadata;
+mod release_update;
 mod sample_library;
 mod shell;
 #[cfg(test)]

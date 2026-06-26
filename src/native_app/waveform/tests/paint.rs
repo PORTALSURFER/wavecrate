@@ -695,6 +695,31 @@ fn edit_selection_flash_paints_bright_overlay() {
 }
 
 #[test]
+fn edit_selection_denied_flash_paints_red_twice() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.flash_denied_selection(WaveformSelectionKind::Edit);
+
+    let initial_plan =
+        waveform_widget_for_state(&state).paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    assert!(contains_denied_selection_fill(&initial_plan));
+
+    for _ in 0..6 {
+        state.apply_interaction(WaveformInteraction::Frame);
+    }
+    let between_plan =
+        waveform_widget_for_state(&state).paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    assert!(!contains_denied_selection_fill(&between_plan));
+
+    for _ in 0..6 {
+        state.apply_interaction(WaveformInteraction::Frame);
+    }
+    let second_plan =
+        waveform_widget_for_state(&state).paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    assert!(contains_denied_selection_fill(&second_plan));
+}
+
+#[test]
 fn edit_fade_curve_paints_s_curve_shape_as_polyline() {
     let mut state = WaveformState::synthetic_for_tests();
     let selection = wavecrate::selection::SelectionRange::new(0.2, 0.6)
@@ -760,6 +785,14 @@ fn edit_fade_curve_paints_s_curve_shape_as_polyline() {
     assert!((trailing_points.last().expect("last trailing fade point").y - 80.0).abs() < 0.001);
     assert!((trailing_mid.x - 110.0).abs() < 0.001);
     assert!((trailing_mid.y - trailing_expected_y).abs() < 0.001);
+}
+
+fn contains_denied_selection_fill(plan: &SurfacePaintPlan) -> bool {
+    fill_rects(plan).iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 72, 82, 130)
+    })
 }
 
 #[test]

@@ -16,6 +16,7 @@ pub(in crate::native_app) const MAX_BEAT_GUIDE_COUNT: u8 = 64;
 pub(in crate::native_app) struct UiAppState {
     pub(in crate::native_app) chrome: ChromeUiState,
     pub(in crate::native_app) status: StatusState,
+    pub(in crate::native_app) release_update: ReleaseUpdateState,
     pub(in crate::native_app) settings: SettingsAppState,
     pub(in crate::native_app) browser_interaction: BrowserInteractionState,
     pub(in crate::native_app) startup: StartupState,
@@ -31,6 +32,7 @@ impl UiAppState {
         Self {
             chrome,
             status,
+            release_update: ReleaseUpdateState::default(),
             settings,
             browser_interaction: BrowserInteractionState::default(),
             startup,
@@ -118,10 +120,63 @@ impl StatusState {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) struct ReleaseUpdateState {
+    pub(in crate::native_app) status: ReleaseUpdateStatus,
+    pub(in crate::native_app) latest: Option<wavecrate::updater::PublicReleaseInfo>,
+    pub(in crate::native_app) last_error: Option<String>,
+}
+
+impl ReleaseUpdateState {
+    pub(in crate::native_app) fn begin_check(&mut self) {
+        self.status = ReleaseUpdateStatus::Checking;
+        self.latest = None;
+        self.last_error = None;
+    }
+
+    pub(in crate::native_app) fn finish(
+        &mut self,
+        result: Result<Option<wavecrate::updater::PublicReleaseInfo>, String>,
+    ) {
+        match result {
+            Ok(Some(release)) => {
+                self.status = ReleaseUpdateStatus::Available;
+                self.latest = Some(release);
+                self.last_error = None;
+            }
+            Ok(None) => {
+                self.status = ReleaseUpdateStatus::UpToDate;
+                self.latest = None;
+                self.last_error = None;
+            }
+            Err(error) => {
+                self.status = ReleaseUpdateStatus::Error;
+                self.latest = None;
+                self.last_error = Some(error);
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn available(&self) -> bool {
+        self.status == ReleaseUpdateStatus::Available && self.latest.is_some()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) enum ReleaseUpdateStatus {
+    #[default]
+    Idle,
+    Checking,
+    UpToDate,
+    Available,
+    Error,
+}
+
 #[derive(Default)]
 pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) context_menu: Option<BrowserContextMenu>,
     pub(in crate::native_app) waveform_context_menu: Option<WaveformContextMenu>,
+    pub(in crate::native_app) clipboard_handoff_target: ClipboardHandoffTarget,
     pub(in crate::native_app) pending_folder_delete: Option<PendingFolderDelete>,
     pub(in crate::native_app) pending_waveform_destructive_edit:
         Option<PendingWaveformDestructiveEdit>,
@@ -130,6 +185,13 @@ pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
     pub(in crate::native_app) file_move_conflict_apply_to_remaining: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) enum ClipboardHandoffTarget {
+    #[default]
+    BrowserFiles,
+    WaveformSelection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -205,6 +267,8 @@ pub(in crate::native_app) struct StartupState {
     pub(in crate::native_app) source_scan_pending: bool,
     pub(in crate::native_app) folder_verify_pending: bool,
     pub(in crate::native_app) auto_load_pending: bool,
+    pub(in crate::native_app) app_icon_install_pending: bool,
+    pub(in crate::native_app) release_update_check_pending: bool,
 }
 
 impl StartupState {
@@ -217,6 +281,8 @@ impl StartupState {
             source_scan_pending,
             folder_verify_pending,
             auto_load_pending,
+            app_icon_install_pending: true,
+            release_update_check_pending: true,
         }
     }
 }

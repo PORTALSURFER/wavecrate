@@ -45,13 +45,16 @@ impl From<FileMoveConflictResolution> for FileMoveConflictResolutionRequest {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FileMoveConflict {
     pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) source_database_root: PathBuf,
     pub(in crate::native_app) source_path: PathBuf,
     pub(in crate::native_app) destination_path: PathBuf,
+    pub(in crate::native_app) destination_protected: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FileMoveConflictBatch {
     pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) source_database_root: PathBuf,
     pub(in crate::native_app) target_folder: PathBuf,
     pub(in crate::native_app) remove_from_collection: Option<SampleCollection>,
     pub(in crate::native_app) conflicts: Vec<FileMoveConflict>,
@@ -64,7 +67,9 @@ pub(in crate::native_app) struct FileMoveConflictBatch {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FileMoveItem {
     pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) source_database_root: PathBuf,
     pub(in crate::native_app) file_id: String,
+    pub(in crate::native_app) copy_only: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,23 +92,29 @@ pub(in crate::native_app) enum FolderMoveDropInput {
 pub(in crate::native_app) enum FolderMoveRequest {
     Folder {
         source_root: PathBuf,
+        source_database_root: PathBuf,
         moves: Vec<(PathBuf, PathBuf)>,
         target_folder: PathBuf,
     },
     Files {
         source_root: PathBuf,
+        source_database_root: PathBuf,
         file_ids: Vec<String>,
         target_folder: PathBuf,
+        target_protected: bool,
         remove_from_collection: Option<SampleCollection>,
     },
     SourcedFiles {
         target_source_root: PathBuf,
+        target_source_database_root: PathBuf,
         file_moves: Vec<FileMoveItem>,
         target_folder: PathBuf,
+        target_protected: bool,
         remove_from_collection: Option<SampleCollection>,
     },
     ExtractedFile {
         source_root: PathBuf,
+        source_database_root: PathBuf,
         path: PathBuf,
         target_folder: PathBuf,
     },

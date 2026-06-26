@@ -308,13 +308,13 @@ fn write_valid_wav_with_frequency(path: &std::path::Path, frequency_hz: f32) {
 }
 
 fn count_jobs(source: &SampleSource) -> i64 {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     conn.query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| row.get(0))
         .expect("job count")
 }
 
 fn count_jobs_by_type(source: &SampleSource, job_type: &str) -> i64 {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     conn.query_row(
         "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1",
         [job_type],
@@ -324,7 +324,7 @@ fn count_jobs_by_type(source: &SampleSource, job_type: &str) -> i64 {
 }
 
 fn count_jobs_by_type_and_status(source: &SampleSource, job_type: &str, status: &str) -> i64 {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     conn.query_row(
         "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1 AND status = ?2",
         [job_type, status],
@@ -334,7 +334,7 @@ fn count_jobs_by_type_and_status(source: &SampleSource, job_type: &str, status: 
 }
 
 fn count_jobs_by_status(source: &SampleSource, status: &str) -> i64 {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     conn.query_row(
         "SELECT COUNT(*) FROM analysis_jobs WHERE status = ?1",
         [status],
@@ -344,7 +344,7 @@ fn count_jobs_by_status(source: &SampleSource, status: &str) -> i64 {
 }
 
 fn count_similarity_embeddings(source: &SampleSource, relative_path: &str) -> i64 {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
     conn.query_row(
         "SELECT COUNT(*) FROM embeddings WHERE sample_id = ?1 AND model_id = ?2",
@@ -355,7 +355,7 @@ fn count_similarity_embeddings(source: &SampleSource, relative_path: &str) -> i6
 }
 
 fn count_similarity_aspects(source: &SampleSource, relative_path: &str) -> i64 {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
     conn.query_row(
         "SELECT COUNT(*) FROM similarity_aspect_descriptors
@@ -367,7 +367,7 @@ fn count_similarity_aspects(source: &SampleSource, relative_path: &str) -> i64 {
 }
 
 fn seed_current_analysis_artifacts(source: &SampleSource, relative_path: &str) {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
     conn.execute(
         "INSERT OR REPLACE INTO samples
@@ -415,7 +415,7 @@ fn seed_current_analysis_artifacts(source: &SampleSource, relative_path: &str) {
 
 fn seed_similarity_artifacts_without_features(source: &SampleSource, relative_path: &str) {
     seed_current_analysis_artifacts(source, relative_path);
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
     conn.execute(
         "DELETE FROM features WHERE sample_id = ?1 AND feat_version = 1",
@@ -436,7 +436,7 @@ fn seed_failed_analysis_job(source: &SampleSource, relative_path: &str) {
 }
 
 fn seed_failed_analysis_job_with_error(source: &SampleSource, relative_path: &str, error: &str) {
-    let conn = open_source_db(&source.root).expect("analysis db");
+    let conn = open_source_db(&source).expect("analysis db");
     let sample_id = build_sample_id(source.id.as_str(), std::path::Path::new(relative_path));
     conn.execute(
         "INSERT INTO analysis_jobs

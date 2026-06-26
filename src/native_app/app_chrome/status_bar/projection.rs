@@ -1,6 +1,6 @@
 use crate::native_app::app::FolderScanProgress;
 use crate::native_app::app_chrome::view_models::status_bar::{
-    StatusBarViewModel, WorkerProgressViewModel,
+    StatusBarViewModel, StatusSeverity, WorkerProgressViewModel,
 };
 use radiant::prelude as ui;
 
@@ -8,6 +8,7 @@ use radiant::prelude as ui;
 pub(super) struct BottomStatusBarProjection {
     pub(super) selected_sample_count_label: String,
     pub(super) status_text: String,
+    pub(super) status_severity: StatusSeverity,
     pub(super) worker_progress: WorkerProgressBarProjection,
 }
 
@@ -39,6 +40,7 @@ pub(super) fn bottom_status_bar_projection(model: StatusBarViewModel) -> BottomS
     BottomStatusBarProjection {
         selected_sample_count_label: selected_sample_count_label(model.selected_sample_count),
         status_text: model.status_text,
+        status_severity: model.status_severity,
         worker_progress: WorkerProgressBarProjection::from_progress(
             model.worker_progress,
             model.progress_tick,
@@ -226,6 +228,7 @@ mod tests {
         bottom_status_bar_projection(StatusBarViewModel {
             selected_sample_count: count,
             status_text: "Ready".to_string(),
+            status_severity: StatusSeverity::Normal,
             worker_progress: None,
             progress_tick: 0.0,
         })

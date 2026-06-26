@@ -20,7 +20,11 @@ pub(in crate::native_app) fn scan_source_with_progress(
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
-    let ratings = source_rating_map(&request.root);
+    let ratings = if request.root.is_dir() {
+        source_rating_map(&request.root, &request.database_root)
+    } else {
+        SourceMetadataMap::new()
+    };
     let mut scan = ScanProgressContext {
         request: &request,
         ratings,
@@ -40,7 +44,12 @@ pub(in crate::native_app) fn scan_source_with_progress(
     let file_count = scan.counter.files;
     let folder_count = scan.counter.folders;
     drop(scan);
-    let source_db_error = sync_source_database(&request, &mut progress);
+    let source_db_error = if request.root.is_dir() {
+        sync_source_database(&request, &mut progress)
+    } else {
+        None
+    };
+    let source_root_available = request.root.is_dir();
     discovered(FolderScanDiscovery {
         task_id: request.task_id,
         source_id: request.source_id.clone(),
@@ -56,6 +65,7 @@ pub(in crate::native_app) fn scan_source_with_progress(
         file_count,
         folder_count,
         source_db_error,
+        source_root_available,
     }
 }
 
@@ -63,10 +73,11 @@ fn sync_source_database(
     request: &FolderScanRequest,
     progress: &mut impl FnMut(FolderScanProgress),
 ) -> Option<String> {
-    let db = match SourceDatabase::open_fast(&request.root) {
-        Ok(db) => db,
-        Err(err) => return Some(format!("open source index: {err}")),
-    };
+    let db =
+        match SourceDatabase::open_fast_with_database_root(&request.root, &request.database_root) {
+            Ok(db) => db,
+            Err(err) => return Some(format!("open source index: {err}")),
+        };
     let mut sync_progress = |completed: usize, path: &Path| {
         progress(FolderScanProgress {
             task_id: request.task_id,
@@ -81,7 +92,10 @@ fn sync_source_database(
     match scanner::scan_with_progress(&db, scanner::ScanMode::Quick, None, &mut sync_progress) {
         Ok(stats) => {
             if stats.hashes_pending > 0 {
-                scanner::schedule_deep_hash_scan(request.root.clone());
+                scanner::schedule_deep_hash_scan_with_database_root(
+                    request.root.clone(),
+                    request.database_root.clone(),
+                );
             }
             None
         }

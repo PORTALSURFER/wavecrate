@@ -48,10 +48,7 @@ pub(super) fn record_clip_entry(
             ..
         } => (
             source_root.as_path(),
-            SampleSource {
-                id: source_id.clone(),
-                root: source_root.clone(),
-            },
+            SampleSource::new_with_id(source_id.clone(), source_root.clone()),
         ),
         SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
             (snapshot.source_root.as_path(), sample_source(snapshot))
@@ -115,10 +112,8 @@ pub(super) fn record_slice_batch_entry(
         snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
         false,
     )?;
-    let source = SampleSource {
-        id: snapshot.source_id.clone(),
-        root: snapshot.source_root.clone(),
-    };
+    let source =
+        SampleSource::new_with_id(snapshot.source_id.clone(), snapshot.source_root.clone());
     let db = SourceDatabase::open_fast(&source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
@@ -193,10 +188,7 @@ fn persist_selection_bpm(source: &SampleSource, entry: &WavEntry, bpm: f32) -> R
 }
 
 fn sample_source(snapshot: &SelectionExportSnapshot) -> SampleSource {
-    SampleSource {
-        id: snapshot.source_id.clone(),
-        root: snapshot.source_root.clone(),
-    }
+    SampleSource::new_with_id(snapshot.source_id.clone(), snapshot.source_root.clone())
 }
 
 fn file_name_hint(snapshot: &SelectionExportSnapshot) -> PathBuf {

@@ -9,6 +9,7 @@ use tracing::warn;
 
 mod connection;
 mod error;
+mod harvest;
 mod migrations;
 mod schema_checks;
 mod schema_defs;
@@ -27,6 +28,11 @@ use error::map_sql_error;
 use telemetry::record_library_db_event;
 
 pub use error::LibraryError;
+pub use harvest::{
+    HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity, HarvestFileKey,
+    HarvestFileRecord, HarvestMetadataSnapshot, HarvestSourceRange, HarvestState,
+    NewHarvestDerivation,
+};
 
 #[cfg(test)]
 use crate::sample_sources::normalize_path;
@@ -90,6 +96,212 @@ pub fn lookup_source_id_for_root(root: &Path) -> Result<Option<SourceId>, Librar
     let result = db.lookup_known_source_id(root);
     record_library_db_event(
         "library.lookup_source_id_for_root",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Insert or refresh a harvest file row without changing its workflow state.
+pub fn upsert_harvest_file(
+    identity: &HarvestFileIdentity,
+) -> Result<HarvestFileRecord, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.upsert_harvest_file(identity);
+    record_library_db_event(
+        "library.harvest.upsert_file",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Mark a harvest file as seen unless it is already in a later/manual state.
+pub fn mark_harvest_seen(
+    identity: &HarvestFileIdentity,
+) -> Result<HarvestFileRecord, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.advance_harvest_state(identity, HarvestState::Seen);
+    record_library_db_event(
+        "library.harvest.mark_seen",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Mark a harvest file as touched unless it is already done or ignored.
+pub fn mark_harvest_touched(
+    identity: &HarvestFileIdentity,
+) -> Result<HarvestFileRecord, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.advance_harvest_state(identity, HarvestState::Touched);
+    record_library_db_event(
+        "library.harvest.mark_touched",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Manually set a harvest state, including explicit reset to `New`.
+pub fn set_harvest_state(
+    key: &HarvestFileKey,
+    state: HarvestState,
+) -> Result<HarvestFileRecord, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.set_harvest_state(key, state);
+    record_library_db_event(
+        "library.harvest.set_state",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Load one harvest file row.
+pub fn harvest_file(key: &HarvestFileKey) -> Result<Option<HarvestFileRecord>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.harvest_file(key);
+    record_library_db_event(
+        "library.harvest.file",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Record a parent-to-child derivation edge and mark the parent as touched.
+pub fn record_harvest_derivation(edge: &NewHarvestDerivation) -> Result<i64, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let mut db = LibraryDatabase::open()?;
+    let result = db.record_harvest_derivation(edge);
+    record_library_db_event(
+        "library.harvest.record_derivation",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Remap harvest file rows and graph edge endpoints after a file move.
+pub fn remap_harvest_file_key(
+    old_key: &HarvestFileKey,
+    new_key: &HarvestFileKey,
+) -> Result<usize, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let mut db = LibraryDatabase::open()?;
+    let result = db.remap_harvest_file_key(old_key, new_key);
+    record_library_db_event(
+        "library.harvest.remap_file_key",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Remap harvest file rows and graph edge endpoints after a folder move.
+pub fn remap_harvest_file_prefix(
+    source_id: &SourceId,
+    old_prefix: &Path,
+    new_prefix: &Path,
+) -> Result<usize, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let mut db = LibraryDatabase::open()?;
+    let result = db.remap_harvest_file_prefix(source_id, old_prefix, new_prefix);
+    record_library_db_event(
+        "library.harvest.remap_file_prefix",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Load all immediate derivatives for an origin file.
+pub fn harvest_derivations_for_parent(
+    key: &HarvestFileKey,
+) -> Result<Vec<HarvestDerivationRecord>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.harvest_derivations_for_parent(key);
+    record_library_db_event(
+        "library.harvest.derivations_for_parent",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Load immediate parents for a derived file.
+pub fn harvest_parents_for_child(
+    key: &HarvestFileKey,
+) -> Result<Vec<HarvestDerivationRecord>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.harvest_parents_for_child(key);
+    record_library_db_event(
+        "library.harvest.parents_for_child",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Count immediate derivatives for an origin file.
+pub fn harvest_derivative_count(key: &HarvestFileKey) -> Result<u64, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.harvest_derivative_count(key);
+    record_library_db_event(
+        "library.harvest.derivative_count",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Load all harvest rows for one source.
+pub fn harvest_files_for_source(
+    source_id: &SourceId,
+) -> Result<Vec<HarvestFileRecord>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.harvest_files_for_source(source_id);
+    record_library_db_event(
+        "library.harvest.files_for_source",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Load derivative counts keyed by parent relative path for one source.
+pub fn harvest_derivative_counts_for_source(
+    source_id: &SourceId,
+) -> Result<Vec<(std::path::PathBuf, u64)>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.harvest_derivative_counts_for_source(source_id);
+    record_library_db_event(
+        "library.harvest.derivative_counts_for_source",
         started_at,
         result.as_ref().map(|_| ()),
     );

@@ -7,18 +7,20 @@ use crate::native_app::ui::ids as widget_ids;
 const ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(220, 225, 232, 255);
 const ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(104, 110, 118, 255);
+const SOURCE_MISSING_STATUS_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
 const STATUS_ICON_TINTS: ui::SvgIconTintPalette =
     ui::SvgIconTintPalette::new(ICON_ENABLED_COLOR, ICON_ACTIVE_COLOR, ICON_DISABLED_COLOR);
 
 pub(super) fn selected_folder_status(
     label: String,
+    source_missing: bool,
     include_subfolders_available: bool,
     include_subfolders: bool,
     show_empty_folders: bool,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::row([
-        ui::text(label).height(20.0).fill_width(),
+        selected_folder_status_label(label, source_missing),
         include_subfolders_button(include_subfolders_available, include_subfolders).tooltip_if(
             help_tooltips_enabled,
             "Include samples from subfolders in the sample list.",
@@ -32,6 +34,15 @@ pub(super) fn selected_folder_status(
     .padding_x(3.0)
     .fill_width()
     .height(24.0)
+}
+
+fn selected_folder_status_label(label: String, source_missing: bool) -> ui::View<GuiMessage> {
+    let label = ui::text(label).height(20.0).fill_width();
+    if source_missing {
+        label.text_color(ui::TextColorRole::Custom(SOURCE_MISSING_STATUS_COLOR))
+    } else {
+        label
+    }
 }
 
 fn include_subfolders_button(available: bool, active: bool) -> ui::View<GuiMessage> {
@@ -90,6 +101,7 @@ mod tests {
     fn selected_folder_status_projects_subfolder_toggle_button() {
         let frame = selected_folder_status(
             String::from("drums | 2 audio incl subfolders | 1 item"),
+            false,
             true,
             true,
             false,
@@ -106,6 +118,7 @@ mod tests {
         assert_eq!(
             selected_folder_status(
                 String::from("drums | 1 audio | 1 item"),
+                false,
                 true,
                 false,
                 false,
@@ -125,6 +138,7 @@ mod tests {
     fn selected_folder_status_projects_empty_folder_toggle_button() {
         let frame = selected_folder_status(
             String::from("drums | 1 audio | 1 item"),
+            false,
             true,
             false,
             true,
@@ -141,6 +155,7 @@ mod tests {
         assert_eq!(
             selected_folder_status(
                 String::from("drums | 1 audio | 1 item"),
+                false,
                 true,
                 false,
                 false,
@@ -153,6 +168,26 @@ mod tests {
             Some(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::ToggleEmptyFolderVisibility
             ))
+        );
+    }
+
+    #[test]
+    fn selected_folder_status_paints_missing_source_as_warning() {
+        let frame = selected_folder_status(
+            String::from("Source missing | . | 0 audio | 0 items"),
+            true,
+            false,
+            false,
+            false,
+            false,
+        )
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(300.0, 24.0));
+
+        assert_eq!(
+            frame
+                .paint_plan
+                .first_text_color("Source missing | . | 0 audio | 0 items"),
+            Some(SOURCE_MISSING_STATUS_COLOR)
         );
     }
 }

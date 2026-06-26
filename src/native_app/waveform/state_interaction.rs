@@ -51,11 +51,13 @@ impl WaveformState {
                         self.play_mark_ratio = None;
                         self.play_selection = None;
                         self.play_selection_flash_frames = 0;
+                        self.play_selection_denied_flash_frames = 0;
                     }
                     WaveformSelectionKind::Edit => {
                         self.edit_mark_ratio = None;
                         self.edit_selection = None;
                         self.edit_selection_flash_frames = 0;
+                        self.edit_selection_denied_flash_frames = 0;
                     }
                 }
             }
@@ -164,6 +166,10 @@ impl WaveformState {
                     self.play_selection_flash_frames.saturating_sub(1);
                 self.edit_selection_flash_frames =
                     self.edit_selection_flash_frames.saturating_sub(1);
+                self.play_selection_denied_flash_frames =
+                    self.play_selection_denied_flash_frames.saturating_sub(1);
+                self.edit_selection_denied_flash_frames =
+                    self.edit_selection_denied_flash_frames.saturating_sub(1);
             }
         }
     }

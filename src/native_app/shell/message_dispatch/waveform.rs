@@ -1,9 +1,11 @@
 use radiant::prelude as ui;
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
+use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, WaveformActiveDragKind, WaveformContextMenu, WaveformInteraction,
-    WaveformPlaySelectionSnapshot, WaveformSelectionKind, emit_gui_action,
+    ClipboardHandoffTarget, GuiMessage, NativeAppState, WaveformActiveDragKind,
+    WaveformContextMenu, WaveformInteraction, WaveformPlaySelectionSnapshot, WaveformSelectionKind,
+    emit_gui_action,
 };
 
 impl NativeAppState {
@@ -13,23 +15,31 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if let WaveformInteraction::DragLoadedSample(drag) = message {
+            self.ui.browser_interaction.clipboard_handoff_target =
+                ClipboardHandoffTarget::BrowserFiles;
             self.drag_loaded_waveform_sample(drag, context);
             return;
         }
         if let WaveformInteraction::OpenPlaySelectionContextMenu { position } = message {
+            self.ui.browser_interaction.clipboard_handoff_target =
+                ClipboardHandoffTarget::WaveformSelection;
             self.open_play_selection_context_menu(position);
             return;
         }
+        self.ui.browser_interaction.clipboard_handoff_target =
+            ClipboardHandoffTarget::WaveformSelection;
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.current.active_drag_kind();
         let play_selection_before = self.play_selection_transaction_begin_snapshot(&message);
+        let harvest_mark_before = WaveformHarvestMarkSnapshot::from_state(self);
         if let WaveformInteraction::DragPlaySelectionExport(drag) = message
             && !self.drag_waveform_play_selection(drag, context)
         {
             return;
         }
         self.waveform.current.apply_interaction(message);
+        self.mark_harvest_touched_after_waveform_mark_change(harvest_mark_before);
         if let Some(before) = play_selection_before {
             self.waveform.pending_play_selection_transaction =
                 play_selection_drag_active(self.waveform.current.active_drag_kind())
@@ -99,9 +109,12 @@ impl NativeAppState {
             return;
         }
         self.ui.browser_interaction.context_menu = None;
+        let loaded_path = self.waveform.current.path();
         self.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
             anchor: position,
             title: String::from("Playmark Selection"),
+            extract_to_harvest_destination: self
+                .playmark_harvest_destination_action_available(&loaded_path),
         });
         emit_gui_action(
             "waveform.playmark_context_menu.open",
@@ -111,6 +124,56 @@ impl NativeAppState {
             Instant::now(),
             None,
         );
+    }
+
+    fn playmark_harvest_destination_action_available(&self, path: &std::path::Path) -> bool {
+        let source_known = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(path)
+            .is_some();
+        source_known
+            && (self.library.folder_browser.harvest_filter().is_some()
+                || self
+                    .library
+                    .folder_browser
+                    .path_is_in_protected_source(path))
+    }
+
+    fn mark_harvest_touched_after_waveform_mark_change(
+        &self,
+        before: Option<WaveformHarvestMarkSnapshot>,
+    ) {
+        let Some(before) = before else {
+            return;
+        };
+        let Some(after) = WaveformHarvestMarkSnapshot::from_state(self) else {
+            return;
+        };
+        if before.path == after.path && before.marks_changed(&after) {
+            self.mark_harvest_touched_for_path(&after.path);
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct WaveformHarvestMarkSnapshot {
+    path: PathBuf,
+    play_selection: Option<SelectionRange>,
+    edit_selection: Option<SelectionRange>,
+}
+
+impl WaveformHarvestMarkSnapshot {
+    fn from_state(state: &NativeAppState) -> Option<Self> {
+        state.waveform.current.has_loaded_sample().then(|| Self {
+            path: state.waveform.current.path(),
+            play_selection: state.waveform.current.play_selection(),
+            edit_selection: state.waveform.current.edit_selection(),
+        })
+    }
+
+    fn marks_changed(&self, other: &Self) -> bool {
+        self.play_selection != other.play_selection || self.edit_selection != other.edit_selection
     }
 }
 

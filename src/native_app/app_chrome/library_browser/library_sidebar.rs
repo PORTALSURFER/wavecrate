@@ -6,6 +6,7 @@ use crate::native_app::app_chrome::view_models::library_sidebar::LibrarySidebarV
 mod collections_section;
 mod filter_section;
 mod folder_tree;
+mod harvest_family;
 mod sidebar_row;
 mod source_section;
 mod tag_completion;
@@ -17,6 +18,7 @@ mod test_support;
 use collections_section::collections_section;
 use filter_section::filter_section;
 use folder_tree::folder_tree_section;
+use harvest_family::harvest_family_section;
 use source_section::source_selector;
 use tag_editor::tag_editor_section;
 
@@ -35,20 +37,23 @@ pub(in crate::native_app) fn library_sidebar(
 }
 
 fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessage> {
-    ui::column([
-        source_selector(&model.source_selector),
-        folder_tree_section(model.folder_tree),
-        collections_section(&model.collections),
-        filter_section(&model.filter),
-        tag_editor_section(
-            &model.tag_editor,
-            model.sidebar_width,
-            model.metadata_panel_height,
-        ),
-    ])
-    .spacing(3.0)
-    .fill_width()
-    .padding_x(4.0)
-    .style(ui::WidgetStyle::default())
-    .fill_height()
+    let mut sections = Vec::with_capacity(6);
+    sections.push(source_selector(&model.source_selector));
+    sections.push(folder_tree_section(model.folder_tree));
+    sections.push(collections_section(&model.collections));
+    sections.push(filter_section(&model.filter));
+    if let Some(harvest_family) = model.harvest_family.as_ref() {
+        sections.push(harvest_family_section(harvest_family));
+    }
+    sections.push(tag_editor_section(
+        &model.tag_editor,
+        model.sidebar_width,
+        model.metadata_panel_height,
+    ));
+    ui::column(sections)
+        .spacing(3.0)
+        .fill_width()
+        .padding_x(4.0)
+        .style(ui::WidgetStyle::default())
+        .fill_height()
 }

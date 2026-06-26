@@ -20,8 +20,9 @@ impl RefreshedFileEntry {
 pub(in crate::native_app) fn refreshed_file_entries_for_paths(
     paths: &[PathBuf],
     source_root: &Path,
+    source_database_root: &Path,
 ) -> Vec<RefreshedFileEntry> {
-    scanning::refreshed_file_entries_for_paths(paths, source_root)
+    scanning::refreshed_file_entries_for_paths(paths, source_root, source_database_root)
         .into_iter()
         .map(RefreshedFileEntry::new)
         .collect()

@@ -7,8 +7,15 @@ use radiant::prelude as ui;
 pub(in crate::native_app) struct StatusBarViewModel {
     pub(in crate::native_app) selected_sample_count: usize,
     pub(in crate::native_app) status_text: String,
+    pub(in crate::native_app) status_severity: StatusSeverity,
     pub(in crate::native_app) worker_progress: Option<WorkerProgressViewModel>,
     pub(in crate::native_app) progress_tick: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum StatusSeverity {
+    Normal,
+    Warning,
 }
 
 impl StatusBarViewModel {
@@ -16,6 +23,7 @@ impl StatusBarViewModel {
         Self {
             selected_sample_count: state.library.folder_browser.selected_audio_file_count(),
             status_text: bottom_status_text(state),
+            status_severity: bottom_status_severity(state),
             worker_progress: active_worker_progress(state),
             progress_tick: state.background.progress_tick,
         }
@@ -93,7 +101,27 @@ fn bottom_status_text(state: &NativeAppState) -> String {
         }
         return source_cache_warm_status_text(state, progress);
     }
-    state.ui.status.sample.clone()
+    let status = state.ui.status.sample.clone();
+    match state.library.folder_browser.selected_source_status_label() {
+        Some(source_status) if source_status.starts_with(&status) => source_status,
+        Some(source_status) if !status.starts_with(&source_status) => {
+            format!("{source_status} | {status}")
+        }
+        _ => status,
+    }
+}
+
+fn bottom_status_severity(state: &NativeAppState) -> StatusSeverity {
+    if active_worker_progress(state).is_none()
+        && state
+            .library
+            .folder_browser
+            .source_is_missing(state.library.folder_browser.selected_source_id())
+    {
+        StatusSeverity::Warning
+    } else {
+        StatusSeverity::Normal
+    }
 }
 
 fn normalization_queue_status(queued: usize) -> String {

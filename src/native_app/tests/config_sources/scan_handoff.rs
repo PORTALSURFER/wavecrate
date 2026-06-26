@@ -55,6 +55,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
                 source_id: source_id.clone(),
                 label: String::from("source"),
                 root: source_root.path().to_path_buf(),
+                database_root: source_root.path().to_path_buf(),
             },
             |_| {},
             |_| {},

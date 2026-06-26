@@ -217,11 +217,15 @@ impl FolderBrowserState {
         } else {
             folder.name.as_str()
         };
-        format!(
+        let detail = format!(
             "{} | {audio_count} audio{scope} | {file_count} item{}",
             folder_name,
             super::plural(file_count)
-        )
+        );
+        match self.selected_source_status_label() {
+            Some(source_status) => format!("{source_status} | {detail}"),
+            None => detail,
+        }
     }
 
     pub(in crate::native_app) fn visible_folders(&self) -> Vec<VisibleFolder> {

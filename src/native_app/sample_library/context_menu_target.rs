@@ -2,7 +2,7 @@
 
 use radiant::gui::types::Point;
 use std::path::{Path, PathBuf};
-use wavecrate::sample_sources::SampleCollection;
+use wavecrate::sample_sources::{SampleCollection, SourceRole};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum BrowserContextTargetKind {
@@ -18,6 +18,7 @@ pub(in crate::native_app) struct BrowserContextMenu {
     pub(in crate::native_app) kind: BrowserContextTargetKind,
     pub(in crate::native_app) path: PathBuf,
     pub(in crate::native_app) source_id: Option<String>,
+    pub(in crate::native_app) source_role: SourceRole,
     pub(in crate::native_app) source_removable: bool,
     pub(in crate::native_app) folder_locked: bool,
     pub(in crate::native_app) folder_lock_inherited: bool,

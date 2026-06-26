@@ -172,6 +172,8 @@ The GUI thread is for UI work: input handling, selection state, lightweight view
 
 Perceived stalls are product bugs. If a source scan, decode, rename, edit render, waveform update, BPM/grid metadata calculation, transient analysis, similarity analysis job, database/index update, logging flush, or metadata update can take noticeable time, it belongs off the GUI thread with clear state handoff back to the UI.
 
+Opportunistic metadata updates such as listen-history writes should never delay sample selection, validation, cache loading, or playback. They should use low-priority background work, short database busy timeouts, and skip/retry behavior when source databases are locked by higher-value work.
+
 ## Non-Goals
 
 Wavecrate should not become:
@@ -266,7 +268,15 @@ When Wavecrate itself copies a folder inside a source, it should exclude `.wavec
 
 If a copied source folder is added while the original source is still indexed, Wavecrate should treat the copied folder as an independent source rather than rejecting it as a duplicate source. Any duplicated embedded Sample IDs or duplicate audio content inside the copied source should be handled by the normal file-level duplicate-ID conflict and exact-audio duplicate systems, not by blocking source addition.
 
-Wavecrate should not offer a read-only source mode in the current target. Adding a folder as a Wavecrate source means Wavecrate may manage ordinary supported files according to the user's commands and configured safety settings, including creating extracted files, renaming files, moving files, duplicating files, and applying destructive edits. Documentation should cover implementation details such as source database updates and embedded Sample ID metadata writes without requiring the main add-source UI to enumerate them.
+Wavecrate should support explicit source roles:
+
+- Normal Source: the default writable source behavior.
+- Protected Source: readable, playable, and curatable, but Wavecrate must not mutate existing files inside it. Adding new files to a protected source is allowed when the user explicitly chooses that destination; overwriting or destructively editing existing protected files is not allowed.
+- Primary Source: the default writable destination for “make this editable” and harvest output flows. A protected source cannot also be primary; primary sources must be writable.
+
+Protected sources are the intended workflow for DAW project folders, archive drives, downloaded packs, field recordings, and other source piles where the user wants to harvest useful material without damaging originals. Protected-source curation may still write metadata to external/app-level storage. It should not silently create hidden source-local metadata inside folders such as Ableton project directories unless the user explicitly allows that storage mode.
+
+Documentation should cover implementation details such as source database updates, external metadata roots, and embedded Sample ID metadata writes without requiring the main add-source UI to enumerate them by default.
 
 If the operating system, permissions, file locks, or external tools prevent Wavecrate from writing to a source, Wavecrate should report that as a source/file write limitation rather than treating it as an intentional read-only library mode.
 
@@ -297,6 +307,8 @@ The global `.wavecrate` folder should contain app-wide state such as:
 Caches, logs, handoff staging, and recovery files should not be scattered across arbitrary sample-library folders. They should live under the global `.wavecrate` root unless there is a specific source-local reason to store a compact reference or source-owned database record.
 
 Cache payloads should live under the global `.wavecrate` folder in the current target. Source-local `.wavecrate.db` files may store cache references, status, fingerprints, and invalidation state for files in that source, but waveform, playback-readiness, analysis, similarity, map, handoff, and other cache payloads should not be written next to the source database.
+
+Browser row cache-ready indicators should mean a sample can be auditioned without fresh source decoding. Playback-ready sidecars qualify, and large WAV summary caches qualify when playback can stream from the original file, but source-prep markers alone must not reuse that visual state.
 
 If a source database is missing, corrupt, locked, or unreadable, Wavecrate should keep the user's audio files untouched, report the source database problem clearly, and offer repair/rebuild/reindex options where safe.
 
@@ -439,13 +451,17 @@ Previewed fade handles on an edit selection are audition and preview state until
 
 Applied edit feedback should be consistent. When any destructive edit succeeds, including mute, normalize, trim/crop, gain, reverse, silence trim, paste, fade apply, envelope apply, or downmix conversion, the affected edit region or whole-file region should briefly pulse or flash as a small visual confirmation. This should be similar in spirit to the export/extraction confirmation on the play region.
 
-### Extracted File Independence
+### Harvest Derivation History
 
 When a user extracts a region from a longer audio file into a new sample file, the extracted file should become an independent audio file and independent Wavecrate sample identity.
 
-Wavecrate should not store durable extracted-region history on the original source file in the current target. Once the extracted file is created, it should have no durable relationship to the source file other than the metadata values it inherited at creation time. Those inherited values become independent metadata on the extracted file and should not continue to track the source file.
+Wavecrate should also store durable harvest derivation history. A source file used as origin material and a file created from it remain independent editable audio files, but Wavecrate should remember the parent/child relationship so the user can see what was touched, what was created, and what still needs review.
 
-The waveform should show immediate extraction success feedback for the selected range, such as a short pulse or flash, but that feedback is transient UI confirmation, not stored extraction history. After extraction succeeds, focus and selection should remain on the source file by default so the user can quickly continue extracting more regions from the same audio file. The newly extracted file should still appear promptly in the browser when it belongs to the current folder/filter context, but it should not steal focus. If the extracted file is hidden by the current filter or folder context, Wavecrate should show a concise text-only status-bar notice that extraction succeeded but the new file is not currently visible.
+Derivation edges should be global/app-level state because they can cross sources. Each edge should record parent identity, child identity, operation type, optional source range or output duration, source and destination source IDs, destination folder, inherited metadata snapshot, timestamp, and Wavecrate/tool version. A file can be both a derived child and a later origin for more derivatives.
+
+Harvest state should be tracked per origin file as New, Seen, Touched, Done, or Ignored. “Has Derivatives” should be computed from the derivation graph rather than stored as the only state. Automatic transitions may move New to Seen or Touched, but must not override user Done or Ignored states. Manual actions may reset or override state.
+
+Protected-source extraction should create the derived file in the harvest destination by default, usually `Primary Source/_Harvests/<Source Name>/`, then focus/load the derived file so the user can immediately rate, tag, and organize it. Normal writable sources may keep current in-place behavior while Harvest Mode still tracks state and graph edges. The waveform should show immediate extraction success feedback for the selected range, such as a short pulse or flash.
 
 ### Wavecrate Sample ID
 
@@ -904,13 +920,13 @@ Transient staged handoff files should not be indexed as library samples. They sh
 
 Wavecrate may reuse an existing transient staged handoff file for repeated copy or drag operations when it is still valid. Reuse is allowed only when the source file identity and fingerprint, selection range, audition/render settings, write format, cache/staging version, and resulting audio payload still match. If any relevant input changes, Wavecrate should render a fresh staged file.
 
-Transient handoff staging should be allowed only when the user intent is clearly temporary, such as copying a waveform selection to the clipboard without explicitly extracting it into the library. Wavecrate should make this distinction visible enough that users understand whether a new library file was created.
+Transient handoff staging should be allowed only when the user intent is clearly temporary and no durable Wavecrate destination is implied. Waveform-selection clipboard copy is not transient in the current target: it should first create a durable extracted file in the active Wavecrate folder, then hand that file path to the operating system clipboard.
 
 Region handoff behavior should be:
 
 - Copying selected browser files places the existing real files on the clipboard.
 - Dragging selected browser files hands off the existing real files.
-- Copying a waveform selection creates a transient staged file by default and places that ordinary audio file on the clipboard.
+- Copying a waveform selection creates a durable extracted file in the active Wavecrate folder, then places that ordinary audio file on the clipboard.
 - Dragging a waveform selection into a DAW creates a durable extracted file in the active Wavecrate folder, then hands that file path to the DAW.
 - Dragging a waveform selection into Explorer creates the new file directly in the Explorer drop target directory.
 - Dragging a waveform selection inside Wavecrate creates a durable extracted file through the shared extraction pipeline.
@@ -1311,9 +1327,9 @@ Playback-only unsupported audio files should not be eligible for Wavecrate's DAW
 
 Wavecrate should distinguish between path-copy commands and file-copy commands. "Copy Path" is a context-menu utility that copies one absolute path as text. It must not place the file itself on the clipboard. Copying the actual file is a separate file handoff action, such as the normal copy command on selected browser files.
 
-When the user selects an audio range in the waveform editor and presses copy, Wavecrate should create a transient staged audio file for that selection and place that file on the clipboard as an ordinary audio file unless the user explicitly chooses durable extraction.
+When the user selects an audio range in the waveform editor and presses copy, Wavecrate should create a durable extracted audio file for that selection in the active Wavecrate folder and place that file on the clipboard as an ordinary audio file.
 
-Waveform-selection clipboard copy should use two distinct transient visual confirmations. The first pulse acknowledges that Wavecrate accepted the copy command and started preparing the handoff. The second pulse must happen only after the staged file has been written and the platform clipboard contains that staged file path, so the user can treat the second pulse as the reliable "ready to paste into a DAW" signal.
+Waveform-selection clipboard copy should use two distinct visual confirmations. The first pulse acknowledges that Wavecrate accepted the copy command and started extracting the selected range. The second pulse must happen only after the extracted file has been written and the platform clipboard contains that durable extracted file path, so the user can treat the second pulse as the reliable "ready to paste into a DAW" signal.
 
 For unprocessed WAV range handoff or extraction, Wavecrate should seek directly to the selected audio range and write only the selected frames rather than reading or decoding the skipped prefix.
 
@@ -1323,7 +1339,7 @@ Pasting into Explorer should create one or more audio files in the target direct
 
 Clipboard handoff should preserve the exact audio the user intended to copy. For a waveform selection, that means the selected range. For browser selections, that means the selected whole files.
 
-Temporary clipboard or DAW handoff staging files should live under the global `.wavecrate` handoff staging area. Explorer drops are different when the user explicitly drops a waveform selection into an Explorer target folder: in that case Wavecrate should create the final ordinary audio file in the Explorer drop target directory rather than leaving the user with a temporary staged file.
+Temporary clipboard or DAW handoff staging files, for operations that still genuinely require transient staging, should live under the global `.wavecrate` handoff staging area. Waveform-selection clipboard copy and Explorer drops are different: Wavecrate should create the final ordinary audio file in the active Wavecrate folder or Explorer drop target directory rather than leaving the user with a temporary staged file.
 
 Drag-and-drop should mirror clipboard handoff behavior.
 
@@ -1902,6 +1918,8 @@ The persistence model should include these core entities:
 - Analysis Result: sample ID, analysis kind, version, status, confidence, input fingerprint, result payload, failure reason, and timestamps.
 - Similarity Embedding: sample ID, descriptor version, embedding vector reference, normalized state, ANN index membership, and stale status.
 - Duplicate Group: global audio-content fingerprint, member sample IDs across indexed sources, duplicate status, last computed time, and stale status.
+- Harvest File: source ID, relative path, size, modified timestamp, optional content hash, workflow state, discovered/seen/touched/done/ignored timestamps, and optional note.
+- Harvest Derivation Edge: parent file identity, child file identity, operation type, source range or output duration where relevant, destination source/folder, inherited metadata snapshot, creation timestamp, and tool/version metadata.
 - Map Projection: projection version, embedding set/version, coordinates, cluster labels where available, and stale status.
 - Undo Transaction: action ID, command kind, user-visible description, affected sample/source paths, recovery files, before/after metadata snapshots, and redo state.
 - Recovery File: transaction ID, path, original path, edited path where relevant, checksum/fingerprint, expiry/cleanup state, and failure diagnostics.

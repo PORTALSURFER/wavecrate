@@ -15,6 +15,8 @@ pub enum SourceDatabaseConnectionRole {
     JobWorker,
     /// Read-write profile for deliberate user-authored source metadata updates.
     UserMetadataWrite,
+    /// Short-timeout write profile for opportunistic playback-history updates.
+    PlaybackHistoryWrite,
     /// Read-write profile for deferred cleanup and schema-sensitive maintenance.
     Maintenance,
 }
@@ -25,6 +27,7 @@ impl SourceDatabaseConnectionRole {
             Self::UiRead => "ui_read",
             Self::JobWorker => "job_worker",
             Self::UserMetadataWrite => "user_metadata_write",
+            Self::PlaybackHistoryWrite => "playback_history_write",
             Self::Maintenance => "maintenance",
         }
     }
@@ -32,7 +35,10 @@ impl SourceDatabaseConnectionRole {
     pub(super) fn open_flags(self) -> OpenFlags {
         match self {
             Self::UiRead => OpenFlags::SQLITE_OPEN_READ_ONLY,
-            Self::JobWorker | Self::UserMetadataWrite | Self::Maintenance => {
+            Self::JobWorker
+            | Self::UserMetadataWrite
+            | Self::PlaybackHistoryWrite
+            | Self::Maintenance => {
                 OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
             }
         }
@@ -40,9 +46,10 @@ impl SourceDatabaseConnectionRole {
 
     pub(super) fn open_mode(self) -> SourceDatabaseOpenMode {
         match self {
-            Self::UiRead | Self::JobWorker | Self::UserMetadataWrite => {
-                SourceDatabaseOpenMode::Fast
-            }
+            Self::UiRead
+            | Self::JobWorker
+            | Self::UserMetadataWrite
+            | Self::PlaybackHistoryWrite => SourceDatabaseOpenMode::Fast,
             Self::Maintenance => SourceDatabaseOpenMode::Full,
         }
     }
@@ -54,6 +61,7 @@ impl SourceDatabaseConnectionRole {
     pub(super) fn busy_timeout_ms(self) -> u64 {
         match self {
             Self::UiRead => 25,
+            Self::PlaybackHistoryWrite => 100,
             Self::JobWorker | Self::UserMetadataWrite | Self::Maintenance => 5_000,
         }
     }

@@ -46,11 +46,11 @@ x86_64/aarch64 assets from the current `main` commit. The schedule is
 manual "force a nightly now" button with the same build/upload path.
 
 The workflow updates the rolling GitHub `nightly` release, then uploads the same
-zips plus the generated Markdown release log to the PortalSurfer Wavecrate
-release-upload API. Each PortalSurfer upload gets a run-numbered build id so
-the website can show a distinct nightly entry even when the same commit is
-rebuilt. GitHub Actions does not need SSH access or write access to the
-PortalSurfer frontend repository.
+zips plus the generated Markdown release log and full changelog to the
+PortalSurfer Wavecrate release-upload API. Each PortalSurfer upload gets a
+run-numbered build id so the website can show a distinct nightly entry even when
+the same commit is rebuilt. GitHub Actions does not need SSH access or write
+access to the PortalSurfer frontend repository.
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
 Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store

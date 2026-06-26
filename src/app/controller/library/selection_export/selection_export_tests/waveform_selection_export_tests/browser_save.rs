@@ -239,6 +239,67 @@ fn save_waveform_selection_to_browser_with_keep2_persists_keep2_tag() {
 }
 
 #[test]
+fn save_waveform_selection_to_browser_records_harvest_export_derivation() {
+    let config_base = tempdir().unwrap();
+    let _base_guard = crate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("harvest_export.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("harvest_export.wav"))
+        .unwrap();
+    let selection = SelectionRange::new(0.25, 0.75);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.selection = Some(selection);
+
+    controller
+        .save_waveform_selection_to_browser(true)
+        .expect("selection export should queue");
+
+    pump_background_jobs_until(&mut controller, |controller| {
+        source_root
+            .join("harvest_export_selection_001.wav")
+            .is_file()
+            && controller.ui.status.text.contains("Saved clip")
+    });
+
+    let parent_key = crate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("harvest_export.wav"),
+    );
+    let parent = crate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("selection export should touch the harvest origin");
+    assert_eq!(parent.state, crate::sample_sources::HarvestState::Touched);
+    let edges = crate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        crate::sample_sources::HarvestDerivationOperation::Export
+    );
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("harvest_export_selection_001.wav")
+    );
+    let source_range = edges[0]
+        .source_range
+        .expect("selection export should record a source range");
+    assert!((source_range.start_seconds - 0.125).abs() < 0.000_001);
+    assert!((source_range.end_seconds - 0.375).abs() < 0.000_001);
+}
+
+#[test]
 /// Failed queued waveform selection exports should raise one deferred error flash token.
 fn save_waveform_selection_to_browser_records_failure_flash_when_worker_fails() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);

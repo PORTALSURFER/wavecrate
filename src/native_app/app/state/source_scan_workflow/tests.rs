@@ -53,6 +53,7 @@ fn stale_finish_keeps_active_scan_owner() {
             source_id: request.source_id.clone(),
             label: request.label.clone(),
             root: request.root.clone(),
+            database_root: request.database_root.clone(),
         },
         |_| {},
         |_| {},

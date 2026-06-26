@@ -1,5 +1,8 @@
 //! Waveform slice-batch export orchestration and completion handling.
 
+use super::completion::{
+    SelectionExportHarvestDerivationInput, record_selection_export_harvest_derivation,
+};
 use super::*;
 use crate::app::controller::jobs::{
     PendingSliceBatchExport, SelectionExportJob, SelectionSliceBatchExportSnapshot,
@@ -87,6 +90,7 @@ impl AppController {
             source_root: audio.root.clone(),
             relative_path: audio.relative_path.clone(),
             slices,
+            source_duration_seconds: audio.duration_seconds,
             profile: self.ui.waveform.slice_batch_profile,
             target_tag,
             audio: build_selection_export_audio_payload(
@@ -109,10 +113,8 @@ impl AppController {
             &success.source_relative_path,
             success.timings,
         );
-        let source = SampleSource {
-            id: success.source_id.clone(),
-            root: success.source_root.clone(),
-        };
+        let source =
+            SampleSource::new_with_id(success.source_id.clone(), success.source_root.clone());
         for entry in &success.entries {
             self.insert_cached_entry(&source, entry.clone());
             self.trigger_analysis_for_added_sample(
@@ -122,6 +124,7 @@ impl AppController {
                 entry.modified_ns,
             );
         }
+        self.record_selection_slice_batch_export_harvest_derivations(&success);
 
         if success.errors.is_empty() && self.loaded_waveform_matches_slice_batch(&success) {
             self.clear_waveform_slices();
@@ -163,6 +166,24 @@ impl AppController {
                 audio.source_id == success.source_id
                     && audio.relative_path == success.source_relative_path
             })
+    }
+
+    fn record_selection_slice_batch_export_harvest_derivations(
+        &self,
+        success: &SelectionSliceBatchExportSuccess,
+    ) {
+        for (entry, source_slice) in success.entries.iter().zip(success.source_slices.iter()) {
+            record_selection_export_harvest_derivation(SelectionExportHarvestDerivationInput {
+                origin_source_id: success.source_id.clone(),
+                origin_source_root: success.source_root.clone(),
+                origin_relative_path: success.source_relative_path.clone(),
+                origin_bounds: *source_slice,
+                origin_duration_seconds: success.source_duration_seconds,
+                child_source_id: success.source_id.clone(),
+                child_entry: entry.clone(),
+                child_absolute_path: success.source_root.join(&entry.relative_path),
+            });
+        }
     }
 }
 

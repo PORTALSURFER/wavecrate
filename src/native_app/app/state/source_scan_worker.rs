@@ -105,6 +105,7 @@ mod tests {
             source_id: String::from("source"),
             label: String::from("Source"),
             root: root.path().to_path_buf(),
+            database_root: root.path().to_path_buf(),
         }
     }
 

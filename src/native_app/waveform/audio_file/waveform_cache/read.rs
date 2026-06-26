@@ -9,11 +9,10 @@ use serde::de::DeserializeOwned;
 use super::{
     diagnostics::log_slow_cache_phase,
     format::{CACHE_FORMAT_VERSION, CachedWaveformFile},
-    identity::{
-        CacheIdentity, cache_path_for_identity, playback_ready_marker_path, source_warm_marker_path,
-    },
-    write::mark_source_warm_ready_for_cache_path,
+    identity::{CacheIdentity, cache_path_for_identity, playback_ready_marker_path},
 };
+#[cfg(test)]
+use super::{identity::source_warm_marker_path, write::mark_source_warm_ready_for_cache_path};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CacheReadStatus {
@@ -125,6 +124,17 @@ pub(in crate::native_app) fn cached_waveform_file_playback_ready_exists(path: &P
     cached_waveform_file_v3_playback_ready_exists(path, &identity)
 }
 
+pub(in crate::native_app) fn cached_waveform_file_audition_ready_exists(path: &Path) -> bool {
+    let Ok(identity) = CacheIdentity::for_path(path) else {
+        return false;
+    };
+    if cached_waveform_file_v3_playback_ready_exists(path, &identity) {
+        return true;
+    }
+    super::super::should_use_file_backed_wav_decode(path)
+        && cache_path_for_identity(path, &identity).is_ok_and(|path| path.is_file())
+}
+
 fn cached_waveform_file_v3_playback_ready_exists(path: &Path, identity: &CacheIdentity) -> bool {
     let Ok(cache_path) = cache_path_for_identity(path, identity) else {
         return false;
@@ -140,6 +150,7 @@ fn cached_waveform_file_v3_playback_ready_exists(path: &Path, identity: &CacheId
     false
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn cached_waveform_file_source_ready_exists(path: &Path) -> bool {
     let Ok(identity) = CacheIdentity::for_path(path) else {
         return false;

@@ -68,6 +68,7 @@ mod scanning;
 use scanning::{default_root_path, file_entry, load_source_snapshot, placeholder_folder};
 
 mod curation;
+mod harvest_filter;
 mod panel_state;
 mod playback_type_filter;
 mod rating_filter;

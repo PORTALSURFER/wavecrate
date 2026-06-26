@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{ClipboardHandoffTarget, GuiMessage, NativeAppState};
 
 impl NativeAppState {
     pub(super) fn apply_browser_dispatch(
@@ -65,13 +65,19 @@ impl NativeAppState {
             }
             GuiMessage::NormalizationFinished(result) => self.finish_normalization(result, context),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
+                self.ui.browser_interaction.clipboard_handoff_target =
+                    ClipboardHandoffTarget::BrowserFiles;
                 self.ui.browser_interaction.context_menu = None;
                 self.select_sample_with_modifiers(path, modifiers, context);
             }
             GuiMessage::OpenSampleContextMenu { path, position } => {
+                self.ui.browser_interaction.clipboard_handoff_target =
+                    ClipboardHandoffTarget::BrowserFiles;
                 self.open_sample_context_menu(path, position);
             }
             GuiMessage::DragSampleFile { path, drag } => {
+                self.ui.browser_interaction.clipboard_handoff_target =
+                    ClipboardHandoffTarget::BrowserFiles;
                 self.ui.browser_interaction.context_menu = None;
                 self.drag_sample_file(path, drag, context);
             }

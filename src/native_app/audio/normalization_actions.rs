@@ -5,11 +5,12 @@ use std::{
 };
 
 use radiant::prelude as ui;
+use wavecrate::sample_sources::HarvestDerivationOperation;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, NormalizationFailure, NormalizationProgress,
-    NormalizationQueueItem, NormalizationResult, NormalizedWaveformReload, WaveformPlaybackResume,
-    emit_gui_action, sample_path_label,
+    GuiMessage, NativeAppState, NormalizationFailure, NormalizationHarvestDerivation,
+    NormalizationProgress, NormalizationQueueItem, NormalizationResult, NormalizedWaveformReload,
+    WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };
 use crate::native_app::sample_library::file_actions::{
     WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
@@ -53,7 +54,22 @@ impl NativeAppState {
             );
             return;
         }
-        if let Some(error) = self.normalization_lock_error(&paths) {
+        let plan = match self.selected_normalization_plan(paths) {
+            Ok(plan) => plan,
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.normalize_selected_samples",
+                    Some("browser"),
+                    None,
+                    "blocked",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        };
+        if let Some(error) = self.normalization_lock_error(&plan.paths) {
             self.ui.status.sample = error.clone();
             emit_gui_action(
                 "browser.normalize_selected_samples",
@@ -68,8 +84,8 @@ impl NativeAppState {
 
         self.pause_active_folder_cache_warm(context);
         if self.background.normalization_progress.is_some() {
-            let paths = self.pending_normalization_paths(paths);
-            if paths.is_empty() {
+            let plan = self.pending_normalization_plan(plan);
+            if plan.paths.is_empty() {
                 self.ui.status.sample = String::from("Normalization already queued for selection");
                 emit_gui_action(
                     "browser.normalize_selected_samples",
@@ -81,16 +97,22 @@ impl NativeAppState {
                 );
                 return;
             }
-            self.enqueue_normalization_paths(paths, started_at);
+            self.enqueue_normalization_plan(plan, started_at);
             return;
         }
-        self.start_normalization_paths(paths, context, started_at);
+        self.start_normalization_plan(plan, context, started_at);
     }
 
-    fn enqueue_normalization_paths(&mut self, paths: Vec<PathBuf>, started_at: Instant) {
+    fn enqueue_normalization_plan(&mut self, plan: NormalizationStartPlan, started_at: Instant) {
         self.background
             .normalization_queue
-            .push_back(NormalizationQueueItem { paths });
+            .push_back(NormalizationQueueItem {
+                paths: plan.paths,
+                source_id: plan.source_id,
+                source_root: plan.source_root,
+                source_database_root: plan.source_database_root,
+                harvest_derivations: plan.harvest_derivations,
+            });
         let queued = self.background.normalization_queue.len();
         if let Some(progress) = self.background.normalization_progress.as_mut() {
             progress.queued = queued;
@@ -109,13 +131,13 @@ impl NativeAppState {
         );
     }
 
-    fn start_normalization_paths(
+    fn start_normalization_plan(
         &mut self,
-        paths: Vec<PathBuf>,
+        plan: NormalizationStartPlan,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        if let Some(error) = self.normalization_lock_error(&paths) {
+        if let Some(error) = self.normalization_lock_error(&plan.paths) {
             self.ui.status.sample = error.clone();
             emit_gui_action(
                 "browser.normalize_selected_samples",
@@ -128,21 +150,7 @@ impl NativeAppState {
             return;
         }
         self.pause_active_folder_cache_warm(context);
-        let source_id = self.library.folder_browser.selected_source_id().to_string();
-        let Some(source_root) = self.library.folder_browser.source_root_path(&source_id) else {
-            let error = String::from("Normalize failed: selected source is not available");
-            self.ui.status.sample = error.clone();
-            emit_gui_action(
-                "browser.normalize_selected_samples",
-                Some("browser"),
-                None,
-                "blocked",
-                started_at,
-                Some(&error),
-            );
-            return;
-        };
-        let request = self.prepare_normalization_request(paths, source_id, source_root);
+        let request = self.prepare_normalization_request(plan);
         let label = normalize_progress_label(request.paths.len());
         let queued = self.background.normalization_queue.len();
         let priority = normalization_priority(request.paths.len());
@@ -183,12 +191,10 @@ impl NativeAppState {
 
     fn prepare_normalization_request(
         &mut self,
-        paths: Vec<PathBuf>,
-        source_id: String,
-        source_root: PathBuf,
+        plan: NormalizationStartPlan,
     ) -> NormalizationWorkerRequest {
         let loaded_path = self.waveform.current.path();
-        let normalizing_loaded = paths.iter().any(|path| path == &loaded_path);
+        let normalizing_loaded = plan.paths.iter().any(|path| path == &loaded_path);
         let was_playing = self.waveform.current.is_playing() && normalizing_loaded;
         let restart_ratio = self
             .audio
@@ -206,15 +212,95 @@ impl NativeAppState {
         let task_id = self.background.next_task_id();
         NormalizationWorkerRequest {
             task_id,
-            source_id,
-            source_root,
-            paths,
+            source_id: plan.source_id,
+            source_root: plan.source_root,
+            source_database_root: plan.source_database_root,
+            paths: plan.paths,
+            harvest_derivations: plan.harvest_derivations,
             loaded_path,
             normalizing_loaded,
             was_playing,
             restart_ratio,
             restart_span,
         }
+    }
+
+    fn selected_normalization_plan(
+        &self,
+        paths: Vec<PathBuf>,
+    ) -> Result<NormalizationStartPlan, String> {
+        if let Some(plan) = self.protected_normalization_plan(&paths)? {
+            return Ok(plan);
+        }
+        let source_id = self.library.folder_browser.selected_source_id().to_string();
+        let Some((source_root, source_database_root)) =
+            self.library.folder_browser.source_roots(&source_id)
+        else {
+            return Err(String::from(
+                "Normalize failed: selected source is not available",
+            ));
+        };
+        Ok(NormalizationStartPlan {
+            paths,
+            source_id,
+            source_root,
+            source_database_root,
+            harvest_derivations: Vec::new(),
+        })
+    }
+
+    fn protected_normalization_plan(
+        &self,
+        paths: &[PathBuf],
+    ) -> Result<Option<NormalizationStartPlan>, String> {
+        if !paths.iter().any(|path| {
+            self.library
+                .folder_browser
+                .path_is_in_protected_source(path)
+        }) {
+            return Ok(None);
+        }
+        if !paths.iter().all(|path| {
+            self.library
+                .folder_browser
+                .path_is_in_protected_source(path)
+        }) {
+            return Ok(None);
+        }
+        let Some(primary_source) = self.library.folder_browser.primary_sample_source() else {
+            return Err(String::from(
+                "Set a Primary source before normalizing protected sources",
+            ));
+        };
+        let source_database_root = primary_source
+            .database_root()
+            .map_err(|err| format!("Resolve primary metadata location failed: {err}"))?;
+        let mut copy_paths = Vec::with_capacity(paths.len());
+        let mut derivations = Vec::with_capacity(paths.len());
+        for source_path in paths {
+            let Some(target_folder) = self.harvest_destination_for_protected_origin(source_path)?
+            else {
+                return Ok(None);
+            };
+            wavecrate::sample_sources::harvest_file_ops::ensure_dir(
+                &target_folder,
+                "Could not create harvest destination",
+            )?;
+            let child_path = next_normalized_copy_path(source_path, &target_folder)?;
+            copy_paths.push(child_path.clone());
+            derivations.push(NormalizationHarvestDerivation {
+                source_path: source_path.clone(),
+                child_path,
+                operation: HarvestDerivationOperation::NormalizeCopy,
+            });
+        }
+        Ok(Some(NormalizationStartPlan {
+            paths: copy_paths,
+            source_id: primary_source.id.as_str().to_owned(),
+            source_root: primary_source.root,
+            source_database_root,
+            harvest_derivations: derivations,
+        }))
     }
 
     fn normalization_lock_error(&self, paths: &[PathBuf]) -> Option<String> {
@@ -225,7 +311,10 @@ impl NativeAppState {
         })
     }
 
-    fn pending_normalization_paths(&self, paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    fn pending_normalization_plan(
+        &self,
+        mut plan: NormalizationStartPlan,
+    ) -> NormalizationStartPlan {
         let mut seen = self.background.normalization_active_paths.clone();
         seen.extend(
             self.background
@@ -233,10 +322,10 @@ impl NativeAppState {
                 .iter()
                 .flat_map(|item| item.paths.iter().cloned()),
         );
-        paths
-            .into_iter()
-            .filter(|path| seen.insert(path.clone()))
-            .collect()
+        plan.paths.retain(|path| seen.insert(path.clone()));
+        plan.harvest_derivations
+            .retain(|derivation| plan.paths.contains(&derivation.child_path));
+        plan
     }
 
     pub(in crate::native_app) fn apply_normalization_progress(
@@ -276,6 +365,12 @@ impl NativeAppState {
         self.library
             .folder_browser
             .refresh_file_entries(&result.source_id, &result.refreshed_files);
+        self.mark_harvest_touched_for_paths(&result.normalized);
+        self.record_harvest_derivations_for_finished_normalization_copies(
+            &result.normalized,
+            &result.skipped,
+            &result.harvest_derivations,
+        );
 
         let normalized_loaded = result.normalizing_loaded
             && result
@@ -323,6 +418,27 @@ impl NativeAppState {
         self.start_next_queued_normalization(context);
     }
 
+    fn record_harvest_derivations_for_finished_normalization_copies(
+        &self,
+        normalized: &[PathBuf],
+        skipped: &[PathBuf],
+        derivations: &[NormalizationHarvestDerivation],
+    ) {
+        let finished = normalized
+            .iter()
+            .chain(skipped.iter())
+            .collect::<HashSet<_>>();
+        for derivation in derivations {
+            if finished.contains(&derivation.child_path) {
+                self.record_harvest_whole_file_derivation(
+                    &derivation.source_path,
+                    &derivation.child_path,
+                    derivation.operation.clone(),
+                );
+            }
+        }
+    }
+
     fn resume_unchanged_normalization_playback(
         &mut self,
         loaded_path: &Path,
@@ -368,7 +484,17 @@ impl NativeAppState {
         let Some(next) = self.background.normalization_queue.pop_front() else {
             return;
         };
-        self.start_normalization_paths(next.paths, context, Instant::now());
+        self.start_normalization_plan(
+            NormalizationStartPlan {
+                paths: next.paths,
+                source_id: next.source_id,
+                source_root: next.source_root,
+                source_database_root: next.source_database_root,
+                harvest_derivations: next.harvest_derivations,
+            },
+            context,
+            Instant::now(),
+        );
     }
 
     fn finish_normalization_status(
@@ -421,11 +547,21 @@ impl NativeAppState {
     }
 }
 
+struct NormalizationStartPlan {
+    paths: Vec<PathBuf>,
+    source_id: String,
+    source_root: PathBuf,
+    source_database_root: PathBuf,
+    harvest_derivations: Vec<NormalizationHarvestDerivation>,
+}
+
 struct NormalizationWorkerRequest {
     task_id: u64,
     source_id: String,
     source_root: PathBuf,
+    source_database_root: PathBuf,
     paths: Vec<PathBuf>,
+    harvest_derivations: Vec<NormalizationHarvestDerivation>,
     loaded_path: PathBuf,
     normalizing_loaded: bool,
     was_playing: bool,
@@ -466,6 +602,28 @@ fn run_normalization_worker(
             "Queued",
             force_file_start_progress(index, total),
         );
+        if let Some(source_path) = normalization_copy_source_for_path(&request, path)
+            && let Err(error) = prepare_protected_normalization_copy(source_path, path)
+        {
+            log_normalization_worker_result(
+                source_path,
+                "error",
+                Some(error.as_str()),
+                file_started_at,
+            );
+            failed.push(NormalizationFailure {
+                path: source_path.to_path_buf(),
+                error,
+            });
+            progress_reporter.emit(
+                index + 1,
+                0.0,
+                "Done",
+                force_file_done_progress(index + 1, total),
+            );
+            pacer.pause_if_due();
+            continue;
+        }
         match normalize_wav_file_in_place_with_progress(path, |fraction, phase| {
             progress_reporter.emit(index, fraction, phase, false);
             pacer.pause_if_due();
@@ -506,7 +664,11 @@ fn run_normalization_worker(
         work_total,
         &events,
     );
-    let refreshed_files = refreshed_file_entries_for_paths(&normalized, &request.source_root);
+    let refreshed_files = refreshed_file_entries_for_paths(
+        &normalized,
+        &request.source_root,
+        &request.source_database_root,
+    );
     NormalizationResult {
         task_id: request.task_id,
         source_id: request.source_id,
@@ -519,7 +681,46 @@ fn run_normalization_worker(
         refreshed_files,
         skipped,
         failed,
+        harvest_derivations: request.harvest_derivations,
     }
+}
+
+fn normalization_copy_source_for_path<'a>(
+    request: &'a NormalizationWorkerRequest,
+    path: &Path,
+) -> Option<&'a Path> {
+    request
+        .harvest_derivations
+        .iter()
+        .find(|derivation| derivation.child_path == path)
+        .map(|derivation| derivation.source_path.as_path())
+}
+
+fn prepare_protected_normalization_copy(
+    source_path: &Path,
+    child_path: &Path,
+) -> Result<(), String> {
+    if let Some(parent) = child_path.parent() {
+        wavecrate::sample_sources::harvest_file_ops::ensure_dir(
+            parent,
+            "Failed to create normalization copy folder",
+        )?;
+    }
+    wavecrate::sample_sources::harvest_file_ops::copy_file(
+        source_path,
+        child_path,
+        "Failed to copy protected source",
+    )?;
+    Ok(())
+}
+
+fn next_normalized_copy_path(source_path: &Path, target_folder: &Path) -> Result<PathBuf, String> {
+    wavecrate::sample_sources::harvest_file_ops::next_available_wav_copy_path(
+        source_path,
+        target_folder,
+        "_normalized",
+        "Could not find an available normalized copy file name",
+    )
 }
 
 fn force_file_start_progress(file_index: usize, total_files: usize) -> bool {

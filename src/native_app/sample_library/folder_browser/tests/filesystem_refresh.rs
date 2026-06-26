@@ -105,7 +105,7 @@ fn selected_folder_refresh_applies_precomputed_file_entries_without_disk_reread(
     browser.activate_folder(path_id(&drums));
 
     fs::write(&kick, [1_u8; 16]).expect("write worker-visible kick");
-    let entries = refreshed_file_entries_for_paths(std::slice::from_ref(&kick), &root);
+    let entries = refreshed_file_entries_for_paths(std::slice::from_ref(&kick), &root, &root);
     fs::write(&kick, [2_u8; 32]).expect("write later kick");
 
     let source_id = browser.selected_source_id().to_string();
@@ -340,6 +340,7 @@ fn folder_tree_refresh_prunes_deleted_folders_and_preserves_files() {
         source_id: String::from("assets"),
         label: String::from("Assets"),
         root: root.clone(),
+        database_root: root.clone(),
     });
     assert!(browser.apply_folder_tree_refresh_result(result));
 
@@ -370,6 +371,7 @@ fn folder_tree_refresh_adds_new_empty_folder() {
         source_id: String::from("assets"),
         label: String::from("Assets"),
         root: root.clone(),
+        database_root: root.clone(),
     });
     assert!(browser.apply_folder_tree_refresh_result(result));
 
@@ -397,6 +399,7 @@ fn folder_tree_refresh_reconciles_deleted_selected_folder() {
         source_id: String::from("assets"),
         label: String::from("Assets"),
         root: root.clone(),
+        database_root: root.clone(),
     });
     assert!(browser.apply_folder_tree_refresh_result(result));
 
@@ -439,6 +442,7 @@ fn folder_tree_refresh_ignores_stale_source_result() {
         source_id: String::from("first"),
         label: String::from("First"),
         root: first_root.clone(),
+        database_root: first_root.clone(),
     });
     assert!(!browser.apply_folder_tree_refresh_result(stale_result));
 

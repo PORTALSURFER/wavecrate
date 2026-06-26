@@ -339,13 +339,19 @@ fn active_folder_cache_warm_completion_with_deferred(
 fn platform_copy_file_path_count(
     command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
 ) -> Option<usize> {
+    platform_copy_file_paths(command).map(|paths| paths.len())
+}
+
+fn platform_copy_file_paths(
+    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
+) -> Option<Vec<PathBuf>> {
     match command {
         radiant::runtime::Command::PlatformRequest {
             request: ui::PlatformRequest::CopyFilePaths(paths),
             ..
-        } => Some(paths.len()),
+        } => Some(paths),
         radiant::runtime::Command::Batch(commands) => {
-            commands.into_iter().find_map(platform_copy_file_path_count)
+            commands.into_iter().find_map(platform_copy_file_paths)
         }
         _ => None,
     }
@@ -495,7 +501,81 @@ fn playmark_selection_copy_uses_interactive_handoff_worker() {
             .into_command()
             .business_task_priority("gui-copy-waveform-selection"),
         Some(ui::TaskPriority::Interactive),
-        "playmark clipboard staging must not queue behind cache warm workers"
+        "playmark clipboard extraction must not queue behind cache warm workers"
+    );
+}
+
+#[test]
+fn playmark_selection_copy_extracts_into_current_folder_before_clipboard_handoff() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-copy-durable.wav",
+        &[0, 1024, -1024, 512],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    let harvest_key = harvest_key_for_selected_sample(&scenario.state);
+    scenario.select_play_range(0.25, 0.60);
+    let extracted = extraction_path_for_loaded_sample(&scenario);
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.copy_selected_files(&mut context);
+    run_command_for_tests(&mut scenario.state, context.into_command());
+
+    assert!(extracted.is_file());
+    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+    let parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&harvest_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Export
+    );
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("playmark-copy-durable_extraction.wav")
+    );
+}
+
+#[test]
+fn browser_file_copy_after_playmark_selection_uses_original_file_path() {
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "browser-copy-with-playmark.wav",
+        &[0, 1024, -1024, 512],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let selected_path = scenario
+        .state
+        .library
+        .folder_browser
+        .selected_file_id()
+        .map(PathBuf::from)
+        .expect("scenario should have a selected sample");
+
+    let mut select_context = ui::UiUpdateContext::default();
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: selected_path.display().to_string(),
+            modifiers: Default::default(),
+        },
+        &mut select_context,
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.copy_selected_files(&mut context);
+
+    assert_eq!(
+        platform_copy_file_paths(context.into_command()),
+        Some(vec![selected_path]),
+        "browser copy should place the existing sample path on the clipboard, even when a playmark exists"
     );
 }
 
@@ -511,6 +591,98 @@ fn playmark_extraction_marks_new_file_one_shot_and_keep_1_by_default() {
     let extracted = run_playmark_extraction(&mut scenario);
 
     assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+}
+
+#[test]
+fn playmark_extraction_records_harvest_derivation_for_normal_source() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-harvest-graph.wav",
+        &[0, 1024, -1024, 512],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    let parent_key = harvest_key_for_selected_sample(&scenario.state);
+    scenario.select_play_range(0.25, 0.60);
+    let source_duration_seconds = scenario.state.waveform.current.duration_seconds() as f64;
+
+    let extracted = run_playmark_extraction(&mut scenario);
+
+    assert!(extracted.is_file());
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract
+    );
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("playmark-extract-harvest-graph_extraction.wav")
+    );
+    let range = edges[0]
+        .source_range
+        .expect("playmark extraction should record source range");
+    assert!((range.start_seconds - source_duration_seconds * 0.25).abs() < 0.001);
+    assert!((range.end_seconds - source_duration_seconds * 0.60).abs() < 0.001);
+    assert!(edges[0].output_duration_seconds.is_some());
+}
+
+#[test]
+fn playmark_harvest_derivative_can_be_reprocessed_as_parent() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-harvest-family-origin.wav",
+        &[0, 1024, -1024, 512, -256, 128],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    let origin_key = harvest_key_for_selected_sample(&scenario.state);
+    scenario.select_play_range(0.10, 0.75);
+
+    let first_child = run_playmark_extraction(&mut scenario);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(first_child.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    let first_child_key = harvest_key_for_selected_sample(&scenario.state);
+    scenario.select_play_range(0.20, 0.80);
+
+    let second_child = run_playmark_extraction(&mut scenario);
+    let second_child_key = harvest_key_for_path(&scenario.state, &second_child);
+
+    assert!(first_child.is_file());
+    assert!(second_child.is_file());
+    let origin_children =
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&origin_key)
+            .expect("load origin derivations");
+    assert_eq!(origin_children.len(), 1);
+    assert_eq!(origin_children[0].child.key, first_child_key);
+
+    let first_child_parents =
+        wavecrate::sample_sources::library::harvest_parents_for_child(&first_child_key)
+            .expect("load first child parents");
+    assert_eq!(first_child_parents.len(), 1);
+    assert_eq!(first_child_parents[0].parent.key, origin_key);
+
+    let first_child_children =
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&first_child_key)
+            .expect("load first child derivations");
+    assert_eq!(first_child_children.len(), 1);
+    assert_eq!(
+        first_child_children[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract
+    );
+    assert_eq!(first_child_children[0].child.key, second_child_key);
 }
 
 #[test]
@@ -533,6 +705,354 @@ fn playmark_extraction_marks_new_file_loop_and_keep_1_when_looping_at_request_ti
     run_command_for_tests(&mut scenario.state, context.into_command());
 
     assert_extracted_file_metadata(&scenario.state, &extracted, &["loop"]);
+}
+
+#[test]
+fn playmark_extraction_writes_new_file_into_protected_source() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected.wav",
+        &[0, 1024, -1024, 512],
+    );
+    protect_selected_source_for_test(&mut scenario.state);
+    load_selected_sample_into_waveform(&mut scenario);
+    let source_parent = scenario
+        .state
+        .waveform
+        .current
+        .path()
+        .parent()
+        .expect("source sample parent")
+        .to_path_buf();
+    scenario.select_play_range(0.25, 0.60);
+
+    let extracted = run_playmark_extraction(&mut scenario);
+
+    assert!(extracted.is_file());
+    assert_eq!(extracted.parent(), Some(source_parent.as_path()));
+    let ticket = active_sample_load_ticket(&scenario.state).expect("extracted sample load queued");
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                extracted.to_string_lossy().to_string(),
+                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
+                true,
+            ),
+        ),
+        &mut ui::UiUpdateContext::default(),
+    );
+    assert_eq!(scenario.state.waveform.current.path(), extracted);
+    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+}
+
+#[test]
+fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected-primary.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source = wavecrate::sample_sources::SampleSource::new(source_root).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let harvest_source_folder = protected_source
+        .root
+        .file_name()
+        .expect("source root folder name");
+    let extracted = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("playmark-extract-protected-primary_extraction.wav");
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    run_command_for_tests(&mut scenario.state, context.into_command());
+
+    assert!(
+        source_path.is_file(),
+        "protected origin should remain intact"
+    );
+    assert!(
+        extracted.is_file(),
+        "derivative should be written to Primary"
+    );
+    assert_eq!(
+        scenario.state.library.folder_browser.selected_file_id(),
+        Some(extracted.to_string_lossy().as_ref())
+    );
+    assert!(
+        active_sample_load_validation_ticket(&scenario.state).is_none(),
+        "newly created derivatives should skip redundant path validation"
+    );
+    let ticket = active_sample_load_ticket(&scenario.state).expect("derivative sample load queued");
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                extracted.to_string_lossy().to_string(),
+                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
+                true,
+            ),
+        ),
+        &mut ui::UiUpdateContext::default(),
+    );
+    assert_eq!(scenario.state.waveform.current.path(), extracted);
+    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("playmark-extract-protected-primary.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("playmark-extract-protected-primary_extraction.wav")
+    );
+}
+
+#[test]
+fn protected_playmark_extraction_preserves_explicit_target_folder() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected-explicit.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.clone()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source,
+            primary_source,
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(Some(source_root.clone()))
+        .expect("explicit protected extraction request");
+
+    let routed = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect("explicit target should stay valid");
+
+    assert_eq!(routed.target_folder(), Ok(source_root.as_path()));
+}
+
+#[test]
+fn normal_playmark_harvest_extraction_routes_to_primary_harvest_destination() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-normal-harvest.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.clone());
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source.clone(),
+            primary_source,
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(None)
+        .expect("normal extraction request");
+
+    let routed = scenario
+        .state
+        .route_harvest_destination_extraction_request(request)
+        .expect("harvest destination route should be available");
+    let expected_folder = primary_root
+        .path()
+        .join("_Harvests")
+        .join(source.root.file_name().expect("source root folder name"));
+
+    assert_eq!(routed.target_folder(), Ok(expected_folder.as_path()));
+}
+
+#[test]
+fn normal_playmark_harvest_extraction_creates_focuses_and_records_primary_derivative() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-normal-primary.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.clone());
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source.clone(),
+            primary_source.clone(),
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let harvest_source_folder = source.root.file_name().expect("source root folder name");
+    let extracted = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("playmark-extract-normal-primary_extraction.wav");
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRangeToHarvestDestination,
+        &mut context,
+    );
+    run_command_for_tests(&mut scenario.state, context.into_command());
+
+    assert!(source_path.is_file(), "normal origin should remain intact");
+    assert!(
+        extracted.is_file(),
+        "derivative should be written to Primary"
+    );
+    assert_eq!(
+        scenario.state.library.folder_browser.selected_file_id(),
+        Some(extracted.to_string_lossy().as_ref())
+    );
+    assert!(
+        active_sample_load_validation_ticket(&scenario.state).is_none(),
+        "newly created derivatives should skip redundant path validation"
+    );
+    let ticket = active_sample_load_ticket(&scenario.state).expect("derivative sample load queued");
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                extracted.to_string_lossy().to_string(),
+                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
+                true,
+            ),
+        ),
+        &mut ui::UiUpdateContext::default(),
+    );
+    assert_eq!(scenario.state.waveform.current.path(), extracted);
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("playmark-extract-normal-primary.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("playmark-extract-normal-primary_extraction.wav")
+    );
 }
 
 fn assert_extracted_file_metadata(
@@ -567,13 +1087,16 @@ fn assert_extracted_file_keep_1_rating(
     assert_eq!(row.rating, wavecrate::sample_sources::Rating::KEEP_1);
     assert!(!row.rating_locked);
 
-    let (source_root, relative_path) = state
+    let (source_root, source_database_root, relative_path) = state
         .library
         .folder_browser
-        .source_relative_file_path(extracted)
+        .source_database_relative_file_path(extracted)
         .expect("extracted file should belong to a source");
-    let db = wavecrate::sample_sources::SourceDatabase::open_read_only(source_root)
-        .expect("source database should open");
+    let db = wavecrate::sample_sources::SourceDatabase::open_read_only_with_database_root(
+        source_root,
+        &source_database_root,
+    )
+    .expect("source database should open");
     let persisted = db
         .list_files()
         .expect("source database files should list")
@@ -670,7 +1193,7 @@ fn playmark_selection_copy_ready_flash_ignores_stale_range() {
 }
 
 #[test]
-fn playmark_selection_clip_ready_queues_platform_clipboard_handoff() {
+fn playmark_selection_copy_extracted_queues_platform_clipboard_handoff() {
     let mut scenario =
         WaveformPlaybackScenario::with_temp_wav("playmark-copy-platform.wav", &[0, 1024, -1024]);
     load_selected_sample_into_waveform(&mut scenario);
@@ -682,22 +1205,28 @@ fn playmark_selection_clip_ready_queues_platform_clipboard_handoff() {
         .current
         .play_selection()
         .expect("play selection");
-    let staged_path = PathBuf::from("/tmp/wavecrate-staged-clip.wav");
-
-    let mut context = ui::UiUpdateContext::default();
-    scenario.state.finish_waveform_selection_clip_staged(
+    let extracted_path = extraction_path_for_loaded_sample(&scenario);
+    write_test_wav_i16(&extracted_path, &[0, 256, -256]);
+    let completion = crate::native_app::waveform::WaveformExtractionCompletion {
         source_path,
         selection,
+        result: Ok(extracted_path.clone()),
+    };
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.finish_waveform_selection_copy_extracted(
+        completion,
+        crate::native_app::app::ExtractedFilePlaybackType::OneShot,
         std::time::Instant::now(),
-        Ok(staged_path),
         &mut context,
     );
 
     assert_eq!(
-        platform_copy_file_path_count(context.into_command()),
-        Some(1),
-        "staged waveform clips should use Radiant's typed file-path clipboard service"
+        platform_copy_file_paths(context.into_command()),
+        Some(vec![extracted_path.clone()]),
+        "copied waveform ranges should put the durable extracted file on the clipboard"
     );
+    assert_extracted_file_metadata(&scenario.state, &extracted_path, &["one-shot"]);
 }
 
 #[test]
@@ -787,6 +1316,51 @@ fn playmark_resize_registers_one_undoable_selection_change() {
     assert_play_selection_state(&scenario.state, Some((0.20, 0.70)), Some(0.20));
 }
 
+#[test]
+fn playmark_selection_change_marks_harvest_file_touched() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("playmark-harvest-touch.wav", &[0, 1024, -1024]);
+    load_selected_sample_into_waveform(&mut scenario);
+    let harvest_key = harvest_key_for_selected_sample(&scenario.state);
+
+    scenario.select_play_range(0.20, 0.50);
+
+    assert_harvest_file_touched_without_derivatives(&harvest_key);
+}
+
+#[test]
+fn editmark_selection_change_marks_harvest_file_touched() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("editmark-harvest-touch.wav", &[0, 1024, -1024]);
+    load_selected_sample_into_waveform(&mut scenario);
+    let harvest_key = harvest_key_for_selected_sample(&scenario.state);
+    let mut context = ui::UiUpdateContext::default();
+
+    for message in [
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.25,
+        },
+        WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.55,
+        },
+        WaveformInteraction::FinishSelection {
+            visible_ratio: 0.55,
+        },
+    ] {
+        scenario.state.apply_message(
+            crate::native_app::test_support::state::GuiMessage::Waveform(message),
+            &mut context,
+        );
+    }
+
+    assert_harvest_file_touched_without_derivatives(&harvest_key);
+}
+
 fn load_selected_sample_into_waveform(scenario: &mut WaveformPlaybackScenario) {
     let selected_file = scenario
         .state
@@ -800,6 +1374,62 @@ fn load_selected_sample_into_waveform(scenario: &mut WaveformPlaybackScenario) {
             selected_file,
         ))
         .expect("test sample loads");
+}
+
+fn harvest_key_for_selected_sample(
+    state: &NativeAppState,
+) -> wavecrate::sample_sources::HarvestFileKey {
+    let selected_path = PathBuf::from(
+        state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected sample"),
+    );
+    harvest_key_for_path(state, &selected_path)
+}
+
+fn harvest_key_for_path(
+    state: &NativeAppState,
+    path: &std::path::Path,
+) -> wavecrate::sample_sources::HarvestFileKey {
+    let (source, relative_path) = state
+        .library
+        .folder_browser
+        .sample_source_for_file_path(path)
+        .expect("sample should belong to a source");
+    wavecrate::sample_sources::HarvestFileKey::new(
+        wavecrate::sample_sources::SourceId::from_string(source.id.as_str().to_owned()),
+        relative_path,
+    )
+}
+
+fn assert_harvest_file_touched_without_derivatives(
+    harvest_key: &wavecrate::sample_sources::HarvestFileKey,
+) {
+    let harvest_record = wavecrate::sample_sources::library::harvest_file(harvest_key)
+        .expect("load harvest file")
+        .expect("harvest file should exist");
+    assert_eq!(
+        harvest_record.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    assert!(harvest_record.touched_at.is_some());
+    assert!(
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(harvest_key)
+            .expect("load harvest derivations")
+            .is_empty(),
+        "mark changes should touch harvest state without inventing derivative edges"
+    );
+}
+
+fn protect_selected_source_for_test(state: &mut NativeAppState) {
+    let source_id = state.library.folder_browser.selected_source_id().to_owned();
+    state
+        .library
+        .folder_browser
+        .set_source_protected(&source_id, true)
+        .expect("protect selected source");
 }
 
 fn apply_transaction_message(

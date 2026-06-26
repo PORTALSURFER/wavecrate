@@ -17,6 +17,7 @@ pub(in crate::native_app) struct MetadataTagPersistResult {
 pub(in crate::native_app) struct MetadataTagPersistRequest {
     pub(in crate::native_app) absolute_path: PathBuf,
     pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) source_database_root: PathBuf,
     pub(in crate::native_app) relative_path: PathBuf,
     pub(in crate::native_app) tags: Vec<String>,
     pub(in crate::native_app) assigned: bool,

@@ -91,12 +91,21 @@ impl NativeAppState {
             | GuiMessage::RemoveContextSampleFromCollection
             | GuiMessage::CleanMissingContextSampleFromCollection
             | GuiMessage::CleanMissingFilesFromActiveCollection
+            | GuiMessage::MarkContextSampleHarvestDone
+            | GuiMessage::MarkContextSampleHarvestIgnored
+            | GuiMessage::ResetContextSampleHarvest
+            | GuiMessage::ShowContextSampleHarvestOrigin
+            | GuiMessage::ShowContextSampleHarvestDerivatives
+            | GuiMessage::OpenContextSampleHarvestDestination
+            | GuiMessage::ShowSelectedSampleHarvestOrigin
+            | GuiMessage::ShowSelectedSampleHarvestDerivatives
+            | GuiMessage::OpenSelectedSampleHarvestDestination
             | GuiMessage::NormalizeSelectedSamples
             | GuiMessage::CopySelectedFiles
             | GuiMessage::CutSelectedFiles
             | GuiMessage::PasteCutFiles
             | GuiMessage::SelectedFilesCopyFinished { .. }
-            | GuiMessage::WaveformSelectionClipStaged { .. }
+            | GuiMessage::WaveformSelectionCopyExtracted { .. }
             | GuiMessage::WaveformSelectionCopyFinished { .. }
             | GuiMessage::FileMoveProgress(_)
             | GuiMessage::SetFileMoveConflictApplyToRemaining(_)
@@ -120,6 +129,9 @@ impl NativeAppState {
             | GuiMessage::ContextTargetOpenFinished { .. }
             | GuiMessage::RefreshContextSource
             | GuiMessage::ProcessContextSource
+            | GuiMessage::ToggleContextSourceProtection
+            | GuiMessage::SetContextSourcePrimary
+            | GuiMessage::ClearContextSourcePrimary
             | GuiMessage::RemoveContextSource
             | GuiMessage::CloseContextMenu
             | GuiMessage::ExternalWaveformFileDropFinished { .. }
@@ -127,6 +139,8 @@ impl NativeAppState {
             | GuiMessage::WaveformFileDrop(_) => self.apply_file_dispatch(message, context),
             GuiMessage::ToggleJobDetails
             | GuiMessage::CloseJobDetails
+            | GuiMessage::ReleaseUpdateCheckFinished(_)
+            | GuiMessage::OpenReleaseDownloadPage
             | GuiMessage::ToggleShortcutHelp
             | GuiMessage::CloseShortcutHelp
             | GuiMessage::ToggleStickyRandomSampleRangePlayback
@@ -155,6 +169,7 @@ impl NativeAppState {
             | GuiMessage::CancelPendingWaveformDestructiveEdit
             | GuiMessage::WaveformDestructiveEditFinished(_)
             | GuiMessage::ExtractPlaymarkedRange
+            | GuiMessage::ExtractPlaymarkedRangeToHarvestDestination
             | GuiMessage::PlaySelectionExtractionFinished { .. } => {
                 self.apply_chrome_dispatch(message, context);
             }
@@ -180,6 +195,7 @@ fn closes_waveform_context_menu(message: &GuiMessage) -> bool {
         message,
         GuiMessage::PlaySelectedSample
             | GuiMessage::ExtractPlaymarkedRange
+            | GuiMessage::ExtractPlaymarkedRangeToHarvestDestination
             | GuiMessage::RequestCropPlaymarkSelection
             | GuiMessage::RequestTrimPlaymarkSelection
             | GuiMessage::RequestReversePlaymarkSelection

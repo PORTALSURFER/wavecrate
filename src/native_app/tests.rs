@@ -25,6 +25,7 @@ mod folder_layout;
 mod metadata_tag_tests;
 mod native_file_drop;
 mod native_file_open;
+mod release_update;
 mod sample_browser;
 /// Sample workspace projection layout contract tests.
 mod sample_workspace;

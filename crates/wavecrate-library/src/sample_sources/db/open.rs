@@ -11,6 +11,8 @@ use super::{
 };
 use read_only::open_read_only_source_database;
 
+const DEFAULT_WRITABLE_BUSY_TIMEOUT_MS: u64 = 5_000;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SourceDatabaseOpenMode {
     Fast,
@@ -21,10 +23,25 @@ pub(super) fn open_source_database_for_role(
     root: &Path,
     role: SourceDatabaseConnectionRole,
 ) -> Result<SourceDatabase, SourceDbError> {
+    open_source_database_for_role_with_database_root(root, root, role)
+}
+
+pub(super) fn open_source_database_for_role_with_database_root(
+    root: &Path,
+    database_root: &Path,
+    role: SourceDatabaseConnectionRole,
+) -> Result<SourceDatabase, SourceDbError> {
     if role.uses_read_only_connection() || should_open_source_db_read_only() {
-        return open_read_only_source_database(root, role);
+        return open_read_only_source_database(root, database_root, role);
     }
-    open_source_database_with_flags(root, role.open_flags(), role.open_mode(), role.label())
+    open_source_database_with_flags(
+        root,
+        database_root,
+        role.open_flags(),
+        role.open_mode(),
+        role.label(),
+        role.busy_timeout_ms(),
+    )
 }
 
 pub(crate) fn open_source_database(
@@ -32,29 +49,46 @@ pub(crate) fn open_source_database(
     read_only: bool,
     mode: SourceDatabaseOpenMode,
 ) -> Result<SourceDatabase, SourceDbError> {
+    open_source_database_with_database_root(root, root, read_only, mode)
+}
+
+pub(crate) fn open_source_database_with_database_root(
+    root: &Path,
+    database_root: &Path,
+    read_only: bool,
+    mode: SourceDatabaseOpenMode,
+) -> Result<SourceDatabase, SourceDbError> {
     if read_only {
-        return open_read_only_source_database(root, SourceDatabaseConnectionRole::UiRead);
+        return open_read_only_source_database(
+            root,
+            database_root,
+            SourceDatabaseConnectionRole::UiRead,
+        );
     }
     open_source_database_with_flags(
         root,
+        database_root,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
         mode,
         mode.label(),
+        DEFAULT_WRITABLE_BUSY_TIMEOUT_MS,
     )
 }
 
 fn open_source_database_with_flags(
     root: &Path,
+    database_root: &Path,
     open_flags: OpenFlags,
     mode: SourceDatabaseOpenMode,
     telemetry_label: &'static str,
+    busy_timeout_ms: u64,
 ) -> Result<SourceDatabase, SourceDbError> {
     let open_started = std::time::Instant::now();
     if !root.is_dir() {
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
     }
 
-    let db_path = paths::prepare_writable_db_path(root)?;
+    let db_path = paths::prepare_writable_db_path(database_root)?;
     util::create_parent_if_needed(&db_path)?;
     let connect_started = std::time::Instant::now();
     let connection = match Connection::open_with_flags(&db_path, open_flags) {
@@ -99,7 +133,7 @@ fn open_source_database_with_flags(
         telemetry_label,
     };
     let pragmas_started = std::time::Instant::now();
-    if let Err(err) = db.apply_pragmas() {
+    if let Err(err) = db.apply_pragmas(busy_timeout_ms) {
         telemetry::record_open_phase(
             root,
             &db_path,

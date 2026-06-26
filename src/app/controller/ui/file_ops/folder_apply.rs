@@ -64,10 +64,8 @@ impl AppController {
         self.finish_pending_file_mutation(&result.source_id, [result.relative_path.clone()]);
         match result.result {
             Ok(()) => {
-                let source = SampleSource {
-                    id: result.source_id.clone(),
-                    root: result.source_root.clone(),
-                };
+                let source =
+                    SampleSource::new_with_id(result.source_id.clone(), result.source_root.clone());
                 self.apply_deleted_folder_state(
                     &source,
                     &result.relative_path,

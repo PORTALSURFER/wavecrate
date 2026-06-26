@@ -8,7 +8,8 @@ use super::{
     FileMoveConflictResolutionRequest, FolderMoveCompletion, FolderMoveRequest, FolderMoveSuccess,
     drag_drop_relocation::{persist_moved_file_metadata, persist_moved_folders_metadata},
     drag_drop_sourced_files::{
-        SourcedMovedFile, persist_sourced_moved_file_metadata, sourced_moved_files_from_items,
+        SourcedMovedFile, sourced_file_move_metadata_from_sourced_moves,
+        sourced_moved_files_from_items,
     },
     file_move_progress::{
         FileMoveProgressReporter, file_move_conflict_progress_label,
@@ -20,7 +21,8 @@ use super::{
     file_move_transaction::{
         move_existing_destination_to_backup, move_file_over_backup,
         move_file_to_unique_destination, remove_overwrite_backup,
-        rename_files_with_rollback_and_progress, restore_overwrite_backup, unique_destination,
+        rename_files_with_rollback_and_progress, restore_overwrite_backup,
+        transfer_files_with_rollback_and_progress, unique_destination,
     },
 };
 use crate::native_app::{
@@ -59,42 +61,61 @@ where
 {
     match request {
         FolderMoveRequest::Folder {
-            source_root, moves, ..
-        } => execute_folder_move(source_root, moves, reporter),
+            source_root,
+            source_database_root,
+            moves,
+            ..
+        } => execute_folder_move(source_root, source_database_root, moves, reporter),
         FolderMoveRequest::Files {
             source_root,
+            source_database_root,
             file_ids,
             target_folder,
+            target_protected,
             remove_from_collection,
         } => execute_file_drop(
             source_root,
+            source_database_root,
             file_ids,
             target_folder,
+            *target_protected,
             *remove_from_collection,
             reporter,
         ),
         FolderMoveRequest::SourcedFiles {
             target_source_root,
+            target_source_database_root,
             file_moves,
             target_folder,
+            target_protected,
             remove_from_collection,
         } => execute_sourced_file_drop(
             target_source_root,
+            target_source_database_root,
             file_moves,
             target_folder,
+            *target_protected,
             *remove_from_collection,
             reporter,
         ),
         FolderMoveRequest::ExtractedFile {
             source_root,
+            source_database_root,
             path,
             target_folder,
-        } => execute_extracted_file_drop(source_root, path, target_folder, reporter),
+        } => execute_extracted_file_drop(
+            source_root,
+            source_database_root,
+            path,
+            target_folder,
+            reporter,
+        ),
     }
 }
 
 fn execute_folder_move<Emit>(
     source_root: &Path,
+    source_database_root: &Path,
     moves: &[(PathBuf, PathBuf)],
     reporter: &FileMoveProgressReporter<Emit>,
 ) -> Result<FolderMoveSuccess, String>
@@ -147,7 +168,8 @@ where
         total,
         String::from("Updating metadata"),
     );
-    let metadata_error = persist_moved_folders_metadata(source_root, &moved_paths).err();
+    let metadata_error =
+        persist_moved_folders_metadata(source_root, source_database_root, &moved_paths).err();
     reporter.emit(total, total, String::from("Done"));
     Ok(FolderMoveSuccess {
         moved_paths,
@@ -168,8 +190,10 @@ fn rollback_moved_folders(moved_paths: &[(PathBuf, PathBuf)]) -> Option<String> 
 
 fn execute_file_drop<Emit>(
     source_root: &Path,
+    source_database_root: &Path,
     file_ids: &[String],
     target_folder: &Path,
+    target_protected: bool,
     remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
     reporter: &FileMoveProgressReporter<Emit>,
 ) -> Result<FolderMoveSuccess, String>
@@ -179,10 +203,16 @@ where
     if !target_folder.is_dir() {
         return Err(String::from("File move failed: target folder is missing"));
     }
-    let plan = file_move_plan_to_folder(source_root, file_ids, target_folder)?;
+    let plan = file_move_plan_to_folder(
+        source_root,
+        source_database_root,
+        file_ids,
+        target_folder,
+        target_protected,
+    )?;
     let total = file_move_work_total(&plan);
     reporter.emit(0, total, String::from("Moving files"));
-    let moved_paths = rename_files_with_rollback_and_progress(&plan.ready, |completed, path| {
+    let moved_paths = transfer_files_with_rollback_and_progress(&plan.ready, |completed, path| {
         reporter.emit(
             completed,
             total,
@@ -193,8 +223,13 @@ where
     reporter.emit(checked, total, String::from("Preserving waveform cache"));
     remap_persisted_waveform_cache_for_moves(&moved_paths);
     reporter.emit(checked, total, String::from("Updating metadata"));
-    let metadata_error =
-        persist_moved_file_metadata(source_root, &moved_paths, remove_from_collection).err();
+    let metadata_error = persist_moved_file_metadata(
+        source_root,
+        source_database_root,
+        &moved_paths,
+        remove_from_collection,
+    )
+    .err();
     reporter.emit(total, total, String::from("Done"));
     Ok(FolderMoveSuccess {
         moved_paths,
@@ -205,8 +240,10 @@ where
 
 fn execute_sourced_file_drop<Emit>(
     target_source_root: &Path,
+    target_source_database_root: &Path,
     file_moves: &[super::FileMoveItem],
     target_folder: &Path,
+    target_protected: bool,
     remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
     reporter: &FileMoveProgressReporter<Emit>,
 ) -> Result<FolderMoveSuccess, String>
@@ -216,10 +253,10 @@ where
     if !target_folder.is_dir() {
         return Err(String::from("File move failed: target folder is missing"));
     }
-    let plan = file_move_items_plan_to_folder(file_moves, target_folder)?;
+    let plan = file_move_items_plan_to_folder(file_moves, target_folder, target_protected)?;
     let total = file_move_work_total(&plan);
     reporter.emit(0, total, String::from("Moving files"));
-    let moved_paths = rename_files_with_rollback_and_progress(&plan.ready, |completed, path| {
+    let moved_paths = transfer_files_with_rollback_and_progress(&plan.ready, |completed, path| {
         reporter.emit(
             completed,
             total,
@@ -231,9 +268,11 @@ where
     remap_persisted_waveform_cache_for_moves(&moved_paths);
     reporter.emit(checked, total, String::from("Updating metadata"));
     let sourced_moves = sourced_moved_files_from_items(file_moves, &moved_paths);
-    let metadata_error = persist_sourced_moved_file_metadata(
+    let metadata_moves = sourced_file_move_metadata_from_sourced_moves(&sourced_moves);
+    let metadata_error = wavecrate::sample_sources::persist_sourced_moved_file_metadata(
         target_source_root,
-        &sourced_moves,
+        target_source_database_root,
+        &metadata_moves,
         remove_from_collection,
     )
     .err();
@@ -247,6 +286,7 @@ where
 
 fn execute_extracted_file_drop<Emit>(
     source_root: &Path,
+    source_database_root: &Path,
     path: &Path,
     target_folder: &Path,
     reporter: &FileMoveProgressReporter<Emit>,
@@ -271,7 +311,8 @@ where
     let moved_paths = vec![completed];
     remap_persisted_waveform_cache_for_moves(&moved_paths);
     reporter.emit(1, 2, String::from("Updating metadata"));
-    let metadata_error = persist_moved_file_metadata(source_root, &moved_paths, None).err();
+    let metadata_error =
+        persist_moved_file_metadata(source_root, source_database_root, &moved_paths, None).err();
     reporter.emit(2, 2, String::from("Done"));
     Ok(FolderMoveSuccess {
         moved_paths,
@@ -390,6 +431,11 @@ fn execute_file_move_conflict(
 fn execute_overwrite_conflict(
     conflict: &FileMoveConflict,
 ) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    if conflict.destination_protected {
+        return Err(String::from(
+            "This source is protected. Copy to Primary and continue?",
+        ));
+    }
     let backup = move_existing_destination_to_backup(&conflict.destination_path)?;
     if let Err(error) = move_file_over_backup(&conflict.source_path, &conflict.destination_path) {
         restore_overwrite_backup(&backup);
@@ -415,9 +461,11 @@ fn persist_conflict_moved_file_metadata(
     moved_paths: &[(PathBuf, PathBuf)],
 ) -> Result<(), String> {
     let sourced_moves = sourced_moved_files_from_conflicts(&batch.conflicts, moved_paths);
-    persist_sourced_moved_file_metadata(
+    let metadata_moves = sourced_file_move_metadata_from_sourced_moves(&sourced_moves);
+    wavecrate::sample_sources::persist_sourced_moved_file_metadata(
         &batch.source_root,
-        &sourced_moves,
+        &batch.source_database_root,
+        &metadata_moves,
         batch.remove_from_collection,
     )
 }
@@ -428,7 +476,15 @@ pub(super) fn sourced_moved_files_from_conflicts(
 ) -> Vec<SourcedMovedFile> {
     let source_roots = conflicts
         .iter()
-        .map(|conflict| (conflict.source_path.clone(), conflict.source_root.clone()))
+        .map(|conflict| {
+            (
+                conflict.source_path.clone(),
+                (
+                    conflict.source_root.clone(),
+                    conflict.source_database_root.clone(),
+                ),
+            )
+        })
         .collect::<std::collections::HashMap<_, _>>();
     moved_paths
         .iter()
@@ -436,10 +492,12 @@ pub(super) fn sourced_moved_files_from_conflicts(
             source_roots
                 .get(old_path)
                 .cloned()
-                .map(|source_root| SourcedMovedFile {
+                .map(|(source_root, source_database_root)| SourcedMovedFile {
                     source_root,
+                    source_database_root,
                     old_path: old_path.clone(),
                     new_path: new_path.clone(),
+                    copy_only: false,
                 })
         })
         .collect()
@@ -490,8 +548,10 @@ mod tests {
 
         let request = FolderMoveRequest::Files {
             source_root: root.clone(),
+            source_database_root: root.clone(),
             file_ids: vec![source.display().to_string()],
             target_folder: target_dir,
+            target_protected: false,
             remove_from_collection: None,
         };
         let result = execute_folder_move_request(request).result;
@@ -518,8 +578,10 @@ mod tests {
         fs::write(&second, b"second").expect("write second");
         let request = FolderMoveRequest::Files {
             source_root: root.clone(),
+            source_database_root: root.clone(),
             file_ids: vec![first.display().to_string(), second.display().to_string()],
             target_folder: target_dir,
+            target_protected: false,
             remove_from_collection: None,
         };
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -562,12 +624,15 @@ mod tests {
         fs::write(&destination, b"destination").expect("write destination");
         let conflict = FileMoveConflict {
             source_root: root.clone(),
+            source_database_root: root.clone(),
             source_path: source.clone(),
             destination_path: destination.clone(),
+            destination_protected: false,
         };
 
         let batch = FileMoveConflictBatch {
             source_root: root.clone(),
+            source_database_root: root.clone(),
             target_folder: target_dir.clone(),
             remove_from_collection: None,
             conflicts: vec![conflict],
@@ -596,6 +661,54 @@ mod tests {
                     .to_string_lossy()
                     .starts_with(".wavecrate-overwrite-backup-")),
             "overwrite backup should be restored and removed from view"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn protected_destination_overwrite_conflict_is_blocked() {
+        let root = temp_dir("wavecrate-file-move-execution-protected-overwrite");
+        let source_dir = root.join("source");
+        let target_dir = root.join("target");
+        fs::create_dir_all(&source_dir).expect("create source");
+        fs::create_dir_all(&target_dir).expect("create target");
+        let source = source_dir.join("kick.wav");
+        let destination = target_dir.join("kick.wav");
+        fs::write(&source, b"source").expect("write source");
+        fs::write(&destination, b"destination").expect("write destination");
+        let conflict = FileMoveConflict {
+            source_root: root.clone(),
+            source_database_root: root.clone(),
+            source_path: source.clone(),
+            destination_path: destination.clone(),
+            destination_protected: true,
+        };
+
+        let batch = FileMoveConflictBatch {
+            source_root: root.clone(),
+            source_database_root: root.clone(),
+            target_folder: target_dir.clone(),
+            remove_from_collection: None,
+            conflicts: vec![conflict],
+            current_index: 0,
+            resolved_count: 0,
+            skipped_count: 0,
+            batch_policy: None,
+        };
+        let result = execute_file_move_conflict_request(
+            batch,
+            FileMoveConflictResolutionRequest::new(FileMoveConflictResolution::Overwrite, false),
+        );
+
+        let failure = result.result.expect_err("protected overwrite is blocked");
+        assert_eq!(
+            failure.error,
+            "This source is protected. Copy to Primary and continue?"
+        );
+        assert_eq!(fs::read(&source).expect("read source"), b"source");
+        assert_eq!(
+            fs::read(&destination).expect("read destination"),
+            b"destination"
         );
         let _ = fs::remove_dir_all(root);
     }

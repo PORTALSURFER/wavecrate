@@ -14,8 +14,19 @@ pub(super) struct SampleCellProjection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum SampleCellContentProjection {
-    Name { text: String, badges: Vec<String> },
-    Text(String),
+    Name {
+        text: String,
+        badges: Vec<String>,
+        muted: bool,
+    },
+    Harvest {
+        badges: Vec<String>,
+        muted: bool,
+    },
+    Text {
+        value: String,
+        muted: bool,
+    },
     Rename(FileRenameView),
     Rating(RatingCellProjection),
     PlaybackType(PlaybackTypeCellProjection),
@@ -53,10 +64,21 @@ pub(super) fn sample_cell_projection(column: SampleColumnDisplay) -> SampleCellP
     SampleCellProjection {
         width: column.width,
         content: match column.content {
-            SampleColumnContent::Name { text, badges } => {
-                SampleCellContentProjection::Name { text, badges }
+            SampleColumnContent::Name {
+                text,
+                badges,
+                muted,
+            } => SampleCellContentProjection::Name {
+                text,
+                badges,
+                muted,
+            },
+            SampleColumnContent::Harvest { badges, muted } => {
+                SampleCellContentProjection::Harvest { badges, muted }
             }
-            SampleColumnContent::Text(value) => SampleCellContentProjection::Text(value),
+            SampleColumnContent::Text { value, muted } => {
+                SampleCellContentProjection::Text { value, muted }
+            }
             SampleColumnContent::Rename(rename) => SampleCellContentProjection::Rename(rename),
             SampleColumnContent::Rating(indicator) => {
                 SampleCellContentProjection::Rating(RatingCellProjection::from_indicator(indicator))

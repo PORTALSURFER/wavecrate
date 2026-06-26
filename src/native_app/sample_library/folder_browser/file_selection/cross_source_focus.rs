@@ -162,7 +162,8 @@ impl FolderBrowserState {
         };
         if self.source.sources[index].root_folder.is_none() {
             let root = self.source.sources[index].root.clone();
-            let snapshot = load_source_snapshot(root);
+            let database_root = self.source.sources[index].database_root.clone();
+            let snapshot = load_source_snapshot(root, database_root);
             self.source.sources[index].root_folder = Some(snapshot.folder);
             self.source.sources[index].missing_collection_snapshot =
                 snapshot.missing_collection_snapshot;

@@ -131,6 +131,8 @@ impl WaveformState {
             similar_sections: Default::default(),
             play_selection_flash_frames: 0,
             edit_selection_flash_frames: 0,
+            play_selection_denied_flash_frames: 0,
+            edit_selection_denied_flash_frames: 0,
             active_drag: None::<WaveformDrag>,
             pending_playback_start: None,
         }
@@ -138,5 +140,9 @@ impl WaveformState {
 
     pub(super) fn selection_flash_frame_count() -> u8 {
         SELECTION_FLASH_FRAMES
+    }
+
+    pub(super) fn denied_selection_flash_frame_count() -> u8 {
+        super::DENIED_SELECTION_FLASH_FRAMES
     }
 }

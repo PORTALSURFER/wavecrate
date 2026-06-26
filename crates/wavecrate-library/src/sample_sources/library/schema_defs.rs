@@ -29,7 +29,10 @@ impl LibraryDatabase {
                  CREATE TABLE IF NOT EXISTS sources (
                     id TEXT PRIMARY KEY,
                     root TEXT NOT NULL,
-                    sort_order INTEGER NOT NULL
+                    sort_order INTEGER NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'normal',
+                    metadata_storage TEXT NOT NULL DEFAULT 'source_folder',
+                    primary_import_folder TEXT NOT NULL DEFAULT '_Wavecrate Inbox'
                 );
                  CREATE TABLE IF NOT EXISTS analysis_jobs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -137,7 +140,57 @@ impl LibraryDatabase {
                     count INTEGER NOT NULL,
                     params_json TEXT NOT NULL,
                     updated_at INTEGER NOT NULL
-                 ) WITHOUT ROWID;",
+                 ) WITHOUT ROWID;
+                 CREATE TABLE IF NOT EXISTS harvest_files (
+                    source_id TEXT NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    file_size INTEGER,
+                    modified_ns INTEGER,
+                    content_hash TEXT,
+                    harvest_state TEXT NOT NULL DEFAULT 'new',
+                    discovered_at INTEGER NOT NULL,
+                    seen_at INTEGER,
+                    touched_at INTEGER,
+                    done_at INTEGER,
+                    ignored_at INTEGER,
+                    note TEXT,
+                    PRIMARY KEY (source_id, relative_path)
+                 ) WITHOUT ROWID;
+                 CREATE INDEX IF NOT EXISTS idx_harvest_files_source_state
+                    ON harvest_files (source_id, harvest_state, relative_path);
+                 CREATE INDEX IF NOT EXISTS idx_harvest_files_content_hash
+                    ON harvest_files (content_hash);
+                 CREATE TABLE IF NOT EXISTS harvest_derivations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    parent_source_id TEXT NOT NULL,
+                    parent_relative_path TEXT NOT NULL,
+                    parent_file_size INTEGER,
+                    parent_modified_ns INTEGER,
+                    parent_content_hash TEXT,
+                    child_source_id TEXT NOT NULL,
+                    child_relative_path TEXT NOT NULL,
+                    child_file_size INTEGER,
+                    child_modified_ns INTEGER,
+                    child_content_hash TEXT,
+                    operation TEXT NOT NULL,
+                    source_range_start REAL,
+                    source_range_end REAL,
+                    output_duration_seconds REAL,
+                    destination_folder TEXT,
+                    inherited_rating INTEGER,
+                    inherited_tags_json TEXT NOT NULL DEFAULT '[]',
+                    inherited_playback_type TEXT,
+                    tool_version TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS idx_harvest_derivations_parent
+                    ON harvest_derivations (parent_source_id, parent_relative_path, created_at, id);
+                 CREATE INDEX IF NOT EXISTS idx_harvest_derivations_child
+                    ON harvest_derivations (child_source_id, child_relative_path, created_at, id);
+                 CREATE INDEX IF NOT EXISTS idx_harvest_derivations_parent_hash
+                    ON harvest_derivations (parent_content_hash);
+                 CREATE INDEX IF NOT EXISTS idx_harvest_derivations_child_hash
+                    ON harvest_derivations (child_content_hash);",
             )
             .map_err(map_sql_error)?;
         Ok(())

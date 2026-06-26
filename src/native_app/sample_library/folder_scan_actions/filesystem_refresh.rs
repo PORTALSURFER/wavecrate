@@ -23,6 +23,9 @@ impl NativeAppState {
             .plan_filesystem_change(source_id, &paths, overflowed)
         {
             SourceFilesystemChangePlan::IgnoredSourceMissing { source_id } => {
+                if source_id == self.library.folder_browser.selected_source_id() {
+                    self.ui.status.sample = String::from("Source missing");
+                }
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
@@ -147,11 +150,14 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
-        let Some(root) = self.library.folder_browser.source_root_path(&source_id) else {
+        let Some((root, database_root)) = self.library.folder_browser.source_roots(&source_id)
+        else {
             return;
         };
         context.business().background("gui-source-db-sync").run(
-            move |_| sync_source_database_paths(source_id, root, paths, changed_count),
+            move |_| {
+                sync_source_database_paths(source_id, root, database_root, paths, changed_count)
+            },
             GuiMessage::SourceFilesystemSyncFinished,
         );
     }

@@ -269,7 +269,7 @@ fn random_listed_audition_resolves_region_from_loaded_target_duration() {
     fs::create_dir_all(&target_folder).expect("target folder");
     let target = target_folder.join("z-target.wav");
     let current_id = current.display().to_string();
-    let target_folder_id = target_folder.display().to_string();
+    let root_id = root.display().to_string();
     let target_id = target.display().to_string();
     write_test_wav_i16(&current, &vec![0_i16; 48_000]);
     write_test_wav_i16(&target, &vec![0_i16; 96_000]);
@@ -299,7 +299,8 @@ fn random_listed_audition_resolves_region_from_loaded_target_duration() {
     );
     assert_eq!(
         state.library.folder_browser.selected_folder_id(),
-        Some(target_folder_id.as_str())
+        Some(root_id.as_str()),
+        "root should stay selected because include-subfolders already keeps the target visible"
     );
     let ticket = active_sample_load_ticket(&state).expect("target sample load queued");
     let mut context = ui::UiUpdateContext::default();

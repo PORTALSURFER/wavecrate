@@ -59,10 +59,7 @@ impl AppController {
         if staged.decoded.cache_token != cache_token {
             return;
         }
-        let source = SampleSource {
-            id: staged.source_id.clone(),
-            root: staged.root.clone(),
-        };
+        let source = SampleSource::new_with_id(staged.source_id.clone(), staged.root.clone());
         if let Err(err) = self.apply_loaded_audio_handoff(&source, &staged) {
             self.runtime.jobs.set_staged_audio_handoff(None);
             self.runtime.jobs.set_pending_playback(None);
