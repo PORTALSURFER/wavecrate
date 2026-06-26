@@ -713,6 +713,59 @@ mod tests {
     }
 
     #[test]
+    fn sample_map_projection_groups_by_enabled_similarity_aspects() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("kick.wav");
+        let snare = root.path().join("snare.wav");
+        std::fs::write(&kick, []).expect("write kick");
+        std::fs::write(&snare, []).expect("write snare");
+        let kick_id = kick.to_string_lossy().to_string();
+        let snare_id = snare.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let mut aspects = [None; wavecrate_analysis::aspects::ASPECT_COUNT];
+        aspects[SimilarityAspect::Spectrum.index()] = Some(0.6);
+        aspects[SimilarityAspect::Timbre.index()] = Some(1.0);
+        browser.set_similarity_scores_with_aspects(
+            kick_id,
+            HashMap::from([(snare_id.clone(), 0.9)]),
+            HashMap::from([(snare_id.clone(), aspects)]),
+        );
+        let tags_by_file = HashMap::new();
+
+        let timbre_color = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+            })
+            .into_iter()
+            .find(|item| item.file_id == snare_id.as_str())
+            .expect("snare map item")
+            .color;
+
+        let mut controls = browser.similarity_controls().clone();
+        controls.set_aspect_enabled(SimilarityAspect::Timbre, false);
+        browser.set_similarity_controls(controls);
+        let spectrum_color = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+            })
+            .into_iter()
+            .find(|item| item.file_id == snare_id.as_str())
+            .expect("snare map item after disabling timbre")
+            .color;
+
+        assert_eq!(
+            (timbre_color.r, timbre_color.g, timbre_color.b),
+            (255, 142, 56)
+        );
+        assert_eq!(
+            (spectrum_color.r, spectrum_color.g, spectrum_color.b),
+            (239, 216, 66)
+        );
+    }
+
+    #[test]
     fn sample_map_projection_marks_all_selected_list_items() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("kick.wav");
