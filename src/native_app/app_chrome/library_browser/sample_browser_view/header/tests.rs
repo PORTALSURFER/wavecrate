@@ -1,8 +1,8 @@
 use super::SampleBrowserHeaderBar;
 use super::projection::{
-    RandomNavigationButtonProjection, SampleBrowserHeaderProjection,
-    SampleNameViewModeButtonProjection, SampleSimilarityControlsProjection,
-    SampleSimilarityHeaderProjection, projected_header_columns,
+    RandomNavigationButtonProjection, SAMPLE_MAP_VIEW_TOOLTIP, SampleBrowserHeaderProjection,
+    SampleMapViewButtonProjection, SampleNameViewModeButtonProjection,
+    SampleSimilarityControlsProjection, SampleSimilarityHeaderProjection, projected_header_columns,
 };
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::model::FileColumn;
@@ -26,6 +26,7 @@ fn sample_name_view_mode_projection_names_current_mode() {
 #[test]
 fn header_button_projections_keep_product_tooltips() {
     let random_navigation = RandomNavigationButtonProjection::new(true);
+    let map_view = SampleMapViewButtonProjection::new(false);
     let name_mode = SampleNameViewModeButtonProjection::from_mode(SampleNameViewMode::DiskFilename);
 
     assert!(random_navigation.active);
@@ -33,10 +34,26 @@ fn header_button_projections_keep_product_tooltips() {
         random_navigation.tooltip,
         "Random audition within the selected folder or active filter."
     );
+    assert!(!map_view.active);
+    assert_eq!(map_view.tooltip, SAMPLE_MAP_VIEW_TOOLTIP);
     assert_eq!(
         name_mode.tooltip,
         "Switch sample names between disk filenames and metadata labels."
     );
+}
+
+#[test]
+fn sample_map_view_button_projection_tracks_mode_switch_state() {
+    let inactive = SampleMapViewButtonProjection::new(false);
+    let active = SampleMapViewButtonProjection::new(true);
+
+    assert!(!inactive.active);
+    assert!(active.active);
+    assert_eq!(
+        inactive.tooltip,
+        "Switch between list and sample map views."
+    );
+    assert_eq!(active.tooltip, inactive.tooltip);
 }
 
 #[test]
