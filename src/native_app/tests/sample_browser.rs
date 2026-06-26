@@ -316,6 +316,54 @@ fn leaving_sample_map_mode_reveals_selected_list_row() {
 }
 
 #[test]
+fn map_audition_selection_is_revealed_when_returning_to_list_mode() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(third_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ToggleSampleBrowserMapView,
+        &mut context,
+    );
+
+    assert_eq!(
+        state.ui.chrome.sample_browser_display,
+        crate::native_app::app::SampleBrowserDisplayMode::List
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(third_id.as_str())
+    );
+    assert_eq!(
+        last_fixed_sample_browser_row_scroll(context.into_command()),
+        Some((2, 0)),
+        "list mode should reveal the node selected by sample-map audition"
+    );
+}
+
+#[test]
 fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
