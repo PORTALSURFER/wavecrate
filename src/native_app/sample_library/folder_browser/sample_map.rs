@@ -660,6 +660,45 @@ mod tests {
     }
 
     #[test]
+    fn sample_map_projection_marks_all_selected_list_items() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("kick.wav");
+        let snare = root.path().join("snare.wav");
+        let hat = root.path().join("hat.wav");
+        std::fs::write(&kick, []).expect("write kick");
+        std::fs::write(&snare, []).expect("write snare");
+        std::fs::write(&hat, []).expect("write hat");
+        let kick_id = kick.to_string_lossy().to_string();
+        let snare_id = snare.to_string_lossy().to_string();
+        let hat_id = hat.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+
+        browser.select_file(kick_id.clone());
+        browser.select_file_with_modifiers(
+            snare_id.clone(),
+            radiant::widgets::PointerModifiers {
+                command: true,
+                ..radiant::widgets::PointerModifiers::default()
+            },
+        );
+
+        let selected_map_ids = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+            })
+            .into_iter()
+            .filter(|item| item.selected)
+            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(selected_map_ids, vec![kick_id, snare_id]);
+        assert!(!selected_map_ids.contains(&hat_id));
+    }
+
+    #[test]
     fn sample_map_status_reports_incomplete_layout_coverage() {
         let status = SampleMapStatus {
             listed_count: 12,

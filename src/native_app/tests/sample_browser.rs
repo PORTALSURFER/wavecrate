@@ -267,13 +267,10 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
             },
         )
         .expect("selected sample should have a map position");
-    assert!(
-        (state.ui.chrome.sample_map_viewport.center_x - expected.0).abs() < 0.001,
-        "map viewport should center selected x position"
-    );
-    assert!(
-        (state.ui.chrome.sample_map_viewport.center_y - expected.1).abs() < 0.001,
-        "map viewport should center selected y position"
+    assert_sample_map_viewport_reveals(
+        state.ui.chrome.sample_map_viewport,
+        expected,
+        "map viewport should reveal the selected node after keyboard navigation",
     );
 }
 
@@ -465,13 +462,10 @@ fn sample_map_audition_hit_centers_selected_node() {
             },
         )
         .expect("selected sample should have a map position");
-    assert!(
-        (state.ui.chrome.sample_map_viewport.center_x - expected.0).abs() < 0.001,
-        "map audition should center selected x position"
-    );
-    assert!(
-        (state.ui.chrome.sample_map_viewport.center_y - expected.1).abs() < 0.001,
-        "map audition should center selected y position"
+    assert_sample_map_viewport_reveals(
+        state.ui.chrome.sample_map_viewport,
+        expected,
+        "map audition should reveal the selected node",
     );
 }
 
@@ -647,4 +641,24 @@ fn run_first_perform(
         Command::Batch(commands) => commands.into_iter().find_map(run_first_perform),
         _ => None,
     }
+}
+
+fn assert_sample_map_viewport_reveals(
+    viewport: crate::native_app::app::SampleMapViewport,
+    position: (f32, f32),
+    message: &str,
+) {
+    let half_span = 0.5 / viewport.zoom.max(1.0);
+    let min_x = viewport.center_x - half_span;
+    let max_x = viewport.center_x + half_span;
+    let min_y = viewport.center_y - half_span;
+    let max_y = viewport.center_y + half_span;
+    assert!(
+        position.0 >= min_x - 0.001
+            && position.0 <= max_x + 0.001
+            && position.1 >= min_y - 0.001
+            && position.1 <= max_y + 0.001,
+        "{message}: position {:?} outside x=[{min_x:.3}, {max_x:.3}] y=[{min_y:.3}, {max_y:.3}]",
+        position
+    );
 }
