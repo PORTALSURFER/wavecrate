@@ -32,7 +32,9 @@ impl NativeAppState {
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.current.active_drag_kind();
         let play_selection_before = self.play_selection_transaction_begin_snapshot(&message);
-        let harvest_mark_before = WaveformHarvestMarkSnapshot::from_state(self);
+        let harvest_mark_before = waveform_interaction_can_finish_mark_change(&message)
+            .then(|| WaveformHarvestMarkSnapshot::from_state(self))
+            .flatten();
         if let WaveformInteraction::DragPlaySelectionExport(drag) = message
             && !self.drag_waveform_play_selection(drag, context)
         {
@@ -190,6 +192,17 @@ fn waveform_interaction_updates_play_selection(
     play_selection_drag_active(active_drag)
 }
 
+fn waveform_interaction_can_finish_mark_change(interaction: &WaveformInteraction) -> bool {
+    matches!(
+        interaction,
+        WaveformInteraction::FinishSelection { .. }
+            | WaveformInteraction::SelectSimilarSection { .. }
+            | WaveformInteraction::ClearEditFadeSilence { .. }
+            | WaveformInteraction::FinishEditFadeOuterGain { .. }
+            | WaveformInteraction::FinishEditGain { .. }
+    )
+}
+
 fn play_selection_transaction_finishes(
     interaction: &WaveformInteraction,
     active_drag: Option<WaveformActiveDragKind>,
@@ -257,5 +270,64 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         | WaveformInteraction::UpdateEditFadeOuterGain { .. }
         | WaveformInteraction::UpdateEditGain { .. }
         | WaveformInteraction::Frame => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use radiant::gui::types::Point;
+
+    use super::*;
+    use crate::native_app::waveform::WaveformEditFadeHandle;
+
+    #[test]
+    fn live_selection_updates_do_not_finish_harvest_mark_changes() {
+        assert!(!waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.1,
+            }
+        ));
+        assert!(!waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::UpdateSelection { visible_ratio: 0.4 }
+        ));
+        assert!(!waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::UpdateEditGain { pointer_y: 24.0 }
+        ));
+        assert!(!waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::UpdateEditFadeOuterGain {
+                vertical_ratio: 0.4,
+            }
+        ));
+        assert!(!waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::OpenPlaySelectionContextMenu {
+                position: Point::new(10.0, 10.0),
+            }
+        ));
+    }
+
+    #[test]
+    fn finished_and_discrete_selection_edits_finish_harvest_mark_changes() {
+        assert!(waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::FinishSelection { visible_ratio: 0.4 }
+        ));
+        assert!(waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::SelectSimilarSection {
+                selection: SelectionRange::new(0.2, 0.4),
+            }
+        ));
+        assert!(waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::ClearEditFadeSilence {
+                handle: WaveformEditFadeHandle::InOuterStart,
+            }
+        ));
+        assert!(waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::FinishEditGain { pointer_y: 12.0 }
+        ));
+        assert!(waveform_interaction_can_finish_mark_change(
+            &WaveformInteraction::FinishEditFadeOuterGain {
+                vertical_ratio: 0.4,
+            }
+        ));
     }
 }
