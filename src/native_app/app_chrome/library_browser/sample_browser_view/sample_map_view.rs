@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        PaintPrimitive, PaintTextAlign, PaintTextMetrics, push_fill_polygon, push_fill_rect,
-        push_fill_rect_batch, push_stroke_polyline, push_stroke_rect, push_text_run_with_metrics,
+        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
+        push_stroke_polyline, push_stroke_rect,
     },
     theme::ThemeTokens,
     widgets::{
@@ -42,13 +42,6 @@ const MAP_ACTIVE_AUDITION_SIZE: f32 = 11.0;
 const MAP_ACTIVE_AUDITION_GLOW_SIZE: f32 = 24.0;
 const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
-const MAP_HOVER_LABEL_FONT_SIZE: f32 = 12.0;
-const MAP_HOVER_LABEL_HEIGHT: f32 = 20.0;
-const MAP_HOVER_LABEL_MAX_WIDTH: f32 = 220.0;
-const MAP_HOVER_LABEL_PADDING_X: f32 = 8.0;
-const MAP_HOVER_LABEL_OFFSET_X: f32 = 11.0;
-const MAP_HOVER_LABEL_OFFSET_Y: f32 = 10.0;
-const MAP_HOVER_LABEL_MAX_CHARS: usize = 42;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
 const MAP_GROUP_MIN_ITEMS: usize = 8;
@@ -817,7 +810,12 @@ impl Widget for SampleMapWidget {
             if !paint_bounds(bounds).contains(center) {
                 return;
             }
-            paint_hover_label(primitives, self.common.id, bounds, center, &item.label);
+            paint_focused_item(
+                primitives,
+                self.common.id,
+                center,
+                sample_map_item_color(item),
+            );
             return;
         };
         let center = item_center(bounds, item, self.viewport);
@@ -830,7 +828,6 @@ impl Widget for SampleMapWidget {
             center,
             sample_map_item_color(item),
         );
-        paint_hover_label(primitives, self.common.id, bounds, center, &item.label);
     }
 }
 
@@ -1026,6 +1023,29 @@ fn paint_hover_item(
     );
 }
 
+fn paint_focused_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    color: ui::Rgba8,
+) {
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_HOVER_GLOW_SIZE,
+        color.with_alpha(42),
+    );
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_HOVER_SIZE,
+        ui::Rgba8::new(248, 248, 248, 190),
+        1.0,
+    );
+}
+
 fn paint_active_audition_item(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
@@ -1081,86 +1101,6 @@ fn stroke_diamond(
         color,
         width,
     );
-}
-
-fn paint_hover_label(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    bounds: Rect,
-    node_center: Point,
-    label: &str,
-) {
-    let label = hover_label_text(label);
-    if label.is_empty() {
-        return;
-    }
-    let rect = hover_label_rect(bounds, node_center, &label);
-    push_fill_rect(primitives, widget_id, rect, ui::Rgba8::new(13, 14, 16, 235));
-    push_stroke_rect(
-        primitives,
-        widget_id,
-        rect,
-        ui::Rgba8::new(255, 255, 255, 48),
-        1.0,
-    );
-    push_text_run_with_metrics(
-        primitives,
-        widget_id,
-        label,
-        Rect::from_xy_size(
-            rect.min.x + MAP_HOVER_LABEL_PADDING_X,
-            rect.min.y,
-            (rect.width() - MAP_HOVER_LABEL_PADDING_X * 2.0).max(1.0),
-            rect.height(),
-        ),
-        ui::Rgba8::new(238, 240, 244, 245),
-        PaintTextAlign::Left,
-        PaintTextMetrics::new(MAP_HOVER_LABEL_FONT_SIZE, Some(14.0)),
-    );
-}
-
-fn hover_label_text(label: &str) -> String {
-    let trimmed = label.trim();
-    let mut text = trimmed
-        .chars()
-        .take(MAP_HOVER_LABEL_MAX_CHARS)
-        .collect::<String>();
-    if trimmed.chars().count() > MAP_HOVER_LABEL_MAX_CHARS {
-        text.push_str("...");
-    }
-    text
-}
-
-fn hover_label_rect(bounds: Rect, node_center: Point, label: &str) -> Rect {
-    let estimated_text_width = label.chars().count() as f32 * 7.2;
-    let width = (estimated_text_width + MAP_HOVER_LABEL_PADDING_X * 2.0).clamp(
-        48.0,
-        MAP_HOVER_LABEL_MAX_WIDTH.min(bounds.width().max(48.0)),
-    );
-    let preferred = Rect::from_xy_size(
-        node_center.x + MAP_HOVER_LABEL_OFFSET_X,
-        node_center.y - MAP_HOVER_LABEL_OFFSET_Y - MAP_HOVER_LABEL_HEIGHT,
-        width,
-        MAP_HOVER_LABEL_HEIGHT,
-    );
-    clamp_rect_to_bounds(preferred, bounds)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let x = rect.min.x.clamp(
-        bounds.min.x,
-        (bounds.max.x - rect.width()).max(bounds.min.x),
-    );
-    let y = rect.min.y.clamp(
-        bounds.min.y,
-        (bounds.max.y - rect.height()).max(bounds.min.y),
-    );
-    Rect::from_xy_size(
-        x,
-        y,
-        rect.width().min(bounds.width()),
-        rect.height().min(bounds.height()),
-    )
 }
 
 fn sample_map_item_color(item: &SampleMapItem) -> ui::Rgba8 {
@@ -1465,7 +1405,7 @@ mod tests {
     }
 
     #[test]
-    fn hovering_sample_map_node_paints_lightweight_runtime_highlight() {
+    fn hovering_sample_map_node_paints_lightweight_runtime_highlight_without_label() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
         let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
@@ -1499,48 +1439,17 @@ mod tests {
                 if stroke.color == ui::Rgba8::new(248, 248, 248, 230)
                     && stroke.points.len() == 5
         )));
-        assert!(primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::Text(text) if text.text.as_str() == "Kick Tight 01"
-        )));
-    }
-
-    #[test]
-    fn sample_map_hover_label_clamps_inside_map_bounds() {
-        let color = ui::Rgba8::new(57, 187, 245, 220);
-        let bounds = Rect::from_size(200.0, 100.0);
-        let mut item = sample_map_item("/samples/edge.wav", 0.98, 0.02, color);
-        item.label = String::from("Long Edge Sample Name That Should Stay Visible");
-        let mut widget = SampleMapWidget::new(vec![item], SampleMapViewport::default(), None);
-
         assert!(
-            widget
-                .handle_input(bounds, WidgetInput::pointer_move(Point::new(196.0, 2.0)))
-                .is_none()
-        );
-        let mut primitives = Vec::new();
-        widget.append_runtime_overlay_paint(
-            &mut primitives,
-            bounds,
-            &LayoutOutput::default(),
-            &ThemeTokens::default(),
-        );
-
-        let label_rect = primitives
-            .iter()
-            .find_map(|primitive| match primitive {
-                PaintPrimitive::Text(text) => Some(text.rect),
-                _ => None,
-            })
-            .expect("hover label should paint");
-        assert!(
-            bounds.contains(label_rect.min) && bounds.contains(label_rect.max),
-            "hover label rect should stay inside map bounds: {label_rect:?}"
+            !primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::Text(text) if text.text.as_str() == "Kick Tight 01"
+            )),
+            "hovering a map sample should not paint a sample-name tooltip"
         );
     }
 
     #[test]
-    fn focused_sample_map_node_paints_persistent_label_without_hover() {
+    fn focused_sample_map_node_paints_highlight_without_label() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
         let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
@@ -1559,15 +1468,24 @@ mod tests {
 
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::Text(text) if text.text.as_str() == "Kick Tight 01"
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(248, 248, 248, 190)
+                    && stroke.points.len() == 5
         )));
+        assert!(
+            !primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::Text(text) if text.text.as_str() == "Kick Tight 01"
+            )),
+            "focused map samples should not paint persistent sample-name labels"
+        );
         assert!(
             !primitives.iter().any(|primitive| matches!(
                 primitive,
                 PaintPrimitive::StrokeRect(stroke)
                     if stroke.color == ui::Rgba8::new(248, 248, 248, 230)
             )),
-            "focused selection label should not paint the transient hover ring"
+            "focused selection should not paint a rectangular tooltip"
         );
     }
 
