@@ -34,6 +34,13 @@ impl WaveformState {
             } => {
                 self.zoom_out(expand_silence_margin);
             }
+            WaveformInteraction::RememberPointerLocation { position } => {
+                self.context_menu_pointer_position = position
+                    .x
+                    .is_finite()
+                    .then_some(position)
+                    .filter(|position| position.y.is_finite());
+            }
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }

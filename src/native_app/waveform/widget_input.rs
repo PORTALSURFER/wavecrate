@@ -51,7 +51,7 @@ impl WaveformWidget {
                 self.hovered_edit_gain_handle = false;
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return None;
+                return Some(pointer_location_output(pointer));
             }
             self.hovered_edit_fade_handle = self.edit_fade_handle_at(bounds, pointer.position);
             if self.hovered_edit_fade_handle.is_some() {
@@ -60,7 +60,7 @@ impl WaveformWidget {
                 self.hovered_edit_gain_handle = false;
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return None;
+                return Some(pointer_location_output(pointer));
             }
             self.hovered_edit_gain_handle = self.edit_gain_handle_at(bounds, pointer.position);
             if self.hovered_edit_gain_handle {
@@ -68,14 +68,14 @@ impl WaveformWidget {
                 self.hovered_selection_handle = None;
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return None;
+                return Some(pointer_location_output(pointer));
             }
             self.hovered_selection_handle =
                 self.selection_handle_hover_at(bounds, pointer.position);
             if self.hovered_selection_handle.is_some() {
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return None;
+                return Some(pointer_location_output(pointer));
             }
             self.hovered_similar_section = self.similar_section_at(bounds, pointer.position);
             if self.hovered_similar_section.is_some() {
@@ -83,11 +83,11 @@ impl WaveformWidget {
                 self.hovered_edit_fade_handle = None;
                 self.hovered_edit_gain_handle = false;
                 self.hover_cursor_ratio = None;
-                return None;
+                return Some(pointer_location_output(pointer));
             }
             let visible_ratio = pointer.normalized_x();
             self.hover_cursor_ratio = self.absolute_ratio_for_visible(visible_ratio);
-            return None;
+            return Some(pointer_location_output(pointer));
         }
         if let Some((pointer, delta)) = event.wheel_pointer_delta_inside(bounds) {
             let expand_silence_margin =
@@ -463,4 +463,10 @@ impl WaveformWidget {
 
 fn horizontal_delta_inside_click_slop(delta: Vector2) -> bool {
     delta.x.abs() <= SELECTION_CLICK_SLOP_PX
+}
+
+fn pointer_location_output(pointer: CanvasPointer) -> WidgetOutput {
+    WidgetOutput::typed(WaveformInteraction::RememberPointerLocation {
+        position: pointer.position,
+    })
 }

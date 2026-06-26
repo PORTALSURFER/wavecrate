@@ -29,6 +29,9 @@ impl WaveformState {
         let selection = self
             .play_selection()
             .filter(|selection| selection.width() > 0.0)?;
+        if let Some(position) = self.context_menu_pointer_position {
+            return Some(position);
+        }
         let visible_ratio = self
             .visible_ratio_for_absolute(selection.start())
             .or_else(|| self.visible_ratio_for_absolute(selection.end()))

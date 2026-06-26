@@ -110,7 +110,12 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
         .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
-    assert!(hover.is_none());
+    assert_eq!(
+        hover.and_then(|output| output.typed_copied::<WaveformInteraction>()),
+        Some(WaveformInteraction::RememberPointerLocation {
+            position: Point::new(60.0, 40.0)
+        })
+    );
     assert_eq!(hover_cursor_ratio, Some(0.25));
     assert_eq!(widget.hover_cursor_ratio, None);
     assert_eq!(
@@ -231,14 +236,19 @@ fn captured_selection_drag_outside_waveform_updates_to_nearest_edge() {
 }
 
 #[test]
-fn pointer_move_updates_hover_cursor_locally_without_host_message() {
+fn pointer_move_updates_hover_cursor_and_remembers_context_menu_position() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 40.0)));
 
-    assert!(output.is_none());
+    assert_eq!(
+        output.and_then(|output| output.typed_copied::<WaveformInteraction>()),
+        Some(WaveformInteraction::RememberPointerLocation {
+            position: Point::new(60.0, 40.0)
+        })
+    );
     assert!(widget.common.is_hovered());
     assert_eq!(widget.hover_cursor_ratio, Some(0.25));
     assert!(widget.prefers_pointer_move_paint_only());
@@ -255,7 +265,12 @@ fn pointer_move_over_similar_section_uses_region_hover_instead_of_cursor() {
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 40.0)));
 
-    assert!(output.is_none());
+    assert_eq!(
+        output.and_then(|output| output.typed_copied::<WaveformInteraction>()),
+        Some(WaveformInteraction::RememberPointerLocation {
+            position: Point::new(80.0, 40.0)
+        })
+    );
     assert!(widget.common.is_hovered());
     assert_eq!(widget.hovered_similar_section, Some(similar));
     assert_eq!(widget.hover_cursor_ratio, None);

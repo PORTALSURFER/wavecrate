@@ -247,6 +247,7 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::ZoomOut {
             expand_silence_margin: false,
         } => Some("waveform.zoom_out"),
+        WaveformInteraction::RememberPointerLocation { .. } => None,
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
         WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),

@@ -25,4 +25,6 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) edit_selection_denied_flash_frames: u8,
     pub(in crate::native_app::waveform) active_drag: Option<WaveformDrag>,
     pub(in crate::native_app::waveform) pending_playback_start: Option<f32>,
+    pub(in crate::native_app::waveform) context_menu_pointer_position:
+        Option<radiant::gui::types::Point>,
 }

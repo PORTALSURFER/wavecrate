@@ -197,6 +197,30 @@ fn w_command_opens_playmark_context_menu_from_current_selection() {
 }
 
 #[test]
+fn w_command_opens_playmark_context_menu_at_remembered_mouse_location() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.2, 0.6);
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::RememberPointerLocation {
+            position: Point::new(333.0, 222.0),
+        });
+
+    state.apply_message(
+        GuiMessage::OpenPlaySelectionContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let menu = state
+        .ui
+        .browser_interaction
+        .waveform_context_menu
+        .expect("playmark context menu opens");
+    assert_eq!(menu.anchor, Point::new(333.0, 222.0));
+}
+
+#[test]
 fn waveform_interaction_marks_context_menu_harvest_destination_route() {
     let protected_root = tempfile::tempdir().expect("protected source root");
     let primary_root = tempfile::tempdir().expect("primary source root");

@@ -93,7 +93,7 @@ fn hover_cursor_paints_thin_white_overlay_line() {
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_size(400.0, 80.0);
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(100.0, 40.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
 
     let plan = runtime_overlay_plan(&widget, bounds);
 
@@ -116,7 +116,7 @@ fn playmark_slide_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 3.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
@@ -142,7 +142,7 @@ fn playmark_resize_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(120.0, 8.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
@@ -173,7 +173,7 @@ fn playmark_export_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(118.0, 76.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
@@ -207,7 +207,7 @@ fn editmark_slide_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 3.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
@@ -282,7 +282,7 @@ fn editmark_bottom_resize_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(120.0, 76.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
@@ -306,7 +306,7 @@ fn editmark_gain_handle_hover_paints_bright_center_tab() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 5.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
     assert!(widget.hovered_edit_gain_handle);
     assert_eq!(widget.hovered_selection_handle, None);
@@ -348,7 +348,7 @@ fn edit_fade_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 5.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
@@ -396,7 +396,7 @@ fn edit_fade_outer_gain_handle_hover_paints_bright_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 5.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(
         widget.hovered_edit_fade_outer_gain_handle,
         Some(WaveformEditFadeOuterGainHandle::In)
@@ -645,7 +645,7 @@ fn similar_section_hover_paints_brighter_runtime_overlay() {
     let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 40.0)));
-    assert!(output.is_none());
+    assert_pointer_location_output(output);
     assert_eq!(widget.hover_cursor_ratio, None);
 
     let plan = runtime_overlay_plan(&widget, bounds);
