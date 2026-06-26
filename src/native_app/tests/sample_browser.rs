@@ -384,6 +384,48 @@ fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
 }
 
 #[test]
+fn sample_map_drag_audition_ignores_multi_select_modifiers() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let shift = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    state.library.folder_browser.select_file(first_id.clone());
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(second_id.clone()),
+            position: Point::new(90.0, 10.0),
+            modifiers: shift,
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_audio_file_count(),
+        1,
+        "map audition should replace the focused sample instead of range-selecting swept nodes"
+    );
+}
+
+#[test]
 fn sample_map_audition_hit_centers_selected_node() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

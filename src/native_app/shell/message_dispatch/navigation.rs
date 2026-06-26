@@ -143,7 +143,7 @@ impl NativeAppState {
     fn enqueue_sample_map_audition_hits(
         &mut self,
         paths: Vec<String>,
-        modifiers: PointerModifiers,
+        _modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if paths.is_empty() {
@@ -166,7 +166,7 @@ impl NativeAppState {
                     .push_back(path);
             }
         }
-        self.ui.chrome.sample_map_audition_queue.modifiers = modifiers;
+        self.ui.chrome.sample_map_audition_queue.modifiers = sample_map_audition_modifiers();
         self.start_next_sample_map_audition_hit(context);
     }
 
@@ -215,12 +215,11 @@ impl NativeAppState {
             self.finish_sample_map_audition_queue_if_idle();
             return;
         };
-        let modifiers = self.ui.chrome.sample_map_audition_queue.modifiers;
         self.ui.chrome.sample_map_audition_queue.active_file_id = Some(path.clone());
         if let Some(drag) = self.ui.chrome.sample_map_audition_drag.as_mut() {
             drag.last_hit_file_id = Some(path.clone());
         }
-        self.select_sample_with_modifiers(path, modifiers, context);
+        self.select_sample_with_modifiers(path, sample_map_audition_modifiers(), context);
         if self.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
             self.focus_selected_sample_map_node();
         }
@@ -298,4 +297,8 @@ impl NativeAppState {
             0,
         );
     }
+}
+
+fn sample_map_audition_modifiers() -> PointerModifiers {
+    PointerModifiers::default()
 }
