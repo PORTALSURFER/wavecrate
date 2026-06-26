@@ -67,6 +67,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             .hovered_drop_target_folder_id()
             .is_some();
         let drag_feedback = state.library.folder_browser.file_column_drag_feedback();
+        let display_mode = state.ui.chrome.sample_browser_display;
         let visible_samples = state
             .library
             .folder_browser
@@ -74,12 +75,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
                 tags_by_file: &state.metadata.tags_by_file,
                 cached_sample_paths: &state.waveform.cache.cached_sample_paths,
             });
-        let map_items = state
-            .library
-            .folder_browser
-            .sample_map_projection(SampleMapProjection {
-                tags_by_file: &state.metadata.tags_by_file,
-            });
+        let map_items = sample_map_items_for_display(state, display_mode);
 
         Self {
             visible_samples,
@@ -89,7 +85,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             map_audition_drag: state.ui.chrome.sample_map_audition_drag.clone(),
             map_viewport: state.ui.chrome.sample_map_viewport,
             name_filter: state.library.folder_browser.name_filter().to_owned(),
-            display_mode: state.ui.chrome.sample_browser_display,
+            display_mode,
             name_view_mode: state.metadata.sample_name_view_mode,
             random_navigation_enabled: state.library.folder_browser.random_navigation_enabled(),
             curation_mode_enabled: state.library.folder_browser.curation_mode_enabled(),
@@ -137,6 +133,9 @@ impl<'a> SampleBrowserViewModel<'a> {
 }
 
 pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppState) {
+    if waveform_drag_defers_sample_browser_preparation(state) {
+        return;
+    }
     state
         .library
         .folder_browser
@@ -151,5 +150,68 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
             .library
             .folder_browser
             .prepare_sample_map_layout(&state.metadata.tags_by_file);
+    }
+}
+
+fn sample_map_items_for_display(
+    state: &NativeAppState,
+    display_mode: SampleBrowserDisplayMode,
+) -> Vec<SampleMapItem> {
+    if display_mode != SampleBrowserDisplayMode::Map {
+        return Vec::new();
+    }
+    state
+        .library
+        .folder_browser
+        .sample_map_projection(SampleMapProjection {
+            tags_by_file: &state.metadata.tags_by_file,
+        })
+}
+
+fn waveform_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bool {
+    state.waveform.current.active_drag_kind().is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::test_support::state::{NativeAppStateFixture, WaveformInteraction};
+    use crate::native_app::waveform::WaveformSelectionKind;
+
+    #[test]
+    fn list_mode_projection_does_not_build_sample_map_items() {
+        let state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+
+        let projection = SampleBrowserViewProjection::from_prepared_app_state(&state);
+
+        assert!(projection.map_items.is_empty());
+    }
+
+    #[test]
+    fn active_waveform_drag_defers_sample_browser_preparation() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+
+        state
+            .waveform
+            .current
+            .apply_interaction(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.25,
+            });
+
+        assert!(waveform_drag_defers_sample_browser_preparation(&state));
+    }
+
+    #[test]
+    fn idle_waveform_allows_sample_browser_preparation() {
+        let state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+
+        assert!(!waveform_drag_defers_sample_browser_preparation(&state));
     }
 }

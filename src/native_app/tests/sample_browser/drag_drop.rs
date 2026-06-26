@@ -26,7 +26,7 @@ fn full_gui_sample_drag_back_to_list_clears_folder_drop_target_highlight() {
         .folder_browser
         .select_file(sample.display().to_string());
 
-    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 760.0));
     let initial_frame = runtime.frame_with_default_theme();
     let sample_press = text_center(&initial_frame, "kick");
     let sample_drag_start = Point::new(sample_press.x + 16.0, sample_press.y);
