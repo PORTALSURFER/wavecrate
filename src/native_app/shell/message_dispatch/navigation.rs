@@ -7,6 +7,9 @@ use crate::native_app::app::{
     SampleMapAuditionDragState, SampleMapViewportChange,
 };
 use crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection;
+use crate::native_app::sample_library::sample_list::{
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+};
 
 const SAMPLE_MAP_AUDITION_ADVANCE_DELAY: Duration = Duration::from_millis(90);
 
@@ -47,8 +50,9 @@ impl NativeAppState {
                     SampleBrowserDisplayMode::List => SampleBrowserDisplayMode::Map,
                     SampleBrowserDisplayMode::Map => SampleBrowserDisplayMode::List,
                 };
-                if self.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
-                    self.focus_selected_sample_map_node();
+                match self.ui.chrome.sample_browser_display {
+                    SampleBrowserDisplayMode::Map => self.focus_selected_sample_map_node(),
+                    SampleBrowserDisplayMode::List => self.focus_selected_sample_list_row(context),
                 }
             }
             GuiMessage::FocusSelectedSampleMapNode => {
@@ -272,5 +276,23 @@ impl NativeAppState {
             .chrome
             .sample_map_viewport
             .apply_change(SampleMapViewportChange::Center { x, y });
+    }
+
+    fn focus_selected_sample_list_row(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        let Some(index) = self
+            .library
+            .folder_browser
+            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+        else {
+            return;
+        };
+        context.scroll_fixed_row_into_view(
+            SAMPLE_BROWSER_LIST_ID,
+            index,
+            SAMPLE_BROWSER_ROW_HEIGHT,
+            SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+            SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+            0,
+        );
     }
 }
