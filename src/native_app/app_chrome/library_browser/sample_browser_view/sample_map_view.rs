@@ -2,13 +2,14 @@ use radiant::{
     gui::types::{Point, Rect, Vector2},
     layout::LayoutOutput,
     prelude as ui,
-    runtime::{PaintPrimitive, push_fill_rect, push_stroke_rect},
+    runtime::{PaintPrimitive, push_fill_rect, push_fill_rect_batch, push_stroke_rect},
     theme::ThemeTokens,
     widgets::{
         CanvasGestureEvent, CanvasGestureState, PointerButton, PointerModifiers, TextInputMessage,
         Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
+use std::collections::BTreeMap;
 
 use crate::native_app::app::{GuiMessage, SampleMapViewport, SampleMapViewportChange};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -16,10 +17,16 @@ use crate::native_app::sample_library::folder_browser::sample_map::SampleMapItem
 use crate::native_app::ui::ids as widget_ids;
 
 const MAP_MIN_HEIGHT: f32 = 240.0;
-const MAP_NODE_SIZE: f32 = 4.0;
-const MAP_SELECTED_SIZE: f32 = 8.0;
-const MAP_ANCHOR_SIZE: f32 = 10.0;
+const MAP_NODE_SIZE: f32 = 3.4;
+const MAP_NODE_SIZE_DENSE: f32 = 2.2;
+const MAP_NODE_SIZE_VERY_DENSE: f32 = 1.6;
+const MAP_SELECTED_SIZE: f32 = 9.0;
+const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
+const MAP_ANCHOR_SIZE: f32 = 12.0;
+const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
+const MAP_DENSE_ITEM_COUNT: usize = 1_000;
+const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
 
 pub(super) fn sample_map_view(
     items: Vec<SampleMapItem>,
@@ -270,45 +277,114 @@ impl Widget for SampleMapWidget {
             bounds,
             ui::Rgba8::new(8, 9, 10, 255),
         );
-        for item in &self.items {
-            paint_item(primitives, self.common.id, bounds, item, self.viewport);
-        }
+        paint_items(
+            primitives,
+            self.common.id,
+            bounds,
+            &self.items,
+            self.viewport,
+        );
     }
 }
 
-fn paint_item(
+fn paint_items(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    items: &[SampleMapItem],
+    viewport: SampleMapViewport,
+) {
+    let node_size = map_node_size(items.len());
+    let mut batches = BTreeMap::<ColorKey, Vec<Rect>>::new();
+    for item in items {
+        queue_or_paint_item(
+            primitives,
+            widget_id,
+            bounds,
+            item,
+            viewport,
+            node_size,
+            &mut batches,
+        );
+    }
+    for (color, rects) in batches {
+        push_fill_rect_batch(primitives, widget_id, rects, color.rgba());
+    }
+}
+
+fn queue_or_paint_item(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     bounds: Rect,
     item: &SampleMapItem,
     viewport: SampleMapViewport,
+    node_size: f32,
+    batches: &mut BTreeMap<ColorKey, Vec<Rect>>,
 ) {
     let center = item_center(bounds, item, viewport);
     if !paint_bounds(bounds).contains(center) {
         return;
     }
-    let size = if item.similarity_anchor {
+    let color = sample_map_item_color(item);
+    if item.selected || item.similarity_anchor {
+        paint_highlight_item(primitives, widget_id, center, color, item.similarity_anchor);
+        return;
+    }
+    batches
+        .entry(ColorKey::from(color))
+        .or_default()
+        .push(centered_rect(center, node_size));
+}
+
+fn paint_highlight_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    color: ui::Rgba8,
+    similarity_anchor: bool,
+) {
+    let size = if similarity_anchor {
         MAP_ANCHOR_SIZE
-    } else if item.selected {
-        MAP_SELECTED_SIZE
     } else {
-        MAP_NODE_SIZE
+        MAP_SELECTED_SIZE
     };
-    let color = if item.missing {
+    let glow_size = if similarity_anchor {
+        MAP_ANCHOR_GLOW_SIZE
+    } else {
+        MAP_SELECTED_GLOW_SIZE
+    };
+    push_fill_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, glow_size),
+        color.with_alpha(42),
+    );
+    let rect = centered_rect(center, size);
+    push_fill_rect(primitives, widget_id, rect, color);
+    push_stroke_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, size + 4.0),
+        ui::Rgba8::new(245, 245, 245, 220),
+        1.0,
+    );
+}
+
+fn sample_map_item_color(item: &SampleMapItem) -> ui::Rgba8 {
+    if item.missing {
         ui::Rgba8::new(120, 120, 120, 180)
     } else {
         item.color
-    };
-    let rect = centered_rect(center, size);
-    push_fill_rect(primitives, widget_id, rect, color);
-    if item.selected || item.similarity_anchor {
-        push_stroke_rect(
-            primitives,
-            widget_id,
-            centered_rect(center, size + 4.0),
-            ui::Rgba8::new(245, 245, 245, 220),
-            1.0,
-        );
+    }
+}
+
+fn map_node_size(item_count: usize) -> f32 {
+    if item_count >= MAP_VERY_DENSE_ITEM_COUNT {
+        MAP_NODE_SIZE_VERY_DENSE
+    } else if item_count >= MAP_DENSE_ITEM_COUNT {
+        MAP_NODE_SIZE_DENSE
+    } else {
+        MAP_NODE_SIZE
     }
 }
 
@@ -336,6 +412,31 @@ fn centered_rect(center: Point, side: f32) -> Rect {
     Rect::from_xy_size(center.x - side * 0.5, center.y - side * 0.5, side, side)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct ColorKey {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+impl ColorKey {
+    fn rgba(self) -> ui::Rgba8 {
+        ui::Rgba8::new(self.r, self.g, self.b, self.a)
+    }
+}
+
+impl From<ui::Rgba8> for ColorKey {
+    fn from(color: ui::Rgba8) -> Self {
+        Self {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+            a: color.a,
+        }
+    }
+}
+
 fn distance_squared(a: Point, b: Point) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
@@ -361,18 +462,94 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ordinary_sample_map_nodes_are_batched_by_color() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let widget = SampleMapWidget::new(
+            vec![
+                sample_map_item("/samples/kick.wav", 0.25, 0.25, color),
+                sample_map_item("/samples/snare.wav", 0.50, 0.50, color),
+                sample_map_item("/samples/hat.wav", 0.75, 0.75, color),
+            ],
+            SampleMapViewport::default(),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let batches = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRectBatch(batch) => Some(batch),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].color, color);
+        assert_eq!(batches[0].rects.len(), 3);
+        assert!((batches[0].rects[0].width() - MAP_NODE_SIZE).abs() < 0.001);
+    }
+
+    #[test]
+    fn selected_and_anchor_sample_map_nodes_paint_highlight_layers() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let mut selected = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        selected.selected = true;
+        let mut anchor = sample_map_item("/samples/snare.wav", 0.75, 0.5, color);
+        anchor.similarity_anchor = true;
+        let widget = SampleMapWidget::new(vec![selected, anchor], SampleMapViewport::default());
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let fills = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) => Some(fill),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(fills.iter().any(|fill| fill.color == color.with_alpha(42)
+            && fill.rect.width() == MAP_SELECTED_GLOW_SIZE));
+        assert!(
+            fills.iter().any(|fill| fill.color == color.with_alpha(42)
+                && fill.rect.width() == MAP_ANCHOR_GLOW_SIZE)
+        );
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.color == ui::Rgba8::new(245, 245, 245, 220)
+        )));
+    }
+
+    #[test]
+    fn dense_sample_maps_use_smaller_node_sizes() {
+        assert_eq!(map_node_size(10), MAP_NODE_SIZE);
+        assert_eq!(map_node_size(MAP_DENSE_ITEM_COUNT), MAP_NODE_SIZE_DENSE);
+        assert_eq!(
+            map_node_size(MAP_VERY_DENSE_ITEM_COUNT),
+            MAP_NODE_SIZE_VERY_DENSE
+        );
+    }
+
+    #[test]
     fn primary_drag_auditions_node_crossed_between_pointer_samples() {
         let mut widget = SampleMapWidget::new(
-            vec![SampleMapItem {
-                file_id: String::from("/samples/clap.wav"),
-                label: String::from("clap"),
-                x: 0.5,
-                y: 0.5,
-                color: ui::Rgba8::new(255, 160, 80, 220),
-                selected: false,
-                similarity_anchor: false,
-                missing: false,
-            }],
+            vec![sample_map_item(
+                "/samples/clap.wav",
+                0.5,
+                0.5,
+                ui::Rgba8::new(255, 160, 80, 220),
+            )],
             SampleMapViewport::default(),
         );
         let bounds = Rect::from_size(200.0, 100.0);
@@ -406,5 +583,18 @@ mod tests {
             ),
             0.0
         );
+    }
+
+    fn sample_map_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> SampleMapItem {
+        SampleMapItem {
+            file_id: String::from(file_id),
+            label: String::from(file_id),
+            x,
+            y,
+            color,
+            selected: false,
+            similarity_anchor: false,
+            missing: false,
+        }
     }
 }
