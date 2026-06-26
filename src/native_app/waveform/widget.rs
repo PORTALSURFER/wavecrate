@@ -53,13 +53,41 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     };
 
     ui::stack([
-        waveform_signal_surface_view(state.file(), state.viewport(), state.edit_selection())
-            .id(WAVEFORM_SIGNAL_WIDGET_ID)
-            .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
+        waveform_signal_surface_view(
+            state.file(),
+            state.viewport(),
+            signal_edit_selection_for_state(state),
+        )
+        .id(WAVEFORM_SIGNAL_WIDGET_ID)
+        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         interaction,
     ])
     .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
+}
+
+pub(super) fn signal_edit_selection_for_state(
+    state: &WaveformState,
+) -> Option<wavecrate::selection::SelectionRange> {
+    let edit_selection = state.edit_selection();
+    if active_edit_selection_drag_skips_signal_preview(state.active_drag_kind()) {
+        None
+    } else {
+        edit_selection
+    }
+}
+
+fn active_edit_selection_drag_skips_signal_preview(
+    active_drag_kind: Option<WaveformActiveDragKind>,
+) -> bool {
+    matches!(
+        active_drag_kind,
+        Some(
+            WaveformActiveDragKind::Selection(WaveformSelectionKind::Edit)
+                | WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Edit, _)
+                | WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Edit)
+        )
+    )
 }
 
 pub(in crate::native_app::waveform) fn waveform_signal_surface_view(

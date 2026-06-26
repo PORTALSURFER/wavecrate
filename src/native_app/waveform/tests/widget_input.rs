@@ -963,6 +963,55 @@ fn secondary_drag_from_playmark_body_paints_edit_selection() {
 }
 
 #[test]
+fn editmark_selection_drag_does_not_churn_signal_preview() {
+    let mut state = WaveformState::synthetic_for_tests();
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Edit,
+        visible_ratio: 0.2,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
+
+    assert_eq!(
+        state.edit_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.6)),
+        "editmark model selection should update live"
+    );
+    assert_eq!(
+        signal_edit_selection_for_state(&state),
+        None,
+        "plain editmark drag should paint through the lightweight overlay"
+    );
+
+    state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.6 });
+
+    assert_eq!(
+        signal_edit_selection_for_state(&state),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.6)),
+        "finished editmark selection should feed the edit preview again"
+    );
+}
+
+#[test]
+fn edit_gain_drag_keeps_signal_preview_live() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+
+    state.apply_interaction(WaveformInteraction::BeginEditGain { pointer_y: 20.0 });
+
+    assert_eq!(
+        state.active_drag_kind(),
+        Some(WaveformActiveDragKind::EditGain)
+    );
+    assert_eq!(
+        signal_edit_selection_for_state(&state),
+        state.edit_selection(),
+        "edit gain drags should keep the signal gain preview live"
+    );
+}
+
+#[test]
 fn secondary_press_on_edit_top_handle_starts_move() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
