@@ -208,12 +208,58 @@ impl WaveformWidget {
         let mut paint = WidgetPaint::new(primitives, self.common.id);
         match preview.kind {
             super::WaveformSelectionKind::Play => {
-                self.append_play_selection_paint(&mut paint, bounds, geometry);
+                let denied_flash_active =
+                    denied_selection_flash_visible(self.play_selection_denied_flash_frames);
+                let flash_active = self.play_selection_flash_frames > 0;
+                let style = if denied_flash_active {
+                    denied_selection_paint_style()
+                } else {
+                    play_selection_paint_style(flash_active)
+                };
+                self.append_live_selection_preview_range_paint(
+                    &mut paint,
+                    bounds,
+                    geometry,
+                    Some(preview.selection),
+                    style,
+                );
             }
             super::WaveformSelectionKind::Edit => {
-                self.append_edit_selection_paint(&mut paint, bounds, geometry);
+                let denied_flash_active =
+                    denied_selection_flash_visible(self.edit_selection_denied_flash_frames);
+                let flash_active = self.edit_selection_flash_frames > 0;
+                let style = if denied_flash_active {
+                    denied_selection_paint_style()
+                } else {
+                    edit_selection_paint_style(flash_active)
+                };
+                self.append_live_selection_preview_range_paint(
+                    &mut paint,
+                    bounds,
+                    geometry,
+                    Some(preview.selection),
+                    style,
+                );
             }
         }
+    }
+
+    fn append_live_selection_preview_range_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        geometry: CanvasSelectionGeometry,
+        selection: Option<wavecrate::selection::SelectionRange>,
+        style: CanvasSelectionPaintStyle,
+    ) {
+        paint.push_horizontal_value_range_fill(
+            bounds,
+            geometry.start_fraction,
+            geometry.end_fraction,
+            1.0,
+            style.fill_color(),
+        );
+        self.append_selection_boundary_cursors(paint, bounds, selection, style, 1.25);
     }
 
     fn append_edit_selection_paint(
