@@ -9,7 +9,10 @@ use radiant::{
         Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
+    hash::{Hash, Hasher},
+};
 
 use crate::native_app::app::{
     GuiMessage, SampleMapAuditionDragState, SampleMapViewport, SampleMapViewportChange,
@@ -193,6 +196,7 @@ struct SampleMapWidget {
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
     active_drag: Option<SampleMapAuditionDragState>,
+    item_signature: u64,
     hit_index: SampleMapHitIndex,
     hovered_file_id: Option<String>,
 }
@@ -212,6 +216,7 @@ impl SampleMapWidget {
         )
         .with_pointer_focus()
         .without_default_chrome();
+        let item_signature = sample_map_items_signature(&items);
         Self {
             common,
             gesture: CanvasGestureState::new(),
@@ -221,6 +226,7 @@ impl SampleMapWidget {
             last_primary_position: None,
             last_pan_position: None,
             active_drag,
+            item_signature,
             hit_index: SampleMapHitIndex::default(),
             hovered_file_id: None,
         }
@@ -332,11 +338,12 @@ impl SampleMapWidget {
     fn ensure_hit_index(&mut self, bounds: Rect) {
         if self
             .hit_index
-            .matches(bounds, self.viewport, self.items.len())
+            .matches(bounds, self.viewport, self.item_signature)
         {
             return;
         }
-        self.hit_index = SampleMapHitIndex::build(bounds, self.viewport, &self.items);
+        self.hit_index =
+            SampleMapHitIndex::build(bounds, self.viewport, self.item_signature, &self.items);
     }
 
     fn set_hovered_file_at(&mut self, bounds: Rect, point: Point) {
@@ -362,12 +369,17 @@ struct SampleMapSegmentHit {
 struct SampleMapHitIndex {
     bounds: Option<Rect>,
     viewport: Option<SampleMapViewport>,
-    item_count: usize,
+    item_signature: u64,
     cells: HashMap<SampleMapGridCell, Vec<usize>>,
 }
 
 impl SampleMapHitIndex {
-    fn build(bounds: Rect, viewport: SampleMapViewport, items: &[SampleMapItem]) -> Self {
+    fn build(
+        bounds: Rect,
+        viewport: SampleMapViewport,
+        item_signature: u64,
+        items: &[SampleMapItem],
+    ) -> Self {
         let mut cells = HashMap::<SampleMapGridCell, Vec<usize>>::new();
         let indexed_bounds = paint_bounds(bounds).expanded(MAP_HIT_RADIUS);
         for (index, item) in items.iter().enumerate() {
@@ -383,19 +395,21 @@ impl SampleMapHitIndex {
         Self {
             bounds: Some(bounds),
             viewport: Some(viewport),
-            item_count: items.len(),
+            item_signature,
             cells,
         }
     }
 
-    fn matches(&self, bounds: Rect, viewport: SampleMapViewport, item_count: usize) -> bool {
+    fn matches(&self, bounds: Rect, viewport: SampleMapViewport, item_signature: u64) -> bool {
         self.bounds == Some(bounds)
             && self.viewport == Some(viewport)
-            && self.item_count == item_count
+            && self.item_signature == item_signature
     }
 
-    fn matches_current(&self, viewport: SampleMapViewport, item_count: usize) -> bool {
-        self.bounds.is_some() && self.viewport == Some(viewport) && self.item_count == item_count
+    fn matches_current(&self, viewport: SampleMapViewport, item_signature: u64) -> bool {
+        self.bounds.is_some()
+            && self.viewport == Some(viewport)
+            && self.item_signature == item_signature
     }
 
     fn item_indices_near_point(&self, point: Point) -> Vec<usize> {
@@ -451,6 +465,17 @@ fn segment_bounds(from: Point, to: Point) -> Rect {
         Point::new(from.x.min(to.x), from.y.min(to.y)),
         Point::new(from.x.max(to.x), from.y.max(to.y)),
     )
+}
+
+fn sample_map_items_signature(items: &[SampleMapItem]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    items.len().hash(&mut hasher);
+    for item in items {
+        item.file_id.hash(&mut hasher);
+        item.x.to_bits().hash(&mut hasher);
+        item.y.to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 fn point_segment_t(point: Point, start: Point, end: Point) -> f32 {
@@ -568,7 +593,7 @@ impl Widget for SampleMapWidget {
         self.hovered_file_id = previous.hovered_file_id.clone();
         if previous
             .hit_index
-            .matches_current(self.viewport, self.items.len())
+            .matches_current(self.viewport, self.item_signature)
         {
             self.hit_index = previous.hit_index.clone();
         }
@@ -1146,7 +1171,40 @@ mod tests {
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
         assert!(
             next.hit_index
-                .matches(bounds, SampleMapViewport::default(), 1)
+                .matches(bounds, SampleMapViewport::default(), next.item_signature)
+        );
+    }
+
+    #[test]
+    fn sample_map_widget_rebuilds_hit_index_when_filtered_items_change_with_same_count() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut previous = SampleMapWidget::new(
+            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
+            SampleMapViewport::default(),
+            None,
+        );
+        previous.ensure_hit_index(bounds);
+
+        let mut next = SampleMapWidget::new(
+            vec![sample_map_item("/samples/snare.wav", 0.75, 0.5, color)],
+            SampleMapViewport::default(),
+            None,
+        );
+        next.synchronize_from_previous(&previous);
+        assert!(
+            !next
+                .hit_index
+                .matches(bounds, SampleMapViewport::default(), next.item_signature),
+            "same-count filtered listings must not reuse stale node cells"
+        );
+
+        next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
+
+        assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
+        assert!(
+            next.hit_index
+                .matches(bounds, SampleMapViewport::default(), next.item_signature)
         );
     }
 
@@ -1280,7 +1338,8 @@ mod tests {
             ui::Rgba8::new(57, 187, 245, 220),
         ));
 
-        let index = SampleMapHitIndex::build(bounds, viewport, &items);
+        let index =
+            SampleMapHitIndex::build(bounds, viewport, sample_map_items_signature(&items), &items);
         let candidates =
             index.item_indices_near_segment(Point::new(720.0, 750.0), Point::new(780.0, 750.0));
 
