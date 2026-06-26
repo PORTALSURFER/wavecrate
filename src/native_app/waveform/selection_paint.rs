@@ -8,7 +8,8 @@ use radiant::{
 };
 
 use super::{
-    DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WaveformWidget,
+    DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WaveformActiveDragKind,
+    WaveformSelectionKind, WaveformWidget,
     widget_geometry::{
         SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, edit_selection_resize_edge_bounds,
         edit_selection_resize_edge_visible, selection_export_handle_style,
@@ -59,10 +60,14 @@ impl WaveformWidget {
             self.append_extracted_range_paint(&mut paint, bounds);
             self.append_similar_section_paint(&mut paint, bounds);
         }
-        if let Some(geometry) = self.selection_geometry(bounds, self.play_selection) {
+        if self.should_paint_committed_selection(WaveformSelectionKind::Play)
+            && let Some(geometry) = self.selection_geometry(bounds, self.play_selection)
+        {
             self.append_play_selection_paint(&mut paint, bounds, geometry);
         }
-        if let Some(geometry) = self.selection_geometry(bounds, self.edit_selection) {
+        if self.should_paint_committed_selection(WaveformSelectionKind::Edit)
+            && let Some(geometry) = self.selection_geometry(bounds, self.edit_selection)
+        {
             self.append_edit_selection_paint(&mut paint, bounds, geometry);
         }
         self.append_marker_paint(&mut paint, bounds);
@@ -85,6 +90,10 @@ impl WaveformWidget {
 
     fn static_range_overlays_visible(&self) -> bool {
         self.active_drag_kind.is_none()
+    }
+
+    fn should_paint_committed_selection(&self, kind: WaveformSelectionKind) -> bool {
+        active_selection_drag_kind(self.active_drag_kind) != Some(kind)
     }
 
     fn append_extracted_range_rails(
@@ -165,7 +174,10 @@ impl WaveformWidget {
         bounds: Rect,
         selection: Option<wavecrate::selection::SelectionRange>,
     ) {
-        if !self.beat_guides_enabled || self.beat_guide_count <= 1 {
+        if self.active_drag_kind.is_some()
+            || !self.beat_guides_enabled
+            || self.beat_guide_count <= 1
+        {
             return;
         }
         let Some(selection) = selection.filter(|selection| selection.width() > 0.0) else {
@@ -491,6 +503,19 @@ impl WaveformWidget {
             }
             DragHandleRole::LeadingControl => {}
         }
+    }
+}
+
+fn active_selection_drag_kind(
+    active_drag_kind: Option<WaveformActiveDragKind>,
+) -> Option<WaveformSelectionKind> {
+    match active_drag_kind {
+        Some(
+            WaveformActiveDragKind::Selection(kind)
+            | WaveformActiveDragKind::SelectionResize(kind, _)
+            | WaveformActiveDragKind::SelectionMove(kind),
+        ) => Some(kind),
+        _ => None,
     }
 }
 

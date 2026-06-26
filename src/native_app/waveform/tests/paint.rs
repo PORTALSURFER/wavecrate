@@ -552,6 +552,7 @@ fn selection_fill_paints_as_overlay_widget_rects() {
         visible_ratio: 0.2,
     });
     state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
+    state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.6 });
     let widget = waveform_widget_for_state(&state);
     let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
 
@@ -621,7 +622,12 @@ fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
     widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
         WaveformSelectionKind::Play,
     ));
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.4, 0.8),
+    });
+    let bounds = Rect::from_size(200.0, 80.0);
+    let plan = widget.paint_plan_with_defaults(bounds);
 
     let fills = fill_rects(&plan);
     assert!(
@@ -633,13 +639,70 @@ fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
         }),
         "static extracted/similar overlays should not paint during live playmark drags"
     );
+    let runtime_plan = runtime_overlay_plan(&widget, bounds);
+    let runtime_fills = fill_rects(&runtime_plan);
     assert!(
-        fills.iter().any(|fill| {
+        runtime_fills.iter().any(|fill| {
             (fill.rect.min.x - 80.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
                 && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
         }),
         "the live playmark selection itself should keep painting"
+    );
+}
+
+#[test]
+fn committed_selection_paint_pauses_while_selection_preview_is_live() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionResize(
+        WaveformSelectionKind::Play,
+        WaveformSelectionEdge::End,
+    ));
+
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(
+        !fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "committed play selection should not repaint under the live drag preview"
+    );
+}
+
+#[test]
+fn beat_guides_do_not_paint_during_live_selection_preview() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 16);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(
+        fills.iter().all(
+            |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (255, 214, 188, 170)
+        ),
+        "beat guides should wait for drag release instead of painting every pointer update"
+    );
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "the live selection preview should still paint"
     );
 }
 
