@@ -66,6 +66,26 @@ pub fn persist_sourced_moved_file_metadata(
     }
 }
 
+/// Preserve Wavecrate metadata after copying one file inside a configured source.
+pub fn persist_copied_file_metadata(
+    source_root: &Path,
+    database_root: &Path,
+    old_path: &Path,
+    new_path: &Path,
+) -> Result<(), String> {
+    let old_relative = old_path
+        .strip_prefix(source_root)
+        .map_err(|_| String::from("File copy metadata update failed: source file mismatch"))?;
+    let new_relative = new_path
+        .strip_prefix(source_root)
+        .map_err(|_| String::from("File copy metadata update failed: target file mismatch"))?;
+    let db =
+        SourceDatabase::open_for_user_metadata_write_with_database_root(source_root, database_root)
+            .map_err(|err| format!("File copy metadata update failed: {err}"))?;
+    let metadata = moved_file_metadata(&db, old_relative)?;
+    write_cross_source_target_metadata(&db, new_relative, new_path, metadata.as_ref(), None)
+}
+
 fn persist_same_source_moved_file_metadata(
     source_root: &Path,
     database_root: &Path,

@@ -50,6 +50,7 @@ impl NativeAppState {
             GuiMessage::CopySelectedFiles => self.copy_selected_files(context),
             GuiMessage::CutSelectedFiles => self.cut_selected_files(),
             GuiMessage::PasteCutFiles => self.paste_cut_files(context),
+            GuiMessage::DuplicateContextSampleSame => self.duplicate_context_sample_same(),
             GuiMessage::SelectedFilesCopyFinished {
                 count,
                 started_at,

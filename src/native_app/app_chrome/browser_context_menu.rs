@@ -68,6 +68,10 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
     }
     if menu.kind == BrowserContextTargetKind::Sample {
         actions.push(ui::MenuCommand::new(
+            "Duplicate Same",
+            GuiMessage::DuplicateContextSampleSame,
+        ));
+        actions.push(ui::MenuCommand::new(
             "Mark Harvest Done",
             GuiMessage::MarkContextSampleHarvestDone,
         ));

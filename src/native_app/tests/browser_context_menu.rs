@@ -570,6 +570,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     assert!(frame.paint_plan.contains_text("Show Harvest Origin"));
     assert!(frame.paint_plan.contains_text("Show Harvest Derivatives"));
     assert!(frame.paint_plan.contains_text("Open Harvest Destination"));
+    assert!(frame.paint_plan.contains_text("Duplicate Same"));
     assert!(frame.paint_plan.contains_text("Move to Trash"));
 }
 

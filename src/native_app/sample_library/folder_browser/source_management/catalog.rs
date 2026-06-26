@@ -88,6 +88,18 @@ impl FolderBrowserState {
             .map(|source| (source.root.clone(), source.database_root.clone()))
     }
 
+    pub(in crate::native_app) fn source_roots_for_path(
+        &self,
+        path: &std::path::Path,
+    ) -> Option<(PathBuf, PathBuf)> {
+        self.source
+            .sources
+            .iter()
+            .filter(|source| path.starts_with(&source.root))
+            .max_by_key(|source| source.root.components().count())
+            .map(|source| (source.root.clone(), source.database_root.clone()))
+    }
+
     pub(in crate::native_app) fn selected_source_folder_tree_refresh_request(
         &self,
     ) -> Option<FolderTreeRefreshRequest> {

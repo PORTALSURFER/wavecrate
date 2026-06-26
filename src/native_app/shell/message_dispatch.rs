@@ -104,6 +104,7 @@ impl NativeAppState {
             | GuiMessage::CopySelectedFiles
             | GuiMessage::CutSelectedFiles
             | GuiMessage::PasteCutFiles
+            | GuiMessage::DuplicateContextSampleSame
             | GuiMessage::SelectedFilesCopyFinished { .. }
             | GuiMessage::WaveformSelectionCopyExtracted { .. }
             | GuiMessage::WaveformSelectionCopyFinished { .. }

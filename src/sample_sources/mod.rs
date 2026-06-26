@@ -54,7 +54,9 @@ pub mod library {
 }
 
 #[doc(hidden)]
-pub use file_move_metadata::{SourcedFileMoveMetadata, persist_sourced_moved_file_metadata};
+pub use file_move_metadata::{
+    SourcedFileMoveMetadata, persist_copied_file_metadata, persist_sourced_moved_file_metadata,
+};
 pub use wavecrate_library::sample_sources::db::{SampleCollection, SampleSoundType};
 pub(crate) use wavecrate_library::sample_sources::is_supported_audio;
 pub use wavecrate_library::sample_sources::normalize_relative_path;

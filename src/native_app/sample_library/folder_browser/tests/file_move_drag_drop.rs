@@ -650,6 +650,114 @@ fn file_drag_drop_preserves_rating_metadata_after_move() {
 }
 
 #[test]
+fn duplicate_same_preserves_source_metadata_without_removing_original() {
+    let root = temp_source_root("wavecrate-gui-duplicate-same-metadata");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create source folder");
+    let kick = drums.join("kick.wav");
+    let duplicate = drums.join("kick_copy001.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+
+    let first_collection = SampleCollection::new(0).expect("first collection");
+    let second_collection = SampleCollection::new(1).expect("second collection");
+    let source_db = SourceDatabase::open(&root).expect("open source db");
+    let source_relative = Path::new("drums/kick.wav");
+    let duplicate_relative = Path::new("drums/kick_copy001.wav");
+    let mut batch = source_db.write_batch().expect("open metadata batch");
+    batch
+        .upsert_file_with_hash(source_relative, 8, 1, "kick-content-hash")
+        .expect("upsert source row");
+    batch
+        .set_tag(source_relative, Rating::new(2))
+        .expect("set rating");
+    batch
+        .set_looped(source_relative, true)
+        .expect("set loop marker");
+    batch
+        .set_locked(source_relative, true)
+        .expect("set keep lock");
+    batch
+        .set_sound_type(
+            source_relative,
+            Some(wavecrate::sample_sources::SampleSoundType::Kick),
+        )
+        .expect("set sound type");
+    batch
+        .set_user_tag(source_relative, Some("Punchy"))
+        .expect("set user tag");
+    batch
+        .set_tag_named(source_relative, true)
+        .expect("set tag-named marker");
+    batch
+        .set_last_played_at(source_relative, 1234)
+        .expect("set last played");
+    batch
+        .replace_tags_for_path(
+            source_relative,
+            &[String::from("Hard"), String::from("Drum")],
+        )
+        .expect("set normal tags");
+    batch
+        .add_collection(source_relative, first_collection)
+        .expect("set first collection");
+    batch
+        .add_collection(source_relative, second_collection)
+        .expect("set second collection");
+    batch
+        .set_last_curated_at(source_relative, 5678)
+        .expect("restore curation timestamp");
+    batch.commit().expect("commit source metadata");
+
+    fs::copy(&kick, &duplicate).expect("duplicate sample");
+    wavecrate::sample_sources::persist_copied_file_metadata(&root, &root, &kick, &duplicate)
+        .expect("copy metadata");
+
+    assert_eq!(
+        source_db
+            .tag_for_path(source_relative)
+            .expect("read original rating"),
+        Some(Rating::new(2))
+    );
+    assert_eq!(
+        source_db
+            .tag_for_path(duplicate_relative)
+            .expect("read duplicate rating"),
+        Some(Rating::new(2))
+    );
+    assert_eq!(
+        source_db
+            .looped_for_path(duplicate_relative)
+            .expect("read loop marker"),
+        Some(true)
+    );
+    assert_eq!(
+        source_db
+            .locked_for_path(duplicate_relative)
+            .expect("read keep lock"),
+        Some(true)
+    );
+    assert_eq!(
+        source_db
+            .tag_labels_for_path(duplicate_relative)
+            .expect("read duplicate tags"),
+        vec![String::from("Drum"), String::from("Hard")]
+    );
+    assert_eq!(
+        source_db
+            .collections_for_path(duplicate_relative)
+            .expect("read duplicate collections"),
+        vec![first_collection, second_collection]
+    );
+    assert_eq!(
+        source_db
+            .last_curated_at_for_path(duplicate_relative)
+            .expect("read duplicate curation timestamp"),
+        Some(5678)
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn cut_paste_moves_files_between_sources_and_preserves_metadata() {
     let source_root = temp_source_root("wavecrate-gui-cut-paste-source-a");
     let target_root = temp_source_root("wavecrate-gui-cut-paste-source-b");
