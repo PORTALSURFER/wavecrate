@@ -27,9 +27,15 @@ pub(super) struct SampleBrowserHeaderProjection<'a> {
 impl<'a> SampleBrowserHeaderProjection<'a> {
     pub(super) fn from_model(model: SampleBrowserHeaderBar<'a>) -> Self {
         Self {
-            columns: projected_header_columns(model.columns, model.similarity_mode_active),
+            columns: projected_header_columns(
+                model.columns,
+                model.similarity_mode_active,
+                model.map_view_active,
+            ),
             sort: model.sort,
-            drag_marker_x: model.drag_feedback.map(|feedback| feedback.marker_x),
+            drag_marker_x: (!model.map_view_active)
+                .then(|| model.drag_feedback.map(|feedback| feedback.marker_x))
+                .flatten(),
             random_navigation: RandomNavigationButtonProjection::new(
                 model.random_navigation_enabled,
             ),
@@ -100,7 +106,11 @@ pub(super) struct HeaderColumnProjection<'a> {
 pub(super) fn projected_header_columns<'a>(
     columns: &'a [&'a FileColumn],
     similarity_mode_active: bool,
+    map_view_active: bool,
 ) -> Vec<HeaderColumnProjection<'a>> {
+    if map_view_active {
+        return Vec::new();
+    }
     columns
         .iter()
         .map(|column| HeaderColumnProjection {

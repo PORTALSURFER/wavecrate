@@ -62,15 +62,21 @@ fn header_column_projection_inserts_similarity_after_name_column_only() {
     let size = FileColumn::for_tests("size", "Size", 78.0);
     let columns = [&name, &size];
 
-    let active = projected_header_columns(&columns, true);
+    let active = projected_header_columns(&columns, true, false);
     assert_eq!(active.len(), 2);
     assert_eq!(active[0].column.id, "name");
     assert!(active[0].show_similarity_after);
     assert_eq!(active[1].column.id, "size");
     assert!(!active[1].show_similarity_after);
 
-    let inactive = projected_header_columns(&columns, false);
+    let inactive = projected_header_columns(&columns, false, false);
     assert!(inactive.iter().all(|column| !column.show_similarity_after));
+
+    let map_mode = projected_header_columns(&columns, true, true);
+    assert!(
+        map_mode.is_empty(),
+        "map mode should hide list-table column headers"
+    );
 }
 
 #[test]
@@ -109,6 +115,37 @@ fn header_bar_projection_collects_controls_columns_and_drag_marker() {
     assert!(projection.columns[0].show_similarity_after);
     assert!(!projection.columns[1].show_similarity_after);
     assert_eq!(projection.similarity_header.score_label, "Sim");
+}
+
+#[test]
+fn header_bar_projection_hides_list_columns_in_map_mode() {
+    let name = FileColumn::for_tests("name", "Name", 240.0);
+    let size = FileColumn::for_tests("size", "Size", 78.0);
+    let columns = [&name, &size];
+    let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+    let drag_feedback = FileColumnDragFeedback {
+        label: "Name".to_string(),
+        pointer: ui::Point::new(42.0, 9.0),
+        width: 240.0,
+        marker_x: 138.0,
+    };
+    let settings = SimilarityAspectSettings::default();
+
+    let projection = SampleBrowserHeaderProjection::from_model(SampleBrowserHeaderBar {
+        columns: &columns,
+        sort: &sort,
+        drag_feedback: Some(&drag_feedback),
+        mode: SampleNameViewMode::DiskFilename,
+        random_navigation_enabled: false,
+        map_view_active: true,
+        similarity_mode_active: true,
+        similarity_controls: &settings,
+        help_tooltips_enabled: false,
+    });
+
+    assert!(projection.columns.is_empty());
+    assert_eq!(projection.drag_marker_x, None);
+    assert!(projection.map_view.active);
 }
 
 #[test]
