@@ -258,6 +258,168 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
 }
 
 #[test]
+fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+            paths: vec![second_id.clone(), third_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(first_id.as_str()),
+        "the first hit should start immediately instead of being cancelled by later swept hits"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(first_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .queued_file_ids
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![second_id, third_id]
+    );
+}
+
+#[test]
+fn sample_map_audition_advance_selects_next_queued_hit() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+            paths: vec![second_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    let mut advance_context = radiant::prelude::UiUpdateContext::default();
+    state.schedule_next_sample_map_audition_hit(&mut advance_context);
+    let advance = run_first_after(advance_context.into_command()).expect("queued map advance");
+    state.apply_message(advance, &mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
+}
+
+#[test]
+fn sample_map_audition_queue_clears_after_last_hit_finishes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    let first_id = first.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishSampleMapAuditionDrag,
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    state.schedule_next_sample_map_audition_hit(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(state.ui.chrome.sample_map_audition_drag, None);
+    assert_eq!(
+        state.ui.chrome.sample_map_audition_queue,
+        Default::default()
+    );
+}
+
+#[test]
 fn rapid_last_played_records_only_latest_delayed_persist() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("first.wav");

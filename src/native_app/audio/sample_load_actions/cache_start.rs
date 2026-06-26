@@ -116,6 +116,7 @@ impl NativeAppState {
             false,
         );
         self.start_cached_sample_playback(&file_name, MEMORY_CACHE_OUTCOMES, started_at, context);
+        self.schedule_next_sample_map_audition_hit(context);
         log_sample_load_timing(
             "browser.sample_load.memory_cache.total",
             &file_name,
@@ -182,6 +183,7 @@ impl NativeAppState {
             started_at,
             context,
         );
+        self.schedule_next_sample_map_audition_hit(context);
         true
     }
 

@@ -1,11 +1,14 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
+use std::time::Duration;
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
     SampleMapAuditionDragState, SampleMapViewportChange,
 };
 use crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection;
+
+const SAMPLE_MAP_AUDITION_ADVANCE_DELAY: Duration = Duration::from_millis(90);
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -68,8 +71,12 @@ impl NativeAppState {
             } => {
                 self.update_sample_map_audition_drag(paths, position, modifiers, context);
             }
+            GuiMessage::AdvanceSampleMapAudition { ticket } => {
+                self.advance_sample_map_audition(ticket, context);
+            }
             GuiMessage::FinishSampleMapAuditionDrag => {
                 self.ui.chrome.sample_map_audition_drag = None;
+                self.finish_sample_map_audition_queue_if_idle();
             }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library
@@ -108,7 +115,8 @@ impl NativeAppState {
             last_position: position,
             modifiers,
         });
-        self.select_sample_map_audition_hits(path.into_iter().collect(), modifiers, context);
+        self.ui.chrome.sample_map_audition_queue = Default::default();
+        self.enqueue_sample_map_audition_hits(path.into_iter().collect(), modifiers, context);
     }
 
     fn update_sample_map_audition_drag(
@@ -125,10 +133,10 @@ impl NativeAppState {
                 drag.last_hit_file_id = Some(path.clone());
             }
         }
-        self.select_sample_map_audition_hits(paths, modifiers, context);
+        self.enqueue_sample_map_audition_hits(paths, modifiers, context);
     }
 
-    fn select_sample_map_audition_hits(
+    fn enqueue_sample_map_audition_hits(
         &mut self,
         paths: Vec<String>,
         modifiers: PointerModifiers,
@@ -140,8 +148,111 @@ impl NativeAppState {
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
         for path in paths {
-            self.select_sample_with_modifiers(path, modifiers, context);
+            if self
+                .ui
+                .chrome
+                .sample_map_audition_queue
+                .seen_file_ids
+                .insert(path.clone())
+            {
+                self.ui
+                    .chrome
+                    .sample_map_audition_queue
+                    .queued_file_ids
+                    .push_back(path);
+            }
         }
+        self.ui.chrome.sample_map_audition_queue.modifiers = modifiers;
+        self.start_next_sample_map_audition_hit(context);
+    }
+
+    pub(in crate::native_app) fn schedule_next_sample_map_audition_hit(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .queued_file_ids
+            .is_empty()
+        {
+            self.ui.chrome.sample_map_audition_queue.active_file_id = None;
+            self.finish_sample_map_audition_queue_if_idle();
+            return;
+        }
+        context.after_latest(
+            &mut self.background.sample_map_audition_advance_task,
+            SAMPLE_MAP_AUDITION_ADVANCE_DELAY,
+            |ticket| GuiMessage::AdvanceSampleMapAudition { ticket },
+        );
+    }
+
+    pub(in crate::native_app) fn start_next_sample_map_audition_hit(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .active_file_id
+            .is_some()
+        {
+            return;
+        }
+        let Some(path) = self
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .queued_file_ids
+            .pop_front()
+        else {
+            self.finish_sample_map_audition_queue_if_idle();
+            return;
+        };
+        let modifiers = self.ui.chrome.sample_map_audition_queue.modifiers;
+        self.ui.chrome.sample_map_audition_queue.active_file_id = Some(path.clone());
+        if let Some(drag) = self.ui.chrome.sample_map_audition_drag.as_mut() {
+            drag.last_hit_file_id = Some(path.clone());
+        }
+        self.select_sample_with_modifiers(path, modifiers, context);
+    }
+
+    fn advance_sample_map_audition(
+        &mut self,
+        ticket: ui::TaskTicket,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !self
+            .background
+            .sample_map_audition_advance_task
+            .finish(ticket)
+        {
+            return;
+        }
+        self.ui.chrome.sample_map_audition_queue.active_file_id = None;
+        self.start_next_sample_map_audition_hit(context);
+    }
+
+    fn finish_sample_map_audition_queue_if_idle(&mut self) {
+        if self.ui.chrome.sample_map_audition_drag.is_some()
+            || self
+                .ui
+                .chrome
+                .sample_map_audition_queue
+                .active_file_id
+                .is_some()
+            || !self
+                .ui
+                .chrome
+                .sample_map_audition_queue
+                .queued_file_ids
+                .is_empty()
+        {
+            return;
+        }
+        self.ui.chrome.sample_map_audition_queue = Default::default();
     }
 
     fn focus_selected_sample_map_node(&mut self) {

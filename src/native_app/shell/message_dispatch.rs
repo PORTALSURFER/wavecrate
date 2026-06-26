@@ -185,6 +185,7 @@ impl NativeAppState {
             | GuiMessage::ChangeSampleMapViewport(_)
             | GuiMessage::BeginSampleMapAuditionDrag { .. }
             | GuiMessage::UpdateSampleMapAuditionDrag { .. }
+            | GuiMessage::AdvanceSampleMapAudition { .. }
             | GuiMessage::FinishSampleMapAuditionDrag
             | GuiMessage::SampleBrowserWindowChanged(_)
             | GuiMessage::FolderTreeWindowChanged(_)

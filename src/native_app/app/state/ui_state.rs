@@ -1,4 +1,8 @@
-use std::{collections::HashSet, path::PathBuf, time::Instant};
+use std::{
+    collections::{HashSet, VecDeque},
+    path::PathBuf,
+    time::Instant,
+};
 
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
@@ -51,6 +55,7 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) sample_browser_display: SampleBrowserDisplayMode,
     pub(in crate::native_app) sample_map_viewport: SampleMapViewport,
     pub(in crate::native_app) sample_map_audition_drag: Option<SampleMapAuditionDragState>,
+    pub(in crate::native_app) sample_map_audition_queue: SampleMapAuditionQueueState,
     pub(in crate::native_app) harvest_family_open: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
@@ -66,6 +71,14 @@ pub(in crate::native_app) enum SampleBrowserDisplayMode {
 pub(in crate::native_app) struct SampleMapAuditionDragState {
     pub(in crate::native_app) last_hit_file_id: Option<String>,
     pub(in crate::native_app) last_position: ui::Point,
+    pub(in crate::native_app) modifiers: PointerModifiers,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) struct SampleMapAuditionQueueState {
+    pub(in crate::native_app) active_file_id: Option<String>,
+    pub(in crate::native_app) queued_file_ids: VecDeque<String>,
+    pub(in crate::native_app) seen_file_ids: HashSet<String>,
     pub(in crate::native_app) modifiers: PointerModifiers,
 }
 
@@ -150,6 +163,7 @@ impl ChromeUiState {
             sample_browser_display: SampleBrowserDisplayMode::List,
             sample_map_viewport: SampleMapViewport::default(),
             sample_map_audition_drag: None,
+            sample_map_audition_queue: SampleMapAuditionQueueState::default(),
             harvest_family_open: false,
             beat_guides_enabled: false,
             beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,

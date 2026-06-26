@@ -293,6 +293,9 @@ pub(in crate::native_app) enum GuiMessage {
         position: Point,
         modifiers: PointerModifiers,
     },
+    AdvanceSampleMapAudition {
+        ticket: ui::TaskTicket,
+    },
     FinishSampleMapAuditionDrag,
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),
     FolderTreeWindowChanged(ui::VirtualListWindowChange),
