@@ -279,6 +279,27 @@ fn pointer_move_over_similar_section_uses_region_hover_instead_of_cursor() {
 }
 
 #[test]
+fn pointer_move_hits_clipped_similar_section_in_zoomed_viewport() {
+    let mut state = WaveformState::synthetic_for_tests();
+    let similar = wavecrate::selection::SelectionRange::new(0.1, 0.3);
+    state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+    state.finish_similar_sections_scan(vec![similar]);
+    let frames = state.file().frames as i64;
+    state.viewport = WaveformViewport {
+        start: (frames as f32 * 0.2).round() as i64,
+        end: (frames as f32 * 0.6).round() as i64,
+    };
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 40.0)));
+
+    assert_pointer_location_output(output);
+    assert_eq!(widget.hovered_similar_section, Some(similar));
+    assert_eq!(widget.hover_cursor_ratio, None);
+}
+
+#[test]
 fn pressing_similar_section_selects_it_as_flashing_edit_selection() {
     for button in [PointerButton::Primary, PointerButton::Secondary] {
         let mut state = WaveformState::synthetic_for_tests();

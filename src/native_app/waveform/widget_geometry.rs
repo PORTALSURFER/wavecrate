@@ -38,14 +38,17 @@ impl WaveformWidget {
         bounds: Rect,
         position: Point,
     ) -> Option<SelectionRange> {
+        if !bounds.contains(position) {
+            return None;
+        }
+        let absolute_ratio = self
+            .absolute_ratio_for_visible(bounds.ratio_for_x(position.x))
+            .filter(|ratio| ratio.is_finite())?;
         self.similar_section_ranges
             .iter()
             .rev()
             .copied()
-            .find(|range| {
-                self.selection_geometry(bounds, Some(*range))
-                    .is_some_and(|geometry| geometry.rect.contains(position))
-            })
+            .find(|range| selection_contains_ratio(*range, absolute_ratio))
     }
 
     pub(super) fn play_selection_export_handle_at(&self, bounds: Rect, position: Point) -> bool {
@@ -217,6 +220,10 @@ impl WaveformWidget {
         let range = self.visible_normalized_range_for_selection(range)?;
         CanvasSelectionGeometry::new(bounds, range.start_fraction(), range.end_fraction())
     }
+}
+
+fn selection_contains_ratio(selection: SelectionRange, ratio: f32) -> bool {
+    selection.start() <= ratio && ratio <= selection.end()
 }
 
 fn selection_export_affordance_style() -> CanvasSelectionAffordanceStyle {
