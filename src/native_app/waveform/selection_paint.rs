@@ -55,8 +55,10 @@ impl WaveformWidget {
         bounds: Rect,
     ) {
         let mut paint = WidgetPaint::new(primitives, self.common.id);
-        self.append_extracted_range_paint(&mut paint, bounds);
-        self.append_similar_section_paint(&mut paint, bounds);
+        if self.static_range_overlays_visible() {
+            self.append_extracted_range_paint(&mut paint, bounds);
+            self.append_similar_section_paint(&mut paint, bounds);
+        }
         if let Some(geometry) = self.selection_geometry(bounds, self.play_selection) {
             self.append_play_selection_paint(&mut paint, bounds, geometry);
         }
@@ -79,6 +81,10 @@ impl WaveformWidget {
                 self.append_extracted_range_rails(paint, bounds, range);
             }
         }
+    }
+
+    fn static_range_overlays_visible(&self) -> bool {
+        self.active_drag_kind.is_none()
     }
 
     fn append_extracted_range_rails(

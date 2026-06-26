@@ -607,6 +607,43 @@ fn extracted_ranges_paint_as_gray_waveform_overlays() {
 }
 
 #[test]
+fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state
+        .extracted_ranges
+        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+    state.finish_similar_sections_scan(vec![wavecrate::selection::SelectionRange::new(0.3, 0.7)]);
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.4, 0.8));
+    state.play_mark_ratio = Some(0.4);
+
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let fills = fill_rects(&plan);
+    assert!(
+        !fills.iter().any(|fill| {
+            matches!(
+                (fill.color.r, fill.color.g, fill.color.b, fill.color.a),
+                (156, 160, 168, 108) | (114, 235, 184, 54)
+            )
+        }),
+        "static extracted/similar overlays should not paint during live playmark drags"
+    );
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 80.0).abs() < 0.001
+                && (fill.rect.max.x - 160.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "the live playmark selection itself should keep painting"
+    );
+}
+
+#[test]
 fn similar_sections_paint_as_green_waveform_overlays() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));

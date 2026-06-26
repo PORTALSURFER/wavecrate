@@ -1,7 +1,7 @@
 use super::{
     WaveformSelectionKind, WaveformState,
     interaction::{WaveformDrag, WaveformSelectionDrag},
-    zero_crossing_snap::{snap_ratio_to_zero_crossing, snap_selection_to_zero_crossings},
+    zero_crossing_snap::snap_selection_to_zero_crossings,
 };
 
 type SelectionRange = wavecrate::selection::SelectionRange;
@@ -17,9 +17,10 @@ impl WaveformState {
     }
 
     pub(super) fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
-        let anchor_ratio = self.snap_ratio_if_enabled(drag.anchor_ratio());
-        let range = self
-            .snap_selection_if_enabled(super::interaction::selection_from_raw_range(drag.range()));
+        let anchor_ratio = drag.anchor_ratio();
+        let range = super::interaction::selection_from_raw_range(drag.range());
+        let range = self.snap_selection_if_enabled(range);
+        let anchor_ratio = snapped_anchor_ratio_for_drag(anchor_ratio, range);
         self.set_selection_for_kind(drag.kind, anchor_ratio, range);
     }
 
@@ -135,11 +136,14 @@ impl WaveformState {
         }
         snap_selection_to_zero_crossings(selection, &self.file)
     }
+}
 
-    fn snap_ratio_if_enabled(&self, ratio: f32) -> f32 {
-        if !self.zero_crossing_snap_enabled {
-            return ratio;
-        }
-        snap_ratio_to_zero_crossing(f64::from(ratio), &self.file) as f32
+fn snapped_anchor_ratio_for_drag(anchor_ratio: f32, selection: SelectionRange) -> f32 {
+    let start_distance = (anchor_ratio - selection.start()).abs();
+    let end_distance = (anchor_ratio - selection.end()).abs();
+    if end_distance < start_distance {
+        selection.end()
+    } else {
+        selection.start()
     }
 }
