@@ -384,6 +384,56 @@ fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
 }
 
 #[test]
+fn sample_map_audition_hit_centers_selected_node() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.ui.chrome.sample_map_viewport.zoom = 4.0;
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(second_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str())
+    );
+    let expected = state
+        .library
+        .folder_browser
+        .selected_sample_map_position(
+            crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
+                tags_by_file: &state.metadata.tags_by_file,
+            },
+        )
+        .expect("selected sample should have a map position");
+    assert!(
+        (state.ui.chrome.sample_map_viewport.center_x - expected.0).abs() < 0.001,
+        "map audition should center selected x position"
+    );
+    assert!(
+        (state.ui.chrome.sample_map_viewport.center_y - expected.1).abs() < 0.001,
+        "map audition should center selected y position"
+    );
+}
+
+#[test]
 fn sample_map_audition_advance_selects_next_queued_hit() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

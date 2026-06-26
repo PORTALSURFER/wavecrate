@@ -221,6 +221,9 @@ impl NativeAppState {
             drag.last_hit_file_id = Some(path.clone());
         }
         self.select_sample_with_modifiers(path, modifiers, context);
+        if self.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
+            self.focus_selected_sample_map_node();
+        }
     }
 
     fn advance_sample_map_audition(
