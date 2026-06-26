@@ -182,6 +182,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) beat_guides_enabled: bool,
     pub(super) beat_guide_count: u8,
     pub(super) edit_preview: TimelineEditPreview,
+    pub(super) last_live_selection_update_visible_ratio: Option<f32>,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -239,6 +240,7 @@ impl WaveformWidget {
             beat_guides_enabled,
             beat_guide_count,
             edit_preview: edit_preview_for_selection(edit_selection),
+            last_live_selection_update_visible_ratio: None,
             active_drag_kind,
         }
     }
@@ -259,6 +261,18 @@ impl Widget for WaveformWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         self.handle_waveform_input(bounds, input)
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state = previous.common.state;
+        self.gesture = previous.gesture.clone();
+        if self.active_drag_kind == previous.active_drag_kind {
+            self.last_live_selection_update_visible_ratio =
+                previous.last_live_selection_update_visible_ratio;
+        }
     }
 
     fn accepts_wheel_input(&self) -> bool {

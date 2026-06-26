@@ -12,6 +12,7 @@ use super::{
 };
 
 const SELECTION_CLICK_SLOP_PX: f32 = 2.0;
+const LIVE_SELECTION_PREVIEW_PIXEL_STEP: f32 = 1.0;
 
 impl WaveformWidget {
     pub(in crate::native_app::waveform) fn handle_waveform_input(
@@ -31,7 +32,7 @@ impl WaveformWidget {
             if !has_loaded_sample {
                 return None;
             }
-            return self.active_drag_motion_output(&event, pointer);
+            return self.active_drag_motion_output(bounds, &event, pointer);
         }
         if let Some(pointer) = event.hover_pointer() {
             self.common.state.hovered = pointer_inside;
@@ -118,6 +119,7 @@ impl WaveformWidget {
             }));
         }
         if let Some(pointer) = event.release_pointer(PointerButton::Primary) {
+            self.last_live_selection_update_visible_ratio = None;
             if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
                 return Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::ended(
@@ -149,6 +151,7 @@ impl WaveformWidget {
         if let Some(pointer) = event.release_pointer(PointerButton::Secondary)
             && self.active_drag_kind == Some(WaveformActiveDragKind::EditGain)
         {
+            self.last_live_selection_update_visible_ratio = None;
             return Some(WidgetOutput::typed(WaveformInteraction::FinishEditGain {
                 pointer_y: pointer.position.y,
             }));
@@ -159,6 +162,7 @@ impl WaveformWidget {
                 Some(WaveformActiveDragKind::EditFadeOuterGain(_))
             )
         {
+            self.last_live_selection_update_visible_ratio = None;
             return Some(WidgetOutput::typed(
                 WaveformInteraction::FinishEditFadeOuterGain {
                     vertical_ratio: pointer.normalized_y(),
@@ -168,6 +172,7 @@ impl WaveformWidget {
         if let Some(pointer) = event.release_pointer(PointerButton::Secondary)
             && self.secondary_release_finishes_drag()
         {
+            self.last_live_selection_update_visible_ratio = None;
             return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                 visible_ratio: self.finish_selection_visible_ratio(&event, pointer),
             }));
@@ -175,6 +180,7 @@ impl WaveformWidget {
         if let Some(pointer) = event.release_pointer(PointerButton::Auxiliary)
             && self.active_drag_kind == Some(WaveformActiveDragKind::Pan)
         {
+            self.last_live_selection_update_visible_ratio = None;
             return Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                 visible_ratio: pointer.normalized_x(),
             }));
@@ -201,7 +207,8 @@ impl WaveformWidget {
     }
 
     fn active_drag_motion_output(
-        &self,
+        &mut self,
+        bounds: Rect,
         event: &CanvasGestureEvent,
         pointer: CanvasPointer,
     ) -> Option<WidgetOutput> {
@@ -230,8 +237,13 @@ impl WaveformWidget {
         if self.selection_drag_is_inside_click_slop(event) {
             return None;
         }
+        let visible_ratio = quantized_live_selection_visible_ratio(bounds, pointer.normalized_x());
+        if self.last_live_selection_update_visible_ratio == Some(visible_ratio) {
+            return None;
+        }
+        self.last_live_selection_update_visible_ratio = Some(visible_ratio);
         Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
-            visible_ratio: pointer.normalized_x(),
+            visible_ratio,
         }))
     }
 
@@ -242,6 +254,7 @@ impl WaveformWidget {
     ) -> Option<WidgetOutput> {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
+        self.last_live_selection_update_visible_ratio = None;
         self.clear_waveform_hover();
         if self.play_selection_export_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
@@ -340,6 +353,7 @@ impl WaveformWidget {
     ) -> Option<WidgetOutput> {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
+        self.last_live_selection_update_visible_ratio = None;
         self.clear_waveform_hover();
         if let Some(handle) = self.edit_fade_outer_gain_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
@@ -463,6 +477,16 @@ impl WaveformWidget {
 
 fn horizontal_delta_inside_click_slop(delta: Vector2) -> bool {
     delta.x.abs() <= SELECTION_CLICK_SLOP_PX
+}
+
+fn quantized_live_selection_visible_ratio(bounds: Rect, visible_ratio: f32) -> f32 {
+    if !visible_ratio.is_finite() {
+        return visible_ratio;
+    }
+    let steps = (bounds.width() / LIVE_SELECTION_PREVIEW_PIXEL_STEP)
+        .round()
+        .max(1.0);
+    (visible_ratio.clamp(0.0, 1.0) * steps).round() / steps
 }
 
 fn pointer_location_output(pointer: CanvasPointer) -> WidgetOutput {

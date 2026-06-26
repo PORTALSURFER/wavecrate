@@ -436,6 +436,50 @@ fn primary_drag_three_pixels_starts_playmark_selection_update() {
 }
 
 #[test]
+fn playmark_drag_suppresses_duplicate_live_preview_updates_inside_same_pixel() {
+    let mut state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 40.0)))
+        .expect("primary press should begin playmark selection")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let first = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.0, 40.0)))
+        .expect("first crossed pixel should update the playmark preview")
+        .typed_copied::<WaveformInteraction>();
+    assert_eq!(
+        first,
+        Some(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.215
+        })
+    );
+
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.2, 40.0)))
+            .is_none(),
+        "moves that quantize to the same visible pixel should stay widget-local"
+    );
+
+    let next = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(44.0, 40.0)))
+        .expect("next crossed pixel should update the playmark preview")
+        .typed_copied::<WaveformInteraction>();
+    assert_eq!(
+        next,
+        Some(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.22
+        })
+    );
+}
+
+#[test]
 fn three_pixel_drag_starts_play_and_edit_selections_while_zoomed_in() {
     for (button, kind) in [
         (PointerButton::Primary, WaveformSelectionKind::Play),
