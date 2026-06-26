@@ -38,6 +38,8 @@ const MAP_SELECTED_SIZE: f32 = 9.0;
 const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
 const MAP_ANCHOR_SIZE: f32 = 12.0;
 const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
+const MAP_ACTIVE_AUDITION_SIZE: f32 = 11.0;
+const MAP_ACTIVE_AUDITION_GLOW_SIZE: f32 = 24.0;
 const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HOVER_LABEL_FONT_SIZE: f32 = 12.0;
@@ -436,6 +438,13 @@ impl SampleMapWidget {
             .iter()
             .find(|item| item.file_id.as_str() == hovered_file_id)
     }
+
+    fn active_drag_item(&self) -> Option<&SampleMapItem> {
+        let active_file_id = self.active_drag.as_ref()?.last_hit_file_id.as_deref()?;
+        self.items
+            .iter()
+            .find(|item| item.file_id.as_str() == active_file_id)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -724,6 +733,17 @@ impl Widget for SampleMapWidget {
         _theme: &ThemeTokens,
     ) {
         if self.active_drag.is_some() {
+            if let Some(item) = self.active_drag_item() {
+                let center = item_center(bounds, item, self.viewport);
+                if paint_bounds(bounds).contains(center) {
+                    paint_active_audition_item(
+                        primitives,
+                        self.common.id,
+                        center,
+                        sample_map_item_color(item),
+                    );
+                }
+            }
             return;
         }
         let Some(item) = self.hovered_item() else {
@@ -929,6 +949,33 @@ fn paint_hover_item(
         centered_rect(center, MAP_HOVER_SIZE),
         ui::Rgba8::new(248, 248, 248, 230),
         1.0,
+    );
+}
+
+fn paint_active_audition_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    color: ui::Rgba8,
+) {
+    push_fill_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, MAP_ACTIVE_AUDITION_GLOW_SIZE),
+        color.with_alpha(70),
+    );
+    push_fill_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, MAP_ACTIVE_AUDITION_SIZE),
+        color.with_alpha(245),
+    );
+    push_stroke_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, MAP_ACTIVE_AUDITION_SIZE + 5.0),
+        ui::Rgba8::new(255, 250, 224, 245),
+        1.25,
     );
 }
 
@@ -1368,6 +1415,51 @@ mod tests {
         assert!(
             bounds.contains(label_rect.min) && bounds.contains(label_rect.max),
             "hover label rect should stay inside map bounds: {label_rect:?}"
+        );
+    }
+
+    #[test]
+    fn active_sample_map_drag_paints_current_audition_node_without_hover_label() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        item.label = String::from("Kick Tight 01");
+        let widget = SampleMapWidget::new(
+            vec![item],
+            SampleMapViewport::default(),
+            Some(SampleMapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/kick.wav")),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == color.with_alpha(70)
+                    && (fill.rect.width() - MAP_ACTIVE_AUDITION_GLOW_SIZE).abs() < 0.001
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.color == ui::Rgba8::new(255, 250, 224, 245)
+                    && (stroke.rect.width() - (MAP_ACTIVE_AUDITION_SIZE + 5.0)).abs() < 0.001
+        )));
+        assert!(
+            !primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::Text(text) if text.text.as_str() == "Kick Tight 01"
+            )),
+            "dragging should highlight the active hit without painting hover labels"
         );
     }
 
