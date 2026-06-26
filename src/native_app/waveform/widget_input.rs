@@ -248,9 +248,7 @@ impl WaveformWidget {
             return None;
         }
         self.last_live_selection_update_visible_ratio = Some(visible_ratio);
-        if self.update_live_selection_preview_for_active_drag(visible_ratio) {
-            return None;
-        }
+        self.update_live_selection_preview_for_active_drag(visible_ratio);
         Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
             visible_ratio,
         }))
@@ -500,19 +498,18 @@ impl WaveformWidget {
         self.live_selection_preview = None;
     }
 
-    fn update_live_selection_preview_for_active_drag(&mut self, visible_ratio: f32) -> bool {
+    fn update_live_selection_preview_for_active_drag(&mut self, visible_ratio: f32) {
         let Some(active_kind) = self.active_drag_kind else {
-            return false;
+            return;
         };
         let Some(selection) = self.preview_selection_for_active_drag(active_kind, visible_ratio)
         else {
-            return false;
+            return;
         };
         let Some(kind) = active_kind.selection_kind() else {
-            return false;
+            return;
         };
         self.live_selection_preview = Some(LiveSelectionPreview { kind, selection });
-        true
     }
 
     fn preview_selection_for_active_drag(
