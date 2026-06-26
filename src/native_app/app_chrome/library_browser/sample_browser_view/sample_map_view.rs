@@ -28,6 +28,8 @@ const MAP_SELECTED_SIZE: f32 = 9.0;
 const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
 const MAP_ANCHOR_SIZE: f32 = 12.0;
 const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
+const MAP_HOVER_SIZE: f32 = 8.0;
+const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
 const MAP_GROUP_MIN_ITEMS: usize = 3;
@@ -192,6 +194,7 @@ struct SampleMapWidget {
     last_pan_position: Option<Point>,
     active_drag: Option<SampleMapAuditionDragState>,
     hit_index: SampleMapHitIndex,
+    hovered_file_id: Option<String>,
 }
 
 impl SampleMapWidget {
@@ -219,6 +222,7 @@ impl SampleMapWidget {
             last_pan_position: None,
             active_drag,
             hit_index: SampleMapHitIndex::default(),
+            hovered_file_id: None,
         }
     }
 
@@ -334,6 +338,17 @@ impl SampleMapWidget {
         }
         self.hit_index = SampleMapHitIndex::build(bounds, self.viewport, &self.items);
     }
+
+    fn set_hovered_file_at(&mut self, bounds: Rect, point: Point) {
+        self.hovered_file_id = self.hit_file_id(bounds, point);
+    }
+
+    fn hovered_item(&self) -> Option<&SampleMapItem> {
+        let hovered_file_id = self.hovered_file_id.as_deref()?;
+        self.items
+            .iter()
+            .find(|item| item.file_id.as_str() == hovered_file_id)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -377,6 +392,10 @@ impl SampleMapHitIndex {
         self.bounds == Some(bounds)
             && self.viewport == Some(viewport)
             && self.item_count == item_count
+    }
+
+    fn matches_current(&self, viewport: SampleMapViewport, item_count: usize) -> bool {
+        self.bounds.is_some() && self.viewport == Some(viewport) && self.item_count == item_count
     }
 
     fn item_indices_near_point(&self, point: Point) -> Vec<usize> {
@@ -488,6 +507,10 @@ impl Widget for SampleMapWidget {
                         .map(|drag| drag.modifiers)
                         .unwrap_or_default(),
                 ),
+            CanvasGestureEvent::Hover(pointer) => {
+                self.set_hovered_file_at(bounds, pointer.position);
+                None
+            }
             CanvasGestureEvent::Press {
                 pointer,
                 button: PointerButton::Secondary,
@@ -533,6 +556,24 @@ impl Widget for SampleMapWidget {
         }
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state = previous.common.state;
+        self.gesture = previous.gesture.clone();
+        self.last_hit_file_id = previous.last_hit_file_id.clone();
+        self.last_primary_position = previous.last_primary_position;
+        self.last_pan_position = previous.last_pan_position;
+        self.hovered_file_id = previous.hovered_file_id.clone();
+        if previous
+            .hit_index
+            .matches_current(self.viewport, self.items.len())
+        {
+            self.hit_index = previous.hit_index.clone();
+        }
+    }
+
     fn accepts_pointer_move(&self) -> bool {
         true
     }
@@ -567,6 +608,31 @@ impl Widget for SampleMapWidget {
             bounds,
             &self.items,
             self.viewport,
+        );
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        if self.active_drag.is_some() {
+            return;
+        }
+        let Some(item) = self.hovered_item() else {
+            return;
+        };
+        let center = item_center(bounds, item, self.viewport);
+        if !paint_bounds(bounds).contains(center) {
+            return;
+        }
+        paint_hover_item(
+            primitives,
+            self.common.id,
+            center,
+            sample_map_item_color(item),
         );
     }
 }
@@ -735,6 +801,27 @@ fn paint_highlight_item(
         widget_id,
         centered_rect(center, size + 4.0),
         ui::Rgba8::new(245, 245, 245, 220),
+        1.0,
+    );
+}
+
+fn paint_hover_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    color: ui::Rgba8,
+) {
+    push_fill_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, MAP_HOVER_GLOW_SIZE),
+        color.with_alpha(50),
+    );
+    push_stroke_rect(
+        primitives,
+        widget_id,
+        centered_rect(center, MAP_HOVER_SIZE),
+        ui::Rgba8::new(248, 248, 248, 230),
         1.0,
     );
 }
@@ -992,6 +1079,75 @@ mod tests {
             PaintPrimitive::StrokeRect(stroke)
                 if stroke.color == ui::Rgba8::new(245, 245, 245, 220)
         )));
+    }
+
+    #[test]
+    fn hovering_sample_map_node_paints_lightweight_runtime_highlight() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut widget = SampleMapWidget::new(
+            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
+            SampleMapViewport::default(),
+            None,
+        );
+
+        assert!(
+            widget
+                .handle_input(bounds, WidgetInput::pointer_move(Point::new(50.0, 50.0)))
+                .is_none()
+        );
+        let mut primitives = Vec::new();
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert_eq!(widget.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == color.with_alpha(50)
+                    && (fill.rect.width() - MAP_HOVER_GLOW_SIZE).abs() < 0.001
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.color == ui::Rgba8::new(248, 248, 248, 230)
+                    && (stroke.rect.width() - MAP_HOVER_SIZE).abs() < 0.001
+        )));
+    }
+
+    #[test]
+    fn sample_map_widget_synchronizes_hover_and_hit_index_from_previous_instance() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut previous = SampleMapWidget::new(
+            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
+            SampleMapViewport::default(),
+            None,
+        );
+        assert!(
+            previous
+                .handle_input(bounds, WidgetInput::pointer_move(Point::new(50.0, 50.0)))
+                .is_none(),
+            "hover should update local runtime state only"
+        );
+        previous.ensure_hit_index(bounds);
+
+        let mut next = SampleMapWidget::new(
+            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
+            SampleMapViewport::default(),
+            None,
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
+        assert!(
+            next.hit_index
+                .matches(bounds, SampleMapViewport::default(), 1)
+        );
     }
 
     #[test]
