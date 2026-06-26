@@ -1,7 +1,9 @@
 use radiant::prelude as ui;
+use radiant::widgets::PointerModifiers;
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
+    SampleMapAuditionDragState,
 };
 
 impl NativeAppState {
@@ -45,6 +47,23 @@ impl NativeAppState {
             GuiMessage::ChangeSampleMapViewport(change) => {
                 self.ui.chrome.sample_map_viewport.apply_change(change);
             }
+            GuiMessage::BeginSampleMapAuditionDrag {
+                path,
+                position,
+                modifiers,
+            } => {
+                self.begin_sample_map_audition_drag(path, position, modifiers, context);
+            }
+            GuiMessage::UpdateSampleMapAuditionDrag {
+                path,
+                position,
+                modifiers,
+            } => {
+                self.update_sample_map_audition_drag(path, position, modifiers, context);
+            }
+            GuiMessage::FinishSampleMapAuditionDrag => {
+                self.ui.chrome.sample_map_audition_drag = None;
+            }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library
                     .folder_browser
@@ -68,5 +87,51 @@ impl NativeAppState {
             }
             _ => unreachable!("navigation dispatcher received a non-navigation message"),
         }
+    }
+
+    fn begin_sample_map_audition_drag(
+        &mut self,
+        path: Option<String>,
+        position: ui::Point,
+        modifiers: PointerModifiers,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.ui.chrome.sample_map_audition_drag = Some(SampleMapAuditionDragState {
+            last_hit_file_id: path.clone(),
+            last_position: position,
+            modifiers,
+        });
+        self.select_sample_map_audition_hit(path, modifiers, context);
+    }
+
+    fn update_sample_map_audition_drag(
+        &mut self,
+        path: Option<String>,
+        position: ui::Point,
+        modifiers: PointerModifiers,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if let Some(drag) = self.ui.chrome.sample_map_audition_drag.as_mut() {
+            drag.last_position = position;
+            drag.modifiers = modifiers;
+            if path.is_some() {
+                drag.last_hit_file_id = path.clone();
+            }
+        }
+        self.select_sample_map_audition_hit(path, modifiers, context);
+    }
+
+    fn select_sample_map_audition_hit(
+        &mut self,
+        path: Option<String>,
+        modifiers: PointerModifiers,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(path) = path else {
+            return;
+        };
+        self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
+        self.ui.browser_interaction.context_menu = None;
+        self.select_sample_with_modifiers(path, modifiers, context);
     }
 }

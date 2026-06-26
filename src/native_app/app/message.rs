@@ -282,6 +282,17 @@ pub(in crate::native_app) enum GuiMessage {
     ToggleRandomNavigationMode,
     ToggleSampleBrowserMapView,
     ChangeSampleMapViewport(SampleMapViewportChange),
+    BeginSampleMapAuditionDrag {
+        path: Option<String>,
+        position: Point,
+        modifiers: PointerModifiers,
+    },
+    UpdateSampleMapAuditionDrag {
+        path: Option<String>,
+        position: Point,
+        modifiers: PointerModifiers,
+    },
+    FinishSampleMapAuditionDrag,
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),
     FolderTreeWindowChanged(ui::VirtualListWindowChange),
     CollapseSelectedFolder,

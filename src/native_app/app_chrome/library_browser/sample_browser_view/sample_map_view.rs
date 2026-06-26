@@ -11,7 +11,9 @@ use radiant::{
 };
 use std::collections::BTreeMap;
 
-use crate::native_app::app::{GuiMessage, SampleMapViewport, SampleMapViewportChange};
+use crate::native_app::app::{
+    GuiMessage, SampleMapAuditionDragState, SampleMapViewport, SampleMapViewportChange,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::sample_map::{
     SampleMapItem, SampleMapStatus,
@@ -36,6 +38,7 @@ pub(super) fn sample_map_view(
     name_filter: String,
     status: SampleMapStatus,
     prep_running: bool,
+    active_drag: Option<SampleMapAuditionDragState>,
 ) -> ui::View<GuiMessage> {
     let map = if items.is_empty() {
         ui::column([
@@ -45,7 +48,7 @@ pub(super) fn sample_map_view(
         .spacing(0.0)
         .fill()
     } else {
-        ui::custom_widget_direct(SampleMapWidget::new(items, viewport))
+        ui::custom_widget_direct(SampleMapWidget::new(items, viewport, active_drag))
             .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
             .height(MAP_MIN_HEIGHT)
             .fill()
@@ -113,10 +116,15 @@ struct SampleMapWidget {
     last_hit_file_id: Option<String>,
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
+    active_drag: Option<SampleMapAuditionDragState>,
 }
 
 impl SampleMapWidget {
-    fn new(items: Vec<SampleMapItem>, viewport: SampleMapViewport) -> Self {
+    fn new(
+        items: Vec<SampleMapItem>,
+        viewport: SampleMapViewport,
+        active_drag: Option<SampleMapAuditionDragState>,
+    ) -> Self {
         let common = WidgetCommon::new(
             widget_ids::SAMPLE_BROWSER_MAP_ID,
             WidgetSizing::new(
@@ -134,45 +142,71 @@ impl SampleMapWidget {
             last_hit_file_id: None,
             last_primary_position: None,
             last_pan_position: None,
+            active_drag,
         }
     }
 
-    fn message_for_hit(
+    fn hit_file_id(&self, bounds: Rect, point: Point) -> Option<String> {
+        self.hit_test(bounds, point)
+            .map(|item| item.file_id.clone())
+    }
+
+    fn begin_audition_drag_message(
         &mut self,
         bounds: Rect,
         point: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
-        let hit_file_id = self.hit_test(bounds, point)?.file_id.clone();
-        if self.last_hit_file_id.as_deref() == Some(hit_file_id.as_str()) {
-            return None;
-        }
-        self.last_hit_file_id = Some(hit_file_id.clone());
-        Some(WidgetOutput::typed(GuiMessage::SelectSampleWithModifiers {
-            path: hit_file_id,
-            modifiers,
-        }))
+        let hit_file_id = self.hit_file_id(bounds, point);
+        self.last_hit_file_id = hit_file_id.clone();
+        self.last_primary_position = Some(point);
+        Some(WidgetOutput::typed(
+            GuiMessage::BeginSampleMapAuditionDrag {
+                path: hit_file_id,
+                position: point,
+                modifiers,
+            },
+        ))
     }
 
-    fn message_for_swept_hit(
+    fn update_audition_drag_message(
         &mut self,
         bounds: Rect,
-        from: Point,
-        to: Point,
+        point: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
-        if let Some(output) = self.message_for_hit(bounds, to, modifiers) {
-            return Some(output);
+        let previous = self
+            .active_drag
+            .as_ref()
+            .map(|drag| drag.last_position)
+            .or(self.last_primary_position)
+            .unwrap_or(point);
+        let last_hit_file_id = self
+            .active_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.as_deref())
+            .or(self.last_hit_file_id.as_deref());
+        let mut hit_file_id = self.hit_file_id(bounds, point).or_else(|| {
+            self.hit_test_segment(bounds, previous, point)
+                .map(|item| item.file_id.clone())
+        });
+        if hit_file_id
+            .as_deref()
+            .is_some_and(|hit| Some(hit) == last_hit_file_id)
+        {
+            hit_file_id = None;
         }
-        let hit_file_id = self.hit_test_segment(bounds, from, to)?.file_id.clone();
-        if self.last_hit_file_id.as_deref() == Some(hit_file_id.as_str()) {
-            return None;
+        if hit_file_id.is_some() {
+            self.last_hit_file_id = hit_file_id.clone();
         }
-        self.last_hit_file_id = Some(hit_file_id.clone());
-        Some(WidgetOutput::typed(GuiMessage::SelectSampleWithModifiers {
-            path: hit_file_id,
-            modifiers,
-        }))
+        self.last_primary_position = Some(point);
+        Some(WidgetOutput::typed(
+            GuiMessage::UpdateSampleMapAuditionDrag {
+                path: hit_file_id,
+                position: point,
+                modifiers,
+            },
+        ))
     }
 
     fn hit_test(&self, bounds: Rect, point: Point) -> Option<&SampleMapItem> {
@@ -222,22 +256,22 @@ impl Widget for SampleMapWidget {
                 pointer,
                 button: PointerButton::Primary,
                 modifiers,
-            } => {
-                self.last_primary_position = Some(pointer.position);
-                self.message_for_hit(bounds, pointer.position, modifiers)
-            }
+            } => self.begin_audition_drag_message(bounds, pointer.position, modifiers),
             CanvasGestureEvent::Drag {
                 pointer,
                 button: PointerButton::Primary,
                 modifiers,
                 ..
-            } => {
-                let previous = self
-                    .last_primary_position
-                    .replace(pointer.position)
-                    .unwrap_or(pointer.position);
-                self.message_for_swept_hit(bounds, previous, pointer.position, modifiers)
-            }
+            } => self.update_audition_drag_message(bounds, pointer.position, modifiers),
+            CanvasGestureEvent::Hover(pointer) if self.active_drag.is_some() => self
+                .update_audition_drag_message(
+                    bounds,
+                    pointer.position,
+                    self.active_drag
+                        .as_ref()
+                        .map(|drag| drag.modifiers)
+                        .unwrap_or_default(),
+                ),
             CanvasGestureEvent::Press {
                 pointer,
                 button: PointerButton::Secondary,
@@ -277,7 +311,7 @@ impl Widget for SampleMapWidget {
                 self.last_hit_file_id = None;
                 self.last_primary_position = None;
                 self.last_pan_position = None;
-                None
+                Some(WidgetOutput::typed(GuiMessage::FinishSampleMapAuditionDrag))
             }
             _ => None,
         }
@@ -498,6 +532,7 @@ mod tests {
                 sample_map_item("/samples/hat.wav", 0.75, 0.75, color),
             ],
             SampleMapViewport::default(),
+            None,
         );
         let mut primitives = Vec::new();
 
@@ -528,7 +563,8 @@ mod tests {
         selected.selected = true;
         let mut anchor = sample_map_item("/samples/snare.wav", 0.75, 0.5, color);
         anchor.similarity_anchor = true;
-        let widget = SampleMapWidget::new(vec![selected, anchor], SampleMapViewport::default());
+        let widget =
+            SampleMapWidget::new(vec![selected, anchor], SampleMapViewport::default(), None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -578,14 +614,20 @@ mod tests {
                 ui::Rgba8::new(255, 160, 80, 220),
             )],
             SampleMapViewport::default(),
+            None,
         );
         let bounds = Rect::from_size(200.0, 100.0);
 
-        assert!(
+        assert_eq!(
             widget
                 .handle_input(bounds, WidgetInput::primary_press(Point::new(10.0, 50.0)))
-                .is_none(),
-            "press starts the drag away from the node"
+                .and_then(|output| output.typed_cloned::<GuiMessage>()),
+            Some(GuiMessage::BeginSampleMapAuditionDrag {
+                path: None,
+                position: Point::new(10.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+            "press starts the drag even when it begins away from a node"
         );
         let output = widget
             .handle_input(bounds, WidgetInput::pointer_move(Point::new(190.0, 50.0)))
@@ -593,8 +635,9 @@ mod tests {
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
-            Some(GuiMessage::SelectSampleWithModifiers {
-                path: String::from("/samples/clap.wav"),
+            Some(GuiMessage::UpdateSampleMapAuditionDrag {
+                path: Some(String::from("/samples/clap.wav")),
+                position: Point::new(190.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })
         );

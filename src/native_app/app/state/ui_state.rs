@@ -1,6 +1,7 @@
 use std::{collections::HashSet, path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
+use radiant::widgets::PointerModifiers;
 use wavecrate::sample_sources::SampleSource;
 use wavecrate::sample_sources::config::AppSettingsCore;
 use wavecrate::selection::SelectionRange;
@@ -49,6 +50,7 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) sample_browser_display: SampleBrowserDisplayMode,
     pub(in crate::native_app) sample_map_viewport: SampleMapViewport,
+    pub(in crate::native_app) sample_map_audition_drag: Option<SampleMapAuditionDragState>,
     pub(in crate::native_app) harvest_family_open: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
@@ -58,6 +60,13 @@ pub(in crate::native_app) struct ChromeUiState {
 pub(in crate::native_app) enum SampleBrowserDisplayMode {
     List,
     Map,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SampleMapAuditionDragState {
+    pub(in crate::native_app) last_hit_file_id: Option<String>,
+    pub(in crate::native_app) last_position: ui::Point,
+    pub(in crate::native_app) modifiers: PointerModifiers,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -134,6 +143,7 @@ impl ChromeUiState {
             sticky_random_sample_range_playback: false,
             sample_browser_display: SampleBrowserDisplayMode::List,
             sample_map_viewport: SampleMapViewport::default(),
+            sample_map_audition_drag: None,
             harvest_family_open: false,
             beat_guides_enabled: false,
             beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,

@@ -38,9 +38,9 @@ pub(in crate::native_app) use state::{
     FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
     MetadataAppState, NativeAppState, PendingFolderDelete, PendingPlaybackStart,
     PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit, SampleBrowserDisplayMode,
-    SampleMapViewport, SampleMapViewportChange, SettingsAppState, SourceFilesystemChangePlan,
-    SourceRefreshRequest, SourceScanFinish, StartupState, StatusState, UiAppState,
-    WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    SampleMapAuditionDragState, SampleMapViewport, SampleMapViewportChange, SettingsAppState,
+    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, StartupState, StatusState,
+    UiAppState, WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
     WaveformDestructiveEditUiContext, WaveformPlaySelectionSnapshot, run_folder_scan_worker,
 };
 
