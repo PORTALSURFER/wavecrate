@@ -134,7 +134,7 @@ impl WaveformState {
                 self.active_drag = Some(WaveformDrag::SelectionResize(
                     WaveformSelectionResizeDrag::new(kind, edge, selection, allow_out_of_bounds),
                 ));
-                self.update_active_selection_resize(ratio);
+                self.update_active_selection_resize(ratio, false);
             }
             WaveformInteraction::BeginSelectionMove {
                 kind,
@@ -148,7 +148,7 @@ impl WaveformState {
                 self.active_drag = Some(WaveformDrag::SelectionMove(
                     WaveformSelectionMoveDrag::new(kind, ratio, selection, allow_out_of_bounds),
                 ));
-                self.update_active_selection_move(ratio);
+                self.update_active_selection_move(ratio, false);
             }
             WaveformInteraction::BeginPan { visible_ratio } => {
                 self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
@@ -190,7 +190,7 @@ impl WaveformState {
                 drag.update(ratio);
                 self.active_drag = Some(WaveformDrag::Selection(drag));
                 if drag.moved() {
-                    self.set_selection_for_drag(drag);
+                    self.set_selection_for_drag(drag, false);
                 }
             }
             WaveformDrag::EditFade(_) => {
@@ -199,10 +199,10 @@ impl WaveformState {
             WaveformDrag::EditFadeOuterGain(_) => {}
             WaveformDrag::EditGain(_) => {}
             WaveformDrag::SelectionResize(_) => {
-                self.update_active_selection_resize(ratio);
+                self.update_active_selection_resize(ratio, false);
             }
             WaveformDrag::SelectionMove(_) => {
-                self.update_active_selection_move(ratio);
+                self.update_active_selection_move(ratio, false);
             }
             WaveformDrag::PlaySelectionExport => {}
             WaveformDrag::Pan(drag) => {
@@ -221,7 +221,7 @@ impl WaveformState {
                 drag.update(ratio);
                 if drag.moved() {
                     let kind = drag.kind;
-                    self.set_selection_for_drag(drag);
+                    self.set_selection_for_drag(drag, true);
                     if kind == WaveformSelectionKind::Play {
                         self.clear_similar_sections();
                         self.record_current_play_selection_mark();
@@ -253,7 +253,7 @@ impl WaveformState {
             }
             WaveformDrag::SelectionResize(drag) => {
                 self.active_drag = Some(WaveformDrag::SelectionResize(drag));
-                self.update_active_selection_resize(ratio);
+                self.update_active_selection_resize(ratio, true);
                 self.active_drag = None;
                 if drag.kind == WaveformSelectionKind::Play {
                     self.clear_similar_sections();
@@ -262,7 +262,7 @@ impl WaveformState {
             }
             WaveformDrag::SelectionMove(drag) => {
                 self.active_drag = Some(WaveformDrag::SelectionMove(drag));
-                self.update_active_selection_move(ratio);
+                self.update_active_selection_move(ratio, true);
                 self.active_drag = None;
                 if drag.kind == WaveformSelectionKind::Play {
                     self.clear_similar_sections();

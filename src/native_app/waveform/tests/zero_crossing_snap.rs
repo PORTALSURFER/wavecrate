@@ -61,6 +61,34 @@ fn zero_crossing_snap_disabled_keeps_authored_selection_edges() {
 }
 
 #[test]
+fn zero_crossing_snap_waits_until_release_during_live_selection_drag() {
+    let mut state = zero_crossing_snap_state();
+    state.toggle_zero_crossing_snap();
+
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Play,
+        visible_ratio: 0.18,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateSelection {
+        visible_ratio: 0.78,
+    });
+
+    let live_selection = state
+        .play_selection()
+        .expect("live playmark selection preview");
+    assert!((live_selection.start() - 0.18).abs() < 0.001);
+    assert!((live_selection.end() - 0.78).abs() < 0.001);
+
+    state.apply_interaction(WaveformInteraction::FinishSelection {
+        visible_ratio: 0.78,
+    });
+
+    let finished_selection = state.play_selection().expect("finished playmark selection");
+    assert!((finished_selection.start() - 0.2).abs() < 0.001);
+    assert!((finished_selection.end() - 0.8).abs() < 0.001);
+}
+
+#[test]
 fn zero_crossing_snap_preserves_edit_effects_while_resizing() {
     let mut state = zero_crossing_snap_state();
     state.toggle_zero_crossing_snap();

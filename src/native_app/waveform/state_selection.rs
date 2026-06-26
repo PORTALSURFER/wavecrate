@@ -16,15 +16,15 @@ impl WaveformState {
             })
     }
 
-    pub(super) fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
+    pub(super) fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag, snap: bool) {
         let anchor_ratio = drag.anchor_ratio();
         let range = super::interaction::selection_from_raw_range(drag.range());
-        let range = self.snap_selection_if_enabled(range);
+        let range = self.snap_selection_if_requested(range, snap);
         let anchor_ratio = snapped_anchor_ratio_for_drag(anchor_ratio, range);
         self.set_selection_for_kind(drag.kind, anchor_ratio, range);
     }
 
-    pub(super) fn update_active_selection_resize(&mut self, ratio: f32) {
+    pub(super) fn update_active_selection_resize(&mut self, ratio: f32, snap: bool) {
         let Some(WaveformDrag::SelectionResize(drag)) = self.active_drag else {
             return;
         };
@@ -32,16 +32,16 @@ impl WaveformState {
             return;
         }
         let selection = drag.apply_with_adjusted_bounds(ratio, |selection| {
-            self.snap_selection_if_enabled(selection)
+            self.snap_selection_if_requested(selection, snap)
         });
         self.set_selection_for_kind(drag.kind, selection.start(), selection);
     }
 
-    pub(super) fn update_active_selection_move(&mut self, ratio: f32) {
+    pub(super) fn update_active_selection_move(&mut self, ratio: f32, snap: bool) {
         let Some(WaveformDrag::SelectionMove(drag)) = self.active_drag else {
             return;
         };
-        let selection = self.snap_selection_if_enabled(drag.apply(ratio));
+        let selection = self.snap_selection_if_requested(drag.apply(ratio), snap);
         self.set_selection_for_kind(drag.kind, selection.start(), selection);
     }
 
@@ -135,6 +135,14 @@ impl WaveformState {
             return selection;
         }
         snap_selection_to_zero_crossings(selection, &self.file)
+    }
+
+    fn snap_selection_if_requested(&self, selection: SelectionRange, snap: bool) -> SelectionRange {
+        if snap {
+            self.snap_selection_if_enabled(selection)
+        } else {
+            selection
+        }
     }
 }
 
