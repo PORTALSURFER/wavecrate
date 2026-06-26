@@ -612,6 +612,54 @@ mod tests {
     }
 
     #[test]
+    fn sample_map_projection_matches_filtered_browser_listing() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("deep_kick.wav");
+        let snare = root.path().join("deep_snare.wav");
+        let hat = root.path().join("bright_hat.wav");
+        std::fs::write(&kick, []).expect("write kick");
+        std::fs::write(&snare, []).expect("write snare");
+        std::fs::write(&hat, []).expect("write hat");
+        let kick_id = kick.to_string_lossy().to_string();
+        let snare_id = snare.to_string_lossy().to_string();
+        let hat_id = hat.to_string_lossy().to_string();
+        let tags_by_file = HashMap::from([
+            (kick_id.clone(), vec![String::from("drum")]),
+            (snare_id.clone(), vec![String::from("drum")]),
+            (hat_id.clone(), vec![String::from("metal")]),
+        ]);
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+
+        browser.apply_name_filter_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("deep"),
+        });
+        browser.apply_tag_filter_input(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("drum"),
+        });
+        browser.prepare_sample_map_layout(&tags_by_file);
+
+        let listing_ids = browser
+            .browser_listing_snapshot(&tags_by_file)
+            .ids()
+            .to_vec();
+        let map_ids = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+            })
+            .into_iter()
+            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(listing_ids, vec![kick_id, snare_id]);
+        assert_eq!(
+            map_ids, listing_ids,
+            "sample map mode must project exactly the same filtered files as list mode"
+        );
+    }
+
+    #[test]
     fn sample_map_status_reports_incomplete_layout_coverage() {
         let status = SampleMapStatus {
             listed_count: 12,
