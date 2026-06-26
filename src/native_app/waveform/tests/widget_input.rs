@@ -449,7 +449,7 @@ fn primary_drag_three_pixels_previews_playmark_selection_without_model_update() 
 }
 
 #[test]
-fn playmark_drag_suppresses_duplicate_live_preview_updates_inside_same_pixel() {
+fn playmark_drag_suppresses_duplicate_live_preview_updates_inside_same_step() {
     let mut state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_size(200.0, 80.0);
@@ -466,21 +466,56 @@ fn playmark_drag_suppresses_duplicate_live_preview_updates_inside_same_pixel() {
         widget
             .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.0, 40.0)))
             .is_none(),
-        "first crossed pixel should update the widget-local preview only"
+        "first crossed step should update the widget-local preview only"
     );
+    let first_preview = widget
+        .live_selection_preview
+        .expect("first local preview")
+        .selection;
 
     assert!(
         widget
             .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.2, 40.0)))
             .is_none(),
-        "moves that quantize to the same visible pixel should stay widget-local"
+        "moves that quantize to the same visible step should stay widget-local"
+    );
+    assert_eq!(
+        widget
+            .live_selection_preview
+            .expect("same-step local preview")
+            .selection,
+        first_preview,
+        "sub-step motion should not churn live preview geometry"
     );
 
     assert!(
         widget
             .handle_input(bounds, WidgetInput::pointer_move(Point::new(44.0, 40.0)))
             .is_none(),
-        "next crossed pixel should still avoid reducer work"
+        "same two-pixel preview step should still avoid reducer work"
+    );
+    assert_eq!(
+        widget
+            .live_selection_preview
+            .expect("same two-pixel-step local preview")
+            .selection,
+        first_preview,
+        "same preview step should not churn live preview geometry"
+    );
+
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(45.0, 40.0)))
+            .is_none(),
+        "next crossed preview step should still avoid reducer work"
+    );
+    assert_ne!(
+        widget
+            .live_selection_preview
+            .expect("next-step local preview")
+            .selection,
+        first_preview,
+        "crossing a preview step should update the local geometry"
     );
 }
 
