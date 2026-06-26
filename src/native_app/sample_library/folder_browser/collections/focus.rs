@@ -20,6 +20,10 @@ impl FolderBrowserState {
         self.selection.selected_collection.is_some()
     }
 
+    pub(in crate::native_app) fn selected_collection(&self) -> Option<SampleCollection> {
+        self.selection.selected_collection
+    }
+
     pub(in crate::native_app) fn collection_keyboard_focus_active(&self) -> bool {
         self.selection
             .selected_collection_active_without_file_focus()

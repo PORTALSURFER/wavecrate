@@ -12,7 +12,48 @@ use crate::native_app::sample_library::folder_browser::view_contract::collection
 use wavecrate::sample_sources::SampleCollection;
 use wavecrate::sample_sources::SourceRole;
 
+const SAMPLE_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 720.0, y: 520.0 };
+const COLLECTION_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 72.0, y: 720.0 };
+const FOLDER_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 96.0, y: 240.0 };
+const SOURCE_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 96.0, y: 120.0 };
+
 impl NativeAppState {
+    pub(in crate::native_app) fn open_context_menu_from_shortcut(&mut self) {
+        if self
+            .waveform
+            .current
+            .play_selection_context_menu_anchor()
+            .is_some()
+        {
+            self.open_play_selection_context_menu_from_shortcut();
+            return;
+        }
+        if let Some(file_id) = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+        {
+            self.open_sample_context_menu(file_id, SAMPLE_CONTEXT_SHORTCUT_ANCHOR);
+            return;
+        }
+        if let Some(collection) = self.library.folder_browser.selected_collection() {
+            self.open_collection_context_menu(collection, COLLECTION_CONTEXT_SHORTCUT_ANCHOR);
+            return;
+        }
+        if let Some(folder_id) = self
+            .library
+            .folder_browser
+            .selected_folder_id()
+            .map(str::to_owned)
+        {
+            self.open_folder_context_menu(folder_id, FOLDER_CONTEXT_SHORTCUT_ANCHOR);
+            return;
+        }
+        let source_id = self.library.folder_browser.selected_source_id().to_owned();
+        self.open_source_context_menu(source_id, SOURCE_CONTEXT_SHORTCUT_ANCHOR);
+    }
+
     pub(in crate::native_app) fn open_source_context_menu(
         &mut self,
         source_id: String,

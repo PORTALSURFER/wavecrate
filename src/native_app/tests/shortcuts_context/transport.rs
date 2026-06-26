@@ -139,16 +139,13 @@ fn z_shortcut_routes_to_zoom_waveform_to_play_selection() {
 }
 
 #[test]
-fn w_shortcut_routes_to_playmark_context_menu() {
+fn w_shortcut_routes_to_global_context_menu() {
     let state = NativeAppStateFixture::default()
         .with_synthetic_waveform()
         .build();
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::W));
 
-    assert_eq!(
-        resolution.action,
-        Some(GuiMessage::OpenPlaySelectionContextMenu)
-    );
+    assert_eq!(resolution.action, Some(GuiMessage::OpenContextMenu));
     assert!(resolution.handled);
 }
 

@@ -138,6 +138,57 @@ fn playmark_context_menu_labels_harvest_destination_extraction() {
 }
 
 #[test]
+fn global_context_menu_opens_playmark_menu_when_playmark_is_available() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.2, 0.6);
+
+    state.apply_message(
+        GuiMessage::OpenContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let menu = state
+        .ui
+        .browser_interaction
+        .waveform_context_menu
+        .expect("playmark context menu opens");
+    assert_eq!(menu.title, "Playmark Selection");
+}
+
+#[test]
+fn global_context_menu_opens_selected_sample_menu_without_playmark() {
+    let root = tempfile::tempdir().expect("source root");
+    let sample = root.path().join("kick.wav");
+    fs::write(&sample, [0_u8; 8]).expect("write sample");
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample.display().to_string());
+
+    state.apply_message(
+        GuiMessage::OpenContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let menu = state
+        .ui
+        .browser_interaction
+        .context_menu
+        .expect("sample context menu opens");
+    assert_eq!(
+        menu.kind,
+        crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample
+    );
+    assert_eq!(menu.path, sample);
+    assert_eq!(menu.anchor, Point::new(720.0, 520.0));
+}
+
+#[test]
 fn w_command_opens_playmark_context_menu_and_clears_browser_menu() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.set_play_selection_range(0.2, 0.6);
@@ -159,7 +210,7 @@ fn w_command_opens_playmark_context_menu_and_clears_browser_menu() {
     );
 
     state.apply_message(
-        GuiMessage::OpenPlaySelectionContextMenu,
+        GuiMessage::OpenContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 
@@ -182,7 +233,7 @@ fn w_command_opens_playmark_context_menu_from_current_selection() {
     state.waveform.current.set_play_selection_range(0.2, 0.6);
 
     state.apply_message(
-        GuiMessage::OpenPlaySelectionContextMenu,
+        GuiMessage::OpenContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 
@@ -208,7 +259,7 @@ fn w_command_opens_playmark_context_menu_at_remembered_mouse_location() {
         });
 
     state.apply_message(
-        GuiMessage::OpenPlaySelectionContextMenu,
+        GuiMessage::OpenContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 
@@ -247,7 +298,7 @@ fn waveform_interaction_marks_context_menu_harvest_destination_route() {
     state.waveform.current.set_play_selection_range(0.2, 0.6);
 
     state.apply_message(
-        GuiMessage::OpenPlaySelectionContextMenu,
+        GuiMessage::OpenContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 
@@ -285,7 +336,7 @@ fn waveform_interaction_marks_harvest_destination_route_for_normal_harvest_mode(
     state.waveform.current.set_play_selection_range(0.2, 0.6);
 
     state.apply_message(
-        GuiMessage::OpenPlaySelectionContextMenu,
+        GuiMessage::OpenContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 

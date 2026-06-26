@@ -168,7 +168,7 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::W),
-            GuiMessage::OpenPlaySelectionContextMenu,
+            GuiMessage::OpenContextMenu,
         )
         .bind(
             ui::KeyPress::with_command(ui::KeyCode::E),

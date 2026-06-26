@@ -95,7 +95,7 @@ impl NativeAppState {
         );
     }
 
-    pub(super) fn open_play_selection_context_menu_from_shortcut(&mut self) {
+    pub(in crate::native_app) fn open_play_selection_context_menu_from_shortcut(&mut self) {
         let Some(position) = self.waveform.current.play_selection_context_menu_anchor() else {
             self.ui.status.sample = String::from("Set a playmark selection first");
             return;

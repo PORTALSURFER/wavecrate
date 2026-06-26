@@ -101,8 +101,8 @@ impl NativeAppState {
             GuiMessage::RequestApplyEditSelectionEffects => {
                 self.request_apply_edit_selection_effects(context);
             }
-            GuiMessage::OpenPlaySelectionContextMenu => {
-                self.open_play_selection_context_menu_from_shortcut();
+            GuiMessage::OpenContextMenu => {
+                self.open_context_menu_from_shortcut();
             }
             GuiMessage::ConfirmPendingWaveformDestructiveEdit => {
                 self.confirm_pending_waveform_destructive_edit(context);
