@@ -258,6 +258,7 @@ pub(in crate::native_app) enum GuiMessage {
     RequestReversePlaymarkSelection,
     RequestExtractAndTrimPlaymarkSelection,
     RequestApplyEditSelectionEffects,
+    OpenPlaySelectionContextMenu,
     ConfirmPendingWaveformDestructiveEdit,
     CancelPendingWaveformDestructiveEdit,
     WaveformDestructiveEditFinished(ui::TaskCompletion<WaveformDestructiveEditResult>),

@@ -20,12 +20,6 @@ impl NativeAppState {
             self.drag_loaded_waveform_sample(drag, context);
             return;
         }
-        if let WaveformInteraction::OpenPlaySelectionContextMenu { position } = message {
-            self.ui.browser_interaction.clipboard_handoff_target =
-                ClipboardHandoffTarget::WaveformSelection;
-            self.open_play_selection_context_menu(position);
-            return;
-        }
         self.ui.browser_interaction.clipboard_handoff_target =
             ClipboardHandoffTarget::WaveformSelection;
         let started_at = Instant::now();
@@ -99,6 +93,14 @@ impl NativeAppState {
             move |transaction| transaction.restore_play_selection(undo_snapshot.clone()),
             move |transaction| transaction.restore_play_selection(redo_snapshot.clone()),
         );
+    }
+
+    pub(super) fn open_play_selection_context_menu_from_shortcut(&mut self) {
+        let Some(position) = self.waveform.current.play_selection_context_menu_anchor() else {
+            self.ui.status.sample = String::from("Set a playmark selection first");
+            return;
+        };
+        self.open_play_selection_context_menu(position);
     }
 
     fn open_play_selection_context_menu(&mut self, position: ui::Point) {
@@ -245,9 +247,6 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::ZoomOut {
             expand_silence_margin: false,
         } => Some("waveform.zoom_out"),
-        WaveformInteraction::OpenPlaySelectionContextMenu { .. } => {
-            Some("waveform.playmark_context_menu.open")
-        }
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
         WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),
@@ -284,8 +283,6 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
 
 #[cfg(test)]
 mod tests {
-    use radiant::gui::types::Point;
-
     use super::*;
     use crate::native_app::waveform::{WaveformEditFadeHandle, WaveformSelectionEdge};
 
@@ -306,11 +303,6 @@ mod tests {
         assert!(!waveform_interaction_can_finish_mark_change(
             &WaveformInteraction::UpdateEditFadeOuterGain {
                 vertical_ratio: 0.4,
-            }
-        ));
-        assert!(!waveform_interaction_can_finish_mark_change(
-            &WaveformInteraction::OpenPlaySelectionContextMenu {
-                position: Point::new(10.0, 10.0),
             }
         ));
     }

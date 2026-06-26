@@ -167,6 +167,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::ExtractPlaymarkedRange,
         )
         .bind(
+            ui::KeyPress::new(ui::KeyCode::W),
+            GuiMessage::OpenPlaySelectionContextMenu,
+        )
+        .bind(
             ui::KeyPress::with_command(ui::KeyCode::E),
             GuiMessage::RequestExtractAndTrimWaveformSelection,
         )

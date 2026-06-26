@@ -13,9 +13,6 @@ pub(in crate::native_app) enum WaveformInteraction {
     ZoomOut {
         expand_silence_margin: bool,
     },
-    OpenPlaySelectionContextMenu {
-        position: Point,
-    },
     ScrollTo {
         offset_fraction: f32,
     },

@@ -341,11 +341,6 @@ impl WaveformWidget {
         let position = pointer.position;
         let visible_ratio = pointer.normalized_x();
         self.clear_waveform_hover();
-        if self.play_selection_context_target_at(bounds, position) {
-            return Some(WidgetOutput::typed(
-                WaveformInteraction::OpenPlaySelectionContextMenu { position },
-            ));
-        }
         if let Some(handle) = self.edit_fade_outer_gain_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginEditFadeOuterGain {

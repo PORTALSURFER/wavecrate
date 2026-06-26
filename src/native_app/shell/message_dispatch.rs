@@ -166,6 +166,7 @@ impl NativeAppState {
             | GuiMessage::RequestReversePlaymarkSelection
             | GuiMessage::RequestExtractAndTrimPlaymarkSelection
             | GuiMessage::RequestApplyEditSelectionEffects
+            | GuiMessage::OpenPlaySelectionContextMenu
             | GuiMessage::ConfirmPendingWaveformDestructiveEdit
             | GuiMessage::CancelPendingWaveformDestructiveEdit
             | GuiMessage::WaveformDestructiveEditFinished(_)

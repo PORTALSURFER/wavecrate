@@ -138,7 +138,7 @@ fn playmark_context_menu_labels_harvest_destination_extraction() {
 }
 
 #[test]
-fn waveform_interaction_opens_playmark_context_menu_and_clears_browser_menu() {
+fn w_command_opens_playmark_context_menu_and_clears_browser_menu() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.set_play_selection_range(0.2, 0.6);
     state.ui.browser_interaction.context_menu = Some(
@@ -159,9 +159,7 @@ fn waveform_interaction_opens_playmark_context_menu_and_clears_browser_menu() {
     );
 
     state.apply_message(
-        GuiMessage::Waveform(WaveformInteraction::OpenPlaySelectionContextMenu {
-            position: Point::new(240.0, 180.0),
-        }),
+        GuiMessage::OpenPlaySelectionContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 
@@ -170,12 +168,32 @@ fn waveform_interaction_opens_playmark_context_menu_and_clears_browser_menu() {
         state.ui.browser_interaction.waveform_context_menu,
         Some(
             crate::native_app::test_support::context_menu::WaveformContextMenu {
-                anchor: Point::new(240.0, 180.0),
+                anchor: Point::new(240.0, 160.0),
                 title: String::from("Playmark Selection"),
                 extract_to_harvest_destination: false,
             }
         )
     );
+}
+
+#[test]
+fn w_command_opens_playmark_context_menu_from_current_selection() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.2, 0.6);
+
+    state.apply_message(
+        GuiMessage::OpenPlaySelectionContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let menu = state
+        .ui
+        .browser_interaction
+        .waveform_context_menu
+        .expect("playmark context menu opens");
+    assert_eq!(menu.title, "Playmark Selection");
+    assert!((menu.anchor.x - 240.0).abs() < 0.001);
+    assert!((menu.anchor.y - 160.0).abs() < 0.001);
 }
 
 #[test]
@@ -205,9 +223,7 @@ fn waveform_interaction_marks_context_menu_harvest_destination_route() {
     state.waveform.current.set_play_selection_range(0.2, 0.6);
 
     state.apply_message(
-        GuiMessage::Waveform(WaveformInteraction::OpenPlaySelectionContextMenu {
-            position: Point::new(240.0, 180.0),
-        }),
+        GuiMessage::OpenPlaySelectionContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 
@@ -245,9 +261,7 @@ fn waveform_interaction_marks_harvest_destination_route_for_normal_harvest_mode(
     state.waveform.current.set_play_selection_range(0.2, 0.6);
 
     state.apply_message(
-        GuiMessage::Waveform(WaveformInteraction::OpenPlaySelectionContextMenu {
-            position: Point::new(240.0, 180.0),
-        }),
+        GuiMessage::OpenPlaySelectionContextMenu,
         &mut ui::UiUpdateContext::default(),
     );
 

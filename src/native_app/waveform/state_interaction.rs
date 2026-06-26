@@ -34,7 +34,6 @@ impl WaveformState {
             } => {
                 self.zoom_out(expand_silence_margin);
             }
-            WaveformInteraction::OpenPlaySelectionContextMenu { .. } => {}
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }
@@ -54,8 +53,6 @@ impl WaveformState {
                         self.play_selection_denied_flash_frames = 0;
                     }
                     WaveformSelectionKind::Edit => {
-                        self.edit_mark_ratio = None;
-                        self.edit_selection = None;
                         self.edit_selection_flash_frames = 0;
                         self.edit_selection_denied_flash_frames = 0;
                     }

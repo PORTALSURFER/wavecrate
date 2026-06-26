@@ -605,14 +605,16 @@ fn primary_press_on_play_selection_export_handle_starts_export_drag() {
 }
 
 #[test]
-fn secondary_press_on_playmark_body_opens_context_menu() {
+fn secondary_click_on_playmark_body_cancels_editmark_instead_of_context_menu() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     state.play_mark_ratio = Some(0.2);
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.1, 0.15));
+    state.edit_mark_ratio = Some(0.1);
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_size(200.0, 80.0);
 
-    let output = widget
+    let begin = widget
         .handle_input(
             bounds,
             WidgetInput::pointer_press(
@@ -621,17 +623,61 @@ fn secondary_press_on_playmark_body_opens_context_menu() {
                 Default::default(),
             ),
         )
-        .expect("playmark context menu interaction");
-    let interaction = output
+        .expect("secondary press should begin tentative edit selection")
         .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
 
-    assert_eq!(
-        interaction,
-        WaveformInteraction::OpenPlaySelectionContextMenu {
-            position: Point::new(80.0, 40.0)
-        }
-    );
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(80.0, 40.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
+        )
+        .expect("secondary release should finish edit click")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+
+    assert_eq!(state.edit_selection(), None);
+    assert_eq!(state.edit_mark_ratio(), None);
+}
+
+#[test]
+fn secondary_drag_from_playmark_body_paints_edit_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let press = Point::new(80.0, 40.0);
+    let drag = Point::new(150.0, 40.0);
+
+    let begin = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(press, PointerButton::Secondary, Default::default()),
+        )
+        .expect("secondary press should begin tentative edit selection")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let update = widget
+        .handle_input(bounds, WidgetInput::pointer_move(drag))
+        .expect("secondary drag should update edit selection")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(update);
+
+    let selection = state.edit_selection().expect("edit selection");
+    assert!((selection.start() - 0.4).abs() < f32::EPSILON);
+    assert!((selection.end() - 0.75).abs() < f32::EPSILON);
 }
 
 #[test]
