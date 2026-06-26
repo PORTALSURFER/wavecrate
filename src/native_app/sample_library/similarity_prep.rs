@@ -209,10 +209,12 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.finish_running_similarity_prep(&result.source_id);
-        self.library.folder_browser.invalidate_sample_map_layout();
         let selected_source = result.source_id == self.library.folder_browser.selected_source_id();
         match result.result {
             Ok(summary) => {
+                if sample_map_layout_may_have_changed(&summary) {
+                    self.library.folder_browser.invalidate_sample_map_layout();
+                }
                 let refresh_anchor_scores =
                     selected_source && summary.should_refresh_anchor_scores();
                 if selected_source {
@@ -317,6 +319,10 @@ impl NativeAppState {
             .as_sample_source();
         Some(SimilarityPrepSource { source })
     }
+}
+
+fn sample_map_layout_may_have_changed(summary: &SimilarityPrepEnqueueSummary) -> bool {
+    summary.has_work() || summary.status == NativeSimilarityPrepStatus::UpToDate
 }
 
 impl NativeSimilarityPrepStatus {
@@ -441,5 +447,45 @@ fn should_drain_similarity_prep_jobs(
             NativeSimilarityPrepStatus::Outdated
             | NativeSimilarityPrepStatus::MissingArtifacts { .. } => Ok(true),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn summary(status: NativeSimilarityPrepStatus) -> SimilarityPrepEnqueueSummary {
+        SimilarityPrepEnqueueSummary {
+            analysis_inserted: 0,
+            embedding_inserted: 0,
+            jobs_processed: 0,
+            jobs_failed: 0,
+            finalized: false,
+            status,
+        }
+    }
+
+    #[test]
+    fn sample_map_layout_refreshes_after_success_or_work() {
+        let ready = summary(NativeSimilarityPrepStatus::UpToDate);
+        let mut with_work = summary(NativeSimilarityPrepStatus::MissingArtifacts {
+            missing_embeddings: true,
+            missing_aspects: false,
+            missing_layout: true,
+        });
+        with_work.jobs_processed = 1;
+
+        assert!(sample_map_layout_may_have_changed(&ready));
+        assert!(sample_map_layout_may_have_changed(&with_work));
+    }
+
+    #[test]
+    fn blocked_no_work_similarity_prep_keeps_sample_map_request_suppressed() {
+        let blocked = summary(NativeSimilarityPrepStatus::Blocked {
+            failed_count: 1,
+            unsupported_count: 0,
+        });
+
+        assert!(!sample_map_layout_may_have_changed(&blocked));
     }
 }
