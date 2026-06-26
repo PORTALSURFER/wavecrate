@@ -77,6 +77,7 @@ struct SampleMapWidget {
     items: Vec<SampleMapItem>,
     viewport: SampleMapViewport,
     last_hit_file_id: Option<String>,
+    last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
 }
 
@@ -97,6 +98,7 @@ impl SampleMapWidget {
             items,
             viewport,
             last_hit_file_id: None,
+            last_primary_position: None,
             last_pan_position: None,
         }
     }
@@ -118,11 +120,47 @@ impl SampleMapWidget {
         }))
     }
 
+    fn message_for_swept_hit(
+        &mut self,
+        bounds: Rect,
+        from: Point,
+        to: Point,
+        modifiers: PointerModifiers,
+    ) -> Option<WidgetOutput> {
+        if let Some(output) = self.message_for_hit(bounds, to, modifiers) {
+            return Some(output);
+        }
+        let hit_file_id = self.hit_test_segment(bounds, from, to)?.file_id.clone();
+        if self.last_hit_file_id.as_deref() == Some(hit_file_id.as_str()) {
+            return None;
+        }
+        self.last_hit_file_id = Some(hit_file_id.clone());
+        Some(WidgetOutput::typed(GuiMessage::SelectSampleWithModifiers {
+            path: hit_file_id,
+            modifiers,
+        }))
+    }
+
     fn hit_test(&self, bounds: Rect, point: Point) -> Option<&SampleMapItem> {
         let mut best: Option<(&SampleMapItem, f32)> = None;
         for item in &self.items {
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = distance_squared(center, point);
+            if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
+                continue;
+            }
+            if best.is_none_or(|(_, best_distance)| distance_sq < best_distance) {
+                best = Some((item, distance_sq));
+            }
+        }
+        best.map(|(item, _)| item)
+    }
+
+    fn hit_test_segment(&self, bounds: Rect, from: Point, to: Point) -> Option<&SampleMapItem> {
+        let mut best: Option<(&SampleMapItem, f32)> = None;
+        for item in &self.items {
+            let center = item_center(bounds, item, self.viewport);
+            let distance_sq = point_segment_distance_squared(center, from, to);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
@@ -150,13 +188,22 @@ impl Widget for SampleMapWidget {
                 pointer,
                 button: PointerButton::Primary,
                 modifiers,
-            } => self.message_for_hit(bounds, pointer.position, modifiers),
+            } => {
+                self.last_primary_position = Some(pointer.position);
+                self.message_for_hit(bounds, pointer.position, modifiers)
+            }
             CanvasGestureEvent::Drag {
                 pointer,
                 button: PointerButton::Primary,
                 modifiers,
                 ..
-            } => self.message_for_hit(bounds, pointer.position, modifiers),
+            } => {
+                let previous = self
+                    .last_primary_position
+                    .replace(pointer.position)
+                    .unwrap_or(pointer.position);
+                self.message_for_swept_hit(bounds, previous, pointer.position, modifiers)
+            }
             CanvasGestureEvent::Press {
                 pointer,
                 button: PointerButton::Secondary,
@@ -194,6 +241,7 @@ impl Widget for SampleMapWidget {
             )),
             CanvasGestureEvent::Release { .. } | CanvasGestureEvent::Drop { .. } => {
                 self.last_hit_file_id = None;
+                self.last_primary_position = None;
                 self.last_pan_position = None;
                 None
             }
@@ -292,4 +340,71 @@ fn distance_squared(a: Point, b: Point) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     dx * dx + dy * dy
+}
+
+fn point_segment_distance_squared(point: Point, start: Point, end: Point) -> f32 {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let length_sq = dx * dx + dy * dy;
+    if length_sq <= f32::EPSILON {
+        return distance_squared(point, start);
+    }
+    let t = (((point.x - start.x) * dx + (point.y - start.y) * dy) / length_sq).clamp(0.0, 1.0);
+    let closest = Point::new(start.x + dx * t, start.y + dy * t);
+    distance_squared(point, closest)
+}
+
+#[cfg(test)]
+mod tests {
+    use radiant::widgets::WidgetInput;
+
+    use super::*;
+
+    #[test]
+    fn primary_drag_auditions_node_crossed_between_pointer_samples() {
+        let mut widget = SampleMapWidget::new(
+            vec![SampleMapItem {
+                file_id: String::from("/samples/clap.wav"),
+                label: String::from("clap"),
+                x: 0.5,
+                y: 0.5,
+                color: ui::Rgba8::new(255, 160, 80, 220),
+                selected: false,
+                similarity_anchor: false,
+                missing: false,
+            }],
+            SampleMapViewport::default(),
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        assert!(
+            widget
+                .handle_input(bounds, WidgetInput::primary_press(Point::new(10.0, 50.0)))
+                .is_none(),
+            "press starts the drag away from the node"
+        );
+        let output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(190.0, 50.0)))
+            .expect("swept drag should catch the crossed node");
+
+        assert_eq!(
+            output.typed_cloned::<GuiMessage>(),
+            Some(GuiMessage::SelectSampleWithModifiers {
+                path: String::from("/samples/clap.wav"),
+                modifiers: PointerModifiers::default(),
+            })
+        );
+    }
+
+    #[test]
+    fn point_segment_distance_detects_crossed_node() {
+        assert_eq!(
+            point_segment_distance_squared(
+                Point::new(100.0, 50.0),
+                Point::new(10.0, 50.0),
+                Point::new(190.0, 50.0),
+            ),
+            0.0
+        );
+    }
 }
