@@ -25,6 +25,10 @@ use crate::native_app::sample_library::folder_browser::sample_map::{
     SampleMapItem, SampleMapStatus,
 };
 use crate::native_app::ui::ids as widget_ids;
+use wavecrate::sample_sources::config::SimilarityAspectSettings;
+use wavecrate_analysis::aspects::SimilarityAspect;
+
+use super::similarity_aspect_color;
 
 const MAP_MIN_HEIGHT: f32 = 240.0;
 const MAP_NODE_SIZE: f32 = 3.4;
@@ -58,11 +62,13 @@ const MAP_CONTROL_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::n
 );
 const MAP_CONTROL_ZOOM_FACTOR: f32 = 1.35;
 const MAP_CONTROL_ANCHOR: Vector2 = Vector2 { x: 0.5, y: 0.5 };
+const MAP_LEGEND_SWATCH_SIZE: u8 = 7;
 
 pub(super) fn sample_map_view(
     items: Vec<SampleMapItem>,
     viewport: SampleMapViewport,
     name_filter: String,
+    similarity_controls: &SimilarityAspectSettings,
     status: SampleMapStatus,
     prep_running: bool,
     active_drag: Option<SampleMapAuditionDragState>,
@@ -84,6 +90,7 @@ pub(super) fn sample_map_view(
         map,
         sample_map_search_overlay(name_filter),
         sample_map_controls_overlay(),
+        sample_map_legend_overlay(similarity_controls),
         sample_map_status_overlay(status, prep_running),
     ])
     .fill()
@@ -155,6 +162,69 @@ fn sample_map_controls_overlay() -> ui::View<GuiMessage> {
         ui::spacer().fill_height(),
     ])
     .fill()
+}
+
+fn sample_map_legend_overlay(controls: &SimilarityAspectSettings) -> ui::View<GuiMessage> {
+    let entries = SimilarityAspect::ORDER
+        .into_iter()
+        .filter(|aspect| controls.aspect_enabled(*aspect))
+        .map(sample_map_legend_entry)
+        .collect::<Vec<_>>();
+    if entries.is_empty() {
+        return ui::spacer().fill();
+    }
+    ui::column([
+        ui::spacer().fill_height(),
+        ui::row([
+            ui::spacer().fill_width().height(24.0),
+            ui::row(entries)
+                .spacing(7.0)
+                .padding(6.0)
+                .height(24.0)
+                .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)),
+        ])
+        .padding(8.0)
+        .height(40.0)
+        .fill_width(),
+    ])
+    .fill()
+}
+
+fn sample_map_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessage> {
+    ui::row([
+        ui::color_marker(Some(similarity_aspect_color(aspect)))
+            .side(MAP_LEGEND_SWATCH_SIZE)
+            .inset(0)
+            .view()
+            .width(f32::from(MAP_LEGEND_SWATCH_SIZE) + 1.0)
+            .height(16.0),
+        ui::text(sample_map_aspect_label(aspect))
+            .muted_text()
+            .height(16.0)
+            .width(sample_map_aspect_label_width(aspect)),
+    ])
+    .spacing(3.0)
+    .height(16.0)
+}
+
+fn sample_map_aspect_label(aspect: SimilarityAspect) -> &'static str {
+    match aspect {
+        SimilarityAspect::Overall => "Overall",
+        SimilarityAspect::Spectrum => "Spectrum",
+        SimilarityAspect::Timbre => "Timbre",
+        SimilarityAspect::Pitch => "Pitch",
+        SimilarityAspect::Amplitude => "Amp",
+    }
+}
+
+fn sample_map_aspect_label_width(aspect: SimilarityAspect) -> f32 {
+    match aspect {
+        SimilarityAspect::Overall => 54.0,
+        SimilarityAspect::Spectrum => 62.0,
+        SimilarityAspect::Timbre => 48.0,
+        SimilarityAspect::Pitch => 34.0,
+        SimilarityAspect::Amplitude => 28.0,
+    }
 }
 
 fn sample_map_control_button(icon: ui::SvgIcon, message: GuiMessage) -> ui::View<GuiMessage> {

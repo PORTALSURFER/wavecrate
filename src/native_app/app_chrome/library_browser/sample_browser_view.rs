@@ -71,6 +71,7 @@ pub(in crate::native_app) fn sample_browser(
             model.map_items,
             model.map_viewport,
             model.name_filter,
+            model.visible_samples.similarity_controls,
             model.map_status,
             model.map_prep_running,
             model.map_audition_drag,
@@ -401,6 +402,44 @@ mod tests {
             frame.paint_plan.svgs().count() >= 4,
             "map controls should paint zoom/focus/reset icon buttons"
         );
+    }
+
+    #[test]
+    fn sample_map_mode_paints_enabled_similarity_color_legend() {
+        let mut similarity_controls = SimilarityAspectSettings::default();
+        similarity_controls.set_aspect_enabled(SimilarityAspect::Pitch, false);
+
+        let frame = sample_map_view(
+            vec![SampleMapItem {
+                file_id: String::from("/samples/kick.wav"),
+                label: String::from("kick"),
+                x: 0.5,
+                y: 0.5,
+                color: ui::Rgba8::new(255, 160, 82, 220),
+                selected: false,
+                similarity_anchor: false,
+                missing: false,
+            }],
+            crate::native_app::app::SampleMapViewport::default(),
+            String::new(),
+            &similarity_controls,
+            Default::default(),
+            false,
+            None,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
+
+        assert!(frame.paint_plan.contains_text("Spectrum"));
+        assert!(frame.paint_plan.contains_text("Timbre"));
+        assert!(
+            !frame.paint_plan.contains_text("Pitch"),
+            "disabled similarity aspects should not be listed in the map legend"
+        );
+        assert!(frame.paint_plan.primitives.iter().any(|primitive| matches!(
+            primitive,
+            radiant::runtime::PaintPrimitive::FillRect(fill)
+                if fill.color == similarity_aspect_color(SimilarityAspect::Spectrum)
+        )));
     }
 
     #[test]
