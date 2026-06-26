@@ -7,8 +7,8 @@ use radiant::{
 };
 
 use super::{
-    WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionKind,
-    WaveformWidget, widget::LiveSelectionPreview,
+    WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
+    WaveformSelectionKind, WaveformWidget, widget::LiveSelectionPreview,
 };
 
 const SELECTION_CLICK_SLOP_PX: f32 = 2.0;
@@ -248,7 +248,7 @@ impl WaveformWidget {
             return None;
         }
         self.last_live_selection_update_visible_ratio = Some(visible_ratio);
-        if self.update_live_selection_preview_for_creation_drag(visible_ratio) {
+        if self.update_live_selection_preview_for_active_drag(visible_ratio) {
             return None;
         }
         Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
@@ -313,6 +313,7 @@ impl WaveformWidget {
             ));
         }
         if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Play) {
+            self.begin_live_selection_preview(WaveformSelectionKind::Play, visible_ratio);
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
                     kind: WaveformSelectionKind::Play,
@@ -321,6 +322,7 @@ impl WaveformWidget {
             ));
         }
         if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Edit) {
+            self.begin_live_selection_preview(WaveformSelectionKind::Edit, visible_ratio);
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
                     kind: WaveformSelectionKind::Edit,
@@ -398,6 +400,7 @@ impl WaveformWidget {
             ));
         }
         if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Edit) {
+            self.begin_live_selection_preview(WaveformSelectionKind::Edit, visible_ratio);
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
                     kind: WaveformSelectionKind::Edit,
@@ -497,28 +500,127 @@ impl WaveformWidget {
         self.live_selection_preview = None;
     }
 
-    fn update_live_selection_preview_for_creation_drag(&mut self, visible_ratio: f32) -> bool {
-        let Some(WaveformActiveDragKind::Selection(active_kind)) = self.active_drag_kind else {
+    fn update_live_selection_preview_for_active_drag(&mut self, visible_ratio: f32) -> bool {
+        let Some(active_kind) = self.active_drag_kind else {
             return false;
         };
-        let Some((anchor_kind, anchor_visible_ratio)) = self.live_selection_preview_anchor else {
+        let Some(selection) = self.preview_selection_for_active_drag(active_kind, visible_ratio)
+        else {
             return false;
         };
-        if anchor_kind != active_kind {
-            self.clear_live_selection_preview();
-            return false;
-        }
-        let Some(anchor_ratio) = self.absolute_ratio_for_visible(anchor_visible_ratio) else {
+        let Some(kind) = active_kind.selection_kind() else {
             return false;
         };
-        let Some(current_ratio) = self.absolute_ratio_for_visible(visible_ratio) else {
-            return false;
-        };
-        self.live_selection_preview = Some(LiveSelectionPreview {
-            kind: active_kind,
-            selection: wavecrate::selection::SelectionRange::new(anchor_ratio, current_ratio),
-        });
+        self.live_selection_preview = Some(LiveSelectionPreview { kind, selection });
         true
+    }
+
+    fn preview_selection_for_active_drag(
+        &mut self,
+        active_kind: WaveformActiveDragKind,
+        visible_ratio: f32,
+    ) -> Option<wavecrate::selection::SelectionRange> {
+        match active_kind {
+            WaveformActiveDragKind::Selection(kind) => {
+                self.preview_created_selection(kind, visible_ratio)
+            }
+            WaveformActiveDragKind::SelectionResize(kind, edge) => {
+                self.preview_resized_selection(kind, edge, visible_ratio)
+            }
+            WaveformActiveDragKind::SelectionMove(kind) => {
+                self.preview_moved_selection(kind, visible_ratio)
+            }
+            _ => None,
+        }
+    }
+
+    fn preview_created_selection(
+        &mut self,
+        kind: WaveformSelectionKind,
+        visible_ratio: f32,
+    ) -> Option<wavecrate::selection::SelectionRange> {
+        let Some((anchor_kind, anchor_visible_ratio)) = self.live_selection_preview_anchor else {
+            return None;
+        };
+        if anchor_kind != kind {
+            self.clear_live_selection_preview();
+            return None;
+        }
+        let anchor_ratio = self.absolute_ratio_for_visible(anchor_visible_ratio)?;
+        let current_ratio = self.absolute_ratio_for_visible(visible_ratio)?;
+        Some(wavecrate::selection::SelectionRange::new(
+            anchor_ratio,
+            current_ratio,
+        ))
+    }
+
+    fn preview_resized_selection(
+        &self,
+        kind: WaveformSelectionKind,
+        edge: WaveformSelectionEdge,
+        visible_ratio: f32,
+    ) -> Option<wavecrate::selection::SelectionRange> {
+        let selection = self.selection_for_kind(kind)?;
+        let ratio = self.absolute_ratio_for_visible(visible_ratio)?;
+        let fixed_ratio = match edge {
+            WaveformSelectionEdge::Start => selection.end(),
+            WaveformSelectionEdge::End => selection.start(),
+        };
+        Some(self.selection_range_for_current_domain(fixed_ratio, ratio))
+    }
+
+    fn preview_moved_selection(
+        &self,
+        kind: WaveformSelectionKind,
+        visible_ratio: f32,
+    ) -> Option<wavecrate::selection::SelectionRange> {
+        let selection = self.selection_for_kind(kind)?;
+        let (_, anchor_visible_ratio) = self.live_selection_preview_anchor?;
+        let anchor_ratio = self.absolute_ratio_for_visible(anchor_visible_ratio)?;
+        let ratio = self.absolute_ratio_for_visible(visible_ratio)?;
+        let delta = ratio - anchor_ratio;
+        Some(if self.allows_out_of_bounds_selection_preview() {
+            selection.shift_unclamped(delta)
+        } else {
+            selection.shift(delta)
+        })
+    }
+
+    fn selection_for_kind(
+        &self,
+        kind: WaveformSelectionKind,
+    ) -> Option<wavecrate::selection::SelectionRange> {
+        match kind {
+            WaveformSelectionKind::Play => self.play_selection,
+            WaveformSelectionKind::Edit => self.edit_selection,
+        }
+    }
+
+    fn selection_range_for_current_domain(
+        &self,
+        start: f32,
+        end: f32,
+    ) -> wavecrate::selection::SelectionRange {
+        if self.allows_out_of_bounds_selection_preview() {
+            wavecrate::selection::SelectionRange::new_unclamped(start, end)
+        } else {
+            wavecrate::selection::SelectionRange::new(start, end)
+        }
+    }
+
+    fn allows_out_of_bounds_selection_preview(&self) -> bool {
+        self.viewport.extends_beyond_audio(self.file.frames)
+    }
+}
+
+impl WaveformActiveDragKind {
+    fn selection_kind(self) -> Option<WaveformSelectionKind> {
+        match self {
+            Self::Selection(kind) | Self::SelectionResize(kind, _) | Self::SelectionMove(kind) => {
+                Some(kind)
+            }
+            _ => None,
+        }
     }
 }
 

@@ -672,6 +672,116 @@ fn primary_press_on_playmark_top_handle_starts_move() {
 }
 
 #[test]
+fn playmark_resize_motion_previews_locally_until_release() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
+        .expect("playmark resize should begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0)))
+            .is_none(),
+        "resize motion should repaint locally instead of dispatching reducer updates"
+    );
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.6)),
+        "drag motion should not mutate app playmark state"
+    );
+    assert_eq!(
+        widget
+            .live_selection_preview
+            .expect("resize preview")
+            .selection,
+        wavecrate::selection::SelectionRange::new(0.2, 0.8)
+    );
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(160.0, 8.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("playmark resize should finish")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.8))
+    );
+}
+
+#[test]
+fn playmark_move_motion_previews_locally_until_release() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(80.0, 3.0)))
+        .expect("playmark move should begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(110.0, 3.0)))
+            .is_none(),
+        "move motion should repaint locally instead of dispatching reducer updates"
+    );
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.6)),
+        "drag motion should not mutate app playmark state"
+    );
+    assert_eq!(
+        widget
+            .live_selection_preview
+            .expect("move preview")
+            .selection,
+        wavecrate::selection::SelectionRange::new(0.35, 0.75)
+    );
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(110.0, 3.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("playmark move should finish")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.35, 0.75))
+    );
+}
+
+#[test]
 fn primary_press_on_play_selection_export_handle_starts_export_drag() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
