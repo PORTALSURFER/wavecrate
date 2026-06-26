@@ -41,7 +41,9 @@ impl NativeAppState {
                 play_selection_drag_active(self.waveform.current.active_drag_kind())
                     .then_some(before);
         }
-        self.sync_edit_fade_audio_state();
+        if waveform_interaction_updates_edit_selection(&message, active_drag) {
+            self.sync_edit_fade_audio_state();
+        }
         if waveform_interaction_updates_play_selection(&message, active_drag) {
             if waveform_interaction_finishes_play_selection_update(&message) {
                 self.retarget_playback_to_play_selection_now();
@@ -209,6 +211,46 @@ fn waveform_interaction_updates_play_selection(
 
 fn waveform_interaction_finishes_play_selection_update(interaction: &WaveformInteraction) -> bool {
     matches!(interaction, WaveformInteraction::FinishSelection { .. })
+}
+
+fn waveform_interaction_updates_edit_selection(
+    interaction: &WaveformInteraction,
+    active_drag: Option<WaveformActiveDragKind>,
+) -> bool {
+    match interaction {
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Edit,
+            ..
+        }
+        | WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            ..
+        }
+        | WaveformInteraction::BeginSelectionMove {
+            kind: WaveformSelectionKind::Edit,
+            ..
+        }
+        | WaveformInteraction::BeginEditFade { .. }
+        | WaveformInteraction::UpdateEditFadeOuterGain { .. }
+        | WaveformInteraction::FinishEditFadeOuterGain { .. }
+        | WaveformInteraction::UpdateEditGain { .. }
+        | WaveformInteraction::FinishEditGain { .. }
+        | WaveformInteraction::ClearEditFadeSilence { .. }
+        | WaveformInteraction::SelectSimilarSection { .. } => true,
+        WaveformInteraction::UpdateSelection { .. }
+        | WaveformInteraction::FinishSelection { .. } => {
+            matches!(
+                active_drag,
+                Some(
+                    WaveformActiveDragKind::Selection(WaveformSelectionKind::Edit)
+                        | WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Edit, _)
+                        | WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Edit)
+                        | WaveformActiveDragKind::EditFade(_)
+                )
+            )
+        }
+        _ => false,
+    }
 }
 
 fn waveform_interaction_can_finish_mark_change(interaction: &WaveformInteraction) -> bool {
@@ -385,5 +427,42 @@ mod tests {
                 active_drag,
             ));
         }
+    }
+
+    #[test]
+    fn playmark_drag_updates_do_not_sync_edit_fade_audio() {
+        assert!(!waveform_interaction_updates_edit_selection(
+            &WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.35
+            },
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Play
+            )),
+        ));
+        assert!(!waveform_interaction_updates_edit_selection(
+            &WaveformInteraction::FinishSelection {
+                visible_ratio: 0.45
+            },
+            Some(WaveformActiveDragKind::SelectionResize(
+                WaveformSelectionKind::Play,
+                WaveformSelectionEdge::End,
+            )),
+        ));
+    }
+
+    #[test]
+    fn editmark_drag_updates_sync_edit_fade_audio() {
+        assert!(waveform_interaction_updates_edit_selection(
+            &WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.35
+            },
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Edit
+            )),
+        ));
+        assert!(waveform_interaction_updates_edit_selection(
+            &WaveformInteraction::UpdateEditGain { pointer_y: 18.0 },
+            None,
+        ));
     }
 }

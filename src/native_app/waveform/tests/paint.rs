@@ -644,6 +644,31 @@ fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
 }
 
 #[test]
+fn active_drag_widget_props_do_not_clone_static_range_overlays() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state
+        .extracted_ranges
+        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+    state.finish_similar_sections_scan(vec![wavecrate::selection::SelectionRange::new(0.3, 0.7)]);
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.4, 0.8));
+    state.apply_interaction(WaveformInteraction::BeginSelection {
+        kind: WaveformSelectionKind::Play,
+        visible_ratio: 0.4,
+    });
+
+    let props = WaveformWidgetProps::from_state(&state, false, 4);
+
+    assert_eq!(props.static_range_overlay_counts(), (0, 0));
+    assert_eq!(
+        props.active_drag_kind,
+        Some(WaveformActiveDragKind::Selection(
+            WaveformSelectionKind::Play
+        ))
+    );
+}
+
+#[test]
 fn similar_sections_paint_as_green_waveform_overlays() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_similar_sections(wavecrate::selection::SelectionRange::new(0.1, 0.2));

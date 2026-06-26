@@ -111,6 +111,8 @@ impl WaveformWidgetProps {
         beat_guides_enabled: bool,
         beat_guide_count: u8,
     ) -> Self {
+        let active_drag_kind = state.active_drag_kind();
+        let static_range_overlays_visible = active_drag_kind.is_none();
         Self {
             file: state.file(),
             viewport: state.viewport(),
@@ -125,16 +127,32 @@ impl WaveformWidgetProps {
             hovered_edit_fade_outer_gain_handle: None,
             hovered_edit_gain_handle: false,
             hovered_similar_section: None,
-            extracted_ranges: state.extracted_ranges().to_vec(),
-            similar_section_ranges: state.similar_section_ranges().to_vec(),
+            extracted_ranges: if static_range_overlays_visible {
+                state.extracted_ranges().to_vec()
+            } else {
+                Vec::new()
+            },
+            similar_section_ranges: if static_range_overlays_visible {
+                state.similar_section_ranges().to_vec()
+            } else {
+                Vec::new()
+            },
             play_selection_flash_frames: state.play_selection_flash_frames(),
             edit_selection_flash_frames: state.edit_selection_flash_frames(),
             play_selection_denied_flash_frames: state.play_selection_denied_flash_frames(),
             edit_selection_denied_flash_frames: state.edit_selection_denied_flash_frames(),
             beat_guides_enabled,
             beat_guide_count,
-            active_drag_kind: state.active_drag_kind(),
+            active_drag_kind,
         }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app::waveform) fn static_range_overlay_counts(&self) -> (usize, usize) {
+        (
+            self.extracted_ranges.len(),
+            self.similar_section_ranges.len(),
+        )
     }
 }
 
