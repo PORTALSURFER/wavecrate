@@ -3,7 +3,9 @@ use std::{collections::VecDeque, path::Path};
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::app::{
+    GuiMessage, NativeAppState, SampleBrowserDisplayMode, emit_gui_action,
+};
 
 mod worker;
 pub(in crate::native_app) use worker::NATIVE_SIMILARITY_UMAP_VERSION;
@@ -81,6 +83,22 @@ impl SimilarityPrepSource {
 }
 
 impl NativeAppState {
+    pub(in crate::native_app) fn maybe_prepare_sample_map_similarity_layout(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.ui.chrome.sample_browser_display != SampleBrowserDisplayMode::Map {
+            return;
+        }
+        let source_ids = self
+            .library
+            .folder_browser
+            .sample_map_sources_needing_similarity_prep(&self.metadata.tags_by_file);
+        for source_id in source_ids {
+            self.prepare_similarity_for_source_automatically(&source_id, context);
+        }
+    }
+
     pub(in crate::native_app) fn refresh_selected_similarity_prep_status(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -191,6 +209,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.finish_running_similarity_prep(&result.source_id);
+        self.library.folder_browser.invalidate_sample_map_layout();
         let selected_source = result.source_id == self.library.folder_browser.selected_source_id();
         match result.result {
             Ok(summary) => {

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
@@ -29,6 +29,17 @@ pub(in crate::native_app) struct SampleMapProjection<'a> {
 pub(super) struct SampleMapLayoutCache {
     signature: Option<u64>,
     pub(super) points_by_file: HashMap<String, SampleMapLayoutPoint>,
+    listed_count: usize,
+    auto_prep_requested_signature: Option<u64>,
+}
+
+impl SampleMapLayoutCache {
+    fn needs_similarity_prep(&self) -> bool {
+        self.signature.is_some()
+            && self.listed_count > 0
+            && self.points_by_file.len() < self.listed_count
+            && self.auto_prep_requested_signature != self.signature
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -69,8 +80,49 @@ impl FolderBrowserState {
         };
         self.sample_list.sample_map_layout = SampleMapLayoutCache {
             signature: Some(signature),
+            listed_count: snapshot.rows().len(),
             points_by_file: positions,
+            auto_prep_requested_signature: None,
         };
+    }
+
+    pub(in crate::native_app) fn invalidate_sample_map_layout(&mut self) {
+        self.sample_list.sample_map_layout = SampleMapLayoutCache::default();
+    }
+
+    pub(in crate::native_app) fn sample_map_sources_needing_similarity_prep(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        self.prepare_sample_map_layout(tags_by_file);
+        let cache = &self.sample_list.sample_map_layout;
+        let Some(signature) = cache.signature else {
+            return Vec::new();
+        };
+        if !cache.needs_similarity_prep() {
+            return Vec::new();
+        }
+        let layout_file_ids = cache.points_by_file.keys().cloned().collect::<HashSet<_>>();
+        self.sample_list
+            .sample_map_layout
+            .auto_prep_requested_signature = Some(signature);
+
+        let snapshot = self.browser_listing_snapshot(tags_by_file);
+        let mut source_ids = Vec::new();
+        let mut seen = HashSet::new();
+        for file in snapshot.rows() {
+            if layout_file_ids.contains(&file.id) {
+                continue;
+            }
+            let Some((source, _)) = self.sample_source_for_file_path(Path::new(&file.id)) else {
+                continue;
+            };
+            let source_id = source.id.as_str().to_string();
+            if seen.insert(source_id.clone()) {
+                source_ids.push(source_id);
+            }
+        }
+        source_ids
     }
 
     pub(in crate::native_app) fn sample_map_projection(
@@ -483,6 +535,55 @@ mod tests {
 
         assert_ne!(cluster_color, aspect_color);
         assert_eq!(cluster_color, ui::Rgba8::new(57, 187, 245, 210));
+    }
+
+    #[test]
+    fn incomplete_sample_map_layout_requests_similarity_prep_once_per_signature() {
+        let mut cache = SampleMapLayoutCache {
+            signature: Some(42),
+            listed_count: 2,
+            points_by_file: HashMap::from([(
+                String::from("a.wav"),
+                SampleMapLayoutPoint {
+                    x: 0.2,
+                    y: 0.3,
+                    cluster_id: None,
+                },
+            )]),
+            auto_prep_requested_signature: None,
+        };
+
+        assert!(cache.needs_similarity_prep());
+
+        cache.auto_prep_requested_signature = Some(42);
+
+        assert!(!cache.needs_similarity_prep());
+    }
+
+    #[test]
+    fn complete_or_empty_sample_map_layout_does_not_request_similarity_prep() {
+        let complete = SampleMapLayoutCache {
+            signature: Some(7),
+            listed_count: 1,
+            points_by_file: HashMap::from([(
+                String::from("a.wav"),
+                SampleMapLayoutPoint {
+                    x: 0.2,
+                    y: 0.3,
+                    cluster_id: None,
+                },
+            )]),
+            auto_prep_requested_signature: None,
+        };
+        let empty_listing = SampleMapLayoutCache {
+            signature: Some(8),
+            listed_count: 0,
+            points_by_file: HashMap::new(),
+            auto_prep_requested_signature: None,
+        };
+
+        assert!(!complete.needs_similarity_prep());
+        assert!(!empty_listing.needs_similarity_prep());
     }
 
     #[test]
