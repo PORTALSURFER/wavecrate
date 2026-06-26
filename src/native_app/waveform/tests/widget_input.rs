@@ -511,14 +511,14 @@ fn playmark_drag_suppresses_duplicate_live_preview_updates_inside_same_step() {
 
     assert!(
         widget
-            .handle_input(bounds, WidgetInput::pointer_move(Point::new(44.0, 40.0)))
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.4, 40.0)))
             .is_none(),
-        "same two-pixel preview step should still avoid reducer work"
+        "same one-pixel preview step should still avoid reducer work"
     );
     assert_eq!(
         widget
             .live_selection_preview
-            .expect("same two-pixel-step local preview")
+            .expect("same one-pixel-step local preview")
             .selection,
         first_preview,
         "same preview step should not churn live preview geometry"
@@ -526,9 +526,9 @@ fn playmark_drag_suppresses_duplicate_live_preview_updates_inside_same_step() {
 
     assert!(
         widget
-            .handle_input(bounds, WidgetInput::pointer_move(Point::new(45.0, 40.0)))
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(44.0, 40.0)))
             .is_none(),
-        "next crossed preview step should still avoid reducer work"
+        "next crossed pixel should still avoid reducer work"
     );
     assert_ne!(
         widget

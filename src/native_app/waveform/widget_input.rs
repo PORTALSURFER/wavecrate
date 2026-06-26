@@ -12,7 +12,7 @@ use super::{
 };
 
 const SELECTION_CLICK_SLOP_PX: f32 = 2.0;
-const LIVE_SELECTION_PREVIEW_PIXEL_STEP: f32 = 2.0;
+const LIVE_SELECTION_PREVIEW_PIXEL_STEP: f32 = 1.0;
 
 impl WaveformWidget {
     pub(in crate::native_app::waveform) fn handle_waveform_input(
