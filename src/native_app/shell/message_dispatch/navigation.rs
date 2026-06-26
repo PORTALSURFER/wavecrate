@@ -3,8 +3,9 @@ use radiant::widgets::PointerModifiers;
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
-    SampleMapAuditionDragState,
+    SampleMapAuditionDragState, SampleMapViewportChange,
 };
+use crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection;
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -43,6 +44,12 @@ impl NativeAppState {
                     SampleBrowserDisplayMode::List => SampleBrowserDisplayMode::Map,
                     SampleBrowserDisplayMode::Map => SampleBrowserDisplayMode::List,
                 };
+                if self.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
+                    self.focus_selected_sample_map_node();
+                }
+            }
+            GuiMessage::FocusSelectedSampleMapNode => {
+                self.focus_selected_sample_map_node();
             }
             GuiMessage::ChangeSampleMapViewport(change) => {
                 self.ui.chrome.sample_map_viewport.apply_change(change);
@@ -133,5 +140,24 @@ impl NativeAppState {
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
         self.select_sample_with_modifiers(path, modifiers, context);
+    }
+
+    fn focus_selected_sample_map_node(&mut self) {
+        self.library
+            .folder_browser
+            .prepare_sample_map_layout(&self.metadata.tags_by_file);
+        let Some((x, y)) =
+            self.library
+                .folder_browser
+                .selected_sample_map_position(SampleMapProjection {
+                    tags_by_file: &self.metadata.tags_by_file,
+                })
+        else {
+            return;
+        };
+        self.ui
+            .chrome
+            .sample_map_viewport
+            .apply_change(SampleMapViewportChange::Center { x, y });
     }
 }

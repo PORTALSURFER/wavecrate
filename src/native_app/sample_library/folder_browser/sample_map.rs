@@ -195,6 +195,17 @@ impl FolderBrowserState {
             .collect()
     }
 
+    pub(in crate::native_app) fn selected_sample_map_position(
+        &self,
+        projection: SampleMapProjection<'_>,
+    ) -> Option<(f32, f32)> {
+        let selected_file = self.selected_file_id()?;
+        self.sample_map_projection(projection)
+            .into_iter()
+            .find(|item| item.file_id == selected_file)
+            .map(|item| (item.x, item.y))
+    }
+
     pub(in crate::native_app) fn sample_map_status(&self) -> SampleMapStatus {
         SampleMapStatus {
             listed_count: self.sample_list.sample_map_layout.listed_count,
@@ -570,6 +581,34 @@ mod tests {
 
         assert_ne!(cluster_color, aspect_color);
         assert_eq!(cluster_color, ui::Rgba8::new(57, 187, 245, 210));
+    }
+
+    #[test]
+    fn selected_sample_map_position_uses_current_filtered_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("kick.wav");
+        std::fs::write(&kick, []).expect("write sample");
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let kick_id = kick.to_string_lossy().to_string();
+        browser.select_file(kick_id.clone());
+        let tags_by_file = HashMap::new();
+        browser.prepare_sample_map_layout(&tags_by_file);
+
+        let position = browser.selected_sample_map_position(SampleMapProjection {
+            tags_by_file: &tags_by_file,
+        });
+
+        assert!(position.is_some());
+        let projection = browser.sample_map_projection(SampleMapProjection {
+            tags_by_file: &tags_by_file,
+        });
+        let selected = projection
+            .iter()
+            .find(|item| item.file_id == kick_id)
+            .expect("selected map item");
+        assert_eq!(position, Some((selected.x, selected.y)));
     }
 
     #[test]

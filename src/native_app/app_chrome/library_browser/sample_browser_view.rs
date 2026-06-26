@@ -352,6 +352,58 @@ mod tests {
     }
 
     #[test]
+    fn sample_map_mode_paints_viewport_controls() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+
+        let frame = sample_browser(SampleBrowserViewModel {
+            visible_samples: VisibleSampleList {
+                total_count: 1,
+                includes_subfolders: false,
+                window: ui::VirtualListWindow::default(),
+                rows: Vec::new(),
+                columns: Vec::new(),
+                sort: &sort,
+                similarity_mode_active: false,
+                similarity_controls: &similarity_controls,
+            },
+            map_items: vec![SampleMapItem {
+                file_id: String::from("/samples/kick.wav"),
+                label: String::from("kick"),
+                x: 0.5,
+                y: 0.5,
+                color: ui::Rgba8::new(255, 160, 82, 220),
+                selected: false,
+                similarity_anchor: false,
+                missing: false,
+            }],
+            map_status: Default::default(),
+            map_prep_running: false,
+            map_audition_drag: None,
+            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            name_filter: String::new(),
+            display_mode: SampleBrowserDisplayMode::Map,
+            name_view_mode: SampleNameViewMode::DiskFilename,
+            random_navigation_enabled: false,
+            curation_mode_enabled: false,
+            metadata_tags_by_file: &metadata_tags_by_file,
+            cut_file_ids: None,
+            file_drag_active: false,
+            extracted_file_drag_active: false,
+            hovered_folder_drop_target: false,
+            drag_feedback: None,
+            help_tooltips_enabled: true,
+        })
+        .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
+
+        assert!(
+            frame.paint_plan.svgs().count() >= 4,
+            "map controls should paint zoom/focus/reset icon buttons"
+        );
+    }
+
+    #[test]
     fn sample_map_status_overlay_does_not_block_node_selection() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);

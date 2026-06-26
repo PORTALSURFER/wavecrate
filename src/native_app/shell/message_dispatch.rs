@@ -181,6 +181,7 @@ impl NativeAppState {
             | GuiMessage::SelectAllSamples
             | GuiMessage::ToggleRandomNavigationMode
             | GuiMessage::ToggleSampleBrowserMapView
+            | GuiMessage::FocusSelectedSampleMapNode
             | GuiMessage::ChangeSampleMapViewport(_)
             | GuiMessage::BeginSampleMapAuditionDrag { .. }
             | GuiMessage::UpdateSampleMapAuditionDrag { .. }

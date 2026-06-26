@@ -80,6 +80,7 @@ pub(in crate::native_app) struct SampleMapViewport {
 pub(in crate::native_app) enum SampleMapViewportChange {
     Pan { delta: ui::Vector2 },
     Zoom { anchor: ui::Vector2, factor: f32 },
+    Center { x: f32, y: f32 },
     Reset,
 }
 
@@ -106,6 +107,11 @@ impl SampleMapViewport {
             }
             SampleMapViewportChange::Zoom { anchor, factor } => {
                 self.zoom_at(anchor, factor);
+            }
+            SampleMapViewportChange::Center { x, y } => {
+                self.center_x = x;
+                self.center_y = y;
+                self.clamp_center();
             }
             SampleMapViewportChange::Reset => *self = Self::default(),
         }
@@ -419,5 +425,19 @@ mod tests {
         });
         assert_eq!(viewport.center_x, 0.25);
         assert_eq!(viewport.center_y, 0.25);
+    }
+
+    #[test]
+    fn sample_map_viewport_center_clamps_to_current_zoom_bounds() {
+        let mut viewport = SampleMapViewport {
+            center_x: 0.5,
+            center_y: 0.5,
+            zoom: 4.0,
+        };
+
+        viewport.apply_change(SampleMapViewportChange::Center { x: 0.05, y: 0.95 });
+
+        assert_eq!(viewport.center_x, 0.125);
+        assert_eq!(viewport.center_y, 0.875);
     }
 }

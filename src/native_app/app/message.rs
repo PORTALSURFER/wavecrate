@@ -281,6 +281,7 @@ pub(in crate::native_app) enum GuiMessage {
     SelectAllSamples,
     ToggleRandomNavigationMode,
     ToggleSampleBrowserMapView,
+    FocusSelectedSampleMapNode,
     ChangeSampleMapViewport(SampleMapViewportChange),
     BeginSampleMapAuditionDrag {
         path: Option<String>,

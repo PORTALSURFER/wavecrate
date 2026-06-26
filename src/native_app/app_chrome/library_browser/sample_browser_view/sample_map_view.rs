@@ -31,6 +31,15 @@ const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
+const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
+const MAP_CONTROL_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
+const MAP_CONTROL_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
+    MAP_CONTROL_ICON_ENABLED_COLOR,
+    MAP_CONTROL_ICON_ACTIVE_COLOR,
+    MAP_CONTROL_ICON_ENABLED_COLOR,
+);
+const MAP_CONTROL_ZOOM_FACTOR: f32 = 1.35;
+const MAP_CONTROL_ANCHOR: Vector2 = Vector2 { x: 0.5, y: 0.5 };
 
 pub(super) fn sample_map_view(
     items: Vec<SampleMapItem>,
@@ -56,6 +65,7 @@ pub(super) fn sample_map_view(
     ui::stack([
         map,
         sample_map_search_overlay(name_filter),
+        sample_map_controls_overlay(),
         sample_map_status_overlay(status, prep_running),
     ])
     .fill()
@@ -86,6 +96,67 @@ fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
         ui::spacer().fill_height(),
     ])
     .fill()
+}
+
+fn sample_map_controls_overlay() -> ui::View<GuiMessage> {
+    ui::column([
+        ui::spacer().fill_width().height(36.0),
+        ui::row([
+            ui::spacer().fill_width().height(26.0),
+            sample_map_control_button(
+                sample_map_zoom_out_icon(),
+                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Zoom {
+                    anchor: MAP_CONTROL_ANCHOR,
+                    factor: 1.0 / MAP_CONTROL_ZOOM_FACTOR,
+                }),
+            )
+            .tooltip("Zoom out"),
+            sample_map_control_button(
+                sample_map_zoom_in_icon(),
+                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Zoom {
+                    anchor: MAP_CONTROL_ANCHOR,
+                    factor: MAP_CONTROL_ZOOM_FACTOR,
+                }),
+            )
+            .tooltip("Zoom in"),
+            sample_map_control_button(
+                sample_map_focus_icon(),
+                GuiMessage::FocusSelectedSampleMapNode,
+            )
+            .tooltip("Focus selected sample"),
+            sample_map_control_button(
+                sample_map_reset_icon(),
+                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Reset),
+            )
+            .tooltip("Reset map view"),
+        ])
+        .spacing(4.0)
+        .padding(8.0)
+        .height(40.0)
+        .fill_width(),
+        ui::spacer().fill_height(),
+    ])
+    .fill()
+}
+
+fn sample_map_control_button(icon: ui::SvgIcon, message: GuiMessage) -> ui::View<GuiMessage> {
+    ui::icon_button(icon).message(message).size(24.0, 22.0)
+}
+
+fn sample_map_zoom_in_icon() -> ui::SvgIcon {
+    MAP_ZOOM_IN_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
+}
+
+fn sample_map_zoom_out_icon() -> ui::SvgIcon {
+    MAP_ZOOM_OUT_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
+}
+
+fn sample_map_focus_icon() -> ui::SvgIcon {
+    MAP_FOCUS_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
+}
+
+fn sample_map_reset_icon() -> ui::SvgIcon {
+    MAP_RESET_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
 }
 
 fn sample_map_status_overlay(status: SampleMapStatus, prep_running: bool) -> ui::View<GuiMessage> {
@@ -497,6 +568,35 @@ impl From<ui::Rgba8> for ColorKey {
         }
     }
 }
+
+static MAP_ZOOM_IN_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="7" cy="7" r="4.4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M7 4.8v4.4M4.8 7h4.4M10.4 10.4l3.1 3.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>"#,
+);
+
+static MAP_ZOOM_OUT_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="7" cy="7" r="4.4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M4.8 7h4.4M10.4 10.4l3.1 3.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>"#,
+);
+
+static MAP_FOCUS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M8 2.4v2M8 11.6v2M2.4 8h2M11.6 8h2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="8" cy="8" r="2.7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="8" cy="8" r="0.9" fill="currentColor"/>
+</svg>"#,
+);
+
+static MAP_RESET_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4.3 5.2A4.7 4.7 0 1 1 3.8 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M4.3 2.6v2.6H1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"#,
+);
 
 fn distance_squared(a: Point, b: Point) -> f32 {
     let dx = a.x - b.x;
