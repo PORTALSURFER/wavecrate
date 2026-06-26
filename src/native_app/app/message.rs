@@ -289,7 +289,7 @@ pub(in crate::native_app) enum GuiMessage {
         modifiers: PointerModifiers,
     },
     UpdateSampleMapAuditionDrag {
-        path: Option<String>,
+        paths: Vec<String>,
         position: Point,
         modifiers: PointerModifiers,
     },

@@ -9,7 +9,7 @@ use radiant::{
         Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::native_app::app::{
     GuiMessage, SampleMapAuditionDragState, SampleMapViewport, SampleMapViewportChange,
@@ -257,23 +257,18 @@ impl SampleMapWidget {
             .as_ref()
             .and_then(|drag| drag.last_hit_file_id.as_deref())
             .or(self.last_hit_file_id.as_deref());
-        let mut hit_file_id = self.hit_file_id(bounds, point).or_else(|| {
-            self.hit_test_segment(bounds, previous, point)
-                .map(|item| item.file_id.clone())
-        });
-        if hit_file_id
-            .as_deref()
-            .is_some_and(|hit| Some(hit) == last_hit_file_id)
-        {
-            hit_file_id = None;
-        }
-        if hit_file_id.is_some() {
-            self.last_hit_file_id = hit_file_id.clone();
-        }
+        let mut hit_file_ids = self.hit_file_ids_between(bounds, previous, point);
+        hit_file_ids.retain(|hit| Some(hit.as_str()) != last_hit_file_id);
         self.last_primary_position = Some(point);
+        if hit_file_ids.is_empty() {
+            return None;
+        }
+        if let Some(hit_file_id) = hit_file_ids.last() {
+            self.last_hit_file_id = Some(hit_file_id.clone());
+        }
         Some(WidgetOutput::typed(
             GuiMessage::UpdateSampleMapAuditionDrag {
-                path: hit_file_id,
+                paths: hit_file_ids,
                 position: point,
                 modifiers,
             },
@@ -295,20 +290,59 @@ impl SampleMapWidget {
         best.map(|(item, _)| item)
     }
 
-    fn hit_test_segment(&self, bounds: Rect, from: Point, to: Point) -> Option<&SampleMapItem> {
-        let mut best: Option<(&SampleMapItem, f32)> = None;
+    fn hit_file_ids_between(&self, bounds: Rect, from: Point, to: Point) -> Vec<String> {
+        let mut hits = Vec::new();
         for item in &self.items {
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = point_segment_distance_squared(center, from, to);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
-            if best.is_none_or(|(_, best_distance)| distance_sq < best_distance) {
-                best = Some((item, distance_sq));
-            }
+            hits.push(SampleMapSegmentHit {
+                file_id: item.file_id.clone(),
+                segment_t: point_segment_t(center, from, to),
+                distance_sq,
+            });
         }
-        best.map(|(item, _)| item)
+        hits.sort_by(|a, b| {
+            a.segment_t
+                .total_cmp(&b.segment_t)
+                .then_with(|| a.distance_sq.total_cmp(&b.distance_sq))
+        });
+        let mut seen = HashSet::new();
+        hits.into_iter()
+            .filter_map(|hit| seen.insert(hit.file_id.clone()).then_some(hit.file_id))
+            .collect()
     }
+}
+
+#[derive(Clone, Debug)]
+struct SampleMapSegmentHit {
+    file_id: String,
+    segment_t: f32,
+    distance_sq: f32,
+}
+
+fn point_segment_t(point: Point, start: Point, end: Point) -> f32 {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let length_sq = dx * dx + dy * dy;
+    if length_sq <= f32::EPSILON {
+        return 1.0;
+    }
+    (((point.x - start.x) * dx + (point.y - start.y) * dy) / length_sq).clamp(0.0, 1.0)
+}
+
+fn point_segment_distance_squared(point: Point, start: Point, end: Point) -> f32 {
+    let t = point_segment_t(point, start, end);
+    if (t - 1.0).abs() <= f32::EPSILON && distance_squared(start, end) <= f32::EPSILON {
+        return distance_squared(point, start);
+    }
+    let closest = Point::new(
+        start.x + (end.x - start.x) * t,
+        start.y + (end.y - start.y) * t,
+    );
+    distance_squared(point, closest)
 }
 
 impl Widget for SampleMapWidget {
@@ -604,18 +638,6 @@ fn distance_squared(a: Point, b: Point) -> f32 {
     dx * dx + dy * dy
 }
 
-fn point_segment_distance_squared(point: Point, start: Point, end: Point) -> f32 {
-    let dx = end.x - start.x;
-    let dy = end.y - start.y;
-    let length_sq = dx * dx + dy * dy;
-    if length_sq <= f32::EPSILON {
-        return distance_squared(point, start);
-    }
-    let t = (((point.x - start.x) * dx + (point.y - start.y) * dy) / length_sq).clamp(0.0, 1.0);
-    let closest = Point::new(start.x + dx * t, start.y + dy * t);
-    distance_squared(point, closest)
-}
-
 #[cfg(test)]
 mod tests {
     use radiant::widgets::WidgetInput;
@@ -736,8 +758,57 @@ mod tests {
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
             Some(GuiMessage::UpdateSampleMapAuditionDrag {
-                path: Some(String::from("/samples/clap.wav")),
+                paths: vec![String::from("/samples/clap.wav")],
                 position: Point::new(190.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            })
+        );
+    }
+
+    #[test]
+    fn primary_drag_auditions_all_nodes_crossed_between_pointer_samples() {
+        let mut widget = SampleMapWidget::new(
+            vec![
+                sample_map_item(
+                    "/samples/kick.wav",
+                    0.25,
+                    0.5,
+                    ui::Rgba8::new(255, 160, 80, 220),
+                ),
+                sample_map_item(
+                    "/samples/snare.wav",
+                    0.5,
+                    0.5,
+                    ui::Rgba8::new(57, 187, 245, 220),
+                ),
+                sample_map_item(
+                    "/samples/hat.wav",
+                    0.75,
+                    0.5,
+                    ui::Rgba8::new(125, 220, 140, 220),
+                ),
+            ],
+            SampleMapViewport::default(),
+            None,
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+
+        widget
+            .handle_input(bounds, WidgetInput::primary_press(Point::new(5.0, 50.0)))
+            .expect("press starts audition drag");
+        let output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(195.0, 50.0)))
+            .expect("swept drag should catch every crossed node");
+
+        assert_eq!(
+            output.typed_cloned::<GuiMessage>(),
+            Some(GuiMessage::UpdateSampleMapAuditionDrag {
+                paths: vec![
+                    String::from("/samples/kick.wav"),
+                    String::from("/samples/snare.wav"),
+                    String::from("/samples/hat.wav"),
+                ],
+                position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })
         );

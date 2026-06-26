@@ -565,7 +565,7 @@ mod tests {
                     modifiers: PointerModifiers::default(),
                 },
                 GuiMessage::UpdateSampleMapAuditionDrag {
-                    path: Some(right_path),
+                    paths: vec![right_path],
                     position: ui::Point::new(364.0, 160.0),
                     modifiers: PointerModifiers::default(),
                 },
@@ -581,13 +581,17 @@ mod tests {
                 path,
                 position,
                 modifiers,
-            }
-            | GuiMessage::UpdateSampleMapAuditionDrag {
-                path,
+            } => Some(crate::native_app::app::SampleMapAuditionDragState {
+                last_hit_file_id: path.clone(),
+                last_position: *position,
+                modifiers: *modifiers,
+            }),
+            GuiMessage::UpdateSampleMapAuditionDrag {
+                paths,
                 position,
                 modifiers,
             } => Some(crate::native_app::app::SampleMapAuditionDragState {
-                last_hit_file_id: path.clone(),
+                last_hit_file_id: paths.last().cloned(),
                 last_position: *position,
                 modifiers: *modifiers,
             }),

@@ -62,11 +62,11 @@ impl NativeAppState {
                 self.begin_sample_map_audition_drag(path, position, modifiers, context);
             }
             GuiMessage::UpdateSampleMapAuditionDrag {
-                path,
+                paths,
                 position,
                 modifiers,
             } => {
-                self.update_sample_map_audition_drag(path, position, modifiers, context);
+                self.update_sample_map_audition_drag(paths, position, modifiers, context);
             }
             GuiMessage::FinishSampleMapAuditionDrag => {
                 self.ui.chrome.sample_map_audition_drag = None;
@@ -108,12 +108,12 @@ impl NativeAppState {
             last_position: position,
             modifiers,
         });
-        self.select_sample_map_audition_hit(path, modifiers, context);
+        self.select_sample_map_audition_hits(path.into_iter().collect(), modifiers, context);
     }
 
     fn update_sample_map_audition_drag(
         &mut self,
-        path: Option<String>,
+        paths: Vec<String>,
         position: ui::Point,
         modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -121,25 +121,27 @@ impl NativeAppState {
         if let Some(drag) = self.ui.chrome.sample_map_audition_drag.as_mut() {
             drag.last_position = position;
             drag.modifiers = modifiers;
-            if path.is_some() {
-                drag.last_hit_file_id = path.clone();
+            if let Some(path) = paths.last() {
+                drag.last_hit_file_id = Some(path.clone());
             }
         }
-        self.select_sample_map_audition_hit(path, modifiers, context);
+        self.select_sample_map_audition_hits(paths, modifiers, context);
     }
 
-    fn select_sample_map_audition_hit(
+    fn select_sample_map_audition_hits(
         &mut self,
-        path: Option<String>,
+        paths: Vec<String>,
         modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let Some(path) = path else {
+        if paths.is_empty() {
             return;
-        };
+        }
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
-        self.select_sample_with_modifiers(path, modifiers, context);
+        for path in paths {
+            self.select_sample_with_modifiers(path, modifiers, context);
+        }
     }
 
     fn focus_selected_sample_map_node(&mut self) {
