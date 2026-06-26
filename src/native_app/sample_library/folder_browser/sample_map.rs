@@ -85,6 +85,7 @@ pub(in crate::native_app) struct SampleMapItem {
     pub(in crate::native_app) y: f32,
     pub(in crate::native_app) color: ui::Rgba8,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) missing: bool,
 }
@@ -158,6 +159,7 @@ impl FolderBrowserState {
         projection: SampleMapProjection<'_>,
     ) -> Vec<SampleMapItem> {
         let snapshot = self.browser_listing_snapshot(projection.tags_by_file);
+        let focused_file_id = self.selected_file_id();
         snapshot
             .rows()
             .iter()
@@ -188,6 +190,7 @@ impl FolderBrowserState {
                         layout_point.and_then(|point| point.cluster_id),
                     ),
                     selected: self.is_file_selected(&file.id),
+                    focused: focused_file_id == Some(file.id.as_str()),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
                     missing: file.is_missing(),
                 }
@@ -609,6 +612,7 @@ mod tests {
             .find(|item| item.file_id == kick_id)
             .expect("selected map item");
         assert_eq!(position, Some((selected.x, selected.y)));
+        assert!(selected.focused);
     }
 
     #[test]
@@ -791,16 +795,25 @@ mod tests {
             },
         );
 
-        let selected_map_ids = browser
+        let selected_map_items = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
             })
             .into_iter()
             .filter(|item| item.selected)
-            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+        let selected_map_ids = selected_map_items
+            .iter()
+            .map(|item| item.file_id.clone())
+            .collect::<Vec<_>>();
+        let focused_map_ids = selected_map_items
+            .iter()
+            .filter(|item| item.focused)
+            .map(|item| item.file_id.clone())
             .collect::<Vec<_>>();
 
-        assert_eq!(selected_map_ids, vec![kick_id, snare_id]);
+        assert_eq!(selected_map_ids, vec![kick_id, snare_id.clone()]);
+        assert_eq!(focused_map_ids, vec![snare_id]);
         assert!(!selected_map_ids.contains(&hat_id));
     }
 

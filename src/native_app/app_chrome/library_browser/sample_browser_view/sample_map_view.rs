@@ -445,6 +445,10 @@ impl SampleMapWidget {
             .iter()
             .find(|item| item.file_id.as_str() == active_file_id)
     }
+
+    fn focused_item(&self) -> Option<&SampleMapItem> {
+        self.items.iter().find(|item| item.focused)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -747,6 +751,14 @@ impl Widget for SampleMapWidget {
             return;
         }
         let Some(item) = self.hovered_item() else {
+            let Some(item) = self.focused_item() else {
+                return;
+            };
+            let center = item_center(bounds, item, self.viewport);
+            if !paint_bounds(bounds).contains(center) {
+                return;
+            }
+            paint_hover_label(primitives, self.common.id, bounds, center, &item.label);
             return;
         };
         let center = item_center(bounds, item, self.viewport);
@@ -1419,6 +1431,38 @@ mod tests {
     }
 
     #[test]
+    fn focused_sample_map_node_paints_persistent_label_without_hover() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        item.label = String::from("Kick Tight 01");
+        item.selected = true;
+        item.focused = true;
+        let widget = SampleMapWidget::new(vec![item], SampleMapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::Text(text) if text.text.as_str() == "Kick Tight 01"
+        )));
+        assert!(
+            !primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::StrokeRect(stroke)
+                    if stroke.color == ui::Rgba8::new(248, 248, 248, 230)
+            )),
+            "focused selection label should not paint the transient hover ring"
+        );
+    }
+
+    #[test]
     fn active_sample_map_drag_paints_current_audition_node_without_hover_label() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
@@ -1673,6 +1717,7 @@ mod tests {
             y,
             color,
             selected: false,
+            focused: false,
             similarity_anchor: false,
             missing: false,
         }
