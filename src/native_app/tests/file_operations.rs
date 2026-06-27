@@ -102,7 +102,7 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
 }
 
 #[test]
-fn waveform_selection_drag_cancel_does_not_create_extraction() {
+fn waveform_selection_drag_start_prepares_extraction_for_external_handoff() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("drag.wav");
     let source = std::path::PathBuf::from(&selected_file);
     write_test_wav_i16(&source, &[0, 256, -256, 512]);
@@ -118,8 +118,8 @@ fn waveform_selection_drag_cancel_does_not_create_extraction() {
         &mut context,
     ));
     assert!(
-        !extraction.exists(),
-        "starting a waveform drag must not write an extraction"
+        extraction.is_file(),
+        "starting a waveform drag must write the extraction before native drag-out"
     );
 
     assert!(state.drag_waveform_play_selection(
@@ -128,8 +128,8 @@ fn waveform_selection_drag_cancel_does_not_create_extraction() {
     ));
 
     assert!(
-        !extraction.exists(),
-        "dropping back on the waveform should cancel without writing"
+        extraction.is_file(),
+        "cancelling the drag keeps the durable extraction that was offered externally"
     );
     assert!(!state.library.folder_browser.drag_active());
 }
@@ -246,7 +246,7 @@ fn loaded_waveform_sample_drag_reports_missing_file_from_move_worker() {
 }
 
 #[test]
-fn waveform_selection_drag_extracts_only_after_sample_list_drop() {
+fn waveform_selection_drag_uses_prepared_extraction_for_sample_list_drop() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("sample-list-drop.wav");
     let source = std::path::PathBuf::from(&selected_file);
@@ -262,11 +262,10 @@ fn waveform_selection_drag_extracts_only_after_sample_list_drop() {
         DragHandleMessage::started(Point::new(20.0, 12.0)),
         &mut drag_context,
     ));
-    assert!(!extraction.exists());
+    assert!(extraction.is_file());
 
     let mut drop_context = ui::UiUpdateContext::default();
     state.drop_waveform_play_selection_on_sample_list(&mut drop_context);
-    run_command_for_tests(&mut state, drop_context.into_command());
 
     assert!(extraction.is_file());
     assert_short_edge_faded_drag_extraction(&extraction);
@@ -314,7 +313,7 @@ fn waveform_selection_drag_extracts_into_dropped_folder() {
         DragHandleMessage::started(Point::new(20.0, 12.0)),
         &mut drag_context,
     ));
-    assert!(!default_extraction.exists());
+    assert!(default_extraction.exists());
     assert!(!dropped_extraction.exists());
 
     let mut drop_context = ui::UiUpdateContext::default();
@@ -326,7 +325,7 @@ fn waveform_selection_drag_extracts_into_dropped_folder() {
     assert_short_edge_faded_drag_extraction(&dropped_extraction);
     assert_eq!(
         state.ui.status.sample,
-        "Extracted folder-drop_extraction.wav"
+        "Moved sample folder-drop_extraction.wav"
     );
     assert!(!state.library.folder_browser.drag_active());
 }

@@ -357,6 +357,20 @@ fn platform_copy_file_paths(
     }
 }
 
+fn external_drag_file_paths(
+    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
+) -> Option<Vec<PathBuf>> {
+    match command {
+        radiant::runtime::Command::BeginExternalDrag { request, .. } => match request.payload {
+            ui::ExternalDragPayload::Files(paths) => Some(paths),
+        },
+        radiant::runtime::Command::Batch(commands) => {
+            commands.into_iter().find_map(external_drag_file_paths)
+        }
+        _ => None,
+    }
+}
+
 fn sample_load_completion(
     ticket: ui::TaskTicket,
     path: String,
@@ -1227,6 +1241,39 @@ fn playmark_selection_copy_ready_flash_ignores_stale_range() {
             .waveform
             .current
             .play_selection_flash_active()
+    );
+}
+
+#[test]
+fn playmark_selection_drag_extracts_before_external_handoff() {
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("playmark-daw-drag.wav", &[0, 1024, -1024, 512]);
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let extracted_path = extraction_path_for_loaded_sample(&scenario);
+
+    let mut context = ui::UiUpdateContext::default();
+    assert!(scenario.state.drag_waveform_play_selection(
+        radiant::widgets::DragHandleMessage::started(Point::new(24.0, 12.0)),
+        &mut context,
+    ));
+
+    assert!(
+        extracted_path.is_file(),
+        "dragging a playmark handle should create a durable file before native drag-out"
+    );
+    assert_eq!(
+        external_drag_file_paths(context.into_command()),
+        Some(vec![extracted_path.clone()]),
+        "DAWs need the extracted file path as the native drag payload"
+    );
+    assert_eq!(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .extracted_file_drag_path(),
+        Some(extracted_path)
     );
 }
 

@@ -50,9 +50,6 @@ impl FolderBrowserState {
             Some(FolderBrowserDrag::ExtractedFile { path }) => {
                 path.parent() != Some(target_path) && !self.folder_path_is_locked(target_path)
             }
-            Some(FolderBrowserDrag::WaveformExtraction { .. }) => {
-                !self.folder_path_is_locked(target_path)
-            }
             None => false,
         }
     }

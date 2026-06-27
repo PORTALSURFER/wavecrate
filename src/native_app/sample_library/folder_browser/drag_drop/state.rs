@@ -128,69 +128,6 @@ impl FolderBrowserState {
         self.clear_drop_targets_for_new_drag();
     }
 
-    pub(in crate::native_app) fn begin_waveform_extraction_drag(
-        &mut self,
-        request: crate::native_app::waveform::WaveformExtractionRequest,
-        label: String,
-        position: Point,
-    ) {
-        if self.rename_active() {
-            return;
-        }
-        self.drag_drop.drag = Some(FolderBrowserDrag::WaveformExtraction { request, label });
-        self.drag_drop.drag_pointer = Some(position);
-        self.clear_drop_targets_for_new_drag();
-    }
-
-    pub(in crate::native_app) fn take_waveform_extraction_drag_for_current_folder(
-        &mut self,
-    ) -> Option<crate::native_app::waveform::WaveformExtractionRequest> {
-        let drag = self.drag_drop.drag.take()?;
-        match drag {
-            FolderBrowserDrag::WaveformExtraction { request, .. } => {
-                self.clear_drag_after_take();
-                Some(request)
-            }
-            other => {
-                self.drag_drop.drag = Some(other);
-                None
-            }
-        }
-    }
-
-    pub(in crate::native_app) fn take_waveform_extraction_drag_for_folder(
-        &mut self,
-        target_folder_id: &str,
-    ) -> Result<Option<crate::native_app::waveform::WaveformExtractionRequest>, String> {
-        let drag = match self.drag_drop.drag.take() {
-            Some(drag) => drag,
-            None => return Ok(None),
-        };
-        let FolderBrowserDrag::WaveformExtraction { request, .. } = drag else {
-            self.drag_drop.drag = Some(drag);
-            return Ok(None);
-        };
-        let Some(target_folder) = self.find_folder(target_folder_id).cloned() else {
-            self.clear_drag_after_take();
-            return Err(String::from(
-                "Extraction drop failed: target folder is missing",
-            ));
-        };
-        let target_path = PathBuf::from(&target_folder.id);
-        if let Some(error) = self.folder_target_lock_error(&target_path, "Extraction drop") {
-            self.clear_drag_after_take();
-            return Err(error);
-        }
-        self.clear_drag_after_take();
-        Ok(Some(request.with_target_folder(target_path)))
-    }
-
-    fn clear_drag_after_take(&mut self) {
-        self.drag_drop.drag_pointer = None;
-        self.drag_drop.drop_target.close();
-        self.drag_drop.folder_hover_auto_expand = None;
-    }
-
     pub(in crate::native_app) fn update_drag_pointer(&mut self, position: Point) {
         if self.drag_drop.drag.is_some() {
             self.drag_drop.drag_pointer = Some(position);

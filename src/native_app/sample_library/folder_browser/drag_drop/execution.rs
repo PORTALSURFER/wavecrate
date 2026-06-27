@@ -34,11 +34,6 @@ impl FolderBrowserState {
             FolderBrowserDrag::ExtractedFile { path } => {
                 self.prepare_move_extracted_file_to_folder(&path, target_folder_id)?
             }
-            FolderBrowserDrag::WaveformExtraction { .. } => {
-                return Err(String::from(
-                    "Extraction drop must be committed by the app shell",
-                ));
-            }
         };
         self.clear_drag();
         Ok(result)

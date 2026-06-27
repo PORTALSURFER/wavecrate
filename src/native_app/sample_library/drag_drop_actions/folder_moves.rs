@@ -23,23 +23,6 @@ impl NativeAppState {
         let started_at = Instant::now();
         context.end_drag_session();
         self.clear_pending_internal_file_drag_paths();
-        match self.drop_waveform_extraction_drag_on_folder(&folder_id, context) {
-            Ok(true) => return,
-            Ok(false) => {}
-            Err(error) => {
-                self.ui.status.sample = error.clone();
-                self.library.folder_browser.clear_drag();
-                emit_gui_action(
-                    "waveform.selection_drag.drop",
-                    Some("waveform"),
-                    None,
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-                return;
-            }
-        }
         match self.library.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(FolderMoveDropInput::Status(result)) => {
                 self.finish_folder_move_result(started_at, None, Ok(result), context);

@@ -313,10 +313,6 @@ pub(super) enum FolderBrowserDrag {
     ExtractedFile {
         path: PathBuf,
     },
-    WaveformExtraction {
-        request: crate::native_app::waveform::WaveformExtractionRequest,
-        label: String,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
