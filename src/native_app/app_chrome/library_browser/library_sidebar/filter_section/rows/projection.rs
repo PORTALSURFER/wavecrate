@@ -1,5 +1,5 @@
 use crate::native_app::app_chrome::view_models::library_sidebar::{
-    CurationFilterToggleViewModel, CurationFilterViewModel, FilterSectionViewModel,
+    CurationFilterOptionViewModel, CurationFilterViewModel, FilterSectionViewModel,
     HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
     RatingFilterToggleViewModel,
 };
@@ -47,14 +47,17 @@ pub(super) struct CurationFilterRowProjection {
     pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
-    pub(super) toggles: Vec<CurationFilterToggleProjection>,
+    pub(super) dropdown_open: bool,
+    pub(super) menu_width: u16,
+    pub(super) selected_label: &'static str,
+    pub(super) options: Vec<CurationFilterOptionProjection>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct CurationFilterToggleProjection {
+pub(super) struct CurationFilterOptionProjection {
     pub(super) scope: BrowserCurationScope,
     pub(super) label: &'static str,
-    pub(super) active: bool,
+    pub(super) selected: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,7 +119,10 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             enabled: model.tag_filter_enabled,
             placeholder: "Any",
         },
-        curation: CurationFilterRowProjection::from_view_model(&model.curation),
+        curation: CurationFilterRowProjection::from_view_model(
+            &model.curation,
+            model.sidebar_width,
+        ),
         harvest: HarvestFilterRowProjection::from_view_model(&model.harvest),
         playback_type: PlaybackTypeFilterRowProjection {
             family: FilterFamily::PlaybackType,
@@ -142,26 +148,47 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
 }
 
 impl CurationFilterRowProjection {
-    fn from_view_model(model: &CurationFilterViewModel) -> Self {
+    fn from_view_model(model: &CurationFilterViewModel, sidebar_width: f32) -> Self {
         Self {
             family: FilterFamily::Curation,
             label: "Curat",
             enabled: model.enabled,
-            toggles: model
-                .toggles
+            dropdown_open: model.dropdown_open,
+            menu_width: curation_dropdown_menu_width(sidebar_width),
+            selected_label: model
+                .options
                 .iter()
-                .map(CurationFilterToggleProjection::from_view_model)
+                .find(|option| option.scope == model.selected_scope)
+                .map(|option| option.label)
+                .unwrap_or_else(|| model.selected_scope.label()),
+            options: model
+                .options
+                .iter()
+                .map(|option| {
+                    CurationFilterOptionProjection::from_view_model(option, model.selected_scope)
+                })
                 .collect(),
         }
     }
 }
 
-impl CurationFilterToggleProjection {
-    fn from_view_model(model: &CurationFilterToggleViewModel) -> Self {
+fn curation_dropdown_menu_width(sidebar_width: f32) -> u16 {
+    let section_padding = super::super::FILTER_PANEL_PADDING * 2.0;
+    let content_width = sidebar_width - section_padding;
+    (content_width - super::FILTER_LABEL_WIDTH - super::FILTER_LABEL_CONTROL_SPACING)
+        .max(1.0)
+        .round() as u16
+}
+
+impl CurationFilterOptionProjection {
+    fn from_view_model(
+        model: &CurationFilterOptionViewModel,
+        selected_scope: BrowserCurationScope,
+    ) -> Self {
         Self {
             scope: model.scope,
             label: model.label,
-            active: model.active,
+            selected: model.scope == selected_scope,
         }
     }
 }
@@ -266,17 +293,19 @@ mod tests {
     }
 
     #[test]
-    fn filter_rows_projection_preserves_toggle_order_and_state() {
+    fn filter_rows_projection_preserves_dropdown_options_and_filter_state() {
         let projection = filter_rows_projection(&filter_model());
 
         assert_eq!(projection.curation.label, "Curat");
         assert!(projection.curation.enabled);
+        assert!(projection.curation.dropdown_open);
+        assert_eq!(projection.curation.selected_label, "All");
         assert_eq!(
             projection
                 .curation
-                .toggles
+                .options
                 .iter()
-                .map(|toggle| (toggle.scope, toggle.label, toggle.active))
+                .map(|option| (option.scope, option.label, option.selected))
                 .collect::<Vec<_>>(),
             vec![
                 (BrowserCurationScope::All, "All", true),
@@ -374,27 +403,27 @@ mod tests {
 
     fn filter_model() -> FilterSectionViewModel {
         FilterSectionViewModel {
+            sidebar_width: 240.0,
             name_filter: "kick".to_string(),
             name_filter_enabled: true,
             tag_filter: "drum".to_string(),
             tag_filter_enabled: true,
             curation: CurationFilterViewModel {
                 enabled: true,
-                toggles: vec![
-                    CurationFilterToggleViewModel {
+                dropdown_open: true,
+                selected_scope: BrowserCurationScope::All,
+                options: vec![
+                    CurationFilterOptionViewModel {
                         scope: BrowserCurationScope::All,
                         label: "All",
-                        active: true,
                     },
-                    CurationFilterToggleViewModel {
+                    CurationFilterOptionViewModel {
                         scope: BrowserCurationScope::Ratings,
                         label: "Rate",
-                        active: false,
                     },
-                    CurationFilterToggleViewModel {
+                    CurationFilterOptionViewModel {
                         scope: BrowserCurationScope::Tags,
                         label: "Tags",
-                        active: false,
                     },
                 ],
             },

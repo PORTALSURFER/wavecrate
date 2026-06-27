@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{ClipboardHandoffTarget, GuiMessage, NativeAppState};
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
 impl NativeAppState {
     pub(super) fn apply_browser_dispatch(
@@ -14,6 +15,9 @@ impl NativeAppState {
                 self.finish_add_source_dialog(result, context);
             }
             GuiMessage::FolderBrowser(message) => {
+                if matches!(message, FolderBrowserMessage::SetCurationScope(_, _)) {
+                    self.ui.chrome.curation_filter_dropdown_open = false;
+                }
                 self.apply_folder_browser_message(message, context);
             }
             GuiMessage::SetSimilarityAspectWeightingEnabled(enabled) => {

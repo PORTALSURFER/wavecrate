@@ -12,9 +12,13 @@ mod rows;
 #[cfg(test)]
 mod tests;
 
-use rows::{FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_ROW_SPACING, filter_rows};
+use rows::{
+    FILTER_CLEAR_BUTTON_SIZE, FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_LABEL_CONTROL_SPACING,
+    FILTER_LABEL_WIDTH, FILTER_ROW_HEIGHT, FILTER_ROW_SPACING, curation_filter_dropdown_menu,
+    filter_rows,
+};
 
-const FILTER_PANEL_PADDING: f32 = 6.0;
+pub(super) const FILTER_PANEL_PADDING: f32 = 6.0;
 #[cfg(test)]
 const FILTER_PANEL_HEADER_HEIGHT: f32 = SIDEBAR_PANEL_HEADER_HEIGHT;
 const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
@@ -23,6 +27,7 @@ const FILTER_RESIZE_HEADER_ID: u64 = widget_ids::FILTER_RESIZE_HEADER_ID;
 
 #[cfg(test)]
 const FILTER_SECTION_NODE_ID: u64 = widget_ids::FILTER_SECTION_NODE_ID;
+const CURATION_FILTER_ROW_INDEX: usize = 2;
 
 pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_header_parts(
@@ -38,7 +43,6 @@ pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMess
         .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING),
     )
     .fill_width();
-
     #[cfg(test)]
     {
         panel.id(FILTER_SECTION_NODE_ID)
@@ -51,7 +55,6 @@ pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMess
 
 fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let rows = filter_rows(model);
-
     ui::scroll(
         ui::column(rows)
             .fill_width()
@@ -62,4 +65,33 @@ fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     .id(FILTER_SECTION_SCROLL_NODE_ID)
     .fill_width()
     .fill_height()
+}
+
+pub(super) fn curation_filter_dropdown_overlay(
+    model: &FilterSectionViewModel,
+    sidebar_inset_x: f32,
+    filter_bottom_inset: f32,
+) -> Option<ui::View<GuiMessage>> {
+    let (menu, size) = curation_filter_dropdown_menu(model)?;
+    let trigger_bottom_from_filter_top = FILTER_PANEL_PADDING
+        + SIDEBAR_PANEL_HEADER_HEIGHT
+        + FILTER_PANEL_HEADER_CONTENT_SPACING
+        + CURATION_FILTER_ROW_INDEX as f32 * (FILTER_ROW_HEIGHT + FILTER_ROW_SPACING)
+        + FILTER_CLEAR_BUTTON_SIZE;
+    let trigger_bottom_inset =
+        filter_bottom_inset + (model.panel_height - trigger_bottom_from_filter_top).max(0.0);
+    let menu_bottom_inset = (trigger_bottom_inset - FILTER_ROW_SPACING - size.y).max(0.0);
+    let menu_inset_x =
+        sidebar_inset_x + FILTER_PANEL_PADDING + FILTER_LABEL_WIDTH + FILTER_LABEL_CONTROL_SPACING;
+    Some(
+        ui::anchored_layer(
+            menu,
+            size,
+            ui::LayerHorizontalAnchor::Start,
+            ui::LayerVerticalAnchor::End,
+            menu_inset_x,
+            menu_bottom_inset,
+        )
+        .key("curation-filter-dropdown-overlay"),
+    )
 }

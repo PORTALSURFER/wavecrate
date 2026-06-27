@@ -11,7 +11,6 @@ use crate::native_app::app_chrome::view_models::{
 };
 use crate::native_app::app_chrome::waveform_context_menu;
 
-const LIBRARY_SIDEBAR_PADDING: f32 = 4.0;
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const BOTTOM_STATUS_BAR_HEIGHT: f32 = 30.0;
 
@@ -46,7 +45,12 @@ pub(in crate::native_app) fn sample_workspace_region(
 pub(in crate::native_app) fn library_sidebar_overlays(
     state: &NativeAppState,
 ) -> ui::Overlays<GuiMessage> {
-    ui::overlays().floating_opt(metadata_completion_overlay(state))
+    ui::overlays()
+        .floating_opt(metadata_completion_overlay(state))
+        .dismissible_context_menu_opt(
+            curation_filter_dropdown_overlay(state),
+            GuiMessage::CloseCurationFilterDropdown,
+        )
 }
 
 fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
@@ -57,10 +61,10 @@ fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMes
     }
     let tag_field_content_width =
         library_sidebar::tag_field_content_width(state.ui.chrome.folder_panel.size());
-    let inset_x = LIBRARY_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
+    let inset_x = library_sidebar::LIBRARY_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
     let metadata_panel_height = state.library.folder_browser.metadata_panel_height();
     let inset_y = BOTTOM_STATUS_BAR_HEIGHT
-        + LIBRARY_SIDEBAR_PADDING
+        + library_sidebar::LIBRARY_SIDEBAR_PADDING
         + metadata_panel_height
         + library_sidebar::TAG_COMPLETION_POPUP_GAP;
     Some(library_sidebar::tag_completion_overlay(
@@ -69,6 +73,11 @@ fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMes
         inset_x,
         inset_y,
     ))
+}
+
+fn curation_filter_dropdown_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    let model = LibrarySidebarViewModel::from_app_state(state);
+    library_sidebar::curation_filter_dropdown_overlay(&model, BOTTOM_STATUS_BAR_HEIGHT)
 }
 
 pub(in crate::native_app) fn sample_workspace_overlays(

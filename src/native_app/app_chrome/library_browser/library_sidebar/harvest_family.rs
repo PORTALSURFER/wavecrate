@@ -4,7 +4,7 @@ use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::HarvestFamilyViewModel;
 use crate::native_app::ui::ids as widget_ids;
 
-const HARVEST_FAMILY_SECTION_HEIGHT: f32 = 106.0;
+pub(super) const HARVEST_FAMILY_SECTION_HEIGHT: f32 = 106.0;
 const HARVEST_FAMILY_ROW_HEIGHT: f32 = 18.0;
 const HARVEST_FAMILY_ACTION_HEIGHT: f32 = 20.0;
 const HARVEST_FAMILY_LABEL_WIDTH: f32 = 50.0;

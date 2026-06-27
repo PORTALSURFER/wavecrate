@@ -3,7 +3,7 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 mod projection;
 
 use self::projection::{
-    CurationFilterRowProjection, CurationFilterToggleProjection, HarvestFilterRowProjection,
+    CurationFilterOptionProjection, CurationFilterRowProjection, HarvestFilterRowProjection,
     HarvestFilterToggleProjection, PlaybackTypeFilterRowProjection,
     PlaybackTypeFilterToggleProjection, RatingFilterRowProjection, RatingFilterToggleProjection,
     TextFilterField, TextFilterRowProjection, filter_rows_projection,
@@ -17,14 +17,13 @@ use crate::native_app::ui::ids as widget_ids;
 
 pub(super) const FILTER_ROW_HEIGHT: f32 = 24.0;
 pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
-const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
-const FILTER_LABEL_WIDTH: f32 = 54.0;
+pub(super) const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
+pub(super) const FILTER_LABEL_WIDTH: f32 = 54.0;
 const FILTER_CONTROL_SPACING: f32 = 2.0;
-const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
+pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
 const HARVEST_FILTER_CONTROL_HEIGHT: f32 = FILTER_CLEAR_BUTTON_SIZE * 2.0 + FILTER_CONTROL_SPACING;
 pub(super) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
     FILTER_ROW_HEIGHT * 5.0 + HARVEST_FILTER_CONTROL_HEIGHT + FILTER_ROW_SPACING * 5.0;
-const CURATION_FILTER_TOGGLE_WIDTH: f32 = 46.0;
 const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
 const HARVEST_FILTER_TOGGLE_WIDTH: f32 = 30.0;
 const HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT: usize = 4;
@@ -54,9 +53,10 @@ pub(super) const TAG_FILTER_INPUT_ID: u64 = widget_ids::TAG_FILTER_INPUT_ID;
 /// Scope for automation-facing playback-type filter toggle ids.
 const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE;
-/// Scope for automation-facing curation filter toggle ids.
-const AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE: u64 =
-    widget_ids::AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE;
+const AUTOMATION_CURATION_FILTER_DROPDOWN_OPTION_SCOPE: u64 =
+    widget_ids::AUTOMATION_CURATION_FILTER_DROPDOWN_OPTION_SCOPE;
+pub(super) const CURATION_FILTER_DROPDOWN_TRIGGER_ID: u64 =
+    widget_ids::CURATION_FILTER_DROPDOWN_TRIGGER_ID;
 /// Scope for automation-facing harvest filter toggle ids.
 const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE;
@@ -160,33 +160,79 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
 fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage> {
     filter_labeled_control_row(
         filter_row_label(row.label, row.family, row.enabled),
-        ui::row(
-            row.toggles
-                .iter()
-                .map(curation_filter_toggle)
-                .collect::<Vec<_>>(),
-        )
-        .spacing(FILTER_CONTROL_SPACING)
-        .fill_width()
-        .height(FILTER_CLEAR_BUTTON_SIZE),
+        ui::dropdown_trigger(row.selected_label, row.dropdown_open)
+            .toggle_message(GuiMessage::ToggleCurationFilterDropdown)
+            .build()
+            .id(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
+            .fill_width()
+            .height(FILTER_CLEAR_BUTTON_SIZE),
         "filter-curation-row",
     )
 }
 
-fn curation_filter_toggle(toggle: &CurationFilterToggleProjection) -> ui::View<GuiMessage> {
-    let scope = toggle.scope;
-    ui::selectable(toggle.label, toggle.active)
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .message(move |enabled| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::SetCurationScope(scope, enabled))
-        })
-        .id(automation_curation_filter_toggle_id(toggle.label))
-        .size(CURATION_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+pub(super) fn curation_filter_dropdown_menu(
+    model: &FilterSectionViewModel,
+) -> Option<(ui::View<GuiMessage>, ui::Vector2)> {
+    let row = filter_rows_projection(model).curation;
+    if row.dropdown_open {
+        let size = ui::Vector2::new(
+            f32::from(row.menu_width).max(1.0),
+            ui::dropdown_menu_height(row.options.len()),
+        );
+        Some((
+            curation_filter_dropdown_menu_from_options(&row.options, size.x),
+            size,
+        ))
+    } else {
+        None
+    }
 }
 
-/// Automation-facing id for a curation filter toggle.
-pub(super) fn automation_curation_filter_toggle_id(label: &str) -> u64 {
-    ui::stable_widget_id(AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE, label)
+fn curation_filter_dropdown_menu_from_options(
+    options: &[CurationFilterOptionProjection],
+    menu_width: f32,
+) -> ui::View<GuiMessage> {
+    let option_count = options.len();
+    ui::column(options.iter().map(curation_filter_dropdown_option))
+        .key("curation-filter-dropdown-menu")
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Neutral,
+            prominence: ui::WidgetProminence::Strong,
+        })
+        .padding(4.0)
+        .spacing(3.0)
+        .width(menu_width.max(1.0))
+        .height(ui::dropdown_menu_height(option_count))
+}
+
+fn curation_filter_dropdown_option(
+    option: &CurationFilterOptionProjection,
+) -> ui::View<GuiMessage> {
+    let scope = option.scope;
+    ui::button(option.label)
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetCurationScope(scope, true),
+        ))
+        .id(automation_curation_filter_dropdown_option_id(option.label))
+        .style(ui::WidgetStyle {
+            tone: if option.selected {
+                ui::WidgetTone::Accent
+            } else {
+                ui::WidgetTone::Neutral
+            },
+            prominence: if option.selected {
+                ui::WidgetProminence::Strong
+            } else {
+                ui::WidgetProminence::Subtle
+            },
+        })
+        .fill_width()
+        .height(22.0)
+}
+
+/// Automation-facing id for a curation dropdown option.
+pub(super) fn automation_curation_filter_dropdown_option_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_CURATION_FILTER_DROPDOWN_OPTION_SCOPE, label)
 }
 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
@@ -445,7 +491,7 @@ pub(super) fn empty_filter_message() -> TextInputMessage {
 mod tests {
     use super::*;
     use crate::native_app::app_chrome::view_models::library_sidebar::{
-        CurationFilterToggleViewModel, CurationFilterViewModel, FilterSectionViewModel,
+        CurationFilterOptionViewModel, CurationFilterViewModel, FilterSectionViewModel,
         HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
         RatingFilterToggleViewModel,
     };
@@ -469,16 +515,18 @@ mod tests {
 
     fn filter_model(help_tooltips_enabled: bool) -> FilterSectionViewModel {
         FilterSectionViewModel {
+            sidebar_width: 240.0,
             name_filter: String::new(),
             name_filter_enabled: false,
             tag_filter: String::new(),
             tag_filter_enabled: false,
             curation: CurationFilterViewModel {
                 enabled: false,
-                toggles: vec![CurationFilterToggleViewModel {
+                dropdown_open: false,
+                selected_scope: BrowserCurationScope::All,
+                options: vec![CurationFilterOptionViewModel {
                     scope: BrowserCurationScope::All,
                     label: "All",
-                    active: false,
                 }],
             },
             harvest: HarvestFilterViewModel {

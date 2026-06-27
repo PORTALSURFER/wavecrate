@@ -127,10 +127,10 @@ fn filter_section_filter_labels_dispatch_family_enable_changes() {
 }
 
 #[test]
-fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
+fn filter_section_projects_curation_scope_dropdown_and_dispatches_changes() {
     let mut state = FolderBrowserState::load_default();
     state.set_curation_scope(BrowserCurationScope::Ratings, true);
-    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let mut model = FilterSectionViewModel::from_folder_browser(&state, false);
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
@@ -139,40 +139,72 @@ fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
     assert!(
         frame
             .paint_plan
-            .first_widget_rect(automation_curation_filter_toggle_id("All"))
+            .first_widget_rect(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
             .is_some()
     );
-    assert!(
-        frame
-            .paint_plan
-            .first_widget_rect(automation_curation_filter_toggle_id("Rate"))
-            .is_some()
-    );
-    assert!(
-        frame
-            .paint_plan
-            .first_widget_rect(automation_curation_filter_toggle_id("Tags"))
-            .is_some()
-    );
-    assert!(frame.paint_plan.contains_text("All"));
-    assert!(frame.paint_plan.contains_text("Rate"));
-    assert!(frame.paint_plan.contains_text("Tags"));
+    assert!(frame.paint_plan.contains_text("Rate  v"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            automation_curation_filter_toggle_id("Tags"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+            CURATION_FILTER_DROPDOWN_TRIGGER_ID,
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
+        Some(GuiMessage::ToggleCurationFilterDropdown)
+    );
+
+    model.curation.dropdown_open = true;
+    let open_frame = filter_section(&model).view_frame_at_size_with_default_theme(
+        ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT),
+    );
+    assert!(
+        open_frame
+            .paint_plan
+            .first_widget_rect(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
+            .is_some()
+    );
+    assert_eq!(
+        open_frame
+            .paint_plan
+            .first_widget_rect(automation_curation_filter_dropdown_option_id("All")),
+        None,
+        "curation menu options should render in the sidebar overlay, not inside the clipped filter section"
+    );
+
+    let overlay_frame = curation_filter_dropdown_overlay(&model, 4.0, 167.0)
+        .expect("open curation dropdown should project an overlay menu");
+    let overlay_frame = overlay_frame.view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+    let all_rect = overlay_frame
+        .paint_plan
+        .first_widget_rect(automation_curation_filter_dropdown_option_id("All"))
+        .expect("All option should render in the overlay");
+    let rate_rect = overlay_frame
+        .paint_plan
+        .first_widget_rect(automation_curation_filter_dropdown_option_id("Rate"))
+        .expect("Rate option should render in the overlay");
+    let tags_rect = overlay_frame
+        .paint_plan
+        .first_widget_rect(automation_curation_filter_dropdown_option_id("Tags"))
+        .expect("Tags option should render in the overlay");
+    assert!(all_rect.min.x > 0.0);
+    assert!(
+        (120.0..=180.0).contains(&all_rect.width()),
+        "curation overlay options should stay fixed to the compact sidebar control width, got {}",
+        all_rect.width()
+    );
+    assert!(all_rect.max.x <= 240.0);
+    assert!(rate_rect.min.y > all_rect.min.y);
+    assert!(tags_rect.min.y > rate_rect.min.y);
+    assert_eq!(
+        curation_filter_dropdown_overlay(&model, 4.0, 167.0)
+            .expect("open curation dropdown should project an overlay menu")
+            .view_dispatch_widget_output(
+                automation_curation_filter_dropdown_option_id("Tags"),
+                ui::WidgetOutput::typed(ButtonMessage::Activate),
+            ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetCurationScope(BrowserCurationScope::Tags, true)
-        ))
-    );
-    assert_eq!(
-        filter_section(&model).view_dispatch_widget_output(
-            automation_curation_filter_toggle_id("Rate"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
-        ),
-        Some(GuiMessage::FolderBrowser(
-            FolderBrowserMessage::SetCurationScope(BrowserCurationScope::Ratings, false)
         ))
     );
 }

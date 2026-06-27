@@ -41,6 +41,13 @@ impl NativeAppState {
             GuiMessage::ToggleHarvestFamilyPanel => {
                 self.ui.chrome.harvest_family_open = !self.ui.chrome.harvest_family_open;
             }
+            GuiMessage::ToggleCurationFilterDropdown => {
+                self.ui.chrome.curation_filter_dropdown_open =
+                    !self.ui.chrome.curation_filter_dropdown_open;
+            }
+            GuiMessage::CloseCurationFilterDropdown => {
+                self.ui.chrome.curation_filter_dropdown_open = false;
+            }
             GuiMessage::ToggleZeroCrossingSnap => {
                 let enabled = self.waveform.current.toggle_zero_crossing_snap();
                 self.ui.status.sample = if enabled {
