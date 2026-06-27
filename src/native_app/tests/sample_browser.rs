@@ -317,6 +317,56 @@ fn leaving_sample_map_mode_reveals_selected_list_row() {
 }
 
 #[test]
+fn leaving_sample_map_mode_materializes_selected_list_row_immediately() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let files = (0..120)
+        .map(|index| source_root.path().join(format!("sample_{index:03}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        write_test_wav_i16(file, &[0, 100, -100]);
+    }
+    let selected_index = 96;
+    let selected_id = files[selected_index].display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(selected_id.clone());
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ToggleSampleBrowserMapView,
+        &mut context,
+    );
+
+    assert_eq!(
+        state.ui.chrome.sample_browser_display,
+        crate::native_app::app::SampleBrowserDisplayMode::List
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(selected_id.as_str())
+    );
+    assert_eq!(
+        last_fixed_sample_browser_row_scroll(context.into_command()),
+        Some((selected_index, 0))
+    );
+    let window_start = state.library.folder_browser.file_view_start();
+    assert!(
+        window_start > 0 && window_start <= selected_index,
+        "list window should be prepared around the selected sample immediately, start={}",
+        window_start
+    );
+}
+
+#[test]
 fn map_audition_selection_is_revealed_when_returning_to_list_mode() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

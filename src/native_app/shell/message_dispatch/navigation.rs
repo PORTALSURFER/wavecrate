@@ -8,7 +8,9 @@ use crate::native_app::app::{
 };
 use crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection;
 use crate::native_app::sample_library::sample_list::{
-    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
+    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS,
+    SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
+    SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
 
 const SAMPLE_MAP_AUDITION_ADVANCE_DELAY: Duration = Duration::from_millis(90);
@@ -284,6 +286,14 @@ impl NativeAppState {
     }
 
     fn focus_selected_sample_list_row(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        self.library
+            .folder_browser
+            .follow_selected_file_view_matching_tags(
+                SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+                SAMPLE_BROWSER_OVERSCAN_ROWS,
+                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                &self.metadata.tags_by_file,
+            );
         let Some(index) = self
             .library
             .folder_browser
