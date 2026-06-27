@@ -18,6 +18,7 @@ pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 const FILTER_LABEL_WIDTH: f32 = 54.0;
 const FILTER_CONTROL_SPACING: f32 = 2.0;
+const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
 const HARVEST_FILTER_CONTROL_HEIGHT: f32 = FILTER_CLEAR_BUTTON_SIZE * 2.0 + FILTER_CONTROL_SPACING;
 pub(super) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
     FILTER_ROW_HEIGHT * 5.0 + HARVEST_FILTER_CONTROL_HEIGHT + FILTER_ROW_SPACING * 5.0;
@@ -386,13 +387,30 @@ fn filter_labeled_control_row_with_height(
     row_height: f32,
     cell_height: f32,
 ) -> ui::View<GuiMessage> {
-    ui::form_row_from_parts(
-        ui::FormRowParts::dense(key, label, control)
-            .label_width(FILTER_LABEL_WIDTH)
-            .height(row_height)
-            .cell_height(cell_height),
-    )
+    ui::row([
+        centered_filter_label_cell(label, row_height),
+        control.fill_width().height(cell_height),
+    ])
+    .key(format!("filter-row-{key}"))
     .fill_width()
+    .height(row_height)
+    .spacing(FILTER_LABEL_CONTROL_SPACING)
+}
+
+fn centered_filter_label_cell(
+    label: ui::View<GuiMessage>,
+    row_height: f32,
+) -> ui::View<GuiMessage> {
+    let padding = ((row_height - FILTER_CLEAR_BUTTON_SIZE) * 0.5).max(0.0);
+    ui::column([
+        ui::spacer().fill_width().height(padding),
+        label
+            .width(FILTER_LABEL_WIDTH)
+            .height(FILTER_CLEAR_BUTTON_SIZE),
+        ui::spacer().fill_width().height(padding),
+    ])
+    .width(FILTER_LABEL_WIDTH)
+    .height(row_height)
 }
 
 pub(super) fn empty_filter_message() -> TextInputMessage {

@@ -112,7 +112,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
                 .collect(),
         },
         rating: RatingFilterRowProjection {
-            label: "Rating",
+            label: "Ratin",
             toggles: model
                 .rating_filters
                 .iter()
@@ -125,7 +125,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
 impl CurationFilterRowProjection {
     fn from_view_model(model: &CurationFilterViewModel) -> Self {
         Self {
-            label: "Curate",
+            label: "Curat",
             toggles: model
                 .toggles
                 .iter()
@@ -148,7 +148,7 @@ impl CurationFilterToggleProjection {
 impl HarvestFilterRowProjection {
     fn from_view_model(model: &HarvestFilterViewModel) -> Self {
         Self {
-            label: "Harvest",
+            label: "Harve",
             toggles: model
                 .toggles
                 .iter()
@@ -242,7 +242,7 @@ mod tests {
     fn filter_rows_projection_preserves_toggle_order_and_state() {
         let projection = filter_rows_projection(&filter_model());
 
-        assert_eq!(projection.curation.label, "Curate");
+        assert_eq!(projection.curation.label, "Curat");
         assert_eq!(
             projection
                 .curation
@@ -256,7 +256,7 @@ mod tests {
                 (BrowserCurationScope::Tags, "Tags", false),
             ]
         );
-        assert_eq!(projection.harvest.label, "Harvest");
+        assert_eq!(projection.harvest.label, "Harve");
         assert_eq!(
             projection
                 .harvest
@@ -329,7 +329,7 @@ mod tests {
                 (PlaybackTypeFilter::Loop, "Loop", true),
             ]
         );
-        assert_eq!(projection.rating.label, "Rating");
+        assert_eq!(projection.rating.label, "Ratin");
         assert_eq!(
             projection
                 .rating

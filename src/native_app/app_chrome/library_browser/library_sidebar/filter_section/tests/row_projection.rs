@@ -41,15 +41,48 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
 
     assert!(frame.paint_plan.contains_text("Name"));
     assert!(frame.paint_plan.contains_text("Tags"));
-    assert!(frame.paint_plan.contains_text("Curate"));
+    assert!(frame.paint_plan.contains_text("Curat"));
+    assert!(frame.paint_plan.contains_text("Harve"));
     assert!(frame.paint_plan.contains_text("Type"));
-    assert!(frame.paint_plan.contains_text("Rating"));
+    assert!(frame.paint_plan.contains_text("Ratin"));
+    assert!(
+        !frame.paint_plan.contains_text("Curate")
+            && !frame.paint_plan.contains_text("Harvest")
+            && !frame.paint_plan.contains_text("Rating")
+    );
     assert_eq!(
         inputs
             .iter()
             .map(|input| input.widget_id)
             .collect::<Vec<_>>(),
         vec![NAME_FILTER_INPUT_ID, TAG_FILTER_INPUT_ID]
+    );
+}
+
+#[test]
+fn filter_section_filter_name_labels_are_compact_and_same_size() {
+    let state = FolderBrowserState::load_default();
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+    let labels = ["Name", "Tags", "Curat", "Harve", "Type", "Ratin"];
+    let label_runs = labels
+        .iter()
+        .map(|label| {
+            frame
+                .paint_plan
+                .first_text_run(label)
+                .unwrap_or_else(|| panic!("missing filter label {label}"))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(label_runs.iter().all(|run| run.text.len() <= 5));
+    assert!(
+        label_runs
+            .iter()
+            .all(|run| run.font_size == label_runs[0].font_size)
     );
 }
 
