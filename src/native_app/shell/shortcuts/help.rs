@@ -158,6 +158,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                     "Move focus without changing marks",
                 ),
                 shortcut_help_item("Left", "Collapse selected folder"),
+                shortcut_help_item("F", "Focus selected map node"),
             ],
         ),
         shortcut_help_section(

@@ -235,6 +235,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::Waveform(WaveformInteraction::ZoomToPlaySelection),
         )
         .bind(
+            ui::KeyPress::new(ui::KeyCode::F),
+            GuiMessage::FocusSelectedSampleMapNode,
+        )
+        .bind(
             ui::KeyPress::with_shift(ui::KeyCode::X),
             shifted_x_shortcut_action(state),
         )

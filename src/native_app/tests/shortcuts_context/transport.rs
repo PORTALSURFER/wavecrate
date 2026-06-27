@@ -139,6 +139,18 @@ fn z_shortcut_routes_to_zoom_waveform_to_play_selection() {
 }
 
 #[test]
+fn f_shortcut_routes_to_focus_selected_sample_map_node() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::F));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::FocusSelectedSampleMapNode)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn w_shortcut_routes_to_global_context_menu() {
     let state = NativeAppStateFixture::default()
         .with_synthetic_waveform()

@@ -96,6 +96,12 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| item.keys == "F" && item.action == "Focus selected map node")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "Z" && item.action == "Zoom to play selection")
     );
     assert!(
