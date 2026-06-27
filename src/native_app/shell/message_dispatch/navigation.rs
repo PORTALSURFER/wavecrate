@@ -156,17 +156,18 @@ impl NativeAppState {
         }
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
-        for path in paths {
-            let queue = &mut self.ui.chrome.sample_map_audition_queue;
-            let last_enqueued = queue
-                .queued_file_ids
-                .back()
-                .or(queue.active_file_id.as_ref());
-            if last_enqueued == Some(&path) {
-                continue;
-            }
-            queue.queued_file_ids.push_back(path);
+        let Some(path) = paths.into_iter().last() else {
+            return;
+        };
+        let queue = &mut self.ui.chrome.sample_map_audition_queue;
+        if queue.active_file_id.as_ref() == Some(&path) && queue.queued_file_ids.is_empty() {
+            return;
         }
+        if queue.queued_file_ids.len() == 1 && queue.queued_file_ids.front() == Some(&path) {
+            return;
+        }
+        queue.queued_file_ids.clear();
+        queue.queued_file_ids.push_back(path);
         self.ui.chrome.sample_map_audition_queue.modifiers = sample_map_audition_modifiers();
         self.start_next_sample_map_audition_hit(context);
     }

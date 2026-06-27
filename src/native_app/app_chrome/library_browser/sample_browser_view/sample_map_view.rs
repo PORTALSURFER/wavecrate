@@ -382,18 +382,17 @@ impl SampleMapWidget {
             .and_then(|drag| drag.last_hit_file_id.as_deref())
             .or(self.last_hit_file_id.as_deref())
             .map(str::to_owned);
-        let mut hit_file_ids = self.hit_file_ids_between(bounds, previous, point);
-        hit_file_ids.retain(|hit| Some(hit) != last_hit_file_id.as_ref());
         self.last_primary_position = Some(point);
-        if hit_file_ids.is_empty() {
+        let Some(hit_file_id) = self.hit_file_id_between(bounds, previous, point) else {
+            return None;
+        };
+        if Some(&hit_file_id) == last_hit_file_id.as_ref() {
             return None;
         }
-        if let Some(hit_file_id) = hit_file_ids.last() {
-            self.last_hit_file_id = Some(hit_file_id.clone());
-        }
+        self.last_hit_file_id = Some(hit_file_id.clone());
         Some(WidgetOutput::typed(
             GuiMessage::UpdateSampleMapAuditionDrag {
-                paths: hit_file_ids,
+                paths: vec![hit_file_id],
                 position: point,
                 modifiers,
             },
@@ -417,9 +416,9 @@ impl SampleMapWidget {
         best.map(|(item, _)| item)
     }
 
-    fn hit_file_ids_between(&mut self, bounds: Rect, from: Point, to: Point) -> Vec<String> {
+    fn hit_file_id_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<String> {
         self.ensure_hit_index(bounds);
-        let mut hits = Vec::new();
+        let mut best: Option<SampleMapSegmentHit> = None;
         for index in self.hit_index.item_indices_near_segment(from, to) {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
@@ -427,21 +426,21 @@ impl SampleMapWidget {
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
-            hits.push(SampleMapSegmentHit {
+            let hit = SampleMapSegmentHit {
                 file_id: item.file_id.clone(),
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
-            });
+            };
+            if best.as_ref().is_none_or(|best| {
+                hit.segment_t
+                    .total_cmp(&best.segment_t)
+                    .then_with(|| best.distance_sq.total_cmp(&hit.distance_sq))
+                    .is_gt()
+            }) {
+                best = Some(hit);
+            }
         }
-        hits.sort_by(|a, b| {
-            a.segment_t
-                .total_cmp(&b.segment_t)
-                .then_with(|| a.distance_sq.total_cmp(&b.distance_sq))
-        });
-        let mut seen = HashSet::new();
-        hits.into_iter()
-            .filter_map(|hit| seen.insert(hit.file_id.clone()).then_some(hit.file_id))
-            .collect()
+        best.map(|hit| hit.file_id)
     }
 
     fn ensure_hit_index(&mut self, bounds: Rect) {
@@ -1544,7 +1543,7 @@ mod tests {
     }
 
     #[test]
-    fn primary_drag_auditions_all_nodes_crossed_between_pointer_samples() {
+    fn primary_drag_auditions_latest_node_crossed_between_pointer_samples() {
         let mut widget = SampleMapWidget::new(
             vec![
                 sample_map_item(
@@ -1576,16 +1575,12 @@ mod tests {
             .expect("press starts audition drag");
         let output = widget
             .handle_input(bounds, WidgetInput::pointer_move(Point::new(195.0, 50.0)))
-            .expect("swept drag should catch every crossed node");
+            .expect("swept drag should catch the latest crossed node");
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
             Some(GuiMessage::UpdateSampleMapAuditionDrag {
-                paths: vec![
-                    String::from("/samples/kick.wav"),
-                    String::from("/samples/snare.wav"),
-                    String::from("/samples/hat.wav"),
-                ],
+                paths: vec![String::from("/samples/hat.wav")],
                 position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })

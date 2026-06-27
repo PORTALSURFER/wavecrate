@@ -364,7 +364,7 @@ fn map_audition_selection_is_revealed_when_returning_to_list_mode() {
 }
 
 #[test]
-fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
+fn sample_map_drag_keeps_only_latest_pending_hit() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -424,7 +424,8 @@ fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        vec![second_id, third_id]
+        vec![third_id],
+        "drag audition should follow the newest hit without building a flickery backlog"
     );
 }
 
@@ -456,7 +457,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
     );
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
-            paths: vec![second_id.clone(), first_id.clone()],
+            paths: vec![second_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
         },
@@ -489,7 +490,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        vec![second_id, first_id],
+        vec![first_id],
         "dragging away from a sample and back should replay it once without chattering"
     );
 }
