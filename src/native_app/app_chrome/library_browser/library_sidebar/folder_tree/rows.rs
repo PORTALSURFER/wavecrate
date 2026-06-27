@@ -123,6 +123,9 @@ fn standard_folder_row(folder: &VisibleFolder, id: String) -> ui::View<GuiMessag
         move || GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleFolderExpansion(id.clone()))
     })
     .interactive_actions(folder_row_actions(id))
+    .pointer_target_if(folder.drag_source && folder.drop_target_active, || {
+        folder_source_drag_cancel_target(folder.id.clone())
+    })
 }
 
 fn folder_row_actions(id: String) -> ui::InteractiveRowActions<GuiMessage> {
@@ -149,6 +152,17 @@ fn folder_row_actions(id: String) -> ui::InteractiveRowActions<GuiMessage> {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTargetUnless(id, position))
             },
         )
+}
+
+fn folder_source_drag_cancel_target(id: String) -> ui::PointerTarget<GuiMessage> {
+    ui::pointer_move_target(true)
+        .on_pointer_move(move |position| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTargetUnless(
+                id.clone(),
+                position,
+            ))
+        })
+        .key("folder-source-drag-cancel-target")
 }
 
 pub(super) fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba8> {

@@ -234,6 +234,57 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
 
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn folder_drag_back_over_source_clears_previous_subfolder_target() {
+    let root = temp_source_root("wavecrate-gui-folder-drag-source-cancel");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    let loops = root.join("loops");
+    let nested = loops.join("nested");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&nested).expect("create nested target folder");
+    fs::write(kicks.join("kick.wav"), [0_u8; 8]).expect("write kick");
+    fs::write(nested.join("loop.wav"), [0_u8; 8]).expect("write loop");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.expand_selected_folder();
+    browser.activate_folder(path_id(&loops));
+    browser.expand_selected_folder();
+
+    browser.apply_folder_drag(
+        path_id(&kicks),
+        DragHandleMessage::started(Point::new(10.0, 20.0)),
+    );
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&nested),
+        Point::new(30.0, 42.0),
+    ));
+    assert_eq!(
+        browser.hovered_drop_target_folder_id(),
+        Some(path_id(&nested)),
+        "the nested folder should initially become the active drop target"
+    );
+
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&kicks),
+        Point::new(30.0, 18.0),
+    ));
+    assert_eq!(
+        browser.hovered_drop_target_folder_id(),
+        None,
+        "hovering the dragged source folder should clear the previous child target"
+    );
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .all(|folder| !folder.drop_target),
+        "no stale folder row should remain the active drop target"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
 #[test]
 fn folder_drag_does_not_arm_external_file_drag() {
     let root = temp_source_root("wavecrate-gui-folder-no-external-drag");
