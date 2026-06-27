@@ -51,6 +51,14 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             )),
         )
         .layer_when(
+            state.ui.chrome.curation_filter_dropdown_open,
+            ui::ShortcutLayer::modal_escape(GuiMessage::CloseCurationFilterDropdown),
+        )
+        .layer_when(
+            state.ui.chrome.harvest_filter_dropdown_open,
+            ui::ShortcutLayer::modal_escape(GuiMessage::CloseHarvestFilterDropdown),
+        )
+        .layer_when(
             state.ui.chrome.job_details_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
         )

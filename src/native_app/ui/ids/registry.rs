@@ -189,6 +189,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     ),
     registered_widget_id!(
         FolderFilters,
+        HARVEST_FILTER_DROPDOWN_TRIGGER_ID,
+        "folder_filters.harvest_dropdown_trigger"
+    ),
+    registered_widget_id!(
+        FolderFilters,
         FILTER_RESIZE_HEADER_ID,
         "folder_filters.resize_header"
     ),

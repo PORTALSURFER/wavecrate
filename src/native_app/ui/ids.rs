@@ -97,6 +97,7 @@ pub(in crate::native_app) const NAME_FILTER_INPUT_ID: u64 = FOLDER_FILTERS.id(2)
 pub(in crate::native_app) const TAG_FILTER_INPUT_ID: u64 = FOLDER_FILTERS.id(3);
 pub(in crate::native_app) const FILTER_SECTION_SCROLL_NODE_ID: u64 = FOLDER_FILTERS.id(4);
 pub(in crate::native_app) const CURATION_FILTER_DROPDOWN_TRIGGER_ID: u64 = FOLDER_FILTERS.id(5);
+pub(in crate::native_app) const HARVEST_FILTER_DROPDOWN_TRIGGER_ID: u64 = FOLDER_FILTERS.id(6);
 pub(in crate::native_app) const FILTER_RESIZE_HEADER_ID: u64 = FOLDER_FILTERS.id(7);
 /// Scope for automation-facing rating filter toggle ids.
 pub(in crate::native_app) const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(20);
@@ -106,8 +107,9 @@ pub(in crate::native_app) const AUTOMATION_PLAYBACK_TYPE_FILTER_TOGGLE_SCOPE: u6
 /// Scope for automation-facing curation dropdown option ids.
 pub(in crate::native_app) const AUTOMATION_CURATION_FILTER_DROPDOWN_OPTION_SCOPE: u64 =
     FOLDER_FILTERS.id(22);
-/// Scope for automation-facing harvest filter toggle ids.
-pub(in crate::native_app) const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(23);
+/// Scope for automation-facing harvest dropdown option ids.
+pub(in crate::native_app) const AUTOMATION_HARVEST_FILTER_DROPDOWN_OPTION_SCOPE: u64 =
+    FOLDER_FILTERS.id(23);
 pub(in crate::native_app) const HARVEST_FAMILY_TOGGLE_ID: u64 = FOLDER_FILTERS.id(24);
 /// Scope for automation-facing filter family label toggles.
 pub(in crate::native_app) const AUTOMATION_FILTER_FAMILY_LABEL_TOGGLE_SCOPE: u64 =

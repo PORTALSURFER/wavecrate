@@ -51,6 +51,10 @@ pub(in crate::native_app) fn library_sidebar_overlays(
             curation_filter_dropdown_overlay(state),
             GuiMessage::CloseCurationFilterDropdown,
         )
+        .dismissible_context_menu_opt(
+            harvest_filter_dropdown_overlay(state),
+            GuiMessage::CloseHarvestFilterDropdown,
+        )
 }
 
 fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
@@ -78,6 +82,11 @@ fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMes
 fn curation_filter_dropdown_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
     let model = LibrarySidebarViewModel::from_app_state(state);
     library_sidebar::curation_filter_dropdown_overlay(&model, BOTTOM_STATUS_BAR_HEIGHT)
+}
+
+fn harvest_filter_dropdown_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    let model = LibrarySidebarViewModel::from_app_state(state);
+    library_sidebar::harvest_filter_dropdown_overlay(&model, BOTTOM_STATUS_BAR_HEIGHT)
 }
 
 pub(in crate::native_app) fn sample_workspace_overlays(

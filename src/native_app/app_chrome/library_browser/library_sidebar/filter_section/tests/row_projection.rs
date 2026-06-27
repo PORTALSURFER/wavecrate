@@ -225,6 +225,76 @@ fn filter_section_projects_harvest_family_toggle_button() {
 }
 
 #[test]
+fn filter_section_projects_harvest_filter_dropdown_and_dispatches_changes() {
+    let mut state = FolderBrowserState::load_default();
+    state.set_harvest_filter(HarvestFilter::NeedsReview, true);
+    let mut model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
+            .is_some()
+    );
+    assert!(frame.paint_plan.contains_text("Needs Review  v"));
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            HARVEST_FILTER_DROPDOWN_TRIGGER_ID,
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(GuiMessage::ToggleHarvestFilterDropdown)
+    );
+
+    model.harvest.dropdown_open = true;
+    let open_frame = filter_section(&model).view_frame_at_size_with_default_theme(
+        ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT),
+    );
+    assert_eq!(
+        open_frame
+            .paint_plan
+            .first_widget_rect(automation_harvest_filter_dropdown_option_id("Needs Review")),
+        None,
+        "harvest menu options should render in the sidebar overlay, not inside the clipped filter section"
+    );
+
+    let overlay_frame = harvest_filter_dropdown_overlay(&model, 4.0, 167.0)
+        .expect("open harvest dropdown should project an overlay menu");
+    let overlay_frame = overlay_frame.view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+    for (label, filter) in [
+        ("Needs Review", HarvestFilter::NeedsReview),
+        ("Done", HarvestFilter::Done),
+        ("Ignored", HarvestFilter::Ignored),
+        ("All", HarvestFilter::All),
+    ] {
+        assert!(
+            overlay_frame
+                .paint_plan
+                .first_widget_rect(automation_harvest_filter_dropdown_option_id(label))
+                .is_some(),
+            "{label} option should render in the overlay"
+        );
+        assert_eq!(
+            harvest_filter_dropdown_overlay(&model, 4.0, 167.0)
+                .expect("open harvest dropdown should project an overlay menu")
+                .view_dispatch_widget_output(
+                    automation_harvest_filter_dropdown_option_id(label),
+                    ui::WidgetOutput::typed(ButtonMessage::Activate),
+                ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::SetHarvestFilter(filter, true)
+            ))
+        );
+    }
+}
+
+#[test]
 fn filter_section_hides_clear_buttons_when_filters_are_empty() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel::from_folder_browser(&state, false);

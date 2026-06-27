@@ -104,16 +104,17 @@ pub(in crate::native_app) struct CurationFilterOptionViewModel {
 
 pub(in crate::native_app) struct HarvestFilterViewModel {
     pub(in crate::native_app) enabled: bool,
-    pub(in crate::native_app) toggles: Vec<HarvestFilterToggleViewModel>,
+    pub(in crate::native_app) dropdown_open: bool,
+    pub(in crate::native_app) selected_filter: Option<HarvestFilter>,
+    pub(in crate::native_app) options: Vec<HarvestFilterOptionViewModel>,
     pub(in crate::native_app) family_available: bool,
     pub(in crate::native_app) family_open: bool,
     pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
-pub(in crate::native_app) struct HarvestFilterToggleViewModel {
+pub(in crate::native_app) struct HarvestFilterOptionViewModel {
     pub(in crate::native_app) filter: HarvestFilter,
     pub(in crate::native_app) label: &'static str,
-    pub(in crate::native_app) active: bool,
 }
 
 pub(in crate::native_app) struct PlaybackTypeFilterToggleViewModel {
@@ -162,6 +163,7 @@ impl LibrarySidebarViewModel {
             harvest_family.is_some() || state.selected_harvest_family_available();
         filter.harvest.family_open = state.ui.chrome.harvest_family_open;
         filter.curation.dropdown_open = state.ui.chrome.curation_filter_dropdown_open;
+        filter.harvest.dropdown_open = state.ui.chrome.harvest_filter_dropdown_open;
         filter.sidebar_width = state.ui.chrome.folder_panel.size();
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
@@ -279,12 +281,13 @@ impl FilterSectionViewModel {
             },
             harvest: HarvestFilterViewModel {
                 enabled: folder_browser.harvest_filter_enabled(),
-                toggles: HARVEST_FILTERS
+                dropdown_open: false,
+                selected_filter: folder_browser.harvest_filter(),
+                options: HARVEST_FILTERS
                     .into_iter()
-                    .map(|filter| HarvestFilterToggleViewModel {
+                    .map(|filter| HarvestFilterOptionViewModel {
                         filter,
-                        label: filter.label(),
-                        active: folder_browser.harvest_filter() == Some(filter),
+                        label: harvest_filter_dropdown_label(filter),
                     })
                     .collect(),
                 family_available: false,
@@ -311,6 +314,20 @@ impl FilterSectionViewModel {
                 .collect(),
             panel_height: folder_browser.filter_panel_height(),
         }
+    }
+}
+
+fn harvest_filter_dropdown_label(filter: HarvestFilter) -> &'static str {
+    match filter {
+        HarvestFilter::New => "New",
+        HarvestFilter::NewAndTouched => "New + Touched",
+        HarvestFilter::NeedsReview => "Needs Review",
+        HarvestFilter::Touched => "Touched",
+        HarvestFilter::HasDerivatives => "Has Derivatives",
+        HarvestFilter::NoDerivatives => "No Derivatives",
+        HarvestFilter::Done => "Done",
+        HarvestFilter::Ignored => "Ignored",
+        HarvestFilter::All => "All",
     }
 }
 

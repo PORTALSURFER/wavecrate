@@ -18,6 +18,9 @@ impl NativeAppState {
                 if matches!(message, FolderBrowserMessage::SetCurationScope(_, _)) {
                     self.ui.chrome.curation_filter_dropdown_open = false;
                 }
+                if matches!(message, FolderBrowserMessage::SetHarvestFilter(_, _)) {
+                    self.ui.chrome.harvest_filter_dropdown_open = false;
+                }
                 self.apply_folder_browser_message(message, context);
             }
             GuiMessage::SetSimilarityAspectWeightingEnabled(enabled) => {

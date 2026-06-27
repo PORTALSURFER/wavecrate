@@ -65,9 +65,12 @@ fn contextual_shortcut_help_sections(state: &NativeAppState) -> Vec<ShortcutHelp
             ],
         ));
     }
-    if state.audio_settings_dropdown_open() {
+    if state.audio_settings_dropdown_open()
+        || state.ui.chrome.curation_filter_dropdown_open
+        || state.ui.chrome.harvest_filter_dropdown_open
+    {
         sections.push(shortcut_help_section(
-            "Audio Settings",
+            "Dropdown",
             [shortcut_help_item("Esc", "Close dropdown")],
         ));
     }
