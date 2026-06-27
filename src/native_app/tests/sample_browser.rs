@@ -429,6 +429,72 @@ fn sample_map_drag_queues_every_swept_hit_without_collapsing_to_last_sample() {
 }
 
 #[test]
+fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+            paths: vec![second_id.clone(), first_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+            paths: vec![first_id.clone()],
+            position: Point::new(92.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(first_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .queued_file_ids
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![second_id, first_id],
+        "dragging away from a sample and back should replay it once without chattering"
+    );
+}
+
+#[test]
 fn sample_map_drag_audition_ignores_multi_select_modifiers() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

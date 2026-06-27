@@ -152,19 +152,15 @@ impl NativeAppState {
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
         for path in paths {
-            if self
-                .ui
-                .chrome
-                .sample_map_audition_queue
-                .seen_file_ids
-                .insert(path.clone())
-            {
-                self.ui
-                    .chrome
-                    .sample_map_audition_queue
-                    .queued_file_ids
-                    .push_back(path);
+            let queue = &mut self.ui.chrome.sample_map_audition_queue;
+            let last_enqueued = queue
+                .queued_file_ids
+                .back()
+                .or(queue.active_file_id.as_ref());
+            if last_enqueued == Some(&path) {
+                continue;
             }
+            queue.queued_file_ids.push_back(path);
         }
         self.ui.chrome.sample_map_audition_queue.modifiers = sample_map_audition_modifiers();
         self.start_next_sample_map_audition_hit(context);

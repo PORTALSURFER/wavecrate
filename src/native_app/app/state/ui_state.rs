@@ -78,7 +78,6 @@ pub(in crate::native_app) struct SampleMapAuditionDragState {
 pub(in crate::native_app) struct SampleMapAuditionQueueState {
     pub(in crate::native_app) active_file_id: Option<String>,
     pub(in crate::native_app) queued_file_ids: VecDeque<String>,
-    pub(in crate::native_app) seen_file_ids: HashSet<String>,
     pub(in crate::native_app) modifiers: PointerModifiers,
 }
 
