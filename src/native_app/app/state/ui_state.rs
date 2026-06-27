@@ -57,6 +57,7 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) sample_map_audition_drag: Option<SampleMapAuditionDragState>,
     pub(in crate::native_app) sample_map_audition_queue: SampleMapAuditionQueueState,
     pub(in crate::native_app) harvest_family_open: bool,
+    pub(in crate::native_app) curation_filter_dropdown_open: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
 }
@@ -165,6 +166,7 @@ impl ChromeUiState {
             sample_map_audition_drag: None,
             sample_map_audition_queue: SampleMapAuditionQueueState::default(),
             harvest_family_open: false,
+            curation_filter_dropdown_open: false,
             beat_guides_enabled: false,
             beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,
         }

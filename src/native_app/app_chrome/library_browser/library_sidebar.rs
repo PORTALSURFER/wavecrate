@@ -22,6 +22,9 @@ use harvest_family::harvest_family_section;
 use source_section::source_selector;
 use tag_editor::tag_editor_section;
 
+pub(in crate::native_app) const LIBRARY_SIDEBAR_PADDING: f32 = 4.0;
+const LIBRARY_SIDEBAR_SECTION_SPACING: f32 = 3.0;
+
 pub(in crate::native_app) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 #[cfg(test)]
@@ -34,6 +37,27 @@ pub(in crate::native_app) fn library_sidebar(
     library_sidebar_content(model)
         .width(sidebar_width)
         .fill_height()
+}
+
+pub(in crate::native_app) fn curation_filter_dropdown_overlay(
+    model: &LibrarySidebarViewModel,
+    bottom_status_bar_height: f32,
+) -> Option<ui::View<GuiMessage>> {
+    let harvest_family_inset = model
+        .harvest_family
+        .is_some()
+        .then_some(harvest_family::HARVEST_FAMILY_SECTION_HEIGHT + LIBRARY_SIDEBAR_SECTION_SPACING)
+        .unwrap_or(0.0);
+    let filter_bottom_inset = bottom_status_bar_height
+        + LIBRARY_SIDEBAR_PADDING
+        + model.metadata_panel_height
+        + LIBRARY_SIDEBAR_SECTION_SPACING
+        + harvest_family_inset;
+    filter_section::curation_filter_dropdown_overlay(
+        &model.filter,
+        LIBRARY_SIDEBAR_PADDING,
+        filter_bottom_inset,
+    )
 }
 
 fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessage> {
@@ -53,9 +77,9 @@ fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessag
         model.metadata_panel_height,
     ));
     ui::column(sections)
-        .spacing(3.0)
+        .spacing(LIBRARY_SIDEBAR_SECTION_SPACING)
         .fill_width()
-        .padding_x(4.0)
+        .padding_x(LIBRARY_SIDEBAR_PADDING)
         .style(ui::WidgetStyle::default())
         .fill_height()
 }

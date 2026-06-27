@@ -65,6 +65,7 @@ pub(in crate::native_app) struct CollectionRowViewModel {
 }
 
 pub(in crate::native_app) struct FilterSectionViewModel {
+    pub(in crate::native_app) sidebar_width: f32,
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) name_filter_enabled: bool,
     pub(in crate::native_app) tag_filter: String,
@@ -91,13 +92,14 @@ pub(in crate::native_app) struct HarvestFamilyViewModel {
 
 pub(in crate::native_app) struct CurationFilterViewModel {
     pub(in crate::native_app) enabled: bool,
-    pub(in crate::native_app) toggles: Vec<CurationFilterToggleViewModel>,
+    pub(in crate::native_app) dropdown_open: bool,
+    pub(in crate::native_app) selected_scope: BrowserCurationScope,
+    pub(in crate::native_app) options: Vec<CurationFilterOptionViewModel>,
 }
 
-pub(in crate::native_app) struct CurationFilterToggleViewModel {
+pub(in crate::native_app) struct CurationFilterOptionViewModel {
     pub(in crate::native_app) scope: BrowserCurationScope,
     pub(in crate::native_app) label: &'static str,
-    pub(in crate::native_app) active: bool,
 }
 
 pub(in crate::native_app) struct HarvestFilterViewModel {
@@ -159,6 +161,8 @@ impl LibrarySidebarViewModel {
         filter.harvest.family_available =
             harvest_family.is_some() || state.selected_harvest_family_available();
         filter.harvest.family_open = state.ui.chrome.harvest_family_open;
+        filter.curation.dropdown_open = state.ui.chrome.curation_filter_dropdown_open;
+        filter.sidebar_width = state.ui.chrome.folder_panel.size();
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
@@ -256,18 +260,20 @@ impl FilterSectionViewModel {
         help_tooltips_enabled: bool,
     ) -> Self {
         Self {
+            sidebar_width: 240.0,
             name_filter: folder_browser.name_filter().to_owned(),
             name_filter_enabled: folder_browser.name_filter_enabled(),
             tag_filter: folder_browser.tag_filter().to_owned(),
             tag_filter_enabled: folder_browser.tag_filter_enabled(),
             curation: CurationFilterViewModel {
                 enabled: folder_browser.curation_mode_enabled(),
-                toggles: BROWSER_CURATION_SCOPES
+                dropdown_open: false,
+                selected_scope: folder_browser.curation_scope(),
+                options: BROWSER_CURATION_SCOPES
                     .into_iter()
-                    .map(|scope| CurationFilterToggleViewModel {
+                    .map(|scope| CurationFilterOptionViewModel {
                         scope,
-                        label: scope.label(),
-                        active: folder_browser.curation_scope() == scope,
+                        label: curation_scope_dropdown_label(scope),
                     })
                     .collect(),
             },
@@ -305,6 +311,14 @@ impl FilterSectionViewModel {
                 .collect(),
             panel_height: folder_browser.filter_panel_height(),
         }
+    }
+}
+
+fn curation_scope_dropdown_label(scope: BrowserCurationScope) -> &'static str {
+    match scope {
+        BrowserCurationScope::All => "All",
+        BrowserCurationScope::Ratings => "Rate",
+        BrowserCurationScope::Tags => "Tags",
     }
 }
 
