@@ -1,7 +1,12 @@
 use std::path::PathBuf;
 
 /// Bundled Wavecrate UI font asset.
-pub const WAVECRATE_UI_FONT_ASSET: &str = "assets/FORCED SQUARE.ttf";
+pub const WAVECRATE_UI_FONT_ASSET: &str = "assets/fonts/IoskeleyMono-Regular.ttf";
+/// Bundled Wavecrate UI font bytes used by release builds.
+pub const WAVECRATE_UI_FONT_BYTES: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/fonts/IoskeleyMono-Regular.ttf"
+));
 
 /// Return the bundled Wavecrate UI font path used before native font fallbacks.
 pub fn wavecrate_ui_font_path() -> PathBuf {

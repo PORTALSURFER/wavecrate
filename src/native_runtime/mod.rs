@@ -11,7 +11,8 @@ mod config;
 pub use artifacts::{NativeRunReport, NativeRuntimeArtifacts, NativeShutdownTimingArtifact};
 pub use automation_snapshot::capture_gui_automation_snapshot;
 pub use config::{
-    NativeRunOptions, WAVECRATE_UI_FONT_ASSET, WindowIconRgba, wavecrate_ui_font_path,
+    NativeRunOptions, WAVECRATE_UI_FONT_ASSET, WAVECRATE_UI_FONT_BYTES, WindowIconRgba,
+    wavecrate_ui_font_path,
 };
 
 #[cfg(test)]

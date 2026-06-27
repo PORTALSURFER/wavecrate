@@ -1,8 +1,8 @@
 use radiant::runtime::{
-    NativeFrameOptions, NativeRunOptions, NativeTextOptions, NativeWindowBehavior,
+    EmbeddedFont, NativeFrameOptions, NativeRunOptions, NativeTextOptions, NativeWindowBehavior,
     NativeWindowGeometry, NativeWindowOptions,
 };
-use wavecrate::native_runtime::wavecrate_ui_font_path;
+use wavecrate::native_runtime::{WAVECRATE_UI_FONT_BYTES, wavecrate_ui_font_path};
 
 use super::icon::wavecrate_window_icon;
 
@@ -39,7 +39,7 @@ pub(super) fn native_run_options(debug_layout: bool) -> NativeRunOptions {
             ..NativeFrameOptions::default()
         },
         text: NativeTextOptions {
-            embedded_fonts: Vec::new(),
+            embedded_fonts: vec![EmbeddedFont::from_static(WAVECRATE_UI_FONT_BYTES)],
             font_paths: vec![wavecrate_ui_font_path()],
         },
         ..NativeRunOptions::default()
@@ -79,6 +79,18 @@ mod tests {
             icon.width as usize * icon.height as usize * 4
         );
         assert!(icon.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    }
+
+    #[test]
+    fn default_native_run_options_embed_wavecrate_font() {
+        let options = native_run_options(false);
+
+        assert_eq!(options.text.embedded_fonts.len(), 1);
+        assert_eq!(
+            options.text.embedded_fonts[0].bytes(),
+            WAVECRATE_UI_FONT_BYTES
+        );
+        assert_eq!(options.text.font_paths, vec![wavecrate_ui_font_path()]);
     }
 
     #[test]
