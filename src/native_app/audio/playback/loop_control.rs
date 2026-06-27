@@ -1,8 +1,11 @@
 use std::time::Instant;
 
 use super::span::{playback_span_matches_selection, retarget_offset_for_selection};
-use crate::native_app::app::{NativeAppState, emit_gui_action};
+use crate::native_app::app::{NativeAppState, PendingPlaySelectionRetargetCycle, emit_gui_action};
 use wavecrate::audio::{AudioPlayer, PlaybackRuntimeSpanUpdate};
+
+const LIVE_LOOP_BOUNDARY_EPSILON: f32 = 0.01;
+const LIVE_LOOP_WRAP_EPSILON: f32 = 0.02;
 
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {
@@ -72,8 +75,12 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn retarget_playback_to_play_selection(&mut self) {
+        self.retarget_playback_to_play_selection_with_seek(true);
+    }
+
+    fn retarget_playback_to_play_selection_with_seek(&mut self, seek_when_outside: bool) -> bool {
         if !self.waveform.current.is_playing() {
-            return;
+            return false;
         }
         let Some(selection) = self
             .waveform
@@ -81,18 +88,20 @@ impl NativeAppState {
             .play_selection()
             .filter(|selection| selection.width() > 0.0)
         else {
-            return;
+            return false;
         };
         if playback_span_matches_selection(self.audio.current_playback_span, selection) {
-            return;
+            return false;
         }
 
         let started_at = Instant::now();
         let current = self
             .current_audio_progress_ratio()
             .unwrap_or_else(|| selection.start());
+        let current_inside_selection =
+            current >= selection.start() && current < selection.end() - LIVE_LOOP_BOUNDARY_EPSILON;
         let offset = retarget_offset_for_selection(current, selection);
-        let seek_to_offset = !(selection.start()..=selection.end()).contains(&current);
+        let seek_to_offset = seek_when_outside && !current_inside_selection;
         let looped = self.audio.loop_playback;
         match self.retarget_active_playback_span(
             selection.start(),
@@ -137,16 +146,30 @@ impl NativeAppState {
                 );
             }
         }
+        true
     }
 
     pub(in crate::native_app) fn schedule_play_selection_playback_retarget(&mut self) {
         if self.waveform.current.is_playing() {
             self.waveform.pending_play_selection_retarget = true;
+            if self
+                .waveform
+                .pending_play_selection_retarget_cycle
+                .is_none()
+                && let Some((_, end_ratio)) = self.audio.current_playback_span
+            {
+                self.waveform.pending_play_selection_retarget_cycle =
+                    Some(PendingPlaySelectionRetargetCycle::new(
+                        end_ratio,
+                        self.current_audio_progress_ratio(),
+                    ));
+            }
         }
     }
 
     pub(in crate::native_app) fn retarget_playback_to_play_selection_now(&mut self) {
         self.waveform.pending_play_selection_retarget = false;
+        self.waveform.pending_play_selection_retarget_cycle = None;
         self.retarget_playback_to_play_selection();
     }
 
@@ -154,8 +177,58 @@ impl NativeAppState {
         if !self.waveform.pending_play_selection_retarget {
             return;
         }
+        if !self.waveform.current.is_playing() {
+            self.clear_pending_play_selection_retarget();
+            return;
+        }
+        let Some(selection) = self
+            .waveform
+            .current
+            .play_selection()
+            .filter(|selection| selection.width() > 0.0)
+        else {
+            self.clear_pending_play_selection_retarget();
+            return;
+        };
+        let Some(current) = self.current_audio_progress_ratio() else {
+            return;
+        };
+        if !self.audio.loop_playback {
+            self.remember_pending_play_selection_retarget_progress(current);
+            return;
+        }
+        if self.pending_play_selection_retarget_boundary_reached(current, selection.end()) {
+            self.clear_pending_play_selection_retarget();
+            self.retarget_playback_to_play_selection();
+            return;
+        }
+        self.remember_pending_play_selection_retarget_progress(current);
+    }
+
+    fn clear_pending_play_selection_retarget(&mut self) {
         self.waveform.pending_play_selection_retarget = false;
-        self.retarget_playback_to_play_selection();
+        self.waveform.pending_play_selection_retarget_cycle = None;
+    }
+
+    fn remember_pending_play_selection_retarget_progress(&mut self, current: f32) {
+        if let Some(cycle) = self.waveform.pending_play_selection_retarget_cycle.as_mut() {
+            cycle.last_progress_ratio = Some(current);
+        }
+    }
+
+    fn pending_play_selection_retarget_boundary_reached(
+        &self,
+        current: f32,
+        target_end: f32,
+    ) -> bool {
+        let Some(cycle) = self.waveform.pending_play_selection_retarget_cycle else {
+            return false;
+        };
+        let boundary = target_end.min(cycle.end_ratio);
+        current >= boundary - LIVE_LOOP_BOUNDARY_EPSILON
+            || cycle
+                .last_progress_ratio
+                .is_some_and(|last| current + LIVE_LOOP_WRAP_EPSILON < last)
     }
 
     fn retarget_active_playback_span(

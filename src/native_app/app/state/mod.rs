@@ -35,7 +35,9 @@ pub(in crate::native_app) use ui_state::{
     SampleMapViewport, SampleMapViewportChange, SettingsAppState, StartupState, StatusState,
     UiAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
 };
-pub(in crate::native_app) use waveform::{WaveformAppState, WaveformPlaySelectionSnapshot};
+pub(in crate::native_app) use waveform::{
+    PendingPlaySelectionRetargetCycle, WaveformAppState, WaveformPlaySelectionSnapshot,
+};
 
 pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) ui: UiAppState,

@@ -19,6 +19,8 @@ pub(in crate::native_app) struct WaveformAppState {
     pub(in crate::native_app) pending_play_selection_transaction:
         Option<WaveformPlaySelectionSnapshot>,
     pub(in crate::native_app) pending_play_selection_retarget: bool,
+    pub(in crate::native_app) pending_play_selection_retarget_cycle:
+        Option<PendingPlaySelectionRetargetCycle>,
 }
 
 impl WaveformAppState {
@@ -29,6 +31,22 @@ impl WaveformAppState {
             cache: WaveformCacheState::default(),
             pending_play_selection_transaction: None,
             pending_play_selection_retarget: false,
+            pending_play_selection_retarget_cycle: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) struct PendingPlaySelectionRetargetCycle {
+    pub(in crate::native_app) end_ratio: f32,
+    pub(in crate::native_app) last_progress_ratio: Option<f32>,
+}
+
+impl PendingPlaySelectionRetargetCycle {
+    pub(in crate::native_app) fn new(end_ratio: f32, last_progress_ratio: Option<f32>) -> Self {
+        Self {
+            end_ratio,
+            last_progress_ratio,
         }
     }
 }
