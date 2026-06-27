@@ -16,6 +16,8 @@ Required environment:
 
 Optional environment:
   APPLE_CODESIGN_IDENTITY
+  WAVECRATE_NOTARY_TIMEOUT_SECONDS
+  WAVECRATE_NOTARY_POLL_INTERVAL_SECONDS
 EOF
 }
 
@@ -82,11 +84,106 @@ validate_pkcs12_bundle() {
   exit 1
 }
 
+notary_json_field() {
+  local file="$1"
+  local field="$2"
+  python3 - "$file" "$field" <<'PY'
+import json
+import sys
+
+path, field = sys.argv[1:]
+with open(path, encoding="utf-8") as handle:
+    value = json.load(handle).get(field, "")
+if value is None:
+    value = ""
+print(value)
+PY
+}
+
+print_notary_log() {
+  local submission_id="$1"
+  xcrun notarytool log "$submission_id" \
+    --key "$NOTARY_KEY_PATH" \
+    --key-id "$APPLE_NOTARY_KEY_ID" \
+    --issuer "$APPLE_NOTARY_ISSUER_ID" || true
+}
+
+wait_for_notarization() {
+  local submission_id="$1"
+  local deadline
+  local info_json
+  local info_error
+  local status
+
+  deadline=$(($(date +%s) + NOTARY_TIMEOUT_SECONDS))
+  info_json="$WORK_DIR/notary-info.json"
+  info_error="$WORK_DIR/notary-info.err"
+
+  while [[ "$(date +%s)" -lt "$deadline" ]]; do
+    if xcrun notarytool info "$submission_id" \
+      --key "$NOTARY_KEY_PATH" \
+      --key-id "$APPLE_NOTARY_KEY_ID" \
+      --issuer "$APPLE_NOTARY_ISSUER_ID" \
+      --output-format json >"$info_json" 2>"$info_error"; then
+      status="$(notary_json_field "$info_json" status)"
+      echo "Current notarization status: ${status:-unknown}"
+      case "$status" in
+        Accepted)
+          return 0
+          ;;
+        Invalid|Rejected)
+          echo "Apple notarization failed with status: $status" >&2
+          print_notary_log "$submission_id"
+          exit 1
+          ;;
+      esac
+    else
+      echo "Apple notarization status check failed; retrying after ${NOTARY_POLL_INTERVAL_SECONDS}s." >&2
+      cat "$info_error" >&2 || true
+    fi
+
+    sleep "$NOTARY_POLL_INTERVAL_SECONDS"
+  done
+
+  echo "Timed out waiting for Apple notarization after ${NOTARY_TIMEOUT_SECONDS}s for submission $submission_id." >&2
+  print_notary_log "$submission_id"
+  exit 1
+}
+
+submit_for_notarization() {
+  local submit_json="$WORK_DIR/notary-submit.json"
+  local submission_id
+  local initial_status
+
+  xcrun notarytool submit "$NOTARY_ZIP_PATH" \
+    --key "$NOTARY_KEY_PATH" \
+    --key-id "$APPLE_NOTARY_KEY_ID" \
+    --issuer "$APPLE_NOTARY_ISSUER_ID" \
+    --output-format json >"$submit_json"
+
+  submission_id="$(notary_json_field "$submit_json" id)"
+  initial_status="$(notary_json_field "$submit_json" status)"
+  if [[ -z "$submission_id" ]]; then
+    echo "Apple notarization submission did not return an id." >&2
+    cat "$submit_json" >&2
+    exit 1
+  fi
+  echo "Submitted Apple notarization request: $submission_id"
+
+  if [[ "$initial_status" == "Accepted" ]]; then
+    return 0
+  fi
+  wait_for_notarization "$submission_id"
+}
+
 require_env APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64
 require_env APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD
 require_env APPLE_NOTARY_KEY_BASE64
 require_env APPLE_NOTARY_KEY_ID
 require_env APPLE_NOTARY_ISSUER_ID
+
+NOTARY_TIMEOUT_SECONDS="${WAVECRATE_NOTARY_TIMEOUT_SECONDS:-3600}"
+NOTARY_POLL_INTERVAL_SECONDS="${WAVECRATE_NOTARY_POLL_INTERVAL_SECONDS:-30}"
 
 WORK_DIR="$(mktemp -d)"
 KEYCHAIN_PATH="$WORK_DIR/wavecrate-release-signing.keychain-db"
@@ -172,11 +269,7 @@ codesign \
 codesign --verify --strict --verbose=4 "$APP_PATH"
 
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$NOTARY_ZIP_PATH"
-xcrun notarytool submit "$NOTARY_ZIP_PATH" \
-  --key "$NOTARY_KEY_PATH" \
-  --key-id "$APPLE_NOTARY_KEY_ID" \
-  --issuer "$APPLE_NOTARY_ISSUER_ID" \
-  --wait
+submit_for_notarization
 xcrun stapler staple "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
 spctl --assess --type execute --verbose=4 "$APP_PATH"
