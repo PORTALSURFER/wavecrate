@@ -186,11 +186,7 @@ impl FolderBrowserState {
                     label: file.stem.clone(),
                     x,
                     y,
-                    color: sample_map_color(
-                        group,
-                        strength,
-                        layout_point.and_then(|point| point.cluster_id),
-                    ),
+                    color: sample_map_color(group, strength, layout_point),
                     selected: self.is_file_selected(&file.id),
                     focused: focused_file_id == Some(file.id.as_str()),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
@@ -212,25 +208,22 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn sample_map_status(&self) -> SampleMapStatus {
-        let cluster_color_count = self
+        let clustered_count = self
             .sample_list
             .sample_map_layout
             .points_by_file
             .values()
-            .filter_map(|point| point.cluster_id)
-            .map(sample_map_cluster_palette_index)
-            .collect::<HashSet<_>>()
-            .len();
+            .filter(|point| point.cluster_id.is_some())
+            .count();
+        let cluster_color_count = if clustered_count == 0 {
+            0
+        } else {
+            clustered_count.min(SAMPLE_MAP_CLUSTER_PALETTE.len())
+        };
         SampleMapStatus {
             listed_count: self.sample_list.sample_map_layout.listed_count,
             layout_count: self.sample_list.sample_map_layout.points_by_file.len(),
-            clustered_count: self
-                .sample_list
-                .sample_map_layout
-                .points_by_file
-                .values()
-                .filter(|point| point.cluster_id.is_some())
-                .count(),
+            clustered_count,
             cluster_color_count,
         }
     }
@@ -481,10 +474,12 @@ fn unit_from_hash(hash: u64) -> f32 {
 fn sample_map_color(
     group: SimilarityAspect,
     strength: Option<f32>,
-    cluster_id: Option<i32>,
+    layout_point: Option<SampleMapLayoutPoint>,
 ) -> ui::Rgba8 {
-    if let Some(cluster_id) = cluster_id {
-        return sample_map_cluster_color(cluster_id, strength);
+    if let Some(point) = layout_point
+        && point.cluster_id.is_some()
+    {
+        return sample_map_cluster_color((point.x, point.y), strength);
     }
     let alpha = (150.0 + strength.unwrap_or(0.35).clamp(0.0, 1.0) * 90.0) as u8;
     match group {
@@ -496,32 +491,85 @@ fn sample_map_color(
     }
 }
 
-fn sample_map_cluster_color(cluster_id: i32, strength: Option<f32>) -> ui::Rgba8 {
+fn sample_map_cluster_color(position: (f32, f32), strength: Option<f32>) -> ui::Rgba8 {
     let alpha = (180.0 + strength.unwrap_or(0.45).clamp(0.0, 1.0) * 60.0) as u8;
-    sample_map_cluster_palette_color(sample_map_cluster_palette_index(cluster_id)).with_alpha(alpha)
+    blended_sample_map_cluster_color(position).with_alpha(alpha)
 }
 
 pub(in crate::native_app) fn sample_map_cluster_palette_color(index: usize) -> ui::Rgba8 {
     SAMPLE_MAP_CLUSTER_PALETTE[index % SAMPLE_MAP_CLUSTER_PALETTE.len()]
 }
 
-fn sample_map_cluster_palette_index(cluster_id: i32) -> usize {
-    cluster_id.rem_euclid(SAMPLE_MAP_CLUSTER_PALETTE.len() as i32) as usize
+fn blended_sample_map_cluster_color(position: (f32, f32)) -> ui::Rgba8 {
+    let mut total = 0.0;
+    let mut red = 0.0;
+    let mut green = 0.0;
+    let mut blue = 0.0;
+    for anchor in SAMPLE_MAP_CLUSTER_COLOR_ANCHORS {
+        let dx = position.0 - anchor.x;
+        let dy = position.1 - anchor.y;
+        let weight = 1.0 / (dx * dx + dy * dy + 0.025).powf(1.6);
+        total += weight;
+        red += f32::from(anchor.color.r) * weight;
+        green += f32::from(anchor.color.g) * weight;
+        blue += f32::from(anchor.color.b) * weight;
+    }
+    ui::Rgba8::new(
+        blended_color_channel(red, total),
+        blended_color_channel(green, total),
+        blended_color_channel(blue, total),
+        230,
+    )
 }
 
-const SAMPLE_MAP_CLUSTER_PALETTE: [ui::Rgba8; 12] = [
+fn blended_color_channel(weighted: f32, total: f32) -> u8 {
+    if total <= f32::EPSILON {
+        return 0;
+    }
+    (weighted / total).round().clamp(0.0, 255.0) as u8
+}
+
+#[derive(Clone, Copy)]
+struct SampleMapClusterColorAnchor {
+    x: f32,
+    y: f32,
+    color: ui::Rgba8,
+}
+
+const SAMPLE_MAP_CLUSTER_COLOR_ANCHORS: [SampleMapClusterColorAnchor; 5] = [
+    SampleMapClusterColorAnchor {
+        x: 0.16,
+        y: 0.46,
+        color: SAMPLE_MAP_CLUSTER_PALETTE[0],
+    },
+    SampleMapClusterColorAnchor {
+        x: 0.36,
+        y: 0.24,
+        color: SAMPLE_MAP_CLUSTER_PALETTE[1],
+    },
+    SampleMapClusterColorAnchor {
+        x: 0.52,
+        y: 0.52,
+        color: SAMPLE_MAP_CLUSTER_PALETTE[2],
+    },
+    SampleMapClusterColorAnchor {
+        x: 0.68,
+        y: 0.34,
+        color: SAMPLE_MAP_CLUSTER_PALETTE[3],
+    },
+    SampleMapClusterColorAnchor {
+        x: 0.84,
+        y: 0.62,
+        color: SAMPLE_MAP_CLUSTER_PALETTE[4],
+    },
+];
+
+const SAMPLE_MAP_CLUSTER_PALETTE: [ui::Rgba8; 5] = [
     ui::Rgba8::new(255, 55, 96, 230),
-    ui::Rgba8::new(57, 187, 245, 230),
-    ui::Rgba8::new(239, 216, 66, 230),
     ui::Rgba8::new(114, 235, 184, 230),
-    ui::Rgba8::new(255, 142, 56, 230),
-    ui::Rgba8::new(186, 91, 255, 230),
-    ui::Rgba8::new(255, 119, 210, 230),
-    ui::Rgba8::new(142, 255, 90, 230),
     ui::Rgba8::new(255, 179, 92, 230),
-    ui::Rgba8::new(92, 255, 230, 230),
-    ui::Rgba8::new(255, 92, 92, 230),
-    ui::Rgba8::new(168, 190, 255, 230),
+    ui::Rgba8::new(186, 91, 255, 230),
+    ui::Rgba8::new(57, 187, 245, 230),
 ];
 
 #[cfg(test)]
@@ -606,11 +654,55 @@ mod tests {
 
     #[test]
     fn sample_map_color_prefers_similarity_cluster_color() {
-        let cluster_color = sample_map_color(SimilarityAspect::Spectrum, Some(0.5), Some(1));
+        let cluster_color = sample_map_color(
+            SimilarityAspect::Spectrum,
+            Some(0.5),
+            Some(SampleMapLayoutPoint {
+                x: 0.16,
+                y: 0.46,
+                cluster_id: Some(1),
+            }),
+        );
         let aspect_color = sample_map_color(SimilarityAspect::Spectrum, Some(0.5), None);
 
         assert_ne!(cluster_color, aspect_color);
-        assert_eq!(cluster_color, ui::Rgba8::new(57, 187, 245, 210));
+        assert_eq!(cluster_color.a, 210);
+    }
+
+    #[test]
+    fn sample_map_cluster_colors_fade_by_layout_position() {
+        let left = sample_map_color(
+            SimilarityAspect::Spectrum,
+            Some(0.5),
+            Some(SampleMapLayoutPoint {
+                x: 0.16,
+                y: 0.46,
+                cluster_id: Some(1),
+            }),
+        );
+        let nearby = sample_map_color(
+            SimilarityAspect::Spectrum,
+            Some(0.5),
+            Some(SampleMapLayoutPoint {
+                x: 0.20,
+                y: 0.48,
+                cluster_id: Some(37),
+            }),
+        );
+        let far = sample_map_color(
+            SimilarityAspect::Spectrum,
+            Some(0.5),
+            Some(SampleMapLayoutPoint {
+                x: 0.84,
+                y: 0.62,
+                cluster_id: Some(37),
+            }),
+        );
+
+        assert!(
+            color_distance(left, nearby) < color_distance(left, far),
+            "nearby clustered samples should have more similar colors than distant samples"
+        );
     }
 
     #[test]
@@ -939,5 +1031,11 @@ mod tests {
             ),
             SimilarityAspect::Timbre
         );
+    }
+
+    fn color_distance(left: ui::Rgba8, right: ui::Rgba8) -> u16 {
+        u16::from(left.r.abs_diff(right.r))
+            + u16::from(left.g.abs_diff(right.g))
+            + u16::from(left.b.abs_diff(right.b))
     }
 }
