@@ -307,7 +307,7 @@ impl Widget for WaveformWidget {
         };
         self.common.state = previous.common.state;
         self.gesture = previous.gesture.clone();
-        if self.active_drag_kind == previous.active_drag_kind {
+        if self.should_preserve_live_selection_preview_from(previous) {
             self.last_live_selection_update_visible_ratio =
                 previous.last_live_selection_update_visible_ratio;
             self.live_selection_preview_anchor = previous.live_selection_preview_anchor;
@@ -351,5 +351,19 @@ impl Widget for WaveformWidget {
         self.append_hover_selection_handle_paint(primitives, bounds);
         self.append_hover_similar_section_paint(primitives, bounds);
         self.append_hover_cursor_paint(primitives, bounds);
+    }
+}
+
+impl WaveformWidget {
+    fn should_preserve_live_selection_preview_from(&self, previous: &Self) -> bool {
+        if self.active_drag_kind == previous.active_drag_kind {
+            return true;
+        }
+        let Some((anchor_kind, _)) = previous.live_selection_preview_anchor else {
+            return false;
+        };
+        self.active_drag_kind
+            .and_then(WaveformActiveDragKind::selection_kind)
+            == Some(anchor_kind)
     }
 }

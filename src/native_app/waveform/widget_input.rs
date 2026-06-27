@@ -611,7 +611,7 @@ impl WaveformWidget {
 }
 
 impl WaveformActiveDragKind {
-    fn selection_kind(self) -> Option<WaveformSelectionKind> {
+    pub(super) fn selection_kind(self) -> Option<WaveformSelectionKind> {
         match self {
             Self::Selection(kind) | Self::SelectionResize(kind, _) | Self::SelectionMove(kind) => {
                 Some(kind)
