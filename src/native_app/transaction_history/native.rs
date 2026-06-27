@@ -207,6 +207,62 @@ impl NativeTransactionHistory {
         Ok(Some(applied))
     }
 
+    pub(in crate::native_app) fn undo_through(
+        &mut self,
+        target_id: u64,
+        state: &mut NativeAppState,
+    ) -> Result<Vec<TransactionApplied>, String> {
+        if !self
+            .undo
+            .iter()
+            .any(|transaction| transaction.id == target_id)
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut applied = Vec::new();
+        loop {
+            let Some(next_id) = self.undo.back().map(|transaction| transaction.id) else {
+                return Ok(applied);
+            };
+            let target_reached = next_id == target_id;
+            if let Some(transaction) = self.undo(state)? {
+                applied.push(transaction);
+            }
+            if target_reached {
+                return Ok(applied);
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn redo_through(
+        &mut self,
+        target_id: u64,
+        state: &mut NativeAppState,
+    ) -> Result<Vec<TransactionApplied>, String> {
+        if !self
+            .redo
+            .iter()
+            .any(|transaction| transaction.id == target_id)
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut applied = Vec::new();
+        loop {
+            let Some(next_id) = self.redo.back().map(|transaction| transaction.id) else {
+                return Ok(applied);
+            };
+            let target_reached = next_id == target_id;
+            if let Some(transaction) = self.redo(state)? {
+                applied.push(transaction);
+            }
+            if target_reached {
+                return Ok(applied);
+            }
+        }
+    }
+
     pub(in crate::native_app) fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }

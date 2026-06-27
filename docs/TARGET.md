@@ -2189,6 +2189,7 @@ Core default shortcuts:
 | `Home` / `End` | Jump to start/end of list or audio file according to focus | Browser or waveform |
 | `Ctrl+Z` | Undo the latest undoable action | Global |
 | `Ctrl+Y` or `Ctrl+Shift+Z` | Redo the latest undone action | Global |
+| `Ctrl+Shift+\` | Toggle the transaction inspector | Global debugging |
 | `Ctrl+C` | Copy selected files or selected waveform audio | Browser or waveform |
 | `Ctrl+V` | Paste copied audio at waveform insertion point or paste files where supported | Waveform or folder target |
 | `Ctrl+X` | Cut selected waveform audio where destructive editing is allowed | Waveform |

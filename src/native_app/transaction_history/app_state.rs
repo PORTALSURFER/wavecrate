@@ -47,6 +47,31 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn undo_transactions_through(&mut self, target_id: u64) {
+        let mut history = std::mem::take(&mut self.transactions.history);
+        let was_restoring = self.transactions.restoring;
+        self.transactions.restoring = true;
+        let result = history.undo_through(target_id, self);
+        self.transactions.restoring = was_restoring;
+        self.transactions.history = history;
+        match result {
+            Ok(applied) if applied.is_empty() => {
+                self.ui.status.sample = format!("Transaction #{target_id} is not undoable");
+            }
+            Ok(applied) => {
+                let count = applied.len();
+                let label = applied
+                    .last()
+                    .map(|transaction| transaction.label.as_str())
+                    .unwrap_or("transaction");
+                self.ui.status.sample = format!("Undid {count} through {label}");
+            }
+            Err(error) => {
+                self.ui.status.sample = format!("Undo failed: {error}");
+            }
+        }
+    }
+
     pub(in crate::native_app) fn redo_transaction(&mut self) {
         let mut history = std::mem::take(&mut self.transactions.history);
         let was_restoring = self.transactions.restoring;
@@ -60,6 +85,31 @@ impl NativeAppState {
             }
             Ok(None) => {
                 self.ui.status.sample = String::from("Nothing to redo");
+            }
+            Err(error) => {
+                self.ui.status.sample = format!("Redo failed: {error}");
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn redo_transactions_through(&mut self, target_id: u64) {
+        let mut history = std::mem::take(&mut self.transactions.history);
+        let was_restoring = self.transactions.restoring;
+        self.transactions.restoring = true;
+        let result = history.redo_through(target_id, self);
+        self.transactions.restoring = was_restoring;
+        self.transactions.history = history;
+        match result {
+            Ok(applied) if applied.is_empty() => {
+                self.ui.status.sample = format!("Transaction #{target_id} is not redoable");
+            }
+            Ok(applied) => {
+                let count = applied.len();
+                let label = applied
+                    .last()
+                    .map(|transaction| transaction.label.as_str())
+                    .unwrap_or("transaction");
+                self.ui.status.sample = format!("Redid {count} through {label}");
             }
             Err(error) => {
                 self.ui.status.sample = format!("Redo failed: {error}");

@@ -183,7 +183,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                 shortcut_help_item("Command-Z", "Undo"),
                 shortcut_help_item("Command-Shift-Z", "Redo"),
                 shortcut_help_item("Command-Y", "Redo"),
-                shortcut_help_item("Shift-U", "Toggle transaction list"),
+                shortcut_help_item("Command-Shift-\\", "Toggle transaction list"),
             ],
         ),
         shortcut_help_section(

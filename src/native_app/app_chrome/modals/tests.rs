@@ -20,9 +20,11 @@ fn transaction_list_projection_formats_summary_and_rows() {
         "undo ready | no redo | open transaction"
     );
     assert_eq!(projection.rows.len(), 2);
+    assert_eq!(projection.rows[0].order_label, "Draft");
     assert_eq!(projection.rows[0].label, "Open batch");
     assert_eq!(projection.rows[0].action_summary, "1 action: First action");
     assert_eq!(projection.rows[0].state.label(), "Open");
+    assert_eq!(projection.rows[1].order_label, "#1");
     assert_eq!(projection.rows[1].label, "Rename sample");
     assert_eq!(projection.rows[1].action_summary, "1 action: Rename sample");
     assert_eq!(projection.rows[1].state.label(), "Undo");

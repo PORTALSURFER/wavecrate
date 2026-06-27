@@ -191,7 +191,7 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::ToggleLoopPlayback,
         )
         .bind(
-            ui::KeyPress::with_shift(ui::KeyCode::U),
+            transaction_list_shortcut(),
             GuiMessage::ToggleTransactionList,
         )
         .bind(ui::KeyPress::new(ui::KeyCode::N), new_item_action(state))
@@ -276,6 +276,16 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::CollapseSelectedFolder,
         );
     bind_undo_shortcuts(bind_collection_shortcuts(layer))
+}
+
+fn transaction_list_shortcut() -> ui::KeyPress {
+    ui::KeyPress {
+        key: ui::KeyCode::Backslash,
+        command: true,
+        control: false,
+        shift: true,
+        alt: false,
+    }
 }
 
 fn bind_undo_shortcuts(layer: ui::ShortcutLayer<GuiMessage>) -> ui::ShortcutLayer<GuiMessage> {

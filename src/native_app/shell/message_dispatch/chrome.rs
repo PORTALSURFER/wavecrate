@@ -63,6 +63,12 @@ impl NativeAppState {
             }
             GuiMessage::UndoTransaction => self.undo_transaction(),
             GuiMessage::RedoTransaction => self.redo_transaction(),
+            GuiMessage::UndoTransactionsThrough(target_id) => {
+                self.undo_transactions_through(target_id);
+            }
+            GuiMessage::RedoTransactionsThrough(target_id) => {
+                self.redo_transactions_through(target_id);
+            }
             GuiMessage::ToggleTransactionList => self.toggle_transaction_list(),
             GuiMessage::CloseTransactionList => {
                 self.ui.chrome.transaction_list_open = false;

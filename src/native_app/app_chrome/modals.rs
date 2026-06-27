@@ -21,6 +21,9 @@ use crate::native_app::app::NativeAppState;
 const SHORTCUT_HELP_MODAL_WIDTH: f32 = 860.0;
 const SHORTCUT_HELP_MODAL_HEIGHT: f32 = 640.0;
 const SHORTCUT_HELP_KEY_WIDTH: f32 = 190.0;
+const TRANSACTION_LIST_MODAL_WIDTH: f32 = 760.0;
+const TRANSACTION_LIST_MODAL_HEIGHT: f32 = 520.0;
+const TRANSACTION_LIST_ACTION_WIDTH: f32 = 70.0;
 
 pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::View<GuiMessage> {
     let projection = TransactionListProjection::from_state(state);
@@ -56,7 +59,7 @@ pub(in crate::native_app) fn transaction_list(state: &NativeAppState) -> ui::Vie
         "Transactions",
         content,
         ui::WidgetTone::Neutral,
-        ui::Vector2::new(420.0, 300.0),
+        ui::Vector2::new(TRANSACTION_LIST_MODAL_WIDTH, TRANSACTION_LIST_MODAL_HEIGHT),
         GuiMessage::CloseTransactionList,
     )
     .id(identity::TRANSACTION_LIST_MODAL_ID)
@@ -262,11 +265,10 @@ fn shortcut_help_row(item: ShortcutHelpItem) -> ui::View<GuiMessage> {
 
 fn transaction_list_row(row: TransactionListRowProjection) -> ui::View<GuiMessage> {
     ui::row([
-        ui::passive_badge(row.state.label().to_string())
-            .style(transaction_list_state_style(row.state))
-            .size(58.0, 20.0),
+        transaction_list_row_action(&row),
+        ui::text_line(row.order_label, 22.0).width(58.0),
         ui::text_line(row.label, 22.0).fill_width(),
-        ui::text_line(row.action_summary, 22.0).width(150.0),
+        ui::text_line(row.action_summary, 22.0).width(240.0),
     ])
     .key(identity::transaction_list_row_key(row.id))
     .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
@@ -274,6 +276,23 @@ fn transaction_list_row(row: TransactionListRowProjection) -> ui::View<GuiMessag
     .spacing(6.0)
     .fill_width()
     .height(26.0)
+}
+
+fn transaction_list_row_action(row: &TransactionListRowProjection) -> ui::View<GuiMessage> {
+    match row.state {
+        TransactionListState::Active => ui::passive_badge(row.state.label().to_string())
+            .style(transaction_list_state_style(row.state))
+            .size(TRANSACTION_LIST_ACTION_WIDTH, 20.0),
+        TransactionListState::Undoable => ui::button(row.state.label().to_string())
+            .message(GuiMessage::UndoTransactionsThrough(row.id))
+            .primary()
+            .width(TRANSACTION_LIST_ACTION_WIDTH)
+            .height(20.0),
+        TransactionListState::Redoable => ui::button(row.state.label().to_string())
+            .message(GuiMessage::RedoTransactionsThrough(row.id))
+            .width(TRANSACTION_LIST_ACTION_WIDTH)
+            .height(20.0),
+    }
 }
 
 fn transaction_list_state_style(state: TransactionListState) -> ui::WidgetStyle {
