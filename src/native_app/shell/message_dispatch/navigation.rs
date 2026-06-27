@@ -79,8 +79,7 @@ impl NativeAppState {
                 self.advance_sample_map_audition(ticket, context);
             }
             GuiMessage::FinishSampleMapAuditionDrag => {
-                self.ui.chrome.sample_map_audition_drag = None;
-                self.finish_sample_map_audition_queue_if_idle();
+                self.finish_sample_map_audition_drag();
             }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library
@@ -130,14 +129,20 @@ impl NativeAppState {
         modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if let Some(drag) = self.ui.chrome.sample_map_audition_drag.as_mut() {
-            drag.last_position = position;
-            drag.modifiers = modifiers;
-            if let Some(path) = paths.last() {
-                drag.last_hit_file_id = Some(path.clone());
-            }
+        let Some(drag) = self.ui.chrome.sample_map_audition_drag.as_mut() else {
+            return;
+        };
+        drag.last_position = position;
+        drag.modifiers = modifiers;
+        if let Some(path) = paths.last() {
+            drag.last_hit_file_id = Some(path.clone());
         }
         self.enqueue_sample_map_audition_hits(paths, modifiers, context);
+    }
+
+    fn finish_sample_map_audition_drag(&mut self) {
+        self.ui.chrome.sample_map_audition_drag = None;
+        self.ui.chrome.sample_map_audition_queue = Default::default();
     }
 
     fn enqueue_sample_map_audition_hits(

@@ -495,6 +495,125 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
 }
 
 #[test]
+fn sample_map_drag_finish_drops_swept_hit_backlog() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+            paths: vec![second_id, third_id],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(first_id.as_str())
+    );
+    assert!(
+        !state
+            .ui
+            .chrome
+            .sample_map_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishSampleMapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(state.ui.chrome.sample_map_audition_drag, None);
+    assert_eq!(
+        state.ui.chrome.sample_map_audition_queue,
+        Default::default(),
+        "releasing the drag should not leave swept nodes queued for later playback"
+    );
+}
+
+#[test]
+fn sample_map_drag_update_after_finish_is_ignored() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishSampleMapAuditionDrag,
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+            paths: vec![second_id],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(first_id.as_str()),
+        "late pointer updates after release should not restart drag-play audition"
+    );
+    assert_eq!(
+        state.ui.chrome.sample_map_audition_queue,
+        Default::default()
+    );
+}
+
+#[test]
 fn sample_map_drag_audition_ignores_multi_select_modifiers() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
