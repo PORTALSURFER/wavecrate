@@ -211,6 +211,20 @@ impl NativeTransactionHistory {
         !self.undo.is_empty()
     }
 
+    pub(in crate::native_app) fn remove_transactions_with_action_label(&mut self, label: &str) {
+        self.undo
+            .retain(|transaction| !transaction.has_action_label(label));
+        self.redo
+            .retain(|transaction| !transaction.has_action_label(label));
+        if self
+            .active
+            .as_ref()
+            .is_some_and(|draft| draft.has_action_label(label))
+        {
+            self.active = None;
+        }
+    }
+
     pub(in crate::native_app) fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
@@ -242,5 +256,17 @@ impl NativeTransactionHistory {
             .rev()
             .map(|transaction| transaction.snapshot(TransactionListState::Redoable));
         active.chain(undo).chain(redo).collect()
+    }
+}
+
+impl NativeTransaction {
+    fn has_action_label(&self, label: &str) -> bool {
+        self.actions.iter().any(|action| action.label == label)
+    }
+}
+
+impl NativeTransactionDraft {
+    fn has_action_label(&self, label: &str) -> bool {
+        self.actions.iter().any(|action| action.label == label)
     }
 }

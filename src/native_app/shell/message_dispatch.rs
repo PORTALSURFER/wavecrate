@@ -9,7 +9,7 @@ mod sample_loading;
 mod settings;
 #[cfg(test)]
 mod tests;
-mod waveform;
+pub(in crate::native_app) mod waveform;
 
 use radiant::prelude as ui;
 

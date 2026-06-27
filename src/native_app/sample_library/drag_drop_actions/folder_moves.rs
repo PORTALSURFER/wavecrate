@@ -1,4 +1,7 @@
-use std::{path::PathBuf, time::Instant};
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use radiant::prelude as ui;
 
@@ -13,6 +16,8 @@ use crate::native_app::sample_library::folder_browser::commands::{
     file_move_conflict_progress_total, folder_move_progress_label, folder_move_progress_total,
 };
 use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::shell::message_dispatch::waveform::PLAY_SELECTION_TRANSACTION_LABEL;
+use crate::native_app::transaction_history::TransactionContext;
 
 impl NativeAppState {
     pub(in crate::native_app) fn drop_browser_drag_on_folder(
@@ -261,6 +266,19 @@ impl NativeAppState {
                 &self.metadata.tags_by_file,
             );
             if result.is_ok() {
+                if let FolderMoveRequest::Folder {
+                    source_root,
+                    source_database_root,
+                    ..
+                } = &request
+                    && !moved_paths.is_empty()
+                {
+                    self.register_folder_move_transaction(
+                        source_root.clone(),
+                        source_database_root.clone(),
+                        moved_paths.clone(),
+                    );
+                }
                 self.reconcile_harvest_graph_after_folder_move(&request, &moved_paths);
             }
             result
@@ -454,5 +472,105 @@ impl NativeAppState {
         self.cancel_metadata_tag_entry();
         self.metadata.selected_tag = None;
         self.load_navigation_sample(selected, context);
+    }
+
+    fn register_folder_move_transaction(
+        &mut self,
+        source_root: PathBuf,
+        source_database_root: PathBuf,
+        moved_paths: Vec<(PathBuf, PathBuf)>,
+    ) {
+        self.discard_play_selection_transactions_for_moved_paths(&moved_paths);
+        let undo_moves = moved_paths
+            .iter()
+            .map(|(old_path, new_path)| (new_path.clone(), old_path.clone()))
+            .collect::<Vec<_>>();
+        let redo_moves = moved_paths;
+        let label = if redo_moves.len() == 1 {
+            String::from("Move folder")
+        } else {
+            format!("Move {} folders", redo_moves.len())
+        };
+        let undo_source_root = source_root.clone();
+        let undo_source_database_root = source_database_root.clone();
+        self.begin_transaction(label);
+        self.register_transaction_action(
+            "Move folders",
+            move |transaction| {
+                transaction.apply_folder_move_paths(
+                    &undo_source_root,
+                    &undo_source_database_root,
+                    &undo_moves,
+                )
+            },
+            move |transaction| {
+                transaction.apply_folder_move_paths(
+                    &source_root,
+                    &source_database_root,
+                    &redo_moves,
+                )
+            },
+        );
+        self.commit_transaction();
+    }
+
+    fn discard_play_selection_transactions_for_moved_paths(
+        &mut self,
+        moved_paths: &[(PathBuf, PathBuf)],
+    ) {
+        let loaded_path_moved = moved_paths
+            .iter()
+            .any(|(old_path, _)| self.waveform.current.path().starts_with(old_path));
+        if !loaded_path_moved {
+            return;
+        }
+        self.waveform.pending_play_selection_transaction = None;
+        self.transactions
+            .history
+            .remove_transactions_with_action_label(PLAY_SELECTION_TRANSACTION_LABEL);
+    }
+
+    fn apply_folder_move_paths_for_transaction(
+        &mut self,
+        source_root: &Path,
+        source_database_root: &Path,
+        moves: &[(PathBuf, PathBuf)],
+    ) -> Result<(), String> {
+        let metadata_error = self.library.folder_browser.apply_folder_move_transaction(
+            source_root,
+            source_database_root,
+            moves,
+        )?;
+        self.remap_metadata_tags_for_moved_files(moves);
+        self.apply_moved_sample_paths(moves);
+        let request = FolderMoveRequest::Folder {
+            source_root: source_root.to_path_buf(),
+            source_database_root: source_database_root.to_path_buf(),
+            moves: moves.to_vec(),
+            target_folder: moves
+                .first()
+                .and_then(|(_, new_path)| new_path.parent().map(Path::to_path_buf))
+                .unwrap_or_else(|| source_root.to_path_buf()),
+        };
+        self.reconcile_harvest_graph_after_folder_move(&request, moves);
+        if let Some(error) = metadata_error {
+            tracing::warn!("folder move transaction metadata update failed: {error}");
+        }
+        if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
+            tracing::warn!("folder move transaction source cache save failed: {error}");
+        }
+        Ok(())
+    }
+}
+
+impl TransactionContext<'_> {
+    fn apply_folder_move_paths(
+        &mut self,
+        source_root: &Path,
+        source_database_root: &Path,
+        moves: &[(PathBuf, PathBuf)],
+    ) -> Result<(), String> {
+        self.state
+            .apply_folder_move_paths_for_transaction(source_root, source_database_root, moves)
     }
 }

@@ -1,7 +1,14 @@
 use super::super::super::DragDropController;
+use super::worker::run_folder_move_task;
+use crate::app::controller::AppController;
 use crate::app::controller::StatusTone;
-use crate::app::controller::jobs::{FolderMoveResult, FolderSampleMoveResult};
-use crate::sample_sources::WavEntry;
+use crate::app::controller::jobs::{FolderMoveRequest, FolderMoveResult, FolderSampleMoveResult};
+use crate::app::controller::undo::{UndoEntry, UndoExecution};
+use crate::sample_sources::{SampleSource, WavEntry};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, atomic::AtomicBool},
+};
 use tracing::{info, warn};
 
 impl DragDropController<'_> {
@@ -97,6 +104,14 @@ impl DragDropController<'_> {
 
     /// Apply a completed background folder move job.
     pub(crate) fn apply_folder_move_result(&mut self, result: FolderMoveResult) {
+        self.apply_folder_move_result_inner(result, true);
+    }
+
+    fn apply_folder_move_result_without_undo(&mut self, result: FolderMoveResult) {
+        self.apply_folder_move_result_inner(result, false);
+    }
+
+    fn apply_folder_move_result_inner(&mut self, result: FolderMoveResult, register_undo: bool) {
         let Some(source) = self
             .library
             .sources
@@ -171,6 +186,13 @@ impl DragDropController<'_> {
         self.remap_folder_state(&result.old_folder, &result.new_folder);
         self.remap_manual_folders(&result.old_folder, &result.new_folder);
         self.focus_drop_target_folder(&result.new_folder);
+        if register_undo {
+            self.push_undo_entry(folder_move_undo_entry(
+                source,
+                result.old_folder.clone(),
+                result.new_folder.clone(),
+            ));
+        }
         let tone = if result.errors.is_empty() && !result.cancelled {
             StatusTone::Info
         } else {
@@ -193,4 +215,52 @@ impl DragDropController<'_> {
             );
         }
     }
+}
+
+fn folder_move_undo_entry(
+    source: SampleSource,
+    old_folder: PathBuf,
+    new_folder: PathBuf,
+) -> UndoEntry<AppController> {
+    let label = format!("Move folder {}", old_folder.display());
+    let undo_source = source.clone();
+    let undo_old_folder = old_folder.clone();
+    let undo_new_folder = new_folder.clone();
+    let redo_source = source;
+    UndoEntry::new(
+        label,
+        move |controller| {
+            let target_parent = undo_old_folder.parent().unwrap_or_else(|| Path::new(""));
+            apply_folder_move_for_undo(controller, &undo_source, &undo_new_folder, target_parent)
+        },
+        move |controller| {
+            let target_parent = new_folder.parent().unwrap_or_else(|| Path::new(""));
+            apply_folder_move_for_undo(controller, &redo_source, &old_folder, target_parent)
+        },
+    )
+}
+
+fn apply_folder_move_for_undo(
+    controller: &mut AppController,
+    source: &SampleSource,
+    folder: &Path,
+    target_folder: &Path,
+) -> Result<UndoExecution, String> {
+    let request = FolderMoveRequest {
+        source_id: source.id.clone(),
+        source_root: source.root.clone(),
+        folder: folder.to_path_buf(),
+        target_folder: target_folder.to_path_buf(),
+    };
+    let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
+    if !result.folder_moved {
+        return Err(result
+            .errors
+            .first()
+            .cloned()
+            .unwrap_or_else(|| String::from("Folder move did not complete")));
+    }
+    let mut drag_drop = DragDropController::new(controller);
+    drag_drop.apply_folder_move_result_without_undo(result);
+    Ok(UndoExecution::Applied)
 }
