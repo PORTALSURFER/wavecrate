@@ -91,6 +91,7 @@ pub(in crate::native_app) struct SampleMapItem {
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) similarity_anchor: bool,
+    pub(in crate::native_app) instant_audition_ready: bool,
     pub(in crate::native_app) missing: bool,
 }
 
@@ -167,11 +168,11 @@ impl FolderBrowserState {
         snapshot
             .rows()
             .iter()
-            .filter_map(|file| {
-                if cold_long_sample_for_map_audition(file, projection.instant_audition_sample_paths)
-                {
-                    return None;
-                }
+            .map(|file| {
+                let instant_audition_ready = instant_audition_ready_for_sample_map(
+                    file,
+                    projection.instant_audition_sample_paths,
+                );
                 let aspects = self.similarity_aspect_display_strengths_for_file(&file.id);
                 let strength = self.similarity_display_strength_for_file(&file.id);
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
@@ -187,7 +188,7 @@ impl FolderBrowserState {
                     strength,
                     layout_point.map(|point| (point.x, point.y)),
                 );
-                Some(SampleMapItem {
+                SampleMapItem {
                     file_id: file.id.clone(),
                     label: file.stem.clone(),
                     x,
@@ -196,8 +197,9 @@ impl FolderBrowserState {
                     selected: self.is_file_selected(&file.id),
                     focused: focused_file_id == Some(file.id.as_str()),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
+                    instant_audition_ready,
                     missing: file.is_missing(),
-                })
+                }
             })
             .collect()
     }
@@ -235,12 +237,12 @@ impl FolderBrowserState {
     }
 }
 
-fn cold_long_sample_for_map_audition(
+fn instant_audition_ready_for_sample_map(
     file: &FileEntry,
     instant_audition_sample_paths: &HashSet<String>,
 ) -> bool {
-    should_use_file_backed_wav_decode(Path::new(&file.id))
-        && !instant_audition_sample_paths.contains(&file.id)
+    !should_use_file_backed_wav_decode(Path::new(&file.id))
+        || instant_audition_sample_paths.contains(&file.id)
 }
 
 fn load_sample_map_layout_positions(
@@ -854,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_projection_hides_cold_long_wavs_until_audition_ready() {
+    fn sample_map_projection_marks_cold_long_wavs_as_not_audition_ready() {
         let root = tempfile::tempdir().expect("source root");
         let short = root.path().join("short.wav");
         let long = root.path().join("long.wav");
@@ -867,25 +869,28 @@ mod tests {
         )]);
         let tags_by_file = HashMap::new();
 
-        let cold_ids = browser
+        let cold_items = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
-            .map(|item| item.file_id)
+            .map(|item| (item.file_id, item.instant_audition_ready))
             .collect::<Vec<_>>();
-        let ready_ids = browser
+        let ready_items = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::from([long_id.clone()]),
             })
             .into_iter()
-            .map(|item| item.file_id)
+            .map(|item| (item.file_id, item.instant_audition_ready))
             .collect::<Vec<_>>();
 
-        assert_eq!(cold_ids, vec![short_id.clone()]);
-        assert_eq!(ready_ids, vec![long_id, short_id]);
+        assert_eq!(
+            cold_items,
+            vec![(long_id.clone(), false), (short_id.clone(), true)]
+        );
+        assert_eq!(ready_items, vec![(long_id, true), (short_id, true)]);
     }
 
     #[test]

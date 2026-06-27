@@ -40,6 +40,7 @@ const MAP_ANCHOR_SIZE: f32 = 12.0;
 const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
 const MAP_ACTIVE_AUDITION_SIZE: f32 = 11.0;
 const MAP_ACTIVE_AUDITION_GLOW_SIZE: f32 = 24.0;
+const MAP_COLD_AUDITION_SIZE_PAD: f32 = 3.0;
 const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
@@ -864,10 +865,33 @@ fn queue_or_paint_item(
         paint_highlight_item(primitives, widget_id, center, color, item.similarity_anchor);
         return;
     }
+    if !item.instant_audition_ready {
+        paint_cold_audition_item(primitives, widget_id, center, node_size, color);
+        return;
+    }
     batches
         .entry(ColorKey::from(color))
         .or_default()
         .push(centered_rect(center, node_size));
+}
+
+fn paint_cold_audition_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    node_size: f32,
+    color: ui::Rgba8,
+) {
+    let side = node_size + MAP_COLD_AUDITION_SIZE_PAD;
+    paint_diamond(primitives, widget_id, center, side, color.with_alpha(46));
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        side,
+        ui::Rgba8::new(232, 236, 238, 165),
+        1.0,
+    );
 }
 
 fn paint_highlight_item(
@@ -1011,6 +1035,8 @@ fn stroke_diamond(
 fn sample_map_item_color(item: &SampleMapItem) -> ui::Rgba8 {
     if item.missing {
         ui::Rgba8::new(120, 120, 120, 180)
+    } else if !item.instant_audition_ready {
+        item.color.with_alpha(item.color.a.min(150))
     } else {
         item.color
     }
@@ -1257,6 +1283,36 @@ mod tests {
             })
             .sum::<usize>();
         assert_eq!(node_count, 3);
+    }
+
+    #[test]
+    fn cold_audition_nodes_paint_as_hollow_markers() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let mut cold = sample_map_item("/samples/long.wav", 0.50, 0.50, color);
+        cold.instant_audition_ready = false;
+        let widget = SampleMapWidget::new(vec![cold], SampleMapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill) if fill.color.a < 80
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(232, 236, 238, 165)
+        )));
+        assert!(primitives.iter().all(|primitive| !matches!(
+            primitive,
+            PaintPrimitive::FillRectBatch(batch) if batch.color == color
+        )));
     }
 
     #[test]
@@ -1848,6 +1904,7 @@ mod tests {
             selected: false,
             focused: false,
             similarity_anchor: false,
+            instant_audition_ready: true,
             missing: false,
         }
     }
