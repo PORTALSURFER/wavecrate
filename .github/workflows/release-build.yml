@@ -258,6 +258,13 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
+          WAVECRATE_MACOS_SIGNING: ${{ matrix.platform == 'macos' && '1' || '0' }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64 }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
         run: |
           scripts/internal/release/build_release_zip.sh \
             --target "${{ matrix.target }}" \

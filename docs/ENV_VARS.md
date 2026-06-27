@@ -62,6 +62,37 @@ Optional upload endpoint. Defaults to
 `https://portalsurfer.org/wavecrate/api/v1/release-uploads` and must end with
 `/release-uploads`.
 
+### macOS nightly signing secrets
+
+Nightly macOS zips are packaged as `Wavecrate.app` bundles. On GitHub Actions,
+the release workflow signs them with Developer ID, submits them to Apple
+notarization, staples the ticket, and only then uploads the zip to GitHub and
+PortalSurfer.
+
+- `APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64`
+Base64 text for the exported Developer ID Application `.p12` certificate.
+
+- `APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD`
+Password used when exporting the Developer ID Application `.p12`.
+
+- `APPLE_NOTARY_KEY_BASE64`
+Base64 text for the App Store Connect API key file, usually
+`AuthKey_<key-id>.p8`.
+
+- `APPLE_NOTARY_KEY_ID`
+Key ID shown for the App Store Connect API key.
+
+- `APPLE_NOTARY_ISSUER_ID`
+Issuer ID shown in App Store Connect API key settings.
+
+- `APPLE_CODESIGN_IDENTITY`
+Optional exact signing identity. When unset, the signing script uses the first
+imported `Developer ID Application:` identity from the temporary CI keychain.
+
+Local `build_release_zip.sh` runs remain unsigned unless
+`WAVECRATE_MACOS_SIGNING=1` is set explicitly, so development builds do not need
+Apple credentials.
+
 ## Agent workflow
 
 - `WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL`
