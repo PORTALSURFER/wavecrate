@@ -5,7 +5,7 @@ use std::{
 
 use crate::native_app::app::NativeAppState;
 
-const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
+const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 2048;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 impl NativeAppState {

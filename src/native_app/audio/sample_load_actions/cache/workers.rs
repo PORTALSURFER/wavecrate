@@ -14,6 +14,7 @@ use crate::native_app::{
         ActiveFolderCacheWarmStage, WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
         WaveformState,
     },
+    audio::sample_load_actions::cache::ACTIVE_FOLDER_CACHE_WARM_HYDRATE_MAX_FILES,
     waveform::{
         cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
         load_cached_waveform_file_for_playback, mark_cached_waveform_file_source_warm_attempted,
@@ -143,6 +144,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
     let mut deferred = Vec::new();
     let mut processed = 0;
     let mut decoded_source = false;
+    let mut hydrated_cache_files = 0;
     while let Some(path) = paths.next() {
         if is_cancelled() {
             deferred.push(path);
@@ -178,9 +180,12 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
                 &progress,
             );
             loaded.push((path, Arc::new(file)));
-            decoded_source = true;
-            deferred.extend(paths);
-            break;
+            hydrated_cache_files += 1;
+            if hydrated_cache_files >= ACTIVE_FOLDER_CACHE_WARM_HYDRATE_MAX_FILES {
+                deferred.extend(paths);
+                break;
+            }
+            continue;
         }
         let progress_gate = RefCell::new(ui::ProgressUpdateGate::new(
             ACTIVE_FOLDER_CACHE_PROGRESS_MIN_INTERVAL,

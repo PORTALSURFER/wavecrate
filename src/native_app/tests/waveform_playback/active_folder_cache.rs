@@ -1076,12 +1076,19 @@ fn active_folder_cache_warm_hydrates_playback_ready_cache_hits() {
         || false,
     );
 
-    assert_eq!(result.loaded.len(), 1);
-    assert_eq!(result.loaded[0].0, first);
+    assert_eq!(
+        result
+            .loaded
+            .iter()
+            .map(|(path, _)| path.clone())
+            .collect::<Vec<_>>(),
+        vec![first, second],
+        "source prep should hydrate multiple persisted cache hits in one worker batch"
+    );
     assert!(result.playback_ready.is_empty());
-    assert_eq!(result.processed, 1);
-    assert!(result.decoded_source);
-    assert_eq!(result.deferred, vec![second]);
+    assert_eq!(result.processed, 2);
+    assert!(!result.decoded_source);
+    assert!(result.deferred.is_empty());
 }
 
 #[test]
