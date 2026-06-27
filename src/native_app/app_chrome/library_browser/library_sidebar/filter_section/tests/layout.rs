@@ -71,3 +71,40 @@ fn filter_section_controls_scroll_when_panel_is_cramped() {
         "cramped filter controls should scroll vertically"
     );
 }
+
+#[test]
+fn filter_section_wide_labels_keep_harvest_controls_aligned_in_cramped_width() {
+    let state = FolderBrowserState::load_default();
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        180.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+    let harvest_label = frame
+        .paint_plan
+        .first_widget_rect(automation_filter_family_label_toggle_id("Harvest"))
+        .expect("Harvest label should render");
+    let harvest_text = frame
+        .paint_plan
+        .first_text_run("Harvest")
+        .expect("Harvest text should render")
+        .rect;
+    let harvest_dropdown = frame
+        .paint_plan
+        .first_widget_rect(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
+        .expect("Harvest dropdown should render");
+
+    assert_eq!(harvest_label.width(), FILTER_LABEL_WIDTH);
+    assert!(
+        harvest_text.min.x >= harvest_label.min.x && harvest_text.max.x <= harvest_label.max.x,
+        "Harvest text should remain inside the widened label cell, label={harvest_label:?}, text={harvest_text:?}"
+    );
+    assert!(
+        harvest_label.max.x <= harvest_dropdown.min.x,
+        "widened Harvest label should not overlap the dropdown controls, label={harvest_label:?}, dropdown={harvest_dropdown:?}"
+    );
+    assert!(
+        harvest_dropdown.width() > 0.0 && harvest_dropdown.max.x <= 180.0,
+        "cramped Harvest dropdown should stay readable inside the sidebar, dropdown={harvest_dropdown:?}"
+    );
+}
