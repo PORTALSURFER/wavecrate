@@ -108,6 +108,9 @@ pub(in crate::native_app) const AUTOMATION_CURATION_FILTER_TOGGLE_SCOPE: u64 =
 /// Scope for automation-facing harvest filter toggle ids.
 pub(in crate::native_app) const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 = FOLDER_FILTERS.id(23);
 pub(in crate::native_app) const HARVEST_FAMILY_TOGGLE_ID: u64 = FOLDER_FILTERS.id(24);
+/// Scope for automation-facing filter family label toggles.
+pub(in crate::native_app) const AUTOMATION_FILTER_FAMILY_LABEL_TOGGLE_SCOPE: u64 =
+    FOLDER_FILTERS.id(25);
 
 pub(in crate::native_app) const COLLECTIONS_SECTION_NODE_ID: u64 = COLLECTIONS.id(2);
 pub(in crate::native_app) const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = COLLECTIONS.id(3);

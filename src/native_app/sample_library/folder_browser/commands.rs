@@ -10,7 +10,7 @@ pub(in crate::native_app) use super::file_move_progress::{
     file_move_conflict_progress_label, file_move_conflict_progress_total,
     folder_move_progress_label, folder_move_progress_total,
 };
-pub(in crate::native_app) use super::messages::FolderBrowserMessage;
+pub(in crate::native_app) use super::messages::{FilterFamily, FolderBrowserMessage};
 pub(in crate::native_app) use super::move_types::{
     FileMoveConflictCompletion, FileMoveConflictResolution, FileMoveConflictResolutionRequest,
     FolderMoveCompletion, FolderMoveDropInput, FolderMoveRequest,

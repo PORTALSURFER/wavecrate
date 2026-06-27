@@ -10,7 +10,9 @@ use self::projection::{
 };
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
-use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::commands::{
+    FilterFamily, FolderBrowserMessage,
+};
 use crate::native_app::ui::ids as widget_ids;
 
 pub(super) const FILTER_ROW_HEIGHT: f32 = 24.0;
@@ -61,6 +63,9 @@ const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 =
 /// Scope for automation-facing rating filter toggle ids.
 const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_RATING_FILTER_TOGGLE_SCOPE;
+/// Scope for automation-facing filter family label toggles.
+const AUTOMATION_FILTER_FAMILY_LABEL_TOGGLE_SCOPE: u64 =
+    widget_ids::AUTOMATION_FILTER_FAMILY_LABEL_TOGGLE_SCOPE;
 
 pub(super) fn filter_rows(model: &FilterSectionViewModel) -> [ui::View<GuiMessage>; 6] {
     let projection = filter_rows_projection(model);
@@ -86,7 +91,7 @@ pub(super) fn tag_filter_clear_button_id() -> u64 {
 
 fn text_filter_row(projection: TextFilterRowProjection) -> ui::View<GuiMessage> {
     filter_input_row(
-        projection.label,
+        filter_row_label(projection.label, projection.family, projection.enabled),
         filter_text_input(
             projection.value,
             projection.placeholder,
@@ -136,7 +141,7 @@ fn text_filter_row_key(field: TextFilterField) -> &'static str {
 }
 
 fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<GuiMessage> {
-    let label = filter_row_label(row.label);
+    let label = filter_row_label(row.label, row.family, row.enabled);
     filter_labeled_control_row(
         label,
         ui::row(
@@ -154,7 +159,7 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
 
 fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage> {
     filter_labeled_control_row(
-        filter_row_label(row.label),
+        filter_row_label(row.label, row.family, row.enabled),
         ui::row(
             row.toggles
                 .iter()
@@ -223,7 +228,7 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     .height(HARVEST_FILTER_CONTROL_HEIGHT);
 
     filter_labeled_control_row_with_height(
-        filter_row_label(row.label),
+        filter_row_label(row.label, row.family, row.enabled),
         controls,
         "filter-harvest-row",
         HARVEST_FILTER_CONTROL_HEIGHT,
@@ -293,7 +298,7 @@ pub(super) fn automation_playback_type_filter_toggle_id(label: &str) -> u64 {
 }
 
 fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
-    let label = filter_row_label(row.label);
+    let label = filter_row_label(row.label, row.family, row.enabled);
     filter_labeled_control_row(
         label,
         ui::row(
@@ -355,15 +360,32 @@ pub(super) fn automation_rating_filter_toggle_id(label: &str) -> u64 {
 }
 
 fn filter_input_row(
-    label: &'static str,
+    label: ui::View<GuiMessage>,
     control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    filter_labeled_control_row(filter_row_label(label), control, key)
+    filter_labeled_control_row(label, control, key)
 }
 
-fn filter_row_label(label: &'static str) -> ui::View<GuiMessage> {
-    ui::text_line(label, FILTER_CLEAR_BUTTON_SIZE)
+fn filter_row_label(
+    label: &'static str,
+    family: FilterFamily,
+    enabled: bool,
+) -> ui::View<GuiMessage> {
+    ui::selectable(label, enabled)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .message(move |enabled| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::SetFilterFamilyEnabled(
+                family, enabled,
+            ))
+        })
+        .id(automation_filter_family_label_toggle_id(label))
+        .size(FILTER_LABEL_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+}
+
+/// Automation-facing id for a filter family label toggle.
+pub(super) fn automation_filter_family_label_toggle_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_FILTER_FAMILY_LABEL_TOGGLE_SCOPE, label)
 }
 
 fn filter_labeled_control_row(
@@ -448,8 +470,11 @@ mod tests {
     fn filter_model(help_tooltips_enabled: bool) -> FilterSectionViewModel {
         FilterSectionViewModel {
             name_filter: String::new(),
+            name_filter_enabled: false,
             tag_filter: String::new(),
+            tag_filter_enabled: false,
             curation: CurationFilterViewModel {
+                enabled: false,
                 toggles: vec![CurationFilterToggleViewModel {
                     scope: BrowserCurationScope::All,
                     label: "All",
@@ -457,6 +482,7 @@ mod tests {
                 }],
             },
             harvest: HarvestFilterViewModel {
+                enabled: false,
                 toggles: vec![HarvestFilterToggleViewModel {
                     filter: HarvestFilter::NeedsReview,
                     label: "Need",
@@ -466,11 +492,13 @@ mod tests {
                 family_open: false,
                 help_tooltips_enabled,
             },
+            playback_type_enabled: false,
             playback_type_filters: vec![PlaybackTypeFilterToggleViewModel {
                 filter: PlaybackTypeFilter::OneShot,
                 label: "1-Shot",
                 active: false,
             }],
+            rating_enabled: false,
             rating_filters: vec![RatingFilterToggleViewModel {
                 level: 0,
                 label: "U",

@@ -31,8 +31,8 @@ impl FolderBrowserState {
         window: ui::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'_> {
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filters = &self.filters.playback_type_filter;
+        let required_tags = self.active_required_tags();
+        let playback_type_filters = self.active_playback_type_filters();
         let ids = self
             .selected_collection_audio_file_ids_ref_with_sort_tags(collection, Some(tags_by_file));
         if required_tags.is_empty()
@@ -60,7 +60,7 @@ impl FolderBrowserState {
                     && playback_type_filter::playback_type_filter_matches(
                         file,
                         tags_by_file,
-                        playback_type_filters,
+                        &playback_type_filters,
                     )
             })
             .filter_map(|file| {
@@ -86,8 +86,9 @@ impl FolderBrowserState {
         collection: SampleCollection,
         sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Ref<'_, Vec<String>> {
-        let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
-        let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
+        let name_filter = filters::normalized_name_filter(self.active_name_filter());
+        let active_rating_filter = self.active_rating_filter();
+        let rating_filter_key = rating_filter::rating_filter_key(&active_rating_filter);
         let collection_key = format!("collection:{}", collection.index());
         let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
@@ -118,9 +119,9 @@ impl FolderBrowserState {
                     .iter()
                     .filter(|file| file.belongs_to_collection(collection)),
             );
-            filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
+            filters::filter_audio_files_by_name(&mut files, self.active_name_filter());
             files.retain(|file| {
-                rating_filter_allows_file(file, &self.filters.rating_filter, listing_reveal_id)
+                rating_filter_allows_file(file, &active_rating_filter, listing_reveal_id)
             });
             if self.filters.curation.enabled
                 && let Some(tags_by_file) = sort_tags
