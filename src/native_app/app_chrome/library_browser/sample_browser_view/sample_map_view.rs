@@ -4,7 +4,7 @@ use radiant::{
     prelude as ui,
     runtime::{
         PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-        push_stroke_polyline, push_stroke_rect,
+        push_stroke_polyline,
     },
     theme::ThemeTokens,
     widgets::{
@@ -44,8 +44,6 @@ const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
-const MAP_GROUP_MIN_ITEMS: usize = 8;
-const MAP_GROUP_REGION_PADDING: f32 = 18.0;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
 const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
@@ -765,13 +763,6 @@ impl Widget for SampleMapWidget {
             bounds,
             ui::Rgba8::new(8, 9, 10, 255),
         );
-        paint_group_regions(
-            primitives,
-            self.common.id,
-            bounds,
-            &self.items,
-            self.viewport,
-        );
         paint_items(
             primitives,
             self.common.id,
@@ -829,91 +820,6 @@ impl Widget for SampleMapWidget {
             sample_map_item_color(item),
         );
     }
-}
-
-fn paint_group_regions(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    bounds: Rect,
-    items: &[SampleMapItem],
-    viewport: SampleMapViewport,
-) {
-    let mut regions = BTreeMap::<ColorHueKey, SampleMapGroupRegion>::new();
-    for item in items {
-        if item.missing {
-            continue;
-        }
-        let center = item_center(bounds, item, viewport);
-        if !paint_bounds(bounds).contains(center) {
-            continue;
-        }
-        regions
-            .entry(ColorHueKey::from(item.color))
-            .or_insert_with(|| SampleMapGroupRegion::new(center, item.color))
-            .include(center);
-    }
-    for region in regions.values() {
-        if region.count < MAP_GROUP_MIN_ITEMS {
-            continue;
-        }
-        let rect = region.rect().expanded(MAP_GROUP_REGION_PADDING);
-        push_fill_rect(
-            primitives,
-            widget_id,
-            rect,
-            region
-                .color
-                .with_alpha(group_region_fill_alpha(region.count)),
-        );
-        push_stroke_rect(
-            primitives,
-            widget_id,
-            rect,
-            region
-                .color
-                .with_alpha(group_region_stroke_alpha(region.count)),
-            1.0,
-        );
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct SampleMapGroupRegion {
-    min: Point,
-    max: Point,
-    color: ui::Rgba8,
-    count: usize,
-}
-
-impl SampleMapGroupRegion {
-    fn new(center: Point, color: ui::Rgba8) -> Self {
-        Self {
-            min: center,
-            max: center,
-            color,
-            count: 0,
-        }
-    }
-
-    fn include(&mut self, center: Point) {
-        self.min.x = self.min.x.min(center.x);
-        self.min.y = self.min.y.min(center.y);
-        self.max.x = self.max.x.max(center.x);
-        self.max.y = self.max.y.max(center.y);
-        self.count += 1;
-    }
-
-    fn rect(self) -> Rect {
-        Rect::from_min_max(self.min, self.max)
-    }
-}
-
-fn group_region_fill_alpha(count: usize) -> u8 {
-    (12 + count.min(12) as u8 * 2).min(34)
-}
-
-fn group_region_stroke_alpha(count: usize) -> u8 {
-    (24 + count.min(12) as u8 * 3).min(60)
 }
 
 fn paint_items(
@@ -1198,23 +1104,6 @@ impl From<ui::Rgba8> for ColorKey {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct ColorHueKey {
-    r: u8,
-    g: u8,
-    b: u8,
-}
-
-impl From<ui::Rgba8> for ColorHueKey {
-    fn from(color: ui::Rgba8) -> Self {
-        Self {
-            r: color.r,
-            g: color.g,
-            b: color.b,
-        }
-    }
-}
-
 static MAP_ZOOM_IN_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <circle cx="7" cy="7" r="4.4" fill="none" stroke="currentColor" stroke-width="1.5"/>
@@ -1291,9 +1180,9 @@ mod tests {
     }
 
     #[test]
-    fn similarity_color_groups_paint_subtle_backdrop_regions() {
+    fn similarity_color_groups_do_not_paint_backdrop_regions() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
-        let items = (0..MAP_GROUP_MIN_ITEMS)
+        let items = (0..12)
             .map(|index| {
                 sample_map_item(
                     &format!("/samples/group-{index}.wav"),
@@ -1319,26 +1208,24 @@ mod tests {
             &ThemeTokens::default(),
         );
 
-        assert!(primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::FillRect(fill)
-                if fill.color == color.with_alpha(group_region_fill_alpha(MAP_GROUP_MIN_ITEMS))
-                    && fill.rect.width() > 40.0
-        )));
-        assert!(primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::StrokeRect(stroke)
-                if stroke.color == color.with_alpha(group_region_stroke_alpha(MAP_GROUP_MIN_ITEMS))
-        )));
         assert!(!primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == ui::Rgba8::new(57, 187, 245, group_region_fill_alpha(1))
+                if fill.color.a < 100
+                    && (fill.rect.width() > MAP_ACTIVE_AUDITION_GLOW_SIZE
+                        || fill.rect.height() > MAP_ACTIVE_AUDITION_GLOW_SIZE)
+        )));
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.color.a < 100
+                    && (stroke.rect.width() > MAP_ACTIVE_AUDITION_GLOW_SIZE
+                        || stroke.rect.height() > MAP_ACTIVE_AUDITION_GLOW_SIZE)
         )));
     }
 
     #[test]
-    fn small_same_color_runs_do_not_paint_group_backdrops() {
+    fn same_color_runs_still_paint_individual_nodes() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
         let widget = SampleMapWidget::new(
             vec![
@@ -1358,11 +1245,19 @@ mod tests {
             &ThemeTokens::default(),
         );
 
-        assert!(!primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::FillRect(fill)
-                if fill.color == color.with_alpha(group_region_fill_alpha(3))
-        )));
+        let node_count = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRectBatch(batch)
+                    if (batch.color.r, batch.color.g, batch.color.b)
+                        == (color.r, color.g, color.b) =>
+                {
+                    Some(batch.rects.len())
+                }
+                _ => None,
+            })
+            .sum::<usize>();
+        assert_eq!(node_count, 3);
     }
 
     #[test]
