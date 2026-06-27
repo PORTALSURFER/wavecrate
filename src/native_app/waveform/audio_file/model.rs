@@ -74,6 +74,10 @@ impl WaveformFile {
             && self.frames != 0
     }
 
+    pub(in crate::native_app) fn instant_audition_payload_available(&self) -> bool {
+        self.playback_samples.is_some() || self.playback_cache_file.is_some()
+    }
+
     pub(in crate::native_app::waveform) fn path_hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.path.hash(&mut hasher);

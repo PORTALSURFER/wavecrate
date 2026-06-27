@@ -264,6 +264,7 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
         .selected_sample_map_position(
             crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
                 tags_by_file: &state.metadata.tags_by_file,
+                instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
             },
         )
         .expect("selected sample should have a map position");

@@ -9,6 +9,7 @@ use wavecrate_analysis::aspects::SimilarityAspect;
 use wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
 
 use crate::native_app::sample_library::similarity_prep::NATIVE_SIMILARITY_UMAP_VERSION;
+use crate::native_app::waveform::should_use_file_backed_wav_decode;
 
 use super::{FileEntry, FolderBrowserState, SimilarityAspectStrengths};
 
@@ -23,6 +24,7 @@ const GROUP_CENTERS: [(f32, f32); wavecrate_analysis::aspects::ASPECT_COUNT] = [
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct SampleMapProjection<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
+    pub(in crate::native_app) instant_audition_sample_paths: &'a HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -165,7 +167,11 @@ impl FolderBrowserState {
         snapshot
             .rows()
             .iter()
-            .map(|file| {
+            .filter_map(|file| {
+                if cold_long_sample_for_map_audition(file, projection.instant_audition_sample_paths)
+                {
+                    return None;
+                }
                 let aspects = self.similarity_aspect_display_strengths_for_file(&file.id);
                 let strength = self.similarity_display_strength_for_file(&file.id);
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
@@ -181,7 +187,7 @@ impl FolderBrowserState {
                     strength,
                     layout_point.map(|point| (point.x, point.y)),
                 );
-                SampleMapItem {
+                Some(SampleMapItem {
                     file_id: file.id.clone(),
                     label: file.stem.clone(),
                     x,
@@ -191,7 +197,7 @@ impl FolderBrowserState {
                     focused: focused_file_id == Some(file.id.as_str()),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
                     missing: file.is_missing(),
-                }
+                })
             })
             .collect()
     }
@@ -227,6 +233,14 @@ impl FolderBrowserState {
             cluster_color_count,
         }
     }
+}
+
+fn cold_long_sample_for_map_audition(
+    file: &FileEntry,
+    instant_audition_sample_paths: &HashSet<String>,
+) -> bool {
+    should_use_file_backed_wav_decode(Path::new(&file.id))
+        && !instant_audition_sample_paths.contains(&file.id)
 }
 
 fn load_sample_map_layout_positions(
@@ -720,11 +734,13 @@ mod tests {
 
         let position = browser.selected_sample_map_position(SampleMapProjection {
             tags_by_file: &tags_by_file,
+            instant_audition_sample_paths: &HashSet::new(),
         });
 
         assert!(position.is_some());
         let projection = browser.sample_map_projection(SampleMapProjection {
             tags_by_file: &tags_by_file,
+            instant_audition_sample_paths: &HashSet::new(),
         });
         let selected = projection
             .iter()
@@ -770,6 +786,7 @@ mod tests {
         let map_ids = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| item.file_id)
@@ -817,6 +834,7 @@ mod tests {
         let map_ids = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| item.file_id)
@@ -833,6 +851,41 @@ mod tests {
             map_ids, listing_ids,
             "sample map must include the full filtered listing, not only virtualized list rows"
         );
+    }
+
+    #[test]
+    fn sample_map_projection_hides_cold_long_wavs_until_audition_ready() {
+        let root = tempfile::tempdir().expect("source root");
+        let short = root.path().join("short.wav");
+        let long = root.path().join("long.wav");
+        std::fs::write(&short, []).expect("write short sample");
+        std::fs::write(&long, vec![0_u8; 2048]).expect("write long sample");
+        let short_id = short.to_string_lossy().to_string();
+        let long_id = long.to_string_lossy().to_string();
+        let browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+
+        let cold_ids = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
+            })
+            .into_iter()
+            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+        let ready_ids = browser
+            .sample_map_projection(SampleMapProjection {
+                tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::from([long_id.clone()]),
+            })
+            .into_iter()
+            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(cold_ids, vec![short_id.clone()]);
+        assert_eq!(ready_ids, vec![long_id, short_id]);
     }
 
     #[test]
@@ -860,6 +913,7 @@ mod tests {
         let timbre_color = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .find(|item| item.file_id == snare_id.as_str())
@@ -872,6 +926,7 @@ mod tests {
         let spectrum_color = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .find(|item| item.file_id == snare_id.as_str())
@@ -917,6 +972,7 @@ mod tests {
         let selected_map_items = browser
             .sample_map_projection(SampleMapProjection {
                 tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .filter(|item| item.selected)

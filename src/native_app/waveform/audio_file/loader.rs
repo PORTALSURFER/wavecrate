@@ -250,7 +250,7 @@ fn summary_cache_can_attempt_wav_playback_ready(file: &WaveformFile, path: &Path
     file.playback_samples.is_none() && is_wav_path(path)
 }
 
-pub(in crate::native_app::waveform) fn should_use_file_backed_wav_decode(path: &Path) -> bool {
+pub(in crate::native_app) fn should_use_file_backed_wav_decode(path: &Path) -> bool {
     is_wav_path(path)
         && path
             .metadata()

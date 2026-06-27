@@ -121,9 +121,23 @@ impl NativeAppState {
                     .unwrap_or_else(|| id.clone())
             })
             .collect();
+        self.waveform.cache.instant_audition_sample_paths = self
+            .waveform
+            .cache
+            .instant_audition_sample_paths
+            .iter()
+            .map(|id| {
+                let path = PathBuf::from(id);
+                remapped_cache_path(&path, old_path, new_path)
+                    .map(|mapped| mapped.display().to_string())
+                    .unwrap_or_else(|| id.clone())
+            })
+            .collect();
     }
 
     fn insert_waveform_cache_entry(&mut self, path: PathBuf, entry: WaveformCacheEntry) {
+        let file_id = path.display().to_string();
+        let instant_audition_ready = entry.file.instant_audition_payload_available();
         match self.waveform.cache.entries.entry(path.clone()) {
             Entry::Occupied(mut occupied) => {
                 let old_entry = std::mem::replace(occupied.get_mut(), entry);
@@ -143,7 +157,18 @@ impl NativeAppState {
         self.waveform
             .cache
             .cached_sample_paths
-            .insert(path.display().to_string());
+            .insert(file_id.clone());
+        if instant_audition_ready {
+            self.waveform
+                .cache
+                .instant_audition_sample_paths
+                .insert(file_id);
+        } else {
+            self.waveform
+                .cache
+                .instant_audition_sample_paths
+                .remove(&file_id);
+        }
         self.touch_cached_waveform_path(path);
         self.enforce_waveform_cache_limit();
     }

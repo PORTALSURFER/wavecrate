@@ -94,6 +94,7 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) active_folder_warm_current_stage: Option<ActiveFolderCacheWarmStage>,
     pub(in crate::native_app) active_folder_warm_batch_base_completed: usize,
     pub(in crate::native_app) cached_sample_paths: HashSet<String>,
+    pub(in crate::native_app) instant_audition_sample_paths: HashSet<String>,
 }
 
 impl Default for WaveformCacheState {
@@ -122,6 +123,7 @@ impl Default for WaveformCacheState {
             active_folder_warm_current_stage: None,
             active_folder_warm_batch_base_completed: 0,
             cached_sample_paths: Default::default(),
+            instant_audition_sample_paths: Default::default(),
         }
     }
 }
@@ -225,6 +227,8 @@ impl WaveformCacheState {
     }
 
     pub(in crate::native_app) fn mark_sample_playback_cache_ready(&mut self, path: &Path) {
-        self.cached_sample_paths.insert(path.display().to_string());
+        let file_id = path.display().to_string();
+        self.cached_sample_paths.insert(file_id.clone());
+        self.instant_audition_sample_paths.insert(file_id);
     }
 }

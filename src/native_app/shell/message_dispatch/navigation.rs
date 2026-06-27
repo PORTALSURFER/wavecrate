@@ -269,6 +269,10 @@ impl NativeAppState {
                 .folder_browser
                 .selected_sample_map_position(SampleMapProjection {
                     tags_by_file: &self.metadata.tags_by_file,
+                    instant_audition_sample_paths: &self
+                        .waveform
+                        .cache
+                        .instant_audition_sample_paths,
                 })
         else {
             return;

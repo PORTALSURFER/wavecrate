@@ -165,6 +165,7 @@ fn sample_map_items_for_display(
         .folder_browser
         .sample_map_projection(SampleMapProjection {
             tags_by_file: &state.metadata.tags_by_file,
+            instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
         })
 }
 
