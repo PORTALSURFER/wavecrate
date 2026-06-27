@@ -24,6 +24,10 @@ impl WaveformState {
         self.edit_selection_denied_flash_frames
     }
 
+    pub(in crate::native_app) fn copy_flash_frames(&self) -> u8 {
+        self.copy_flash_frames
+    }
+
     pub(in crate::native_app) fn play_selection_flash_active(&self) -> bool {
         self.play_selection_flash_frames > 0
     }
@@ -36,6 +40,10 @@ impl WaveformState {
     pub(in crate::native_app) fn flash_edit_selection(&mut self) {
         self.edit_selection_flash_frames = Self::selection_flash_frame_count();
         self.edit_selection_denied_flash_frames = 0;
+    }
+
+    pub(in crate::native_app) fn flash_copied_file(&mut self) {
+        self.copy_flash_frames = Self::selection_flash_frame_count();
     }
 
     pub(in crate::native_app) fn flash_denied_selection(&mut self, kind: WaveformSelectionKind) {

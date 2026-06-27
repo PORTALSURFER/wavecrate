@@ -1290,6 +1290,17 @@ fn whole_file_copy_uses_radiant_platform_clipboard_handoff() {
 }
 
 #[test]
+fn whole_file_copy_flashes_loaded_waveform() {
+    let mut scenario =
+        WaveformPlaybackScenario::with_temp_wav("whole-file-copy-flash.wav", &[0, 1024]);
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.copy_selected_files(&mut context);
+
+    assert!(scenario.state.waveform.current.copy_flash_frames() > 0);
+}
+
+#[test]
 fn playmark_selection_change_undoes_and_redoes_through_transactions() {
     let mut scenario = WaveformPlaybackScenario::synthetic();
 

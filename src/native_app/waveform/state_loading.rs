@@ -133,6 +133,7 @@ impl WaveformState {
             edit_selection_flash_frames: 0,
             play_selection_denied_flash_frames: 0,
             edit_selection_denied_flash_frames: 0,
+            copy_flash_frames: 0,
             active_drag: None::<WaveformDrag>,
             pending_playback_start: None,
             context_menu_pointer_position: None,

@@ -45,6 +45,7 @@ impl NativeAppState {
         let count = paths.len();
         self.yield_sample_cache_warm_for_user_handoff(context);
         self.library.folder_browser.flash_copied_file_paths(&paths);
+        self.waveform.current.flash_copied_file();
         self.ui.status.sample = match count {
             1 => String::from("Copying selected file"),
             count => format!("Copying {count} selected files"),

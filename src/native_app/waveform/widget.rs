@@ -3,7 +3,7 @@ use radiant::{
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
-    runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive},
+    runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive, push_fill_rect},
     theme::ThemeTokens,
     widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput},
 };
@@ -134,6 +134,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     edit_selection_flash_frames: u8,
     play_selection_denied_flash_frames: u8,
     edit_selection_denied_flash_frames: u8,
+    copy_flash_frames: u8,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
@@ -175,6 +176,7 @@ impl WaveformWidgetProps {
             edit_selection_flash_frames: state.edit_selection_flash_frames(),
             play_selection_denied_flash_frames: state.play_selection_denied_flash_frames(),
             edit_selection_denied_flash_frames: state.edit_selection_denied_flash_frames(),
+            copy_flash_frames: state.copy_flash_frames(),
             beat_guides_enabled,
             beat_guide_count,
             active_drag_kind,
@@ -213,6 +215,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) edit_selection_flash_frames: u8,
     pub(super) play_selection_denied_flash_frames: u8,
     pub(super) edit_selection_denied_flash_frames: u8,
+    pub(super) copy_flash_frames: u8,
     pub(super) beat_guides_enabled: bool,
     pub(super) beat_guide_count: u8,
     pub(super) edit_preview: TimelineEditPreview,
@@ -244,6 +247,7 @@ impl WaveformWidget {
             edit_selection_flash_frames,
             play_selection_denied_flash_frames,
             edit_selection_denied_flash_frames,
+            copy_flash_frames,
             beat_guides_enabled,
             beat_guide_count,
             active_drag_kind,
@@ -273,6 +277,7 @@ impl WaveformWidget {
             edit_selection_flash_frames,
             play_selection_denied_flash_frames,
             edit_selection_denied_flash_frames,
+            copy_flash_frames,
             beat_guides_enabled,
             beat_guide_count,
             edit_preview: edit_preview_for_selection(edit_selection),
@@ -334,6 +339,7 @@ impl Widget for WaveformWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        self.append_copy_flash_paint(primitives, bounds);
         self.append_selection_and_marker_paint(primitives, bounds);
         self.append_edit_fade_paint(primitives, bounds);
     }
@@ -355,6 +361,18 @@ impl Widget for WaveformWidget {
 }
 
 impl WaveformWidget {
+    fn append_copy_flash_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        if self.copy_flash_frames == 0 {
+            return;
+        }
+        push_fill_rect(
+            primitives,
+            self.common.id,
+            bounds,
+            ui::Rgba8::new(255, 174, 89, 46),
+        );
+    }
+
     fn should_preserve_live_selection_preview_from(&self, previous: &Self) -> bool {
         if self.active_drag_kind == previous.active_drag_kind {
             return true;

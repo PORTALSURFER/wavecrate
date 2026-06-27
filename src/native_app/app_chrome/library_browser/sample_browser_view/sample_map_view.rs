@@ -861,6 +861,9 @@ fn queue_or_paint_item(
         return;
     }
     let color = sample_map_item_color(item);
+    if item.copy_flash {
+        paint_copy_flash_item(primitives, widget_id, center, color);
+    }
     if item.selected || item.similarity_anchor {
         paint_highlight_item(primitives, widget_id, center, color, item.similarity_anchor);
         return;
@@ -891,6 +894,29 @@ fn paint_cold_audition_item(
         side,
         ui::Rgba8::new(232, 236, 238, 165),
         1.0,
+    );
+}
+
+fn paint_copy_flash_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    color: ui::Rgba8,
+) {
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_SELECTED_GLOW_SIZE + 6.0,
+        color.with_alpha(78),
+    );
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_SELECTED_SIZE + 7.0,
+        ui::Rgba8::new(245, 245, 245, 235),
+        1.25,
     );
 }
 
@@ -1312,6 +1338,33 @@ mod tests {
         assert!(primitives.iter().all(|primitive| !matches!(
             primitive,
             PaintPrimitive::FillRectBatch(batch) if batch.color == color
+        )));
+    }
+
+    #[test]
+    fn copied_sample_map_nodes_paint_confirmation_glow() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let mut copied = sample_map_item("/samples/copied.wav", 0.50, 0.50, color);
+        copied.copy_flash = true;
+        let widget = SampleMapWidget::new(vec![copied], SampleMapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(78)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(245, 245, 245, 235)
         )));
     }
 
@@ -1903,6 +1956,7 @@ mod tests {
             color,
             selected: false,
             focused: false,
+            copy_flash: false,
             similarity_anchor: false,
             instant_audition_ready: true,
             missing: false,

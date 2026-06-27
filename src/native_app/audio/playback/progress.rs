@@ -419,7 +419,11 @@ impl FrameRepaintScopeSnapshot {
         Self {
             playing: state.waveform.current.is_playing(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
-            copy_flash_frames: state.library.folder_browser.copy_flash_frames(),
+            copy_flash_frames: state
+                .library
+                .folder_browser
+                .copy_flash_frames()
+                .max(state.waveform.current.copy_flash_frames()),
             drag_hover_auto_expand_pending: state
                 .library
                 .folder_browser

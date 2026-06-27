@@ -574,7 +574,7 @@ impl FolderBrowserState {
         folder_path_display(folder_path)
     }
 
-    fn copied_file_flash_active(&self, file_id: &str) -> bool {
+    pub(super) fn copied_file_flash_active(&self, file_id: &str) -> bool {
         self.copy_flash_active() && self.sample_list.copy_flash_file_ids.contains(file_id)
     }
 }

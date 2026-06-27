@@ -958,6 +958,22 @@ fn edit_selection_flash_paints_bright_overlay() {
 }
 
 #[test]
+fn copied_file_flash_paints_waveform_confirmation_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.flash_copied_file();
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    assert!(fill_rects(&plan).iter().any(|fill| {
+        fill.rect == Rect::from_size(200.0, 80.0)
+            && fill.color == radiant::gui::types::Rgba8::new(255, 174, 89, 46)
+    }));
+
+    state.apply_interaction(WaveformInteraction::Frame);
+    assert!(state.copy_flash_frames() > 0);
+}
+
+#[test]
 fn edit_selection_denied_flash_paints_red_twice() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
