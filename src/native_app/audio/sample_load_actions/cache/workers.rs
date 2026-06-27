@@ -73,7 +73,7 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm_with_progres
         ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_INTERVAL,
         ACTIVE_FOLDER_CACHE_PLAN_PROGRESS_MIN_DELTA,
     );
-    let mut playback_ready = Vec::new();
+    let playback_ready = Vec::new();
     let mut pending = Vec::new();
     for (index, path) in paths.into_iter().enumerate() {
         let checked = index.saturating_add(1);
@@ -86,29 +86,16 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm_with_progres
                 cancelled: true,
             };
         }
-        if cached_waveform_file_audition_ready_exists(&path) {
-            report_active_folder_cache_plan_progress(
-                &folder_id,
-                &path,
-                checked,
-                total,
-                true,
-                &mut progress_gate,
-                &progress,
-            );
-            playback_ready.push(path);
-        } else {
-            report_active_folder_cache_plan_progress(
-                &folder_id,
-                &path,
-                checked,
-                total,
-                false,
-                &mut progress_gate,
-                &progress,
-            );
-            pending.push(path);
-        }
+        report_active_folder_cache_plan_progress(
+            &folder_id,
+            &path,
+            checked,
+            total,
+            false,
+            &mut progress_gate,
+            &progress,
+        );
+        pending.push(path);
     }
     ActiveFolderCacheWarmPlanResult {
         folder_id,
@@ -152,7 +139,7 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
     let ActiveFolderCacheWarmRequest { folder_id, paths } = request;
     let mut paths = paths.into_iter();
     let mut loaded = Vec::new();
-    let mut playback_ready = Vec::new();
+    let playback_ready = Vec::new();
     let mut deferred = Vec::new();
     let mut processed = 0;
     let mut decoded_source = false;
@@ -170,20 +157,6 @@ pub(super) fn warm_active_folder_waveform_cache_with_progress(
             false,
             &progress,
         );
-        if cached_waveform_file_audition_ready_exists(&path) {
-            playback_ready.push(path.clone());
-            processed += 1;
-            report_active_folder_cache_progress(
-                &folder_id,
-                &path,
-                processed,
-                1.0,
-                ActiveFolderCacheWarmStage::Ready,
-                true,
-                &progress,
-            );
-            continue;
-        }
         report_active_folder_cache_progress(
             &folder_id,
             &path,

@@ -995,7 +995,7 @@ fn active_folder_cache_warm_builds_summary_cache_for_large_uncached_source_files
 }
 
 #[test]
-fn active_folder_cache_plan_treats_large_file_backed_summary_cache_as_processed() {
+fn active_folder_cache_plan_queues_large_file_backed_summary_cache_for_memory_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -1033,17 +1033,18 @@ fn active_folder_cache_plan_treats_large_file_backed_summary_cache_as_processed(
 
     assert_eq!(
         plan.playback_ready,
-        vec![sample_path],
-        "large summary caches are audition-ready through file-backed playback"
+        Vec::<PathBuf>::new(),
+        "source prep should not treat persisted summaries as memory-ready"
     );
-    assert!(
-        plan.pending.is_empty(),
-        "source warm should not requeue a large file once its summary cache exists"
+    assert_eq!(
+        plan.pending,
+        vec![sample_path],
+        "source prep should hydrate large summary caches for instant node playback"
     );
 }
 
 #[test]
-fn active_folder_cache_warm_batches_playback_ready_cache_hits() {
+fn active_folder_cache_warm_hydrates_playback_ready_cache_hits() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -1075,11 +1076,12 @@ fn active_folder_cache_warm_batches_playback_ready_cache_hits() {
         || false,
     );
 
-    assert!(result.loaded.is_empty());
-    assert_eq!(result.playback_ready, vec![first, second]);
-    assert_eq!(result.processed, 2);
-    assert!(!result.decoded_source);
-    assert!(result.deferred.is_empty());
+    assert_eq!(result.loaded.len(), 1);
+    assert_eq!(result.loaded[0].0, first);
+    assert!(result.playback_ready.is_empty());
+    assert_eq!(result.processed, 1);
+    assert!(result.decoded_source);
+    assert_eq!(result.deferred, vec![second]);
 }
 
 #[test]
@@ -1195,7 +1197,7 @@ fn active_folder_cache_warm_resumes_from_persisted_playback_ready_cache_after_re
 }
 
 #[test]
-fn active_folder_cache_plan_skips_decode_when_entire_source_is_processed() {
+fn active_folder_cache_plan_queues_processed_source_for_memory_warm() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -1234,8 +1236,8 @@ fn active_folder_cache_plan_skips_decode_when_entire_source_is_processed() {
             crate::native_app::app::ActiveFolderCacheWarmRequest::new(folder_id.clone(), paths),
             || false,
         );
-    assert_eq!(plan.playback_ready, vec![first.clone(), second.clone()]);
-    assert!(plan.pending.is_empty());
+    assert_eq!(plan.playback_ready, Vec::<PathBuf>::new());
+    assert_eq!(plan.pending, vec![first.clone(), second.clone()]);
 
     let mut context = ui::UiUpdateContext::default();
     restarted_state.schedule_active_folder_cache_warm(&mut context);
@@ -1256,25 +1258,19 @@ fn active_folder_cache_plan_skips_decode_when_entire_source_is_processed() {
             .cache
             .active_folder_warm_delay_task
             .active()
-            .is_none(),
-        "all-processed sources should not show or start a decode cache-warm job"
+            .is_some(),
+        "processed sources should still warm persisted cache into memory"
     );
-    assert!(
+    assert_eq!(
         restarted_state
             .waveform
             .cache
             .active_folder_warm_pending
-            .is_empty()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![first, second]
     );
-    for path in [first, second] {
-        assert!(
-            restarted_state
-                .waveform
-                .cache
-                .cached_sample_paths
-                .contains(&path.display().to_string())
-        );
-    }
 }
 
 #[test]
@@ -1320,13 +1316,13 @@ fn active_folder_cache_plan_only_reprocesses_changed_files_after_normalize() {
 
     assert_eq!(
         plan.playback_ready,
-        vec![processed],
-        "unchanged processed files should stay out of the fresh work pile"
+        Vec::<PathBuf>::new(),
+        "persisted-ready files still need memory warming for instant node playback"
     );
     assert_eq!(
         plan.pending,
-        vec![changed],
-        "edited files with stale cache identity should be the only fresh work"
+        vec![processed, changed],
+        "source prep should revisit both persisted-ready and changed files"
     );
     assert!(!plan.cancelled);
 }
