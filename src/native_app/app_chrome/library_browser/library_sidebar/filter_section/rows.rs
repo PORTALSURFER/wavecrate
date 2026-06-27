@@ -11,17 +11,21 @@ use self::projection::{
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
 use crate::native_app::ui::ids as widget_ids;
 
 pub(super) const FILTER_ROW_HEIGHT: f32 = 24.0;
 pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
 const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
-const FILTER_LABEL_WIDTH: f32 = 38.0;
-const CURATION_FILTER_TOGGLE_WIDTH: f32 = 44.0;
+const FILTER_LABEL_WIDTH: f32 = 54.0;
+const FILTER_CONTROL_SPACING: f32 = 2.0;
+const HARVEST_FILTER_CONTROL_HEIGHT: f32 = FILTER_CLEAR_BUTTON_SIZE * 2.0 + FILTER_CONTROL_SPACING;
+pub(super) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
+    FILTER_ROW_HEIGHT * 5.0 + HARVEST_FILTER_CONTROL_HEIGHT + FILTER_ROW_SPACING * 5.0;
+const CURATION_FILTER_TOGGLE_WIDTH: f32 = 46.0;
 const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
 const HARVEST_FILTER_TOGGLE_WIDTH: f32 = 30.0;
-const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 58.0;
+const HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT: usize = 4;
+const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 64.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
 pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
 const RATING_FILTER_TRASH_COLOR: ui::Rgba8 = ui::Rgba8 {
@@ -140,7 +144,7 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
                 .map(playback_type_filter_toggle)
                 .collect::<Vec<_>>(),
         )
-        .spacing(4.0)
+        .spacing(FILTER_CONTROL_SPACING)
         .fill_width()
         .height(FILTER_CLEAR_BUTTON_SIZE),
         "filter-type-row",
@@ -156,7 +160,7 @@ fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage>
                 .map(curation_filter_toggle)
                 .collect::<Vec<_>>(),
         )
-        .spacing(4.0)
+        .spacing(FILTER_CONTROL_SPACING)
         .fill_width()
         .height(FILTER_CLEAR_BUTTON_SIZE),
         "filter-curation-row",
@@ -181,24 +185,48 @@ pub(super) fn automation_curation_filter_toggle_id(label: &str) -> u64 {
 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
-    let mut controls = Vec::with_capacity(row.toggles.len() + 1);
-    controls.push(harvest_family_toggle(
+    let mut top_controls = Vec::with_capacity(HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT + 1);
+    let mut bottom_controls = Vec::with_capacity(
+        row.toggles
+            .len()
+            .saturating_sub(HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT),
+    );
+
+    top_controls.push(harvest_family_toggle(
         row.family_available,
         row.family_open,
         help_tooltips_enabled,
     ));
-    controls.extend(
-        row.toggles
-            .iter()
-            .map(|toggle| harvest_filter_toggle(toggle, help_tooltips_enabled)),
-    );
-    filter_labeled_control_row(
-        filter_row_label(row.label),
-        ui::row(controls)
-            .spacing(2.0)
+
+    for (index, toggle) in row.toggles.iter().enumerate() {
+        let control = harvest_filter_toggle(toggle, help_tooltips_enabled);
+        if index < HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT {
+            top_controls.push(control);
+        } else {
+            bottom_controls.push(control);
+        }
+    }
+
+    let controls = ui::column([
+        ui::row(top_controls)
+            .spacing(FILTER_CONTROL_SPACING)
             .fill_width()
             .height(FILTER_CLEAR_BUTTON_SIZE),
+        ui::row(bottom_controls)
+            .spacing(FILTER_CONTROL_SPACING)
+            .fill_width()
+            .height(FILTER_CLEAR_BUTTON_SIZE),
+    ])
+    .spacing(FILTER_CONTROL_SPACING)
+    .fill_width()
+    .height(HARVEST_FILTER_CONTROL_HEIGHT);
+
+    filter_labeled_control_row_with_height(
+        filter_row_label(row.label),
+        controls,
         "filter-harvest-row",
+        HARVEST_FILTER_CONTROL_HEIGHT,
+        HARVEST_FILTER_CONTROL_HEIGHT,
     )
 }
 
@@ -248,7 +276,7 @@ fn playback_type_filter_toggle(
 ) -> ui::View<GuiMessage> {
     let filter = toggle.filter;
     ui::selectable(toggle.label, toggle.active)
-        .style(ui::WidgetStyle::subtle(playback_type_filter_tone(filter)))
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::TogglePlaybackTypeFilter(
                 filter, enabled,
@@ -256,13 +284,6 @@ fn playback_type_filter_toggle(
         })
         .id(automation_playback_type_filter_toggle_id(toggle.label))
         .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
-}
-
-fn playback_type_filter_tone(filter: PlaybackTypeFilter) -> ui::WidgetTone {
-    match filter {
-        PlaybackTypeFilter::OneShot => ui::WidgetTone::Neutral,
-        PlaybackTypeFilter::Loop => ui::WidgetTone::Accent,
-    }
 }
 
 /// Automation-facing id for a playback-type filter toggle.
@@ -349,9 +370,29 @@ fn filter_labeled_control_row(
     control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    ui::dense_form_row(key, label, control, FILTER_LABEL_WIDTH)
-        .fill_width()
-        .height(FILTER_ROW_HEIGHT)
+    filter_labeled_control_row_with_height(
+        label,
+        control,
+        key,
+        FILTER_ROW_HEIGHT,
+        FILTER_CLEAR_BUTTON_SIZE,
+    )
+}
+
+fn filter_labeled_control_row_with_height(
+    label: ui::View<GuiMessage>,
+    control: ui::View<GuiMessage>,
+    key: &'static str,
+    row_height: f32,
+    cell_height: f32,
+) -> ui::View<GuiMessage> {
+    ui::form_row_from_parts(
+        ui::FormRowParts::dense(key, label, control)
+            .label_width(FILTER_LABEL_WIDTH)
+            .height(row_height)
+            .cell_height(cell_height),
+    )
+    .fill_width()
 }
 
 pub(super) fn empty_filter_message() -> TextInputMessage {

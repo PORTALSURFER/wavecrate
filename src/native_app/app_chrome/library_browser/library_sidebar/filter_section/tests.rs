@@ -13,7 +13,7 @@ use crate::native_app::ui::ids::HARVEST_FAMILY_TOGGLE_ID;
 use radiant::prelude::IntoView;
 use radiant::widgets::{ButtonMessage, SelectableMessage};
 
-const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 190.0;
+const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 220.0;
 
 mod layout;
 mod row_projection;

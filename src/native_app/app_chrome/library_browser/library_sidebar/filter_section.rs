@@ -12,7 +12,7 @@ mod rows;
 #[cfg(test)]
 mod tests;
 
-use rows::{FILTER_ROW_HEIGHT, FILTER_ROW_SPACING, filter_rows};
+use rows::{FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_ROW_SPACING, filter_rows};
 
 const FILTER_PANEL_PADDING: f32 = 6.0;
 #[cfg(test)]
@@ -51,20 +51,15 @@ pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMess
 
 fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let rows = filter_rows(model);
-    let content_height = filter_controls_content_height(rows.len());
 
     ui::scroll(
         ui::column(rows)
             .fill_width()
-            .height(content_height)
+            .height(FILTER_CONTROLS_CONTENT_HEIGHT)
             .spacing(FILTER_ROW_SPACING),
     )
     .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
     .id(FILTER_SECTION_SCROLL_NODE_ID)
     .fill_width()
     .fill_height()
-}
-
-fn filter_controls_content_height(row_count: usize) -> f32 {
-    FILTER_ROW_HEIGHT * row_count as f32 + FILTER_ROW_SPACING * row_count.saturating_sub(1) as f32
 }
