@@ -755,7 +755,7 @@ fn live_selection_preview_paints_in_runtime_overlay() {
 }
 
 #[test]
-fn live_selection_preview_paints_lightweight_drag_overlay() {
+fn live_playmark_preview_paints_full_interactive_chrome() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_size(200.0, 80.0);
@@ -770,16 +770,84 @@ fn live_selection_preview_paints_lightweight_drag_overlay() {
     let plan = runtime_overlay_plan(&widget, bounds);
     let fills = fill_rects(&plan);
 
-    assert_eq!(
-        fills.len(),
-        3,
-        "live drag preview should paint only the range fill and two boundary cursors"
-    );
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
             && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
     }));
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 49.0).abs() < 0.001
+                && (fill.rect.max.x - 111.0).abs() < 0.001
+                && (fill.rect.min.y - 0.0).abs() < 0.001
+                && (fill.rect.max.y - 7.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 185)
+        }),
+        "live playmark drag should keep the move handle visible"
+    );
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 104.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.rect.min.y - 64.0).abs() < 0.001
+                && (fill.rect.max.y - 80.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 235)
+        }),
+        "live playmark drag should keep the export handle visible"
+    );
+}
+
+#[test]
+fn live_editmark_preview_paints_full_interactive_chrome() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Edit,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Edit,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
+    });
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+    }));
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 49.0).abs() < 0.001
+                && (fill.rect.max.x - 111.0).abs() < 0.001
+                && (fill.rect.min.y - 0.0).abs() < 0.001
+                && (fill.rect.max.y - 7.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 180)
+        }),
+        "live editmark drag should keep the move handle visible"
+    );
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 36.5).abs() < 0.001
+                && (fill.rect.max.x - 43.5).abs() < 0.001
+                && (fill.rect.min.y - 58.0).abs() < 0.001
+                && (fill.rect.max.y - 80.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+        }),
+        "live editmark drag should keep resize handles visible"
+    );
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 74.0).abs() < 0.001
+                && (fill.rect.max.x - 86.0).abs() < 0.001
+                && (fill.rect.min.y - 0.0).abs() < 0.001
+                && (fill.rect.max.y - 10.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 225)
+        }),
+        "live editmark drag should keep the gain handle visible"
+    );
 }
 
 #[test]

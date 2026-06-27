@@ -291,7 +291,7 @@ fn waveform_selection_edge(role: DragHandleRole) -> Option<WaveformSelectionEdge
     }
 }
 
-fn edit_gain_handle_rect_for_geometry(
+pub(super) fn edit_gain_handle_rect_for_geometry(
     bounds: Rect,
     geometry: CanvasSelectionGeometry,
     width: f32,

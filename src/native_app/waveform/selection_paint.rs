@@ -11,7 +11,8 @@ use super::{
     DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WaveformActiveDragKind,
     WaveformSelectionKind, WaveformWidget,
     widget_geometry::{
-        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, edit_selection_resize_edge_bounds,
+        EDIT_GAIN_HANDLE_HEIGHT, EDIT_GAIN_HANDLE_WIDTH, SELECTION_RESIZE_HANDLE_STRIP_HEIGHT,
+        edit_gain_handle_rect_for_geometry, edit_selection_resize_edge_bounds,
         edit_selection_resize_edge_visible, selection_export_handle_style,
         selection_move_handle_style, selection_resize_edge_style, waveform_selection_edge_role,
     },
@@ -223,6 +224,17 @@ impl WaveformWidget {
                     Some(preview.selection),
                     style,
                 );
+                self.append_selection_affordance_paint(
+                    &mut paint,
+                    geometry,
+                    CanvasSelectionAffordanceStyle::new()
+                        .with_edge(selection_resize_edge_style())
+                        .with_body(selection_move_handle_style())
+                        .with_trailing_control(selection_export_handle_style()),
+                    style.affordance_paint_parts(
+                        bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
+                    ),
+                );
             }
             super::WaveformSelectionKind::Edit => {
                 let denied_flash_active =
@@ -239,6 +251,30 @@ impl WaveformWidget {
                     geometry,
                     Some(preview.selection),
                     style,
+                );
+                self.append_selection_affordance_paint(
+                    &mut paint,
+                    geometry,
+                    CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
+                    style.affordance_paint_parts(bounds),
+                );
+                self.append_edit_selection_resize_handle_paint(
+                    &mut paint,
+                    bounds,
+                    geometry,
+                    preview.selection,
+                );
+                self.append_edit_gain_handle_for_geometry_paint(
+                    &mut paint,
+                    bounds,
+                    geometry,
+                    edit_selection_handle_color(denied_flash_active).with_alpha(
+                        if flash_active || denied_flash_active {
+                            HANDLE_HOVER_ALPHA
+                        } else {
+                            EDIT_GAIN_HANDLE_ALPHA
+                        },
+                    ),
                 );
             }
         }
@@ -291,10 +327,13 @@ impl WaveformWidget {
             CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
             style.affordance_paint_parts(bounds),
         );
-        self.append_edit_selection_resize_handle_paint(paint, bounds, geometry);
-        self.append_edit_gain_handle_paint(
+        if let Some(selection) = self.edit_selection {
+            self.append_edit_selection_resize_handle_paint(paint, bounds, geometry, selection);
+        }
+        self.append_edit_gain_handle_for_geometry_paint(
             paint,
             bounds,
+            geometry,
             edit_selection_handle_color(denied_flash_active).with_alpha(
                 if flash_active || denied_flash_active {
                     HANDLE_HOVER_ALPHA
@@ -474,13 +513,19 @@ impl WaveformWidget {
         style.push_fills(paint.primitives_mut(), widget_id, geometry, parts);
     }
 
-    fn append_edit_gain_handle_paint(
+    fn append_edit_gain_handle_for_geometry_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
+        geometry: CanvasSelectionGeometry,
         color: Rgba8,
     ) {
-        let Some(rect) = self.edit_gain_handle_rect(bounds) else {
+        let Some(rect) = edit_gain_handle_rect_for_geometry(
+            bounds,
+            geometry,
+            EDIT_GAIN_HANDLE_WIDTH,
+            EDIT_GAIN_HANDLE_HEIGHT,
+        ) else {
             return;
         };
         paint.push_visible_fill_rect(rect, color);
@@ -491,10 +536,8 @@ impl WaveformWidget {
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
+        selection: wavecrate::selection::SelectionRange,
     ) {
-        let Some(selection) = self.edit_selection else {
-            return;
-        };
         let edge_bounds = edit_selection_resize_edge_bounds(bounds);
         let widget_id = paint.widget_id();
         for edge in [
