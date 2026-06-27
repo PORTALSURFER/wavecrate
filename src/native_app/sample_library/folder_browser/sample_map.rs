@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use radiant::prelude as ui;
+use radiant::widgets::PointerModifiers;
 use rusqlite::params_from_iter;
 use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceDatabaseConnectionRole};
 use wavecrate_analysis::aspects::SimilarityAspect;
@@ -215,6 +216,42 @@ impl FolderBrowserState {
             .map(|item| (item.x, item.y))
     }
 
+    pub(in crate::native_app) fn navigate_sample_map_matching_tags(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        tags_by_file: &HashMap<String, Vec<String>>,
+        instant_audition_sample_paths: &HashSet<String>,
+    ) -> Option<String> {
+        if delta == 0 || self.rename_active() || !self.selection.selected_file_active() {
+            return None;
+        }
+        self.prepare_sample_map_layout(tags_by_file);
+        let target = sample_map_navigation_target(
+            &self.sample_map_projection(SampleMapProjection {
+                tags_by_file,
+                instant_audition_sample_paths,
+            }),
+            self.selection.selected_file_id()?,
+            delta,
+        )?;
+        let visible_ids = self.browser_listing_snapshot(tags_by_file).ids().to_vec();
+        if extend {
+            self.selection.select_file_with_modifiers(
+                target.clone(),
+                &visible_ids,
+                PointerModifiers {
+                    shift: true,
+                    ..PointerModifiers::default()
+                },
+            );
+        } else {
+            self.selection
+                .navigate_file_to_adjacent_visible_id(target.clone())?;
+        }
+        Some(target)
+    }
+
     pub(in crate::native_app) fn sample_map_status(&self) -> SampleMapStatus {
         let clustered_count = self
             .sample_list
@@ -235,6 +272,33 @@ impl FolderBrowserState {
             cluster_color_count,
         }
     }
+}
+
+fn sample_map_navigation_target(
+    items: &[SampleMapItem],
+    selected_file_id: &str,
+    delta: i32,
+) -> Option<String> {
+    let current = items
+        .iter()
+        .find(|item| item.file_id.as_str() == selected_file_id)?;
+    let direction = delta.signum() as f32;
+    items
+        .iter()
+        .filter(|item| item.file_id != current.file_id)
+        .filter(|item| (item.y - current.y) * direction > f32::EPSILON)
+        .min_by(|left, right| {
+            sample_map_navigation_rank(current, left)
+                .total_cmp(&sample_map_navigation_rank(current, right))
+                .then_with(|| left.file_id.cmp(&right.file_id))
+        })
+        .map(|item| item.file_id.clone())
+}
+
+fn sample_map_navigation_rank(current: &SampleMapItem, candidate: &SampleMapItem) -> f32 {
+    let dx = candidate.x - current.x;
+    let dy = candidate.y - current.y;
+    dx * dx + dy * dy
 }
 
 fn instant_audition_ready_for_sample_map(
@@ -750,6 +814,64 @@ mod tests {
             .expect("selected map item");
         assert_eq!(position, Some((selected.x, selected.y)));
         assert!(selected.focused);
+    }
+
+    #[test]
+    fn sample_map_keyboard_navigation_uses_map_position_not_list_order() {
+        let root = tempfile::tempdir().expect("source root");
+        let alpha = root.path().join("alpha.wav");
+        let beta = root.path().join("beta.wav");
+        let close_below = root.path().join("close_below.wav");
+        std::fs::write(&alpha, []).expect("write alpha");
+        std::fs::write(&beta, []).expect("write beta");
+        std::fs::write(&close_below, []).expect("write close");
+        let alpha_id = alpha.to_string_lossy().to_string();
+        let beta_id = beta.to_string_lossy().to_string();
+        let close_below_id = close_below.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+        browser.prepare_sample_map_layout(&tags_by_file);
+        browser.sample_list.sample_map_layout.points_by_file = HashMap::from([
+            (
+                alpha_id.clone(),
+                SampleMapLayoutPoint {
+                    x: 0.50,
+                    y: 0.50,
+                    cluster_id: None,
+                },
+            ),
+            (
+                beta_id.clone(),
+                SampleMapLayoutPoint {
+                    x: 0.50,
+                    y: 0.92,
+                    cluster_id: None,
+                },
+            ),
+            (
+                close_below_id.clone(),
+                SampleMapLayoutPoint {
+                    x: 0.52,
+                    y: 0.58,
+                    cluster_id: None,
+                },
+            ),
+        ]);
+        browser.select_file(alpha_id.clone());
+
+        let down =
+            browser.navigate_sample_map_matching_tags(1, false, &tags_by_file, &HashSet::new());
+        let up =
+            browser.navigate_sample_map_matching_tags(-1, false, &tags_by_file, &HashSet::new());
+
+        assert_eq!(
+            down,
+            Some(close_below_id),
+            "map navigation should pick the closest lower map node, not the next filename row"
+        );
+        assert_eq!(up, Some(alpha_id));
     }
 
     #[test]

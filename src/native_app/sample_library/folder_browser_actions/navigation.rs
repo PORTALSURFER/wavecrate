@@ -404,6 +404,46 @@ impl NativeAppState {
             .folder_browser
             .selected_folder_id()
             .map(str::to_owned);
+        if self.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map
+            && self.library.folder_browser.selected_file_id().is_some()
+        {
+            let Some(path) = self
+                .library
+                .folder_browser
+                .navigate_sample_map_matching_tags(
+                    delta,
+                    extend,
+                    &self.metadata.tags_by_file,
+                    &self.waveform.cache.instant_audition_sample_paths,
+                )
+            else {
+                emit_gui_action(
+                    "folder_browser.navigate",
+                    Some("sample_map"),
+                    Some(direction),
+                    "edge",
+                    started_at,
+                    None,
+                );
+                return;
+            };
+
+            self.focus_selected_sample_map_node_after_browser_navigation();
+            emit_gui_action(
+                "folder_browser.navigate",
+                Some("sample_map"),
+                Some(direction),
+                "selected",
+                started_at,
+                None,
+            );
+            if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+                self.cancel_metadata_tag_entry();
+                self.metadata.selected_tag = None;
+            }
+            self.load_navigation_sample(path, context);
+            return;
+        }
         let Some(path) = self.library.folder_browser.navigate_vertical_matching_tags(
             delta,
             extend,
