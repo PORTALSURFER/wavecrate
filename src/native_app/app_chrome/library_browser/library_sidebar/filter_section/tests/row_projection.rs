@@ -442,6 +442,65 @@ fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
 }
 
 #[test]
+fn filter_section_playback_type_toggles_share_style_family() {
+    let inactive_frame = playback_type_filter_frame(&[]);
+    let inactive_one_shot = playback_type_toggle_chrome(&inactive_frame.paint_plan, "1-Shot");
+    let inactive_loop = playback_type_toggle_chrome(&inactive_frame.paint_plan, "Loop");
+    assert_eq!(
+        inactive_one_shot, inactive_loop,
+        "inactive playback-type toggles should render with matching chrome and text colors"
+    );
+
+    let active_frame =
+        playback_type_filter_frame(&[PlaybackTypeFilter::OneShot, PlaybackTypeFilter::Loop]);
+    let active_one_shot = playback_type_toggle_chrome(&active_frame.paint_plan, "1-Shot");
+    let active_loop = playback_type_toggle_chrome(&active_frame.paint_plan, "Loop");
+    assert_eq!(
+        active_one_shot, active_loop,
+        "active playback-type toggles should render with matching chrome and text colors"
+    );
+    assert_ne!(
+        inactive_one_shot, active_one_shot,
+        "active and inactive playback-type toggle states should remain visually distinct"
+    );
+}
+
+fn playback_type_filter_frame(active_filters: &[PlaybackTypeFilter]) -> SurfaceFrame {
+    let mut state = FolderBrowserState::load_default();
+    for filter in active_filters {
+        state.set_playback_type_filter(*filter, true);
+    }
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ))
+}
+
+fn playback_type_toggle_chrome(
+    plan: &SurfacePaintPlan,
+    label: &'static str,
+) -> (Rgba8, Rgba8, Rgba8) {
+    let widget_id = automation_playback_type_filter_toggle_id(label);
+    let fill = plan
+        .fill_rects_for_widget(widget_id)
+        .next()
+        .unwrap_or_else(|| panic!("missing fill for {label} playback-type toggle"))
+        .color;
+    let stroke = plan
+        .stroke_rects_for_widget(widget_id)
+        .next()
+        .unwrap_or_else(|| panic!("missing stroke for {label} playback-type toggle"))
+        .color;
+    let text = plan
+        .text_runs()
+        .find(|run| run.widget_id == widget_id && run.text.as_str() == label)
+        .unwrap_or_else(|| panic!("missing label for {label} playback-type toggle"))
+        .color;
+    (fill, stroke, text)
+}
+
+#[test]
 fn filter_section_projects_rating_toggles_and_dispatches_changes() {
     let mut state = FolderBrowserState::load_default();
     state.set_rating_filter(-3, true);

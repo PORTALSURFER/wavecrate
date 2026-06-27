@@ -359,7 +359,7 @@ fn playback_type_filter_toggle(
 ) -> ui::View<GuiMessage> {
     let filter = toggle.filter;
     ui::selectable(toggle.label, toggle.active)
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .style(playback_type_filter_toggle_style())
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::TogglePlaybackTypeFilter(
                 filter, enabled,
@@ -367,6 +367,10 @@ fn playback_type_filter_toggle(
         })
         .id(automation_playback_type_filter_toggle_id(toggle.label))
         .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+}
+
+fn playback_type_filter_toggle_style() -> ui::WidgetStyle {
+    ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
 }
 
 /// Automation-facing id for a playback-type filter toggle.

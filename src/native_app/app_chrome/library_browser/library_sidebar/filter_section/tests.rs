@@ -13,7 +13,9 @@ use crate::native_app::sample_library::folder_browser::model::{
     BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
 };
 use crate::native_app::ui::ids::HARVEST_FAMILY_TOGGLE_ID;
+use radiant::gui::types::Rgba8;
 use radiant::prelude::IntoView;
+use radiant::runtime::{SurfaceFrame, SurfacePaintPlan};
 use radiant::widgets::{ButtonMessage, SelectableMessage, TextInputMessage};
 
 const FILTER_SECTION_TEST_FRAME_HEIGHT: f32 = 220.0;
