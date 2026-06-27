@@ -537,7 +537,7 @@ fn sample_map_drag_audition_ignores_multi_select_modifiers() {
 }
 
 #[test]
-fn sample_map_audition_hit_centers_selected_node() {
+fn sample_map_audition_hit_preserves_current_viewport() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -553,6 +553,9 @@ fn sample_map_audition_hit_centers_selected_node() {
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     state.ui.chrome.sample_map_viewport.zoom = 4.0;
+    state.ui.chrome.sample_map_viewport.center_x = 0.1;
+    state.ui.chrome.sample_map_viewport.center_y = 0.9;
+    let initial_viewport = state.ui.chrome.sample_map_viewport;
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
@@ -567,19 +570,9 @@ fn sample_map_audition_hit_centers_selected_node() {
         state.library.folder_browser.selected_file_id(),
         Some(second_id.as_str())
     );
-    let expected = state
-        .library
-        .folder_browser
-        .selected_sample_map_position(
-            crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
-                tags_by_file: &state.metadata.tags_by_file,
-            },
-        )
-        .expect("selected sample should have a map position");
-    assert_sample_map_viewport_reveals(
-        state.ui.chrome.sample_map_viewport,
-        expected,
-        "map audition should reveal the selected node",
+    assert_eq!(
+        state.ui.chrome.sample_map_viewport, initial_viewport,
+        "map audition should select/play without panning the viewport",
     );
 }
 
@@ -599,6 +592,11 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
             ]),
         )
         .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.ui.chrome.sample_map_viewport.zoom = 4.0;
+    state.ui.chrome.sample_map_viewport.center_x = 0.12;
+    state.ui.chrome.sample_map_viewport.center_y = 0.88;
+    let initial_viewport = state.ui.chrome.sample_map_viewport;
     let mut context = radiant::prelude::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
@@ -625,6 +623,10 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(second_id.as_str())
+    );
+    assert_eq!(
+        state.ui.chrome.sample_map_viewport, initial_viewport,
+        "queued drag-play audition should not pan to the selected node"
     );
     assert_eq!(
         state
