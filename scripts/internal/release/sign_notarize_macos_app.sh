@@ -55,12 +55,31 @@ require_env() {
 }
 
 decode_base64_to_file() {
-  local value="$1"
-  local output="$2"
+  local label="$1"
+  local value="$2"
+  local output="$3"
   if printf '%s' "$value" | base64 --decode > "$output" 2>/dev/null; then
     return 0
   fi
-  printf '%s' "$value" | base64 -D > "$output"
+  if printf '%s' "$value" | base64 -D > "$output" 2>/dev/null; then
+    return 0
+  fi
+  echo "Failed to base64-decode $label. Recreate the GitHub secret from the original file without line breaks." >&2
+  exit 1
+}
+
+validate_pkcs12_bundle() {
+  if openssl pkcs12 \
+    -in "$CERT_PATH" \
+    -passin "pass:${APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD}" \
+    -info \
+    -noout >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Decoded APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64 is not a readable .p12 for the provided APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD." >&2
+  echo "Export the Developer ID Application certificate from Keychain as Personal Information Exchange (.p12), then set APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64 from that .p12 file." >&2
+  exit 1
 }
 
 require_env APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64
@@ -92,9 +111,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-decode_base64_to_file "$APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64" "$CERT_PATH"
-decode_base64_to_file "$APPLE_NOTARY_KEY_BASE64" "$NOTARY_KEY_PATH"
+decode_base64_to_file "APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64" "$APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64" "$CERT_PATH"
+decode_base64_to_file "APPLE_NOTARY_KEY_BASE64" "$APPLE_NOTARY_KEY_BASE64" "$NOTARY_KEY_PATH"
 chmod 600 "$CERT_PATH" "$NOTARY_KEY_PATH"
+validate_pkcs12_bundle
 
 security list-keychains -d user | sed 's/[[:space:]]*"//g; s/"$//' > "$ORIGINAL_KEYCHAINS_FILE"
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
