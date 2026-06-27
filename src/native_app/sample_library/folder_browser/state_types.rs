@@ -205,6 +205,7 @@ impl FileColumn {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FileColumnKind {
     Name,
+    Curation,
     Harvest,
     Rating,
     PlaybackType,
@@ -219,12 +220,13 @@ pub(in crate::native_app) enum FileColumnKind {
 }
 
 impl FileColumnKind {
-    pub(super) const DEFAULT_VISIBLE: [Self; 9] = [
+    pub(super) const DEFAULT_VISIBLE: [Self; 10] = [
         Self::Name,
         Self::Harvest,
         Self::SourceFolder,
         Self::Rating,
         Self::PlaybackType,
+        Self::Curation,
         Self::Collection,
         Self::Extension,
         Self::Size,
@@ -234,6 +236,7 @@ impl FileColumnKind {
     pub(super) fn from_id(id: &str) -> Option<Self> {
         match id {
             "name" => Some(Self::Name),
+            "curation" => Some(Self::Curation),
             "harvest" => Some(Self::Harvest),
             "rating" => Some(Self::Rating),
             "playback_type" => Some(Self::PlaybackType),
@@ -252,6 +255,7 @@ impl FileColumnKind {
     pub(super) fn id(self) -> &'static str {
         match self {
             Self::Name => "name",
+            Self::Curation => "curation",
             Self::Harvest => "harvest",
             Self::Rating => "rating",
             Self::PlaybackType => "playback_type",
@@ -269,6 +273,7 @@ impl FileColumnKind {
     fn default_label(self) -> &'static str {
         match self {
             Self::Name => "Name",
+            Self::Curation => "Curation",
             Self::Harvest => "Harvest",
             Self::Rating => "Rating",
             Self::PlaybackType => "Type",
@@ -286,6 +291,7 @@ impl FileColumnKind {
     fn default_width(self) -> f32 {
         match self {
             Self::Name => 240.0,
+            Self::Curation => 112.0,
             Self::Harvest => 74.0,
             Self::Rating => 68.0,
             Self::PlaybackType => 76.0,

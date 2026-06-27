@@ -19,6 +19,10 @@ pub(super) enum SampleCellContentProjection {
         badges: Vec<String>,
         muted: bool,
     },
+    Curation {
+        badges: Vec<String>,
+        muted: bool,
+    },
     Harvest {
         badges: Vec<String>,
         muted: bool,
@@ -73,6 +77,9 @@ pub(super) fn sample_cell_projection(column: SampleColumnDisplay) -> SampleCellP
                 badges,
                 muted,
             },
+            SampleColumnContent::Curation { badges, muted } => {
+                SampleCellContentProjection::Curation { badges, muted }
+            }
             SampleColumnContent::Harvest { badges, muted } => {
                 SampleCellContentProjection::Harvest { badges, muted }
             }

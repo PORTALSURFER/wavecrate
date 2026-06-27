@@ -46,8 +46,11 @@ fn render_sample_cell(projection: SampleCellProjection) -> ui::View<GuiMessage> 
             badges,
             muted,
         } => sample_name_cell(text, badges, muted, projection.width),
+        SampleCellContentProjection::Curation { badges, muted } => {
+            sample_badge_run_cell(badges, muted, projection.width)
+        }
         SampleCellContentProjection::Harvest { badges, muted } => {
-            sample_harvest_cell(badges, muted, projection.width)
+            sample_badge_run_cell(badges, muted, projection.width)
         }
         SampleCellContentProjection::Text { value, muted } => {
             sample_file_cell_with_tone(value, projection.width, muted)
@@ -254,33 +257,42 @@ fn sample_name_cell(
     let mut cells = Vec::with_capacity(badges.len() + 1);
     let name = ui::text(text).height(18.0).fill_width();
     cells.push(if muted { name.muted_text() } else { name });
-    cells.extend(
-        badges
-            .into_iter()
-            .take(SAMPLE_NAME_BADGE_LIMIT)
-            .map(|badge| {
-                ui::passive_badge(badge)
-                    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-                    .height(14.0)
-            }),
-    );
+    cells.extend(sample_badge_views(badges));
     ui::compact_details_cell(ui::row(cells).spacing(4.0).fill_width(), Some(width))
 }
 
-fn sample_harvest_cell(badges: Vec<String>, muted: bool, width: f32) -> ui::View<GuiMessage> {
+fn sample_badge_run_cell(badges: Vec<String>, muted: bool, width: f32) -> ui::View<GuiMessage> {
     if badges.is_empty() {
         return sample_file_cell_with_tone(String::new(), width, muted);
     }
-    let badges = badges
+    ui::compact_details_cell(
+        ui::row(sample_badge_views(badges))
+            .spacing(4.0)
+            .fill_width(),
+        Some(width),
+    )
+}
+
+fn sample_badge_views(badges: Vec<String>) -> Vec<ui::View<GuiMessage>> {
+    let badge_count = badges.len();
+    let mut views = badges
         .into_iter()
         .take(SAMPLE_NAME_BADGE_LIMIT)
-        .map(|badge| {
-            ui::passive_badge(badge)
-                .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-                .height(14.0)
-        })
+        .map(sample_passive_badge)
         .collect::<Vec<_>>();
-    ui::compact_details_cell(ui::row(badges).spacing(4.0).fill_width(), Some(width))
+    if badge_count > SAMPLE_NAME_BADGE_LIMIT {
+        views.push(sample_passive_badge(format!(
+            "+{}",
+            badge_count - SAMPLE_NAME_BADGE_LIMIT
+        )));
+    }
+    views
+}
+
+fn sample_passive_badge(label: String) -> ui::View<GuiMessage> {
+    ui::passive_badge(label)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
+        .height(14.0)
 }
 
 static SIMILARITY_ANCHOR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(

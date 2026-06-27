@@ -142,6 +142,7 @@ fn collection_view_shows_source_folder_column() {
             "harvest",
             "rating",
             "playback_type",
+            "curation",
             "collection",
             "extension",
             "size",
@@ -163,6 +164,7 @@ fn collection_view_shows_source_folder_column() {
             "source_folder",
             "rating",
             "playback_type",
+            "curation",
             "collection",
             "extension",
             "size",
@@ -447,6 +449,7 @@ fn sample_file_column_drag_reorders_columns() {
             "harvest",
             "rating",
             "playback_type",
+            "curation",
             "collection",
             "extension",
             "size",
@@ -459,7 +462,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 618.0);
+    assert_eq!(feedback.marker_x, 608.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -477,9 +480,10 @@ fn sample_file_column_drag_reorders_columns() {
             "name",
             "harvest",
             "playback_type",
+            "curation",
+            "rating",
             "collection",
             "extension",
-            "rating",
             "size",
             "modified"
         ]
@@ -513,6 +517,7 @@ fn sample_file_column_drag_cancel_clears_feedback_without_reorder() {
             "harvest",
             "rating",
             "playback_type",
+            "curation",
             "collection",
             "extension",
             "size",
