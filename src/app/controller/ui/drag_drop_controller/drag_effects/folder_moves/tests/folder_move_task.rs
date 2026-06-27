@@ -2,8 +2,11 @@ use super::super::worker::{run_folder_move_task, set_before_folder_move_batch_ho
 use super::support::{
     Must, folder_move_request, folder_move_test_guard, setup_folder_move_fixture,
 };
+use crate::app::controller::AppController;
+use crate::app::controller::ui::drag_drop_controller::DragDropController;
 use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleCollection, SourceDatabase};
+use crate::waveform::WaveformRenderer;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::Duration;
@@ -53,6 +56,56 @@ fn folder_move_updates_db_entries() {
     assert_eq!(
         db.collection_for_path(Path::new("dest/old/one.wav")).must(),
         Some(SampleCollection::new(1).must())
+    );
+}
+
+#[test]
+/// Folder-tree folder moves register undo and redo on the legacy controller stack.
+fn folder_tree_move_supports_undo_and_redo() {
+    let _guard = folder_move_test_guard();
+    set_before_folder_move_batch_hook(None);
+    let (_temp, source, source_root) = setup_folder_move_fixture();
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+
+    DragDropController::new(&mut controller).handle_folder_drop_to_folder(
+        source.id.clone(),
+        PathBuf::from("old"),
+        Path::new("dest"),
+    );
+
+    assert!(source_root.join("dest/old/one.wav").is_file());
+    assert!(!source_root.join("old").exists());
+    let db = SourceDatabase::open(&source_root).must();
+    assert!(db.tag_for_path(Path::new("old/one.wav")).must().is_none());
+    assert_eq!(
+        db.tag_for_path(Path::new("dest/old/one.wav")).must(),
+        Some(Rating::KEEP_1)
+    );
+
+    controller.undo();
+
+    assert!(source_root.join("old/one.wav").is_file());
+    assert!(!source_root.join("dest/old").exists());
+    assert_eq!(
+        db.tag_for_path(Path::new("old/one.wav")).must(),
+        Some(Rating::KEEP_1)
+    );
+    assert!(
+        db.tag_for_path(Path::new("dest/old/one.wav"))
+            .must()
+            .is_none()
+    );
+
+    controller.redo();
+
+    assert!(source_root.join("dest/old/one.wav").is_file());
+    assert!(!source_root.join("old").exists());
+    assert!(db.tag_for_path(Path::new("old/one.wav")).must().is_none());
+    assert_eq!(
+        db.tag_for_path(Path::new("dest/old/one.wav")).must(),
+        Some(Rating::KEEP_1)
     );
 }
 

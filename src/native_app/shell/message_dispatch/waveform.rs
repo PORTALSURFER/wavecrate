@@ -8,6 +8,9 @@ use crate::native_app::app::{
     emit_gui_action,
 };
 
+pub(in crate::native_app) const PLAY_SELECTION_TRANSACTION_LABEL: &str =
+    "Change play mark selection";
+
 impl NativeAppState {
     pub(super) fn apply_waveform_message(
         &mut self,
@@ -95,7 +98,7 @@ impl NativeAppState {
         let undo_snapshot = before.clone();
         let redo_snapshot = after;
         self.register_transaction_action(
-            "Change play mark selection",
+            PLAY_SELECTION_TRANSACTION_LABEL,
             move |transaction| transaction.restore_play_selection(undo_snapshot.clone()),
             move |transaction| transaction.restore_play_selection(redo_snapshot.clone()),
         );

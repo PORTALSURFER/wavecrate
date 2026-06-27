@@ -1,10 +1,11 @@
 use super::{
-    gui_state_for_span_tests, native_app_state_with_temp_sample, run_command_for_tests,
-    write_test_wav_i16,
+    gui_state_for_span_tests, native_app_state_with_temp_sample, reduce_gui_message_for_tests,
+    run_command_for_tests, write_test_wav_i16,
 };
+use crate::native_app::app::WaveformPlaySelectionSnapshot;
 use crate::native_app::sample_library::folder_browser::model::BrowserCurationScope;
 use crate::native_app::test_support::state::{
-    FolderBrowserMessage, FolderBrowserState, GuiMessage, view,
+    FolderBrowserMessage, FolderBrowserState, GuiMessage, WaveformState, view,
 };
 use radiant::{
     gui::types::{Point, Vector2},
@@ -14,6 +15,7 @@ use radiant::{
 };
 use std::{fs, path::Path, sync::Arc};
 use wavecrate::sample_sources::{Rating, SourceDatabase};
+use wavecrate::selection::SelectionRange;
 
 fn last_fixed_sample_browser_row_scroll(command: &Command<GuiMessage>) -> Option<(usize, i32)> {
     match command {
@@ -390,6 +392,90 @@ fn moving_selected_file_loads_next_visible_sample() {
         state.active_sample_load_task().is_some(),
         "moving the selected file should queue autoplay loading for the replacement selection"
     );
+}
+
+#[test]
+fn moving_folder_registers_undo_redo_transaction() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    let kicks = drums.join("kicks");
+    let loops = source_root.path().join("loops");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    write_test_wav_i16(&kick, &[0, 256, -256, 512]);
+    state.waveform.current = WaveformState::load_path(kick.clone()).expect("load kick");
+    let stale_play_selection = WaveformPlaySelectionSnapshot {
+        path: kick.clone(),
+        play_mark_ratio: Some(0.25),
+        play_selection: Some(SelectionRange::new(0.25, 0.5)),
+        marked_play_ranges: Vec::new(),
+    };
+    let stale_undo = stale_play_selection.clone();
+    let stale_redo = stale_play_selection;
+    state.register_transaction_action(
+        "Change play mark selection",
+        move |transaction| transaction.restore_play_selection(stale_undo.clone()),
+        move |transaction| transaction.restore_play_selection(stale_redo.clone()),
+    );
+    assert_eq!(state.transactions.history.list_items().len(), 1);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state.library.folder_browser.expand_selected_folder();
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::DragFolder(
+            kicks.display().to_string(),
+            DragHandleMessage::started(Point::new(4.0, 8.0)),
+        ));
+    let request = match state
+        .library
+        .folder_browser
+        .drop_drag_on_folder(&loops.display().to_string())
+        .expect("drop should be accepted")
+    {
+        crate::native_app::sample_library::folder_browser::commands::FolderMoveDropInput::Request(
+            request,
+        ) => request,
+        other => panic!("expected folder move request, got {other:?}"),
+    };
+    let completion =
+        crate::native_app::sample_library::folder_browser::commands::execute_folder_move_request(
+            request,
+        );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+
+    let moved_kicks = loops.join("kicks");
+    assert!(!kicks.exists());
+    assert!(moved_kicks.join("kick.wav").is_file());
+    assert_eq!(state.transactions.history.list_items().len(), 1);
+    assert_eq!(
+        state.transactions.history.list_items()[0].label,
+        "Move folder"
+    );
+
+    reduce_gui_message_for_tests(&mut state, GuiMessage::UndoTransaction);
+    assert_eq!(state.ui.status.sample, "Undid Move folder");
+    assert!(kicks.join("kick.wav").is_file());
+    assert!(!moved_kicks.exists());
+
+    reduce_gui_message_for_tests(&mut state, GuiMessage::RedoTransaction);
+    assert_eq!(state.ui.status.sample, "Redid Move folder");
+    assert!(!kicks.exists());
+    assert!(moved_kicks.join("kick.wav").is_file());
 }
 
 #[test]
