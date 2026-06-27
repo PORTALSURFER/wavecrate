@@ -29,6 +29,7 @@ impl TransactionListProjection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct TransactionListRowProjection {
     pub(super) id: u64,
+    pub(super) order_label: String,
     pub(super) label: String,
     pub(super) action_summary: String,
     pub(super) state: TransactionListState,
@@ -37,8 +38,15 @@ pub(super) struct TransactionListRowProjection {
 impl TransactionListRowProjection {
     fn from_item(item: TransactionListItem) -> Self {
         let action_summary = transaction_action_summary(&item);
+        let order_label = match item.state {
+            TransactionListState::Active => String::from("Draft"),
+            TransactionListState::Undoable | TransactionListState::Redoable => {
+                format!("#{}", item.id)
+            }
+        };
         Self {
             id: item.id,
+            order_label,
             label: item.label,
             action_summary,
             state: item.state,

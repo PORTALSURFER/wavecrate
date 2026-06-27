@@ -1,13 +1,33 @@
 use crate::native_app::test_support::state::{GuiMessage, NativeAppState, default_gui_shortcuts};
 use radiant::prelude as ui;
 
+fn transaction_list_shortcut() -> ui::KeyPress {
+    ui::KeyPress {
+        key: ui::KeyCode::Backslash,
+        command: true,
+        control: false,
+        shift: true,
+        alt: false,
+    }
+}
+
 #[test]
-fn shift_u_shortcut_toggles_transaction_list() {
+fn command_shift_backslash_shortcut_toggles_transaction_list() {
     let state = NativeAppState::load_default().expect("default state loads");
-    let resolution =
-        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::U));
+    let resolution = default_gui_shortcuts(&state).resolve(transaction_list_shortcut());
 
     assert_eq!(resolution.action, Some(GuiMessage::ToggleTransactionList));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn transaction_list_modal_escape_closes_transaction_list() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.chrome.transaction_list_open = true;
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(resolution.action, Some(GuiMessage::CloseTransactionList));
     assert!(resolution.handled);
 }
 

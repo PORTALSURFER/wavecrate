@@ -250,6 +250,8 @@ pub(in crate::native_app) enum GuiMessage {
     SimilarSectionsResolved(SimilarSectionsResult),
     UndoTransaction,
     RedoTransaction,
+    UndoTransactionsThrough(u64),
+    RedoTransactionsThrough(u64),
     ToggleTransactionList,
     CloseTransactionList,
     FocusRenameInput(u64),

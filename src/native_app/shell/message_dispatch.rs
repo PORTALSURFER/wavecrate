@@ -154,6 +154,8 @@ impl NativeAppState {
             | GuiMessage::SimilarSectionsResolved(_)
             | GuiMessage::UndoTransaction
             | GuiMessage::RedoTransaction
+            | GuiMessage::UndoTransactionsThrough(_)
+            | GuiMessage::RedoTransactionsThrough(_)
             | GuiMessage::ToggleTransactionList
             | GuiMessage::CloseTransactionList
             | GuiMessage::FocusRenameInput(_)
