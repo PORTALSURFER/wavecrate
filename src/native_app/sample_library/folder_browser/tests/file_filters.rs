@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::commands::FilterFamily;
 use crate::native_app::sample_library::folder_browser::model::{
     BrowserCurationScope, PlaybackTypeFilter,
 };
@@ -657,6 +658,82 @@ fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
             .map(|file| file.name.as_str())
             .collect::<Vec<_>>(),
         vec!["Deep Kick.wav", "Hat.wav", "Snare.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn filter_family_labels_disable_filters_without_discarding_selected_values() {
+    let root = temp_source_root("wavecrate-gui-filter-family-enabled");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("Deep Kick.wav");
+    let snare = drums.join("Snare.wav");
+    let hat = drums.join("Hat.wav");
+    for file in [&kick, &snare, &hat] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    assert!(browser.set_file_rating_state(&kick, Rating::KEEP_1, false));
+    assert!(browser.set_file_rating_state(&snare, Rating::KEEP_1, false));
+    let tags_by_file = HashMap::from([
+        (path_id(&kick), vec![String::from("drum")]),
+        (path_id(&snare), vec![String::from("drum")]),
+        (path_id(&hat), vec![String::from("metal")]),
+    ]);
+
+    browser.apply_message(FolderBrowserMessage::NameFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("kick"),
+        },
+    ));
+    browser.apply_message(FolderBrowserMessage::TagFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("drum"),
+        },
+    ));
+    browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(1, true));
+
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Deep Kick.wav"],
+        "enabled name, tag, and rating rows should combine"
+    );
+
+    browser.apply_message(FolderBrowserMessage::SetFilterFamilyEnabled(
+        FilterFamily::Name,
+        false,
+    ));
+
+    assert_eq!(browser.name_filter(), "kick");
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Deep Kick.wav", "Snare.wav"],
+        "disabled name row should be ignored while tag and rating rows stay active"
+    );
+
+    browser.apply_message(FolderBrowserMessage::SetFilterFamilyEnabled(
+        FilterFamily::Name,
+        true,
+    ));
+
+    assert_eq!(
+        browser
+            .selected_audio_files_matching_tags(&tags_by_file)
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Deep Kick.wav"],
+        "re-enabling should restore the preserved name filter value"
     );
     let _ = fs::remove_dir_all(root);
 }

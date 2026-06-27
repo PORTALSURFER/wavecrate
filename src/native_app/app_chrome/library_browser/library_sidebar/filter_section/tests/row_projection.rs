@@ -87,6 +87,46 @@ fn filter_section_filter_name_labels_are_compact_and_same_size() {
 }
 
 #[test]
+fn filter_section_filter_labels_dispatch_family_enable_changes() {
+    let mut state = FolderBrowserState::load_default();
+    state.apply_message(FolderBrowserMessage::NameFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("kick"),
+        },
+    ));
+    state.set_rating_filter(1, true);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            automation_filter_family_label_toggle_id("Name"),
+            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Name, false)
+        ))
+    );
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            automation_filter_family_label_toggle_id("Ratin"),
+            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Rating, false)
+        ))
+    );
+    assert_eq!(
+        filter_section(&model).view_dispatch_widget_output(
+            automation_filter_family_label_toggle_id("Tags"),
+            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Tags, true)
+        ))
+    );
+}
+
+#[test]
 fn filter_section_projects_curation_scope_toggles_and_dispatches_changes() {
     let mut state = FolderBrowserState::load_default();
     state.set_curation_scope(BrowserCurationScope::Ratings, true);

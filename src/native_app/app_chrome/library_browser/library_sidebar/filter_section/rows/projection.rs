@@ -3,6 +3,7 @@ use crate::native_app::app_chrome::view_models::library_sidebar::{
     HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
     RatingFilterToggleViewModel,
 };
+use crate::native_app::sample_library::folder_browser::commands::FilterFamily;
 use crate::native_app::sample_library::folder_browser::model::{
     BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
 };
@@ -26,20 +27,26 @@ pub(super) enum TextFilterField {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct TextFilterRowProjection {
     pub(super) field: TextFilterField,
+    pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) value: String,
+    pub(super) enabled: bool,
     pub(super) placeholder: &'static str,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct PlaybackTypeFilterRowProjection {
+    pub(super) family: FilterFamily,
     pub(super) label: &'static str,
+    pub(super) enabled: bool,
     pub(super) toggles: Vec<PlaybackTypeFilterToggleProjection>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CurationFilterRowProjection {
+    pub(super) family: FilterFamily,
     pub(super) label: &'static str,
+    pub(super) enabled: bool,
     pub(super) toggles: Vec<CurationFilterToggleProjection>,
 }
 
@@ -52,7 +59,9 @@ pub(super) struct CurationFilterToggleProjection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct HarvestFilterRowProjection {
+    pub(super) family: FilterFamily,
     pub(super) label: &'static str,
+    pub(super) enabled: bool,
     pub(super) toggles: Vec<HarvestFilterToggleProjection>,
     pub(super) family_available: bool,
     pub(super) family_open: bool,
@@ -76,7 +85,9 @@ pub(super) struct PlaybackTypeFilterToggleProjection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct RatingFilterRowProjection {
+    pub(super) family: FilterFamily,
     pub(super) label: &'static str,
+    pub(super) enabled: bool,
     pub(super) toggles: Vec<RatingFilterToggleProjection>,
 }
 
@@ -91,20 +102,26 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
     FilterRowsProjection {
         name_filter: TextFilterRowProjection {
             field: TextFilterField::Name,
+            family: FilterFamily::Name,
             label: "Name",
             value: model.name_filter.clone(),
+            enabled: model.name_filter_enabled,
             placeholder: "Any",
         },
         tag_filter: TextFilterRowProjection {
             field: TextFilterField::Tags,
+            family: FilterFamily::Tags,
             label: "Tags",
             value: model.tag_filter.clone(),
+            enabled: model.tag_filter_enabled,
             placeholder: "Any",
         },
         curation: CurationFilterRowProjection::from_view_model(&model.curation),
         harvest: HarvestFilterRowProjection::from_view_model(&model.harvest),
         playback_type: PlaybackTypeFilterRowProjection {
+            family: FilterFamily::PlaybackType,
             label: "Type",
+            enabled: model.playback_type_enabled,
             toggles: model
                 .playback_type_filters
                 .iter()
@@ -112,7 +129,9 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
                 .collect(),
         },
         rating: RatingFilterRowProjection {
+            family: FilterFamily::Rating,
             label: "Ratin",
+            enabled: model.rating_enabled,
             toggles: model
                 .rating_filters
                 .iter()
@@ -125,7 +144,9 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
 impl CurationFilterRowProjection {
     fn from_view_model(model: &CurationFilterViewModel) -> Self {
         Self {
+            family: FilterFamily::Curation,
             label: "Curat",
+            enabled: model.enabled,
             toggles: model
                 .toggles
                 .iter()
@@ -148,7 +169,9 @@ impl CurationFilterToggleProjection {
 impl HarvestFilterRowProjection {
     fn from_view_model(model: &HarvestFilterViewModel) -> Self {
         Self {
+            family: FilterFamily::Harvest,
             label: "Harve",
+            enabled: model.enabled,
             toggles: model
                 .toggles
                 .iter()
@@ -222,8 +245,10 @@ mod tests {
             projection.name_filter,
             TextFilterRowProjection {
                 field: TextFilterField::Name,
+                family: FilterFamily::Name,
                 label: "Name",
                 value: "kick".to_string(),
+                enabled: true,
                 placeholder: "Any",
             }
         );
@@ -231,8 +256,10 @@ mod tests {
             projection.tag_filter,
             TextFilterRowProjection {
                 field: TextFilterField::Tags,
+                family: FilterFamily::Tags,
                 label: "Tags",
                 value: "drum".to_string(),
+                enabled: true,
                 placeholder: "Any",
             }
         );
@@ -243,6 +270,7 @@ mod tests {
         let projection = filter_rows_projection(&filter_model());
 
         assert_eq!(projection.curation.label, "Curat");
+        assert!(projection.curation.enabled);
         assert_eq!(
             projection
                 .curation
@@ -257,6 +285,7 @@ mod tests {
             ]
         );
         assert_eq!(projection.harvest.label, "Harve");
+        assert!(projection.harvest.enabled);
         assert_eq!(
             projection
                 .harvest
@@ -317,6 +346,7 @@ mod tests {
             ]
         );
         assert_eq!(projection.playback_type.label, "Type");
+        assert!(projection.playback_type.enabled);
         assert_eq!(
             projection
                 .playback_type
@@ -330,6 +360,7 @@ mod tests {
             ]
         );
         assert_eq!(projection.rating.label, "Ratin");
+        assert!(projection.rating.enabled);
         assert_eq!(
             projection
                 .rating
@@ -344,8 +375,11 @@ mod tests {
     fn filter_model() -> FilterSectionViewModel {
         FilterSectionViewModel {
             name_filter: "kick".to_string(),
+            name_filter_enabled: true,
             tag_filter: "drum".to_string(),
+            tag_filter_enabled: true,
             curation: CurationFilterViewModel {
+                enabled: true,
                 toggles: vec![
                     CurationFilterToggleViewModel {
                         scope: BrowserCurationScope::All,
@@ -365,6 +399,7 @@ mod tests {
                 ],
             },
             harvest: HarvestFilterViewModel {
+                enabled: true,
                 toggles: vec![
                     HarvestFilterToggleViewModel {
                         filter: HarvestFilter::New,
@@ -416,6 +451,7 @@ mod tests {
                 family_open: false,
                 help_tooltips_enabled: true,
             },
+            playback_type_enabled: true,
             playback_type_filters: vec![
                 PlaybackTypeFilterToggleViewModel {
                     filter: PlaybackTypeFilter::OneShot,
@@ -428,6 +464,7 @@ mod tests {
                     active: true,
                 },
             ],
+            rating_enabled: true,
             rating_filters: vec![
                 RatingFilterToggleViewModel {
                     level: -1,

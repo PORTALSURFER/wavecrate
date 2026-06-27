@@ -5,6 +5,7 @@ use super::{
     DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
     curation::{BrowserCurationMode, BrowserCurationScope},
     harvest_filter::{HARVEST_FILTERS, HarvestFilter},
+    messages::FilterFamily,
     playback_type_filter::{PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter},
     rating_filter::RATING_FILTER_LEVELS,
 };
@@ -44,11 +45,16 @@ const fn metadata_panel_geometry() -> ui::PanelSectionGeometry {
 #[derive(Clone, Debug, Default)]
 pub(super) struct BrowserFilterState {
     pub(super) name_filter: String,
+    pub(super) name_enabled: bool,
     pub(super) tag_filter: String,
+    pub(super) tags_enabled: bool,
     pub(super) playback_type_filter: BTreeSet<PlaybackTypeFilter>,
+    pub(super) playback_type_enabled: bool,
     pub(super) rating_filter: BTreeSet<i8>,
+    pub(super) rating_enabled: bool,
     pub(super) curation: BrowserCurationMode,
     pub(super) harvest: Option<HarvestFilter>,
+    pub(super) harvest_enabled: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -88,16 +94,32 @@ impl FolderBrowserState {
         self.filters.name_filter.as_str()
     }
 
+    pub(in crate::native_app) fn name_filter_enabled(&self) -> bool {
+        self.filters.name_enabled
+    }
+
     pub(in crate::native_app) fn tag_filter(&self) -> &str {
         self.filters.tag_filter.as_str()
+    }
+
+    pub(in crate::native_app) fn tag_filter_enabled(&self) -> bool {
+        self.filters.tags_enabled
     }
 
     pub(in crate::native_app) fn rating_filter(&self) -> &BTreeSet<i8> {
         &self.filters.rating_filter
     }
 
+    pub(in crate::native_app) fn rating_filter_enabled(&self) -> bool {
+        self.filters.rating_enabled
+    }
+
     pub(in crate::native_app) fn playback_type_filter(&self) -> &BTreeSet<PlaybackTypeFilter> {
         &self.filters.playback_type_filter
+    }
+
+    pub(in crate::native_app) fn playback_type_filter_enabled(&self) -> bool {
+        self.filters.playback_type_enabled
     }
 
     pub(in crate::native_app) fn curation_mode(&self) -> &BrowserCurationMode {
@@ -116,6 +138,10 @@ impl FolderBrowserState {
         self.filters.harvest
     }
 
+    pub(in crate::native_app) fn harvest_filter_enabled(&self) -> bool {
+        self.filters.harvest_enabled
+    }
+
     pub(in crate::native_app) fn apply_name_filter_input(
         &mut self,
         message: radiant::widgets::TextInputMessage,
@@ -128,6 +154,7 @@ impl FolderBrowserState {
             return;
         }
         self.filters.name_filter = value;
+        self.filters.name_enabled = !self.filters.name_filter.trim().is_empty();
         self.clear_listing_reveals();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
@@ -145,7 +172,31 @@ impl FolderBrowserState {
             return;
         }
         self.filters.tag_filter = value;
+        self.filters.tags_enabled = !self.filters.tag_filter.trim().is_empty();
         self.clear_listing_reveals();
+        self.reset_file_view();
+    }
+
+    pub(in crate::native_app) fn set_filter_family_enabled(
+        &mut self,
+        family: FilterFamily,
+        enabled: bool,
+    ) {
+        let changed = match family {
+            FilterFamily::Name => set_bool(&mut self.filters.name_enabled, enabled),
+            FilterFamily::Tags => set_bool(&mut self.filters.tags_enabled, enabled),
+            FilterFamily::Curation => set_bool(&mut self.filters.curation.enabled, enabled),
+            FilterFamily::Harvest => set_bool(&mut self.filters.harvest_enabled, enabled),
+            FilterFamily::PlaybackType => {
+                set_bool(&mut self.filters.playback_type_enabled, enabled)
+            }
+            FilterFamily::Rating => set_bool(&mut self.filters.rating_enabled, enabled),
+        };
+        if !changed {
+            return;
+        }
+        self.clear_listing_reveals();
+        self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
     }
 
@@ -161,6 +212,7 @@ impl FolderBrowserState {
         if !changed {
             return;
         }
+        self.filters.rating_enabled = !self.filters.rating_filter.is_empty();
         self.clear_listing_reveals();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
@@ -180,6 +232,7 @@ impl FolderBrowserState {
             self.filters.playback_type_filter.remove(&filter)
         };
         if changed {
+            self.filters.playback_type_enabled = !self.filters.playback_type_filter.is_empty();
             self.clear_listing_reveals();
             self.reset_file_view();
         }
@@ -214,6 +267,7 @@ impl FolderBrowserState {
             return;
         }
         self.filters.harvest = next;
+        self.filters.harvest_enabled = self.filters.harvest.is_some();
         self.clear_listing_reveals();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();
@@ -261,4 +315,12 @@ impl FolderBrowserState {
             ),
         );
     }
+}
+
+fn set_bool(target: &mut bool, value: bool) -> bool {
+    if *target == value {
+        return false;
+    }
+    *target = value;
+    true
 }

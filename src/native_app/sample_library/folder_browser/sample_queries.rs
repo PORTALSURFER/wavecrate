@@ -1,8 +1,13 @@
-use std::{cell::Ref, collections::HashMap, path::PathBuf};
+use std::{
+    cell::Ref,
+    collections::{BTreeSet, HashMap},
+    path::PathBuf,
+};
 
 use super::{
     FileColumnKind, FileEntry, FolderBrowserState, FolderEntry, curation,
     file_columns::sort_kind_for_details_sort,
+    harvest_filter,
     listing::{BrowserListingRevealReason, BrowserListingSnapshot},
     playback_type_filter, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
@@ -17,6 +22,47 @@ mod subtree;
 mod traversal;
 
 impl FolderBrowserState {
+    pub(super) fn active_name_filter(&self) -> &str {
+        if self.filters.name_enabled {
+            self.filters.name_filter.as_str()
+        } else {
+            ""
+        }
+    }
+
+    pub(super) fn active_required_tags(&self) -> Vec<String> {
+        if self.filters.tags_enabled {
+            filters::parsed_tag_filter(&self.filters.tag_filter)
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub(super) fn active_playback_type_filters(
+        &self,
+    ) -> BTreeSet<playback_type_filter::PlaybackTypeFilter> {
+        if self.filters.playback_type_enabled {
+            self.filters.playback_type_filter.clone()
+        } else {
+            BTreeSet::new()
+        }
+    }
+
+    pub(super) fn active_rating_filter(&self) -> BTreeSet<i8> {
+        if self.filters.rating_enabled {
+            self.filters.rating_filter.clone()
+        } else {
+            BTreeSet::new()
+        }
+    }
+
+    pub(super) fn active_harvest_filter(&self) -> Option<harvest_filter::HarvestFilter> {
+        self.filters
+            .harvest_enabled
+            .then_some(self.filters.harvest)
+            .flatten()
+    }
+
     pub(in crate::native_app) fn selected_files(&self) -> &[FileEntry] {
         self.selected_folder()
             .map(|folder| folder.files.as_slice())
@@ -31,7 +77,7 @@ impl FolderBrowserState {
         &self,
         sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Vec<&FileEntry> {
-        if self.filters.harvest.is_some() {
+        if self.active_harvest_filter().is_some() {
             let empty_tags = HashMap::new();
             let tags_by_file = sort_tags.unwrap_or(&empty_tags);
             return self.browser_listing_snapshot(tags_by_file).rows().to_vec();
@@ -57,7 +103,7 @@ impl FolderBrowserState {
             return Vec::new();
         }
 
-        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
+        let name_query = filters::normalized_name_filter(self.active_name_filter());
         if let Some(collection) = self.selection.selected_collection {
             let mut paths = Vec::new();
             for folder in self.loaded_source_root_folders() {
@@ -116,8 +162,10 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> BrowserListingSnapshot<'a> {
         let reveal_id = self.active_listing_reveal_id(Some(tags_by_file));
-        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
+        let name_query = filters::normalized_name_filter(self.active_name_filter());
+        let required_tags = self.active_required_tags();
+        let playback_type_filters = self.active_playback_type_filters();
+        let rating_filter = self.active_rating_filter();
         let curation_now = curation::now_epoch_seconds();
         let mut files = self.scoped_audio_files_for_listing();
         files.retain(|file| {
@@ -129,9 +177,9 @@ impl FolderBrowserState {
                 && playback_type_filter::playback_type_filter_matches(
                     file,
                     tags_by_file,
-                    &self.filters.playback_type_filter,
+                    &playback_type_filters,
                 )
-                && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
+                && rating_filter::rating_filter_matches(file, &rating_filter)
                 && curation_filter_allows_file(
                     file,
                     Some(tags_by_file),
@@ -254,14 +302,16 @@ impl FolderBrowserState {
         if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
             return self.browser_listing_snapshot(tags_by_file).len();
         }
-        let name_query = filters::normalized_name_filter(&self.filters.name_filter);
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filter = &self.filters.playback_type_filter;
+        let name_query = filters::normalized_name_filter(self.active_name_filter());
+        let required_tags = self.active_required_tags();
+        let playback_type_filter = self.active_playback_type_filters();
+        let rating_filter = self.active_rating_filter();
+        let harvest_active = self.active_harvest_filter().is_some();
         if required_tags.is_empty()
             && playback_type_filter.is_empty()
             && self.selection.selected_collection.is_none()
             && !self.filters.curation.enabled
-            && self.filters.harvest.is_none()
+            && !harvest_active
         {
             return self.selected_folder_audio_file_count();
         }
@@ -269,7 +319,7 @@ impl FolderBrowserState {
             if required_tags.is_empty()
                 && playback_type_filter.is_empty()
                 && !self.filters.curation.enabled
-                && self.filters.harvest.is_none()
+                && !harvest_active
             {
                 return self
                     .selected_collection_audio_file_ids_ref(collection)
@@ -277,7 +327,7 @@ impl FolderBrowserState {
             }
             return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
-        if self.filters.curation.enabled || self.filters.harvest.is_some() {
+        if self.filters.curation.enabled || harvest_active {
             return self.selected_audio_files_matching_tags(tags_by_file).len();
         }
         if self.folder_subtree_listing_enabled() {
@@ -289,8 +339,8 @@ impl FolderBrowserState {
                         &name_query,
                         &required_tags,
                         tags_by_file,
-                        &self.filters.rating_filter,
-                        playback_type_filter,
+                        &rating_filter,
+                        &playback_type_filter,
                         None,
                     )
                 })
@@ -306,9 +356,9 @@ impl FolderBrowserState {
                     && playback_type_filter::playback_type_filter_matches(
                         file,
                         tags_by_file,
-                        playback_type_filter,
+                        &playback_type_filter,
                     )
-                    && rating_filter::rating_filter_matches(file, &self.filters.rating_filter)
+                    && rating_filter::rating_filter_matches(file, &rating_filter)
             })
             .count()
     }
@@ -336,7 +386,7 @@ impl FolderBrowserState {
         if self.active_listing_reveal_id(Some(tags_by_file)).is_some() {
             return self.window_from_browser_listing_snapshot(window, tags_by_file);
         }
-        if self.filters.harvest.is_some() {
+        if self.active_harvest_filter().is_some() {
             return self.window_from_browser_listing_snapshot(window, tags_by_file);
         }
         if let Some(collection) = self.selection.selected_collection {
@@ -361,8 +411,8 @@ impl FolderBrowserState {
             );
         }
 
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filter = &self.filters.playback_type_filter;
+        let required_tags = self.active_required_tags();
+        let playback_type_filter = self.active_playback_type_filters();
         let indices =
             self.selected_folder_audio_file_indices_ref_with_sort_tags(folder, Some(tags_by_file));
         if required_tags.is_empty()
@@ -391,7 +441,7 @@ impl FolderBrowserState {
                     && playback_type_filter::playback_type_filter_matches(
                         file,
                         tags_by_file,
-                        playback_type_filter,
+                        &playback_type_filter,
                     )
             })
             .filter_map(|file| {
@@ -423,13 +473,13 @@ impl FolderBrowserState {
                 .browser_listing_snapshot(tags_by_file)
                 .index_of(selected);
         }
-        if self.filters.harvest.is_some() {
+        if self.active_harvest_filter().is_some() {
             return self
                 .browser_listing_snapshot(tags_by_file)
                 .index_of(selected);
         }
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filter = &self.filters.playback_type_filter;
+        let required_tags = self.active_required_tags();
+        let playback_type_filter = self.active_playback_type_filters();
         if let Some(collection) = self.selection.selected_collection {
             if required_tags.is_empty() && playback_type_filter.is_empty() {
                 return self
@@ -463,7 +513,7 @@ impl FolderBrowserState {
                     && playback_type_filter::playback_type_filter_matches(
                         file,
                         tags_by_file,
-                        playback_type_filter,
+                        &playback_type_filter,
                     )
             })
             .position(|file| file.id == selected)
@@ -543,8 +593,9 @@ impl FolderBrowserState {
         folder: &FolderEntry,
         sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Ref<'_, Vec<usize>> {
-        let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
-        let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
+        let name_filter = filters::normalized_name_filter(self.active_name_filter());
+        let active_rating_filter = self.active_rating_filter();
+        let rating_filter_key = rating_filter::rating_filter_key(&active_rating_filter);
         let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
             self.filters.curation.cache_key()
@@ -575,7 +626,7 @@ impl FolderBrowserState {
                             && filters::audio_file_matches_name_query(file, &name_filter)
                             && rating_filter_allows_file(
                                 file,
-                                &self.filters.rating_filter,
+                                &active_rating_filter,
                                 listing_reveal_id,
                             )
                             && curation_filter_allows_file(

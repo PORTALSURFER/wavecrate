@@ -66,10 +66,14 @@ pub(in crate::native_app) struct CollectionRowViewModel {
 
 pub(in crate::native_app) struct FilterSectionViewModel {
     pub(in crate::native_app) name_filter: String,
+    pub(in crate::native_app) name_filter_enabled: bool,
     pub(in crate::native_app) tag_filter: String,
+    pub(in crate::native_app) tag_filter_enabled: bool,
     pub(in crate::native_app) curation: CurationFilterViewModel,
     pub(in crate::native_app) harvest: HarvestFilterViewModel,
+    pub(in crate::native_app) playback_type_enabled: bool,
     pub(in crate::native_app) playback_type_filters: Vec<PlaybackTypeFilterToggleViewModel>,
+    pub(in crate::native_app) rating_enabled: bool,
     pub(in crate::native_app) rating_filters: Vec<RatingFilterToggleViewModel>,
     pub(in crate::native_app) panel_height: f32,
 }
@@ -86,6 +90,7 @@ pub(in crate::native_app) struct HarvestFamilyViewModel {
 }
 
 pub(in crate::native_app) struct CurationFilterViewModel {
+    pub(in crate::native_app) enabled: bool,
     pub(in crate::native_app) toggles: Vec<CurationFilterToggleViewModel>,
 }
 
@@ -96,6 +101,7 @@ pub(in crate::native_app) struct CurationFilterToggleViewModel {
 }
 
 pub(in crate::native_app) struct HarvestFilterViewModel {
+    pub(in crate::native_app) enabled: bool,
     pub(in crate::native_app) toggles: Vec<HarvestFilterToggleViewModel>,
     pub(in crate::native_app) family_available: bool,
     pub(in crate::native_app) family_open: bool,
@@ -251,19 +257,22 @@ impl FilterSectionViewModel {
     ) -> Self {
         Self {
             name_filter: folder_browser.name_filter().to_owned(),
+            name_filter_enabled: folder_browser.name_filter_enabled(),
             tag_filter: folder_browser.tag_filter().to_owned(),
+            tag_filter_enabled: folder_browser.tag_filter_enabled(),
             curation: CurationFilterViewModel {
+                enabled: folder_browser.curation_mode_enabled(),
                 toggles: BROWSER_CURATION_SCOPES
                     .into_iter()
                     .map(|scope| CurationFilterToggleViewModel {
                         scope,
                         label: scope.label(),
-                        active: folder_browser.curation_mode_enabled()
-                            && folder_browser.curation_scope() == scope,
+                        active: folder_browser.curation_scope() == scope,
                     })
                     .collect(),
             },
             harvest: HarvestFilterViewModel {
+                enabled: folder_browser.harvest_filter_enabled(),
                 toggles: HARVEST_FILTERS
                     .into_iter()
                     .map(|filter| HarvestFilterToggleViewModel {
@@ -276,6 +285,7 @@ impl FilterSectionViewModel {
                 family_open: false,
                 help_tooltips_enabled,
             },
+            playback_type_enabled: folder_browser.playback_type_filter_enabled(),
             playback_type_filters: PLAYBACK_TYPE_FILTERS
                 .into_iter()
                 .map(|filter| PlaybackTypeFilterToggleViewModel {
@@ -284,6 +294,7 @@ impl FilterSectionViewModel {
                     active: folder_browser.playback_type_filter().contains(&filter),
                 })
                 .collect(),
+            rating_enabled: folder_browser.rating_filter_enabled(),
             rating_filters: RATING_FILTER_LEVELS
                 .into_iter()
                 .map(|level| RatingFilterToggleViewModel {

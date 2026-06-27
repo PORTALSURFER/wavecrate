@@ -54,7 +54,7 @@ impl FolderBrowserState {
         files: &mut Vec<&FileEntry>,
         reveal_id: Option<&str>,
     ) {
-        let Some(filter) = self.filters.harvest else {
+        let Some(filter) = self.active_harvest_filter() else {
             return;
         };
         if filter == HarvestFilter::All {

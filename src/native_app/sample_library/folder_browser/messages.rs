@@ -8,6 +8,16 @@ use super::curation::BrowserCurationScope;
 use super::harvest_filter::HarvestFilter;
 use super::playback_type_filter::PlaybackTypeFilter;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum FilterFamily {
+    Name,
+    Tags,
+    Curation,
+    Harvest,
+    PlaybackType,
+    Rating,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum FolderBrowserMessage {
     AddSource,
@@ -37,6 +47,7 @@ pub(in crate::native_app) enum FolderBrowserMessage {
     RenameInput(TextInputMessage),
     NameFilterInput(TextInputMessage),
     TagFilterInput(TextInputMessage),
+    SetFilterFamilyEnabled(FilterFamily, bool),
     TogglePlaybackTypeFilter(PlaybackTypeFilter, bool),
     ToggleRatingFilter(i8, bool),
     SetCurationScope(BrowserCurationScope, bool),

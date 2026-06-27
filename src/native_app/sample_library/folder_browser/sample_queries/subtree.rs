@@ -32,8 +32,8 @@ impl FolderBrowserState {
         window: ui::VirtualListWindow,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> VisibleSampleWindowFiles<'a> {
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filters = &self.filters.playback_type_filter;
+        let required_tags = self.active_required_tags();
+        let playback_type_filters = self.active_playback_type_filters();
         let ids = self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags(
             folder,
             Some(tags_by_file),
@@ -64,7 +64,7 @@ impl FolderBrowserState {
                     && playback_type_filter::playback_type_filter_matches(
                         file,
                         tags_by_file,
-                        playback_type_filters,
+                        &playback_type_filters,
                     )
             })
             .filter_map(|file| {
@@ -84,8 +84,8 @@ impl FolderBrowserState {
         selected: &str,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<usize> {
-        let required_tags = filters::parsed_tag_filter(&self.filters.tag_filter);
-        let playback_type_filters = &self.filters.playback_type_filter;
+        let required_tags = self.active_required_tags();
+        let playback_type_filters = self.active_playback_type_filters();
         let ids = self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags(
             folder,
             Some(tags_by_file),
@@ -105,7 +105,7 @@ impl FolderBrowserState {
                     && playback_type_filter::playback_type_filter_matches(
                         file,
                         tags_by_file,
-                        playback_type_filters,
+                        &playback_type_filters,
                     )
             })
             .position(|file| file.id == selected)
@@ -123,8 +123,9 @@ impl FolderBrowserState {
         folder: &FolderEntry,
         sort_tags: Option<&HashMap<String, Vec<String>>>,
     ) -> Ref<'_, Vec<String>> {
-        let name_filter = filters::normalized_name_filter(&self.filters.name_filter);
-        let rating_filter_key = rating_filter::rating_filter_key(&self.filters.rating_filter);
+        let name_filter = filters::normalized_name_filter(self.active_name_filter());
+        let active_rating_filter = self.active_rating_filter();
+        let rating_filter_key = rating_filter::rating_filter_key(&active_rating_filter);
         let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
         let curation_key = if sort_tags.is_some() {
             self.filters.curation.cache_key()
@@ -146,9 +147,9 @@ impl FolderBrowserState {
             let curation_now = curation::now_epoch_seconds();
             let mut files = Vec::new();
             traversal::collect_audio_files(folder, &mut files);
-            filters::filter_audio_files_by_name(&mut files, &self.filters.name_filter);
+            filters::filter_audio_files_by_name(&mut files, self.active_name_filter());
             files.retain(|file| {
-                rating_filter_allows_file(file, &self.filters.rating_filter, listing_reveal_id)
+                rating_filter_allows_file(file, &active_rating_filter, listing_reveal_id)
                     && curation_filter_allows_file(
                         file,
                         sort_tags,
