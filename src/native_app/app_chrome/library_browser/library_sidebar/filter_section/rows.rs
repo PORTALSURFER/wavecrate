@@ -18,14 +18,14 @@ use crate::native_app::ui::ids as widget_ids;
 pub(super) const FILTER_ROW_HEIGHT: f32 = 24.0;
 pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
 pub(super) const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
-pub(super) const FILTER_LABEL_WIDTH: f32 = 54.0;
+pub(super) const FILTER_LABEL_WIDTH: f32 = 64.0;
 const FILTER_CONTROL_SPACING: f32 = 2.0;
 pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
 pub(super) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
     FILTER_ROW_HEIGHT * 6.0 + FILTER_ROW_SPACING * 5.0;
 const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 64.0;
-const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
+const RATING_FILTER_TOGGLE_WIDTH: f32 = 18.0;
 pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
 const RATING_FILTER_TRASH_COLOR: ui::Rgba8 = ui::Rgba8 {
     r: 238,

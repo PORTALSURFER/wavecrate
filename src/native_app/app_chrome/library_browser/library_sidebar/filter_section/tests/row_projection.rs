@@ -42,12 +42,12 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
     assert!(frame.paint_plan.contains_text("Name"));
     assert!(frame.paint_plan.contains_text("Tags"));
     assert!(frame.paint_plan.contains_text("Curat"));
-    assert!(frame.paint_plan.contains_text("Harve"));
+    assert!(frame.paint_plan.contains_text("Harvest"));
     assert!(frame.paint_plan.contains_text("Type"));
     assert!(frame.paint_plan.contains_text("Ratin"));
     assert!(
         !frame.paint_plan.contains_text("Curate")
-            && !frame.paint_plan.contains_text("Harvest")
+            && !frame.paint_plan.contains_text("Harve")
             && !frame.paint_plan.contains_text("Rating")
     );
     assert_eq!(
@@ -67,7 +67,7 @@ fn filter_section_filter_name_labels_are_compact_and_same_size() {
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
-    let labels = ["Name", "Tags", "Curat", "Harve", "Type", "Ratin"];
+    let labels = ["Name", "Tags", "Curat", "Harvest", "Type", "Ratin"];
     let label_runs = labels
         .iter()
         .map(|label| {
@@ -77,12 +77,27 @@ fn filter_section_filter_name_labels_are_compact_and_same_size() {
                 .unwrap_or_else(|| panic!("missing filter label {label}"))
         })
         .collect::<Vec<_>>();
+    let harvest_label_rect = frame
+        .paint_plan
+        .first_widget_rect(automation_filter_family_label_toggle_id("Harvest"))
+        .expect("Harvest label should have a toggle rect");
+    let harvest_text_rect = label_runs
+        .iter()
+        .find(|run| run.text.as_str() == "Harvest")
+        .expect("Harvest text should be projected")
+        .rect;
 
-    assert!(label_runs.iter().all(|run| run.text.len() <= 5));
+    assert!(label_runs.iter().all(|run| run.text.len() <= 7));
     assert!(
         label_runs
             .iter()
             .all(|run| run.font_size == label_runs[0].font_size)
+    );
+    assert_eq!(harvest_label_rect.width(), FILTER_LABEL_WIDTH);
+    assert!(
+        harvest_text_rect.min.x >= harvest_label_rect.min.x
+            && harvest_text_rect.max.x <= harvest_label_rect.max.x,
+        "Harvest label text should fit inside the filter label cell, label={harvest_label_rect:?}, text={harvest_text_rect:?}"
     );
 }
 

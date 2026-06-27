@@ -200,7 +200,7 @@ impl HarvestFilterRowProjection {
     fn from_view_model(model: &HarvestFilterViewModel, sidebar_width: f32) -> Self {
         Self {
             family: FilterFamily::Harvest,
-            label: "Harve",
+            label: "Harvest",
             enabled: model.enabled,
             dropdown_open: model.dropdown_open,
             menu_width: curation_dropdown_menu_width(sidebar_width),
@@ -333,7 +333,7 @@ mod tests {
                 (BrowserCurationScope::Tags, "Tags", false),
             ]
         );
-        assert_eq!(projection.harvest.label, "Harve");
+        assert_eq!(projection.harvest.label, "Harvest");
         assert!(projection.harvest.enabled);
         assert!(projection.harvest.dropdown_open);
         assert_eq!(projection.harvest.selected_label, "Touched");
