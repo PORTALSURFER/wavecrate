@@ -1,6 +1,6 @@
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     CurationFilterOptionViewModel, CurationFilterViewModel, FilterSectionViewModel,
-    HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
+    HarvestFilterOptionViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
     RatingFilterToggleViewModel,
 };
 use crate::native_app::sample_library::folder_browser::commands::FilterFamily;
@@ -65,18 +65,21 @@ pub(super) struct HarvestFilterRowProjection {
     pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
-    pub(super) toggles: Vec<HarvestFilterToggleProjection>,
+    pub(super) dropdown_open: bool,
+    pub(super) menu_width: u16,
+    pub(super) selected_label: &'static str,
+    pub(super) options: Vec<HarvestFilterOptionProjection>,
     pub(super) family_available: bool,
     pub(super) family_open: bool,
     pub(super) help_tooltips_enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct HarvestFilterToggleProjection {
+pub(super) struct HarvestFilterOptionProjection {
     pub(super) filter: HarvestFilter,
     pub(super) label: &'static str,
     pub(super) tooltip: &'static str,
-    pub(super) active: bool,
+    pub(super) selected: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,7 +126,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             &model.curation,
             model.sidebar_width,
         ),
-        harvest: HarvestFilterRowProjection::from_view_model(&model.harvest),
+        harvest: HarvestFilterRowProjection::from_view_model(&model.harvest, model.sidebar_width),
         playback_type: PlaybackTypeFilterRowProjection {
             family: FilterFamily::PlaybackType,
             label: "Type",
@@ -194,15 +197,29 @@ impl CurationFilterOptionProjection {
 }
 
 impl HarvestFilterRowProjection {
-    fn from_view_model(model: &HarvestFilterViewModel) -> Self {
+    fn from_view_model(model: &HarvestFilterViewModel, sidebar_width: f32) -> Self {
         Self {
             family: FilterFamily::Harvest,
             label: "Harve",
             enabled: model.enabled,
-            toggles: model
-                .toggles
+            dropdown_open: model.dropdown_open,
+            menu_width: curation_dropdown_menu_width(sidebar_width),
+            selected_label: model
+                .selected_filter
+                .and_then(|selected_filter| {
+                    model
+                        .options
+                        .iter()
+                        .find(|option| option.filter == selected_filter)
+                        .map(|option| option.label)
+                })
+                .unwrap_or("Any"),
+            options: model
+                .options
                 .iter()
-                .map(HarvestFilterToggleProjection::from_view_model)
+                .map(|option| {
+                    HarvestFilterOptionProjection::from_view_model(option, model.selected_filter)
+                })
                 .collect(),
             family_available: model.family_available,
             family_open: model.family_open && model.family_available,
@@ -211,13 +228,16 @@ impl HarvestFilterRowProjection {
     }
 }
 
-impl HarvestFilterToggleProjection {
-    fn from_view_model(model: &HarvestFilterToggleViewModel) -> Self {
+impl HarvestFilterOptionProjection {
+    fn from_view_model(
+        model: &HarvestFilterOptionViewModel,
+        selected_filter: Option<HarvestFilter>,
+    ) -> Self {
         Self {
             filter: model.filter,
             label: model.label,
             tooltip: harvest_filter_tooltip(model.filter),
-            active: model.active,
+            selected: selected_filter == Some(model.filter),
         }
     }
 }
@@ -315,12 +335,14 @@ mod tests {
         );
         assert_eq!(projection.harvest.label, "Harve");
         assert!(projection.harvest.enabled);
+        assert!(projection.harvest.dropdown_open);
+        assert_eq!(projection.harvest.selected_label, "Touched");
         assert_eq!(
             projection
                 .harvest
-                .toggles
+                .options
                 .iter()
-                .map(|toggle| (toggle.filter, toggle.label, toggle.tooltip, toggle.active))
+                .map(|option| (option.filter, option.label, option.tooltip, option.selected))
                 .collect::<Vec<_>>(),
             vec![
                 (
@@ -331,38 +353,38 @@ mod tests {
                 ),
                 (
                     HarvestFilter::NewAndTouched,
-                    "N+T",
+                    "New + Touched",
                     "New, seen, and touched files still in the active queue.",
                     false
                 ),
                 (
                     HarvestFilter::NeedsReview,
-                    "Need",
+                    "Needs Review",
                     "Files not done or ignored that do not have derivatives yet.",
                     false
                 ),
                 (
                     HarvestFilter::Touched,
-                    "Tch",
+                    "Touched",
                     "Files you have rated, tagged, marked, edited, copied, or processed.",
                     true
                 ),
                 (
                     HarvestFilter::HasDerivatives,
-                    "Der",
+                    "Has Derivatives",
                     "Files with one or more derived files recorded in the harvest graph.",
                     false
                 ),
                 (
                     HarvestFilter::NoDerivatives,
-                    "NoD",
+                    "No Derivatives",
                     "Files without any derived files recorded yet.",
                     false
                 ),
                 (HarvestFilter::Done, "Done", "Files you marked done.", false),
                 (
                     HarvestFilter::Ignored,
-                    "Ign",
+                    "Ignored",
                     "Files you intentionally hid from harvest queues.",
                     false
                 ),
@@ -429,51 +451,44 @@ mod tests {
             },
             harvest: HarvestFilterViewModel {
                 enabled: true,
-                toggles: vec![
-                    HarvestFilterToggleViewModel {
+                dropdown_open: true,
+                selected_filter: Some(HarvestFilter::Touched),
+                options: vec![
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::New,
                         label: "New",
-                        active: false,
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::NewAndTouched,
-                        label: "N+T",
-                        active: false,
+                        label: "New + Touched",
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::NeedsReview,
-                        label: "Need",
-                        active: false,
+                        label: "Needs Review",
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::Touched,
-                        label: "Tch",
-                        active: true,
+                        label: "Touched",
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::HasDerivatives,
-                        label: "Der",
-                        active: false,
+                        label: "Has Derivatives",
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::NoDerivatives,
-                        label: "NoD",
-                        active: false,
+                        label: "No Derivatives",
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::Done,
                         label: "Done",
-                        active: false,
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::Ignored,
-                        label: "Ign",
-                        active: false,
+                        label: "Ignored",
                     },
-                    HarvestFilterToggleViewModel {
+                    HarvestFilterOptionViewModel {
                         filter: HarvestFilter::All,
                         label: "All",
-                        active: false,
                     },
                 ],
                 family_available: true,

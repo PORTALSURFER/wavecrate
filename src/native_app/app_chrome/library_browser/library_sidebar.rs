@@ -1,7 +1,9 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::view_models::library_sidebar::LibrarySidebarViewModel;
+use crate::native_app::app_chrome::view_models::library_sidebar::{
+    FilterSectionViewModel, LibrarySidebarViewModel,
+};
 
 mod collections_section;
 mod filter_section;
@@ -43,6 +45,33 @@ pub(in crate::native_app) fn curation_filter_dropdown_overlay(
     model: &LibrarySidebarViewModel,
     bottom_status_bar_height: f32,
 ) -> Option<ui::View<GuiMessage>> {
+    filter_dropdown_overlay(
+        model,
+        bottom_status_bar_height,
+        |filter, inset_x, bottom_inset| {
+            filter_section::curation_filter_dropdown_overlay(filter, inset_x, bottom_inset)
+        },
+    )
+}
+
+pub(in crate::native_app) fn harvest_filter_dropdown_overlay(
+    model: &LibrarySidebarViewModel,
+    bottom_status_bar_height: f32,
+) -> Option<ui::View<GuiMessage>> {
+    filter_dropdown_overlay(
+        model,
+        bottom_status_bar_height,
+        |filter, inset_x, bottom_inset| {
+            filter_section::harvest_filter_dropdown_overlay(filter, inset_x, bottom_inset)
+        },
+    )
+}
+
+fn filter_dropdown_overlay(
+    model: &LibrarySidebarViewModel,
+    bottom_status_bar_height: f32,
+    overlay: impl FnOnce(&FilterSectionViewModel, f32, f32) -> Option<ui::View<GuiMessage>>,
+) -> Option<ui::View<GuiMessage>> {
     let harvest_family_inset = model
         .harvest_family
         .is_some()
@@ -53,11 +82,7 @@ pub(in crate::native_app) fn curation_filter_dropdown_overlay(
         + model.metadata_panel_height
         + LIBRARY_SIDEBAR_SECTION_SPACING
         + harvest_family_inset;
-    filter_section::curation_filter_dropdown_overlay(
-        &model.filter,
-        LIBRARY_SIDEBAR_PADDING,
-        filter_bottom_inset,
-    )
+    overlay(&model.filter, LIBRARY_SIDEBAR_PADDING, filter_bottom_inset)
 }
 
 fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessage> {

@@ -149,6 +149,8 @@ impl NativeAppState {
             | GuiMessage::ToggleHarvestFamilyPanel
             | GuiMessage::ToggleCurationFilterDropdown
             | GuiMessage::CloseCurationFilterDropdown
+            | GuiMessage::ToggleHarvestFilterDropdown
+            | GuiMessage::CloseHarvestFilterDropdown
             | GuiMessage::ToggleZeroCrossingSnap
             | GuiMessage::ToggleBeatGuides
             | GuiMessage::AdjustBeatGuideCount(_)

@@ -3,8 +3,8 @@ use radiant::{prelude as ui, widgets::TextInputMessage};
 mod projection;
 
 use self::projection::{
-    CurationFilterOptionProjection, CurationFilterRowProjection, HarvestFilterRowProjection,
-    HarvestFilterToggleProjection, PlaybackTypeFilterRowProjection,
+    CurationFilterOptionProjection, CurationFilterRowProjection, HarvestFilterOptionProjection,
+    HarvestFilterRowProjection, PlaybackTypeFilterRowProjection,
     PlaybackTypeFilterToggleProjection, RatingFilterRowProjection, RatingFilterToggleProjection,
     TextFilterField, TextFilterRowProjection, filter_rows_projection,
 };
@@ -21,12 +21,9 @@ pub(super) const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
 pub(super) const FILTER_LABEL_WIDTH: f32 = 54.0;
 const FILTER_CONTROL_SPACING: f32 = 2.0;
 pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
-const HARVEST_FILTER_CONTROL_HEIGHT: f32 = FILTER_CLEAR_BUTTON_SIZE * 2.0 + FILTER_CONTROL_SPACING;
 pub(super) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
-    FILTER_ROW_HEIGHT * 5.0 + HARVEST_FILTER_CONTROL_HEIGHT + FILTER_ROW_SPACING * 5.0;
+    FILTER_ROW_HEIGHT * 6.0 + FILTER_ROW_SPACING * 5.0;
 const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
-const HARVEST_FILTER_TOGGLE_WIDTH: f32 = 30.0;
-const HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT: usize = 4;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 64.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 20.0;
 pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
@@ -57,9 +54,11 @@ const AUTOMATION_CURATION_FILTER_DROPDOWN_OPTION_SCOPE: u64 =
     widget_ids::AUTOMATION_CURATION_FILTER_DROPDOWN_OPTION_SCOPE;
 pub(super) const CURATION_FILTER_DROPDOWN_TRIGGER_ID: u64 =
     widget_ids::CURATION_FILTER_DROPDOWN_TRIGGER_ID;
-/// Scope for automation-facing harvest filter toggle ids.
-const AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE: u64 =
-    widget_ids::AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE;
+pub(super) const HARVEST_FILTER_DROPDOWN_TRIGGER_ID: u64 =
+    widget_ids::HARVEST_FILTER_DROPDOWN_TRIGGER_ID;
+/// Scope for automation-facing harvest dropdown option ids.
+const AUTOMATION_HARVEST_FILTER_DROPDOWN_OPTION_SCOPE: u64 =
+    widget_ids::AUTOMATION_HARVEST_FILTER_DROPDOWN_OPTION_SCOPE;
 /// Scope for automation-facing rating filter toggle ids.
 const AUTOMATION_RATING_FILTER_TOGGLE_SCOPE: u64 =
     widget_ids::AUTOMATION_RATING_FILTER_TOGGLE_SCOPE;
@@ -237,48 +236,24 @@ pub(super) fn automation_curation_filter_dropdown_option_id(label: &str) -> u64 
 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
-    let mut top_controls = Vec::with_capacity(HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT + 1);
-    let mut bottom_controls = Vec::with_capacity(
-        row.toggles
-            .len()
-            .saturating_sub(HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT),
-    );
-
-    top_controls.push(harvest_family_toggle(
-        row.family_available,
-        row.family_open,
-        help_tooltips_enabled,
-    ));
-
-    for (index, toggle) in row.toggles.iter().enumerate() {
-        let control = harvest_filter_toggle(toggle, help_tooltips_enabled);
-        if index < HARVEST_FILTER_TOP_ROW_TOGGLE_COUNT {
-            top_controls.push(control);
-        } else {
-            bottom_controls.push(control);
-        }
-    }
-
-    let controls = ui::column([
-        ui::row(top_controls)
-            .spacing(FILTER_CONTROL_SPACING)
-            .fill_width()
-            .height(FILTER_CLEAR_BUTTON_SIZE),
-        ui::row(bottom_controls)
-            .spacing(FILTER_CONTROL_SPACING)
+    let controls = ui::row([
+        harvest_family_toggle(row.family_available, row.family_open, help_tooltips_enabled),
+        ui::dropdown_trigger(row.selected_label, row.dropdown_open)
+            .toggle_message(GuiMessage::ToggleHarvestFilterDropdown)
+            .build()
+            .id(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
+            .tooltip_if(help_tooltips_enabled, "Choose the Harvest queue to show.")
             .fill_width()
             .height(FILTER_CLEAR_BUTTON_SIZE),
     ])
     .spacing(FILTER_CONTROL_SPACING)
     .fill_width()
-    .height(HARVEST_FILTER_CONTROL_HEIGHT);
+    .height(FILTER_CLEAR_BUTTON_SIZE);
 
-    filter_labeled_control_row_with_height(
+    filter_labeled_control_row(
         filter_row_label(row.label, row.family, row.enabled),
         controls,
         "filter-harvest-row",
-        HARVEST_FILTER_CONTROL_HEIGHT,
-        HARVEST_FILTER_CONTROL_HEIGHT,
     )
 }
 
@@ -303,24 +278,80 @@ fn harvest_family_toggle(
         )
 }
 
-fn harvest_filter_toggle(
-    toggle: &HarvestFilterToggleProjection,
-    help_tooltips_enabled: bool,
-) -> ui::View<GuiMessage> {
-    let filter = toggle.filter;
-    ui::selectable(toggle.label, toggle.active)
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .message(move |enabled| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::SetHarvestFilter(filter, enabled))
-        })
-        .id(automation_harvest_filter_toggle_id(toggle.label))
-        .size(HARVEST_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
-        .tooltip_if(help_tooltips_enabled, toggle.tooltip)
+pub(super) fn harvest_filter_dropdown_menu(
+    model: &FilterSectionViewModel,
+) -> Option<(ui::View<GuiMessage>, ui::Vector2)> {
+    let row = filter_rows_projection(model).harvest;
+    if row.dropdown_open {
+        let size = ui::Vector2::new(
+            f32::from(row.menu_width).max(1.0),
+            ui::dropdown_menu_height(row.options.len()),
+        );
+        Some((
+            harvest_filter_dropdown_menu_from_options(
+                &row.options,
+                row.help_tooltips_enabled,
+                size.x,
+            ),
+            size,
+        ))
+    } else {
+        None
+    }
 }
 
-/// Automation-facing id for a harvest filter toggle.
-pub(super) fn automation_harvest_filter_toggle_id(label: &str) -> u64 {
-    ui::stable_widget_id(AUTOMATION_HARVEST_FILTER_TOGGLE_SCOPE, label)
+fn harvest_filter_dropdown_menu_from_options(
+    options: &[HarvestFilterOptionProjection],
+    help_tooltips_enabled: bool,
+    menu_width: f32,
+) -> ui::View<GuiMessage> {
+    let option_count = options.len();
+    ui::column(
+        options
+            .iter()
+            .map(|option| harvest_filter_dropdown_option(option, help_tooltips_enabled)),
+    )
+    .key("harvest-filter-dropdown-menu")
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Neutral,
+        prominence: ui::WidgetProminence::Strong,
+    })
+    .padding(4.0)
+    .spacing(3.0)
+    .width(menu_width.max(1.0))
+    .height(ui::dropdown_menu_height(option_count))
+}
+
+fn harvest_filter_dropdown_option(
+    option: &HarvestFilterOptionProjection,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
+    let filter = option.filter;
+    ui::button(option.label)
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetHarvestFilter(filter, true),
+        ))
+        .id(automation_harvest_filter_dropdown_option_id(option.label))
+        .style(ui::WidgetStyle {
+            tone: if option.selected {
+                ui::WidgetTone::Accent
+            } else {
+                ui::WidgetTone::Neutral
+            },
+            prominence: if option.selected {
+                ui::WidgetProminence::Strong
+            } else {
+                ui::WidgetProminence::Subtle
+            },
+        })
+        .fill_width()
+        .height(22.0)
+        .tooltip_if(help_tooltips_enabled, option.tooltip)
+}
+
+/// Automation-facing id for a harvest dropdown option.
+pub(super) fn automation_harvest_filter_dropdown_option_id(label: &str) -> u64 {
+    ui::stable_widget_id(AUTOMATION_HARVEST_FILTER_DROPDOWN_OPTION_SCOPE, label)
 }
 
 fn playback_type_filter_toggle(
@@ -492,7 +523,7 @@ mod tests {
     use super::*;
     use crate::native_app::app_chrome::view_models::library_sidebar::{
         CurationFilterOptionViewModel, CurationFilterViewModel, FilterSectionViewModel,
-        HarvestFilterToggleViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
+        HarvestFilterOptionViewModel, HarvestFilterViewModel, PlaybackTypeFilterToggleViewModel,
         RatingFilterToggleViewModel,
     };
     use crate::native_app::sample_library::folder_browser::model::{
@@ -501,14 +532,24 @@ mod tests {
     use radiant::prelude::IntoView;
 
     #[test]
-    fn harvest_filter_toggles_expose_full_help_tooltips() {
+    fn harvest_filter_dropdown_options_expose_full_help_tooltips() {
         let surface = ui::column(filter_rows(&filter_model(true))).into_surface();
         let tooltip = surface
-            .find_widget(automation_harvest_filter_toggle_id("Need"))
+            .find_widget(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
+            .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+        assert_eq!(tooltip, Some("Choose the Harvest queue to show."));
+
+        let menu = harvest_filter_dropdown_menu(&filter_model(true))
+            .expect("open harvest dropdown menu")
+            .0
+            .into_surface();
+        let option_tooltip = menu
+            .find_widget(automation_harvest_filter_dropdown_option_id("Needs Review"))
             .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
 
         assert_eq!(
-            tooltip,
+            option_tooltip,
             Some("Files not done or ignored that do not have derivatives yet.")
         );
     }
@@ -531,10 +572,11 @@ mod tests {
             },
             harvest: HarvestFilterViewModel {
                 enabled: false,
-                toggles: vec![HarvestFilterToggleViewModel {
+                dropdown_open: true,
+                selected_filter: Some(HarvestFilter::NeedsReview),
+                options: vec![HarvestFilterOptionViewModel {
                     filter: HarvestFilter::NeedsReview,
-                    label: "Need",
-                    active: false,
+                    label: "Needs Review",
                 }],
                 family_available: false,
                 family_open: false,

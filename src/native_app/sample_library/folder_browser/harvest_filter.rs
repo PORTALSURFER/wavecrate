@@ -32,22 +32,6 @@ pub(in crate::native_app) enum HarvestFilter {
     All,
 }
 
-impl HarvestFilter {
-    pub(in crate::native_app) fn label(self) -> &'static str {
-        match self {
-            Self::New => "New",
-            Self::NewAndTouched => "N+T",
-            Self::NeedsReview => "Need",
-            Self::Touched => "Tch",
-            Self::HasDerivatives => "Der",
-            Self::NoDerivatives => "NoD",
-            Self::Done => "Done",
-            Self::Ignored => "Ign",
-            Self::All => "All",
-        }
-    }
-}
-
 impl FolderBrowserState {
     pub(in crate::native_app::sample_library::folder_browser) fn retain_harvest_filter_matches(
         &self,
