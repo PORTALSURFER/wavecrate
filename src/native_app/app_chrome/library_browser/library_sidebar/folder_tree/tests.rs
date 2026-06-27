@@ -11,6 +11,7 @@ use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::TREE_ROW_HEIGHT;
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
+use radiant::runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime};
 use radiant::widgets::TextInputMessage;
 
 #[test]
@@ -225,6 +226,31 @@ fn standard_folder_rows_derive_stable_input_id_from_row_key() {
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::ActivateFolder(folder.id.clone(), Default::default())
         ))
+    );
+}
+
+#[test]
+fn dragged_source_folder_row_clears_active_drop_target_on_hover() {
+    let mut folder = visible_folder_for_tests(false);
+    folder.drag_active = true;
+    folder.drag_source = true;
+    folder.drop_target_active = true;
+    let folder_id = folder.id.clone();
+    let position = ui::Point::new(8.0, 10.0);
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        Vec::<GuiMessage>::new(),
+        move |_| folder_row(&folder).fill_width().into_surface(),
+        |state: &mut Vec<GuiMessage>, message| state.push(message),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+
+    runtime.dispatch_input_at(position, ui::WidgetInput::pointer_move(position));
+
+    assert_eq!(
+        runtime.bridge().state(),
+        &[GuiMessage::FolderBrowser(
+            FolderBrowserMessage::ClearDropTargetUnless(folder_id, position)
+        )]
     );
 }
 
