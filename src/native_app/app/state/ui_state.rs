@@ -107,8 +107,10 @@ impl Default for SampleMapViewport {
 }
 
 impl SampleMapViewport {
-    const MIN_ZOOM: f32 = 1.0;
+    const MIN_ZOOM: f32 = 0.65;
     const MAX_ZOOM: f32 = 8.0;
+    const MIN_CENTER: f32 = -1.0;
+    const MAX_CENTER: f32 = 2.0;
 
     pub(in crate::native_app) fn apply_change(&mut self, change: SampleMapViewportChange) {
         match change {
@@ -144,9 +146,8 @@ impl SampleMapViewport {
     }
 
     fn clamp_center(&mut self) {
-        let half_span = 0.5 / self.zoom;
-        self.center_x = self.center_x.clamp(half_span, 1.0 - half_span);
-        self.center_y = self.center_y.clamp(half_span, 1.0 - half_span);
+        self.center_x = self.center_x.clamp(Self::MIN_CENTER, Self::MAX_CENTER);
+        self.center_y = self.center_y.clamp(Self::MIN_CENTER, Self::MAX_CENTER);
     }
 }
 
@@ -419,7 +420,21 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_viewport_pan_is_scaled_by_zoom_and_clamped() {
+    fn sample_map_viewport_zoom_allows_extra_map_margin() {
+        let mut viewport = SampleMapViewport::default();
+
+        viewport.apply_change(SampleMapViewportChange::Zoom {
+            anchor: ui::Vector2::new(0.5, 0.5),
+            factor: 0.5,
+        });
+
+        assert_eq!(viewport.zoom, 0.65);
+        assert_eq!(viewport.center_x, 0.5);
+        assert_eq!(viewport.center_y, 0.5);
+    }
+
+    #[test]
+    fn sample_map_viewport_pan_is_scaled_by_zoom_and_allows_offscreen_nodes() {
         let mut viewport = SampleMapViewport {
             center_x: 0.5,
             center_y: 0.5,
@@ -436,21 +451,27 @@ mod tests {
         viewport.apply_change(SampleMapViewportChange::Pan {
             delta: ui::Vector2::new(100.0, 100.0),
         });
-        assert_eq!(viewport.center_x, 0.25);
-        assert_eq!(viewport.center_y, 0.25);
+        assert_eq!(viewport.center_x, -1.0);
+        assert_eq!(viewport.center_y, -1.0);
+
+        viewport.apply_change(SampleMapViewportChange::Pan {
+            delta: ui::Vector2::new(-100.0, -100.0),
+        });
+        assert_eq!(viewport.center_x, 2.0);
+        assert_eq!(viewport.center_y, 2.0);
     }
 
     #[test]
-    fn sample_map_viewport_center_clamps_to_current_zoom_bounds() {
+    fn sample_map_viewport_center_clamps_to_extended_map_bounds() {
         let mut viewport = SampleMapViewport {
             center_x: 0.5,
             center_y: 0.5,
             zoom: 4.0,
         };
 
-        viewport.apply_change(SampleMapViewportChange::Center { x: 0.05, y: 0.95 });
+        viewport.apply_change(SampleMapViewportChange::Center { x: -5.0, y: 5.0 });
 
-        assert_eq!(viewport.center_x, 0.125);
-        assert_eq!(viewport.center_y, 0.875);
+        assert_eq!(viewport.center_x, -1.0);
+        assert_eq!(viewport.center_y, 2.0);
     }
 }
