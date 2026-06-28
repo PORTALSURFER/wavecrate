@@ -225,17 +225,32 @@ fn filter_section_projects_curation_scope_dropdown_and_dispatches_changes() {
 }
 
 #[test]
-fn filter_section_projects_harvest_family_toggle_button() {
+fn filter_section_projects_harvest_arrow_button_opens_filter_dropdown() {
     let state = FolderBrowserState::load_default();
     let mut model = FilterSectionViewModel::from_folder_browser(&state, false);
-    model.harvest.family_available = true;
-    model.harvest.family_open = true;
+    model.harvest.selected_filter = Some(HarvestFilter::NeedsReview);
+    model.harvest.family_available = false;
+    model.harvest.family_open = false;
+    model.harvest.dropdown_open = false;
+    let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(HARVEST_FAMILY_TOGGLE_ID)
+            .is_some(),
+        "Harvest arrow hit target should remain clickable even without a selected harvest family"
+    );
+    assert!(frame.paint_plan.contains_text("Needs Review  v"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             HARVEST_FAMILY_TOGGLE_ID,
             ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
-        Some(GuiMessage::ToggleHarvestFamilyPanel)
+        Some(GuiMessage::ToggleHarvestFilterDropdown)
     );
 }
 

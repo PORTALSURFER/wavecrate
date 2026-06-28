@@ -241,7 +241,6 @@ pub(in crate::native_app) enum GuiMessage {
     OpenReleaseDownloadPage,
     ToggleShortcutHelp,
     CloseShortcutHelp,
-    ToggleHarvestFamilyPanel,
     ToggleCurationFilterDropdown,
     CloseCurationFilterDropdown,
     ToggleHarvestFilterDropdown,
