@@ -679,6 +679,120 @@ fn moved_selection_drag_preview_survives_widget_rebuild_after_press() {
 }
 
 #[test]
+fn moved_selection_drag_preview_uses_original_baseline_after_live_update() {
+    for (kind, button) in [
+        (WaveformSelectionKind::Play, PointerButton::Primary),
+        (WaveformSelectionKind::Edit, PointerButton::Secondary),
+    ] {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.viewport = super::WaveformViewport {
+            start: 12_000,
+            end: 36_000,
+        };
+        let baseline = wavecrate::selection::SelectionRange::new(0.35, 0.55);
+        match kind {
+            WaveformSelectionKind::Play => {
+                state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.35, 0.55));
+                state.play_mark_ratio = Some(0.35);
+            }
+            WaveformSelectionKind::Edit => {
+                state.edit_selection = Some(baseline);
+                state.edit_mark_ratio = Some(0.35);
+            }
+        }
+        let bounds = Rect::from_size(200.0, 80.0);
+        let press = Point::new(60.0, 3.0);
+        let first_drag = Point::new(80.0, 3.0);
+        let second_drag = Point::new(90.0, 3.0);
+
+        let mut initial = waveform_widget_for_state(&state);
+        let begin = initial
+            .handle_input(
+                bounds,
+                WidgetInput::pointer_press(press, button, Default::default()),
+            )
+            .expect("press should begin moving selection")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            begin,
+            WaveformInteraction::BeginSelectionMove {
+                kind,
+                visible_ratio: 0.3,
+            }
+        );
+        state.apply_interaction(begin);
+
+        let mut first = waveform_widget_for_state(&state);
+        Widget::synchronize_from_previous(&mut first, &initial);
+        let first_update = first
+            .handle_input(bounds, WidgetInput::pointer_move(first_drag))
+            .expect("first drag should emit live update")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            first_update,
+            WaveformInteraction::UpdateSelection { visible_ratio: 0.4 }
+        );
+        state.apply_interaction(first_update);
+
+        let mut second = waveform_widget_for_state(&state);
+        Widget::synchronize_from_previous(&mut second, &first);
+        let second_update = second
+            .handle_input(bounds, WidgetInput::pointer_move(second_drag))
+            .expect("second drag should emit live update")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            second_update,
+            WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.45
+            }
+        );
+
+        let preview = second
+            .live_selection_preview
+            .expect("rebuilt widget should keep previewing from original baseline");
+        assert_eq!(preview.kind, kind);
+        assert!(
+            (preview.selection.start() - 0.425).abs() < 0.0001,
+            "{kind:?} preview should apply the total drag delta once"
+        );
+        assert!(
+            (preview.selection.end() - 0.625).abs() < 0.0001,
+            "{kind:?} preview should apply the total drag delta once"
+        );
+
+        state.apply_interaction(second_update);
+        let live_selection = match kind {
+            WaveformSelectionKind::Play => state.play_selection(),
+            WaveformSelectionKind::Edit => state.edit_selection(),
+        }
+        .expect("live selection should update");
+        assert!((live_selection.start() - preview.selection.start()).abs() < 0.0001);
+        assert!((live_selection.end() - preview.selection.end()).abs() < 0.0001);
+
+        let finish = second
+            .handle_input(
+                bounds,
+                WidgetInput::pointer_release(second_drag, button, Default::default()),
+            )
+            .expect("release should finish the move")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        state.apply_interaction(finish);
+
+        let committed = match kind {
+            WaveformSelectionKind::Play => state.play_selection(),
+            WaveformSelectionKind::Edit => state.edit_selection(),
+        }
+        .expect("selection should remain after release");
+        assert!((committed.start() - preview.selection.start()).abs() < 0.0001);
+        assert!((committed.end() - preview.selection.end()).abs() < 0.0001);
+    }
+}
+
+#[test]
 fn three_pixel_drag_starts_play_and_edit_selections_while_zoomed_in() {
     for (button, kind) in [
         (PointerButton::Primary, WaveformSelectionKind::Play),
