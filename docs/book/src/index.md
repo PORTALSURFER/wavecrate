@@ -8,7 +8,7 @@ This book is the public documentation surface for Wavecrate. It is intentionally
 
 ## Start Here
 
-- New users should begin with [Getting Started](getting-started.md), then [Browse and Audition](browse-and-audition.md).
+- New users should begin with [Getting Started](getting-started.md), then use the [Quick User Guide](quick-user-guide.md) for the first sample-curation pass.
 - Sample-library cleanup and source safety live in [Sources, Locks, and Harvest](sources-harvest.md).
 - Waveform work lives in [Playmarks, Editmarks, and Edits](marks-edits.md).
 - A visual pass through the current app surface lives in [Screenshots and Feature Tour](screenshots.md).
