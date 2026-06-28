@@ -245,18 +245,8 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     );
     assert_eq!(icon_control(5).icon, ToolbarIcon::BeatGuides);
     assert!(icon_control(5).active);
-    assert_eq!(icon_control(6).icon, ToolbarIcon::Metronome);
-    assert_eq!(
-        icon_control(6).id,
-        crate::native_app::test_support::toolbar::TOOLBAR_METRONOME_ID
-    );
-    assert!(icon_control(6).active);
-    assert_eq!(
-        icon_control(6).tooltip,
-        "Play a metronome from the beat guide divisions."
-    );
     assert!(matches!(
-        projection.controls[7],
+        projection.controls[6],
         ToolbarControlProjection::BeatGuideCountField {
             count: 8,
             id: crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID,
@@ -264,6 +254,16 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             tooltip: "Beat guide divisions.",
         }
     ));
+    assert_eq!(icon_control(7).icon, ToolbarIcon::Metronome);
+    assert_eq!(
+        icon_control(7).id,
+        crate::native_app::test_support::toolbar::TOOLBAR_METRONOME_ID
+    );
+    assert!(icon_control(7).active);
+    assert_eq!(
+        icon_control(7).tooltip,
+        "Play a metronome from the beat guide divisions."
+    );
 
     assert!(matches!(
         projection.controls[8],

@@ -79,6 +79,12 @@ impl ToolbarProjection {
                 BEAT_GUIDES_TOOLTIP,
             )
             .into(),
+            ToolbarControlProjection::BeatGuideCountField {
+                count: model.beat_guide_count,
+                id: TOOLBAR_BEAT_GUIDE_COUNT_ID,
+                key: TOOLBAR_BEAT_GUIDE_COUNT_KEY,
+                tooltip: BEAT_GUIDE_COUNT_TOOLTIP,
+            },
             ToolbarIconButtonProjection::new(
                 TOOLBAR_METRONOME_ID,
                 ToolbarIcon::Metronome,
@@ -87,12 +93,6 @@ impl ToolbarProjection {
                 METRONOME_TOOLTIP,
             )
             .into(),
-            ToolbarControlProjection::BeatGuideCountField {
-                count: model.beat_guide_count,
-                id: TOOLBAR_BEAT_GUIDE_COUNT_ID,
-                key: TOOLBAR_BEAT_GUIDE_COUNT_KEY,
-                tooltip: BEAT_GUIDE_COUNT_TOOLTIP,
-            },
         ];
 
         if model.pending_edit_mark_edits {
