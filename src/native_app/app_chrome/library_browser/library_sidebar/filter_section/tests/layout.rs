@@ -48,7 +48,7 @@ fn filter_section_default_viewport_leaves_bottom_guard_after_rows() {
         .expect("filter scroll layout rect");
     let rating = layout
         .rects
-        .get(&automation_filter_family_label_toggle_id("Ratin"))
+        .get(&automation_filter_family_label_toggle_id("Rating"))
         .expect("rating filter label layout rect");
 
     assert!(

@@ -139,7 +139,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
         },
         rating: RatingFilterRowProjection {
             family: FilterFamily::Rating,
-            label: "Ratin",
+            label: "Rating",
             enabled: model.rating_enabled,
             toggles: model
                 .rating_filters
@@ -154,7 +154,7 @@ impl CurationFilterRowProjection {
     fn from_view_model(model: &CurationFilterViewModel, sidebar_width: f32) -> Self {
         Self {
             family: FilterFamily::Curation,
-            label: "Curat",
+            label: "Curate",
             enabled: model.enabled,
             dropdown_open: model.dropdown_open,
             menu_width: curation_dropdown_menu_width(sidebar_width),
@@ -316,7 +316,7 @@ mod tests {
     fn filter_rows_projection_preserves_dropdown_options_and_filter_state() {
         let projection = filter_rows_projection(&filter_model());
 
-        assert_eq!(projection.curation.label, "Curat");
+        assert_eq!(projection.curation.label, "Curate");
         assert!(projection.curation.enabled);
         assert!(projection.curation.dropdown_open);
         assert_eq!(projection.curation.selected_label, "All");
@@ -410,7 +410,7 @@ mod tests {
                 (PlaybackTypeFilter::Loop, "Loop", true),
             ]
         );
-        assert_eq!(projection.rating.label, "Ratin");
+        assert_eq!(projection.rating.label, "Rating");
         assert!(projection.rating.enabled);
         assert_eq!(
             projection
