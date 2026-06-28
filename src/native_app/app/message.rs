@@ -40,6 +40,7 @@ use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult
 use crate::native_app::waveform::WaveformInteraction;
 use crate::native_app::waveform::{SimilarSectionsResult, WaveformExtractionCompletion};
 use crate::native_app::waveform_edits::WaveformDestructiveEditResult;
+use crate::native_app::workflows::context_menu_actions::ContextSampleDoubleResult;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum TrashMoveTarget {
@@ -175,6 +176,12 @@ pub(in crate::native_app) enum GuiMessage {
     CutSelectedFiles,
     PasteCutFiles,
     DuplicateContextSampleSame,
+    DuplicateContextSampleDouble,
+    ContextSampleDoubleFinished {
+        source_path: PathBuf,
+        started_at: Instant,
+        result: Result<ContextSampleDoubleResult, String>,
+    },
     SelectedFilesCopyFinished {
         count: usize,
         started_at: Instant,

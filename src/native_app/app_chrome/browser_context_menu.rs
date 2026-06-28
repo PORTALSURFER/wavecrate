@@ -72,6 +72,10 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             GuiMessage::DuplicateContextSampleSame,
         ));
         actions.push(ui::MenuCommand::new(
+            "Duplicate Double",
+            GuiMessage::DuplicateContextSampleDouble,
+        ));
+        actions.push(ui::MenuCommand::new(
             "Mark Harvest Done",
             GuiMessage::MarkContextSampleHarvestDone,
         ));

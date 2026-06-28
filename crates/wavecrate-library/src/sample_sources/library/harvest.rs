@@ -151,6 +151,8 @@ pub enum HarvestDerivationOperation {
     EditCopy,
     /// Normalize rendered to a copy.
     NormalizeCopy,
+    /// Whole-file duplicate rendered with the audio repeated twice.
+    DuplicateDoubleCopy,
     /// Export or handoff render.
     Export,
     /// Copy into the primary library.
@@ -170,6 +172,7 @@ impl HarvestDerivationOperation {
             Self::ReverseCopy => "reverse_copy",
             Self::EditCopy => "edit_copy",
             Self::NormalizeCopy => "normalize_copy",
+            Self::DuplicateDoubleCopy => "duplicate_double_copy",
             Self::Export => "export",
             Self::CopyToPrimary => "copy_to_primary",
             Self::Other(value) => value.as_str(),
@@ -186,6 +189,7 @@ impl HarvestDerivationOperation {
             "reverse_copy" => Self::ReverseCopy,
             "edit_copy" => Self::EditCopy,
             "normalize_copy" => Self::NormalizeCopy,
+            "duplicate_double_copy" => Self::DuplicateDoubleCopy,
             "export" => Self::Export,
             "copy_to_primary" => Self::CopyToPrimary,
             _ => Self::Other(value),
