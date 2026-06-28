@@ -14,7 +14,7 @@ use crate::native_app::sample_library::folder_browser::commands::FilterFamily;
 use crate::native_app::sample_library::folder_browser::model::{
     BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
 };
-use crate::native_app::ui::ids::HARVEST_FAMILY_TOGGLE_ID;
+use crate::native_app::ui::ids::RETIRED_HARVEST_FILTER_ARROW_TOGGLE_ID;
 use radiant::gui::types::Rgba8;
 use radiant::prelude::IntoView;
 use radiant::runtime::{SurfaceFrame, SurfacePaintPlan};

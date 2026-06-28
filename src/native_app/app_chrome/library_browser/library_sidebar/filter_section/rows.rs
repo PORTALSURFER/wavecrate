@@ -24,7 +24,6 @@ pub(super) const FILTER_ROW_VERTICAL_INSET: f32 =
 pub(super) const FILTER_LABEL_WIDTH: f32 = 64.0;
 const FILTER_CONTROL_SPACING: f32 = 2.0;
 pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
-const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 64.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 18.0;
 pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
@@ -237,8 +236,8 @@ pub(super) fn automation_curation_filter_dropdown_option_id(label: &str) -> u64 
 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
-    let controls = ui::row([
-        harvest_filter_arrow_toggle(row.dropdown_open, help_tooltips_enabled),
+    filter_labeled_control_row(
+        filter_row_label(row.label, row.family, row.enabled),
         ui::dropdown_trigger(row.selected_label, row.dropdown_open)
             .toggle_message(GuiMessage::ToggleHarvestFilterDropdown)
             .build()
@@ -246,25 +245,8 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
             .tooltip_if(help_tooltips_enabled, "Choose the Harvest queue to show.")
             .fill_width()
             .height(FILTER_ROW_CONTROL_HEIGHT),
-    ])
-    .spacing(FILTER_CONTROL_SPACING)
-    .fill_width()
-    .height(FILTER_ROW_CONTROL_HEIGHT);
-
-    filter_labeled_control_row(
-        filter_row_label(row.label, row.family, row.enabled),
-        controls,
         "filter-harvest-row",
     )
-}
-
-fn harvest_filter_arrow_toggle(open: bool, help_tooltips_enabled: bool) -> ui::View<GuiMessage> {
-    ui::disclosure_button(open)
-        .active(open)
-        .message(GuiMessage::ToggleHarvestFilterDropdown)
-        .id(widget_ids::HARVEST_FAMILY_TOGGLE_ID)
-        .size(HARVEST_FAMILY_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
-        .tooltip_if(help_tooltips_enabled, "Choose the Harvest queue to show.")
 }
 
 pub(super) fn harvest_filter_dropdown_menu(
