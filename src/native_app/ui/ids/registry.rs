@@ -198,11 +198,6 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         "folder_filters.resize_header"
     ),
     registered_widget_id!(
-        FolderFilters,
-        HARVEST_FAMILY_TOGGLE_ID,
-        "folder_filters.harvest_family_toggle"
-    ),
-    registered_widget_id!(
         Collections,
         COLLECTIONS_SECTION_NODE_ID,
         "collections.section"

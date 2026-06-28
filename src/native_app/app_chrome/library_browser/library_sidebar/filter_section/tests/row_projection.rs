@@ -280,7 +280,7 @@ fn filter_section_projects_curation_scope_dropdown_and_dispatches_changes() {
 }
 
 #[test]
-fn filter_section_projects_harvest_arrow_button_opens_filter_dropdown() {
+fn filter_section_uses_harvest_dropdown_as_only_filter_mode_trigger() {
     let state = FolderBrowserState::load_default();
     let mut model = FilterSectionViewModel::from_folder_browser(&state, false);
     model.harvest.selected_filter = Some(HarvestFilter::NeedsReview);
@@ -292,17 +292,28 @@ fn filter_section_projects_harvest_arrow_button_opens_filter_dropdown() {
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
 
-    assert!(
+    let curation_rect = frame
+        .paint_plan
+        .first_widget_rect(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
+        .expect("Curation dropdown should render");
+    let harvest_rect = frame
+        .paint_plan
+        .first_widget_rect(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
+        .expect("Harvest dropdown should render");
+
+    assert_eq!(
         frame
             .paint_plan
-            .first_widget_rect(HARVEST_FAMILY_TOGGLE_ID)
-            .is_some(),
-        "Harvest arrow hit target should remain clickable even without a selected harvest family"
+            .first_widget_rect(RETIRED_HARVEST_FILTER_ARROW_TOGGLE_ID),
+        None,
+        "Harvest should not render a separate arrow button for the dropdown mode"
     );
     assert!(frame.paint_plan.contains_text("Needs Review  v"));
+    assert_close(harvest_rect.min.x, curation_rect.min.x);
+    assert_close(harvest_rect.width(), curation_rect.width());
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            HARVEST_FAMILY_TOGGLE_ID,
+            HARVEST_FILTER_DROPDOWN_TRIGGER_ID,
             ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::ToggleHarvestFilterDropdown)
