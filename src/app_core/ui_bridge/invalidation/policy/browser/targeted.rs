@@ -92,12 +92,6 @@ pub(super) fn prefers_targeted_invalidation(action: &NativeUiAction) -> bool {
                 crate::app_core::actions::NativePromptEditAction::TagBrowserSelection { .. }
             )
             | NativeUiAction::Browser(
-                crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark
-            )
-            | NativeUiAction::Browser(
-                crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter
-            )
-            | NativeUiAction::Browser(
                 crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagNamedFilter { .. }
             )
             | NativeUiAction::Browser(
@@ -113,10 +107,6 @@ pub(super) fn prefers_targeted_invalidation(action: &NativeUiAction) -> bool {
                 crate::app_core::actions::NativeBrowserAction::ToggleBrowserDuplicateCleanupKeep { .. }
             )
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel)
-            | NativeUiAction::Shell(
-                crate::app_core::actions::NativeShellAction::FocusBrowserSearch
-            )
-            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch)
             | NativeUiAction::Browser(
                 crate::app_core::actions::NativeBrowserAction::FocusBrowserTagSidebarInput
             )

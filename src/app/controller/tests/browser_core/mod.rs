@@ -10,7 +10,6 @@ use std::time::Duration;
 
 mod filters;
 mod loading;
-mod marks;
 mod selection;
 mod tagging;
 
@@ -61,23 +60,6 @@ fn browser_rating_filter_fixture(
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     (controller, source)
-}
-
-fn browser_mark_fixture() -> (
-    crate::app::controller::AppController,
-    crate::sample_sources::SampleSource,
-) {
-    prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ])
-}
-
-fn write_browser_mark_wavs(source_root: &Path) {
-    for name in ["one.wav", "two.wav", "three.wav"] {
-        write_test_wav(&source_root.join(name), &[0.0, 0.1]);
-    }
 }
 
 fn visible_paths(controller: &mut crate::app::controller::AppController) -> Vec<PathBuf> {

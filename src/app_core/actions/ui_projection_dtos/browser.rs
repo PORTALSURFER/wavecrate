@@ -112,8 +112,6 @@ pub struct BrowserPanelModel {
     pub active_rating_filters: [bool; 8],
     /// Active playback-age filter chip states ordered as `Never`, `Month`, `Week`.
     pub active_playback_age_filters: [bool; 3],
-    /// Whether the browser is currently filtering down to only marked rows.
-    pub marked_filter_active: bool,
     /// Whether the browser is currently filtering to tag-named rows.
     pub tag_named_filter_active: bool,
     /// Whether the tag-named filter is currently inverted.
@@ -202,7 +200,7 @@ impl Default for BrowserChromeModel {
             map_tab_label: String::from("Starmap"),
             tag_editor_label: String::from("Tags"),
             search_prefix_label: String::from("Search"),
-            search_placeholder: String::from("Search samples (Ctrl+F)"),
+            search_placeholder: String::from("Search samples"),
             activity_ready_label: String::from("Ready"),
             activity_busy_label: String::from("Filtering"),
             sort_prefix_label: String::from("Sort"),
@@ -216,8 +214,6 @@ impl Default for BrowserChromeModel {
 /// Browser action availability consumed by the UI projection action strip.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct BrowserActionsModel {
-    /// Whether rename can be started for the focused row.
-    pub can_rename: bool,
     /// Whether delete can be applied to focused/selected rows.
     pub can_delete: bool,
     /// Whether tag actions can be applied to focused/selected rows.

@@ -50,18 +50,6 @@ pub(super) fn apply_filter_action(
             controller.clear_browser_sidebar_filter(facet);
         }
         NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
-        ) => {
-            controller.focus_browser_list();
-            controller.toggle_browser_sample_mark();
-        }
-        NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter,
-        ) => {
-            controller.focus_browser_list();
-            controller.toggle_browser_marked_filter();
-        }
-        NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagNamedFilter { invert },
         ) => {
             controller.focus_browser_list();

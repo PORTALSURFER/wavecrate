@@ -57,7 +57,7 @@ mod tests {
             app: "wavecrate".to_string(),
             channel: "stable".to_string(),
             target: "target".to_string(),
-            platform: "linux".to_string(),
+            platform: "macos".to_string(),
             arch: "x86_64".to_string(),
             files: files.into_iter().map(String::from).collect(),
         }

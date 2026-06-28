@@ -5,13 +5,6 @@ use radiant::gui::input::KeyCode as Key;
 
 const SAMPLE_BROWSER: HotkeyScope = HotkeyScope::Focus(FocusContext::SampleBrowser);
 
-pub(super) const SEARCH_BROWSER: HotkeyAction = HotkeyAction {
-    id: "search-browser",
-    label: "Search samples",
-    gesture: HotkeyGesture::with_command(Key::F),
-    scope: SAMPLE_BROWSER,
-    action: NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch),
-};
 pub(super) const FOCUS_LOADED_SAMPLE: HotkeyAction = HotkeyAction {
     id: "focus-loaded-sample",
     label: "Focus loaded sample",
@@ -110,15 +103,6 @@ pub(super) const TOGGLE_SELECT: HotkeyAction = HotkeyAction {
         crate::app_core::actions::NativeBrowserAction::ToggleFocusedBrowserRowSelection,
     ),
 };
-pub(super) const TOGGLE_BROWSER_SAMPLE_MARK: HotkeyAction = HotkeyAction {
-    id: "toggle-browser-sample-mark",
-    label: "Toggle sample mark",
-    gesture: HotkeyGesture::new(Key::Semicolon),
-    scope: SAMPLE_BROWSER,
-    action: NativeUiAction::Browser(
-        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
-    ),
-};
 pub(super) const MOVE_BROWSER_FOCUS_UP: HotkeyAction = HotkeyAction {
     id: "move-browser-focus-up",
     label: "Move focus up",
@@ -153,24 +137,6 @@ pub(super) const FOCUS_HISTORY_NEXT: HotkeyAction = HotkeyAction {
     scope: SAMPLE_BROWSER,
     action: NativeUiAction::Browser(
         crate::app_core::actions::NativeBrowserAction::FocusNextBrowserHistory,
-    ),
-};
-pub(super) const RENAME_SAMPLE: HotkeyAction = HotkeyAction {
-    id: "rename-sample",
-    label: "Rename sample",
-    gesture: HotkeyGesture::new(Key::R),
-    scope: SAMPLE_BROWSER,
-    action: NativeUiAction::PromptsAndEdits(
-        crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
-    ),
-};
-pub(super) const RENAME_SAMPLE_COMMAND: HotkeyAction = HotkeyAction {
-    id: "rename-sample-command",
-    label: "Rename sample",
-    gesture: HotkeyGesture::with_command(Key::R),
-    scope: SAMPLE_BROWSER,
-    action: NativeUiAction::PromptsAndEdits(
-        crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
     ),
 };
 pub(super) const SELECT_ALL: HotkeyAction = HotkeyAction {

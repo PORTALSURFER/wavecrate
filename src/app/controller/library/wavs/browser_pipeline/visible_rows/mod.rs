@@ -49,10 +49,7 @@ pub(super) fn build_visible_rows_with_now(
     );
     let sidebar_filters = controller.ui.browser.search.sidebar_filters.clone();
     let sidebar_filter_hash = helpers::hash_value(&sidebar_filters);
-    let marked_only = controller.ui.browser.search.marked_only;
     let tag_named_filter = controller.ui.browser.search.tag_named_filter;
-    let marked_revision = controller.ui.browser.marks.revision;
-    let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let folder_selection = controller.folder_selection_for_filter().cloned();
     let folder_negated = controller.folder_negation_for_filter().cloned();
     let file_scope_mode = controller
@@ -93,7 +90,6 @@ pub(super) fn build_visible_rows_with_now(
         && controller.ui.browser.search.rating_filter.is_empty()
         && controller.ui.browser.search.playback_age_filter.is_empty()
         && controller.ui.browser.search.sidebar_filters.is_empty()
-        && !marked_only
         && tag_named_filter == crate::app::state::TagNamedFilter::All
         && !has_folder_filters
     {
@@ -108,9 +104,7 @@ pub(super) fn build_visible_rows_with_now(
         playback_age_filter_hash,
         playback_age_cache_token,
         sidebar_filter_hash,
-        marked_only,
         tag_named_filter,
-        marked_revision,
         folder_hash,
     );
 
@@ -135,11 +129,8 @@ pub(super) fn build_visible_rows_with_now(
         playback_age_cache_token,
         &sidebar_filters,
         sidebar_filter_hash,
-        marked_only,
         tag_named_filter,
         playback_age_now_unix_secs,
-        marked_revision,
-        selected_source_id.as_ref(),
         folder_hash,
     );
 

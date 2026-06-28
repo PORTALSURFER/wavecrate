@@ -14,7 +14,7 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 - Add a source folder with **+** or by dropping it onto the Sources panel; the first `.wav` row auto-loads and starts playback.
 - Drag on the waveform with the primary mouse button to create a play mark selection, or use the secondary mouse button to create an edit mark selection for destructive in-place edits (crop, trim, reverse, fades, mute, smooth, normalize).
 - Drag the selection handle onto Samples or a folder to export a trimmed clip (saved into the selected folder when applicable).
-- Use the browser filter chips to triage quickly: `All/Keep/Trash/Untagged` for tags, `NVR/1M/1W` for playback age, and `MARK` for the temporary marked set. `Space` toggles play/pause, `Esc` stops playback (or exits slice review first), and `Silence Split` opens a keyboard slice-review loop.
+- Use the browser filter chips to triage quickly: `All/Keep/Trash/Untagged` for tags and `NVR/1M/1W` for playback age. `Space` toggles play/pause, `Esc` stops playback (or exits slice review first), and `Silence Split` opens a keyboard slice-review loop.
 - Use **Find similar** or the **Similarity map** tab to explore related samples after similarity prep finishes.
 
 ## Layout at a glance
@@ -24,17 +24,15 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 - **Resizable sidebar:** Drag the divider to resize Sources and the main view.
 
 ## Configuration and storage
-- App files live in a single `.wavecrate` folder inside your OS config directory (Linux respects `$XDG_CONFIG_HOME`; you can override the base dir with `WAVECRATE_CONFIG_HOME`).
-  - Linux: `~/.config/.wavecrate/`
+- Wavecrate alpha app builds currently support macOS and Windows. Linux is not currently supported for app installs.
+- App files live in a single `.wavecrate` folder inside your supported OS config directory. You can override the base dir with `WAVECRATE_CONFIG_HOME`.
   - Windows: `%APPDATA%\\.wavecrate\\`
   - macOS: `~/Library/Application Support/.wavecrate/`
 - App settings live in `config.toml`; sources are stored in `library.db` in the same folder. Legacy `config.json` files migrate automatically.
 - You can override the app data root by setting `app_data_dir` in `config.toml` (absolute path to the `.wavecrate` folder). This controls where models, logs, and the library DB live.
 - Each source keeps `.wavecrate_samples.db` beside the audio. Logs live under `.wavecrate/logs`.
 - Portable bundles may include ML assets under `models/`; the Windows installer copies them into the app data directory if present.
-- Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`, Linux: `~/.config/.wavecrate/models/`).
-- Set `RUST_LOG=info` (or `debug`, etc.) to change log verbosity.
-- Windows release builds hide the console by default; launch with `-log` / `--log` to open a console window and show live log output.
+- Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`).
 - Tip: Use **Options → Open config folder** to jump to the right place on disk.
 
 ## Manage sources
@@ -46,12 +44,10 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 ## Browse and triage
 - Triage chips (`All/Keep/Trash/Untagged`) change the visible list. Rows show number columns and right-edge keep/trash markers.
 - Playback-age chips use the current native toolbar labels: `NVR` (never played), `1M` (last played at least 30 days ago), and `1W` (last played at least 7 days ago but less than 30 days ago). Current behavior lets you combine these chips; `Alt + click` on one chip inverts the selection to the other playback-age chips.
-- `MARK` toggles a marked-only browser filter. Temporary sample marks are session-scoped and do not retag the source files.
 - Search box performs fuzzy matching within the current filter; clear to restore the full list.
 - Dice button in the browser toolbar: click 🎲 to play a random visible sample; **Shift + click** toggles sticky random navigation (same as `Alt + R`).
 - Selection basics: click to focus; **Shift + click** extends; **Ctrl/Cmd + click** toggles multi-select while keeping focus. **Up/Down** moves focus; **Shift + Up/Down** extends. Toggle **Alt + R** to lock random navigation so **Down** plays random visible samples and **Up** steps backward through random history.
 - Tagging: **Right Arrow** → Keep (Trash → Neutral, others → Keep). **Left Arrow** → Trash (Keep → Neutral, others → Trash). **Ctrl/Cmd + Right/Left** moves the selection across triage columns.
-- Press `;` to toggle the temporary sample mark for the focused row or current multi-selection. Current behavior advances browser review after a single-row mark: outside `MARK` mode it moves focus/loading to the next visible row, and inside `MARK` mode it keeps review on another still-visible row unless sticky random navigation is on, in which case it jumps to the next random visible row and previews it.
 - Row context menu: **Open in file explorer**, **Find similar**, Tag Keep/Neutral/Trash, **Normalize (overwrite)**, **Rename**, **Delete file**. Applies to the focused row or multi-select.
 - **Ctrl/Cmd + C** copies the focused or selected sample file(s) to the clipboard as file drops (for DAWs/file managers). Dragging a row into the browser retags it to the active filter (All/Untagged → Neutral).
 
@@ -87,6 +83,5 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 
 ## Hotkeys (focus-aware)
 - **Global:** `Space` play/pause; `Ctrl/Cmd + Space` play from cursor; `Shift + Space` replay from last start; `Esc` stop playback / clear selection; `Ctrl/Cmd + Z` or `U` undo; `Ctrl/Cmd + Y` or `Shift + U` redo; `L` toggle loop; `Shift + L` enter/cycle locked loop override; `P` or `Shift + P` move trashed samples to the trash folder; `[` trash selected sample(s); `]` keep selected sample(s); `'` tag selected sample(s) as neutral; `Shift + R` play a random visible sample and auto-play; `Alt + R` toggle sticky random navigation; `Ctrl/Cmd + Shift + R` step backward through random history; `Ctrl/Cmd + Shift + L` copy status log; `Ctrl/Cmd + /` toggle hotkey overlay; `Shift + F1` submit a GitHub issue (connect GitHub first); `F11` toggle maximized window; focus chords (press `G` then): `W` waveform, `S` sample browser, `Shift + S` sources list.
-- **Sample browser focus:** `Up/Down` move (or jump randomly when sticky mode is on); `Shift + Up/Down` extend; `Right Arrow` Keep; `Left Arrow` Trash; `Ctrl/Cmd + Right/Left` move across triage columns; `;` toggle the temporary sample mark; `Ctrl/Cmd + C` copy focused/selected sample file(s); `X` toggle selection; `Ctrl/Cmd + A` select all; `F` focus search box; `R` rename focused sample; `N` normalize (overwrite); `D` delete.
-- **Source folders focus:** `Up/Down` move focus; `Shift + Up/Down` extend selection; `Left/Right` collapse/expand focused folder; click the disclosure gutter to toggle subfolders with the mouse; `X` toggle folder selection; `N` new folder; `F` focus folder search; `R` rename folder; `D` delete folder.
+- **Sample browser focus:** `Up/Down` move (or jump randomly when sticky mode is on); `Shift + Up/Down` extend; `Right Arrow` Keep; `Left Arrow` Trash; `Ctrl/Cmd + Right/Left` move across triage columns; `Ctrl/Cmd + C` copy focused/selected sample file(s); `X` toggle selection; `Ctrl/Cmd + A` select all; `N` normalize (overwrite); `D` delete.
 - **Waveform focus:** `Space` auditions the focused slice while slice review is active; `Left/Right` move between review slices or slide the current selection when review is inactive; `Shift + Left/Right` nudge the current selection; `Ctrl/Cmd + C` copy the current selection as an exported wav clip; `A` marks the focused review slice for export; `E` exports the marked review slices or the current selection/slice batch and marks the new file(s) keep x1; `Shift + E` exports the same clip(s) and immediately marks them keep x2; `Esc` exits slice review before other waveform clearing behavior; `C` crop selection (overwrite), `Shift + C` crop selection as new sample; `T` trim selection; `\\` fade selection (left to right); `/` fade selection (right to left); `M` mute selection / merge selected slices; `N` normalize selection/sample.

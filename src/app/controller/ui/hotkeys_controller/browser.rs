@@ -1,7 +1,7 @@
 use super::HotkeysController;
 use crate::app::controller::StatusTone;
 use crate::app::controller::ui::hotkeys::HotkeyCommand;
-use crate::app::state::{DestructiveSelectionEdit, SampleBrowserTab};
+use crate::app::state::DestructiveSelectionEdit;
 
 pub(crate) fn handle_browser_command(
     controller: &mut HotkeysController<'_>,
@@ -22,18 +22,6 @@ pub(crate) fn handle_browser_command(
         }
         HotkeyCommand::NormalizeFocusedSample => {
             controller.normalize_focused_browser_sample();
-            true
-        }
-        HotkeyCommand::RenameFocusedSample => {
-            controller.start_browser_rename();
-            true
-        }
-        HotkeyCommand::FocusBrowserSearch => {
-            if matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map) {
-                controller.ui.map.focus_selected_requested = true;
-            } else {
-                controller.focus_browser_search();
-            }
             true
         }
         HotkeyCommand::FindSimilarFocusedSample => {

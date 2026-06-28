@@ -24,7 +24,6 @@ pub(super) struct BrowserRowFlags {
     pub(super) focused: bool,
     pub(super) missing: bool,
     pub(super) locked: bool,
-    pub(super) marked: bool,
 }
 
 /// Write one browser row into `rows[offset]`, reusing existing `String` buffers.
@@ -62,7 +61,6 @@ fn update_existing_row(
     row.focused = projection.flags.focused;
     row.missing = projection.flags.missing;
     row.locked = projection.flags.locked;
-    row.marked = projection.flags.marked;
     row.processing_state = projection.processing_state;
     row.similarity_display_strength = projection.similarity_display_strength;
     row.rating_level = projection.rating_level.clamp(-3, 3);
@@ -87,7 +85,6 @@ fn rewrite_existing_row(
     row.focused = projection.flags.focused;
     row.missing = projection.flags.missing;
     row.locked = projection.flags.locked;
-    row.marked = projection.flags.marked;
     row.processing_state = projection.processing_state;
     row.similarity_display_strength = projection.similarity_display_strength;
     set_bucket_label(row, bucket_label);
@@ -109,7 +106,6 @@ fn new_browser_row(
     .with_playback_age_bucket(native_playback_age_bucket)
     .with_missing(projection.flags.missing)
     .with_locked(projection.flags.locked)
-    .with_marked(projection.flags.marked)
     .with_processing_state(projection.processing_state);
     if let Some(similarity_display_strength) = projection.similarity_display_strength {
         row.similarity_display_strength = Some(similarity_display_strength);

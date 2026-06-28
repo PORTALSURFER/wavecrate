@@ -6,9 +6,6 @@ use super::BrowserTagTarget;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptEditAction {
     SetPromptInput { value: String },
-    StartBrowserRename,
-    ConfirmBrowserRename,
-    CancelBrowserRename,
     AutoRenameBrowserSelection { visible_row: Option<usize> },
     TagBrowserSelection { target: BrowserTagTarget },
     DeleteBrowserSelection,

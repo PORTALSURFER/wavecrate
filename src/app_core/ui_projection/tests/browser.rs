@@ -145,21 +145,12 @@ fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
     let projected = project_browser_model(&mut controller);
     assert_eq!(
         projected.search_placeholder.as_deref(),
-        Some("Search samples (Ctrl+F)")
+        Some("Search samples")
     );
     assert_eq!(projected.sort_label.as_deref(), Some("Playback age ↓"));
     assert_eq!(projected.active_tab_label.as_deref(), Some("Starmap"));
     assert!(projected.rows.is_empty());
     assert_eq!(projected.visible_count, 42);
-}
-
-/// Browser projection should expose focused search placeholder copy when focus is requested.
-#[test]
-fn browser_projection_marks_search_placeholder_when_focused() {
-    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.search.search_focus_requested = true;
-    let projected = project_browser_model(&mut controller);
-    assert_eq!(projected.search_placeholder.as_deref(), Some("▌"));
 }
 
 /// Browser tag sidebar should fall back to the focused visible row when no path snapshot exists yet.
@@ -434,23 +425,13 @@ fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
     assert_eq!(projected.samples_tab_label, "Samples");
     assert_eq!(projected.map_tab_label, "Starmap");
     assert_eq!(projected.search_prefix_label, "Search");
-    assert_eq!(projected.search_placeholder, "Search samples (Ctrl+F)");
+    assert_eq!(projected.search_placeholder, "Search samples");
     assert_eq!(projected.activity_ready_label, "Ready");
     assert_eq!(projected.activity_busy_label, "Filtering");
     assert_eq!(projected.sort_prefix_label, "Sort");
     assert_eq!(projected.sort_order_label, "Similarity");
     assert_eq!(projected.similarity_toggle_label, "follow loaded");
     assert_eq!(projected.item_count_label, "1437 items");
-}
-
-/// Browser chrome should include focused search copy and caret hint when search is focused.
-#[test]
-fn browser_chrome_projection_marks_search_focus_copy() {
-    let mut ui = UiState::default();
-    ui.browser.search.search_focus_requested = true;
-    let projected = project_browser_chrome_model(&ui, 7);
-    assert_eq!(projected.search_prefix_label, "Search • focused");
-    assert_eq!(projected.search_placeholder, "▌");
 }
 
 /// Browser row projection should surface normalized similarity strengths during similarity search.

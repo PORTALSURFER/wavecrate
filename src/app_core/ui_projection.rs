@@ -153,7 +153,6 @@ pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel
     let can_apply_wav_destructive_edit =
         focused_path.is_some_and(|path| supports_wav_destructive_edits(path));
     BrowserActionsModel {
-        can_rename: has_focus,
         can_delete: has_selection,
         can_tag: has_selection,
         can_normalize_focused_sample: has_focus && can_apply_wav_destructive_edit,

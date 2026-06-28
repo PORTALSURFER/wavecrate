@@ -78,8 +78,6 @@ pub struct BrowserRowModel {
     pub missing: bool,
     /// Whether the backing sample is locked/protected.
     pub locked: bool,
-    /// Whether the backing sample is marked for later review.
-    pub marked: bool,
     /// Transient row-scoped processing state for active batch file operations.
     pub processing_state: BrowserRowProcessingState,
 }
@@ -105,7 +103,6 @@ impl BrowserRowModel {
             focused,
             missing: false,
             locked: false,
-            marked: false,
             processing_state: BrowserRowProcessingState::None,
         }
     }
@@ -159,12 +156,6 @@ impl BrowserRowModel {
     /// Mark whether the backing sample should render with protected treatment.
     pub fn with_locked(mut self, locked: bool) -> Self {
         self.locked = locked;
-        self
-    }
-
-    /// Mark whether the backing sample should render with review treatment.
-    pub fn with_marked(mut self, marked: bool) -> Self {
-        self.marked = marked;
         self
     }
 

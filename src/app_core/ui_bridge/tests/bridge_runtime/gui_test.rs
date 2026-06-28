@@ -21,13 +21,13 @@ fn latest_artifact_trace_value(action: NativeUiAction) -> serde_json::Value {
 #[test]
 fn live_gui_artifact_marks_handled_actions_as_handled() {
     let artifact = latest_artifact_trace_value(NativeUiAction::Shell(
-        crate::app_core::actions::NativeShellAction::FocusBrowserSearch,
+        crate::app_core::actions::NativeShellAction::FocusBrowserPanel,
     ));
     let trace = artifact["action_trace"]
         .as_array()
         .expect("action trace array");
     assert_eq!(trace.len(), 1);
-    assert_eq!(trace[0]["action_id"], "focus_browser_search");
+    assert_eq!(trace[0]["action_id"], "focus_browser_panel");
     assert_eq!(trace[0]["handled"], true);
 }
 

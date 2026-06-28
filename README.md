@@ -162,8 +162,8 @@ Legacy golden regression tests still use PANNs reference artifacts:
 ## Configuration and data
 
 - Each source folder gets a hidden `.wavecrate_samples.db` that tracks indexed `.wav` files and their tags.
-- App files live in a single `.wavecrate` folder inside your OS config directory:
-  - Linux: `$HOME/.config/.wavecrate/config.toml`
+- Wavecrate alpha app builds currently support macOS and Windows. Linux and WSL references in this repository are for development and CI only, not supported app installs.
+- App files live in a single `.wavecrate` folder inside the supported OS config directory:
   - Windows: `%APPDATA%\\.wavecrate\\config.toml`
   - macOS: `~/Library/Application Support/.wavecrate/config.toml`
 - Non-live persistence profiles live under the same root at `.wavecrate/profiles/<name>`.
@@ -181,7 +181,6 @@ Legacy golden regression tests still use PANNs reference artifacts:
 ## Logging
 
 - Startup initializes console logging and a per-launch log file under the same `.wavecrate` folder:
-  - Linux: `$HOME/.config/.wavecrate/logs`
   - Windows: `%APPDATA%\\.wavecrate\\logs`
   - macOS: `~/Library/Application Support/.wavecrate/logs`
 - Log filenames include the launch timestamp, and the 10 most recent files are retained by pruning the oldest.

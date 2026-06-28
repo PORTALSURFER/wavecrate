@@ -22,7 +22,6 @@ pub(crate) fn project_browser_panel_frame_model(
         browser_rating_filter_flags(&controller.ui.browser.search.rating_filter);
     let active_playback_age_filters =
         browser_playback_age_filter_flags(&controller.ui.browser.search.playback_age_filter);
-    let marked_filter_active = controller.ui.browser.search.marked_only;
     let tag_named_filter_active = !matches!(
         controller.ui.browser.search.tag_named_filter,
         TagNamedFilter::All
@@ -32,9 +31,7 @@ pub(crate) fn project_browser_panel_frame_model(
         TagNamedFilter::NotTagNamed
     );
     let sidebar_filters = controller.ui.browser.search.sidebar_filters.clone();
-    let search_placeholder = Some(super::browser_search_placeholder(
-        controller.ui.browser.search.search_focus_requested,
-    ));
+    let search_placeholder = Some(super::browser_search_placeholder());
     let busy = controller.ui.browser.search.search_busy;
     let duplicate_cleanup_active = controller.ui.browser.duplicate_cleanup.is_some();
     let similarity_filtered =
@@ -58,7 +55,6 @@ pub(crate) fn project_browser_panel_frame_model(
         search_query,
         active_rating_filters,
         active_playback_age_filters,
-        marked_filter_active,
         tag_named_filter_active,
         tag_named_filter_negated,
         sidebar_filters,

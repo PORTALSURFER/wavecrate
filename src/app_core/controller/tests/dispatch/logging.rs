@@ -90,7 +90,7 @@ fn default_action_debug_log_suppresses_browser_view_start_scroll_bursts() {
             ));
         }
         controller.apply_ui_action(NativeUiAction::Shell(
-            crate::app_core::actions::NativeShellAction::FocusBrowserSearch,
+            crate::app_core::actions::NativeShellAction::FocusBrowserPanel,
         ));
     });
 
@@ -99,7 +99,7 @@ fn default_action_debug_log_suppresses_browser_view_start_scroll_bursts() {
         "projection-only scroll updates should not flood default debug logs: {captured}"
     );
     assert!(
-        captured.contains("action=\"focus_browser_search\""),
+        captured.contains("action=\"focus_browser_panel\""),
         "meaningful browser focus actions should remain in default debug logs: {captured}"
     );
 }

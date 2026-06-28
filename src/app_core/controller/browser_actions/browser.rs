@@ -56,12 +56,6 @@ fn apply_focus_and_selection_action(
         NativeUiAction::Shell(
             crate::app_core::actions::NativeShellAction::FocusLoadedSampleInBrowser,
         ) => controller.focus_loaded_sample_in_browser(),
-        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch) => {
-            controller.focus_browser_search()
-        }
-        NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch) => {
-            controller.blur_browser_search()
-        }
         NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::MoveBrowserFocus { delta },
         ) => controller.focus_browser_delta_action(delta),

@@ -122,22 +122,6 @@ fn project_browser_prompt(prompt: SampleBrowserActionPrompt) -> ConfirmPromptMod
                 input_error: None,
             }
         }
-        SampleBrowserActionPrompt::Rename {
-            target,
-            name,
-            input_error,
-        } => ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::BrowserRename),
-            title: String::from("Rename sample"),
-            message: String::from("Apply rename for focused sample?"),
-            confirm_label: String::from("Apply"),
-            cancel_label: String::from("Cancel"),
-            target_label: Some(target.display().to_string()),
-            input_value: Some(name),
-            input_placeholder: Some(String::from("Sample name")),
-            input_error,
-        },
         SampleBrowserActionPrompt::MoveToFolderConflict {
             target_folder,
             name,
@@ -145,7 +129,7 @@ fn project_browser_prompt(prompt: SampleBrowserActionPrompt) -> ConfirmPromptMod
             ..
         } => ConfirmPromptModel {
             visible: true,
-            kind: Some(ConfirmPromptKind::BrowserRename),
+            kind: Some(ConfirmPromptKind::BrowserNameConflict),
             title: String::from("Name conflict"),
             message: String::from(
                 "That folder already contains a file with this name. Choose a new name to finish the drop.",

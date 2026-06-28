@@ -40,7 +40,7 @@ impl AppController {
             name,
             input_error: None,
         });
-        self.ui.browser.rename_focus_requested = true;
+        self.ui.browser.prompt_focus_requested = true;
     }
 
     pub(super) fn apply_folder_drop_conflict_prompt(
@@ -57,7 +57,7 @@ impl AppController {
             .find(|source| source.id == source_id)
             .cloned()
         else {
-            self.cancel_browser_rename();
+            self.cancel_browser_prompt();
             self.set_status("Source not available for move", StatusTone::Error);
             return;
         };
@@ -73,7 +73,7 @@ impl AppController {
                 return;
             }
         };
-        self.cancel_browser_rename();
+        self.cancel_browser_prompt();
         self.drag_drop().handle_sample_drop_to_folder_with_target(
             source_id,
             source_relative,
@@ -106,7 +106,7 @@ impl AppController {
         }) = self.ui.browser.pending_action.as_mut()
         {
             *error = input_error;
-            self.ui.browser.rename_focus_requested = true;
+            self.ui.browser.prompt_focus_requested = true;
         }
     }
 }

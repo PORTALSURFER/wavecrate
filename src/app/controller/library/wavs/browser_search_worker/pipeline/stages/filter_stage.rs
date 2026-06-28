@@ -64,12 +64,9 @@ pub(in super::super) fn filtered_stage_for_job(
         if super::super::search_job_canceled_for_index(queue, generation, index) {
             return None;
         }
-        let marked = job
-            .marked_paths
-            .contains(Path::new(entry.relative_path.as_ref()));
         let relative_path = Path::new(entry.relative_path.as_ref());
         let bpm = job.sidebar_bpm_values.get(relative_path).copied().flatten();
-        let accepted = entry_accepted_by_job(job, entry, relative_path, marked, bpm)
+        let accepted = entry_accepted_by_job(job, entry, relative_path, bpm)
             && folder_accepts_index(folder_accepts.as_ref(), index);
         accepts.push(accepted);
         if accepted {
@@ -155,11 +152,9 @@ mod tests {
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
-            marked_only: false,
             tag_named_filter: crate::app::state::TagNamedFilter::All,
             sidebar_filters: Default::default(),
             sidebar_bpm_values: Default::default(),
-            marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,
             duplicate_cleanup: None,

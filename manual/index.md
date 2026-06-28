@@ -9,9 +9,6 @@ description: Sample manager with fast waveform review and destructive in-place e
 
 Wavecrate is a focused sample-library workstation for browsing large folders, auditioning sounds quickly, carving useful ranges out of longer recordings, tagging the keepers, and handing material to a DAW without breaking the creative flow.
 
-> This manual (`manual/`) is user-facing documentation only.
-> Developer documentation lives in `docs/` in the repository.
-
 [![Wavecrate nightly release](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
 
 <div class="download-hero">
@@ -168,7 +165,7 @@ Wavecrate is a focused sample-library workstation for browsing large folders, au
         }
         var match = null;
         var assetPattern =
-          /^wavecrate-v\d+\.\d+\.\d+-(windows|linux|macos)-(x86_64|aarch64)\.zip$/i;
+          /^wavecrate-v\d+\.\d+\.\d+-(windows|macos)-(x86_64|aarch64)\.zip$/i;
         for (var i = 0; i < releases.length; i += 1) {
           var release = releases[i];
           if (!release || release.draft) {

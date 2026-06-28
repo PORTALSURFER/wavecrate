@@ -139,9 +139,6 @@ fn mark_dirty_for_tree_actions_stays_targeted() {
 fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
     let actions = [
         NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
-        ),
-        NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::AdjustSelectedBrowserRating { delta: 1 },
         ),
         NativeUiAction::PromptsAndEdits(

@@ -56,7 +56,7 @@ pub struct RuntimeIdentity {
     pub channel: UpdateChannel,
     /// Target triple identifier.
     pub target: String,
-    /// Platform identifier (windows/linux/macos).
+    /// Platform identifier for supported app builds (windows/macos).
     pub platform: String,
     /// Architecture identifier (x86_64/aarch64).
     pub arch: String,

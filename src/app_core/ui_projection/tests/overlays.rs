@@ -5,7 +5,6 @@ use super::*;
 fn browser_actions_require_focus_or_selection() {
     let mut ui = UiState::default();
     let projected = project_browser_actions_model(&ui);
-    assert!(!projected.can_rename);
     assert!(!projected.can_delete);
     assert!(!projected.can_tag);
     assert!(!projected.can_normalize_focused_sample);
@@ -17,7 +16,6 @@ fn browser_actions_require_focus_or_selection() {
     ui.browser.selection.last_focused_path = Some(std::path::PathBuf::from("focused.wav"));
     ui.browser.search.random_navigation_mode = true;
     let projected = project_browser_actions_model(&ui);
-    assert!(projected.can_rename);
     assert!(projected.can_delete);
     assert!(projected.can_tag);
     assert!(projected.can_normalize_focused_sample);
@@ -47,19 +45,20 @@ fn browser_actions_disable_wav_only_edits_for_non_wav_focus() {
 
     let projected = project_browser_actions_model(&ui);
 
-    assert!(projected.can_rename);
     assert!(projected.can_delete);
     assert!(projected.can_tag);
     assert!(!projected.can_normalize_focused_sample);
     assert!(!projected.can_loop_crossfade_focused_sample);
 }
 
-/// Browser rename prompts should win over destructive waveform prompts when both are present.
+/// Browser naming prompts should win over destructive waveform prompts when both are present.
 #[test]
-fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
+fn confirm_prompt_prefers_browser_name_conflict_when_multiple_prompts_exist() {
     let mut ui = UiState::default();
-    ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
-        target: std::path::PathBuf::from("kick.wav"),
+    ui.browser.pending_action = Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+        source_id: crate::sample_sources::SourceId::from_string("source"),
+        source_relative: std::path::PathBuf::from("kick.wav"),
+        target_folder: std::path::PathBuf::from("dest"),
         name: String::from("kick"),
         input_error: None,
     });
@@ -70,7 +69,7 @@ fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
     });
     let projected = project_confirm_prompt_model(&ui);
     assert!(projected.visible);
-    assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
+    assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserNameConflict));
 }
 
 /// Folder-drop conflict prompts should project warning copy and inline validation.
@@ -90,7 +89,7 @@ fn confirm_prompt_projects_folder_drop_conflict_prompt() {
     let projected = project_confirm_prompt_model(&ui);
 
     assert!(projected.visible);
-    assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
+    assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserNameConflict));
     assert_eq!(projected.title, "Name conflict");
     assert_eq!(projected.confirm_label, "Move");
     assert_eq!(projected.target_label.as_deref(), Some("Folder: dest"));

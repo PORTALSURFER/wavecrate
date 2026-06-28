@@ -101,12 +101,6 @@ pub(super) fn classify_dirty_source(
             },
         )
         | NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
-        )
-        | NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter,
-        )
-        | NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagNamedFilter { .. },
         )
         | NativeUiAction::Browser(
@@ -116,8 +110,6 @@ pub(super) fn classify_dirty_source(
             crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagSidebarAutoRename,
         )
         | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserPanel)
-        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch)
-        | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch)
         | NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::FocusBrowserTagSidebarInput,
         )
@@ -146,15 +138,6 @@ pub(super) fn classify_dirty_source(
         )
         | NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::ConfirmBrowserDuplicateCleanup,
-        )
-        | NativeUiAction::PromptsAndEdits(
-            crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
-        )
-        | NativeUiAction::PromptsAndEdits(
-            crate::app_core::actions::NativePromptEditAction::ConfirmBrowserRename,
-        )
-        | NativeUiAction::PromptsAndEdits(
-            crate::app_core::actions::NativePromptEditAction::CancelBrowserRename,
         )
         | NativeUiAction::PromptsAndEdits(
             crate::app_core::actions::NativePromptEditAction::AutoRenameBrowserSelection { .. },

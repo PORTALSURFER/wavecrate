@@ -1,0 +1,21 @@
+[book]
+title = "Wavecrate Documentation"
+authors = ["PortalSurfer"]
+description = "User and contributor documentation for Wavecrate."
+language = "en"
+src = "docs/book/src"
+
+[build]
+build-dir = "target/mdbook/wavecrate-docs"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "light"
+git-repository-url = "https://github.com/PORTALSURFER/wavecrate"
+edit-url-template = "https://github.com/PORTALSURFER/wavecrate/edit/main/{path}"
+site-url = "/wavecrate/docs/"
+
+[output.html.search]
+enable = true
+limit-results = 20

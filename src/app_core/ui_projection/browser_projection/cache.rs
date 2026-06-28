@@ -102,7 +102,6 @@ struct BrowserRowCacheFingerprint {
     missing: bool,
     looped: bool,
     locked: bool,
-    marked: bool,
     bpm_value_bits: Option<u32>,
     long_sample_mark: bool,
 }
@@ -119,7 +118,6 @@ fn cached_browser_row_matches_entry(
         && cached.missing == fingerprint.missing
         && cached.looped == fingerprint.looped
         && cached.locked == fingerprint.locked
-        && cached.marked == fingerprint.marked
         && cached.bpm_value_bits == fingerprint.bpm_value_bits
         && cached.long_sample_mark == fingerprint.long_sample_mark
 }
@@ -152,7 +150,6 @@ pub(in crate::app_core::ui_projection) fn project_cached_browser_row(
     absolute_index: usize,
     playback_age_now_unix_secs: i64,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let selected_source_id = controller.selected_source_id();
     let entry = controller.browser_projection_entry(absolute_index)?;
     let relative_path = entry.relative_path.to_path_buf();
     let row_identity_hash = browser_row_identity_hash(relative_path.as_path());
@@ -160,9 +157,6 @@ pub(in crate::app_core::ui_projection) fn project_cached_browser_row(
     let looped = entry.looped;
     let locked = entry.locked;
     let last_played_at = entry.last_played_at;
-    let marked = selected_source_id
-        .as_ref()
-        .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
     let column_index = super::browser_column_index(entry.tag);
     let rating_level = entry.tag.val();
     let playback_age_bucket =
@@ -181,7 +175,6 @@ pub(in crate::app_core::ui_projection) fn project_cached_browser_row(
         missing,
         looped,
         locked,
-        marked,
         bpm_value_bits,
         long_sample_mark,
     };
@@ -212,7 +205,6 @@ pub(in crate::app_core::ui_projection) fn project_cached_browser_row(
             missing,
             looped,
             locked,
-            marked,
             bpm_value_bits,
             long_sample_mark,
             last_used_tick,
