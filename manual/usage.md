@@ -33,8 +33,6 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 - Each source keeps `.wavecrate_samples.db` beside the audio. Logs live under `.wavecrate/logs`.
 - Portable bundles may include ML assets under `models/`; the Windows installer copies them into the app data directory if present.
 - Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`).
-- Set `RUST_LOG=info` (or `debug`, etc.) to change log verbosity.
-- Windows release builds hide the console by default; launch with `-log` / `--log` to open a console window and show live log output.
 - Tip: Use **Options → Open config folder** to jump to the right place on disk.
 
 ## Manage sources

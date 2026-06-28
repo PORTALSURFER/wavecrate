@@ -39,5 +39,3 @@ Press `Command-/` in the app to open the current context-aware shortcut overlay.
 | `Command-C` | Copy selected sample files |
 | `N` | Normalize selected sample |
 | `D` | Delete selected sample |
-
-This page should stay aligned with the in-app shortcut catalog. Shortcut catalog synchronization is tracked separately from the first docs publishing pass.

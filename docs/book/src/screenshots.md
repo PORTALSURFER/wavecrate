@@ -45,17 +45,3 @@ Collections and tags support fast triage without requiring a permanent folder mo
 ![Metadata, collections, and tags](assets/feature-metadata-collections.png)
 
 Use collections for temporary working buckets, tags for durable labels, and ratings when you want a simple keep-or-reject pass.
-
-## Screenshot Coverage To Expand
-
-The initial book ships with focused crops from the current public screenshot. The next screenshot pass should capture these live app states:
-
-- first-run source picker
-- protected source and Harvest state
-- playmark selection
-- editmark selection
-- extraction confirmation or result
-- destructive edit confirmation
-- shortcut help overlay
-- similarity map
-- troubleshooting bug-bundle path

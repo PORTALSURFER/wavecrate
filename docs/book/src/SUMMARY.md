@@ -13,8 +13,3 @@
 - [Keyboard Shortcuts](shortcuts.md)
 - [Troubleshooting](troubleshooting.md)
 - [FAQ](faq.md)
-
-# Maintainers
-
-- [Contributor Orientation](contributors.md)
-- [Publishing the Book](publishing.md)

@@ -37,4 +37,4 @@ Destructive edits prompt for confirmation unless Yolo mode is enabled. Keep back
 
 ## Visual Feedback
 
-After edits, the waveform should reload or update so the visible audio reflects the change. If the visual state looks stale after an edit, try selecting the file again or reopening the source, then capture a bug bundle if it repeats.
+After edits, the waveform should reload or update so the visible audio reflects the change. If the visual state looks stale after an edit, try selecting the file again or reopening the source, then include the exact action sequence and logs when reporting it.

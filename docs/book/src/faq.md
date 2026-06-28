@@ -30,4 +30,4 @@ Similarity search relies on analysis and embedding data. Wavecrate needs to prep
 
 ## Where should I report bugs?
 
-Use the GitHub issue link from the app when available, or include logs and a bug bundle when reporting through the project repository.
+Use the issue link from the app when available. Include the exact steps you took, what you expected to happen, what happened instead, and any relevant logs from the config folder.

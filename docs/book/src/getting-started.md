@@ -41,4 +41,4 @@ Wavecrate keeps app data in a `.wavecrate` folder inside your supported operatin
 - macOS: `~/Library/Application Support/.wavecrate/`
 - Windows: `%APPDATA%\\.wavecrate\\`
 
-Use **Options -> Open config folder** in the app when you need logs, settings, or bug-bundle context.
+Use **Options -> Open config folder** in the app when you need logs, settings, or support context.

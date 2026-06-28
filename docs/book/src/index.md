@@ -12,7 +12,6 @@ This book is the public documentation surface for Wavecrate. It is intentionally
 - Sample-library cleanup and source safety live in [Sources, Locks, and Harvest](sources-harvest.md).
 - Waveform work lives in [Playmarks, Editmarks, and Edits](marks-edits.md).
 - A visual pass through the current app surface lives in [Screenshots and Feature Tour](screenshots.md).
-- Maintainers should start at [Contributor Orientation](contributors.md).
 
 ## What Wavecrate Helps With
 
@@ -23,7 +22,3 @@ This book is the public documentation surface for Wavecrate. It is intentionally
 - Rate, tag, filter, and revisit sounds as taste changes.
 - Keep protected project material safe while still creating derived clips.
 - Prepare similarity data so related sounds become easier to find.
-
-## Documentation Status
-
-This is the first mdBook version of the Wavecrate docs. It starts with the most important workflows and links back to existing developer docs instead of copying every internal contract into the public book.
