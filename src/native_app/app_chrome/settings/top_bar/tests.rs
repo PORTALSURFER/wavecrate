@@ -2,7 +2,12 @@ use super::projection::{
     AUDIO_ENGINE_TOOLTIP, GENERAL_SETTINGS_TOOLTIP, HELP_TOOLTIPS_ACTIVE_TOOLTIP,
     RELEASE_UPDATE_TOOLTIP, TopControlBarProjection, VOLUME_SLIDER_TOOLTIP,
 };
+use super::{GENERAL_SETTINGS_BUTTON_ID, SETTINGS_GEAR_ICON_SVG, settings_gear_icon};
 use crate::native_app::test_support::state::{AppSettingsTab, NativeAppStateFixture};
+use radiant::{
+    prelude::{Point, Rect, Vector2},
+    runtime::PaintPrimitive,
+};
 
 #[test]
 fn top_control_bar_projection_keeps_product_copy_and_volume() {
@@ -98,4 +103,29 @@ fn top_control_bar_projection_lights_release_update_indicator_when_available() {
 
     assert!(projection.settings_controls.release_update.visible);
     assert!(projection.settings_controls.release_update.active);
+}
+
+#[test]
+fn settings_gear_icon_uses_cog_silhouette_with_center_hole() {
+    assert!(SETTINGS_GEAR_ICON_SVG.contains(r#"fill-rule="evenodd""#));
+    assert!(SETTINGS_GEAR_ICON_SVG.contains("M8 5.6a2.4 2.4"));
+    assert!(!SETTINGS_GEAR_ICON_SVG.contains("<circle"));
+    assert!(!SETTINGS_GEAR_ICON_SVG.contains("stroke-width"));
+
+    let icon = settings_gear_icon(false);
+    let mut primitives = Vec::<PaintPrimitive>::new();
+    icon.append_paint(
+        &mut primitives,
+        GENERAL_SETTINGS_BUTTON_ID,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(16.0, 16.0)),
+    );
+
+    assert_eq!(
+        primitives
+            .iter()
+            .filter_map(PaintPrimitive::svg)
+            .filter(|svg| svg.widget_id == GENERAL_SETTINGS_BUTTON_ID)
+            .count(),
+        1
+    );
 }
